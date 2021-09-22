@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import * as modes from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/linkedEditing';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { USUAW_WOWD_SEPAWATOWS } fwom 'vs/editow/common/modew/wowdHewpa';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { WinkedEditingContwibution } fwom 'vs/editow/contwib/winkedEditing/winkedEditing';
+impowt { cweateTestCodeEditow, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-const mockFile = URI.parse('test:somefile.ttt');
-const mockFileSelector = { scheme: 'test' };
+const mockFiwe = UWI.pawse('test:somefiwe.ttt');
+const mockFiweSewectow = { scheme: 'test' };
 const timeout = 30;
 
-interface TestEditor {
-	setPosition(pos: Position): Promise<any>;
-	setSelection(sel: IRange): Promise<any>;
-	trigger(source: string | null | undefined, handlerId: string, payload: any): Promise<any>;
+intewface TestEditow {
+	setPosition(pos: Position): Pwomise<any>;
+	setSewection(sew: IWange): Pwomise<any>;
+	twigga(souwce: stwing | nuww | undefined, handwewId: stwing, paywoad: any): Pwomise<any>;
 	undo(): void;
-	redo(): void;
+	wedo(): void;
 }
 
-const languageIdentifier = new modes.LanguageIdentifier('linkedEditingTestLangage', 74);
-LanguageConfigurationRegistry.register(languageIdentifier, {
-	wordPattern: /[a-zA-Z]+/
+const wanguageIdentifia = new modes.WanguageIdentifia('winkedEditingTestWangage', 74);
+WanguageConfiguwationWegistwy.wegista(wanguageIdentifia, {
+	wowdPattewn: /[a-zA-Z]+/
 });
 
-suite('linked editing', () => {
-	const disposables = new DisposableStore();
+suite('winked editing', () => {
+	const disposabwes = new DisposabweStowe();
 
 	setup(() => {
-		disposables.clear();
+		disposabwes.cweaw();
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 	});
 
-	function createMockEditor(text: string | string[]): ITestCodeEditor {
-		const model = typeof text === 'string'
-			? createTextModel(text, undefined, languageIdentifier, mockFile)
-			: createTextModel(text.join('\n'), undefined, languageIdentifier, mockFile);
+	function cweateMockEditow(text: stwing | stwing[]): ITestCodeEditow {
+		const modew = typeof text === 'stwing'
+			? cweateTextModew(text, undefined, wanguageIdentifia, mockFiwe)
+			: cweateTextModew(text.join('\n'), undefined, wanguageIdentifia, mockFiwe);
 
-		const editor = createTestCodeEditor({ model });
-		disposables.add(model);
-		disposables.add(editor);
+		const editow = cweateTestCodeEditow({ modew });
+		disposabwes.add(modew);
+		disposabwes.add(editow);
 
-		return editor;
+		wetuwn editow;
 	}
 
 
 	function testCase(
-		name: string,
-		initialState: { text: string | string[], responseWordPattern?: RegExp },
-		operations: (editor: TestEditor) => Promise<void>,
-		expectedEndText: string | string[]
+		name: stwing,
+		initiawState: { text: stwing | stwing[], wesponseWowdPattewn?: WegExp },
+		opewations: (editow: TestEditow) => Pwomise<void>,
+		expectedEndText: stwing | stwing[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.LinkedEditingRangeProviderRegistry.register(mockFileSelector, {
-				provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
-					const wordAtPos = model.getWordAtPosition(pos);
-					if (wordAtPos) {
-						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
-						return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
+			disposabwes.add(modes.WinkedEditingWangePwovidewWegistwy.wegista(mockFiweSewectow, {
+				pwovideWinkedEditingWanges(modew: ITextModew, pos: IPosition) {
+					const wowdAtPos = modew.getWowdAtPosition(pos);
+					if (wowdAtPos) {
+						const matches = modew.findMatches(wowdAtPos.wowd, fawse, fawse, twue, USUAW_WOWD_SEPAWATOWS, fawse);
+						wetuwn { wanges: matches.map(m => m.wange), wowdPattewn: initiawState.wesponseWowdPattewn };
 					}
-					return { ranges: [], wordPattern: initialState.responseWordPattern };
+					wetuwn { wanges: [], wowdPattewn: initiawState.wesponseWowdPattewn };
 				}
 			}));
 
-			const editor = createMockEditor(initialState.text);
-			editor.updateOptions({ linkedEditing: true });
-			const linkedEditingContribution = editor.registerAndInstantiateContribution(
-				LinkedEditingContribution.ID,
-				LinkedEditingContribution
+			const editow = cweateMockEditow(initiawState.text);
+			editow.updateOptions({ winkedEditing: twue });
+			const winkedEditingContwibution = editow.wegistewAndInstantiateContwibution(
+				WinkedEditingContwibution.ID,
+				WinkedEditingContwibution
 			);
-			linkedEditingContribution.setDebounceDuration(0);
+			winkedEditingContwibution.setDebounceDuwation(0);
 
-			const testEditor: TestEditor = {
+			const testEditow: TestEditow = {
 				setPosition(pos: Position) {
-					editor.setPosition(pos);
-					return linkedEditingContribution.currentUpdateTriggerPromise;
+					editow.setPosition(pos);
+					wetuwn winkedEditingContwibution.cuwwentUpdateTwiggewPwomise;
 				},
-				setSelection(sel: IRange) {
-					editor.setSelection(sel);
-					return linkedEditingContribution.currentUpdateTriggerPromise;
+				setSewection(sew: IWange) {
+					editow.setSewection(sew);
+					wetuwn winkedEditingContwibution.cuwwentUpdateTwiggewPwomise;
 				},
-				trigger(source: string | null | undefined, handlerId: string, payload: any) {
-					editor.trigger(source, handlerId, payload);
-					return linkedEditingContribution.currentSyncTriggerPromise;
+				twigga(souwce: stwing | nuww | undefined, handwewId: stwing, paywoad: any) {
+					editow.twigga(souwce, handwewId, paywoad);
+					wetuwn winkedEditingContwibution.cuwwentSyncTwiggewPwomise;
 				},
 				undo() {
-					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+					CoweEditingCommands.Undo.wunEditowCommand(nuww, editow, nuww);
 				},
-				redo() {
-					CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
+				wedo() {
+					CoweEditingCommands.Wedo.wunEditowCommand(nuww, editow, nuww);
 				}
 			};
 
-			await operations(testEditor);
+			await opewations(testEditow);
 
-			return new Promise<void>((resolve) => {
+			wetuwn new Pwomise<void>((wesowve) => {
 				setTimeout(() => {
-					if (typeof expectedEndText === 'string') {
-						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText);
-					} else {
-						assert.strictEqual(editor.getModel()!.getValue(), expectedEndText.join('\n'));
+					if (typeof expectedEndText === 'stwing') {
+						assewt.stwictEquaw(editow.getModew()!.getVawue(), expectedEndText);
+					} ewse {
+						assewt.stwictEquaw(editow.getModew()!.getVawue(), expectedEndText.join('\n'));
 					}
-					resolve();
+					wesowve();
 				}, timeout);
 			});
 		});
@@ -126,321 +126,321 @@ suite('linked editing', () => {
 	};
 
 	/**
-	 * Simple insertion
+	 * Simpwe insewtion
 	 */
-	testCase('Simple insert - initial', state, async (editor) => {
+	testCase('Simpwe insewt - initiaw', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iooo></iooo>');
 
-	testCase('Simple insert - middle', state, async (editor) => {
+	testCase('Simpwe insewt - middwe', state, async (editow) => {
 		const pos = new Position(1, 3);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<oioo></oioo>');
 
-	testCase('Simple insert - end', state, async (editor) => {
+	testCase('Simpwe insewt - end', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<oooi></oooi>');
 
 	/**
-	 * Simple insertion - end
+	 * Simpwe insewtion - end
 	 */
-	testCase('Simple insert end - initial', state, async (editor) => {
+	testCase('Simpwe insewt end - initiaw', state, async (editow) => {
 		const pos = new Position(1, 8);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iooo></iooo>');
 
-	testCase('Simple insert end - middle', state, async (editor) => {
+	testCase('Simpwe insewt end - middwe', state, async (editow) => {
 		const pos = new Position(1, 9);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<oioo></oioo>');
 
-	testCase('Simple insert end - end', state, async (editor) => {
+	testCase('Simpwe insewt end - end', state, async (editow) => {
 		const pos = new Position(1, 11);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<oooi></oooi>');
 
 	/**
-	 * Boundary insertion
+	 * Boundawy insewtion
 	 */
-	testCase('Simple insert - out of boundary', state, async (editor) => {
+	testCase('Simpwe insewt - out of boundawy', state, async (editow) => {
 		const pos = new Position(1, 1);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, 'i<ooo></ooo>');
 
-	testCase('Simple insert - out of boundary 2', state, async (editor) => {
+	testCase('Simpwe insewt - out of boundawy 2', state, async (editow) => {
 		const pos = new Position(1, 6);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<ooo>i</ooo>');
 
-	testCase('Simple insert - out of boundary 3', state, async (editor) => {
+	testCase('Simpwe insewt - out of boundawy 3', state, async (editow) => {
 		const pos = new Position(1, 7);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<ooo><i/ooo>');
 
-	testCase('Simple insert - out of boundary 4', state, async (editor) => {
+	testCase('Simpwe insewt - out of boundawy 4', state, async (editow) => {
 		const pos = new Position(1, 12);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<ooo></ooo>i');
 
 	/**
-	 * Insert + Move
+	 * Insewt + Move
 	 */
-	testCase('Continuous insert', state, async (editor) => {
+	testCase('Continuous insewt', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iiooo></iiooo>');
 
-	testCase('Insert - move - insert', state, async (editor) => {
+	testCase('Insewt - move - insewt', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		await editor.setPosition(new Position(1, 4));
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
+		await editow.setPosition(new Position(1, 4));
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<ioioo></ioioo>');
 
-	testCase('Insert - move - insert outside region', state, async (editor) => {
+	testCase('Insewt - move - insewt outside wegion', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		await editor.setPosition(new Position(1, 7));
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
+		await editow.setPosition(new Position(1, 7));
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iooo>i</iooo>');
 
 	/**
-	 * Selection insert
+	 * Sewection insewt
 	 */
-	testCase('Selection insert - simple', state, async (editor) => {
+	testCase('Sewection insewt - simpwe', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.setSelection(new Range(1, 2, 1, 3));
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.setSewection(new Wange(1, 2, 1, 3));
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<ioo></ioo>');
 
-	testCase('Selection insert - whole', state, async (editor) => {
+	testCase('Sewection insewt - whowe', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.setSelection(new Range(1, 2, 1, 5));
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.setSewection(new Wange(1, 2, 1, 5));
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<i></i>');
 
-	testCase('Selection insert - across boundary', state, async (editor) => {
+	testCase('Sewection insewt - acwoss boundawy', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.setSelection(new Range(1, 1, 1, 3));
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.setSewection(new Wange(1, 1, 1, 3));
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, 'ioo></oo>');
 
 	/**
 	 * @todo
-	 * Undefined behavior
+	 * Undefined behaviow
 	 */
-	// testCase('Selection insert - across two boundary', state, async (editor) => {
+	// testCase('Sewection insewt - acwoss two boundawy', state, async (editow) => {
 	// 	const pos = new Position(1, 2);
-	// 	await editor.setPosition(pos);
-	// 	await linkedEditingContribution.updateLinkedUI(pos);
-	// 	await editor.setSelection(new Range(1, 4, 1, 9));
-	// 	await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	// 	await editow.setPosition(pos);
+	// 	await winkedEditingContwibution.updateWinkedUI(pos);
+	// 	await editow.setSewection(new Wange(1, 4, 1, 9));
+	// 	await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	// }, '<ooioo>');
 
 	/**
-	 * Break out behavior
+	 * Bweak out behaviow
 	 */
-	testCase('Breakout - type space', state, async (editor) => {
+	testCase('Bweakout - type space', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: ' ' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: ' ' });
 	}, '<ooo ></ooo>');
 
-	testCase('Breakout - type space then undo', state, async (editor) => {
+	testCase('Bweakout - type space then undo', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: ' ' });
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: ' ' });
+		editow.undo();
 	}, '<ooo></ooo>');
 
-	testCase('Breakout - type space in middle', state, async (editor) => {
+	testCase('Bweakout - type space in middwe', state, async (editow) => {
 		const pos = new Position(1, 4);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: ' ' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: ' ' });
 	}, '<oo o></ooo>');
 
-	testCase('Breakout - paste content starting with space', state, async (editor) => {
+	testCase('Bweakout - paste content stawting with space', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: ' i="i"' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Paste, { text: ' i="i"' });
 	}, '<ooo i="i"></ooo>');
 
-	testCase('Breakout - paste content starting with space then undo', state, async (editor) => {
+	testCase('Bweakout - paste content stawting with space then undo', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: ' i="i"' });
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Paste, { text: ' i="i"' });
+		editow.undo();
 	}, '<ooo></ooo>');
 
-	testCase('Breakout - paste content starting with space in middle', state, async (editor) => {
+	testCase('Bweakout - paste content stawting with space in middwe', state, async (editow) => {
 		const pos = new Position(1, 4);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: ' i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Paste, { text: ' i' });
 	}, '<oo io></ooo>');
 
 	/**
-	 * Break out with custom provider wordPattern
+	 * Bweak out with custom pwovida wowdPattewn
 	 */
 
 	const state3 = {
 		...state,
-		responseWordPattern: /[a-yA-Y]+/
+		wesponseWowdPattewn: /[a-yA-Y]+/
 	};
 
-	testCase('Breakout with stop pattern - insert', state3, async (editor) => {
+	testCase('Bweakout with stop pattewn - insewt', state3, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iooo></iooo>');
 
-	testCase('Breakout with stop pattern - insert stop char', state3, async (editor) => {
+	testCase('Bweakout with stop pattewn - insewt stop chaw', state3, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'z' });
 	}, '<zooo></ooo>');
 
-	testCase('Breakout with stop pattern - paste char', state3, async (editor) => {
+	testCase('Bweakout with stop pattewn - paste chaw', state3, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 'z' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Paste, { text: 'z' });
 	}, '<zooo></ooo>');
 
-	testCase('Breakout with stop pattern - paste string', state3, async (editor) => {
+	testCase('Bweakout with stop pattewn - paste stwing', state3, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 'zo' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Paste, { text: 'zo' });
 	}, '<zoooo></ooo>');
 
-	testCase('Breakout with stop pattern - insert at end', state3, async (editor) => {
+	testCase('Bweakout with stop pattewn - insewt at end', state3, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'z' });
 	}, '<oooz></ooo>');
 
 	const state4 = {
 		...state,
-		responseWordPattern: /[a-eA-E]+/
+		wesponseWowdPattewn: /[a-eA-E]+/
 	};
 
-	testCase('Breakout with stop pattern - insert stop char, respos', state4, async (editor) => {
+	testCase('Bweakout with stop pattewn - insewt stop chaw, wespos', state4, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, '<iooo></ooo>');
 
 	/**
-	 * Delete
+	 * Dewete
 	 */
-	testCase('Delete - left char', state, async (editor) => {
+	testCase('Dewete - weft chaw', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', 'deleteLeft', {});
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', 'deweteWeft', {});
 	}, '<oo></oo>');
 
-	testCase('Delete - left char then undo', state, async (editor) => {
+	testCase('Dewete - weft chaw then undo', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', 'deleteLeft', {});
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', 'deweteWeft', {});
+		editow.undo();
 	}, '<ooo></ooo>');
 
-	testCase('Delete - left word', state, async (editor) => {
+	testCase('Dewete - weft wowd', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', 'deleteWordLeft', {});
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', 'deweteWowdWeft', {});
 	}, '<></>');
 
-	testCase('Delete - left word then undo', state, async (editor) => {
+	testCase('Dewete - weft wowd then undo', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', 'deleteWordLeft', {});
-		editor.undo();
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', 'deweteWowdWeft', {});
+		editow.undo();
+		editow.undo();
 	}, '<ooo></ooo>');
 
 	/**
 	 * Todo: Fix test
 	 */
-	// testCase('Delete - left all', state, async (editor) => {
+	// testCase('Dewete - weft aww', state, async (editow) => {
 	// 	const pos = new Position(1, 3);
-	// 	await editor.setPosition(pos);
-	// 	await linkedEditingContribution.updateLinkedUI(pos);
-	// 	await editor.trigger('keyboard', 'deleteAllLeft', {});
+	// 	await editow.setPosition(pos);
+	// 	await winkedEditingContwibution.updateWinkedUI(pos);
+	// 	await editow.twigga('keyboawd', 'deweteAwwWeft', {});
 	// }, '></>');
 
 	/**
 	 * Todo: Fix test
 	 */
-	// testCase('Delete - left all then undo', state, async (editor) => {
+	// testCase('Dewete - weft aww then undo', state, async (editow) => {
 	// 	const pos = new Position(1, 5);
-	// 	await editor.setPosition(pos);
-	// 	await linkedEditingContribution.updateLinkedUI(pos);
-	// 	await editor.trigger('keyboard', 'deleteAllLeft', {});
-	// 	editor.undo();
+	// 	await editow.setPosition(pos);
+	// 	await winkedEditingContwibution.updateWinkedUI(pos);
+	// 	await editow.twigga('keyboawd', 'deweteAwwWeft', {});
+	// 	editow.undo();
 	// }, '></ooo>');
 
-	testCase('Delete - left all then undo twice', state, async (editor) => {
+	testCase('Dewete - weft aww then undo twice', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', 'deleteAllLeft', {});
-		editor.undo();
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', 'deweteAwwWeft', {});
+		editow.undo();
+		editow.undo();
 	}, '<ooo></ooo>');
 
-	testCase('Delete - selection', state, async (editor) => {
+	testCase('Dewete - sewection', state, async (editow) => {
 		const pos = new Position(1, 5);
-		await editor.setPosition(pos);
-		await editor.setSelection(new Range(1, 2, 1, 3));
-		await editor.trigger('keyboard', 'deleteLeft', {});
+		await editow.setPosition(pos);
+		await editow.setSewection(new Wange(1, 2, 1, 3));
+		await editow.twigga('keyboawd', 'deweteWeft', {});
 	}, '<oo></oo>');
 
-	testCase('Delete - selection across boundary', state, async (editor) => {
+	testCase('Dewete - sewection acwoss boundawy', state, async (editow) => {
 		const pos = new Position(1, 3);
-		await editor.setPosition(pos);
-		await editor.setSelection(new Range(1, 1, 1, 3));
-		await editor.trigger('keyboard', 'deleteLeft', {});
+		await editow.setPosition(pos);
+		await editow.setSewection(new Wange(1, 1, 1, 3));
+		await editow.twigga('keyboawd', 'deweteWeft', {});
 	}, 'oo></oo>');
 
 	/**
-	 * Undo / redo
+	 * Undo / wedo
 	 */
-	testCase('Undo/redo - simple undo', state, async (editor) => {
+	testCase('Undo/wedo - simpwe undo', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		editor.undo();
-		editor.undo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
+		editow.undo();
+		editow.undo();
 	}, '<ooo></ooo>');
 
-	testCase('Undo/redo - simple undo/redo', state, async (editor) => {
+	testCase('Undo/wedo - simpwe undo/wedo', state, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
-		editor.undo();
-		editor.redo();
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
+		editow.undo();
+		editow.wedo();
 	}, '<iooo></iooo>');
 
 	/**
-	 * Multi line
+	 * Muwti wine
 	 */
 	const state2 = {
 		text: [
@@ -449,10 +449,10 @@ suite('linked editing', () => {
 		]
 	};
 
-	testCase('Multiline insert', state2, async (editor) => {
+	testCase('Muwtiwine insewt', state2, async (editow) => {
 		const pos = new Position(1, 2);
-		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+		await editow.setPosition(pos);
+		await editow.twigga('keyboawd', Handwa.Type, { text: 'i' });
 	}, [
 		'<iooo>',
 		'</iooo>'

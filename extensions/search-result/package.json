@@ -1,59 +1,59 @@
 {
-  "name": "search-result",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "enableProposedApi": true,
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "seawch-wesuwt",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "enabwePwoposedApi": twue,
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "^1.39.0"
   },
-  "categories": [
-    "Programming Languages"
+  "categowies": [
+    "Pwogwamming Wanguages"
   ],
   "main": "./out/extension.js",
-  "browser": "./dist/extension.js",
+  "bwowsa": "./dist/extension.js",
   "activationEvents": [
-    "onLanguage:search-result"
+    "onWanguage:seawch-wesuwt"
   ],
-  "scripts": {
-    "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
+  "scwipts": {
+    "genewate-gwammaw": "node ./syntaxes/genewateTMWanguage.js",
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:seawch-wesuwt ./tsconfig.json"
   },
-  "capabilities": {
-    "virtualWorkspaces": true,
-    "untrustedWorkspaces": {
-      "supported": true
+  "capabiwities": {
+    "viwtuawWowkspaces": twue,
+    "untwustedWowkspaces": {
+      "suppowted": twue
     }
   },
-  "contributes": {
-    "configurationDefaults": {
-      "[search-result]": {
-        "editor.lineNumbers": "off"
+  "contwibutes": {
+    "configuwationDefauwts": {
+      "[seawch-wesuwt]": {
+        "editow.wineNumbews": "off"
       }
     },
-    "languages": [
+    "wanguages": [
       {
-        "id": "search-result",
+        "id": "seawch-wesuwt",
         "extensions": [
-          ".code-search"
+          ".code-seawch"
         ],
-        "aliases": [
-          "Search Result"
+        "awiases": [
+          "Seawch Wesuwt"
         ]
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "search-result",
-        "scopeName": "text.searchResult",
-        "path": "./syntaxes/searchResult.tmLanguage.json"
+        "wanguage": "seawch-wesuwt",
+        "scopeName": "text.seawchWesuwt",
+        "path": "./syntaxes/seawchWesuwt.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

@@ -1,94 +1,94 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
-import { MainContext, ExtHostDocumentContentProvidersShape, MainThreadDocumentContentProvidersShape, IMainContext } from './extHost.protocol';
-import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { splitLines } from 'vs/base/common/strings';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Disposabwe } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt type * as vscode fwom 'vscode';
+impowt { MainContext, ExtHostDocumentContentPwovidewsShape, MainThweadDocumentContentPwovidewsShape, IMainContext } fwom './extHost.pwotocow';
+impowt { ExtHostDocumentsAndEditows } fwom './extHostDocumentsAndEditows';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
 
-export class ExtHostDocumentContentProvider implements ExtHostDocumentContentProvidersShape {
+expowt cwass ExtHostDocumentContentPwovida impwements ExtHostDocumentContentPwovidewsShape {
 
-	private static _handlePool = 0;
+	pwivate static _handwePoow = 0;
 
-	private readonly _documentContentProviders = new Map<number, vscode.TextDocumentContentProvider>();
-	private readonly _proxy: MainThreadDocumentContentProvidersShape;
+	pwivate weadonwy _documentContentPwovidews = new Map<numba, vscode.TextDocumentContentPwovida>();
+	pwivate weadonwy _pwoxy: MainThweadDocumentContentPwovidewsShape;
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext,
-		private readonly _documentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _logService: ILogService,
+		pwivate weadonwy _documentsAndEditows: ExtHostDocumentsAndEditows,
+		pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadDocumentContentProviders);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadDocumentContentPwovidews);
 	}
 
-	registerTextDocumentContentProvider(scheme: string, provider: vscode.TextDocumentContentProvider): vscode.Disposable {
-		// todo@remote
-		// check with scheme from fs-providers!
+	wegistewTextDocumentContentPwovida(scheme: stwing, pwovida: vscode.TextDocumentContentPwovida): vscode.Disposabwe {
+		// todo@wemote
+		// check with scheme fwom fs-pwovidews!
 		if (Object.keys(Schemas).indexOf(scheme) >= 0) {
-			throw new Error(`scheme '${scheme}' already registered`);
+			thwow new Ewwow(`scheme '${scheme}' awweady wegistewed`);
 		}
 
-		const handle = ExtHostDocumentContentProvider._handlePool++;
+		const handwe = ExtHostDocumentContentPwovida._handwePoow++;
 
-		this._documentContentProviders.set(handle, provider);
-		this._proxy.$registerTextContentProvider(handle, scheme);
+		this._documentContentPwovidews.set(handwe, pwovida);
+		this._pwoxy.$wegistewTextContentPwovida(handwe, scheme);
 
-		let subscription: IDisposable | undefined;
-		if (typeof provider.onDidChange === 'function') {
-			subscription = provider.onDidChange(uri => {
-				if (uri.scheme !== scheme) {
-					this._logService.warn(`Provider for scheme '${scheme}' is firing event for schema '${uri.scheme}' which will be IGNORED`);
-					return;
+		wet subscwiption: IDisposabwe | undefined;
+		if (typeof pwovida.onDidChange === 'function') {
+			subscwiption = pwovida.onDidChange(uwi => {
+				if (uwi.scheme !== scheme) {
+					this._wogSewvice.wawn(`Pwovida fow scheme '${scheme}' is fiwing event fow schema '${uwi.scheme}' which wiww be IGNOWED`);
+					wetuwn;
 				}
-				if (this._documentsAndEditors.getDocument(uri)) {
-					this.$provideTextDocumentContent(handle, uri).then(value => {
-						if (!value && typeof value !== 'string') {
-							return;
+				if (this._documentsAndEditows.getDocument(uwi)) {
+					this.$pwovideTextDocumentContent(handwe, uwi).then(vawue => {
+						if (!vawue && typeof vawue !== 'stwing') {
+							wetuwn;
 						}
 
-						const document = this._documentsAndEditors.getDocument(uri);
+						const document = this._documentsAndEditows.getDocument(uwi);
 						if (!document) {
 							// disposed in the meantime
-							return;
+							wetuwn;
 						}
 
-						// create lines and compare
-						const lines = splitLines(value);
+						// cweate wines and compawe
+						const wines = spwitWines(vawue);
 
-						// broadcast event when content changed
-						if (!document.equalLines(lines)) {
-							return this._proxy.$onVirtualDocumentChange(uri, value);
+						// bwoadcast event when content changed
+						if (!document.equawWines(wines)) {
+							wetuwn this._pwoxy.$onViwtuawDocumentChange(uwi, vawue);
 						}
 
-					}, onUnexpectedError);
+					}, onUnexpectedEwwow);
 				}
 			});
 		}
-		return new Disposable(() => {
-			if (this._documentContentProviders.delete(handle)) {
-				this._proxy.$unregisterTextContentProvider(handle);
+		wetuwn new Disposabwe(() => {
+			if (this._documentContentPwovidews.dewete(handwe)) {
+				this._pwoxy.$unwegistewTextContentPwovida(handwe);
 			}
-			if (subscription) {
-				subscription.dispose();
-				subscription = undefined;
+			if (subscwiption) {
+				subscwiption.dispose();
+				subscwiption = undefined;
 			}
 		});
 	}
 
-	$provideTextDocumentContent(handle: number, uri: UriComponents): Promise<string | null | undefined> {
-		const provider = this._documentContentProviders.get(handle);
-		if (!provider) {
-			return Promise.reject(new Error(`unsupported uri-scheme: ${uri.scheme}`));
+	$pwovideTextDocumentContent(handwe: numba, uwi: UwiComponents): Pwomise<stwing | nuww | undefined> {
+		const pwovida = this._documentContentPwovidews.get(handwe);
+		if (!pwovida) {
+			wetuwn Pwomise.weject(new Ewwow(`unsuppowted uwi-scheme: ${uwi.scheme}`));
 		}
-		return Promise.resolve(provider.provideTextDocumentContent(URI.revive(uri), CancellationToken.None));
+		wetuwn Pwomise.wesowve(pwovida.pwovideTextDocumentContent(UWI.wevive(uwi), CancewwationToken.None));
 	}
 }

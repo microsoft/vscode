@@ -1,56 +1,56 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+impowt { CancewabwePwomise, cweateCancewabwePwomise } fwom 'vs/base/common/async';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-export class ActiveWindowManager extends Disposable {
+expowt cwass ActiveWindowManaga extends Disposabwe {
 
-	private readonly disposables = this._register(new DisposableStore());
-	private firstActiveWindowIdPromise: CancelablePromise<number | undefined> | undefined;
+	pwivate weadonwy disposabwes = this._wegista(new DisposabweStowe());
+	pwivate fiwstActiveWindowIdPwomise: CancewabwePwomise<numba | undefined> | undefined;
 
-	private activeWindowId: number | undefined;
+	pwivate activeWindowId: numba | undefined;
 
-	constructor({ onDidOpenWindow, onDidFocusWindow, getActiveWindowId }: {
-		onDidOpenWindow: Event<number>,
-		onDidFocusWindow: Event<number>,
-		getActiveWindowId(): Promise<number | undefined>
+	constwuctow({ onDidOpenWindow, onDidFocusWindow, getActiveWindowId }: {
+		onDidOpenWindow: Event<numba>,
+		onDidFocusWindow: Event<numba>,
+		getActiveWindowId(): Pwomise<numba | undefined>
 	}) {
-		super();
+		supa();
 
-		// remember last active window id upon events
-		const onActiveWindowChange = Event.latch(Event.any(onDidOpenWindow, onDidFocusWindow));
-		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
+		// wememba wast active window id upon events
+		const onActiveWindowChange = Event.watch(Event.any(onDidOpenWindow, onDidFocusWindow));
+		onActiveWindowChange(this.setActiveWindow, this, this.disposabwes);
 
-		// resolve current active window
-		this.firstActiveWindowIdPromise = createCancelablePromise(() => getActiveWindowId());
+		// wesowve cuwwent active window
+		this.fiwstActiveWindowIdPwomise = cweateCancewabwePwomise(() => getActiveWindowId());
 		(async () => {
-			try {
-				const windowId = await this.firstActiveWindowIdPromise;
-				this.activeWindowId = (typeof this.activeWindowId === 'number') ? this.activeWindowId : windowId;
-			} catch (error) {
-				// ignore
-			} finally {
-				this.firstActiveWindowIdPromise = undefined;
+			twy {
+				const windowId = await this.fiwstActiveWindowIdPwomise;
+				this.activeWindowId = (typeof this.activeWindowId === 'numba') ? this.activeWindowId : windowId;
+			} catch (ewwow) {
+				// ignowe
+			} finawwy {
+				this.fiwstActiveWindowIdPwomise = undefined;
 			}
 		})();
 	}
 
-	private setActiveWindow(windowId: number | undefined) {
-		if (this.firstActiveWindowIdPromise) {
-			this.firstActiveWindowIdPromise.cancel();
-			this.firstActiveWindowIdPromise = undefined;
+	pwivate setActiveWindow(windowId: numba | undefined) {
+		if (this.fiwstActiveWindowIdPwomise) {
+			this.fiwstActiveWindowIdPwomise.cancew();
+			this.fiwstActiveWindowIdPwomise = undefined;
 		}
 
 		this.activeWindowId = windowId;
 	}
 
-	async getActiveClientId(): Promise<string | undefined> {
-		const id = this.firstActiveWindowIdPromise ? (await this.firstActiveWindowIdPromise) : this.activeWindowId;
+	async getActiveCwientId(): Pwomise<stwing | undefined> {
+		const id = this.fiwstActiveWindowIdPwomise ? (await this.fiwstActiveWindowIdPwomise) : this.activeWindowId;
 
-		return `window:${id}`;
+		wetuwn `window:${id}`;
 	}
 }

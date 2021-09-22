@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import type * as vscode from 'vscode';
+impowt { IMainContext, MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt type * as vscode fwom 'vscode';
 
-export class ExtHostClipboard {
+expowt cwass ExtHostCwipboawd {
 
-	readonly value: vscode.Clipboard;
+	weadonwy vawue: vscode.Cwipboawd;
 
-	constructor(mainContext: IMainContext) {
-		const proxy = mainContext.getProxy(MainContext.MainThreadClipboard);
-		this.value = Object.freeze({
-			readText() {
-				return proxy.$readText();
+	constwuctow(mainContext: IMainContext) {
+		const pwoxy = mainContext.getPwoxy(MainContext.MainThweadCwipboawd);
+		this.vawue = Object.fweeze({
+			weadText() {
+				wetuwn pwoxy.$weadText();
 			},
-			writeText(value: string) {
-				return proxy.$writeText(value);
+			wwiteText(vawue: stwing) {
+				wetuwn pwoxy.$wwiteText(vawue);
 			}
 		});
 	}

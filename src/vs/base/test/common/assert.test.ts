@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ok } from 'vs/base/common/assert';
+impowt * as assewt fwom 'assewt';
+impowt { ok } fwom 'vs/base/common/assewt';
 
-suite('Assert', () => {
+suite('Assewt', () => {
 	test('ok', () => {
-		assert.throws(function () {
-			ok(false);
+		assewt.thwows(function () {
+			ok(fawse);
 		});
 
-		assert.throws(function () {
-			ok(null);
+		assewt.thwows(function () {
+			ok(nuww);
 		});
 
-		assert.throws(function () {
+		assewt.thwows(function () {
 			ok();
 		});
 
-		assert.throws(function () {
-			ok(null, 'Foo Bar');
-		}, function (e: Error) {
-			return e.message.indexOf('Foo Bar') >= 0;
+		assewt.thwows(function () {
+			ok(nuww, 'Foo Baw');
+		}, function (e: Ewwow) {
+			wetuwn e.message.indexOf('Foo Baw') >= 0;
 		});
 
-		ok(true);
+		ok(twue);
 		ok('foo');
 		ok({});
 		ok(5);

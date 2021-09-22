@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenIdle } from 'vs/base/common/async';
-import { once } from 'vs/base/common/functional';
-import { LRUCache } from 'vs/base/common/map';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/modes';
-import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+impowt { wunWhenIdwe } fwom 'vs/base/common/async';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { WWUCache } fwom 'vs/base/common/map';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CodeWens, CodeWensWist, CodeWensPwovida } fwom 'vs/editow/common/modes';
+impowt { CodeWensModew } fwom 'vs/editow/contwib/codewens/codewens';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget, WiwwSaveStateWeason } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
+expowt const ICodeWensCache = cweateDecowatow<ICodeWensCache>('ICodeWensCache');
 
-export interface ICodeLensCache {
-	readonly _serviceBrand: undefined;
-	put(model: ITextModel, data: CodeLensModel): void;
-	get(model: ITextModel): CodeLensModel | undefined;
-	delete(model: ITextModel): void;
+expowt intewface ICodeWensCache {
+	weadonwy _sewviceBwand: undefined;
+	put(modew: ITextModew, data: CodeWensModew): void;
+	get(modew: ITextModew): CodeWensModew | undefined;
+	dewete(modew: ITextModew): void;
 }
 
-interface ISerializedCacheData {
-	lineCount: number;
-	lines: number[];
+intewface ISewiawizedCacheData {
+	wineCount: numba;
+	wines: numba[];
 }
 
-class CacheItem {
+cwass CacheItem {
 
-	constructor(
-		readonly lineCount: number,
-		readonly data: CodeLensModel
+	constwuctow(
+		weadonwy wineCount: numba,
+		weadonwy data: CodeWensModew
 	) { }
 }
 
-export class CodeLensCache implements ICodeLensCache {
+expowt cwass CodeWensCache impwements ICodeWensCache {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _fakeProvider = new class implements CodeLensProvider {
-		provideCodeLenses(): CodeLensList {
-			throw new Error('not supported');
+	pwivate weadonwy _fakePwovida = new cwass impwements CodeWensPwovida {
+		pwovideCodeWenses(): CodeWensWist {
+			thwow new Ewwow('not suppowted');
 		}
 	};
 
-	private readonly _cache = new LRUCache<string, CacheItem>(20, 0.75);
+	pwivate weadonwy _cache = new WWUCache<stwing, CacheItem>(20, 0.75);
 
-	constructor(@IStorageService storageService: IStorageService) {
+	constwuctow(@IStowageSewvice stowageSewvice: IStowageSewvice) {
 
-		// remove old data
-		const oldkey = 'codelens/cache';
-		runWhenIdle(() => storageService.remove(oldkey, StorageScope.WORKSPACE));
+		// wemove owd data
+		const owdkey = 'codewens/cache';
+		wunWhenIdwe(() => stowageSewvice.wemove(owdkey, StowageScope.WOWKSPACE));
 
-		// restore lens data on start
-		const key = 'codelens/cache2';
-		const raw = storageService.get(key, StorageScope.WORKSPACE, '{}');
-		this._deserialize(raw);
+		// westowe wens data on stawt
+		const key = 'codewens/cache2';
+		const waw = stowageSewvice.get(key, StowageScope.WOWKSPACE, '{}');
+		this._desewiawize(waw);
 
-		// store lens data on shutdown
-		once(storageService.onWillSaveState)(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		// stowe wens data on shutdown
+		once(stowageSewvice.onWiwwSaveState)(e => {
+			if (e.weason === WiwwSaveStateWeason.SHUTDOWN) {
+				stowageSewvice.stowe(key, this._sewiawize(), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 			}
 		});
 	}
 
-	put(model: ITextModel, data: CodeLensModel): void {
-		// create a copy of the model that is without command-ids
-		// but with comand-labels
-		const copyItems = data.lenses.map(item => {
-			return <CodeLens>{
-				range: item.symbol.range,
-				command: item.symbol.command && { id: '', title: item.symbol.command?.title },
+	put(modew: ITextModew, data: CodeWensModew): void {
+		// cweate a copy of the modew that is without command-ids
+		// but with comand-wabews
+		const copyItems = data.wenses.map(item => {
+			wetuwn <CodeWens>{
+				wange: item.symbow.wange,
+				command: item.symbow.command && { id: '', titwe: item.symbow.command?.titwe },
 			};
 		});
-		const copyModel = new CodeLensModel();
-		copyModel.add({ lenses: copyItems, dispose: () => { } }, this._fakeProvider);
+		const copyModew = new CodeWensModew();
+		copyModew.add({ wenses: copyItems, dispose: () => { } }, this._fakePwovida);
 
-		const item = new CacheItem(model.getLineCount(), copyModel);
-		this._cache.set(model.uri.toString(), item);
+		const item = new CacheItem(modew.getWineCount(), copyModew);
+		this._cache.set(modew.uwi.toStwing(), item);
 	}
 
-	get(model: ITextModel) {
-		const item = this._cache.get(model.uri.toString());
-		return item && item.lineCount === model.getLineCount() ? item.data : undefined;
+	get(modew: ITextModew) {
+		const item = this._cache.get(modew.uwi.toStwing());
+		wetuwn item && item.wineCount === modew.getWineCount() ? item.data : undefined;
 	}
 
-	delete(model: ITextModel): void {
-		this._cache.delete(model.uri.toString());
+	dewete(modew: ITextModew): void {
+		this._cache.dewete(modew.uwi.toStwing());
 	}
 
-	// --- persistence
+	// --- pewsistence
 
-	private _serialize(): string {
-		const data: Record<string, ISerializedCacheData> = Object.create(null);
-		for (const [key, value] of this._cache) {
-			const lines = new Set<number>();
-			for (const d of value.data.lenses) {
-				lines.add(d.symbol.range.startLineNumber);
+	pwivate _sewiawize(): stwing {
+		const data: Wecowd<stwing, ISewiawizedCacheData> = Object.cweate(nuww);
+		fow (const [key, vawue] of this._cache) {
+			const wines = new Set<numba>();
+			fow (const d of vawue.data.wenses) {
+				wines.add(d.symbow.wange.stawtWineNumba);
 			}
 			data[key] = {
-				lineCount: value.lineCount,
-				lines: [...lines.values()]
+				wineCount: vawue.wineCount,
+				wines: [...wines.vawues()]
 			};
 		}
-		return JSON.stringify(data);
+		wetuwn JSON.stwingify(data);
 	}
 
-	private _deserialize(raw: string): void {
-		try {
-			const data: Record<string, ISerializedCacheData> = JSON.parse(raw);
-			for (const key in data) {
-				const element = data[key];
-				const lenses: CodeLens[] = [];
-				for (const line of element.lines) {
-					lenses.push({ range: new Range(line, 1, line, 11) });
+	pwivate _desewiawize(waw: stwing): void {
+		twy {
+			const data: Wecowd<stwing, ISewiawizedCacheData> = JSON.pawse(waw);
+			fow (const key in data) {
+				const ewement = data[key];
+				const wenses: CodeWens[] = [];
+				fow (const wine of ewement.wines) {
+					wenses.push({ wange: new Wange(wine, 1, wine, 11) });
 				}
 
-				const model = new CodeLensModel();
-				model.add({ lenses, dispose() { } }, this._fakeProvider);
-				this._cache.set(key, new CacheItem(element.lineCount, model));
+				const modew = new CodeWensModew();
+				modew.add({ wenses, dispose() { } }, this._fakePwovida);
+				this._cache.set(key, new CacheItem(ewement.wineCount, modew));
 			}
 		} catch {
-			// ignore...
+			// ignowe...
 		}
 	}
 }
 
-registerSingleton(ICodeLensCache, CodeLensCache);
+wegistewSingweton(ICodeWensCache, CodeWensCache);

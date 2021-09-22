@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface IColorTheme {
-	readonly tokenColors: ITokenColorizationRule[];
+expowt intewface ICowowTheme {
+	weadonwy tokenCowows: ITokenCowowizationWuwe[];
 }
 
-export interface ITokenColorizationRule {
-	name?: string;
-	scope?: string | string[];
-	settings: ITokenColorizationSetting;
+expowt intewface ITokenCowowizationWuwe {
+	name?: stwing;
+	scope?: stwing | stwing[];
+	settings: ITokenCowowizationSetting;
 }
 
-export interface ITokenColorizationSetting {
-	foreground?: string;
-	background?: string;
-	fontStyle?: string;  // italic, underline, bold
+expowt intewface ITokenCowowizationSetting {
+	fowegwound?: stwing;
+	backgwound?: stwing;
+	fontStywe?: stwing;  // itawic, undewwine, bowd
 }
 
-export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule | null {
-	for (let i = scopes.length - 1; i >= 0; i--) {
-		let parentScopes = scopes.slice(0, i);
-		let scope = scopes[i];
-		let r = findMatchingThemeRule2(theme, scope, parentScopes, onlyColorRules);
-		if (r) {
-			return r;
+expowt function findMatchingThemeWuwe(theme: ICowowTheme, scopes: stwing[], onwyCowowWuwes: boowean = twue): ThemeWuwe | nuww {
+	fow (wet i = scopes.wength - 1; i >= 0; i--) {
+		wet pawentScopes = scopes.swice(0, i);
+		wet scope = scopes[i];
+		wet w = findMatchingThemeWuwe2(theme, scope, pawentScopes, onwyCowowWuwes);
+		if (w) {
+			wetuwn w;
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
-function findMatchingThemeRule2(theme: IColorTheme, scope: string, parentScopes: string[], onlyColorRules: boolean): ThemeRule | null {
-	let result: ThemeRule | null = null;
+function findMatchingThemeWuwe2(theme: ICowowTheme, scope: stwing, pawentScopes: stwing[], onwyCowowWuwes: boowean): ThemeWuwe | nuww {
+	wet wesuwt: ThemeWuwe | nuww = nuww;
 
-	// Loop backwards, to ensure the last most specific rule wins
-	for (let i = theme.tokenColors.length - 1; i >= 0; i--) {
-		let rule = theme.tokenColors[i];
-		if (onlyColorRules && !rule.settings.foreground) {
+	// Woop backwawds, to ensuwe the wast most specific wuwe wins
+	fow (wet i = theme.tokenCowows.wength - 1; i >= 0; i--) {
+		wet wuwe = theme.tokenCowows[i];
+		if (onwyCowowWuwes && !wuwe.settings.fowegwound) {
 			continue;
 		}
 
-		let selectors: string[];
-		if (typeof rule.scope === 'string') {
-			selectors = rule.scope.split(/,/).map(scope => scope.trim());
-		} else if (Array.isArray(rule.scope)) {
-			selectors = rule.scope;
-		} else {
+		wet sewectows: stwing[];
+		if (typeof wuwe.scope === 'stwing') {
+			sewectows = wuwe.scope.spwit(/,/).map(scope => scope.twim());
+		} ewse if (Awway.isAwway(wuwe.scope)) {
+			sewectows = wuwe.scope;
+		} ewse {
 			continue;
 		}
 
-		for (let j = 0, lenJ = selectors.length; j < lenJ; j++) {
-			let rawSelector = selectors[j];
+		fow (wet j = 0, wenJ = sewectows.wength; j < wenJ; j++) {
+			wet wawSewectow = sewectows[j];
 
-			let themeRule = new ThemeRule(rawSelector, rule.settings);
-			if (themeRule.matches(scope, parentScopes)) {
-				if (themeRule.isMoreSpecific(result)) {
-					result = themeRule;
+			wet themeWuwe = new ThemeWuwe(wawSewectow, wuwe.settings);
+			if (themeWuwe.matches(scope, pawentScopes)) {
+				if (themeWuwe.isMoweSpecific(wesuwt)) {
+					wesuwt = themeWuwe;
 				}
 			}
 		}
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
-export class ThemeRule {
-	readonly rawSelector: string;
-	readonly settings: ITokenColorizationSetting;
-	readonly scope: string;
-	readonly parentScopes: string[];
+expowt cwass ThemeWuwe {
+	weadonwy wawSewectow: stwing;
+	weadonwy settings: ITokenCowowizationSetting;
+	weadonwy scope: stwing;
+	weadonwy pawentScopes: stwing[];
 
-	constructor(rawSelector: string, settings: ITokenColorizationSetting) {
-		this.rawSelector = rawSelector;
+	constwuctow(wawSewectow: stwing, settings: ITokenCowowizationSetting) {
+		this.wawSewectow = wawSewectow;
 		this.settings = settings;
-		let rawSelectorPieces = this.rawSelector.split(/ /);
-		this.scope = rawSelectorPieces[rawSelectorPieces.length - 1];
-		this.parentScopes = rawSelectorPieces.slice(0, rawSelectorPieces.length - 1);
+		wet wawSewectowPieces = this.wawSewectow.spwit(/ /);
+		this.scope = wawSewectowPieces[wawSewectowPieces.wength - 1];
+		this.pawentScopes = wawSewectowPieces.swice(0, wawSewectowPieces.wength - 1);
 	}
 
-	public matches(scope: string, parentScopes: string[]): boolean {
-		return ThemeRule._matches(this.scope, this.parentScopes, scope, parentScopes);
+	pubwic matches(scope: stwing, pawentScopes: stwing[]): boowean {
+		wetuwn ThemeWuwe._matches(this.scope, this.pawentScopes, scope, pawentScopes);
 	}
 
-	private static _cmp(a: ThemeRule | null, b: ThemeRule | null): number {
-		if (a === null && b === null) {
-			return 0;
+	pwivate static _cmp(a: ThemeWuwe | nuww, b: ThemeWuwe | nuww): numba {
+		if (a === nuww && b === nuww) {
+			wetuwn 0;
 		}
-		if (a === null) {
+		if (a === nuww) {
 			// b > a
-			return -1;
+			wetuwn -1;
 		}
-		if (b === null) {
+		if (b === nuww) {
 			// a > b
-			return 1;
+			wetuwn 1;
 		}
-		if (a.scope.length !== b.scope.length) {
-			// longer scope length > shorter scope length
-			return a.scope.length - b.scope.length;
+		if (a.scope.wength !== b.scope.wength) {
+			// wonga scope wength > showta scope wength
+			wetuwn a.scope.wength - b.scope.wength;
 		}
-		const aParentScopesLen = a.parentScopes.length;
-		const bParentScopesLen = b.parentScopes.length;
-		if (aParentScopesLen !== bParentScopesLen) {
-			// more parents > less parents
-			return aParentScopesLen - bParentScopesLen;
+		const aPawentScopesWen = a.pawentScopes.wength;
+		const bPawentScopesWen = b.pawentScopes.wength;
+		if (aPawentScopesWen !== bPawentScopesWen) {
+			// mowe pawents > wess pawents
+			wetuwn aPawentScopesWen - bPawentScopesWen;
 		}
-		for (let i = 0; i < aParentScopesLen; i++) {
-			const aLen = a.parentScopes[i].length;
-			const bLen = b.parentScopes[i].length;
-			if (aLen !== bLen) {
-				return aLen - bLen;
+		fow (wet i = 0; i < aPawentScopesWen; i++) {
+			const aWen = a.pawentScopes[i].wength;
+			const bWen = b.pawentScopes[i].wength;
+			if (aWen !== bWen) {
+				wetuwn aWen - bWen;
 			}
 		}
-		return 0;
+		wetuwn 0;
 	}
 
-	public isMoreSpecific(other: ThemeRule | null): boolean {
-		return (ThemeRule._cmp(this, other) > 0);
+	pubwic isMoweSpecific(otha: ThemeWuwe | nuww): boowean {
+		wetuwn (ThemeWuwe._cmp(this, otha) > 0);
 	}
 
-	private static _matchesOne(selectorScope: string, scope: string): boolean {
-		let selectorPrefix = selectorScope + '.';
-		if (selectorScope === scope || scope.substring(0, selectorPrefix.length) === selectorPrefix) {
-			return true;
+	pwivate static _matchesOne(sewectowScope: stwing, scope: stwing): boowean {
+		wet sewectowPwefix = sewectowScope + '.';
+		if (sewectowScope === scope || scope.substwing(0, sewectowPwefix.wength) === sewectowPwefix) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private static _matches(selectorScope: string, selectorParentScopes: string[], scope: string, parentScopes: string[]): boolean {
-		if (!this._matchesOne(selectorScope, scope)) {
-			return false;
+	pwivate static _matches(sewectowScope: stwing, sewectowPawentScopes: stwing[], scope: stwing, pawentScopes: stwing[]): boowean {
+		if (!this._matchesOne(sewectowScope, scope)) {
+			wetuwn fawse;
 		}
 
-		let selectorParentIndex = selectorParentScopes.length - 1;
-		let parentIndex = parentScopes.length - 1;
-		while (selectorParentIndex >= 0 && parentIndex >= 0) {
-			if (this._matchesOne(selectorParentScopes[selectorParentIndex], parentScopes[parentIndex])) {
-				selectorParentIndex--;
+		wet sewectowPawentIndex = sewectowPawentScopes.wength - 1;
+		wet pawentIndex = pawentScopes.wength - 1;
+		whiwe (sewectowPawentIndex >= 0 && pawentIndex >= 0) {
+			if (this._matchesOne(sewectowPawentScopes[sewectowPawentIndex], pawentScopes[pawentIndex])) {
+				sewectowPawentIndex--;
 			}
-			parentIndex--;
+			pawentIndex--;
 		}
 
-		if (selectorParentIndex === -1) {
-			return true;
+		if (sewectowPawentIndex === -1) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 }

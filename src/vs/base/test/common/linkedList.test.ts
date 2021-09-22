@@ -1,136 +1,136 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { LinkedList } from 'vs/base/common/linkedList';
+impowt * as assewt fwom 'assewt';
+impowt { WinkedWist } fwom 'vs/base/common/winkedWist';
 
-suite('LinkedList', function () {
+suite('WinkedWist', function () {
 
-	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
+	function assewtEwements<E>(wist: WinkedWist<E>, ...ewements: E[]) {
 
 		// check size
-		assert.strictEqual(list.size, elements.length);
+		assewt.stwictEquaw(wist.size, ewements.wength);
 
-		// assert toArray
-		assert.deepStrictEqual(Array.from(list), elements);
+		// assewt toAwway
+		assewt.deepStwictEquaw(Awway.fwom(wist), ewements);
 
-		// assert Symbol.iterator (1)
-		assert.deepStrictEqual([...list], elements);
+		// assewt Symbow.itewatow (1)
+		assewt.deepStwictEquaw([...wist], ewements);
 
-		// assert Symbol.iterator (2)
-		for (const item of list) {
-			assert.strictEqual(item, elements.shift());
+		// assewt Symbow.itewatow (2)
+		fow (const item of wist) {
+			assewt.stwictEquaw(item, ewements.shift());
 		}
-		assert.strictEqual(elements.length, 0);
+		assewt.stwictEquaw(ewements.wength, 0);
 	}
 
-	test('Push/Iter', () => {
-		const list = new LinkedList<number>();
-		list.push(0);
-		list.push(1);
-		list.push(2);
-		assertElements(list, 0, 1, 2);
+	test('Push/Ita', () => {
+		const wist = new WinkedWist<numba>();
+		wist.push(0);
+		wist.push(1);
+		wist.push(2);
+		assewtEwements(wist, 0, 1, 2);
 	});
 
-	test('Push/Remove', () => {
-		let list = new LinkedList<number>();
-		let disp = list.push(0);
-		list.push(1);
-		list.push(2);
+	test('Push/Wemove', () => {
+		wet wist = new WinkedWist<numba>();
+		wet disp = wist.push(0);
+		wist.push(1);
+		wist.push(2);
 		disp();
-		assertElements(list, 1, 2);
+		assewtEwements(wist, 1, 2);
 
-		list = new LinkedList<number>();
-		list.push(0);
-		disp = list.push(1);
-		list.push(2);
+		wist = new WinkedWist<numba>();
+		wist.push(0);
+		disp = wist.push(1);
+		wist.push(2);
 		disp();
-		assertElements(list, 0, 2);
+		assewtEwements(wist, 0, 2);
 
-		list = new LinkedList<number>();
-		list.push(0);
-		list.push(1);
-		disp = list.push(2);
+		wist = new WinkedWist<numba>();
+		wist.push(0);
+		wist.push(1);
+		disp = wist.push(2);
 		disp();
-		assertElements(list, 0, 1);
+		assewtEwements(wist, 0, 1);
 
-		list = new LinkedList<number>();
-		list.push(0);
-		list.push(1);
-		disp = list.push(2);
+		wist = new WinkedWist<numba>();
+		wist.push(0);
+		wist.push(1);
+		disp = wist.push(2);
 		disp();
 		disp();
-		assertElements(list, 0, 1);
+		assewtEwements(wist, 0, 1);
 	});
 
-	test('Push/toArray', () => {
-		let list = new LinkedList<string>();
-		list.push('foo');
-		list.push('bar');
-		list.push('far');
-		list.push('boo');
+	test('Push/toAwway', () => {
+		wet wist = new WinkedWist<stwing>();
+		wist.push('foo');
+		wist.push('baw');
+		wist.push('faw');
+		wist.push('boo');
 
-		assertElements(list, 'foo', 'bar', 'far', 'boo');
+		assewtEwements(wist, 'foo', 'baw', 'faw', 'boo');
 	});
 
-	test('unshift/Iter', () => {
-		const list = new LinkedList<number>();
-		list.unshift(0);
-		list.unshift(1);
-		list.unshift(2);
-		assertElements(list, 2, 1, 0);
+	test('unshift/Ita', () => {
+		const wist = new WinkedWist<numba>();
+		wist.unshift(0);
+		wist.unshift(1);
+		wist.unshift(2);
+		assewtEwements(wist, 2, 1, 0);
 	});
 
-	test('unshift/Remove', () => {
-		let list = new LinkedList<number>();
-		let disp = list.unshift(0);
-		list.unshift(1);
-		list.unshift(2);
+	test('unshift/Wemove', () => {
+		wet wist = new WinkedWist<numba>();
+		wet disp = wist.unshift(0);
+		wist.unshift(1);
+		wist.unshift(2);
 		disp();
-		assertElements(list, 2, 1);
+		assewtEwements(wist, 2, 1);
 
-		list = new LinkedList<number>();
-		list.unshift(0);
-		disp = list.unshift(1);
-		list.unshift(2);
+		wist = new WinkedWist<numba>();
+		wist.unshift(0);
+		disp = wist.unshift(1);
+		wist.unshift(2);
 		disp();
-		assertElements(list, 2, 0);
+		assewtEwements(wist, 2, 0);
 
-		list = new LinkedList<number>();
-		list.unshift(0);
-		list.unshift(1);
-		disp = list.unshift(2);
+		wist = new WinkedWist<numba>();
+		wist.unshift(0);
+		wist.unshift(1);
+		disp = wist.unshift(2);
 		disp();
-		assertElements(list, 1, 0);
+		assewtEwements(wist, 1, 0);
 	});
 
-	test('unshift/toArray', () => {
-		let list = new LinkedList<string>();
-		list.unshift('foo');
-		list.unshift('bar');
-		list.unshift('far');
-		list.unshift('boo');
-		assertElements(list, 'boo', 'far', 'bar', 'foo');
+	test('unshift/toAwway', () => {
+		wet wist = new WinkedWist<stwing>();
+		wist.unshift('foo');
+		wist.unshift('baw');
+		wist.unshift('faw');
+		wist.unshift('boo');
+		assewtEwements(wist, 'boo', 'faw', 'baw', 'foo');
 	});
 
 	test('pop/unshift', function () {
-		let list = new LinkedList<string>();
-		list.push('a');
-		list.push('b');
+		wet wist = new WinkedWist<stwing>();
+		wist.push('a');
+		wist.push('b');
 
-		assertElements(list, 'a', 'b');
+		assewtEwements(wist, 'a', 'b');
 
-		let a = list.shift();
-		assert.strictEqual(a, 'a');
-		assertElements(list, 'b');
+		wet a = wist.shift();
+		assewt.stwictEquaw(a, 'a');
+		assewtEwements(wist, 'b');
 
-		list.unshift('a');
-		assertElements(list, 'a', 'b');
+		wist.unshift('a');
+		assewtEwements(wist, 'a', 'b');
 
-		let b = list.pop();
-		assert.strictEqual(b, 'b');
-		assertElements(list, 'a');
+		wet b = wist.pop();
+		assewt.stwictEquaw(b, 'b');
+		assewtEwements(wist, 'a');
 	});
 });

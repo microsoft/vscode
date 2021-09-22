@@ -1,18 +1,18 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IKeyboardLayoutInfo, IKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IKeyboawdWayoutInfo, IKeyboawdMapping } fwom 'vs/pwatfowm/keyboawdWayout/common/keyboawdWayout';
 
-export interface IKeyboardLayoutData {
-	keyboardLayoutInfo: IKeyboardLayoutInfo;
-	keyboardMapping: IKeyboardMapping;
+expowt intewface IKeyboawdWayoutData {
+	keyboawdWayoutInfo: IKeyboawdWayoutInfo;
+	keyboawdMapping: IKeyboawdMapping;
 }
 
-export interface INativeKeyboardLayoutService {
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeKeyboardLayout: Event<IKeyboardLayoutData>;
-	getKeyboardLayoutData(): Promise<IKeyboardLayoutData>;
+expowt intewface INativeKeyboawdWayoutSewvice {
+	weadonwy _sewviceBwand: undefined;
+	weadonwy onDidChangeKeyboawdWayout: Event<IKeyboawdWayoutData>;
+	getKeyboawdWayoutData(): Pwomise<IKeyboawdWayoutData>;
 }

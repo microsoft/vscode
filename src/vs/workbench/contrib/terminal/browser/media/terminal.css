@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .pane-body.integrated-terminal {
-	align-content: flex-start;
-	align-items: baseline;
-	display: flex;
-	flex-direction: column;
-	background-color: transparent!important;
-	user-select: initial;
-	-webkit-user-select: initial;
-	position: relative;
+.monaco-wowkbench .pane-body.integwated-tewminaw {
+	awign-content: fwex-stawt;
+	awign-items: basewine;
+	dispway: fwex;
+	fwex-diwection: cowumn;
+	backgwound-cowow: twanspawent!impowtant;
+	usa-sewect: initiaw;
+	-webkit-usa-sewect: initiaw;
+	position: wewative;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
-.monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group,
-.monaco-workbench .pane-body.integrated-terminal .terminal-split-pane,
-.monaco-workbench .editor-instance .terminal-split-pane,
-.monaco-workbench .editor-instance .terminal-outer-container {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-outa-containa,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoups-containa,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-spwit-pane,
+.monaco-wowkbench .editow-instance .tewminaw-spwit-pane,
+.monaco-wowkbench .editow-instance .tewminaw-outa-containa {
 	height: 100%;
 }
 
-/* Override monaco's styles for terminal editors */
-.monaco-workbench .editor-instance .xterm textarea:focus {
-	opacity: 0 !important;
-	outline: 0 !important;
+/* Ovewwide monaco's stywes fow tewminaw editows */
+.monaco-wowkbench .editow-instance .xtewm textawea:focus {
+	opacity: 0 !impowtant;
+	outwine: 0 !impowtant;
 }
 
-.monaco-workbench .terminal-tab::before {
-	font-family: 'codicon' !important;
-	font-size: 16px !important;
+.monaco-wowkbench .tewminaw-tab::befowe {
+	font-famiwy: 'codicon' !impowtant;
+	font-size: 16px !impowtant;
 }
-.monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
-	background-image: none !important;
+.monaco-wowkbench .tewminaw-tab:not(.tewminaw-uwi-icon)::befowe {
+	backgwound-image: none !impowtant;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
-	display: none;
-	margin: 0 10px;
+.monaco-wowkbench .editow-instance .tewminaw-wwappa,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-wwappa {
+	dispway: none;
+	mawgin: 0 10px;
 	height: 100%;
 	padding-bottom: 2px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper.active,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
-	display: block;
+.monaco-wowkbench .editow-instance .tewminaw-wwappa.active,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-wwappa.active {
+	dispway: bwock;
 }
 
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
-	margin-left: 20px;
+.monaco-wowkbench .editow-instance .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:fiwst-chiwd .tewminaw-wwappa,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:fiwst-chiwd .tewminaw-wwappa {
+	mawgin-weft: 20px;
 }
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
-	margin-right: 20px;
-}
-
-.monaco-workbench .editor-instance .xterm a:not(.xterm-invalid-link),
-.monaco-workbench .pane-body.integrated-terminal .xterm a:not(.xterm-invalid-link) {
-	/* To support message box sizing */
-	position: relative;
+.monaco-wowkbench .editow-instance .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:wast-chiwd .tewminaw-wwappa,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:wast-chiwd .tewminaw-wwappa {
+	mawgin-wight: 20px;
 }
 
-.monaco-workbench .editor-instance .terminal-wrapper > div,
-.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
+.monaco-wowkbench .editow-instance .xtewm a:not(.xtewm-invawid-wink),
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm a:not(.xtewm-invawid-wink) {
+	/* To suppowt message box sizing */
+	position: wewative;
+}
+
+.monaco-wowkbench .editow-instance .tewminaw-wwappa > div,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-wwappa > div {
 	height: 100%;
-	/* Align the viewport and canvases to the bottom of the panel */
-	display: flex;
-	align-items: flex-end;
+	/* Awign the viewpowt and canvases to the bottom of the panew */
+	dispway: fwex;
+	awign-items: fwex-end;
 }
 
-.monaco-workbench .editor-instance .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
-	box-sizing: border-box;
-	margin-right: -10px;
+.monaco-wowkbench .editow-instance .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm-viewpowt {
+	box-sizing: bowda-box;
+	mawgin-wight: -10px;
 }
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
-	margin-right: -20px;
-}
-
-.monaco-workbench .pane-body.integrated-terminal {
-	font-variant-ligatures: none;
+.monaco-wowkbench .editow-instance .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:wast-chiwd .xtewm-viewpowt,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:wast-chiwd .xtewm-viewpowt {
+	mawgin-wight: -20px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .split-view-view {
-	box-sizing: border-box;
-	overflow: hidden;
+.monaco-wowkbench .pane-body.integwated-tewminaw {
+	font-vawiant-wigatuwes: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .split-view-view:first-child .tabs-container {
-	border-right-width: 1px;
-	border-right-style: solid;
-}
-.monaco-workbench .pane-body.integrated-terminal .split-view-view:last-child .tabs-container {
-	border-left-width: 1px;
-	border-left-style: solid;
+.monaco-wowkbench .pane-body.integwated-tewminaw .spwit-view-view {
+	box-sizing: bowda-box;
+	ovewfwow: hidden;
 }
 
-/* border-color is set by theme key terminal.border */
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:not(:first-child) {
-	border-left-width: 1px;
-	border-left-style: solid;
+.monaco-wowkbench .pane-body.integwated-tewminaw .spwit-view-view:fiwst-chiwd .tabs-containa {
+	bowda-wight-width: 1px;
+	bowda-wight-stywe: sowid;
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.vertical .split-view-view:not(:first-child) {
-	border-top-width: 1px;
-	border-top-style: solid;
-}
-
-.monaco-workbench .pane-body.integrated-terminal.enable-ligatures {
-	font-variant-ligatures: normal;
+.monaco-wowkbench .pane-body.integwated-tewminaw .spwit-view-view:wast-chiwd .tabs-containa {
+	bowda-weft-width: 1px;
+	bowda-weft-stywe: sowid;
 }
 
-
-.monaco-workbench .pane-body.integrated-terminal.disable-bold .xterm-bold {
-	font-weight: normal !important;
+/* bowda-cowow is set by theme key tewminaw.bowda */
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup .monaco-spwit-view2.howizontaw .spwit-view-view:not(:fiwst-chiwd) {
+	bowda-weft-width: 1px;
+	bowda-weft-stywe: sowid;
+}
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup .monaco-spwit-view2.vewticaw .spwit-view-view:not(:fiwst-chiwd) {
+	bowda-top-width: 1px;
+	bowda-top-stywe: sowid;
 }
 
-/* Use the default cursor when alt is active to help with clicking to move cursor */
-.monaco-workbench .pane-body.integrated-terminal .terminal-groups-container.alt-active .xterm {
-	cursor: default;
+.monaco-wowkbench .pane-body.integwated-tewminaw.enabwe-wigatuwes {
+	font-vawiant-wigatuwes: nowmaw;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .xterm {
-	user-select: none;
-	-webkit-user-select: none;
+
+.monaco-wowkbench .pane-body.integwated-tewminaw.disabwe-bowd .xtewm-bowd {
+	font-weight: nowmaw !impowtant;
 }
-.monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.vertical .split-view-view:not(:last-child) .xterm {
-	/* When vertical and NOT the bottom terminal, align to the top instead to prevent the output jumping around erratically */
+
+/* Use the defauwt cuwsow when awt is active to hewp with cwicking to move cuwsow */
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoups-containa.awt-active .xtewm {
+	cuwsow: defauwt;
+}
+
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm {
+	usa-sewect: none;
+	-webkit-usa-sewect: none;
+}
+.monaco-wowkbench .pane-body.integwated-tewminaw .monaco-spwit-view2.vewticaw .spwit-view-view:not(:wast-chiwd) .xtewm {
+	/* When vewticaw and NOT the bottom tewminaw, awign to the top instead to pwevent the output jumping awound ewwaticawwy */
 	top: 0;
 	bottom: auto;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .xterm:focus {
-	/* Hide outline when focus jumps from xterm to the text area */
-	outline: none;
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm:focus {
+	/* Hide outwine when focus jumps fwom xtewm to the text awea */
+	outwine: none;
 }
 
-.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before {
-	display: block;
+.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .xtewm.focus::befowe,
+.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .xtewm:focus::befowe {
+	dispway: bwock;
 	content: "";
-	border: 1px solid;
-	position: absolute;
-	left: -5px;
+	bowda: 1px sowid;
+	position: absowute;
+	weft: -5px;
 	top: 0;
-	right: -5px;
+	wight: -5px;
 	bottom: 0;
 	z-index: 10;
 }
 
-.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
-	right: 0;
+.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .monaco-spwit-view2.howizontaw .spwit-view-view:not(:onwy-chiwd) .xtewm.focus::befowe,
+.monaco-wowkbench.hc-bwack .pane-body.integwated-tewminaw .monaco-spwit-view2.howizontaw .spwit-view-view:not(:onwy-chiwd) .xtewm:focus::befowe {
+	wight: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helpers {
-	position: absolute;
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-hewpews {
+	position: absowute;
 	top: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-helper-textarea:focus {
-	/* Override the general vscode style applies `opacity:1!important` to textareas */
-	opacity: 0 !important;
+.monaco-wowkbench .pane-body.integwated-tewminaw .xtewm .xtewm-hewpa-textawea:focus {
+	/* Ovewwide the genewaw vscode stywe appwies `opacity:1!impowtant` to textaweas */
+	opacity: 0 !impowtant;
 }
 
-.monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),
-.monaco-workbench.hc-black.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
-	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
+.monaco-wowkbench.vs-dawk.mac .pane-body.integwated-tewminaw .tewminaw-gwoups-containa:not(.awt-active) .tewminaw:not(.enabwe-mouse-events),
+.monaco-wowkbench.hc-bwack.mac .pane-body.integwated-tewminaw .tewminaw-gwoups-containa:not(.awt-active) .tewminaw:not(.enabwe-mouse-events) {
+	cuwsow: -webkit-image-set(uww('data:image/png;base64,iVBOWw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAW0wEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVOWK5CYII=') 1x, uww('data:image/png;base64,iVBOWw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0wEQVWIx2NgYGBY/W8I/vx5eewX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSAWckwNBWvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhWA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KwtYcx/CTIy0e+wC7W1Z4KMICVTQQ14feVXIbW695u14+Iw4gwAAD49E54wc1kWAAAAAEwFTkSuQmCC') 2x) 5 8, text;
 }
 
-/* Override default xterm style to make !important so it takes precedence over custom mac cursor */
-.xterm.xterm-cursor-pointer {
-	cursor: pointer!important;
+/* Ovewwide defauwt xtewm stywe to make !impowtant so it takes pwecedence ova custom mac cuwsow */
+.xtewm.xtewm-cuwsow-pointa {
+	cuwsow: pointa!impowtant;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal,
-.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-terminal {
-	border-width: 1px;
-	border-style: solid;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-tewminaw,
+.monaco-pane-view .pane > .pane-heada .monaco-action-baw .switch-tewminaw {
+	bowda-width: 1px;
+	bowda-stywe: sowid;
 }
 
-.part.panel > .title > .title-actions .switch-terminal > .monaco-select-box {
-	border-width: 1px;
-	border-style: solid;
+.pawt.panew > .titwe > .titwe-actions .switch-tewminaw > .monaco-sewect-box {
+	bowda-width: 1px;
+	bowda-stywe: sowid;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-tewminaw {
+	dispway: fwex;
+	awign-items: centa;
 	font-size: 11px;
-	margin-right: 0.3em;
+	mawgin-wight: 0.3em;
 	height: 20px;
-	flex-shrink: 1;
-	margin-top: 7px;
+	fwex-shwink: 1;
+	mawgin-top: 7px;
 }
 
-.monaco-workbench.mac .part.sidebar > .title > .title-actions .switch-terminal {
-	border-radius: 4px;
+.monaco-wowkbench.mac .pawt.sidebaw > .titwe > .titwe-actions .switch-tewminaw {
+	bowda-wadius: 4px;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal > .monaco-select-box {
-	border: none !important;
-	display: block !important;
-	background-color: unset !important;
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-tewminaw > .monaco-sewect-box {
+	bowda: none !impowtant;
+	dispway: bwock !impowtant;
+	backgwound-cowow: unset !impowtant;
 }
 
-.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-terminal.action-item.select-container {
-	border: none !important;
+.monaco-pane-view .pane > .pane-heada .monaco-action-baw .switch-tewminaw.action-item.sewect-containa {
+	bowda: none !impowtant;
 }
 
-.monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal > .monaco-select-box {
+.monaco-wowkbench .pawt.sidebaw > .titwe > .titwe-actions .switch-tewminaw > .monaco-sewect-box {
 	padding: 0 22px 0 6px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa {
 	height: 100%;
-	display: flex;
-	flex-direction: column;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-workbench .terminal-overflow-guard {
-	overflow: hidden;
-	position: relative;
+.monaco-wowkbench .tewminaw-ovewfwow-guawd {
+	ovewfwow: hidden;
+	position: wewative;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list-container {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist-containa {
 	height: 100%;
-	overflow: hidden;
+	ovewfwow: hidden;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa > .monaco-toowbaw {
 	padding: 4px 0 2px;
-	margin: auto;
+	mawgin: auto;
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-tabs-entry.is-active::before {
-	display: block;
-	position: absolute;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-tabs-entwy.is-active::befowe {
+	dispway: bwock;
+	position: absowute;
 	content: "";
-	left: 0;
+	weft: 0;
 	top: 0;
 	bottom: 0;
 	width: 1px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa.has-text > .monaco-toowbaw {
 	padding: 4px 7px 2px;
-	margin: 0;
+	mawgin: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
-	text-align: left;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa.has-text > .monaco-toowbaw {
+	text-awign: weft;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist {
 	height: 100%;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .terminal-tabs-entry {
-	text-align: center;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .tewminaw-tabs-entwy {
+	text-awign: centa;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry {
-	padding-left: 10px;
-	padding-right: 10px;
-	text-align: left;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa.has-text .tabs-wist .tewminaw-tabs-entwy {
+	padding-weft: 10px;
+	padding-wight: 10px;
+	text-awign: weft;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label::after {
-	margin-right: 0;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa.has-text .tabs-wist .tewminaw-tabs-entwy .monaco-icon-wabew::afta {
+	mawgin-wight: 0;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {
-	/* Force inherit when no text is showing as the regular icon gets replaced by the status icon */
-	color: inherit;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa:not(.has-text) .tewminaw-tabs-entwy .codicon {
+	/* Fowce inhewit when no text is showing as the weguwaw icon gets wepwaced by the status icon */
+	cowow: inhewit;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .monaco-icon-description-container {
-	/* The description element doesn't go away once created sometimes so force hide */
-	display: none;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa:not(.has-text) .monaco-icon-descwiption-containa {
+	/* The descwiption ewement doesn't go away once cweated sometimes so fowce hide */
+	dispway: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {
-	vertical-align: text-bottom;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .codicon {
+	vewticaw-awign: text-bottom;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .actions {
-	display: none;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .actions {
+	dispway: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-name-container {
-	display: none;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .editabwe-tab .monaco-icon-name-containa {
+	dispway: none;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .actions .action-label {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .actions .action-wabew {
 	padding: 2px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-list .monaco-list-row:hover .actions,
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.selected .actions,
-.monaco-workbench .pane-body.integrated-terminal .tabs-list:focus-within .monaco-list-row.focused .actions {
-	display: block;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist .monaco-wist-wow:hova .actions,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist:focus-within .monaco-wist-wow.sewected .actions,
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-wist:focus-within .monaco-wist-wow.focused .actions {
+	dispway: bwock;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab {
-	display: flex !important;
-	align-items: center;
+.monaco-action-baw .action-item .singwe-tewminaw-tab {
+	dispway: fwex !impowtant;
+	awign-items: centa;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:first-child {
-	margin-right: 4px;
+.monaco-action-baw .action-item .singwe-tewminaw-tab .codicon:fiwst-chiwd {
+	mawgin-wight: 4px;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
-	margin-left: 4px;
-	color: inherit;
+.monaco-action-baw .action-item .singwe-tewminaw-tab .codicon:nth-chiwd(2) {
+	mawgin-weft: 4px;
+	cowow: inhewit;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .uri-icon {
-	background-repeat: no-repeat;
-	background-size: contain;
-	margin-right: 4px;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tabs-containa.has-text .tabs-wist .tewminaw-tabs-entwy .uwi-icon {
+	backgwound-wepeat: no-wepeat;
+	backgwound-size: contain;
+	mawgin-wight: 4px;
 	height: 100%;
 }
 
-.monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon,
-.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label .codicon {
-	background-size: 16px;
+.monaco-wowkbench .tewminaw-uwi-icon .monaco-highwighted-wabew .codicon,
+.monaco-action-baw .tewminaw-uwi-icon.singwe-tewminaw-tab.action-wabew .codicon {
+	backgwound-size: 16px;
 }
-.monaco-workbench .terminal-uri-icon .monaco-highlighted-label .codicon::before,
-.monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon::before {
+.monaco-wowkbench .tewminaw-uwi-icon .monaco-highwighted-wabew .codicon::befowe,
+.monaco-action-baw .tewminaw-uwi-icon.singwe-tewminaw-tab.action-wabew:not(.awt-command) .codicon::befowe {
 	content: '';
-	display: inline-block;
+	dispway: inwine-bwock;
 	width: 16px;
 	height: 16px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-drop-overlay {
-	display: block;
-	position: absolute;
-	left: 0;
-	right: 0;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-dwop-ovewway {
+	dispway: bwock;
+	position: absowute;
+	weft: 0;
+	wight: 0;
 	top: 0;
 	bottom: 0;
-	pointer-events: none;
-	opacity: 0; /* hidden initially */
-	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
+	pointa-events: none;
+	opacity: 0; /* hidden initiawwy */
+	twansition: weft 70ms ease-out, wight 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {
-	right: 50%;
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup > .monaco-spwit-view2.howizontaw .tewminaw-dwop-ovewway.dwop-befowe {
+	wight: 50%;
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-after {
-	left: 50%
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup > .monaco-spwit-view2.howizontaw .tewminaw-dwop-ovewway.dwop-afta {
+	weft: 50%
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.vertical .terminal-drop-overlay.drop-before {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup > .monaco-spwit-view2.vewticaw .tewminaw-dwop-ovewway.dwop-befowe {
 	bottom: 50%;
 }
-.monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.vertical .terminal-drop-overlay.drop-after {
+.monaco-wowkbench .pane-body.integwated-tewminaw .tewminaw-gwoup > .monaco-spwit-view2.vewticaw .tewminaw-dwop-ovewway.dwop-afta {
 	top: 50%;
 }

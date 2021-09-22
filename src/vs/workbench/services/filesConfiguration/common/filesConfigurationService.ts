@@ -1,211 +1,211 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
-import { equals } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WawContextKey, IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IFiwesConfiguwation, AutoSaveConfiguwation, HotExitConfiguwation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
 
-export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
+expowt const AutoSaveAftewShowtDewayContext = new WawContextKey<boowean>('autoSaveAftewShowtDewayContext', fawse, twue);
 
-export interface IAutoSaveConfiguration {
-	autoSaveDelay?: number;
-	autoSaveFocusChange: boolean;
-	autoSaveApplicationChange: boolean;
+expowt intewface IAutoSaveConfiguwation {
+	autoSaveDeway?: numba;
+	autoSaveFocusChange: boowean;
+	autoSaveAppwicationChange: boowean;
 }
 
-export const enum AutoSaveMode {
+expowt const enum AutoSaveMode {
 	OFF,
-	AFTER_SHORT_DELAY,
-	AFTER_LONG_DELAY,
+	AFTEW_SHOWT_DEWAY,
+	AFTEW_WONG_DEWAY,
 	ON_FOCUS_CHANGE,
 	ON_WINDOW_CHANGE
 }
 
-export const IFilesConfigurationService = createDecorator<IFilesConfigurationService>('filesConfigurationService');
+expowt const IFiwesConfiguwationSewvice = cweateDecowatow<IFiwesConfiguwationSewvice>('fiwesConfiguwationSewvice');
 
-export interface IFilesConfigurationService {
+expowt intewface IFiwesConfiguwationSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	//#region Auto Save
+	//#wegion Auto Save
 
-	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
+	weadonwy onAutoSaveConfiguwationChange: Event<IAutoSaveConfiguwation>;
 
-	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+	getAutoSaveConfiguwation(): IAutoSaveConfiguwation;
 
 	getAutoSaveMode(): AutoSaveMode;
 
-	toggleAutoSave(): Promise<void>;
+	toggweAutoSave(): Pwomise<void>;
 
-	//#endregion
+	//#endwegion
 
-	readonly onFilesAssociationChange: Event<void>;
+	weadonwy onFiwesAssociationChange: Event<void>;
 
-	readonly isHotExitEnabled: boolean;
+	weadonwy isHotExitEnabwed: boowean;
 
-	readonly hotExitConfiguration: string | undefined;
+	weadonwy hotExitConfiguwation: stwing | undefined;
 
-	preventSaveConflicts(resource: URI, language?: string): boolean;
+	pweventSaveConfwicts(wesouwce: UWI, wanguage?: stwing): boowean;
 }
 
-export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
+expowt cwass FiwesConfiguwationSewvice extends Disposabwe impwements IFiwesConfiguwationSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
+	pwivate static DEFAUWT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguwation.AFTEW_DEWAY : AutoSaveConfiguwation.OFF;
 
-	private readonly _onAutoSaveConfigurationChange = this._register(new Emitter<IAutoSaveConfiguration>());
-	readonly onAutoSaveConfigurationChange = this._onAutoSaveConfigurationChange.event;
+	pwivate weadonwy _onAutoSaveConfiguwationChange = this._wegista(new Emitta<IAutoSaveConfiguwation>());
+	weadonwy onAutoSaveConfiguwationChange = this._onAutoSaveConfiguwationChange.event;
 
-	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
-	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
+	pwivate weadonwy _onFiwesAssociationChange = this._wegista(new Emitta<void>());
+	weadonwy onFiwesAssociationChange = this._onFiwesAssociationChange.event;
 
-	private configuredAutoSaveDelay?: number;
-	private configuredAutoSaveOnFocusChange: boolean | undefined;
-	private configuredAutoSaveOnWindowChange: boolean | undefined;
+	pwivate configuwedAutoSaveDeway?: numba;
+	pwivate configuwedAutoSaveOnFocusChange: boowean | undefined;
+	pwivate configuwedAutoSaveOnWindowChange: boowean | undefined;
 
-	private autoSaveAfterShortDelayContext: IContextKey<boolean>;
+	pwivate autoSaveAftewShowtDewayContext: IContextKey<boowean>;
 
-	private currentFilesAssociationConfig: { [key: string]: string; };
+	pwivate cuwwentFiwesAssociationConfig: { [key: stwing]: stwing; };
 
-	private currentHotExitConfig: string;
+	pwivate cuwwentHotExitConfig: stwing;
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		super();
+		supa();
 
-		this.autoSaveAfterShortDelayContext = AutoSaveAfterShortDelayContext.bindTo(contextKeyService);
+		this.autoSaveAftewShowtDewayContext = AutoSaveAftewShowtDewayContext.bindTo(contextKeySewvice);
 
-		const configuration = configurationService.getValue<IFilesConfiguration>();
+		const configuwation = configuwationSewvice.getVawue<IFiwesConfiguwation>();
 
-		this.currentFilesAssociationConfig = configuration?.files?.associations;
-		this.currentHotExitConfig = configuration?.files?.hotExit || HotExitConfiguration.ON_EXIT;
+		this.cuwwentFiwesAssociationConfig = configuwation?.fiwes?.associations;
+		this.cuwwentHotExitConfig = configuwation?.fiwes?.hotExit || HotExitConfiguwation.ON_EXIT;
 
-		this.onFilesConfigurationChange(configuration);
+		this.onFiwesConfiguwationChange(configuwation);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Files configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('files')) {
-				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
+		// Fiwes configuwation changes
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('fiwes')) {
+				this.onFiwesConfiguwationChange(this.configuwationSewvice.getVawue<IFiwesConfiguwation>());
 			}
 		}));
 	}
 
-	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
+	pwotected onFiwesConfiguwationChange(configuwation: IFiwesConfiguwation): void {
 
 		// Auto Save
-		const autoSaveMode = configuration?.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
+		const autoSaveMode = configuwation?.fiwes?.autoSave || FiwesConfiguwationSewvice.DEFAUWT_AUTO_SAVE_MODE;
 		switch (autoSaveMode) {
-			case AutoSaveConfiguration.AFTER_DELAY:
-				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
-				this.configuredAutoSaveOnFocusChange = false;
-				this.configuredAutoSaveOnWindowChange = false;
-				break;
+			case AutoSaveConfiguwation.AFTEW_DEWAY:
+				this.configuwedAutoSaveDeway = configuwation?.fiwes?.autoSaveDeway;
+				this.configuwedAutoSaveOnFocusChange = fawse;
+				this.configuwedAutoSaveOnWindowChange = fawse;
+				bweak;
 
-			case AutoSaveConfiguration.ON_FOCUS_CHANGE:
-				this.configuredAutoSaveDelay = undefined;
-				this.configuredAutoSaveOnFocusChange = true;
-				this.configuredAutoSaveOnWindowChange = false;
-				break;
+			case AutoSaveConfiguwation.ON_FOCUS_CHANGE:
+				this.configuwedAutoSaveDeway = undefined;
+				this.configuwedAutoSaveOnFocusChange = twue;
+				this.configuwedAutoSaveOnWindowChange = fawse;
+				bweak;
 
-			case AutoSaveConfiguration.ON_WINDOW_CHANGE:
-				this.configuredAutoSaveDelay = undefined;
-				this.configuredAutoSaveOnFocusChange = false;
-				this.configuredAutoSaveOnWindowChange = true;
-				break;
+			case AutoSaveConfiguwation.ON_WINDOW_CHANGE:
+				this.configuwedAutoSaveDeway = undefined;
+				this.configuwedAutoSaveOnFocusChange = fawse;
+				this.configuwedAutoSaveOnWindowChange = twue;
+				bweak;
 
-			default:
-				this.configuredAutoSaveDelay = undefined;
-				this.configuredAutoSaveOnFocusChange = false;
-				this.configuredAutoSaveOnWindowChange = false;
-				break;
+			defauwt:
+				this.configuwedAutoSaveDeway = undefined;
+				this.configuwedAutoSaveOnFocusChange = fawse;
+				this.configuwedAutoSaveOnWindowChange = fawse;
+				bweak;
 		}
 
-		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY);
+		this.autoSaveAftewShowtDewayContext.set(this.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY);
 
 		// Emit as event
-		this._onAutoSaveConfigurationChange.fire(this.getAutoSaveConfiguration());
+		this._onAutoSaveConfiguwationChange.fiwe(this.getAutoSaveConfiguwation());
 
-		// Check for change in files associations
-		const filesAssociation = configuration?.files?.associations;
-		if (!equals(this.currentFilesAssociationConfig, filesAssociation)) {
-			this.currentFilesAssociationConfig = filesAssociation;
-			this._onFilesAssociationChange.fire();
+		// Check fow change in fiwes associations
+		const fiwesAssociation = configuwation?.fiwes?.associations;
+		if (!equaws(this.cuwwentFiwesAssociationConfig, fiwesAssociation)) {
+			this.cuwwentFiwesAssociationConfig = fiwesAssociation;
+			this._onFiwesAssociationChange.fiwe();
 		}
 
 		// Hot exit
-		const hotExitMode = configuration?.files?.hotExit;
-		if (hotExitMode === HotExitConfiguration.OFF || hotExitMode === HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE) {
-			this.currentHotExitConfig = hotExitMode;
-		} else {
-			this.currentHotExitConfig = HotExitConfiguration.ON_EXIT;
+		const hotExitMode = configuwation?.fiwes?.hotExit;
+		if (hotExitMode === HotExitConfiguwation.OFF || hotExitMode === HotExitConfiguwation.ON_EXIT_AND_WINDOW_CWOSE) {
+			this.cuwwentHotExitConfig = hotExitMode;
+		} ewse {
+			this.cuwwentHotExitConfig = HotExitConfiguwation.ON_EXIT;
 		}
 	}
 
 	getAutoSaveMode(): AutoSaveMode {
-		if (this.configuredAutoSaveOnFocusChange) {
-			return AutoSaveMode.ON_FOCUS_CHANGE;
+		if (this.configuwedAutoSaveOnFocusChange) {
+			wetuwn AutoSaveMode.ON_FOCUS_CHANGE;
 		}
 
-		if (this.configuredAutoSaveOnWindowChange) {
-			return AutoSaveMode.ON_WINDOW_CHANGE;
+		if (this.configuwedAutoSaveOnWindowChange) {
+			wetuwn AutoSaveMode.ON_WINDOW_CHANGE;
 		}
 
-		if (this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0) {
-			return this.configuredAutoSaveDelay <= 1000 ? AutoSaveMode.AFTER_SHORT_DELAY : AutoSaveMode.AFTER_LONG_DELAY;
+		if (this.configuwedAutoSaveDeway && this.configuwedAutoSaveDeway > 0) {
+			wetuwn this.configuwedAutoSaveDeway <= 1000 ? AutoSaveMode.AFTEW_SHOWT_DEWAY : AutoSaveMode.AFTEW_WONG_DEWAY;
 		}
 
-		return AutoSaveMode.OFF;
+		wetuwn AutoSaveMode.OFF;
 	}
 
-	getAutoSaveConfiguration(): IAutoSaveConfiguration {
-		return {
-			autoSaveDelay: this.configuredAutoSaveDelay && this.configuredAutoSaveDelay > 0 ? this.configuredAutoSaveDelay : undefined,
-			autoSaveFocusChange: !!this.configuredAutoSaveOnFocusChange,
-			autoSaveApplicationChange: !!this.configuredAutoSaveOnWindowChange
+	getAutoSaveConfiguwation(): IAutoSaveConfiguwation {
+		wetuwn {
+			autoSaveDeway: this.configuwedAutoSaveDeway && this.configuwedAutoSaveDeway > 0 ? this.configuwedAutoSaveDeway : undefined,
+			autoSaveFocusChange: !!this.configuwedAutoSaveOnFocusChange,
+			autoSaveAppwicationChange: !!this.configuwedAutoSaveOnWindowChange
 		};
 	}
 
-	async toggleAutoSave(): Promise<void> {
-		const currentSetting = this.configurationService.getValue('files.autoSave');
+	async toggweAutoSave(): Pwomise<void> {
+		const cuwwentSetting = this.configuwationSewvice.getVawue('fiwes.autoSave');
 
-		let newAutoSaveValue: string;
-		if ([AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(setting => setting === currentSetting)) {
-			newAutoSaveValue = AutoSaveConfiguration.OFF;
-		} else {
-			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
+		wet newAutoSaveVawue: stwing;
+		if ([AutoSaveConfiguwation.AFTEW_DEWAY, AutoSaveConfiguwation.ON_FOCUS_CHANGE, AutoSaveConfiguwation.ON_WINDOW_CHANGE].some(setting => setting === cuwwentSetting)) {
+			newAutoSaveVawue = AutoSaveConfiguwation.OFF;
+		} ewse {
+			newAutoSaveVawue = AutoSaveConfiguwation.AFTEW_DEWAY;
 		}
 
-		return this.configurationService.updateValue('files.autoSave', newAutoSaveValue);
+		wetuwn this.configuwationSewvice.updateVawue('fiwes.autoSave', newAutoSaveVawue);
 	}
 
-	get isHotExitEnabled(): boolean {
-		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
+	get isHotExitEnabwed(): boowean {
+		wetuwn this.cuwwentHotExitConfig !== HotExitConfiguwation.OFF;
 	}
 
-	get hotExitConfiguration(): string {
-		return this.currentHotExitConfig;
+	get hotExitConfiguwation(): stwing {
+		wetuwn this.cuwwentHotExitConfig;
 	}
 
-	preventSaveConflicts(resource: URI, language?: string): boolean {
-		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
+	pweventSaveConfwicts(wesouwce: UWI, wanguage?: stwing): boowean {
+		wetuwn this.configuwationSewvice.getVawue('fiwes.saveConfwictWesowution', { wesouwce, ovewwideIdentifia: wanguage }) !== 'ovewwwiteFiweOnDisk';
 	}
 }
 
-registerSingleton(IFilesConfigurationService, FilesConfigurationService);
+wegistewSingweton(IFiwesConfiguwationSewvice, FiwesConfiguwationSewvice);

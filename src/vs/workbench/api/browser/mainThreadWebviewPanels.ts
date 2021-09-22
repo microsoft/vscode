@@ -1,332 +1,332 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorGroupColumn, columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { MainThweadWebviews, weviveWebviewContentOptions, weviveWebviewExtension } fwom 'vs/wowkbench/api/bwowsa/mainThweadWebviews';
+impowt * as extHostPwotocow fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { EditowGwoupCowumn, cowumnToEditowGwoup, editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { DiffEditowInput } fwom 'vs/wowkbench/common/editow/diffEditowInput';
+impowt { WebviewOptions } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt { WebviewInput } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewEditowInput';
+impowt { WebviewIcons } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewIconManaga';
+impowt { ICweateWebViewShowOptions, IWebviewWowkbenchSewvice } fwom 'vs/wowkbench/contwib/webviewPanew/bwowsa/webviewWowkbenchSewvice';
+impowt { IEditowGwoup, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
 
 /**
- * Bi-directional map between webview handles and inputs.
+ * Bi-diwectionaw map between webview handwes and inputs.
  */
-class WebviewInputStore {
-	private readonly _handlesToInputs = new Map<string, WebviewInput>();
-	private readonly _inputsToHandles = new Map<WebviewInput, string>();
+cwass WebviewInputStowe {
+	pwivate weadonwy _handwesToInputs = new Map<stwing, WebviewInput>();
+	pwivate weadonwy _inputsToHandwes = new Map<WebviewInput, stwing>();
 
-	public add(handle: string, input: WebviewInput): void {
-		this._handlesToInputs.set(handle, input);
-		this._inputsToHandles.set(input, handle);
+	pubwic add(handwe: stwing, input: WebviewInput): void {
+		this._handwesToInputs.set(handwe, input);
+		this._inputsToHandwes.set(input, handwe);
 	}
 
-	public getHandleForInput(input: WebviewInput): string | undefined {
-		return this._inputsToHandles.get(input);
+	pubwic getHandweFowInput(input: WebviewInput): stwing | undefined {
+		wetuwn this._inputsToHandwes.get(input);
 	}
 
-	public getInputForHandle(handle: string): WebviewInput | undefined {
-		return this._handlesToInputs.get(handle);
+	pubwic getInputFowHandwe(handwe: stwing): WebviewInput | undefined {
+		wetuwn this._handwesToInputs.get(handwe);
 	}
 
-	public delete(handle: string): void {
-		const input = this.getInputForHandle(handle);
-		this._handlesToInputs.delete(handle);
+	pubwic dewete(handwe: stwing): void {
+		const input = this.getInputFowHandwe(handwe);
+		this._handwesToInputs.dewete(handwe);
 		if (input) {
-			this._inputsToHandles.delete(input);
+			this._inputsToHandwes.dewete(input);
 		}
 	}
 
-	public get size(): number {
-		return this._handlesToInputs.size;
+	pubwic get size(): numba {
+		wetuwn this._handwesToInputs.size;
 	}
 
-	[Symbol.iterator](): Iterator<WebviewInput> {
-		return this._handlesToInputs.values();
+	[Symbow.itewatow](): Itewatow<WebviewInput> {
+		wetuwn this._handwesToInputs.vawues();
 	}
 }
 
-class WebviewViewTypeTransformer {
-	public constructor(
-		public readonly prefix: string,
+cwass WebviewViewTypeTwansfowma {
+	pubwic constwuctow(
+		pubwic weadonwy pwefix: stwing,
 	) { }
 
-	public fromExternal(viewType: string): string {
-		return this.prefix + viewType;
+	pubwic fwomExtewnaw(viewType: stwing): stwing {
+		wetuwn this.pwefix + viewType;
 	}
 
-	public toExternal(viewType: string): string | undefined {
-		return viewType.startsWith(this.prefix)
-			? viewType.substr(this.prefix.length)
+	pubwic toExtewnaw(viewType: stwing): stwing | undefined {
+		wetuwn viewType.stawtsWith(this.pwefix)
+			? viewType.substw(this.pwefix.wength)
 			: undefined;
 	}
 }
 
-export class MainThreadWebviewPanels extends Disposable implements extHostProtocol.MainThreadWebviewPanelsShape {
+expowt cwass MainThweadWebviewPanews extends Disposabwe impwements extHostPwotocow.MainThweadWebviewPanewsShape {
 
-	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
+	pwivate weadonwy webviewPanewViewType = new WebviewViewTypeTwansfowma('mainThweadWebview-');
 
-	private readonly _proxy: extHostProtocol.ExtHostWebviewPanelsShape;
+	pwivate weadonwy _pwoxy: extHostPwotocow.ExtHostWebviewPanewsShape;
 
-	private readonly _webviewInputs = new WebviewInputStore();
+	pwivate weadonwy _webviewInputs = new WebviewInputStowe();
 
-	private readonly _editorProviders = new Map<string, IDisposable>();
+	pwivate weadonwy _editowPwovidews = new Map<stwing, IDisposabwe>();
 
-	private readonly _revivers = new Map<string, IDisposable>();
+	pwivate weadonwy _wevivews = new Map<stwing, IDisposabwe>();
 
-	constructor(
-		context: extHostProtocol.IExtHostContext,
-		private readonly _mainThreadWebviews: MainThreadWebviews,
-		@IExtensionService extensionService: IExtensionService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
+	constwuctow(
+		context: extHostPwotocow.IExtHostContext,
+		pwivate weadonwy _mainThweadWebviews: MainThweadWebviews,
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWebviewWowkbenchSewvice pwivate weadonwy _webviewWowkbenchSewvice: IWebviewWowkbenchSewvice,
 	) {
-		super();
+		supa();
 
-		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
+		this._pwoxy = context.getPwoxy(extHostPwotocow.ExtHostContext.ExtHostWebviewPanews);
 
-		this._register(_editorService.onDidActiveEditorChange(() => {
-			this.updateWebviewViewStates(this._editorService.activeEditor);
+		this._wegista(_editowSewvice.onDidActiveEditowChange(() => {
+			this.updateWebviewViewStates(this._editowSewvice.activeEditow);
 		}));
 
-		this._register(_editorService.onDidVisibleEditorsChange(() => {
-			this.updateWebviewViewStates(this._editorService.activeEditor);
+		this._wegista(_editowSewvice.onDidVisibweEditowsChange(() => {
+			this.updateWebviewViewStates(this._editowSewvice.activeEditow);
 		}));
 
-		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor(input => {
+		this._wegista(_webviewWowkbenchSewvice.onDidChangeActiveWebviewEditow(input => {
 			this.updateWebviewViewStates(input);
 		}));
 
-		// This reviver's only job is to activate extensions.
-		// This should trigger the real reviver to be registered from the extension host side.
-		this._register(_webviewWorkbenchService.registerResolver({
-			canResolve: (webview: WebviewInput) => {
-				const viewType = this.webviewPanelViewType.toExternal(webview.viewType);
-				if (typeof viewType === 'string') {
-					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
+		// This weviva's onwy job is to activate extensions.
+		// This shouwd twigga the weaw weviva to be wegistewed fwom the extension host side.
+		this._wegista(_webviewWowkbenchSewvice.wegistewWesowva({
+			canWesowve: (webview: WebviewInput) => {
+				const viewType = this.webviewPanewViewType.toExtewnaw(webview.viewType);
+				if (typeof viewType === 'stwing') {
+					extensionSewvice.activateByEvent(`onWebviewPanew:${viewType}`);
 				}
-				return false;
+				wetuwn fawse;
 			},
-			resolveWebview: () => { throw new Error('not implemented'); }
+			wesowveWebview: () => { thwow new Ewwow('not impwemented'); }
 		}));
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 
-		dispose(this._editorProviders.values());
-		this._editorProviders.clear();
+		dispose(this._editowPwovidews.vawues());
+		this._editowPwovidews.cweaw();
 
-		dispose(this._revivers.values());
-		this._revivers.clear();
+		dispose(this._wevivews.vawues());
+		this._wevivews.cweaw();
 	}
 
-	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
+	pubwic get webviewInputs(): Itewabwe<WebviewInput> { wetuwn this._webviewInputs; }
 
-	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput, options: { serializeBuffersForPostMessage: boolean }): void {
-		this._webviewInputs.add(handle, input);
-		this._mainThreadWebviews.addWebview(handle, input.webview, options);
+	pubwic addWebviewInput(handwe: extHostPwotocow.WebviewHandwe, input: WebviewInput, options: { sewiawizeBuffewsFowPostMessage: boowean }): void {
+		this._webviewInputs.add(handwe, input);
+		this._mainThweadWebviews.addWebview(handwe, input.webview, options);
 
 		input.webview.onDidDispose(() => {
-			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
-				this._webviewInputs.delete(handle);
+			this._pwoxy.$onDidDisposeWebviewPanew(handwe).finawwy(() => {
+				this._webviewInputs.dewete(handwe);
 			});
 		});
 	}
 
-	public $createWebviewPanel(
-		extensionData: extHostProtocol.WebviewExtensionDescription,
-		handle: extHostProtocol.WebviewHandle,
-		viewType: string,
+	pubwic $cweateWebviewPanew(
+		extensionData: extHostPwotocow.WebviewExtensionDescwiption,
+		handwe: extHostPwotocow.WebviewHandwe,
+		viewType: stwing,
 		initData: {
-			title: string;
-			webviewOptions: extHostProtocol.IWebviewOptions;
-			panelOptions: extHostProtocol.IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
+			titwe: stwing;
+			webviewOptions: extHostPwotocow.IWebviewOptions;
+			panewOptions: extHostPwotocow.IWebviewPanewOptions;
+			sewiawizeBuffewsFowPostMessage: boowean;
 		},
-		showOptions: { viewColumn?: EditorGroupColumn, preserveFocus?: boolean; },
+		showOptions: { viewCowumn?: EditowGwoupCowumn, pwesewveFocus?: boowean; },
 	): void {
-		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
+		const mainThweadShowOptions: ICweateWebViewShowOptions = Object.cweate(nuww);
 		if (showOptions) {
-			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
-			mainThreadShowOptions.group = columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
+			mainThweadShowOptions.pwesewveFocus = !!showOptions.pwesewveFocus;
+			mainThweadShowOptions.gwoup = cowumnToEditowGwoup(this._editowGwoupSewvice, showOptions.viewCowumn);
 		}
 
-		const extension = reviveWebviewExtension(extensionData);
+		const extension = weviveWebviewExtension(extensionData);
 
-		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions, reviveWebviewOptions(initData.panelOptions), reviveWebviewContentOptions(initData.webviewOptions), extension);
-		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
+		const webview = this._webviewWowkbenchSewvice.cweateWebview(handwe, this.webviewPanewViewType.fwomExtewnaw(viewType), initData.titwe, mainThweadShowOptions, weviveWebviewOptions(initData.panewOptions), weviveWebviewContentOptions(initData.webviewOptions), extension);
+		this.addWebviewInput(handwe, webview, { sewiawizeBuffewsFowPostMessage: initData.sewiawizeBuffewsFowPostMessage });
 
-		/* __GDPR__
-			"webviews:createWebviewPanel" : {
-				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"viewType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__
+			"webviews:cweateWebviewPanew" : {
+				"extensionId" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+				"viewType" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this._telemetryService.publicLog('webviews:createWebviewPanel', {
-			extensionId: extension.id.value,
+		this._tewemetwySewvice.pubwicWog('webviews:cweateWebviewPanew', {
+			extensionId: extension.id.vawue,
 			viewType
 		});
 	}
 
-	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
-		const webview = this.getWebviewInput(handle);
+	pubwic $disposeWebview(handwe: extHostPwotocow.WebviewHandwe): void {
+		const webview = this.getWebviewInput(handwe);
 		webview.dispose();
 	}
 
-	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
-		const webview = this.getWebviewInput(handle);
-		webview.setName(value);
+	pubwic $setTitwe(handwe: extHostPwotocow.WebviewHandwe, vawue: stwing): void {
+		const webview = this.getWebviewInput(handwe);
+		webview.setName(vawue);
 	}
 
-	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
-		const webview = this.getWebviewInput(handle);
-		webview.iconPath = reviveWebviewIcon(value);
+	pubwic $setIconPath(handwe: extHostPwotocow.WebviewHandwe, vawue: { wight: UwiComponents, dawk: UwiComponents; } | undefined): void {
+		const webview = this.getWebviewInput(handwe);
+		webview.iconPath = weviveWebviewIcon(vawue);
 	}
 
-	public $reveal(handle: extHostProtocol.WebviewHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
-		const webview = this.getWebviewInput(handle);
+	pubwic $weveaw(handwe: extHostPwotocow.WebviewHandwe, showOptions: extHostPwotocow.WebviewPanewShowOptions): void {
+		const webview = this.getWebviewInput(handwe);
 		if (webview.isDisposed()) {
-			return;
+			wetuwn;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
-		if (targetGroup) {
-			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+		const tawgetGwoup = this._editowGwoupSewvice.getGwoup(cowumnToEditowGwoup(this._editowGwoupSewvice, showOptions.viewCowumn)) || this._editowGwoupSewvice.getGwoup(webview.gwoup || 0);
+		if (tawgetGwoup) {
+			this._webviewWowkbenchSewvice.weveawWebview(webview, tawgetGwoup, !!showOptions.pwesewveFocus);
 		}
 	}
 
-	public $registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void {
-		if (this._revivers.has(viewType)) {
-			throw new Error(`Reviver for ${viewType} already registered`);
+	pubwic $wegistewSewiawiza(viewType: stwing, options: { sewiawizeBuffewsFowPostMessage: boowean }): void {
+		if (this._wevivews.has(viewType)) {
+			thwow new Ewwow(`Weviva fow ${viewType} awweady wegistewed`);
 		}
 
-		this._revivers.set(viewType, this._webviewWorkbenchService.registerResolver({
-			canResolve: (webviewInput) => {
-				return webviewInput.viewType === this.webviewPanelViewType.fromExternal(viewType);
+		this._wevivews.set(viewType, this._webviewWowkbenchSewvice.wegistewWesowva({
+			canWesowve: (webviewInput) => {
+				wetuwn webviewInput.viewType === this.webviewPanewViewType.fwomExtewnaw(viewType);
 			},
-			resolveWebview: async (webviewInput): Promise<void> => {
-				const viewType = this.webviewPanelViewType.toExternal(webviewInput.viewType);
+			wesowveWebview: async (webviewInput): Pwomise<void> => {
+				const viewType = this.webviewPanewViewType.toExtewnaw(webviewInput.viewType);
 				if (!viewType) {
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
-					return;
+					webviewInput.webview.htmw = this._mainThweadWebviews.getWebviewWesowvedFaiwedContent(webviewInput.viewType);
+					wetuwn;
 				}
 
-				const handle = webviewInput.id;
+				const handwe = webviewInput.id;
 
-				this.addWebviewInput(handle, webviewInput, options);
+				this.addWebviewInput(handwe, webviewInput, options);
 
-				let state = undefined;
+				wet state = undefined;
 				if (webviewInput.webview.state) {
-					try {
-						state = JSON.parse(webviewInput.webview.state);
+					twy {
+						state = JSON.pawse(webviewInput.webview.state);
 					} catch (e) {
-						console.error('Could not load webview state', e, webviewInput.webview.state);
+						consowe.ewwow('Couwd not woad webview state', e, webviewInput.webview.state);
 					}
 				}
 
-				try {
-					await this._proxy.$deserializeWebviewPanel(handle, viewType, {
-						title: webviewInput.getTitle(),
+				twy {
+					await this._pwoxy.$desewiawizeWebviewPanew(handwe, viewType, {
+						titwe: webviewInput.getTitwe(),
 						state,
-						panelOptions: webviewInput.webview.options,
+						panewOptions: webviewInput.webview.options,
 						webviewOptions: webviewInput.webview.contentOptions,
-					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
-				} catch (error) {
-					onUnexpectedError(error);
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					}, editowGwoupToCowumn(this._editowGwoupSewvice, webviewInput.gwoup || 0));
+				} catch (ewwow) {
+					onUnexpectedEwwow(ewwow);
+					webviewInput.webview.htmw = this._mainThweadWebviews.getWebviewWesowvedFaiwedContent(viewType);
 				}
 			}
 		}));
 	}
 
-	public $unregisterSerializer(viewType: string): void {
-		const reviver = this._revivers.get(viewType);
-		if (!reviver) {
-			throw new Error(`No reviver for ${viewType} registered`);
+	pubwic $unwegistewSewiawiza(viewType: stwing): void {
+		const weviva = this._wevivews.get(viewType);
+		if (!weviva) {
+			thwow new Ewwow(`No weviva fow ${viewType} wegistewed`);
 		}
 
-		reviver.dispose();
-		this._revivers.delete(viewType);
+		weviva.dispose();
+		this._wevivews.dewete(viewType);
 	}
 
-	private updateWebviewViewStates(activeEditorInput: EditorInput | undefined) {
+	pwivate updateWebviewViewStates(activeEditowInput: EditowInput | undefined) {
 		if (!this._webviewInputs.size) {
-			return;
+			wetuwn;
 		}
 
-		const viewStates: extHostProtocol.WebviewPanelViewStateData = {};
+		const viewStates: extHostPwotocow.WebviewPanewViewStateData = {};
 
-		const updateViewStatesForInput = (group: IEditorGroup, topLevelInput: EditorInput, editorInput: EditorInput) => {
-			if (!(editorInput instanceof WebviewInput)) {
-				return;
+		const updateViewStatesFowInput = (gwoup: IEditowGwoup, topWevewInput: EditowInput, editowInput: EditowInput) => {
+			if (!(editowInput instanceof WebviewInput)) {
+				wetuwn;
 			}
 
-			editorInput.updateGroup(group.id);
+			editowInput.updateGwoup(gwoup.id);
 
-			const handle = this._webviewInputs.getHandleForInput(editorInput);
-			if (handle) {
-				viewStates[handle] = {
-					visible: topLevelInput === group.activeEditor,
-					active: editorInput === activeEditorInput,
-					position: editorGroupToColumn(this._editorGroupService, group.id),
+			const handwe = this._webviewInputs.getHandweFowInput(editowInput);
+			if (handwe) {
+				viewStates[handwe] = {
+					visibwe: topWevewInput === gwoup.activeEditow,
+					active: editowInput === activeEditowInput,
+					position: editowGwoupToCowumn(this._editowGwoupSewvice, gwoup.id),
 				};
 			}
 		};
 
-		for (const group of this._editorGroupService.groups) {
-			for (const input of group.editors) {
-				if (input instanceof DiffEditorInput) {
-					updateViewStatesForInput(group, input, input.primary);
-					updateViewStatesForInput(group, input, input.secondary);
-				} else {
-					updateViewStatesForInput(group, input, input);
+		fow (const gwoup of this._editowGwoupSewvice.gwoups) {
+			fow (const input of gwoup.editows) {
+				if (input instanceof DiffEditowInput) {
+					updateViewStatesFowInput(gwoup, input, input.pwimawy);
+					updateViewStatesFowInput(gwoup, input, input.secondawy);
+				} ewse {
+					updateViewStatesFowInput(gwoup, input, input);
 				}
 			}
 		}
 
-		if (Object.keys(viewStates).length) {
-			this._proxy.$onDidChangeWebviewPanelViewStates(viewStates);
+		if (Object.keys(viewStates).wength) {
+			this._pwoxy.$onDidChangeWebviewPanewViewStates(viewStates);
 		}
 	}
 
-	private getWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput {
-		const webview = this.tryGetWebviewInput(handle);
+	pwivate getWebviewInput(handwe: extHostPwotocow.WebviewHandwe): WebviewInput {
+		const webview = this.twyGetWebviewInput(handwe);
 		if (!webview) {
-			throw new Error(`Unknown webview handle:${handle}`);
+			thwow new Ewwow(`Unknown webview handwe:${handwe}`);
 		}
-		return webview;
+		wetuwn webview;
 	}
 
-	private tryGetWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput | undefined {
-		return this._webviewInputs.getInputForHandle(handle);
+	pwivate twyGetWebviewInput(handwe: extHostPwotocow.WebviewHandwe): WebviewInput | undefined {
+		wetuwn this._webviewInputs.getInputFowHandwe(handwe);
 	}
 }
 
-function reviveWebviewIcon(
-	value: { light: UriComponents, dark: UriComponents; } | undefined
+function weviveWebviewIcon(
+	vawue: { wight: UwiComponents, dawk: UwiComponents; } | undefined
 ): WebviewIcons | undefined {
-	return value
-		? { light: URI.revive(value.light), dark: URI.revive(value.dark) }
+	wetuwn vawue
+		? { wight: UWI.wevive(vawue.wight), dawk: UWI.wevive(vawue.dawk) }
 		: undefined;
 }
 
-function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions): WebviewOptions {
-	return {
-		enableFindWidget: panelOptions.enableFindWidget,
-		retainContextWhenHidden: panelOptions.retainContextWhenHidden,
+function weviveWebviewOptions(panewOptions: extHostPwotocow.IWebviewPanewOptions): WebviewOptions {
+	wetuwn {
+		enabweFindWidget: panewOptions.enabweFindWidget,
+		wetainContextWhenHidden: panewOptions.wetainContextWhenHidden,
 	};
 }

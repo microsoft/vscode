@@ -1,692 +1,692 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
-import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { escapeWegExpChawactews } fwom 'vs/base/common/stwings';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IModewDecowationsChangeAccessow, IModewDewtaDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { FowdingModew, getNextFowdWine, getPawentFowdWine, getPweviousFowdWine, setCowwapseStateAtWevew, setCowwapseStateFowMatchingWines, setCowwapseStateFowWest, setCowwapseStateWevewsDown, setCowwapseStateWevewsUp, setCowwapseStateUp } fwom 'vs/editow/contwib/fowding/fowdingModew';
+impowt { FowdingWegion } fwom 'vs/editow/contwib/fowding/fowdingWanges';
+impowt { computeWanges } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
 
-interface ExpectedRegion {
-	startLineNumber: number;
-	endLineNumber: number;
-	isCollapsed: boolean;
+intewface ExpectedWegion {
+	stawtWineNumba: numba;
+	endWineNumba: numba;
+	isCowwapsed: boowean;
 }
 
-interface ExpectedDecoration {
-	line: number;
-	type: 'hidden' | 'collapsed' | 'expanded';
+intewface ExpectedDecowation {
+	wine: numba;
+	type: 'hidden' | 'cowwapsed' | 'expanded';
 }
 
-export class TestDecorationProvider {
+expowt cwass TestDecowationPwovida {
 
-	private static readonly collapsedDecoration = ModelDecorationOptions.register({
-		description: 'test',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+	pwivate static weadonwy cowwapsedDecowation = ModewDecowationOptions.wegista({
+		descwiption: 'test',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		winesDecowationsCwassName: 'fowding'
 	});
 
-	private static readonly expandedDecoration = ModelDecorationOptions.register({
-		description: 'test',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+	pwivate static weadonwy expandedDecowation = ModewDecowationOptions.wegista({
+		descwiption: 'test',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		winesDecowationsCwassName: 'fowding'
 	});
 
-	private static readonly hiddenDecoration = ModelDecorationOptions.register({
-		description: 'test',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+	pwivate static weadonwy hiddenDecowation = ModewDecowationOptions.wegista({
+		descwiption: 'test',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		winesDecowationsCwassName: 'fowding'
 	});
 
-	constructor(private model: ITextModel) {
+	constwuctow(pwivate modew: ITextModew) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean): ModelDecorationOptions {
+	getDecowationOption(isCowwapsed: boowean, isHidden: boowean): ModewDecowationOptions {
 		if (isHidden) {
-			return TestDecorationProvider.hiddenDecoration;
+			wetuwn TestDecowationPwovida.hiddenDecowation;
 		}
-		if (isCollapsed) {
-			return TestDecorationProvider.collapsedDecoration;
+		if (isCowwapsed) {
+			wetuwn TestDecowationPwovida.cowwapsedDecowation;
 		}
-		return TestDecorationProvider.expandedDecoration;
+		wetuwn TestDecowationPwovida.expandedDecowation;
 	}
 
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
-		return this.model.deltaDecorations(oldDecorations, newDecorations);
+	dewtaDecowations(owdDecowations: stwing[], newDecowations: IModewDewtaDecowation[]): stwing[] {
+		wetuwn this.modew.dewtaDecowations(owdDecowations, newDecowations);
 	}
 
-	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): (T | null) {
-		return this.model.changeDecorations(callback);
+	changeDecowations<T>(cawwback: (changeAccessow: IModewDecowationsChangeAccessow) => T): (T | nuww) {
+		wetuwn this.modew.changeDecowations(cawwback);
 	}
 
-	getDecorations(): ExpectedDecoration[] {
-		const decorations = this.model.getAllDecorations();
-		const res: ExpectedDecoration[] = [];
-		for (let decoration of decorations) {
-			if (decoration.options === TestDecorationProvider.hiddenDecoration) {
-				res.push({ line: decoration.range.startLineNumber, type: 'hidden' });
-			} else if (decoration.options === TestDecorationProvider.collapsedDecoration) {
-				res.push({ line: decoration.range.startLineNumber, type: 'collapsed' });
-			} else if (decoration.options === TestDecorationProvider.expandedDecoration) {
-				res.push({ line: decoration.range.startLineNumber, type: 'expanded' });
+	getDecowations(): ExpectedDecowation[] {
+		const decowations = this.modew.getAwwDecowations();
+		const wes: ExpectedDecowation[] = [];
+		fow (wet decowation of decowations) {
+			if (decowation.options === TestDecowationPwovida.hiddenDecowation) {
+				wes.push({ wine: decowation.wange.stawtWineNumba, type: 'hidden' });
+			} ewse if (decowation.options === TestDecowationPwovida.cowwapsedDecowation) {
+				wes.push({ wine: decowation.wange.stawtWineNumba, type: 'cowwapsed' });
+			} ewse if (decowation.options === TestDecowationPwovida.expandedDecowation) {
+				wes.push({ wine: decowation.wange.stawtWineNumba, type: 'expanded' });
 			}
 		}
-		return res;
+		wetuwn wes;
 	}
 }
 
-suite('Folding Model', () => {
-	function r(startLineNumber: number, endLineNumber: number, isCollapsed: boolean = false): ExpectedRegion {
-		return { startLineNumber, endLineNumber, isCollapsed };
+suite('Fowding Modew', () => {
+	function w(stawtWineNumba: numba, endWineNumba: numba, isCowwapsed: boowean = fawse): ExpectedWegion {
+		wetuwn { stawtWineNumba, endWineNumba, isCowwapsed };
 	}
 
-	function d(line: number, type: 'hidden' | 'collapsed' | 'expanded'): ExpectedDecoration {
-		return { line, type };
+	function d(wine: numba, type: 'hidden' | 'cowwapsed' | 'expanded'): ExpectedDecowation {
+		wetuwn { wine, type };
 	}
 
-	function assertRegion(actual: FoldingRegion | null, expected: ExpectedRegion | null, message?: string) {
-		assert.strictEqual(!!actual, !!expected, message);
-		if (actual && expected) {
-			assert.strictEqual(actual.startLineNumber, expected.startLineNumber, message);
-			assert.strictEqual(actual.endLineNumber, expected.endLineNumber, message);
-			assert.strictEqual(actual.isCollapsed, expected.isCollapsed, message);
+	function assewtWegion(actuaw: FowdingWegion | nuww, expected: ExpectedWegion | nuww, message?: stwing) {
+		assewt.stwictEquaw(!!actuaw, !!expected, message);
+		if (actuaw && expected) {
+			assewt.stwictEquaw(actuaw.stawtWineNumba, expected.stawtWineNumba, message);
+			assewt.stwictEquaw(actuaw.endWineNumba, expected.endWineNumba, message);
+			assewt.stwictEquaw(actuaw.isCowwapsed, expected.isCowwapsed, message);
 		}
 	}
 
-	function assertFoldedRanges(foldingModel: FoldingModel, expectedRegions: ExpectedRegion[], message?: string) {
-		let actualRanges: ExpectedRegion[] = [];
-		let actual = foldingModel.regions;
-		for (let i = 0; i < actual.length; i++) {
-			if (actual.isCollapsed(i)) {
-				actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i)));
+	function assewtFowdedWanges(fowdingModew: FowdingModew, expectedWegions: ExpectedWegion[], message?: stwing) {
+		wet actuawWanges: ExpectedWegion[] = [];
+		wet actuaw = fowdingModew.wegions;
+		fow (wet i = 0; i < actuaw.wength; i++) {
+			if (actuaw.isCowwapsed(i)) {
+				actuawWanges.push(w(actuaw.getStawtWineNumba(i), actuaw.getEndWineNumba(i)));
 			}
 		}
-		assert.deepStrictEqual(actualRanges, expectedRegions, message);
+		assewt.deepStwictEquaw(actuawWanges, expectedWegions, message);
 	}
 
-	function assertRanges(foldingModel: FoldingModel, expectedRegions: ExpectedRegion[], message?: string) {
-		let actualRanges: ExpectedRegion[] = [];
-		let actual = foldingModel.regions;
-		for (let i = 0; i < actual.length; i++) {
-			actualRanges.push(r(actual.getStartLineNumber(i), actual.getEndLineNumber(i), actual.isCollapsed(i)));
+	function assewtWanges(fowdingModew: FowdingModew, expectedWegions: ExpectedWegion[], message?: stwing) {
+		wet actuawWanges: ExpectedWegion[] = [];
+		wet actuaw = fowdingModew.wegions;
+		fow (wet i = 0; i < actuaw.wength; i++) {
+			actuawWanges.push(w(actuaw.getStawtWineNumba(i), actuaw.getEndWineNumba(i), actuaw.isCowwapsed(i)));
 		}
-		assert.deepStrictEqual(actualRanges, expectedRegions, message);
+		assewt.deepStwictEquaw(actuawWanges, expectedWegions, message);
 	}
 
-	function assertDecorations(foldingModel: FoldingModel, expectedDecoration: ExpectedDecoration[], message?: string) {
-		const decorationProvider = foldingModel.decorationProvider as TestDecorationProvider;
-		assert.deepStrictEqual(decorationProvider.getDecorations(), expectedDecoration, message);
+	function assewtDecowations(fowdingModew: FowdingModew, expectedDecowation: ExpectedDecowation[], message?: stwing) {
+		const decowationPwovida = fowdingModew.decowationPwovida as TestDecowationPwovida;
+		assewt.deepStwictEquaw(decowationPwovida.getDecowations(), expectedDecowation, message);
 	}
 
-	function assertRegions(actual: FoldingRegion[], expectedRegions: ExpectedRegion[], message?: string) {
-		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, isCollapsed: r.isCollapsed })), expectedRegions, message);
+	function assewtWegions(actuaw: FowdingWegion[], expectedWegions: ExpectedWegion[], message?: stwing) {
+		assewt.deepStwictEquaw(actuaw.map(w => ({ stawtWineNumba: w.stawtWineNumba, endWineNumba: w.endWineNumba, isCowwapsed: w.isCowwapsed })), expectedWegions, message);
 	}
 
-	test('getRegionAtLine', () => {
-		let lines = [
+	test('getWegionAtWine', () => {
+		wet wines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
 		/* 6*/	'    // comment {',
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 3, false);
-			let r2 = r(4, 7, false);
-			let r3 = r(5, 6, false);
+			wet w1 = w(1, 3, fawse);
+			wet w2 = w(4, 7, fawse);
+			wet w3 = w(5, 6, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3]);
+			assewtWanges(fowdingModew, [w1, w2, w3]);
 
-			assertRegion(foldingModel.getRegionAtLine(1), r1, '1');
-			assertRegion(foldingModel.getRegionAtLine(2), r1, '2');
-			assertRegion(foldingModel.getRegionAtLine(3), r1, '3');
-			assertRegion(foldingModel.getRegionAtLine(4), r2, '4');
-			assertRegion(foldingModel.getRegionAtLine(5), r3, '5');
-			assertRegion(foldingModel.getRegionAtLine(6), r3, '5');
-			assertRegion(foldingModel.getRegionAtLine(7), r2, '6');
-			assertRegion(foldingModel.getRegionAtLine(8), null, '7');
-		} finally {
-			textModel.dispose();
+			assewtWegion(fowdingModew.getWegionAtWine(1), w1, '1');
+			assewtWegion(fowdingModew.getWegionAtWine(2), w1, '2');
+			assewtWegion(fowdingModew.getWegionAtWine(3), w1, '3');
+			assewtWegion(fowdingModew.getWegionAtWine(4), w2, '4');
+			assewtWegion(fowdingModew.getWegionAtWine(5), w3, '5');
+			assewtWegion(fowdingModew.getWegionAtWine(6), w3, '5');
+			assewtWegion(fowdingModew.getWegionAtWine(7), w2, '6');
+			assewtWegion(fowdingModew.getWegionAtWine(8), nuww, '7');
+		} finawwy {
+			textModew.dispose();
 		}
 
 
 	});
 
-	test('collapse', () => {
-		let lines = [
+	test('cowwapse', () => {
+		wet wines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
 		/* 6*/	'    // comment {',
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 3, false);
-			let r2 = r(4, 7, false);
-			let r3 = r(5, 6, false);
+			wet w1 = w(1, 3, fawse);
+			wet w2 = w(4, 7, fawse);
+			wet w3 = w(5, 6, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3]);
+			assewtWanges(fowdingModew, [w1, w2, w3]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
-			foldingModel.update(ranges);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(1)!]);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r(1, 3, true), r2, r3]);
+			assewtWanges(fowdingModew, [w(1, 3, twue), w2, w3]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(5)!]);
-			foldingModel.update(ranges);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(5)!]);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r(1, 3, true), r2, r(5, 6, true)]);
+			assewtWanges(fowdingModew, [w(1, 3, twue), w2, w(5, 6, twue)]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(7)!]);
-			foldingModel.update(ranges);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(7)!]);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r(1, 3, true), r(4, 7, true), r(5, 6, true)]);
+			assewtWanges(fowdingModew, [w(1, 3, twue), w(4, 7, twue), w(5, 6, twue)]);
 
-			textModel.dispose();
-		} finally {
-			textModel.dispose();
+			textModew.dispose();
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
 	test('update', () => {
-		let lines = [
+		wet wines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
 		/* 6*/	'    // comment {',
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 3, false);
-			let r2 = r(4, 7, false);
-			let r3 = r(5, 6, false);
+			wet w1 = w(1, 3, fawse);
+			wet w2 = w(4, 7, fawse);
+			wet w3 = w(5, 6, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3]);
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(2)!, foldingModel.getRegionAtLine(5)!]);
+			assewtWanges(fowdingModew, [w1, w2, w3]);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(2)!, fowdingModew.getWegionAtWine(5)!]);
 
-			textModel.applyEdits([EditOperation.insert(new Position(4, 1), '//hello\n')]);
+			textModew.appwyEdits([EditOpewation.insewt(new Position(4, 1), '//hewwo\n')]);
 
-			foldingModel.update(computeRanges(textModel, false, undefined));
+			fowdingModew.update(computeWanges(textModew, fawse, undefined));
 
-			assertRanges(foldingModel, [r(1, 3, true), r(5, 8, false), r(6, 7, true)]);
-		} finally {
-			textModel.dispose();
+			assewtWanges(fowdingModew, [w(1, 3, twue), w(5, 8, fawse), w(6, 7, twue)]);
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 
-	test('delete', () => {
-		let lines = [
+	test('dewete', () => {
+		wet wines = [
 		/* 1*/	'function foo() {',
 		/* 2*/	'  switch (x) {',
 		/* 3*/	'    case 1:',
-		/* 4*/	'      //hello1',
-		/* 5*/	'      break;',
+		/* 4*/	'      //hewwo1',
+		/* 5*/	'      bweak;',
 		/* 6*/	'    case 2:',
-		/* 7*/	'      //hello2',
-		/* 8*/	'      break;',
+		/* 7*/	'      //hewwo2',
+		/* 8*/	'      bweak;',
 		/* 9*/	'    case 3:',
-		/* 10*/	'      //hello3',
-		/* 11*/	'      break;',
+		/* 10*/	'      //hewwo3',
+		/* 11*/	'      bweak;',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 12, false);
-			let r2 = r(2, 11, false);
-			let r3 = r(3, 5, false);
-			let r4 = r(6, 8, false);
-			let r5 = r(9, 11, false);
+			wet w1 = w(1, 12, fawse);
+			wet w2 = w(2, 11, fawse);
+			wet w3 = w(3, 5, fawse);
+			wet w4 = w(6, 8, fawse);
+			wet w5 = w(9, 11, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(6)!]);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(6)!]);
 
-			textModel.applyEdits([EditOperation.delete(new Range(6, 11, 9, 0))]);
+			textModew.appwyEdits([EditOpewation.dewete(new Wange(6, 11, 9, 0))]);
 
-			foldingModel.update(computeRanges(textModel, false, undefined));
+			fowdingModew.update(computeWanges(textModew, fawse, undefined));
 
-			assertRanges(foldingModel, [r(1, 9, false), r(2, 8, false), r(3, 5, false), r(6, 8, false)]);
-		} finally {
-			textModel.dispose();
+			assewtWanges(fowdingModew, [w(1, 9, fawse), w(2, 8, fawse), w(3, 5, fawse), w(6, 8, fawse)]);
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 
-	test('getRegionsInside', () => {
-		let lines = [
+	test('getWegionsInside', () => {
+		wet wines = [
 		/* 1*/	'/**',
 		/* 2*/	' * Comment',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  void foo() {',
 		/* 6*/	'    // comment {',
 		/* 7*/	'  }',
 		/* 8*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 3, false);
-			let r2 = r(4, 7, false);
-			let r3 = r(5, 6, false);
+			wet w1 = w(1, 3, fawse);
+			wet w2 = w(4, 7, fawse);
+			wet w3 = w(5, 6, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3]);
-			let region1 = foldingModel.getRegionAtLine(r1.startLineNumber);
-			let region2 = foldingModel.getRegionAtLine(r2.startLineNumber);
-			let region3 = foldingModel.getRegionAtLine(r3.startLineNumber);
+			assewtWanges(fowdingModew, [w1, w2, w3]);
+			wet wegion1 = fowdingModew.getWegionAtWine(w1.stawtWineNumba);
+			wet wegion2 = fowdingModew.getWegionAtWine(w2.stawtWineNumba);
+			wet wegion3 = fowdingModew.getWegionAtWine(w3.stawtWineNumba);
 
-			assertRegions(foldingModel.getRegionsInside(null), [r1, r2, r3], '1');
-			assertRegions(foldingModel.getRegionsInside(region1), [], '2');
-			assertRegions(foldingModel.getRegionsInside(region2), [r3], '3');
-			assertRegions(foldingModel.getRegionsInside(region3), [], '4');
-		} finally {
-			textModel.dispose();
+			assewtWegions(fowdingModew.getWegionsInside(nuww), [w1, w2, w3], '1');
+			assewtWegions(fowdingModew.getWegionsInside(wegion1), [], '2');
+			assewtWegions(fowdingModew.getWegionsInside(wegion2), [w3], '3');
+			assewtWegions(fowdingModew.getWegionsInside(wegion3), [], '4');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('getRegionsInsideWithLevel', () => {
-		let lines = [
-			/* 1*/	'//#region',
-			/* 2*/	'//#endregion',
-			/* 3*/	'class A {',
+	test('getWegionsInsideWithWevew', () => {
+		wet wines = [
+			/* 1*/	'//#wegion',
+			/* 2*/	'//#endwegion',
+			/* 3*/	'cwass A {',
 			/* 4*/	'  void foo() {',
-			/* 5*/	'    if (true) {',
-			/* 6*/	'        return;',
+			/* 5*/	'    if (twue) {',
+			/* 6*/	'        wetuwn;',
 			/* 7*/	'    }',
-			/* 8*/	'    if (true) {',
-			/* 9*/	'      return;',
+			/* 8*/	'    if (twue) {',
+			/* 9*/	'      wetuwn;',
 			/* 10*/	'    }',
 			/* 11*/	'  }',
 			/* 12*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
 
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 11, false);
-			let r3 = r(4, 10, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(8, 9, false);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 11, fawse);
+			wet w3 = w(4, 10, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(8, 9, fawse);
 
-			let region1 = foldingModel.getRegionAtLine(r1.startLineNumber);
-			let region2 = foldingModel.getRegionAtLine(r2.startLineNumber);
-			let region3 = foldingModel.getRegionAtLine(r3.startLineNumber);
+			wet wegion1 = fowdingModew.getWegionAtWine(w1.stawtWineNumba);
+			wet wegion2 = fowdingModew.getWegionAtWine(w2.stawtWineNumba);
+			wet wegion3 = fowdingModew.getWegionAtWine(w3.stawtWineNumba);
 
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			assertRegions(foldingModel.getRegionsInside(null, (r, level) => level === 1), [r1, r2], '1');
-			assertRegions(foldingModel.getRegionsInside(null, (r, level) => level === 2), [r3], '2');
-			assertRegions(foldingModel.getRegionsInside(null, (r, level) => level === 3), [r4, r5], '3');
+			assewtWegions(fowdingModew.getWegionsInside(nuww, (w, wevew) => wevew === 1), [w1, w2], '1');
+			assewtWegions(fowdingModew.getWegionsInside(nuww, (w, wevew) => wevew === 2), [w3], '2');
+			assewtWegions(fowdingModew.getWegionsInside(nuww, (w, wevew) => wevew === 3), [w4, w5], '3');
 
-			assertRegions(foldingModel.getRegionsInside(region2, (r, level) => level === 1), [r3], '4');
-			assertRegions(foldingModel.getRegionsInside(region2, (r, level) => level === 2), [r4, r5], '5');
-			assertRegions(foldingModel.getRegionsInside(region3, (r, level) => level === 1), [r4, r5], '6');
+			assewtWegions(fowdingModew.getWegionsInside(wegion2, (w, wevew) => wevew === 1), [w3], '4');
+			assewtWegions(fowdingModew.getWegionsInside(wegion2, (w, wevew) => wevew === 2), [w4, w5], '5');
+			assewtWegions(fowdingModew.getWegionsInside(wegion3, (w, wevew) => wevew === 1), [w4, w5], '6');
 
-			assertRegions(foldingModel.getRegionsInside(region2, (r, level) => r.hidesLine(9)), [r3, r5], '7');
+			assewtWegions(fowdingModew.getWegionsInside(wegion2, (w, wevew) => w.hidesWine(9)), [w3, w5], '7');
 
-			assertRegions(foldingModel.getRegionsInside(region1, (r, level) => level === 1), [], '8');
-		} finally {
-			textModel.dispose();
+			assewtWegions(fowdingModew.getWegionsInside(wegion1, (w, wevew) => wevew === 1), [], '8');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('getRegionAtLine', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'class A {',
+	test('getWegionAtWine', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'cwass A {',
 		/* 3*/	'  void foo() {',
-		/* 4*/	'    if (true) {',
-		/* 5*/	'      //hello',
+		/* 4*/	'    if (twue) {',
+		/* 5*/	'      //hewwo',
 		/* 6*/	'    }',
 		/* 7*/	'',
 		/* 8*/	'  }',
 		/* 9*/	'}',
-		/* 10*/	'//#endregion',
+		/* 10*/	'//#endwegion',
 		/* 11*/	''];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 10, false);
-			let r2 = r(2, 8, false);
-			let r3 = r(3, 7, false);
-			let r4 = r(4, 5, false);
+			wet w1 = w(1, 10, fawse);
+			wet w2 = w(2, 8, fawse);
+			wet w3 = w(3, 7, fawse);
+			wet w4 = w(4, 5, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3, r4]);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4]);
 
-			assertRegions(foldingModel.getAllRegionsAtLine(1), [r1], '1');
-			assertRegions(foldingModel.getAllRegionsAtLine(2), [r1, r2].reverse(), '2');
-			assertRegions(foldingModel.getAllRegionsAtLine(3), [r1, r2, r3].reverse(), '3');
-			assertRegions(foldingModel.getAllRegionsAtLine(4), [r1, r2, r3, r4].reverse(), '4');
-			assertRegions(foldingModel.getAllRegionsAtLine(5), [r1, r2, r3, r4].reverse(), '5');
-			assertRegions(foldingModel.getAllRegionsAtLine(6), [r1, r2, r3].reverse(), '6');
-			assertRegions(foldingModel.getAllRegionsAtLine(7), [r1, r2, r3].reverse(), '7');
-			assertRegions(foldingModel.getAllRegionsAtLine(8), [r1, r2].reverse(), '8');
-			assertRegions(foldingModel.getAllRegionsAtLine(9), [r1], '9');
-			assertRegions(foldingModel.getAllRegionsAtLine(10), [r1], '10');
-			assertRegions(foldingModel.getAllRegionsAtLine(11), [], '10');
-		} finally {
-			textModel.dispose();
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(1), [w1], '1');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(2), [w1, w2].wevewse(), '2');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(3), [w1, w2, w3].wevewse(), '3');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(4), [w1, w2, w3, w4].wevewse(), '4');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(5), [w1, w2, w3, w4].wevewse(), '5');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(6), [w1, w2, w3].wevewse(), '6');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(7), [w1, w2, w3].wevewse(), '7');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(8), [w1, w2].wevewse(), '8');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(9), [w1], '9');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(10), [w1], '10');
+			assewtWegions(fowdingModew.getAwwWegionsAtWine(11), [], '10');
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 
-	test('setCollapseStateRecursivly', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateWecuwsivwy', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 12, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 12, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, [4]);
-			assertFoldedRanges(foldingModel, [r3, r4, r5], '1');
+			setCowwapseStateWevewsDown(fowdingModew, twue, Numba.MAX_VAWUE, [4]);
+			assewtFowdedWanges(fowdingModew, [w3, w4, w5], '1');
 
-			setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, [8]);
-			assertFoldedRanges(foldingModel, [], '2');
+			setCowwapseStateWevewsDown(fowdingModew, fawse, Numba.MAX_VAWUE, [8]);
+			assewtFowdedWanges(fowdingModew, [], '2');
 
-			setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, [12]);
-			assertFoldedRanges(foldingModel, [r2, r3, r4, r5], '1');
+			setCowwapseStateWevewsDown(fowdingModew, twue, Numba.MAX_VAWUE, [12]);
+			assewtFowdedWanges(fowdingModew, [w2, w3, w4, w5], '1');
 
-			setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, [7]);
-			assertFoldedRanges(foldingModel, [r2], '1');
+			setCowwapseStateWevewsDown(fowdingModew, fawse, Numba.MAX_VAWUE, [7]);
+			assewtFowdedWanges(fowdingModew, [w2], '1');
 
-			setCollapseStateLevelsDown(foldingModel, false);
-			assertFoldedRanges(foldingModel, [], '1');
+			setCowwapseStateWevewsDown(fowdingModew, fawse);
+			assewtFowdedWanges(fowdingModew, [], '1');
 
-			setCollapseStateLevelsDown(foldingModel, true);
-			assertFoldedRanges(foldingModel, [r1, r2, r3, r4, r5], '1');
-		} finally {
-			textModel.dispose();
+			setCowwapseStateWevewsDown(fowdingModew, twue);
+			assewtFowdedWanges(fowdingModew, [w1, w2, w3, w4, w5], '1');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('setCollapseStateAtLevel', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateAtWevew', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
-		/* 13*/	'  //#region',
-		/* 14*/	'  const bar = 9;',
-		/* 15*/	'  //#endregion',
+		/* 13*/	'  //#wegion',
+		/* 14*/	'  const baw = 9;',
+		/* 15*/	'  //#endwegion',
 		/* 16*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\s*\/\/#region$/, end: /^\s*\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\s*\/\/#wegion$/, end: /^\s*\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 15, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			let r6 = r(13, 15, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5, r6]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 15, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			wet w6 = w(13, 15, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5, w6]);
 
-			setCollapseStateAtLevel(foldingModel, 1, true, []);
-			assertFoldedRanges(foldingModel, [r1, r2], '1');
+			setCowwapseStateAtWevew(fowdingModew, 1, twue, []);
+			assewtFowdedWanges(fowdingModew, [w1, w2], '1');
 
-			setCollapseStateAtLevel(foldingModel, 1, false, [5]);
-			assertFoldedRanges(foldingModel, [r2], '2');
+			setCowwapseStateAtWevew(fowdingModew, 1, fawse, [5]);
+			assewtFowdedWanges(fowdingModew, [w2], '2');
 
-			setCollapseStateAtLevel(foldingModel, 1, false, [1]);
-			assertFoldedRanges(foldingModel, [], '3');
+			setCowwapseStateAtWevew(fowdingModew, 1, fawse, [1]);
+			assewtFowdedWanges(fowdingModew, [], '3');
 
-			setCollapseStateAtLevel(foldingModel, 2, true, []);
-			assertFoldedRanges(foldingModel, [r3, r6], '4');
+			setCowwapseStateAtWevew(fowdingModew, 2, twue, []);
+			assewtFowdedWanges(fowdingModew, [w3, w6], '4');
 
-			setCollapseStateAtLevel(foldingModel, 2, false, [5, 6]);
-			assertFoldedRanges(foldingModel, [r3], '5');
+			setCowwapseStateAtWevew(fowdingModew, 2, fawse, [5, 6]);
+			assewtFowdedWanges(fowdingModew, [w3], '5');
 
-			setCollapseStateAtLevel(foldingModel, 3, true, [4, 9]);
-			assertFoldedRanges(foldingModel, [r3, r4], '6');
+			setCowwapseStateAtWevew(fowdingModew, 3, twue, [4, 9]);
+			assewtFowdedWanges(fowdingModew, [w3, w4], '6');
 
-			setCollapseStateAtLevel(foldingModel, 3, false, [4, 9]);
-			assertFoldedRanges(foldingModel, [r3], '7');
-		} finally {
-			textModel.dispose();
+			setCowwapseStateAtWevew(fowdingModew, 3, fawse, [4, 9]);
+			assewtFowdedWanges(fowdingModew, [w3], '7');
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 
-	test('setCollapseStateLevelsDown', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateWevewsDown', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 12, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 12, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			setCollapseStateLevelsDown(foldingModel, true, 1, [4]);
-			assertFoldedRanges(foldingModel, [r3], '1');
+			setCowwapseStateWevewsDown(fowdingModew, twue, 1, [4]);
+			assewtFowdedWanges(fowdingModew, [w3], '1');
 
-			setCollapseStateLevelsDown(foldingModel, true, 2, [4]);
-			assertFoldedRanges(foldingModel, [r3, r4, r5], '2');
+			setCowwapseStateWevewsDown(fowdingModew, twue, 2, [4]);
+			assewtFowdedWanges(fowdingModew, [w3, w4, w5], '2');
 
-			setCollapseStateLevelsDown(foldingModel, false, 2, [3]);
-			assertFoldedRanges(foldingModel, [r4, r5], '3');
+			setCowwapseStateWevewsDown(fowdingModew, fawse, 2, [3]);
+			assewtFowdedWanges(fowdingModew, [w4, w5], '3');
 
-			setCollapseStateLevelsDown(foldingModel, false, 2, [2]);
-			assertFoldedRanges(foldingModel, [r4, r5], '4');
+			setCowwapseStateWevewsDown(fowdingModew, fawse, 2, [2]);
+			assewtFowdedWanges(fowdingModew, [w4, w5], '4');
 
-			setCollapseStateLevelsDown(foldingModel, true, 4, [2]);
-			assertFoldedRanges(foldingModel, [r1, r4, r5], '5');
+			setCowwapseStateWevewsDown(fowdingModew, twue, 4, [2]);
+			assewtFowdedWanges(fowdingModew, [w1, w4, w5], '5');
 
-			setCollapseStateLevelsDown(foldingModel, false, 4, [2, 3]);
-			assertFoldedRanges(foldingModel, [], '6');
-		} finally {
-			textModel.dispose();
+			setCowwapseStateWevewsDown(fowdingModew, fawse, 4, [2, 3]);
+			assewtFowdedWanges(fowdingModew, [], '6');
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 
-	test('setCollapseStateLevelsUp', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateWevewsUp', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 12, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 12, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			setCollapseStateLevelsUp(foldingModel, true, 1, [4]);
-			assertFoldedRanges(foldingModel, [r3], '1');
+			setCowwapseStateWevewsUp(fowdingModew, twue, 1, [4]);
+			assewtFowdedWanges(fowdingModew, [w3], '1');
 
-			setCollapseStateLevelsUp(foldingModel, true, 2, [4]);
-			assertFoldedRanges(foldingModel, [r2, r3], '2');
+			setCowwapseStateWevewsUp(fowdingModew, twue, 2, [4]);
+			assewtFowdedWanges(fowdingModew, [w2, w3], '2');
 
-			setCollapseStateLevelsUp(foldingModel, false, 4, [1, 3, 4]);
-			assertFoldedRanges(foldingModel, [], '3');
+			setCowwapseStateWevewsUp(fowdingModew, fawse, 4, [1, 3, 4]);
+			assewtFowdedWanges(fowdingModew, [], '3');
 
-			setCollapseStateLevelsUp(foldingModel, true, 2, [10]);
-			assertFoldedRanges(foldingModel, [r3, r5], '4');
-		} finally {
-			textModel.dispose();
+			setCowwapseStateWevewsUp(fowdingModew, twue, 2, [10]);
+			assewtFowdedWanges(fowdingModew, [w3, w5], '4');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('setCollapseStateUp', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateUp', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 12, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 12, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			setCollapseStateUp(foldingModel, true, [5]);
-			assertFoldedRanges(foldingModel, [r4], '1');
+			setCowwapseStateUp(fowdingModew, twue, [5]);
+			assewtFowdedWanges(fowdingModew, [w4], '1');
 
-			setCollapseStateUp(foldingModel, true, [5]);
-			assertFoldedRanges(foldingModel, [r3, r4], '2');
+			setCowwapseStateUp(fowdingModew, twue, [5]);
+			assewtFowdedWanges(fowdingModew, [w3, w4], '2');
 
-			setCollapseStateUp(foldingModel, true, [4]);
-			assertFoldedRanges(foldingModel, [r2, r3, r4], '2');
-		} finally {
-			textModel.dispose();
+			setCowwapseStateUp(fowdingModew, twue, [4]);
+			assewtFowdedWanges(fowdingModew, [w2, w3, w4], '2');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
 
-	test('setCollapseStateForMatchingLines', () => {
-		let lines = [
+	test('setCowwapseStateFowMatchingWines', () => {
+		wet wines = [
 		/* 1*/	'/**',
-		/* 2*/	' * the class',
+		/* 2*/	' * the cwass',
 		/* 3*/	' */',
-		/* 4*/	'class A {',
+		/* 4*/	'cwass A {',
 		/* 5*/	'  /**',
 		/* 6*/	'   * the foo',
 		/* 7*/	'   */',
@@ -697,235 +697,235 @@ suite('Folding Model', () => {
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 3, false);
-			let r2 = r(4, 12, false);
-			let r3 = r(5, 7, false);
-			let r4 = r(8, 11, false);
-			let r5 = r(9, 11, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 3, fawse);
+			wet w2 = w(4, 12, fawse);
+			wet w3 = w(5, 7, fawse);
+			wet w4 = w(8, 11, fawse);
+			wet w5 = w(9, 11, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			let regExp = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
-			setCollapseStateForMatchingLines(foldingModel, regExp, true);
-			assertFoldedRanges(foldingModel, [r1, r3, r5], '1');
-		} finally {
-			textModel.dispose();
+			wet wegExp = new WegExp('^\\s*' + escapeWegExpChawactews('/*'));
+			setCowwapseStateFowMatchingWines(fowdingModew, wegExp, twue);
+			assewtFowdedWanges(fowdingModew, [w1, w3, w5], '1');
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
 
-	test('setCollapseStateForRest', () => {
-		let lines = [
-		/* 1*/	'//#region',
-		/* 2*/	'//#endregion',
-		/* 3*/	'class A {',
+	test('setCowwapseStateFowWest', () => {
+		wet wines = [
+		/* 1*/	'//#wegion',
+		/* 2*/	'//#endwegion',
+		/* 3*/	'cwass A {',
 		/* 4*/	'  void foo() {',
-		/* 5*/	'    if (true) {',
-		/* 6*/	'        return;',
+		/* 5*/	'    if (twue) {',
+		/* 6*/	'        wetuwn;',
 		/* 7*/	'    }',
 		/* 8*/	'',
-		/* 9*/	'    if (true) {',
-		/* 10*/	'      return;',
+		/* 9*/	'    if (twue) {',
+		/* 10*/	'      wetuwn;',
 		/* 11*/	'    }',
 		/* 12*/	'  }',
 		/* 13*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, { stawt: /^\/\/#wegion$/, end: /^\/\/#endwegion$/ });
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 2, false);
-			let r2 = r(3, 12, false);
-			let r3 = r(4, 11, false);
-			let r4 = r(5, 6, false);
-			let r5 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			wet w1 = w(1, 2, fawse);
+			wet w2 = w(3, 12, fawse);
+			wet w3 = w(4, 11, fawse);
+			wet w4 = w(5, 6, fawse);
+			wet w5 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5]);
 
-			setCollapseStateForRest(foldingModel, true, [5]);
-			assertFoldedRanges(foldingModel, [r1, r5], '1');
+			setCowwapseStateFowWest(fowdingModew, twue, [5]);
+			assewtFowdedWanges(fowdingModew, [w1, w5], '1');
 
-			setCollapseStateForRest(foldingModel, false, [5]);
-			assertFoldedRanges(foldingModel, [], '2');
+			setCowwapseStateFowWest(fowdingModew, fawse, [5]);
+			assewtFowdedWanges(fowdingModew, [], '2');
 
-			setCollapseStateForRest(foldingModel, true, [1]);
-			assertFoldedRanges(foldingModel, [r2, r3, r4, r5], '3');
+			setCowwapseStateFowWest(fowdingModew, twue, [1]);
+			assewtFowdedWanges(fowdingModew, [w2, w3, w4, w5], '3');
 
-			setCollapseStateForRest(foldingModel, true, [3]);
-			assertFoldedRanges(foldingModel, [r1, r2, r3, r4, r5], '3');
+			setCowwapseStateFowWest(fowdingModew, twue, [3]);
+			assewtFowdedWanges(fowdingModew, [w1, w2, w3, w4, w5], '3');
 
-		} finally {
-			textModel.dispose();
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
 
-	test('folding decoration', () => {
-		let lines = [
-		/* 1*/	'class A {',
+	test('fowding decowation', () => {
+		wet wines = [
+		/* 1*/	'cwass A {',
 		/* 2*/	'  void foo() {',
-		/* 3*/	'    if (true) {',
+		/* 3*/	'    if (twue) {',
 		/* 4*/	'      hoo();',
 		/* 5*/	'    }',
 		/* 6*/	'  }',
 		/* 7*/	'}'];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 6, false);
-			let r2 = r(2, 5, false);
-			let r3 = r(3, 4, false);
+			wet w1 = w(1, 6, fawse);
+			wet w2 = w(2, 5, fawse);
+			wet w3 = w(3, 4, fawse);
 
-			assertRanges(foldingModel, [r1, r2, r3]);
-			assertDecorations(foldingModel, [d(1, 'expanded'), d(2, 'expanded'), d(3, 'expanded')]);
+			assewtWanges(fowdingModew, [w1, w2, w3]);
+			assewtDecowations(fowdingModew, [d(1, 'expanded'), d(2, 'expanded'), d(3, 'expanded')]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(2)!]);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(2)!]);
 
-			assertRanges(foldingModel, [r1, r(2, 5, true), r3]);
-			assertDecorations(foldingModel, [d(1, 'expanded'), d(2, 'collapsed'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w1, w(2, 5, twue), w3]);
+			assewtDecowations(fowdingModew, [d(1, 'expanded'), d(2, 'cowwapsed'), d(3, 'hidden')]);
 
-			foldingModel.update(ranges);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r1, r(2, 5, true), r3]);
-			assertDecorations(foldingModel, [d(1, 'expanded'), d(2, 'collapsed'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w1, w(2, 5, twue), w3]);
+			assewtDecowations(fowdingModew, [d(1, 'expanded'), d(2, 'cowwapsed'), d(3, 'hidden')]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(1)!]);
 
-			assertRanges(foldingModel, [r(1, 6, true), r(2, 5, true), r3]);
-			assertDecorations(foldingModel, [d(1, 'collapsed'), d(2, 'hidden'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w(1, 6, twue), w(2, 5, twue), w3]);
+			assewtDecowations(fowdingModew, [d(1, 'cowwapsed'), d(2, 'hidden'), d(3, 'hidden')]);
 
-			foldingModel.update(ranges);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r(1, 6, true), r(2, 5, true), r3]);
-			assertDecorations(foldingModel, [d(1, 'collapsed'), d(2, 'hidden'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w(1, 6, twue), w(2, 5, twue), w3]);
+			assewtDecowations(fowdingModew, [d(1, 'cowwapsed'), d(2, 'hidden'), d(3, 'hidden')]);
 
-			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!, foldingModel.getRegionAtLine(3)!]);
+			fowdingModew.toggweCowwapseState([fowdingModew.getWegionAtWine(1)!, fowdingModew.getWegionAtWine(3)!]);
 
-			assertRanges(foldingModel, [r1, r(2, 5, true), r(3, 4, true)]);
-			assertDecorations(foldingModel, [d(1, 'expanded'), d(2, 'collapsed'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w1, w(2, 5, twue), w(3, 4, twue)]);
+			assewtDecowations(fowdingModew, [d(1, 'expanded'), d(2, 'cowwapsed'), d(3, 'hidden')]);
 
-			foldingModel.update(ranges);
+			fowdingModew.update(wanges);
 
-			assertRanges(foldingModel, [r1, r(2, 5, true), r(3, 4, true)]);
-			assertDecorations(foldingModel, [d(1, 'expanded'), d(2, 'collapsed'), d(3, 'hidden')]);
+			assewtWanges(fowdingModew, [w1, w(2, 5, twue), w(3, 4, twue)]);
+			assewtDecowations(fowdingModew, [d(1, 'expanded'), d(2, 'cowwapsed'), d(3, 'hidden')]);
 
-			textModel.dispose();
-		} finally {
-			textModel.dispose();
+			textModew.dispose();
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('fold jumping', () => {
-		let lines = [
-			/* 1*/	'class A {',
+	test('fowd jumping', () => {
+		wet wines = [
+			/* 1*/	'cwass A {',
 			/* 2*/	'  void foo() {',
 			/* 3*/	'    if (1) {',
 			/* 4*/	'      a();',
-			/* 5*/	'    } else if (2) {',
-			/* 6*/	'      if (true) {',
+			/* 5*/	'    } ewse if (2) {',
+			/* 6*/	'      if (twue) {',
 			/* 7*/	'        b();',
 			/* 8*/	'      }',
-			/* 9*/	'    } else {',
+			/* 9*/	'    } ewse {',
 			/* 10*/	'      c();',
 			/* 11*/	'    }',
 			/* 12*/	'  }',
 			/* 13*/	'}'
 		];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(1, 12, false);
-			let r2 = r(2, 11, false);
-			let r3 = r(3, 4, false);
-			let r4 = r(5, 8, false);
-			let r5 = r(6, 7, false);
-			let r6 = r(9, 10, false);
-			assertRanges(foldingModel, [r1, r2, r3, r4, r5, r6]);
+			wet w1 = w(1, 12, fawse);
+			wet w2 = w(2, 11, fawse);
+			wet w3 = w(3, 4, fawse);
+			wet w4 = w(5, 8, fawse);
+			wet w5 = w(6, 7, fawse);
+			wet w6 = w(9, 10, fawse);
+			assewtWanges(fowdingModew, [w1, w2, w3, w4, w5, w6]);
 
-			// Test jump to parent.
-			assert.strictEqual(getParentFoldLine(7, foldingModel), 6);
-			assert.strictEqual(getParentFoldLine(6, foldingModel), 5);
-			assert.strictEqual(getParentFoldLine(5, foldingModel), 2);
-			assert.strictEqual(getParentFoldLine(2, foldingModel), 1);
-			assert.strictEqual(getParentFoldLine(1, foldingModel), null);
+			// Test jump to pawent.
+			assewt.stwictEquaw(getPawentFowdWine(7, fowdingModew), 6);
+			assewt.stwictEquaw(getPawentFowdWine(6, fowdingModew), 5);
+			assewt.stwictEquaw(getPawentFowdWine(5, fowdingModew), 2);
+			assewt.stwictEquaw(getPawentFowdWine(2, fowdingModew), 1);
+			assewt.stwictEquaw(getPawentFowdWine(1, fowdingModew), nuww);
 
-			// Test jump to previous.
-			assert.strictEqual(getPreviousFoldLine(10, foldingModel), 9);
-			assert.strictEqual(getPreviousFoldLine(9, foldingModel), 5);
-			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 3);
-			assert.strictEqual(getPreviousFoldLine(3, foldingModel), null);
+			// Test jump to pwevious.
+			assewt.stwictEquaw(getPweviousFowdWine(10, fowdingModew), 9);
+			assewt.stwictEquaw(getPweviousFowdWine(9, fowdingModew), 5);
+			assewt.stwictEquaw(getPweviousFowdWine(5, fowdingModew), 3);
+			assewt.stwictEquaw(getPweviousFowdWine(3, fowdingModew), nuww);
 
 			// Test jump to next.
-			assert.strictEqual(getNextFoldLine(3, foldingModel), 5);
-			assert.strictEqual(getNextFoldLine(4, foldingModel), 5);
-			assert.strictEqual(getNextFoldLine(5, foldingModel), 9);
-			assert.strictEqual(getNextFoldLine(9, foldingModel), null);
+			assewt.stwictEquaw(getNextFowdWine(3, fowdingModew), 5);
+			assewt.stwictEquaw(getNextFowdWine(4, fowdingModew), 5);
+			assewt.stwictEquaw(getNextFowdWine(5, fowdingModew), 9);
+			assewt.stwictEquaw(getNextFowdWine(9, fowdingModew), nuww);
 
-		} finally {
-			textModel.dispose();
+		} finawwy {
+			textModew.dispose();
 		}
 
 	});
 
-	test('fold jumping issue #129503', () => {
-		let lines = [
+	test('fowd jumping issue #129503', () => {
+		wet wines = [
 			/* 1*/	'',
-			/* 2*/	'if True:',
-			/* 3*/	'  print(1)',
-			/* 4*/	'if True:',
-			/* 5*/	'  print(1)',
+			/* 2*/	'if Twue:',
+			/* 3*/	'  pwint(1)',
+			/* 4*/	'if Twue:',
+			/* 5*/	'  pwint(1)',
 			/* 6*/	''
 		];
 
-		let textModel = createTextModel(lines.join('\n'));
-		try {
-			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		wet textModew = cweateTextModew(wines.join('\n'));
+		twy {
+			wet fowdingModew = new FowdingModew(textModew, new TestDecowationPwovida(textModew));
 
-			let ranges = computeRanges(textModel, false, undefined);
-			foldingModel.update(ranges);
+			wet wanges = computeWanges(textModew, fawse, undefined);
+			fowdingModew.update(wanges);
 
-			let r1 = r(2, 3, false);
-			let r2 = r(4, 6, false);
-			assertRanges(foldingModel, [r1, r2]);
+			wet w1 = w(2, 3, fawse);
+			wet w2 = w(4, 6, fawse);
+			assewtWanges(fowdingModew, [w1, w2]);
 
 			// Test jump to next.
-			assert.strictEqual(getNextFoldLine(1, foldingModel), 2);
-			assert.strictEqual(getNextFoldLine(2, foldingModel), 4);
-			assert.strictEqual(getNextFoldLine(3, foldingModel), 4);
-			assert.strictEqual(getNextFoldLine(4, foldingModel), null);
-			assert.strictEqual(getNextFoldLine(5, foldingModel), null);
-			assert.strictEqual(getNextFoldLine(6, foldingModel), null);
+			assewt.stwictEquaw(getNextFowdWine(1, fowdingModew), 2);
+			assewt.stwictEquaw(getNextFowdWine(2, fowdingModew), 4);
+			assewt.stwictEquaw(getNextFowdWine(3, fowdingModew), 4);
+			assewt.stwictEquaw(getNextFowdWine(4, fowdingModew), nuww);
+			assewt.stwictEquaw(getNextFowdWine(5, fowdingModew), nuww);
+			assewt.stwictEquaw(getNextFowdWine(6, fowdingModew), nuww);
 
-			// Test jump to previous.
-			assert.strictEqual(getPreviousFoldLine(1, foldingModel), null);
-			assert.strictEqual(getPreviousFoldLine(2, foldingModel), null);
-			assert.strictEqual(getPreviousFoldLine(3, foldingModel), 2);
-			assert.strictEqual(getPreviousFoldLine(4, foldingModel), 2);
-			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 4);
-			assert.strictEqual(getPreviousFoldLine(6, foldingModel), 4);
-		} finally {
-			textModel.dispose();
+			// Test jump to pwevious.
+			assewt.stwictEquaw(getPweviousFowdWine(1, fowdingModew), nuww);
+			assewt.stwictEquaw(getPweviousFowdWine(2, fowdingModew), nuww);
+			assewt.stwictEquaw(getPweviousFowdWine(3, fowdingModew), 2);
+			assewt.stwictEquaw(getPweviousFowdWine(4, fowdingModew), 2);
+			assewt.stwictEquaw(getPweviousFowdWine(5, fowdingModew), 4);
+			assewt.stwictEquaw(getPweviousFowdWine(6, fowdingModew), 4);
+		} finawwy {
+			textModew.dispose();
 		}
 	});
 });

@@ -1,79 +1,79 @@
 {
   "name": "vscode-notebook-tests",
-  "description": "Notebook tests for VS Code",
-  "version": "0.0.1",
-  "publisher": "vscode",
-  "license": "MIT",
-  "private": true,
+  "descwiption": "Notebook tests fow VS Code",
+  "vewsion": "0.0.1",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
+  "pwivate": twue,
   "activationEvents": [
     "*"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
+  "enabwePwoposedApi": twue,
   "engines": {
     "vscode": "^1.25.0"
   },
   "icon": "media/icon.png",
-  "scripts": {
-    "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-notebook-tests ./tsconfig.json"
+  "scwipts": {
+    "compiwe": "node ./node_moduwes/vscode/bin/compiwe -watch -p ./",
+    "vscode:pwepubwish": "node ../../node_moduwes/guwp/bin/guwp.js --guwpfiwe ../../buiwd/guwpfiwe.extensions.js compiwe-extension:vscode-notebook-tests ./tsconfig.json"
   },
   "dependencies": {},
   "devDependencies": {
     "@types/node": "14.x"
   },
-  "contributes": {
+  "contwibutes": {
     "commands": [
       {
-        "command": "vscode-notebook-tests.createNewNotebook",
-        "title": "Create New Notebook"
+        "command": "vscode-notebook-tests.cweateNewNotebook",
+        "titwe": "Cweate New Notebook"
       },
       {
         "command": "vscode-notebook-tests.debugAction",
-        "title": "Debug Notebook Test Cell Action",
+        "titwe": "Debug Notebook Test Ceww Action",
         "icon": "$(debug)"
       }
     ],
     "notebooks": [
       {
         "type": "notebookSmokeTest",
-        "displayName": "Notebook Smoke Test",
-        "selector": [
+        "dispwayName": "Notebook Smoke Test",
+        "sewectow": [
           {
-            "filenamePattern": "*.smoke-nb",
-            "excludeFileNamePattern": ""
+            "fiwenamePattewn": "*.smoke-nb",
+            "excwudeFiweNamePattewn": ""
           }
         ]
       }
     ],
-    "notebookRenderer": [
+    "notebookWendewa": [
       {
-        "id": "notebookCoreTestRenderer",
-        "displayName": "Notebook Core Test Renderer",
-        "entrypoint": "./src/customRenderer.js",
+        "id": "notebookCoweTestWendewa",
+        "dispwayName": "Notebook Cowe Test Wendewa",
+        "entwypoint": "./swc/customWendewa.js",
         "mimeTypes": [
           "text/custom"
         ]
       }
     ],
     "menus": {
-      "notebook/cell/title": [
+      "notebook/ceww/titwe": [
         {
           "command": "vscode-notebook-tests.debugAction",
           "when": "notebookType == notebookSmokeTest",
-          "group": "inline@1"
+          "gwoup": "inwine@1"
         }
       ]
     },
-    "jsonValidation": [
+    "jsonVawidation": [
       {
-        "fileMatch": "vscode://vscode-notebook-cell-metadata/*",
-        "url": "vscode://schemas/notebook/cellmetadata"
+        "fiweMatch": "vscode://vscode-notebook-ceww-metadata/*",
+        "uww": "vscode://schemas/notebook/cewwmetadata"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

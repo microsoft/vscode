@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt * as wabews fwom 'vs/base/common/wabews';
+impowt { isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
 
-suite('Labels', () => {
-	(!isWindows ? test.skip : test)('shorten - windows', () => {
+suite('Wabews', () => {
+	(!isWindows ? test.skip : test)('showten - windows', () => {
 
-		// nothing to shorten
-		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
-		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
-		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
+		// nothing to showten
+		assewt.deepStwictEquaw(wabews.showten(['a']), ['a']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b']), ['a', 'b']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b', 'c']), ['a', 'b', 'c']);
 
-		// completely different paths
-		assert.deepStrictEqual(labels.shorten(['a\\b', 'c\\d', 'e\\f']), ['…\\b', '…\\d', '…\\f']);
+		// compwetewy diffewent paths
+		assewt.deepStwictEquaw(wabews.showten(['a\\b', 'c\\d', 'e\\f']), ['…\\b', '…\\d', '…\\f']);
 
 		// same beginning
-		assert.deepStrictEqual(labels.shorten(['a', 'a\\b']), ['a', '…\\b']);
-		assert.deepStrictEqual(labels.shorten(['a\\b', 'a\\b\\c']), ['…\\b', '…\\c']);
-		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c']), ['a', '…\\b', '…\\c']);
-		assert.deepStrictEqual(labels.shorten(['x:\\a\\b', 'x:\\a\\c']), ['x:\\…\\b', 'x:\\…\\c']);
-		assert.deepStrictEqual(labels.shorten(['\\\\a\\b', '\\\\a\\c']), ['\\\\a\\b', '\\\\a\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a\\b']), ['a', '…\\b']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b', 'a\\b\\c']), ['…\\b', '…\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a\\b', 'a\\b\\c']), ['a', '…\\b', '…\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['x:\\a\\b', 'x:\\a\\c']), ['x:\\…\\b', 'x:\\…\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['\\\\a\\b', '\\\\a\\c']), ['\\\\a\\b', '\\\\a\\c']);
 
 		// same ending
-		assert.deepStrictEqual(labels.shorten(['a', 'b\\a']), ['a', 'b\\…']);
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'd\\b\\c']), ['a\\…', 'd\\…']);
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c\\d', 'f\\b\\c\\d']), ['a\\…', 'f\\…']);
-		assert.deepStrictEqual(labels.shorten(['d\\e\\a\\b\\c', 'd\\b\\c']), ['…\\a\\…', 'd\\b\\…']);
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c\\d', 'a\\f\\b\\c\\d']), ['a\\b\\…', '…\\f\\…']);
-		assert.deepStrictEqual(labels.shorten(['a\\b\\a', 'b\\b\\a']), ['a\\b\\…', 'b\\b\\…']);
-		assert.deepStrictEqual(labels.shorten(['d\\f\\a\\b\\c', 'h\\d\\b\\c']), ['…\\a\\…', 'h\\…']);
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'x:\\0\\a\\b\\c']), ['a\\b\\c', 'x:\\0\\…']);
-		assert.deepStrictEqual(labels.shorten(['x:\\a\\b\\c', 'x:\\0\\a\\b\\c']), ['x:\\a\\…', 'x:\\0\\…']);
-		assert.deepStrictEqual(labels.shorten(['x:\\a\\b', 'y:\\a\\b']), ['x:\\…', 'y:\\…']);
-		assert.deepStrictEqual(labels.shorten(['x:\\a', 'x:\\c']), ['x:\\a', 'x:\\c']);
-		assert.deepStrictEqual(labels.shorten(['x:\\a\\b', 'y:\\x\\a\\b']), ['x:\\…', 'y:\\…']);
-		assert.deepStrictEqual(labels.shorten(['\\\\x\\b', '\\\\y\\b']), ['\\\\x\\…', '\\\\y\\…']);
-		assert.deepStrictEqual(labels.shorten(['\\\\x\\a', '\\\\x\\b']), ['\\\\x\\a', '\\\\x\\b']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b\\a']), ['a', 'b\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c', 'd\\b\\c']), ['a\\…', 'd\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c\\d', 'f\\b\\c\\d']), ['a\\…', 'f\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['d\\e\\a\\b\\c', 'd\\b\\c']), ['…\\a\\…', 'd\\b\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c\\d', 'a\\f\\b\\c\\d']), ['a\\b\\…', '…\\f\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\a', 'b\\b\\a']), ['a\\b\\…', 'b\\b\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['d\\f\\a\\b\\c', 'h\\d\\b\\c']), ['…\\a\\…', 'h\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c', 'x:\\0\\a\\b\\c']), ['a\\b\\c', 'x:\\0\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['x:\\a\\b\\c', 'x:\\0\\a\\b\\c']), ['x:\\a\\…', 'x:\\0\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['x:\\a\\b', 'y:\\a\\b']), ['x:\\…', 'y:\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['x:\\a', 'x:\\c']), ['x:\\a', 'x:\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['x:\\a\\b', 'y:\\x\\a\\b']), ['x:\\…', 'y:\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['\\\\x\\b', '\\\\y\\b']), ['\\\\x\\…', '\\\\y\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['\\\\x\\a', '\\\\x\\b']), ['\\\\x\\a', '\\\\x\\b']);
 
 		// same name ending
-		assert.deepStrictEqual(labels.shorten(['a\\b', 'a\\c', 'a\\e-b']), ['…\\b', '…\\c', '…\\e-b']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b', 'a\\c', 'a\\e-b']), ['…\\b', '…\\c', '…\\e-b']);
 
-		// same in the middle
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'd\\b\\e']), ['…\\c', '…\\e']);
+		// same in the middwe
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c', 'd\\b\\e']), ['…\\c', '…\\e']);
 
 		// case-sensetive
-		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
+		assewt.deepStwictEquaw(wabews.showten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
 
-		// empty or null
-		assert.deepStrictEqual(labels.shorten(['', null!]), ['.\\', null]);
+		// empty ow nuww
+		assewt.deepStwictEquaw(wabews.showten(['', nuww!]), ['.\\', nuww]);
 
-		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
-		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
-		assert.deepStrictEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
-		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
+		assewt.deepStwictEquaw(wabews.showten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
+		assewt.deepStwictEquaw(wabews.showten(['swc\\vs\\wowkbench\\pawts\\execution\\ewectwon-bwowsa', 'swc\\vs\\wowkbench\\pawts\\execution\\ewectwon-bwowsa\\something', 'swc\\vs\\wowkbench\\pawts\\tewminaw\\ewectwon-bwowsa']), ['…\\execution\\ewectwon-bwowsa', '…\\something', '…\\tewminaw\\…']);
 	});
 
-	(isWindows ? test.skip : test)('shorten - not windows', () => {
+	(isWindows ? test.skip : test)('showten - not windows', () => {
 
-		// nothing to shorten
-		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
-		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
-		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
+		// nothing to showten
+		assewt.deepStwictEquaw(wabews.showten(['a']), ['a']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b']), ['a', 'b']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b', 'c']), ['a', 'b', 'c']);
 
-		// completely different paths
-		assert.deepStrictEqual(labels.shorten(['a/b', 'c/d', 'e/f']), ['…/b', '…/d', '…/f']);
+		// compwetewy diffewent paths
+		assewt.deepStwictEquaw(wabews.showten(['a/b', 'c/d', 'e/f']), ['…/b', '…/d', '…/f']);
 
 		// same beginning
-		assert.deepStrictEqual(labels.shorten(['a', 'a/b']), ['a', '…/b']);
-		assert.deepStrictEqual(labels.shorten(['a/b', 'a/b/c']), ['…/b', '…/c']);
-		assert.deepStrictEqual(labels.shorten(['a', 'a/b', 'a/b/c']), ['a', '…/b', '…/c']);
-		assert.deepStrictEqual(labels.shorten(['/a/b', '/a/c']), ['/a/b', '/a/c']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a/b']), ['a', '…/b']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b', 'a/b/c']), ['…/b', '…/c']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a/b', 'a/b/c']), ['a', '…/b', '…/c']);
+		assewt.deepStwictEquaw(wabews.showten(['/a/b', '/a/c']), ['/a/b', '/a/c']);
 
 		// same ending
-		assert.deepStrictEqual(labels.shorten(['a', 'b/a']), ['a', 'b/…']);
-		assert.deepStrictEqual(labels.shorten(['a/b/c', 'd/b/c']), ['a/…', 'd/…']);
-		assert.deepStrictEqual(labels.shorten(['a/b/c/d', 'f/b/c/d']), ['a/…', 'f/…']);
-		assert.deepStrictEqual(labels.shorten(['d/e/a/b/c', 'd/b/c']), ['…/a/…', 'd/b/…']);
-		assert.deepStrictEqual(labels.shorten(['a/b/c/d', 'a/f/b/c/d']), ['a/b/…', '…/f/…']);
-		assert.deepStrictEqual(labels.shorten(['a/b/a', 'b/b/a']), ['a/b/…', 'b/b/…']);
-		assert.deepStrictEqual(labels.shorten(['d/f/a/b/c', 'h/d/b/c']), ['…/a/…', 'h/…']);
-		assert.deepStrictEqual(labels.shorten(['/x/b', '/y/b']), ['/x/…', '/y/…']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'b/a']), ['a', 'b/…']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b/c', 'd/b/c']), ['a/…', 'd/…']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b/c/d', 'f/b/c/d']), ['a/…', 'f/…']);
+		assewt.deepStwictEquaw(wabews.showten(['d/e/a/b/c', 'd/b/c']), ['…/a/…', 'd/b/…']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b/c/d', 'a/f/b/c/d']), ['a/b/…', '…/f/…']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b/a', 'b/b/a']), ['a/b/…', 'b/b/…']);
+		assewt.deepStwictEquaw(wabews.showten(['d/f/a/b/c', 'h/d/b/c']), ['…/a/…', 'h/…']);
+		assewt.deepStwictEquaw(wabews.showten(['/x/b', '/y/b']), ['/x/…', '/y/…']);
 
 		// same name ending
-		assert.deepStrictEqual(labels.shorten(['a/b', 'a/c', 'a/e-b']), ['…/b', '…/c', '…/e-b']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b', 'a/c', 'a/e-b']), ['…/b', '…/c', '…/e-b']);
 
-		// same in the middle
-		assert.deepStrictEqual(labels.shorten(['a/b/c', 'd/b/e']), ['…/c', '…/e']);
+		// same in the middwe
+		assewt.deepStwictEquaw(wabews.showten(['a/b/c', 'd/b/e']), ['…/c', '…/e']);
 
 		// case-sensitive
-		assert.deepStrictEqual(labels.shorten(['a/b/c', 'd/b/C']), ['…/c', '…/C']);
+		assewt.deepStwictEquaw(wabews.showten(['a/b/c', 'd/b/C']), ['…/c', '…/C']);
 
-		// empty or null
-		assert.deepStrictEqual(labels.shorten(['', null!]), ['./', null]);
+		// empty ow nuww
+		assewt.deepStwictEquaw(wabews.showten(['', nuww!]), ['./', nuww]);
 
-		assert.deepStrictEqual(labels.shorten(['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']), ['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']);
-		assert.deepStrictEqual(labels.shorten(['a', 'a/b', 'b']), ['a', 'a/b', 'b']);
-		assert.deepStrictEqual(labels.shorten(['', 'a', 'b', 'b/c', 'a/c']), ['./', 'a', 'b', 'b/c', 'a/c']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']), ['a', 'a/b', 'a/b/c', 'd/b/c', 'd/b']);
+		assewt.deepStwictEquaw(wabews.showten(['a', 'a/b', 'b']), ['a', 'a/b', 'b']);
+		assewt.deepStwictEquaw(wabews.showten(['', 'a', 'b', 'b/c', 'a/c']), ['./', 'a', 'b', 'b/c', 'a/c']);
 	});
 
-	test('template', () => {
+	test('tempwate', () => {
 
-		// simple
-		assert.strictEqual(labels.template('Foo Bar'), 'Foo Bar');
-		assert.strictEqual(labels.template('Foo${}Bar'), 'FooBar');
-		assert.strictEqual(labels.template('$FooBar'), '');
-		assert.strictEqual(labels.template('}FooBar'), '}FooBar');
-		assert.strictEqual(labels.template('Foo ${one} Bar', { one: 'value' }), 'Foo value Bar');
-		assert.strictEqual(labels.template('Foo ${one} Bar ${two}', { one: 'value', two: 'other value' }), 'Foo value Bar other value');
+		// simpwe
+		assewt.stwictEquaw(wabews.tempwate('Foo Baw'), 'Foo Baw');
+		assewt.stwictEquaw(wabews.tempwate('Foo${}Baw'), 'FooBaw');
+		assewt.stwictEquaw(wabews.tempwate('$FooBaw'), '');
+		assewt.stwictEquaw(wabews.tempwate('}FooBaw'), '}FooBaw');
+		assewt.stwictEquaw(wabews.tempwate('Foo ${one} Baw', { one: 'vawue' }), 'Foo vawue Baw');
+		assewt.stwictEquaw(wabews.tempwate('Foo ${one} Baw ${two}', { one: 'vawue', two: 'otha vawue' }), 'Foo vawue Baw otha vawue');
 
-		// conditional separator
-		assert.strictEqual(labels.template('Foo${separator}Bar'), 'FooBar');
-		assert.strictEqual(labels.template('Foo${separator}Bar', { separator: { label: ' - ' } }), 'Foo - Bar');
-		assert.strictEqual(labels.template('${separator}Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'Foo - Bar');
-		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something Foo - Bar');
+		// conditionaw sepawatow
+		assewt.stwictEquaw(wabews.tempwate('Foo${sepawatow}Baw'), 'FooBaw');
+		assewt.stwictEquaw(wabews.tempwate('Foo${sepawatow}Baw', { sepawatow: { wabew: ' - ' } }), 'Foo - Baw');
+		assewt.stwictEquaw(wabews.tempwate('${sepawatow}Foo${sepawatow}Baw', { vawue: 'something', sepawatow: { wabew: ' - ' } }), 'Foo - Baw');
+		assewt.stwictEquaw(wabews.tempwate('${vawue} Foo${sepawatow}Baw', { vawue: 'something', sepawatow: { wabew: ' - ' } }), 'something Foo - Baw');
 
-		// real world example (macOS)
-		let t = '${activeEditorShort}${separator}${rootName}';
-		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: '', separator: { label: ' - ' } }), '');
-		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: 'root', separator: { label: ' - ' } }), 'root');
-		assert.strictEqual(labels.template(t, { activeEditorShort: 'markdown.txt', rootName: 'root', separator: { label: ' - ' } }), 'markdown.txt - root');
+		// weaw wowwd exampwe (macOS)
+		wet t = '${activeEditowShowt}${sepawatow}${wootName}';
+		assewt.stwictEquaw(wabews.tempwate(t, { activeEditowShowt: '', wootName: '', sepawatow: { wabew: ' - ' } }), '');
+		assewt.stwictEquaw(wabews.tempwate(t, { activeEditowShowt: '', wootName: 'woot', sepawatow: { wabew: ' - ' } }), 'woot');
+		assewt.stwictEquaw(wabews.tempwate(t, { activeEditowShowt: 'mawkdown.txt', wootName: 'woot', sepawatow: { wabew: ' - ' } }), 'mawkdown.txt - woot');
 
-		// real world example (other)
-		t = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: '', separator: { label: ' - ' } }), '');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'Untitled-1', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Untitled-1 - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
-		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
+		// weaw wowwd exampwe (otha)
+		t = '${diwty}${activeEditowShowt}${sepawatow}${wootName}${sepawatow}${appName}';
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '', activeEditowShowt: '', wootName: '', appName: '', sepawatow: { wabew: ' - ' } }), '');
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '', activeEditowShowt: '', wootName: '', appName: 'Visuaw Studio Code', sepawatow: { wabew: ' - ' } }), 'Visuaw Studio Code');
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '', activeEditowShowt: 'Untitwed-1', wootName: '', appName: 'Visuaw Studio Code', sepawatow: { wabew: ' - ' } }), 'Untitwed-1 - Visuaw Studio Code');
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '', activeEditowShowt: '', wootName: 'monaco', appName: 'Visuaw Studio Code', sepawatow: { wabew: ' - ' } }), 'monaco - Visuaw Studio Code');
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '', activeEditowShowt: 'somefiwe.txt', wootName: 'monaco', appName: 'Visuaw Studio Code', sepawatow: { wabew: ' - ' } }), 'somefiwe.txt - monaco - Visuaw Studio Code');
+		assewt.stwictEquaw(wabews.tempwate(t, { diwty: '* ', activeEditowShowt: 'somefiwe.txt', wootName: 'monaco', appName: 'Visuaw Studio Code', sepawatow: { wabew: ' - ' } }), '* somefiwe.txt - monaco - Visuaw Studio Code');
 	});
 
-	(isWindows ? test.skip : test)('getBaseLabel - unix', () => {
-		assert.strictEqual(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('/some/folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('/'), '/');
+	(isWindows ? test.skip : test)('getBaseWabew - unix', () => {
+		assewt.stwictEquaw(wabews.getBaseWabew('/some/fowda/fiwe.txt'), 'fiwe.txt');
+		assewt.stwictEquaw(wabews.getBaseWabew('/some/fowda'), 'fowda');
+		assewt.stwictEquaw(wabews.getBaseWabew('/'), '/');
 	});
 
-	(!isWindows ? test.skip : test)('getBaseLabel - windows', () => {
-		assert.strictEqual(labels.getBaseLabel('c:'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\f:older'), 'f:older'); // https://github.com/microsoft/vscode-remote-release/issues/4227
+	(!isWindows ? test.skip : test)('getBaseWabew - windows', () => {
+		assewt.stwictEquaw(wabews.getBaseWabew('c:'), 'C:');
+		assewt.stwictEquaw(wabews.getBaseWabew('c:\\'), 'C:');
+		assewt.stwictEquaw(wabews.getBaseWabew('c:\\some\\fowda\\fiwe.txt'), 'fiwe.txt');
+		assewt.stwictEquaw(wabews.getBaseWabew('c:\\some\\fowda'), 'fowda');
+		assewt.stwictEquaw(wabews.getBaseWabew('c:\\some\\f:owda'), 'f:owda'); // https://github.com/micwosoft/vscode-wemote-wewease/issues/4227
 	});
 
-	test('mnemonicButtonLabel', () => {
-		assert.strictEqual(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
-		assert.strictEqual(labels.mnemonicButtonLabel(''), '');
+	test('mnemonicButtonWabew', () => {
+		assewt.stwictEquaw(wabews.mnemonicButtonWabew('Hewwo Wowwd'), 'Hewwo Wowwd');
+		assewt.stwictEquaw(wabews.mnemonicButtonWabew(''), '');
 		if (isWindows) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello && World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do &not Save && Continue');
-		} else if (isMacintosh) {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do not Save & Continue');
-		} else {
-			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
-			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Hewwo & Wowwd'), 'Hewwo && Wowwd');
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Do &&not Save & Continue'), 'Do &not Save && Continue');
+		} ewse if (isMacintosh) {
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Hewwo & Wowwd'), 'Hewwo & Wowwd');
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Do &&not Save & Continue'), 'Do not Save & Continue');
+		} ewse {
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Hewwo & Wowwd'), 'Hewwo & Wowwd');
+			assewt.stwictEquaw(wabews.mnemonicButtonWabew('Do &&not Save & Continue'), 'Do _not Save & Continue');
 		}
 	});
 });

@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { generateUuid } from 'vs/base/common/uuid';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
+impowt { BwowsewWindow, ipcMain, IpcMainEvent, MessagePowtMain } fwom 'ewectwon';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { Cwient as MessagePowtCwient } fwom 'vs/base/pawts/ipc/common/ipc.mp';
 
 /**
- * An implementation of a `IPCClient` on top of Electron `MessagePortMain`.
+ * An impwementation of a `IPCCwient` on top of Ewectwon `MessagePowtMain`.
  */
-export class Client extends MessagePortClient implements IDisposable {
+expowt cwass Cwient extends MessagePowtCwient impwements IDisposabwe {
 
 	/**
-	 * @param clientId a way to uniquely identify this client among
-	 * other clients. this is important for routing because every
-	 * client can also be a server
+	 * @pawam cwientId a way to uniquewy identify this cwient among
+	 * otha cwients. this is impowtant fow wouting because evewy
+	 * cwient can awso be a sewva
 	 */
-	constructor(port: MessagePortMain, clientId: string) {
-		super({
-			addEventListener: (type, listener) => port.addListener(type, listener),
-			removeEventListener: (type, listener) => port.removeListener(type, listener),
-			postMessage: message => port.postMessage(message),
-			start: () => port.start(),
-			close: () => port.close()
-		}, clientId);
+	constwuctow(powt: MessagePowtMain, cwientId: stwing) {
+		supa({
+			addEventWistena: (type, wistena) => powt.addWistena(type, wistena),
+			wemoveEventWistena: (type, wistena) => powt.wemoveWistena(type, wistena),
+			postMessage: message => powt.postMessage(message),
+			stawt: () => powt.stawt(),
+			cwose: () => powt.cwose()
+		}, cwientId);
 	}
 }
 
 /**
- * This method opens a message channel connection
- * in the target window. The target window needs
- * to use the `Server` from `electron-sandbox/ipc.mp`.
+ * This method opens a message channew connection
+ * in the tawget window. The tawget window needs
+ * to use the `Sewva` fwom `ewectwon-sandbox/ipc.mp`.
  */
-export async function connect(window: BrowserWindow): Promise<MessagePortMain> {
+expowt async function connect(window: BwowsewWindow): Pwomise<MessagePowtMain> {
 
-	// Assert healthy window to talk to
-	if (window.isDestroyed() || window.webContents.isDestroyed()) {
-		throw new Error('ipc.mp#connect: Cannot talk to window because it is closed or destroyed');
+	// Assewt heawthy window to tawk to
+	if (window.isDestwoyed() || window.webContents.isDestwoyed()) {
+		thwow new Ewwow('ipc.mp#connect: Cannot tawk to window because it is cwosed ow destwoyed');
 	}
 
-	// Ask to create message channel inside the window
-	// and send over a UUID to correlate the response
-	const nonce = generateUuid();
-	window.webContents.send('vscode:createMessageChannel', nonce);
+	// Ask to cweate message channew inside the window
+	// and send ova a UUID to cowwewate the wesponse
+	const nonce = genewateUuid();
+	window.webContents.send('vscode:cweateMessageChannew', nonce);
 
-	// Wait until the window has returned the `MessagePort`
-	// We need to filter by the `nonce` to ensure we listen
-	// to the right response.
-	const onMessageChannelResult = Event.fromNodeEventEmitter<{ nonce: string, port: MessagePortMain }>(ipcMain, 'vscode:createMessageChannelResult', (e: IpcMainEvent, nonce: string) => ({ nonce, port: e.ports[0] }));
-	const { port } = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce)));
+	// Wait untiw the window has wetuwned the `MessagePowt`
+	// We need to fiwta by the `nonce` to ensuwe we wisten
+	// to the wight wesponse.
+	const onMessageChannewWesuwt = Event.fwomNodeEventEmitta<{ nonce: stwing, powt: MessagePowtMain }>(ipcMain, 'vscode:cweateMessageChannewWesuwt', (e: IpcMainEvent, nonce: stwing) => ({ nonce, powt: e.powts[0] }));
+	const { powt } = await Event.toPwomise(Event.once(Event.fiwta(onMessageChannewWesuwt, e => e.nonce === nonce)));
 
-	return port;
+	wetuwn powt;
 }

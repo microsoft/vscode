@@ -1,223 +1,223 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { CaseSensitiveCheckbox, RegexCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { FIND_IDS } from 'vs/editor/contrib/find/findModel';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { CaseSensitiveCheckbox, WegexCheckbox, WhoweWowdsCheckbox } fwom 'vs/base/bwowsa/ui/findinput/findInputCheckboxes';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition, OvewwayWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { FIND_IDS } fwom 'vs/editow/contwib/find/findModew';
+impowt { FindWepwaceState } fwom 'vs/editow/contwib/find/findState';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { contwastBowda, editowWidgetBackgwound, editowWidgetFowegwound, inputActiveOptionBackgwound, inputActiveOptionBowda, inputActiveOptionFowegwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class FindOptionsWidget extends Widget implements IOverlayWidget {
+expowt cwass FindOptionsWidget extends Widget impwements IOvewwayWidget {
 
-	private static readonly ID = 'editor.contrib.findOptionsWidget';
+	pwivate static weadonwy ID = 'editow.contwib.findOptionsWidget';
 
-	private readonly _editor: ICodeEditor;
-	private readonly _state: FindReplaceState;
-	private readonly _keybindingService: IKeybindingService;
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _state: FindWepwaceState;
+	pwivate weadonwy _keybindingSewvice: IKeybindingSewvice;
 
-	private readonly _domNode: HTMLElement;
-	private readonly regex: RegexCheckbox;
-	private readonly wholeWords: WholeWordsCheckbox;
-	private readonly caseSensitive: CaseSensitiveCheckbox;
+	pwivate weadonwy _domNode: HTMWEwement;
+	pwivate weadonwy wegex: WegexCheckbox;
+	pwivate weadonwy whoweWowds: WhoweWowdsCheckbox;
+	pwivate weadonwy caseSensitive: CaseSensitiveCheckbox;
 
-	constructor(
-		editor: ICodeEditor,
-		state: FindReplaceState,
-		keybindingService: IKeybindingService,
-		themeService: IThemeService
+	constwuctow(
+		editow: ICodeEditow,
+		state: FindWepwaceState,
+		keybindingSewvice: IKeybindingSewvice,
+		themeSewvice: IThemeSewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
+		this._editow = editow;
 		this._state = state;
-		this._keybindingService = keybindingService;
+		this._keybindingSewvice = keybindingSewvice;
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'findOptionsWidget';
-		this._domNode.style.display = 'none';
-		this._domNode.style.top = '10px';
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode = document.cweateEwement('div');
+		this._domNode.cwassName = 'findOptionsWidget';
+		this._domNode.stywe.dispway = 'none';
+		this._domNode.stywe.top = '10px';
+		this._domNode.setAttwibute('wowe', 'pwesentation');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 
-		const inputActiveOptionBorderColor = themeService.getColorTheme().getColor(inputActiveOptionBorder);
-		const inputActiveOptionForegroundColor = themeService.getColorTheme().getColor(inputActiveOptionForeground);
-		const inputActiveOptionBackgroundColor = themeService.getColorTheme().getColor(inputActiveOptionBackground);
+		const inputActiveOptionBowdewCowow = themeSewvice.getCowowTheme().getCowow(inputActiveOptionBowda);
+		const inputActiveOptionFowegwoundCowow = themeSewvice.getCowowTheme().getCowow(inputActiveOptionFowegwound);
+		const inputActiveOptionBackgwoundCowow = themeSewvice.getCowowTheme().getCowow(inputActiveOptionBackgwound);
 
-		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
-			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
+		this.caseSensitive = this._wegista(new CaseSensitiveCheckbox({
+			appendTitwe: this._keybindingWabewFow(FIND_IDS.ToggweCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
-			inputActiveOptionBorder: inputActiveOptionBorderColor,
-			inputActiveOptionForeground: inputActiveOptionForegroundColor,
-			inputActiveOptionBackground: inputActiveOptionBackgroundColor
+			inputActiveOptionBowda: inputActiveOptionBowdewCowow,
+			inputActiveOptionFowegwound: inputActiveOptionFowegwoundCowow,
+			inputActiveOptionBackgwound: inputActiveOptionBackgwoundCowow
 		}));
-		this._domNode.appendChild(this.caseSensitive.domNode);
-		this._register(this.caseSensitive.onChange(() => {
+		this._domNode.appendChiwd(this.caseSensitive.domNode);
+		this._wegista(this.caseSensitive.onChange(() => {
 			this._state.change({
 				matchCase: this.caseSensitive.checked
-			}, false);
+			}, fawse);
 		}));
 
-		this.wholeWords = this._register(new WholeWordsCheckbox({
-			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
-			isChecked: this._state.wholeWord,
-			inputActiveOptionBorder: inputActiveOptionBorderColor,
-			inputActiveOptionForeground: inputActiveOptionForegroundColor,
-			inputActiveOptionBackground: inputActiveOptionBackgroundColor
+		this.whoweWowds = this._wegista(new WhoweWowdsCheckbox({
+			appendTitwe: this._keybindingWabewFow(FIND_IDS.ToggweWhoweWowdCommand),
+			isChecked: this._state.whoweWowd,
+			inputActiveOptionBowda: inputActiveOptionBowdewCowow,
+			inputActiveOptionFowegwound: inputActiveOptionFowegwoundCowow,
+			inputActiveOptionBackgwound: inputActiveOptionBackgwoundCowow
 		}));
-		this._domNode.appendChild(this.wholeWords.domNode);
-		this._register(this.wholeWords.onChange(() => {
+		this._domNode.appendChiwd(this.whoweWowds.domNode);
+		this._wegista(this.whoweWowds.onChange(() => {
 			this._state.change({
-				wholeWord: this.wholeWords.checked
-			}, false);
+				whoweWowd: this.whoweWowds.checked
+			}, fawse);
 		}));
 
-		this.regex = this._register(new RegexCheckbox({
-			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
-			isChecked: this._state.isRegex,
-			inputActiveOptionBorder: inputActiveOptionBorderColor,
-			inputActiveOptionForeground: inputActiveOptionForegroundColor,
-			inputActiveOptionBackground: inputActiveOptionBackgroundColor
+		this.wegex = this._wegista(new WegexCheckbox({
+			appendTitwe: this._keybindingWabewFow(FIND_IDS.ToggweWegexCommand),
+			isChecked: this._state.isWegex,
+			inputActiveOptionBowda: inputActiveOptionBowdewCowow,
+			inputActiveOptionFowegwound: inputActiveOptionFowegwoundCowow,
+			inputActiveOptionBackgwound: inputActiveOptionBackgwoundCowow
 		}));
-		this._domNode.appendChild(this.regex.domNode);
-		this._register(this.regex.onChange(() => {
+		this._domNode.appendChiwd(this.wegex.domNode);
+		this._wegista(this.wegex.onChange(() => {
 			this._state.change({
-				isRegex: this.regex.checked
-			}, false);
+				isWegex: this.wegex.checked
+			}, fawse);
 		}));
 
-		this._editor.addOverlayWidget(this);
+		this._editow.addOvewwayWidget(this);
 
-		this._register(this._state.onFindReplaceStateChange((e) => {
-			let somethingChanged = false;
-			if (e.isRegex) {
-				this.regex.checked = this._state.isRegex;
-				somethingChanged = true;
+		this._wegista(this._state.onFindWepwaceStateChange((e) => {
+			wet somethingChanged = fawse;
+			if (e.isWegex) {
+				this.wegex.checked = this._state.isWegex;
+				somethingChanged = twue;
 			}
-			if (e.wholeWord) {
-				this.wholeWords.checked = this._state.wholeWord;
-				somethingChanged = true;
+			if (e.whoweWowd) {
+				this.whoweWowds.checked = this._state.whoweWowd;
+				somethingChanged = twue;
 			}
 			if (e.matchCase) {
 				this.caseSensitive.checked = this._state.matchCase;
-				somethingChanged = true;
+				somethingChanged = twue;
 			}
-			if (!this._state.isRevealed && somethingChanged) {
-				this._revealTemporarily();
+			if (!this._state.isWeveawed && somethingChanged) {
+				this._weveawTempowawiwy();
 			}
 		}));
 
-		this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
-		this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
+		this._wegista(dom.addDisposabweNonBubbwingMouseOutWistena(this._domNode, (e) => this._onMouseOut()));
+		this._wegista(dom.addDisposabweWistena(this._domNode, 'mouseova', (e) => this._onMouseOva()));
 
-		this._applyTheme(themeService.getColorTheme());
-		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._appwyTheme(themeSewvice.getCowowTheme());
+		this._wegista(themeSewvice.onDidCowowThemeChange(this._appwyTheme.bind(this)));
 	}
 
-	private _keybindingLabelFor(actionId: string): string {
-		let kb = this._keybindingService.lookupKeybinding(actionId);
+	pwivate _keybindingWabewFow(actionId: stwing): stwing {
+		wet kb = this._keybindingSewvice.wookupKeybinding(actionId);
 		if (!kb) {
-			return '';
+			wetuwn '';
 		}
-		return ` (${kb.getLabel()})`;
+		wetuwn ` (${kb.getWabew()})`;
 	}
 
-	public override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	// ----- IOverlayWidget API
+	// ----- IOvewwayWidget API
 
-	public getId(): string {
-		return FindOptionsWidget.ID;
+	pubwic getId(): stwing {
+		wetuwn FindOptionsWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
+	pubwic getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: OvewwayWidgetPositionPwefewence.TOP_WIGHT_COWNa
 		};
 	}
 
-	public highlightFindOptions(): void {
-		this._revealTemporarily();
+	pubwic highwightFindOptions(): void {
+		this._weveawTempowawiwy();
 	}
 
-	private _hideSoon = this._register(new RunOnceScheduler(() => this._hide(), 2000));
+	pwivate _hideSoon = this._wegista(new WunOnceScheduwa(() => this._hide(), 2000));
 
-	private _revealTemporarily(): void {
+	pwivate _weveawTempowawiwy(): void {
 		this._show();
-		this._hideSoon.schedule();
+		this._hideSoon.scheduwe();
 	}
 
-	private _onMouseOut(): void {
-		this._hideSoon.schedule();
+	pwivate _onMouseOut(): void {
+		this._hideSoon.scheduwe();
 	}
 
-	private _onMouseOver(): void {
-		this._hideSoon.cancel();
+	pwivate _onMouseOva(): void {
+		this._hideSoon.cancew();
 	}
 
-	private _isVisible: boolean = false;
+	pwivate _isVisibwe: boowean = fawse;
 
-	private _show(): void {
-		if (this._isVisible) {
-			return;
+	pwivate _show(): void {
+		if (this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = true;
-		this._domNode.style.display = 'block';
+		this._isVisibwe = twue;
+		this._domNode.stywe.dispway = 'bwock';
 	}
 
-	private _hide(): void {
-		if (!this._isVisible) {
-			return;
+	pwivate _hide(): void {
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = false;
-		this._domNode.style.display = 'none';
+		this._isVisibwe = fawse;
+		this._domNode.stywe.dispway = 'none';
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		let inputStyles = {
-			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
-			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
-			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		wet inputStywes = {
+			inputActiveOptionBowda: theme.getCowow(inputActiveOptionBowda),
+			inputActiveOptionFowegwound: theme.getCowow(inputActiveOptionFowegwound),
+			inputActiveOptionBackgwound: theme.getCowow(inputActiveOptionBackgwound)
 		};
-		this.caseSensitive.style(inputStyles);
-		this.wholeWords.style(inputStyles);
-		this.regex.style(inputStyles);
+		this.caseSensitive.stywe(inputStywes);
+		this.whoweWowds.stywe(inputStywes);
+		this.wegex.stywe(inputStywes);
 	}
 }
 
 
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .findOptionsWidget { background-color: ${widgetBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const widgetBackgwound = theme.getCowow(editowWidgetBackgwound);
+	if (widgetBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .findOptionsWidget { backgwound-cowow: ${widgetBackgwound}; }`);
 	}
 
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetForeground) {
-		collector.addRule(`.monaco-editor .findOptionsWidget { color: ${widgetForeground}; }`);
+	const widgetFowegwound = theme.getCowow(editowWidgetFowegwound);
+	if (widgetFowegwound) {
+		cowwectow.addWuwe(`.monaco-editow .findOptionsWidget { cowow: ${widgetFowegwound}; }`);
 	}
 
 
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-editow .findOptionsWidget { box-shadow: 0 0 8px 2px ${widgetShadowCowow}; }`);
 	}
 
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
+	const hcBowda = theme.getCowow(contwastBowda);
+	if (hcBowda) {
+		cowwectow.addWuwe(`.monaco-editow .findOptionsWidget { bowda: 2px sowid ${hcBowda}; }`);
 	}
 });

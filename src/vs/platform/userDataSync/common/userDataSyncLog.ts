@@ -1,51 +1,51 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { AbstwactWogga, IWogga, IWoggewSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUsewDataSyncWogSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
+expowt cwass UsewDataSyncWogSewvice extends AbstwactWogga impwements IUsewDataSyncWogSewvice {
 
-	declare readonly _serviceBrand: undefined;
-	private readonly logger: ILogger;
+	decwawe weadonwy _sewviceBwand: undefined;
+	pwivate weadonwy wogga: IWogga;
 
-	constructor(
-		@ILoggerService loggerService: ILoggerService,
-		@IEnvironmentService environmentService: IEnvironmentService
+	constwuctow(
+		@IWoggewSewvice woggewSewvice: IWoggewSewvice,
+		@IEnviwonmentSewvice enviwonmentSewvice: IEnviwonmentSewvice
 	) {
-		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.userDataSyncLogResource, { name: 'settingssync' }));
+		supa();
+		this.wogga = this._wegista(woggewSewvice.cweateWogga(enviwonmentSewvice.usewDataSyncWogWesouwce, { name: 'settingssync' }));
 	}
 
-	trace(message: string, ...args: any[]): void {
-		this.logger.trace(message, ...args);
+	twace(message: stwing, ...awgs: any[]): void {
+		this.wogga.twace(message, ...awgs);
 	}
 
-	debug(message: string, ...args: any[]): void {
-		this.logger.debug(message, ...args);
+	debug(message: stwing, ...awgs: any[]): void {
+		this.wogga.debug(message, ...awgs);
 	}
 
-	info(message: string, ...args: any[]): void {
-		this.logger.info(message, ...args);
+	info(message: stwing, ...awgs: any[]): void {
+		this.wogga.info(message, ...awgs);
 	}
 
-	warn(message: string, ...args: any[]): void {
-		this.logger.warn(message, ...args);
+	wawn(message: stwing, ...awgs: any[]): void {
+		this.wogga.wawn(message, ...awgs);
 	}
 
-	error(message: string | Error, ...args: any[]): void {
-		this.logger.error(message, ...args);
+	ewwow(message: stwing | Ewwow, ...awgs: any[]): void {
+		this.wogga.ewwow(message, ...awgs);
 	}
 
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
+	cwiticaw(message: stwing | Ewwow, ...awgs: any[]): void {
+		this.wogga.cwiticaw(message, ...awgs);
 	}
 
-	flush(): void {
-		this.logger.flush();
+	fwush(): void {
+		this.wogga.fwush();
 	}
 
 }

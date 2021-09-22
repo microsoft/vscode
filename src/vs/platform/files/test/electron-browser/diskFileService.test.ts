@@ -1,2439 +1,2439 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname, join, posix } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { isEqual, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises, rimrafSync } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { etag, FileChangeType, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, IFileChange, IFileStat, IFileStatWithMetadata, IReadFileOptions, IStat, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt { cweateWeadStweam, existsSync, mkdiwSync, weaddiwSync, weadFiweSync, wenameSync, statSync, unwinkSync, wwiteFiweSync } fwom 'fs';
+impowt { tmpdiw } fwom 'os';
+impowt { buffewToWeadabwe, buffewToStweam, stweamToBuffa, stweamToBuffewWeadabweStweam, VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { basename, diwname, join, posix } fwom 'vs/base/common/path';
+impowt { isWinux, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { isEquaw, joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Pwomises, wimwafSync } fwom 'vs/base/node/pfs';
+impowt { fwakySuite, getPathFwomAmdModuwe, getWandomTestPath } fwom 'vs/base/test/node/testUtiws';
+impowt { etag, FiweChangeType, FiweOpewation, FiweOpewationEwwow, FiweOpewationEvent, FiweOpewationWesuwt, FiwePewmission, FiweSystemPwovidewCapabiwities, IFiweChange, IFiweStat, IFiweStatWithMetadata, IWeadFiweOptions, IStat, NotModifiedSinceFiweOpewationEwwow } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-function getByName(root: IFileStat, name: string): IFileStat | undefined {
-	if (root.children === undefined) {
-		return undefined;
+function getByName(woot: IFiweStat, name: stwing): IFiweStat | undefined {
+	if (woot.chiwdwen === undefined) {
+		wetuwn undefined;
 	}
 
-	return root.children.find(child => child.name === name);
+	wetuwn woot.chiwdwen.find(chiwd => chiwd.name === name);
 }
 
-function toLineByLineReadable(content: string): VSBufferReadable {
-	let chunks = content.split('\n');
+function toWineByWineWeadabwe(content: stwing): VSBuffewWeadabwe {
+	wet chunks = content.spwit('\n');
 	chunks = chunks.map((chunk, index) => {
 		if (index === 0) {
-			return chunk;
+			wetuwn chunk;
 		}
 
-		return '\n' + chunk;
+		wetuwn '\n' + chunk;
 	});
 
-	return {
-		read(): VSBuffer | null {
+	wetuwn {
+		wead(): VSBuffa | nuww {
 			const chunk = chunks.shift();
-			if (typeof chunk === 'string') {
-				return VSBuffer.fromString(chunk);
+			if (typeof chunk === 'stwing') {
+				wetuwn VSBuffa.fwomStwing(chunk);
 			}
 
-			return null;
+			wetuwn nuww;
 		}
 	};
 }
 
-export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
+expowt cwass TestDiskFiweSystemPwovida extends DiskFiweSystemPwovida {
 
-	totalBytesRead: number = 0;
+	totawBytesWead: numba = 0;
 
-	private invalidStatSize: boolean = false;
-	private smallStatSize: boolean = false;
-	private readonly: boolean = false;
+	pwivate invawidStatSize: boowean = fawse;
+	pwivate smawwStatSize: boowean = fawse;
+	pwivate weadonwy: boowean = fawse;
 
-	private _testCapabilities!: FileSystemProviderCapabilities;
-	override get capabilities(): FileSystemProviderCapabilities {
-		if (!this._testCapabilities) {
-			this._testCapabilities =
-				FileSystemProviderCapabilities.FileReadWrite |
-				FileSystemProviderCapabilities.FileOpenReadWriteClose |
-				FileSystemProviderCapabilities.FileReadStream |
-				FileSystemProviderCapabilities.Trash |
-				FileSystemProviderCapabilities.FileWriteUnlock |
-				FileSystemProviderCapabilities.FileFolderCopy;
+	pwivate _testCapabiwities!: FiweSystemPwovidewCapabiwities;
+	ovewwide get capabiwities(): FiweSystemPwovidewCapabiwities {
+		if (!this._testCapabiwities) {
+			this._testCapabiwities =
+				FiweSystemPwovidewCapabiwities.FiweWeadWwite |
+				FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose |
+				FiweSystemPwovidewCapabiwities.FiweWeadStweam |
+				FiweSystemPwovidewCapabiwities.Twash |
+				FiweSystemPwovidewCapabiwities.FiweWwiteUnwock |
+				FiweSystemPwovidewCapabiwities.FiweFowdewCopy;
 
-			if (isLinux) {
-				this._testCapabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+			if (isWinux) {
+				this._testCapabiwities |= FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 			}
 		}
 
-		return this._testCapabilities;
+		wetuwn this._testCapabiwities;
 	}
 
-	override set capabilities(capabilities: FileSystemProviderCapabilities) {
-		this._testCapabilities = capabilities;
+	ovewwide set capabiwities(capabiwities: FiweSystemPwovidewCapabiwities) {
+		this._testCapabiwities = capabiwities;
 	}
 
-	setInvalidStatSize(enabled: boolean): void {
-		this.invalidStatSize = enabled;
+	setInvawidStatSize(enabwed: boowean): void {
+		this.invawidStatSize = enabwed;
 	}
 
-	setSmallStatSize(enabled: boolean): void {
-		this.smallStatSize = enabled;
+	setSmawwStatSize(enabwed: boowean): void {
+		this.smawwStatSize = enabwed;
 	}
 
-	setReadonly(readonly: boolean): void {
-		this.readonly = readonly;
+	setWeadonwy(weadonwy: boowean): void {
+		this.weadonwy = weadonwy;
 	}
 
-	override async stat(resource: URI): Promise<IStat> {
-		const res = await super.stat(resource);
+	ovewwide async stat(wesouwce: UWI): Pwomise<IStat> {
+		const wes = await supa.stat(wesouwce);
 
-		if (this.invalidStatSize) {
-			(res as any).size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
-		} else if (this.smallStatSize) {
-			(res as any).size = 1;
-		} else if (this.readonly) {
-			(res as any).permissions = FilePermission.Readonly;
+		if (this.invawidStatSize) {
+			(wes as any).size = Stwing(wes.size) as any; // fow https://github.com/micwosoft/vscode/issues/72909
+		} ewse if (this.smawwStatSize) {
+			(wes as any).size = 1;
+		} ewse if (this.weadonwy) {
+			(wes as any).pewmissions = FiwePewmission.Weadonwy;
 		}
 
-		return res;
+		wetuwn wes;
 	}
 
-	override async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		const bytesRead = await super.read(fd, pos, data, offset, length);
+	ovewwide async wead(fd: numba, pos: numba, data: Uint8Awway, offset: numba, wength: numba): Pwomise<numba> {
+		const bytesWead = await supa.wead(fd, pos, data, offset, wength);
 
-		this.totalBytesRead += bytesRead;
+		this.totawBytesWead += bytesWead;
 
-		return bytesRead;
+		wetuwn bytesWead;
 	}
 
-	override async readFile(resource: URI): Promise<Uint8Array> {
-		const res = await super.readFile(resource);
+	ovewwide async weadFiwe(wesouwce: UWI): Pwomise<Uint8Awway> {
+		const wes = await supa.weadFiwe(wesouwce);
 
-		this.totalBytesRead += res.byteLength;
+		this.totawBytesWead += wes.byteWength;
 
-		return res;
+		wetuwn wes;
 	}
 }
 
-flakySuite('Disk File Service', function () {
+fwakySuite('Disk Fiwe Sewvice', function () {
 
 	const testSchema = 'test';
 
-	let service: FileService;
-	let fileProvider: TestDiskFileSystemProvider;
-	let testProvider: TestDiskFileSystemProvider;
+	wet sewvice: FiweSewvice;
+	wet fiwePwovida: TestDiskFiweSystemPwovida;
+	wet testPwovida: TestDiskFiweSystemPwovida;
 
-	let testDir: string;
+	wet testDiw: stwing;
 
-	const disposables = new DisposableStore();
+	const disposabwes = new DisposabweStowe();
 
 	setup(async () => {
-		const logService = new NullLogService();
+		const wogSewvice = new NuwwWogSewvice();
 
-		service = new FileService(logService);
-		disposables.add(service);
+		sewvice = new FiweSewvice(wogSewvice);
+		disposabwes.add(sewvice);
 
-		fileProvider = new TestDiskFileSystemProvider(logService);
-		disposables.add(service.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
+		fiwePwovida = new TestDiskFiweSystemPwovida(wogSewvice);
+		disposabwes.add(sewvice.wegistewPwovida(Schemas.fiwe, fiwePwovida));
+		disposabwes.add(fiwePwovida);
 
-		testProvider = new TestDiskFileSystemProvider(logService);
-		disposables.add(service.registerProvider(testSchema, testProvider));
-		disposables.add(testProvider);
+		testPwovida = new TestDiskFiweSystemPwovida(wogSewvice);
+		disposabwes.add(sewvice.wegistewPwovida(testSchema, testPwovida));
+		disposabwes.add(testPwovida);
 
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'diskfileservice');
+		testDiw = getWandomTestPath(tmpdiw(), 'vsctests', 'diskfiwesewvice');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const souwceDiw = getPathFwomAmdModuwe(wequiwe, './fixtuwes/sewvice');
 
-		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
+		await Pwomises.copy(souwceDiw, testDiw, { pwesewveSymwinks: fawse });
 	});
 
-	teardown(() => {
-		disposables.clear();
+	teawdown(() => {
+		disposabwes.cweaw();
 
-		return Promises.rm(testDir);
+		wetuwn Pwomises.wm(testDiw);
 	});
 
-	test('createFolder', async () => {
-		let event: FileOperationEvent | undefined;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('cweateFowda', async () => {
+		wet event: FiweOpewationEvent | undefined;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const parent = await service.resolve(URI.file(testDir));
+		const pawent = await sewvice.wesowve(UWI.fiwe(testDiw));
 
-		const newFolderResource = URI.file(join(parent.resource.fsPath, 'newFolder'));
+		const newFowdewWesouwce = UWI.fiwe(join(pawent.wesouwce.fsPath, 'newFowda'));
 
-		const newFolder = await service.createFolder(newFolderResource);
+		const newFowda = await sewvice.cweateFowda(newFowdewWesouwce);
 
-		assert.strictEqual(newFolder.name, 'newFolder');
-		assert.strictEqual(existsSync(newFolder.resource.fsPath), true);
+		assewt.stwictEquaw(newFowda.name, 'newFowda');
+		assewt.stwictEquaw(existsSync(newFowda.wesouwce.fsPath), twue);
 
-		assert.ok(event);
-		assert.strictEqual(event!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assewt.ok(event);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, newFowdewWesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, newFowdewWesouwce.fsPath);
+		assewt.stwictEquaw(event!.tawget!.isDiwectowy, twue);
 	});
 
-	test('createFolder: creating multiple folders at once', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('cweateFowda: cweating muwtipwe fowdews at once', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const parent = await service.resolve(URI.file(testDir));
+		const muwtiFowdewPaths = ['a', 'coupwe', 'of', 'fowdews'];
+		const pawent = await sewvice.wesowve(UWI.fiwe(testDiw));
 
-		const newFolderResource = URI.file(join(parent.resource.fsPath, ...multiFolderPaths));
+		const newFowdewWesouwce = UWI.fiwe(join(pawent.wesouwce.fsPath, ...muwtiFowdewPaths));
 
-		const newFolder = await service.createFolder(newFolderResource);
+		const newFowda = await sewvice.cweateFowda(newFowdewWesouwce);
 
-		const lastFolderName = multiFolderPaths[multiFolderPaths.length - 1];
-		assert.strictEqual(newFolder.name, lastFolderName);
-		assert.strictEqual(existsSync(newFolder.resource.fsPath), true);
+		const wastFowdewName = muwtiFowdewPaths[muwtiFowdewPaths.wength - 1];
+		assewt.stwictEquaw(newFowda.name, wastFowdewName);
+		assewt.stwictEquaw(existsSync(newFowda.wesouwce.fsPath), twue);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.fsPath, newFolderResource.fsPath);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, newFowdewWesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, newFowdewWesouwce.fsPath);
+		assewt.stwictEquaw(event!.tawget!.isDiwectowy, twue);
 	});
 
 	test('exists', async () => {
-		let exists = await service.exists(URI.file(testDir));
-		assert.strictEqual(exists, true);
+		wet exists = await sewvice.exists(UWI.fiwe(testDiw));
+		assewt.stwictEquaw(exists, twue);
 
-		exists = await service.exists(URI.file(testDir + 'something'));
-		assert.strictEqual(exists, false);
+		exists = await sewvice.exists(UWI.fiwe(testDiw + 'something'));
+		assewt.stwictEquaw(exists, fawse);
 	});
 
-	test('resolve - file', async () => {
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
-		const resolved = await service.resolve(resource);
+	test('wesowve - fiwe', async () => {
+		const wesouwce = UWI.fiwe(getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva/index.htmw'));
+		const wesowved = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(resolved.name, 'index.html');
-		assert.strictEqual(resolved.isFile, true);
-		assert.strictEqual(resolved.isDirectory, false);
-		assert.strictEqual(resolved.readonly, false);
-		assert.strictEqual(resolved.isSymbolicLink, false);
-		assert.strictEqual(resolved.resource.toString(), resource.toString());
-		assert.strictEqual(resolved.children, undefined);
-		assert.ok(resolved.mtime! > 0);
-		assert.ok(resolved.ctime! > 0);
-		assert.ok(resolved.size! > 0);
+		assewt.stwictEquaw(wesowved.name, 'index.htmw');
+		assewt.stwictEquaw(wesowved.isFiwe, twue);
+		assewt.stwictEquaw(wesowved.isDiwectowy, fawse);
+		assewt.stwictEquaw(wesowved.weadonwy, fawse);
+		assewt.stwictEquaw(wesowved.isSymbowicWink, fawse);
+		assewt.stwictEquaw(wesowved.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(wesowved.chiwdwen, undefined);
+		assewt.ok(wesowved.mtime! > 0);
+		assewt.ok(wesowved.ctime! > 0);
+		assewt.ok(wesowved.size! > 0);
 	});
 
-	test('resolve - directory', async () => {
-		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
+	test('wesowve - diwectowy', async () => {
+		const testsEwements = ['exampwes', 'otha', 'index.htmw', 'site.css'];
 
-		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
-		const result = await service.resolve(resource);
+		const wesouwce = UWI.fiwe(getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva'));
+		const wesuwt = await sewvice.wesowve(wesouwce);
 
-		assert.ok(result);
-		assert.strictEqual(result.resource.toString(), resource.toString());
-		assert.strictEqual(result.name, 'resolver');
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
-		assert.strictEqual(result.readonly, false);
-		assert.ok(result.mtime! > 0);
-		assert.ok(result.ctime! > 0);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assewt.ok(wesuwt);
+		assewt.stwictEquaw(wesuwt.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(wesuwt.name, 'wesowva');
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt!.isDiwectowy);
+		assewt.stwictEquaw(wesuwt.weadonwy, fawse);
+		assewt.ok(wesuwt.mtime! > 0);
+		assewt.ok(wesuwt.ctime! > 0);
+		assewt.stwictEquaw(wesuwt.chiwdwen!.wength, testsEwements.wength);
 
-		assert.ok(result.children!.every(entry => {
-			return testsElements.some(name => {
-				return basename(entry.resource.fsPath) === name;
+		assewt.ok(wesuwt.chiwdwen!.evewy(entwy => {
+			wetuwn testsEwements.some(name => {
+				wetuwn basename(entwy.wesouwce.fsPath) === name;
 			});
 		}));
 
-		result.children!.forEach(value => {
-			assert.ok(basename(value.resource.fsPath));
-			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
-				assert.ok(value.isDirectory);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else if (basename(value.resource.fsPath) === 'index.html') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else if (basename(value.resource.fsPath) === 'site.css') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.strictEqual(value.mtime, undefined);
-				assert.strictEqual(value.ctime, undefined);
-			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
+		wesuwt.chiwdwen!.fowEach(vawue => {
+			assewt.ok(basename(vawue.wesouwce.fsPath));
+			if (['exampwes', 'otha'].indexOf(basename(vawue.wesouwce.fsPath)) >= 0) {
+				assewt.ok(vawue.isDiwectowy);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse if (basename(vawue.wesouwce.fsPath) === 'index.htmw') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse if (basename(vawue.wesouwce.fsPath) === 'site.css') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.stwictEquaw(vawue.mtime, undefined);
+				assewt.stwictEquaw(vawue.ctime, undefined);
+			} ewse {
+				assewt.ok(!'Unexpected vawue ' + basename(vawue.wesouwce.fsPath));
 			}
 		});
 	});
 
-	test('resolve - directory - with metadata', async () => {
-		const testsElements = ['examples', 'other', 'index.html', 'site.css'];
+	test('wesowve - diwectowy - with metadata', async () => {
+		const testsEwements = ['exampwes', 'otha', 'index.htmw', 'site.css'];
 
-		const result = await service.resolve(URI.file(getPathFromAmdModule(require, './fixtures/resolver')), { resolveMetadata: true });
+		const wesuwt = await sewvice.wesowve(UWI.fiwe(getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva')), { wesowveMetadata: twue });
 
-		assert.ok(result);
-		assert.strictEqual(result.name, 'resolver');
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
-		assert.ok(result.mtime! > 0);
-		assert.ok(result.ctime! > 0);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assewt.ok(wesuwt);
+		assewt.stwictEquaw(wesuwt.name, 'wesowva');
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt!.isDiwectowy);
+		assewt.ok(wesuwt.mtime! > 0);
+		assewt.ok(wesuwt.ctime! > 0);
+		assewt.stwictEquaw(wesuwt.chiwdwen!.wength, testsEwements.wength);
 
-		assert.ok(result.children!.every(entry => {
-			return testsElements.some(name => {
-				return basename(entry.resource.fsPath) === name;
+		assewt.ok(wesuwt.chiwdwen!.evewy(entwy => {
+			wetuwn testsEwements.some(name => {
+				wetuwn basename(entwy.wesouwce.fsPath) === name;
 			});
 		}));
 
-		assert.ok(result.children!.every(entry => entry.etag.length > 0));
+		assewt.ok(wesuwt.chiwdwen!.evewy(entwy => entwy.etag.wength > 0));
 
-		result.children!.forEach(value => {
-			assert.ok(basename(value.resource.fsPath));
-			if (['examples', 'other'].indexOf(basename(value.resource.fsPath)) >= 0) {
-				assert.ok(value.isDirectory);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
-			} else if (basename(value.resource.fsPath) === 'index.html') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
-			} else if (basename(value.resource.fsPath) === 'site.css') {
-				assert.ok(!value.isDirectory);
-				assert.ok(!value.children);
-				assert.ok(value.mtime! > 0);
-				assert.ok(value.ctime! > 0);
-			} else {
-				assert.ok(!'Unexpected value ' + basename(value.resource.fsPath));
+		wesuwt.chiwdwen!.fowEach(vawue => {
+			assewt.ok(basename(vawue.wesouwce.fsPath));
+			if (['exampwes', 'otha'].indexOf(basename(vawue.wesouwce.fsPath)) >= 0) {
+				assewt.ok(vawue.isDiwectowy);
+				assewt.ok(vawue.mtime! > 0);
+				assewt.ok(vawue.ctime! > 0);
+			} ewse if (basename(vawue.wesouwce.fsPath) === 'index.htmw') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.ok(vawue.mtime! > 0);
+				assewt.ok(vawue.ctime! > 0);
+			} ewse if (basename(vawue.wesouwce.fsPath) === 'site.css') {
+				assewt.ok(!vawue.isDiwectowy);
+				assewt.ok(!vawue.chiwdwen);
+				assewt.ok(vawue.mtime! > 0);
+				assewt.ok(vawue.ctime! > 0);
+			} ewse {
+				assewt.ok(!'Unexpected vawue ' + basename(vawue.wesouwce.fsPath));
 			}
 		});
 	});
 
-	test('resolve - directory with resolveTo', async () => {
-		const resolved = await service.resolve(URI.file(testDir), { resolveTo: [URI.file(join(testDir, 'deep'))] });
-		assert.strictEqual(resolved.children!.length, 8);
+	test('wesowve - diwectowy with wesowveTo', async () => {
+		const wesowved = await sewvice.wesowve(UWI.fiwe(testDiw), { wesowveTo: [UWI.fiwe(join(testDiw, 'deep'))] });
+		assewt.stwictEquaw(wesowved.chiwdwen!.wength, 8);
 
-		const deep = (getByName(resolved, 'deep')!);
-		assert.strictEqual(deep.children!.length, 4);
+		const deep = (getByName(wesowved, 'deep')!);
+		assewt.stwictEquaw(deep.chiwdwen!.wength, 4);
 	});
 
-	test('resolve - directory - resolveTo single directory', async () => {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveTo: [URI.file(join(resolverFixturesPath, 'other/deep'))] });
+	test('wesowve - diwectowy - wesowveTo singwe diwectowy', async () => {
+		const wesowvewFixtuwesPath = getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva');
+		const wesuwt = await sewvice.wesowve(UWI.fiwe(wesowvewFixtuwesPath), { wesowveTo: [UWI.fiwe(join(wesowvewFixtuwesPath, 'otha/deep'))] });
 
-		assert.ok(result);
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result.isDirectory);
+		assewt.ok(wesuwt);
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt.isDiwectowy);
 
-		const children = result.children!;
-		assert.strictEqual(children.length, 4);
+		const chiwdwen = wesuwt.chiwdwen!;
+		assewt.stwictEquaw(chiwdwen.wength, 4);
 
-		const other = getByName(result, 'other');
-		assert.ok(other);
-		assert.ok(other!.children!.length > 0);
+		const otha = getByName(wesuwt, 'otha');
+		assewt.ok(otha);
+		assewt.ok(otha!.chiwdwen!.wength > 0);
 
-		const deep = getByName(other!, 'deep');
-		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		const deep = getByName(otha!, 'deep');
+		assewt.ok(deep);
+		assewt.ok(deep!.chiwdwen!.wength > 0);
+		assewt.stwictEquaw(deep!.chiwdwen!.wength, 4);
 	});
 
-	test('resolve directory - resolveTo multiple directories', () => {
-		return testResolveDirectoryWithTarget(false);
+	test('wesowve diwectowy - wesowveTo muwtipwe diwectowies', () => {
+		wetuwn testWesowveDiwectowyWithTawget(fawse);
 	});
 
-	test('resolve directory - resolveTo with a URI that has query parameter (https://github.com/microsoft/vscode/issues/128151)', () => {
-		return testResolveDirectoryWithTarget(true);
+	test('wesowve diwectowy - wesowveTo with a UWI that has quewy pawameta (https://github.com/micwosoft/vscode/issues/128151)', () => {
+		wetuwn testWesowveDiwectowyWithTawget(twue);
 	});
 
-	async function testResolveDirectoryWithTarget(withQueryParam: boolean): Promise<void> {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver');
-		const result = await service.resolve(URI.file(resolverFixturesPath).with({ query: withQueryParam ? 'test' : undefined }), {
-			resolveTo: [
-				URI.file(join(resolverFixturesPath, 'other/deep')).with({ query: withQueryParam ? 'test' : undefined }),
-				URI.file(join(resolverFixturesPath, 'examples')).with({ query: withQueryParam ? 'test' : undefined })
+	async function testWesowveDiwectowyWithTawget(withQuewyPawam: boowean): Pwomise<void> {
+		const wesowvewFixtuwesPath = getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva');
+		const wesuwt = await sewvice.wesowve(UWI.fiwe(wesowvewFixtuwesPath).with({ quewy: withQuewyPawam ? 'test' : undefined }), {
+			wesowveTo: [
+				UWI.fiwe(join(wesowvewFixtuwesPath, 'otha/deep')).with({ quewy: withQuewyPawam ? 'test' : undefined }),
+				UWI.fiwe(join(wesowvewFixtuwesPath, 'exampwes')).with({ quewy: withQuewyPawam ? 'test' : undefined })
 			]
 		});
 
-		assert.ok(result);
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result.isDirectory);
+		assewt.ok(wesuwt);
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt.isDiwectowy);
 
-		const children = result.children!;
-		assert.strictEqual(children.length, 4);
+		const chiwdwen = wesuwt.chiwdwen!;
+		assewt.stwictEquaw(chiwdwen.wength, 4);
 
-		const other = getByName(result, 'other');
-		assert.ok(other);
-		assert.ok(other!.children!.length > 0);
+		const otha = getByName(wesuwt, 'otha');
+		assewt.ok(otha);
+		assewt.ok(otha!.chiwdwen!.wength > 0);
 
-		const deep = getByName(other!, 'deep');
-		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		const deep = getByName(otha!, 'deep');
+		assewt.ok(deep);
+		assewt.ok(deep!.chiwdwen!.wength > 0);
+		assewt.stwictEquaw(deep!.chiwdwen!.wength, 4);
 
-		const examples = getByName(result, 'examples');
-		assert.ok(examples);
-		assert.ok(examples!.children!.length > 0);
-		assert.strictEqual(examples!.children!.length, 4);
+		const exampwes = getByName(wesuwt, 'exampwes');
+		assewt.ok(exampwes);
+		assewt.ok(exampwes!.chiwdwen!.wength > 0);
+		assewt.stwictEquaw(exampwes!.chiwdwen!.wength, 4);
 	}
 
-	test('resolve directory - resolveSingleChildFolders', async () => {
-		const resolverFixturesPath = getPathFromAmdModule(require, './fixtures/resolver/other');
-		const result = await service.resolve(URI.file(resolverFixturesPath), { resolveSingleChildDescendants: true });
+	test('wesowve diwectowy - wesowveSingweChiwdFowdews', async () => {
+		const wesowvewFixtuwesPath = getPathFwomAmdModuwe(wequiwe, './fixtuwes/wesowva/otha');
+		const wesuwt = await sewvice.wesowve(UWI.fiwe(wesowvewFixtuwesPath), { wesowveSingweChiwdDescendants: twue });
 
-		assert.ok(result);
-		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result.isDirectory);
+		assewt.ok(wesuwt);
+		assewt.ok(wesuwt.chiwdwen);
+		assewt.ok(wesuwt.chiwdwen!.wength > 0);
+		assewt.ok(wesuwt.isDiwectowy);
 
-		const children = result.children!;
-		assert.strictEqual(children.length, 1);
+		const chiwdwen = wesuwt.chiwdwen!;
+		assewt.stwictEquaw(chiwdwen.wength, 1);
 
-		let deep = getByName(result, 'deep');
-		assert.ok(deep);
-		assert.ok(deep!.children!.length > 0);
-		assert.strictEqual(deep!.children!.length, 4);
+		wet deep = getByName(wesuwt, 'deep');
+		assewt.ok(deep);
+		assewt.ok(deep!.chiwdwen!.wength > 0);
+		assewt.stwictEquaw(deep!.chiwdwen!.wength, 4);
 	});
 
-	test('resolves', async () => {
-		const res = await service.resolveAll([
-			{ resource: URI.file(testDir), options: { resolveTo: [URI.file(join(testDir, 'deep'))] } },
-			{ resource: URI.file(join(testDir, 'deep')) }
+	test('wesowves', async () => {
+		const wes = await sewvice.wesowveAww([
+			{ wesouwce: UWI.fiwe(testDiw), options: { wesowveTo: [UWI.fiwe(join(testDiw, 'deep'))] } },
+			{ wesouwce: UWI.fiwe(join(testDiw, 'deep')) }
 		]);
 
-		const r1 = (res[0].stat!);
-		assert.strictEqual(r1.children!.length, 8);
+		const w1 = (wes[0].stat!);
+		assewt.stwictEquaw(w1.chiwdwen!.wength, 8);
 
-		const deep = (getByName(r1, 'deep')!);
-		assert.strictEqual(deep.children!.length, 4);
+		const deep = (getByName(w1, 'deep')!);
+		assewt.stwictEquaw(deep.chiwdwen!.wength, 4);
 
-		const r2 = (res[1].stat!);
-		assert.strictEqual(r2.children!.length, 4);
-		assert.strictEqual(r2.name, 'deep');
+		const w2 = (wes[1].stat!);
+		assewt.stwictEquaw(w2.chiwdwen!.wength, 4);
+		assewt.stwictEquaw(w2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
-		const link = URI.file(join(testDir, 'deep-link'));
-		await Promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
+	test('wesowve - fowda symbowic wink', async () => {
+		const wink = UWI.fiwe(join(testDiw, 'deep-wink'));
+		await Pwomises.symwink(join(testDiw, 'deep'), wink.fsPath, 'junction');
 
-		const resolved = await service.resolve(link);
-		assert.strictEqual(resolved.children!.length, 4);
-		assert.strictEqual(resolved.isDirectory, true);
-		assert.strictEqual(resolved.isSymbolicLink, true);
+		const wesowved = await sewvice.wesowve(wink);
+		assewt.stwictEquaw(wesowved.chiwdwen!.wength, 4);
+		assewt.stwictEquaw(wesowved.isDiwectowy, twue);
+		assewt.stwictEquaw(wesowved.isSymbowicWink, twue);
 	});
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
-		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await Promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
+	(isWindows ? test.skip /* windows: cannot cweate fiwe symbowic wink without ewevated context */ : test)('wesowve - fiwe symbowic wink', async () => {
+		const wink = UWI.fiwe(join(testDiw, 'wowem.txt-winked'));
+		await Pwomises.symwink(join(testDiw, 'wowem.txt'), wink.fsPath);
 
-		const resolved = await service.resolve(link);
-		assert.strictEqual(resolved.isDirectory, false);
-		assert.strictEqual(resolved.isSymbolicLink, true);
+		const wesowved = await sewvice.wesowve(wink);
+		assewt.stwictEquaw(wesowved.isDiwectowy, fawse);
+		assewt.stwictEquaw(wesowved.isSymbowicWink, twue);
 	});
 
-	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
-		await Promises.symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
+	test('wesowve - symbowic wink pointing to non-existing fiwe does not bweak', async () => {
+		await Pwomises.symwink(join(testDiw, 'foo'), join(testDiw, 'baw'), 'junction');
 
-		const resolved = await service.resolve(URI.file(testDir));
-		assert.strictEqual(resolved.isDirectory, true);
-		assert.strictEqual(resolved.children!.length, 9);
+		const wesowved = await sewvice.wesowve(UWI.fiwe(testDiw));
+		assewt.stwictEquaw(wesowved.isDiwectowy, twue);
+		assewt.stwictEquaw(wesowved.chiwdwen!.wength, 9);
 
-		const resolvedLink = resolved.children?.find(child => child.name === 'bar' && child.isSymbolicLink);
-		assert.ok(resolvedLink);
+		const wesowvedWink = wesowved.chiwdwen?.find(chiwd => chiwd.name === 'baw' && chiwd.isSymbowicWink);
+		assewt.ok(wesowvedWink);
 
-		assert.ok(!resolvedLink?.isDirectory);
-		assert.ok(!resolvedLink?.isFile);
+		assewt.ok(!wesowvedWink?.isDiwectowy);
+		assewt.ok(!wesowvedWink?.isFiwe);
 	});
 
-	test('deleteFile', async () => {
-		return testDeleteFile(false);
+	test('deweteFiwe', async () => {
+		wetuwn testDeweteFiwe(fawse);
 	});
 
-	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFile (useTrash)', async () => {
-		return testDeleteFile(true);
+	(isWinux /* twash is unwewiabwe on Winux */ ? test.skip : test)('deweteFiwe (useTwash)', async () => {
+		wetuwn testDeweteFiwe(twue);
 	});
 
-	async function testDeleteFile(useTrash: boolean): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function testDeweteFiwe(useTwash: boowean): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
-		const source = await service.resolve(resource);
+		const wesouwce = UWI.fiwe(join(testDiw, 'deep', 'conway.js'));
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(await service.canDelete(source.resource, { useTrash }), true);
-		await service.del(source.resource, { useTrash });
+		assewt.stwictEquaw(await sewvice.canDewete(souwce.wesouwce, { useTwash }), twue);
+		await sewvice.dew(souwce.wesouwce, { useTwash });
 
-		assert.strictEqual(existsSync(source.resource.fsPath), false);
+		assewt.stwictEquaw(existsSync(souwce.wesouwce.fsPath), fawse);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 
-		let error: Error | undefined = undefined;
-		try {
-			await service.del(source.resource, { useTrash });
+		wet ewwow: Ewwow | undefined = undefined;
+		twy {
+			await sewvice.dew(souwce.wesouwce, { useTwash });
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.ok(error);
-		assert.strictEqual((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw((<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_FOUND);
 	}
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (exists)', async () => {
-		const target = URI.file(join(testDir, 'lorem.txt'));
-		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await Promises.symlink(target.fsPath, link.fsPath);
+	(isWindows ? test.skip /* windows: cannot cweate fiwe symbowic wink without ewevated context */ : test)('deweteFiwe - symbowic wink (exists)', async () => {
+		const tawget = UWI.fiwe(join(testDiw, 'wowem.txt'));
+		const wink = UWI.fiwe(join(testDiw, 'wowem.txt-winked'));
+		await Pwomises.symwink(tawget.fsPath, wink.fsPath);
 
-		const source = await service.resolve(link);
+		const souwce = await sewvice.wesowve(wink);
 
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		assert.strictEqual(await service.canDelete(source.resource), true);
-		await service.del(source.resource);
+		assewt.stwictEquaw(await sewvice.canDewete(souwce.wesouwce), twue);
+		await sewvice.dew(souwce.wesouwce);
 
-		assert.strictEqual(existsSync(source.resource.fsPath), false);
+		assewt.stwictEquaw(existsSync(souwce.wesouwce.fsPath), fawse);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, link.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wink.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 
-		assert.strictEqual(existsSync(target.fsPath), true); // target the link pointed to is never deleted
+		assewt.stwictEquaw(existsSync(tawget.fsPath), twue); // tawget the wink pointed to is neva deweted
 	});
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
-		const target = URI.file(join(testDir, 'foo'));
-		const link = URI.file(join(testDir, 'bar'));
-		await Promises.symlink(target.fsPath, link.fsPath);
+	(isWindows ? test.skip /* windows: cannot cweate fiwe symbowic wink without ewevated context */ : test)('deweteFiwe - symbowic wink (pointing to non-existing fiwe)', async () => {
+		const tawget = UWI.fiwe(join(testDiw, 'foo'));
+		const wink = UWI.fiwe(join(testDiw, 'baw'));
+		await Pwomises.symwink(tawget.fsPath, wink.fsPath);
 
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		assert.strictEqual(await service.canDelete(link), true);
-		await service.del(link);
+		assewt.stwictEquaw(await sewvice.canDewete(wink), twue);
+		await sewvice.dew(wink);
 
-		assert.strictEqual(existsSync(link.fsPath), false);
+		assewt.stwictEquaw(existsSync(wink.fsPath), fawse);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, link.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wink.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 	});
 
-	test('deleteFolder (recursive)', async () => {
-		return testDeleteFolderRecursive(false);
+	test('deweteFowda (wecuwsive)', async () => {
+		wetuwn testDeweteFowdewWecuwsive(fawse);
 	});
 
-	(isLinux /* trash is unreliable on Linux */ ? test.skip : test)('deleteFolder (recursive, useTrash)', async () => {
-		return testDeleteFolderRecursive(true);
+	(isWinux /* twash is unwewiabwe on Winux */ ? test.skip : test)('deweteFowda (wecuwsive, useTwash)', async () => {
+		wetuwn testDeweteFowdewWecuwsive(twue);
 	});
 
-	async function testDeleteFolderRecursive(useTrash: boolean): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function testDeweteFowdewWecuwsive(useTwash: boowean): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const resource = URI.file(join(testDir, 'deep'));
-		const source = await service.resolve(resource);
+		const wesouwce = UWI.fiwe(join(testDiw, 'deep'));
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.strictEqual(await service.canDelete(source.resource, { recursive: true, useTrash }), true);
-		await service.del(source.resource, { recursive: true, useTrash });
+		assewt.stwictEquaw(await sewvice.canDewete(souwce.wesouwce, { wecuwsive: twue, useTwash }), twue);
+		await sewvice.dew(souwce.wesouwce, { wecuwsive: twue, useTwash });
 
-		assert.strictEqual(existsSync(source.resource.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.DELETE);
+		assewt.stwictEquaw(existsSync(souwce.wesouwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.DEWETE);
 	}
 
-	test('deleteFolder (non recursive)', async () => {
-		const resource = URI.file(join(testDir, 'deep'));
-		const source = await service.resolve(resource);
+	test('deweteFowda (non wecuwsive)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'deep'));
+		const souwce = await sewvice.wesowve(wesouwce);
 
-		assert.ok((await service.canDelete(source.resource)) instanceof Error);
+		assewt.ok((await sewvice.canDewete(souwce.wesouwce)) instanceof Ewwow);
 
-		let error;
-		try {
-			await service.del(source.resource);
+		wet ewwow;
+		twy {
+			await sewvice.dew(souwce.wesouwce);
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
 	test('move', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = URI.file(join(testDir, 'index.html'));
-		const sourceContents = readFileSync(source.fsPath);
+		const souwce = UWI.fiwe(join(testDiw, 'index.htmw'));
+		const souwceContents = weadFiweSync(souwce.fsPath);
 
-		const target = URI.file(join(dirname(source.fsPath), 'other.html'));
+		const tawget = UWI.fiwe(join(diwname(souwce.fsPath), 'otha.htmw'));
 
-		assert.strictEqual(await service.canMove(source, target), true);
-		const renamed = await service.move(source, target);
+		assewt.stwictEquaw(await sewvice.canMove(souwce, tawget), twue);
+		const wenamed = await sewvice.move(souwce, tawget);
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 
-		const targetContents = readFileSync(target.fsPath);
+		const tawgetContents = weadFiweSync(tawget.fsPath);
 
-		assert.strictEqual(sourceContents.byteLength, targetContents.byteLength);
-		assert.strictEqual(sourceContents.toString(), targetContents.toString());
+		assewt.stwictEquaw(souwceContents.byteWength, tawgetContents.byteWength);
+		assewt.stwictEquaw(souwceContents.toStwing(), tawgetContents.toStwing());
 	});
 
-	test('move - across providers (buffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - acwoss pwovidews (buffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveAcrossProviders();
+		wetuwn testMoveAcwossPwovidews();
 	});
 
-	test('move - across providers (unbuffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - acwoss pwovidews (unbuffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveAcrossProviders();
+		wetuwn testMoveAcwossPwovidews();
 	});
 
-	test('move - across providers (buffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - acwoss pwovidews (buffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveAcrossProviders();
+		wetuwn testMoveAcwossPwovidews();
 	});
 
-	test('move - across providers (unbuffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - acwoss pwovidews (unbuffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveAcrossProviders();
+		wetuwn testMoveAcwossPwovidews();
 	});
 
-	test('move - across providers - large (buffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - acwoss pwovidews - wawge (buffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveAcrossProviders('lorem.txt');
+		wetuwn testMoveAcwossPwovidews('wowem.txt');
 	});
 
-	test('move - across providers - large (unbuffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - acwoss pwovidews - wawge (unbuffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveAcrossProviders('lorem.txt');
+		wetuwn testMoveAcwossPwovidews('wowem.txt');
 	});
 
-	test('move - across providers - large (buffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - acwoss pwovidews - wawge (buffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveAcrossProviders('lorem.txt');
+		wetuwn testMoveAcwossPwovidews('wowem.txt');
 	});
 
-	test('move - across providers - large (unbuffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - acwoss pwovidews - wawge (unbuffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveAcrossProviders('lorem.txt');
+		wetuwn testMoveAcwossPwovidews('wowem.txt');
 	});
 
-	async function testMoveAcrossProviders(sourceFile = 'index.html'): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function testMoveAcwossPwovidews(souwceFiwe = 'index.htmw'): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = URI.file(join(testDir, sourceFile));
-		const sourceContents = readFileSync(source.fsPath);
+		const souwce = UWI.fiwe(join(testDiw, souwceFiwe));
+		const souwceContents = weadFiweSync(souwce.fsPath);
 
-		const target = URI.file(join(dirname(source.fsPath), 'other.html')).with({ scheme: testSchema });
+		const tawget = UWI.fiwe(join(diwname(souwce.fsPath), 'otha.htmw')).with({ scheme: testSchema });
 
-		assert.strictEqual(await service.canMove(source, target), true);
-		const renamed = await service.move(source, target);
+		assewt.stwictEquaw(await sewvice.canMove(souwce, tawget), twue);
+		const wenamed = await sewvice.move(souwce, tawget);
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.COPY);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.COPY);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 
-		const targetContents = readFileSync(target.fsPath);
+		const tawgetContents = weadFiweSync(tawget.fsPath);
 
-		assert.strictEqual(sourceContents.byteLength, targetContents.byteLength);
-		assert.strictEqual(sourceContents.toString(), targetContents.toString());
+		assewt.stwictEquaw(souwceContents.byteWength, tawgetContents.byteWength);
+		assewt.stwictEquaw(souwceContents.toStwing(), tawgetContents.toStwing());
 	}
 
-	test('move - multi folder', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - muwti fowda', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const multiFolderPaths = ['a', 'couple', 'of', 'folders'];
-		const renameToPath = join(...multiFolderPaths, 'other.html');
+		const muwtiFowdewPaths = ['a', 'coupwe', 'of', 'fowdews'];
+		const wenameToPath = join(...muwtiFowdewPaths, 'otha.htmw');
 
-		const source = URI.file(join(testDir, 'index.html'));
+		const souwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		assert.strictEqual(await service.canMove(source, URI.file(join(dirname(source.fsPath), renameToPath))), true);
-		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), renameToPath)));
+		assewt.stwictEquaw(await sewvice.canMove(souwce, UWI.fiwe(join(diwname(souwce.fsPath), wenameToPath))), twue);
+		const wenamed = await sewvice.move(souwce, UWI.fiwe(join(diwname(souwce.fsPath), wenameToPath)));
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 	});
 
-	test('move - directory', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - diwectowy', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = URI.file(join(testDir, 'deep'));
+		const souwce = UWI.fiwe(join(testDiw, 'deep'));
 
-		assert.strictEqual(await service.canMove(source, URI.file(join(dirname(source.fsPath), 'deeper'))), true);
-		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), 'deeper')));
+		assewt.stwictEquaw(await sewvice.canMove(souwce, UWI.fiwe(join(diwname(souwce.fsPath), 'deepa'))), twue);
+		const wenamed = await sewvice.move(souwce, UWI.fiwe(join(diwname(souwce.fsPath), 'deepa')));
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 	});
 
-	test('move - directory - across providers (buffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - diwectowy - acwoss pwovidews (buffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveFolderAcrossProviders();
+		wetuwn testMoveFowdewAcwossPwovidews();
 	});
 
-	test('move - directory - across providers (unbuffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - diwectowy - acwoss pwovidews (unbuffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveFolderAcrossProviders();
+		wetuwn testMoveFowdewAcwossPwovidews();
 	});
 
-	test('move - directory - across providers (buffered => unbuffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('move - diwectowy - acwoss pwovidews (buffewed => unbuffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testMoveFolderAcrossProviders();
+		wetuwn testMoveFowdewAcwossPwovidews();
 	});
 
-	test('move - directory - across providers (unbuffered => buffered)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
-		setCapabilities(testProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('move - diwectowy - acwoss pwovidews (unbuffewed => buffewed)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
+		setCapabiwities(testPwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testMoveFolderAcrossProviders();
+		wetuwn testMoveFowdewAcwossPwovidews();
 	});
 
-	async function testMoveFolderAcrossProviders(): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function testMoveFowdewAcwossPwovidews(): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = URI.file(join(testDir, 'deep'));
-		const sourceChildren = readdirSync(source.fsPath);
+		const souwce = UWI.fiwe(join(testDiw, 'deep'));
+		const souwceChiwdwen = weaddiwSync(souwce.fsPath);
 
-		const target = URI.file(join(dirname(source.fsPath), 'deeper')).with({ scheme: testSchema });
+		const tawget = UWI.fiwe(join(diwname(souwce.fsPath), 'deepa')).with({ scheme: testSchema });
 
-		assert.strictEqual(await service.canMove(source, target), true);
-		const renamed = await service.move(source, target);
+		assewt.stwictEquaw(await sewvice.canMove(souwce, tawget), twue);
+		const wenamed = await sewvice.move(souwce, tawget);
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.fsPath), false);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.COPY);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.fsPath), fawse);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.COPY);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 
-		const targetChildren = readdirSync(target.fsPath);
-		assert.strictEqual(sourceChildren.length, targetChildren.length);
-		for (let i = 0; i < sourceChildren.length; i++) {
-			assert.strictEqual(sourceChildren[i], targetChildren[i]);
+		const tawgetChiwdwen = weaddiwSync(tawget.fsPath);
+		assewt.stwictEquaw(souwceChiwdwen.wength, tawgetChiwdwen.wength);
+		fow (wet i = 0; i < souwceChiwdwen.wength; i++) {
+			assewt.stwictEquaw(souwceChiwdwen[i], tawgetChiwdwen[i]);
 		}
 	}
 
 	test('move - MIX CASE', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce.size > 0);
 
-		const renamedResource = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
-		assert.strictEqual(await service.canMove(source.resource, renamedResource), true);
-		let renamed = await service.move(source.resource, renamedResource);
+		const wenamedWesouwce = UWI.fiwe(join(diwname(souwce.wesouwce.fsPath), 'INDEX.htmw'));
+		assewt.stwictEquaw(await sewvice.canMove(souwce.wesouwce, wenamedWesouwce), twue);
+		wet wenamed = await sewvice.move(souwce.wesouwce, wenamedWesouwce);
 
-		assert.strictEqual(existsSync(renamedResource.fsPath), true);
-		assert.strictEqual(basename(renamedResource.fsPath), 'INDEX.html');
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamedResource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamedWesouwce.fsPath), twue);
+		assewt.stwictEquaw(basename(wenamedWesouwce.fsPath), 'INDEX.htmw');
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamedWesouwce.fsPath);
 
-		renamed = await service.resolve(renamedResource, { resolveMetadata: true });
-		assert.strictEqual(source.size, renamed.size);
+		wenamed = await sewvice.wesowve(wenamedWesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(souwce.size, wenamed.size);
 	});
 
-	test('move - same file', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - same fiwe', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce.size > 0);
 
-		assert.strictEqual(await service.canMove(source.resource, URI.file(source.resource.fsPath)), true);
-		let renamed = await service.move(source.resource, URI.file(source.resource.fsPath));
+		assewt.stwictEquaw(await sewvice.canMove(souwce.wesouwce, UWI.fiwe(souwce.wesouwce.fsPath)), twue);
+		wet wenamed = await sewvice.move(souwce.wesouwce, UWI.fiwe(souwce.wesouwce.fsPath));
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(basename(renamed.resource.fsPath), 'index.html');
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(basename(wenamed.wesouwce.fsPath), 'index.htmw');
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 
-		renamed = await service.resolve(renamed.resource, { resolveMetadata: true });
-		assert.strictEqual(source.size, renamed.size);
+		wenamed = await sewvice.wesowve(wenamed.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(souwce.size, wenamed.size);
 	});
 
-	test('move - same file #2', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - same fiwe #2', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce.size > 0);
 
-		const targetParent = URI.file(testDir);
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+		const tawgetPawent = UWI.fiwe(testDiw);
+		const tawget = tawgetPawent.with({ path: posix.join(tawgetPawent.path, posix.basename(souwce.wesouwce.path)) });
 
-		assert.strictEqual(await service.canMove(source.resource, target), true);
-		let renamed = await service.move(source.resource, target);
+		assewt.stwictEquaw(await sewvice.canMove(souwce.wesouwce, tawget), twue);
+		wet wenamed = await sewvice.move(souwce.wesouwce, tawget);
 
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.strictEqual(basename(renamed.resource.fsPath), 'index.html');
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.MOVE);
-		assert.strictEqual(event!.target!.resource.fsPath, renamed.resource.fsPath);
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(basename(wenamed.wesouwce.fsPath), 'index.htmw');
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.MOVE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wenamed.wesouwce.fsPath);
 
-		renamed = await service.resolve(renamed.resource, { resolveMetadata: true });
-		assert.strictEqual(source.size, renamed.size);
+		wenamed = await sewvice.wesowve(wenamed.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(souwce.size, wenamed.size);
 	});
 
-	test('move - source parent of target', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - souwce pawent of tawget', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		const originalSize = source.size;
-		assert.ok(originalSize > 0);
+		wet souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		const owiginawSize = souwce.size;
+		assewt.ok(owiginawSize > 0);
 
-		assert.ok((await service.canMove(URI.file(testDir), URI.file(join(testDir, 'binary.txt'))) instanceof Error));
+		assewt.ok((await sewvice.canMove(UWI.fiwe(testDiw), UWI.fiwe(join(testDiw, 'binawy.txt'))) instanceof Ewwow));
 
-		let error;
-		try {
-			await service.move(URI.file(testDir), URI.file(join(testDir, 'binary.txt')));
+		wet ewwow;
+		twy {
+			await sewvice.move(UWI.fiwe(testDiw), UWI.fiwe(join(testDiw, 'binawy.txt')));
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.ok(error);
-		assert.ok(!event!);
+		assewt.ok(ewwow);
+		assewt.ok(!event!);
 
-		source = await service.resolve(source.resource, { resolveMetadata: true });
-		assert.strictEqual(originalSize, source.size);
+		souwce = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(owiginawSize, souwce.size);
 	});
 
-	test('move - FILE_MOVE_CONFLICT', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('move - FIWE_MOVE_CONFWICT', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		const originalSize = source.size;
-		assert.ok(originalSize > 0);
+		wet souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		const owiginawSize = souwce.size;
+		assewt.ok(owiginawSize > 0);
 
-		assert.ok((await service.canMove(source.resource, URI.file(join(testDir, 'binary.txt'))) instanceof Error));
+		assewt.ok((await sewvice.canMove(souwce.wesouwce, UWI.fiwe(join(testDiw, 'binawy.txt'))) instanceof Ewwow));
 
-		let error;
-		try {
-			await service.move(source.resource, URI.file(join(testDir, 'binary.txt')));
+		wet ewwow;
+		twy {
+			await sewvice.move(souwce.wesouwce, UWI.fiwe(join(testDiw, 'binawy.txt')));
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.strictEqual(error.fileOperationResult, FileOperationResult.FILE_MOVE_CONFLICT);
-		assert.ok(!event!);
+		assewt.stwictEquaw(ewwow.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_MOVE_CONFWICT);
+		assewt.ok(!event!);
 
-		source = await service.resolve(source.resource, { resolveMetadata: true });
-		assert.strictEqual(originalSize, source.size);
+		souwce = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(owiginawSize, souwce.size);
 	});
 
-	test('move - overwrite folder with file', async () => {
-		let createEvent: FileOperationEvent;
-		let moveEvent: FileOperationEvent;
-		let deleteEvent: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => {
-			if (e.operation === FileOperation.CREATE) {
-				createEvent = e;
-			} else if (e.operation === FileOperation.DELETE) {
-				deleteEvent = e;
-			} else if (e.operation === FileOperation.MOVE) {
+	test('move - ovewwwite fowda with fiwe', async () => {
+		wet cweateEvent: FiweOpewationEvent;
+		wet moveEvent: FiweOpewationEvent;
+		wet deweteEvent: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => {
+			if (e.opewation === FiweOpewation.CWEATE) {
+				cweateEvent = e;
+			} ewse if (e.opewation === FiweOpewation.DEWETE) {
+				deweteEvent = e;
+			} ewse if (e.opewation === FiweOpewation.MOVE) {
 				moveEvent = e;
 			}
 		}));
 
-		const parent = await service.resolve(URI.file(testDir));
-		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
-		const f = await service.createFolder(folderResource);
-		const source = URI.file(join(testDir, 'deep', 'conway.js'));
+		const pawent = await sewvice.wesowve(UWI.fiwe(testDiw));
+		const fowdewWesouwce = UWI.fiwe(join(pawent.wesouwce.fsPath, 'conway.js'));
+		const f = await sewvice.cweateFowda(fowdewWesouwce);
+		const souwce = UWI.fiwe(join(testDiw, 'deep', 'conway.js'));
 
-		assert.strictEqual(await service.canMove(source, f.resource, true), true);
-		const moved = await service.move(source, f.resource, true);
+		assewt.stwictEquaw(await sewvice.canMove(souwce, f.wesouwce, twue), twue);
+		const moved = await sewvice.move(souwce, f.wesouwce, twue);
 
-		assert.strictEqual(existsSync(moved.resource.fsPath), true);
-		assert.ok(statSync(moved.resource.fsPath).isFile);
-		assert.ok(createEvent!);
-		assert.ok(deleteEvent!);
-		assert.ok(moveEvent!);
-		assert.strictEqual(moveEvent!.resource.fsPath, source.fsPath);
-		assert.strictEqual(moveEvent!.target!.resource.fsPath, moved.resource.fsPath);
-		assert.strictEqual(deleteEvent!.resource.fsPath, folderResource.fsPath);
+		assewt.stwictEquaw(existsSync(moved.wesouwce.fsPath), twue);
+		assewt.ok(statSync(moved.wesouwce.fsPath).isFiwe);
+		assewt.ok(cweateEvent!);
+		assewt.ok(deweteEvent!);
+		assewt.ok(moveEvent!);
+		assewt.stwictEquaw(moveEvent!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(moveEvent!.tawget!.wesouwce.fsPath, moved.wesouwce.fsPath);
+		assewt.stwictEquaw(deweteEvent!.wesouwce.fsPath, fowdewWesouwce.fsPath);
 	});
 
 	test('copy', async () => {
 		await doTestCopy();
 	});
 
-	test('copy - unbuffered (FileSystemProviderCapabilities.FileReadWrite)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('copy - unbuffewed (FiweSystemPwovidewCapabiwities.FiweWeadWwite)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
 		await doTestCopy();
 	});
 
-	test('copy - unbuffered large (FileSystemProviderCapabilities.FileReadWrite)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('copy - unbuffewed wawge (FiweSystemPwovidewCapabiwities.FiweWeadWwite)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		await doTestCopy('lorem.txt');
+		await doTestCopy('wowem.txt');
 	});
 
-	test('copy - buffered (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('copy - buffewed (FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
 		await doTestCopy();
 	});
 
-	test('copy - buffered large (FileSystemProviderCapabilities.FileOpenReadWriteClose)', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('copy - buffewed wawge (FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose)', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		await doTestCopy('lorem.txt');
+		await doTestCopy('wowem.txt');
 	});
 
-	function setCapabilities(provider: TestDiskFileSystemProvider, capabilities: FileSystemProviderCapabilities): void {
-		provider.capabilities = capabilities;
-		if (isLinux) {
-			provider.capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
+	function setCapabiwities(pwovida: TestDiskFiweSystemPwovida, capabiwities: FiweSystemPwovidewCapabiwities): void {
+		pwovida.capabiwities = capabiwities;
+		if (isWinux) {
+			pwovida.capabiwities |= FiweSystemPwovidewCapabiwities.PathCaseSensitive;
 		}
 	}
 
-	async function doTestCopy(sourceName: string = 'index.html') {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function doTestCopy(souwceName: stwing = 'index.htmw') {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, sourceName)));
-		const target = URI.file(join(testDir, 'other.html'));
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, souwceName)));
+		const tawget = UWI.fiwe(join(testDiw, 'otha.htmw'));
 
-		assert.strictEqual(await service.canCopy(source.resource, target), true);
-		const copied = await service.copy(source.resource, target);
+		assewt.stwictEquaw(await sewvice.canCopy(souwce.wesouwce, tawget), twue);
+		const copied = await sewvice.copy(souwce.wesouwce, tawget);
 
-		assert.strictEqual(existsSync(copied.resource.fsPath), true);
-		assert.strictEqual(existsSync(source.resource.fsPath), true);
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.COPY);
-		assert.strictEqual(event!.target!.resource.fsPath, copied.resource.fsPath);
+		assewt.stwictEquaw(existsSync(copied.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(existsSync(souwce.wesouwce.fsPath), twue);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.COPY);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, copied.wesouwce.fsPath);
 
-		const sourceContents = readFileSync(source.resource.fsPath);
-		const targetContents = readFileSync(target.fsPath);
+		const souwceContents = weadFiweSync(souwce.wesouwce.fsPath);
+		const tawgetContents = weadFiweSync(tawget.fsPath);
 
-		assert.strictEqual(sourceContents.byteLength, targetContents.byteLength);
-		assert.strictEqual(sourceContents.toString(), targetContents.toString());
+		assewt.stwictEquaw(souwceContents.byteWength, tawgetContents.byteWength);
+		assewt.stwictEquaw(souwceContents.toStwing(), tawgetContents.toStwing());
 	}
 
-	test('copy - overwrite folder with file', async () => {
-		let createEvent: FileOperationEvent;
-		let copyEvent: FileOperationEvent;
-		let deleteEvent: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => {
-			if (e.operation === FileOperation.CREATE) {
-				createEvent = e;
-			} else if (e.operation === FileOperation.DELETE) {
-				deleteEvent = e;
-			} else if (e.operation === FileOperation.COPY) {
+	test('copy - ovewwwite fowda with fiwe', async () => {
+		wet cweateEvent: FiweOpewationEvent;
+		wet copyEvent: FiweOpewationEvent;
+		wet deweteEvent: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => {
+			if (e.opewation === FiweOpewation.CWEATE) {
+				cweateEvent = e;
+			} ewse if (e.opewation === FiweOpewation.DEWETE) {
+				deweteEvent = e;
+			} ewse if (e.opewation === FiweOpewation.COPY) {
 				copyEvent = e;
 			}
 		}));
 
-		const parent = await service.resolve(URI.file(testDir));
-		const folderResource = URI.file(join(parent.resource.fsPath, 'conway.js'));
-		const f = await service.createFolder(folderResource);
-		const source = URI.file(join(testDir, 'deep', 'conway.js'));
+		const pawent = await sewvice.wesowve(UWI.fiwe(testDiw));
+		const fowdewWesouwce = UWI.fiwe(join(pawent.wesouwce.fsPath, 'conway.js'));
+		const f = await sewvice.cweateFowda(fowdewWesouwce);
+		const souwce = UWI.fiwe(join(testDiw, 'deep', 'conway.js'));
 
-		assert.strictEqual(await service.canCopy(source, f.resource, true), true);
-		const copied = await service.copy(source, f.resource, true);
+		assewt.stwictEquaw(await sewvice.canCopy(souwce, f.wesouwce, twue), twue);
+		const copied = await sewvice.copy(souwce, f.wesouwce, twue);
 
-		assert.strictEqual(existsSync(copied.resource.fsPath), true);
-		assert.ok(statSync(copied.resource.fsPath).isFile);
-		assert.ok(createEvent!);
-		assert.ok(deleteEvent!);
-		assert.ok(copyEvent!);
-		assert.strictEqual(copyEvent!.resource.fsPath, source.fsPath);
-		assert.strictEqual(copyEvent!.target!.resource.fsPath, copied.resource.fsPath);
-		assert.strictEqual(deleteEvent!.resource.fsPath, folderResource.fsPath);
+		assewt.stwictEquaw(existsSync(copied.wesouwce.fsPath), twue);
+		assewt.ok(statSync(copied.wesouwce.fsPath).isFiwe);
+		assewt.ok(cweateEvent!);
+		assewt.ok(deweteEvent!);
+		assewt.ok(copyEvent!);
+		assewt.stwictEquaw(copyEvent!.wesouwce.fsPath, souwce.fsPath);
+		assewt.stwictEquaw(copyEvent!.tawget!.wesouwce.fsPath, copied.wesouwce.fsPath);
+		assewt.stwictEquaw(deweteEvent!.wesouwce.fsPath, fowdewWesouwce.fsPath);
 	});
 
-	test('copy - MIX CASE same target - no overwrite', async () => {
-		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		const originalSize = source.size;
-		assert.ok(originalSize > 0);
+	test('copy - MIX CASE same tawget - no ovewwwite', async () => {
+		wet souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		const owiginawSize = souwce.size;
+		assewt.ok(owiginawSize > 0);
 
-		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+		const tawget = UWI.fiwe(join(diwname(souwce.wesouwce.fsPath), 'INDEX.htmw'));
 
-		const canCopy = await service.canCopy(source.resource, target);
+		const canCopy = await sewvice.canCopy(souwce.wesouwce, tawget);
 
-		let error;
-		let copied: IFileStatWithMetadata;
-		try {
-			copied = await service.copy(source.resource, target);
+		wet ewwow;
+		wet copied: IFiweStatWithMetadata;
+		twy {
+			copied = await sewvice.copy(souwce.wesouwce, tawget);
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		if (isLinux) {
-			assert.ok(!error);
-			assert.strictEqual(canCopy, true);
+		if (isWinux) {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(canCopy, twue);
 
-			assert.strictEqual(existsSync(copied!.resource.fsPath), true);
-			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
-			assert.strictEqual(source.size, copied!.size);
-		} else {
-			assert.ok(error);
-			assert.ok(canCopy instanceof Error);
+			assewt.stwictEquaw(existsSync(copied!.wesouwce.fsPath), twue);
+			assewt.ok(weaddiwSync(testDiw).some(f => f === 'INDEX.htmw'));
+			assewt.stwictEquaw(souwce.size, copied!.size);
+		} ewse {
+			assewt.ok(ewwow);
+			assewt.ok(canCopy instanceof Ewwow);
 
-			source = await service.resolve(source.resource, { resolveMetadata: true });
-			assert.strictEqual(originalSize, source.size);
+			souwce = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+			assewt.stwictEquaw(owiginawSize, souwce.size);
 		}
 	});
 
-	test('copy - MIX CASE same target - overwrite', async () => {
-		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		const originalSize = source.size;
-		assert.ok(originalSize > 0);
+	test('copy - MIX CASE same tawget - ovewwwite', async () => {
+		wet souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		const owiginawSize = souwce.size;
+		assewt.ok(owiginawSize > 0);
 
-		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+		const tawget = UWI.fiwe(join(diwname(souwce.wesouwce.fsPath), 'INDEX.htmw'));
 
-		const canCopy = await service.canCopy(source.resource, target, true);
+		const canCopy = await sewvice.canCopy(souwce.wesouwce, tawget, twue);
 
-		let error;
-		let copied: IFileStatWithMetadata;
-		try {
-			copied = await service.copy(source.resource, target, true);
+		wet ewwow;
+		wet copied: IFiweStatWithMetadata;
+		twy {
+			copied = await sewvice.copy(souwce.wesouwce, tawget, twue);
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		if (isLinux) {
-			assert.ok(!error);
-			assert.strictEqual(canCopy, true);
+		if (isWinux) {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(canCopy, twue);
 
-			assert.strictEqual(existsSync(copied!.resource.fsPath), true);
-			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
-			assert.strictEqual(source.size, copied!.size);
-		} else {
-			assert.ok(error);
-			assert.ok(canCopy instanceof Error);
+			assewt.stwictEquaw(existsSync(copied!.wesouwce.fsPath), twue);
+			assewt.ok(weaddiwSync(testDiw).some(f => f === 'INDEX.htmw'));
+			assewt.stwictEquaw(souwce.size, copied!.size);
+		} ewse {
+			assewt.ok(ewwow);
+			assewt.ok(canCopy instanceof Ewwow);
 
-			source = await service.resolve(source.resource, { resolveMetadata: true });
-			assert.strictEqual(originalSize, source.size);
+			souwce = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+			assewt.stwictEquaw(owiginawSize, souwce.size);
 		}
 	});
 
-	test('copy - MIX CASE different taget - overwrite', async () => {
-		const source1 = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source1.size > 0);
+	test('copy - MIX CASE diffewent taget - ovewwwite', async () => {
+		const souwce1 = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce1.size > 0);
 
-		const renamed = await service.move(source1.resource, URI.file(join(dirname(source1.resource.fsPath), 'CONWAY.js')));
-		assert.strictEqual(existsSync(renamed.resource.fsPath), true);
-		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
-		assert.strictEqual(source1.size, renamed.size);
+		const wenamed = await sewvice.move(souwce1.wesouwce, UWI.fiwe(join(diwname(souwce1.wesouwce.fsPath), 'CONWAY.js')));
+		assewt.stwictEquaw(existsSync(wenamed.wesouwce.fsPath), twue);
+		assewt.ok(weaddiwSync(testDiw).some(f => f === 'CONWAY.js'));
+		assewt.stwictEquaw(souwce1.size, wenamed.size);
 
-		const source2 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')), { resolveMetadata: true });
-		const target = URI.file(join(testDir, basename(source2.resource.path)));
+		const souwce2 = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'deep', 'conway.js')), { wesowveMetadata: twue });
+		const tawget = UWI.fiwe(join(testDiw, basename(souwce2.wesouwce.path)));
 
-		assert.strictEqual(await service.canCopy(source2.resource, target, true), true);
-		const res = await service.copy(source2.resource, target, true);
-		assert.strictEqual(existsSync(res.resource.fsPath), true);
-		assert.ok(readdirSync(testDir).some(f => f === 'conway.js'));
-		assert.strictEqual(source2.size, res.size);
+		assewt.stwictEquaw(await sewvice.canCopy(souwce2.wesouwce, tawget, twue), twue);
+		const wes = await sewvice.copy(souwce2.wesouwce, tawget, twue);
+		assewt.stwictEquaw(existsSync(wes.wesouwce.fsPath), twue);
+		assewt.ok(weaddiwSync(testDiw).some(f => f === 'conway.js'));
+		assewt.stwictEquaw(souwce2.size, wes.size);
 	});
 
-	test('copy - same file', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('copy - same fiwe', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce.size > 0);
 
-		assert.strictEqual(await service.canCopy(source.resource, URI.file(source.resource.fsPath)), true);
-		let copied = await service.copy(source.resource, URI.file(source.resource.fsPath));
+		assewt.stwictEquaw(await sewvice.canCopy(souwce.wesouwce, UWI.fiwe(souwce.wesouwce.fsPath)), twue);
+		wet copied = await sewvice.copy(souwce.wesouwce, UWI.fiwe(souwce.wesouwce.fsPath));
 
-		assert.strictEqual(existsSync(copied.resource.fsPath), true);
-		assert.strictEqual(basename(copied.resource.fsPath), 'index.html');
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.COPY);
-		assert.strictEqual(event!.target!.resource.fsPath, copied.resource.fsPath);
+		assewt.stwictEquaw(existsSync(copied.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(basename(copied.wesouwce.fsPath), 'index.htmw');
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.COPY);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, copied.wesouwce.fsPath);
 
-		copied = await service.resolve(source.resource, { resolveMetadata: true });
-		assert.strictEqual(source.size, copied.size);
+		copied = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(souwce.size, copied.size);
 	});
 
-	test('copy - same file #2', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('copy - same fiwe #2', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const souwce = await sewvice.wesowve(UWI.fiwe(join(testDiw, 'index.htmw')), { wesowveMetadata: twue });
+		assewt.ok(souwce.size > 0);
 
-		const targetParent = URI.file(testDir);
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
+		const tawgetPawent = UWI.fiwe(testDiw);
+		const tawget = tawgetPawent.with({ path: posix.join(tawgetPawent.path, posix.basename(souwce.wesouwce.path)) });
 
-		assert.strictEqual(await service.canCopy(source.resource, URI.file(target.fsPath)), true);
-		let copied = await service.copy(source.resource, URI.file(target.fsPath));
+		assewt.stwictEquaw(await sewvice.canCopy(souwce.wesouwce, UWI.fiwe(tawget.fsPath)), twue);
+		wet copied = await sewvice.copy(souwce.wesouwce, UWI.fiwe(tawget.fsPath));
 
-		assert.strictEqual(existsSync(copied.resource.fsPath), true);
-		assert.strictEqual(basename(copied.resource.fsPath), 'index.html');
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, source.resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.COPY);
-		assert.strictEqual(event!.target!.resource.fsPath, copied.resource.fsPath);
+		assewt.stwictEquaw(existsSync(copied.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(basename(copied.wesouwce.fsPath), 'index.htmw');
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, souwce.wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.COPY);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, copied.wesouwce.fsPath);
 
-		copied = await service.resolve(source.resource, { resolveMetadata: true });
-		assert.strictEqual(source.size, copied.size);
+		copied = await sewvice.wesowve(souwce.wesouwce, { wesowveMetadata: twue });
+		assewt.stwictEquaw(souwce.size, copied.size);
 	});
 
-	test('readFile - small file - default', () => {
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+	test('weadFiwe - smaww fiwe - defauwt', () => {
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - buffered', () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - smaww fiwe - buffewed', () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - buffered / readonly', () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+	test('weadFiwe - smaww fiwe - buffewed / weadonwy', () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose | FiweSystemPwovidewCapabiwities.Weadonwy);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - smaww fiwe - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - unbuffered / readonly', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+	test('weadFiwe - smaww fiwe - unbuffewed / weadonwy', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite | FiweSystemPwovidewCapabiwities.Weadonwy);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - smaww fiwe - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - small file - streamed / readonly', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream | FileSystemProviderCapabilities.Readonly);
+	test('weadFiwe - smaww fiwe - stweamed / weadonwy', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam | FiweSystemPwovidewCapabiwities.Weadonwy);
 
-		return testReadFile(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFile - large file - default', async () => {
-		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+	test('weadFiwe - wawge fiwe - defauwt', async () => {
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'wowem.txt')));
 	});
 
-	test('readFile - large file - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - wawge fiwe - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'wowem.txt')));
 	});
 
-	test('readFile - large file - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - wawge fiwe - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'wowem.txt')));
 	});
 
-	test('readFile - large file - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - wawge fiwe - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'wowem.txt')));
 	});
 
-	test('readFile - atomic', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - atomic', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFile(URI.file(join(testDir, 'lorem.txt')), { atomic: true });
+		wetuwn testWeadFiwe(UWI.fiwe(join(testDiw, 'wowem.txt')), { atomic: twue });
 	});
 
-	async function testReadFile(resource: URI, options?: IReadFileOptions): Promise<void> {
-		const content = await service.readFile(resource, options);
+	async function testWeadFiwe(wesouwce: UWI, options?: IWeadFiweOptions): Pwomise<void> {
+		const content = await sewvice.weadFiwe(wesouwce, options);
 
-		assert.strictEqual(content.value.toString(), readFileSync(resource.fsPath).toString());
+		assewt.stwictEquaw(content.vawue.toStwing(), weadFiweSync(wesouwce.fsPath).toStwing());
 	}
 
-	test('readFileStream - small file - default', () => {
-		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+	test('weadFiweStweam - smaww fiwe - defauwt', () => {
+		wetuwn testWeadFiweStweam(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFileStream - small file - buffered', () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiweStweam - smaww fiwe - buffewed', () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiweStweam(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFileStream - small file - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiweStweam - smaww fiwe - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiweStweam(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	test('readFileStream - small file - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiweStweam - smaww fiwe - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFileStream(URI.file(join(testDir, 'small.txt')));
+		wetuwn testWeadFiweStweam(UWI.fiwe(join(testDiw, 'smaww.txt')));
 	});
 
-	async function testReadFileStream(resource: URI): Promise<void> {
-		const content = await service.readFileStream(resource);
+	async function testWeadFiweStweam(wesouwce: UWI): Pwomise<void> {
+		const content = await sewvice.weadFiweStweam(wesouwce);
 
-		assert.strictEqual((await streamToBuffer(content.value)).toString(), readFileSync(resource.fsPath).toString());
+		assewt.stwictEquaw((await stweamToBuffa(content.vawue)).toStwing(), weadFiweSync(wesouwce.fsPath).toStwing());
 	}
 
-	test('readFile - Files are intermingled #38331 - default', async () => {
-		return testFilesNotIntermingled();
+	test('weadFiwe - Fiwes awe intewmingwed #38331 - defauwt', async () => {
+		wetuwn testFiwesNotIntewmingwed();
 	});
 
-	test('readFile - Files are intermingled #38331 - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - Fiwes awe intewmingwed #38331 - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testFilesNotIntermingled();
+		wetuwn testFiwesNotIntewmingwed();
 	});
 
-	test('readFile - Files are intermingled #38331 - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - Fiwes awe intewmingwed #38331 - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testFilesNotIntermingled();
+		wetuwn testFiwesNotIntewmingwed();
 	});
 
-	test('readFile - Files are intermingled #38331 - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - Fiwes awe intewmingwed #38331 - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testFilesNotIntermingled();
+		wetuwn testFiwesNotIntewmingwed();
 	});
 
-	async function testFilesNotIntermingled() {
-		let resource1 = URI.file(join(testDir, 'lorem.txt'));
-		let resource2 = URI.file(join(testDir, 'some_utf16le.css'));
+	async function testFiwesNotIntewmingwed() {
+		wet wesouwce1 = UWI.fiwe(join(testDiw, 'wowem.txt'));
+		wet wesouwce2 = UWI.fiwe(join(testDiw, 'some_utf16we.css'));
 
-		// load in sequence and keep data
-		const value1 = await service.readFile(resource1);
-		const value2 = await service.readFile(resource2);
+		// woad in sequence and keep data
+		const vawue1 = await sewvice.weadFiwe(wesouwce1);
+		const vawue2 = await sewvice.weadFiwe(wesouwce2);
 
-		// load in parallel in expect the same result
-		const result = await Promise.all([
-			service.readFile(resource1),
-			service.readFile(resource2)
+		// woad in pawawwew in expect the same wesuwt
+		const wesuwt = await Pwomise.aww([
+			sewvice.weadFiwe(wesouwce1),
+			sewvice.weadFiwe(wesouwce2)
 		]);
 
-		assert.strictEqual(result[0].value.toString(), value1.value.toString());
-		assert.strictEqual(result[1].value.toString(), value2.value.toString());
+		assewt.stwictEquaw(wesuwt[0].vawue.toStwing(), vawue1.vawue.toStwing());
+		assewt.stwictEquaw(wesuwt[1].vawue.toStwing(), vawue2.vawue.toStwing());
 	}
 
-	test('readFile - from position (ASCII) - default', async () => {
-		return testReadFileFromPositionAscii();
+	test('weadFiwe - fwom position (ASCII) - defauwt', async () => {
+		wetuwn testWeadFiweFwomPositionAscii();
 	});
 
-	test('readFile - from position (ASCII) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - fwom position (ASCII) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadFileFromPositionAscii();
+		wetuwn testWeadFiweFwomPositionAscii();
 	});
 
-	test('readFile - from position (ASCII) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - fwom position (ASCII) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadFileFromPositionAscii();
+		wetuwn testWeadFiweFwomPositionAscii();
 	});
 
-	test('readFile - from position (ASCII) - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - fwom position (ASCII) - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFileFromPositionAscii();
+		wetuwn testWeadFiweFwomPositionAscii();
 	});
 
-	async function testReadFileFromPositionAscii() {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	async function testWeadFiweFwomPositionAscii() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const contents = await service.readFile(resource, { position: 6 });
+		const contents = await sewvice.weadFiwe(wesouwce, { position: 6 });
 
-		assert.strictEqual(contents.value.toString(), 'File');
+		assewt.stwictEquaw(contents.vawue.toStwing(), 'Fiwe');
 	}
 
-	test('readFile - from position (with umlaut) - default', async () => {
-		return testReadFileFromPositionUmlaut();
+	test('weadFiwe - fwom position (with umwaut) - defauwt', async () => {
+		wetuwn testWeadFiweFwomPositionUmwaut();
 	});
 
-	test('readFile - from position (with umlaut) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - fwom position (with umwaut) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadFileFromPositionUmlaut();
+		wetuwn testWeadFiweFwomPositionUmwaut();
 	});
 
-	test('readFile - from position (with umlaut) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - fwom position (with umwaut) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadFileFromPositionUmlaut();
+		wetuwn testWeadFiweFwomPositionUmwaut();
 	});
 
-	test('readFile - from position (with umlaut) - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - fwom position (with umwaut) - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadFileFromPositionUmlaut();
+		wetuwn testWeadFiweFwomPositionUmwaut();
 	});
 
-	async function testReadFileFromPositionUmlaut() {
-		const resource = URI.file(join(testDir, 'small_umlaut.txt'));
+	async function testWeadFiweFwomPositionUmwaut() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww_umwaut.txt'));
 
-		const contents = await service.readFile(resource, { position: Buffer.from('Small File with Ü').length });
+		const contents = await sewvice.weadFiwe(wesouwce, { position: Buffa.fwom('Smaww Fiwe with Ü').wength });
 
-		assert.strictEqual(contents.value.toString(), 'mlaut');
+		assewt.stwictEquaw(contents.vawue.toStwing(), 'mwaut');
 	}
 
-	test('readFile - 3 bytes (ASCII) - default', async () => {
-		return testReadThreeBytesFromFile();
+	test('weadFiwe - 3 bytes (ASCII) - defauwt', async () => {
+		wetuwn testWeadThweeBytesFwomFiwe();
 	});
 
-	test('readFile - 3 bytes (ASCII) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - 3 bytes (ASCII) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testReadThreeBytesFromFile();
+		wetuwn testWeadThweeBytesFwomFiwe();
 	});
 
-	test('readFile - 3 bytes (ASCII) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - 3 bytes (ASCII) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testReadThreeBytesFromFile();
+		wetuwn testWeadThweeBytesFwomFiwe();
 	});
 
-	test('readFile - 3 bytes (ASCII) - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - 3 bytes (ASCII) - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testReadThreeBytesFromFile();
+		wetuwn testWeadThweeBytesFwomFiwe();
 	});
 
-	async function testReadThreeBytesFromFile() {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	async function testWeadThweeBytesFwomFiwe() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const contents = await service.readFile(resource, { length: 3 });
+		const contents = await sewvice.weadFiwe(wesouwce, { wength: 3 });
 
-		assert.strictEqual(contents.value.toString(), 'Sma');
+		assewt.stwictEquaw(contents.vawue.toStwing(), 'Sma');
 	}
 
-	test('readFile - 20000 bytes (large) - default', async () => {
-		return readLargeFileWithLength(20000);
+	test('weadFiwe - 20000 bytes (wawge) - defauwt', async () => {
+		wetuwn weadWawgeFiweWithWength(20000);
 	});
 
-	test('readFile - 20000 bytes (large) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - 20000 bytes (wawge) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return readLargeFileWithLength(20000);
+		wetuwn weadWawgeFiweWithWength(20000);
 	});
 
-	test('readFile - 20000 bytes (large) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - 20000 bytes (wawge) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return readLargeFileWithLength(20000);
+		wetuwn weadWawgeFiweWithWength(20000);
 	});
 
-	test('readFile - 20000 bytes (large) - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - 20000 bytes (wawge) - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return readLargeFileWithLength(20000);
+		wetuwn weadWawgeFiweWithWength(20000);
 	});
 
-	test('readFile - 80000 bytes (large) - default', async () => {
-		return readLargeFileWithLength(80000);
+	test('weadFiwe - 80000 bytes (wawge) - defauwt', async () => {
+		wetuwn weadWawgeFiweWithWength(80000);
 	});
 
-	test('readFile - 80000 bytes (large) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - 80000 bytes (wawge) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return readLargeFileWithLength(80000);
+		wetuwn weadWawgeFiweWithWength(80000);
 	});
 
-	test('readFile - 80000 bytes (large) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - 80000 bytes (wawge) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return readLargeFileWithLength(80000);
+		wetuwn weadWawgeFiweWithWength(80000);
 	});
 
-	test('readFile - 80000 bytes (large) - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - 80000 bytes (wawge) - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return readLargeFileWithLength(80000);
+		wetuwn weadWawgeFiweWithWength(80000);
 	});
 
-	async function readLargeFileWithLength(length: number) {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	async function weadWawgeFiweWithWength(wength: numba) {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		const contents = await service.readFile(resource, { length });
+		const contents = await sewvice.weadFiwe(wesouwce, { wength });
 
-		assert.strictEqual(contents.value.byteLength, length);
+		assewt.stwictEquaw(contents.vawue.byteWength, wength);
 	}
 
-	test('readFile - FILE_IS_DIRECTORY', async () => {
-		const resource = URI.file(join(testDir, 'deep'));
+	test('weadFiwe - FIWE_IS_DIWECTOWY', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'deep'));
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource);
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce);
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_IS_DIWECTOWY);
 	});
 
-	(isWindows /* error code does not seem to be supported on windows */ ? test.skip : test)('readFile - FILE_NOT_DIRECTORY', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
+	(isWindows /* ewwow code does not seem to be suppowted on windows */ ? test.skip : test)('weadFiwe - FIWE_NOT_DIWECTOWY', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt', 'fiwe.txt'));
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource);
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce);
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_DIRECTORY);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_DIWECTOWY);
 	});
 
-	test('readFile - FILE_NOT_FOUND', async () => {
-		const resource = URI.file(join(testDir, '404.html'));
+	test('weadFiwe - FIWE_NOT_FOUND', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, '404.htmw'));
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource);
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce);
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_FOUND);
 	});
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE - default', async () => {
-		return testNotModifiedSince();
+	test('weadFiwe - FIWE_NOT_MODIFIED_SINCE - defauwt', async () => {
+		wetuwn testNotModifiedSince();
 	});
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - FIWE_NOT_MODIFIED_SINCE - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testNotModifiedSince();
+		wetuwn testNotModifiedSince();
 	});
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - FIWE_NOT_MODIFIED_SINCE - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testNotModifiedSince();
+		wetuwn testNotModifiedSince();
 	});
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - FIWE_NOT_MODIFIED_SINCE - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testNotModifiedSince();
+		wetuwn testNotModifiedSince();
 	});
 
 	async function testNotModifiedSince() {
-		const resource = URI.file(join(testDir, 'index.html'));
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		const contents = await service.readFile(resource);
-		fileProvider.totalBytesRead = 0;
+		const contents = await sewvice.weadFiwe(wesouwce);
+		fiwePwovida.totawBytesWead = 0;
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { etag: contents.etag });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce, { etag: contents.etag });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_NOT_MODIFIED_SINCE);
-		assert.ok(error instanceof NotModifiedSinceFileOperationError && error.stat);
-		assert.strictEqual(fileProvider.totalBytesRead, 0);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_NOT_MODIFIED_SINCE);
+		assewt.ok(ewwow instanceof NotModifiedSinceFiweOpewationEwwow && ewwow.stat);
+		assewt.stwictEquaw(fiwePwovida.totawBytesWead, 0);
 	}
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/microsoft/vscode/issues/72909', async () => {
-		fileProvider.setInvalidStatSize(true);
+	test('weadFiwe - FIWE_NOT_MODIFIED_SINCE does not fiwe wwongwy - https://github.com/micwosoft/vscode/issues/72909', async () => {
+		fiwePwovida.setInvawidStatSize(twue);
 
-		const resource = URI.file(join(testDir, 'index.html'));
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		await service.readFile(resource);
+		await sewvice.weadFiwe(wesouwce);
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { etag: undefined });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce, { etag: undefined });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(!error);
+		assewt.ok(!ewwow);
 	});
 
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - default', async () => {
-		return testFileExceedsMemoryLimit();
+	test('weadFiwe - FIWE_EXCEEDS_MEMOWY_WIMIT - defauwt', async () => {
+		wetuwn testFiweExceedsMemowyWimit();
 	});
 
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - FIWE_EXCEEDS_MEMOWY_WIMIT - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testFileExceedsMemoryLimit();
+		wetuwn testFiweExceedsMemowyWimit();
 	});
 
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - FIWE_EXCEEDS_MEMOWY_WIMIT - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testFileExceedsMemoryLimit();
+		wetuwn testFiweExceedsMemowyWimit();
 	});
 
-	test('readFile - FILE_EXCEEDS_MEMORY_LIMIT - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - FIWE_EXCEEDS_MEMOWY_WIMIT - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testFileExceedsMemoryLimit();
+		wetuwn testFiweExceedsMemowyWimit();
 	});
 
-	async function testFileExceedsMemoryLimit() {
-		await doTestFileExceedsMemoryLimit();
+	async function testFiweExceedsMemowyWimit() {
+		await doTestFiweExceedsMemowyWimit();
 
-		// Also test when the stat size is wrong
-		fileProvider.setSmallStatSize(true);
-		return doTestFileExceedsMemoryLimit();
+		// Awso test when the stat size is wwong
+		fiwePwovida.setSmawwStatSize(twue);
+		wetuwn doTestFiweExceedsMemowyWimit();
 	}
 
-	async function doTestFileExceedsMemoryLimit() {
-		const resource = URI.file(join(testDir, 'index.html'));
+	async function doTestFiweExceedsMemowyWimit() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { limits: { memory: 10 } });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce, { wimits: { memowy: 10 } });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_EXCEEDS_MEMOWY_WIMIT);
 	}
 
-	test('readFile - FILE_TOO_LARGE - default', async () => {
-		return testFileTooLarge();
+	test('weadFiwe - FIWE_TOO_WAWGE - defauwt', async () => {
+		wetuwn testFiweTooWawge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('weadFiwe - FIWE_TOO_WAWGE - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testFileTooLarge();
+		wetuwn testFiweTooWawge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('weadFiwe - FIWE_TOO_WAWGE - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testFileTooLarge();
+		wetuwn testFiweTooWawge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - streamed', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+	test('weadFiwe - FIWE_TOO_WAWGE - stweamed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadStweam);
 
-		return testFileTooLarge();
+		wetuwn testFiweTooWawge();
 	});
 
-	async function testFileTooLarge() {
-		await doTestFileTooLarge();
+	async function testFiweTooWawge() {
+		await doTestFiweTooWawge();
 
-		// Also test when the stat size is wrong
-		fileProvider.setSmallStatSize(true);
-		return doTestFileTooLarge();
+		// Awso test when the stat size is wwong
+		fiwePwovida.setSmawwStatSize(twue);
+		wetuwn doTestFiweTooWawge();
 	}
 
-	async function doTestFileTooLarge() {
-		const resource = URI.file(join(testDir, 'index.html'));
+	async function doTestFiweTooWawge() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(resource, { limits: { size: 10 } });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wesouwce, { wimits: { size: 10 } });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_TOO_LARGE);
+		assewt.ok(ewwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_TOO_WAWGE);
 	}
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('readFile - dangling symbolic link - https://github.com/microsoft/vscode/issues/116049', async () => {
-		const link = URI.file(join(testDir, 'small.js-link'));
-		await Promises.symlink(join(testDir, 'small.js'), link.fsPath);
+	(isWindows ? test.skip /* windows: cannot cweate fiwe symbowic wink without ewevated context */ : test)('weadFiwe - dangwing symbowic wink - https://github.com/micwosoft/vscode/issues/116049', async () => {
+		const wink = UWI.fiwe(join(testDiw, 'smaww.js-wink'));
+		await Pwomises.symwink(join(testDiw, 'smaww.js'), wink.fsPath);
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.readFile(link);
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.weadFiwe(wink);
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
-	test('createFile', async () => {
-		return assertCreateFile(contents => VSBuffer.fromString(contents));
+	test('cweateFiwe', async () => {
+		wetuwn assewtCweateFiwe(contents => VSBuffa.fwomStwing(contents));
 	});
 
-	test('createFile (readable)', async () => {
-		return assertCreateFile(contents => bufferToReadable(VSBuffer.fromString(contents)));
+	test('cweateFiwe (weadabwe)', async () => {
+		wetuwn assewtCweateFiwe(contents => buffewToWeadabwe(VSBuffa.fwomStwing(contents)));
 	});
 
-	test('createFile (stream)', async () => {
-		return assertCreateFile(contents => bufferToStream(VSBuffer.fromString(contents)));
+	test('cweateFiwe (stweam)', async () => {
+		wetuwn assewtCweateFiwe(contents => buffewToStweam(VSBuffa.fwomStwing(contents)));
 	});
 
-	async function assertCreateFile(converter: (content: string) => VSBuffer | VSBufferReadable | VSBufferReadableStream): Promise<void> {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	async function assewtCweateFiwe(convewta: (content: stwing) => VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam): Pwomise<void> {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const contents = 'Hello World';
-		const resource = URI.file(join(testDir, 'test.txt'));
+		const contents = 'Hewwo Wowwd';
+		const wesouwce = UWI.fiwe(join(testDiw, 'test.txt'));
 
-		assert.strictEqual(await service.canCreateFile(resource), true);
-		const fileStat = await service.createFile(resource, converter(contents));
-		assert.strictEqual(fileStat.name, 'test.txt');
-		assert.strictEqual(existsSync(fileStat.resource.fsPath), true);
-		assert.strictEqual(readFileSync(fileStat.resource.fsPath).toString(), contents);
+		assewt.stwictEquaw(await sewvice.canCweateFiwe(wesouwce), twue);
+		const fiweStat = await sewvice.cweateFiwe(wesouwce, convewta(contents));
+		assewt.stwictEquaw(fiweStat.name, 'test.txt');
+		assewt.stwictEquaw(existsSync(fiweStat.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(weadFiweSync(fiweStat.wesouwce.fsPath).toStwing(), contents);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.fsPath, resource.fsPath);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wesouwce.fsPath);
 	}
 
-	test('createFile (does not overwrite by default)', async () => {
-		const contents = 'Hello World';
-		const resource = URI.file(join(testDir, 'test.txt'));
+	test('cweateFiwe (does not ovewwwite by defauwt)', async () => {
+		const contents = 'Hewwo Wowwd';
+		const wesouwce = UWI.fiwe(join(testDiw, 'test.txt'));
 
-		writeFileSync(resource.fsPath, ''); // create file
+		wwiteFiweSync(wesouwce.fsPath, ''); // cweate fiwe
 
-		assert.ok((await service.canCreateFile(resource)) instanceof Error);
+		assewt.ok((await sewvice.canCweateFiwe(wesouwce)) instanceof Ewwow);
 
-		let error;
-		try {
-			await service.createFile(resource, VSBuffer.fromString(contents));
-		} catch (err) {
-			error = err;
+		wet ewwow;
+		twy {
+			await sewvice.cweateFiwe(wesouwce, VSBuffa.fwomStwing(contents));
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
-	test('createFile (allows to overwrite existing)', async () => {
-		let event: FileOperationEvent;
-		disposables.add(service.onDidRunOperation(e => event = e));
+	test('cweateFiwe (awwows to ovewwwite existing)', async () => {
+		wet event: FiweOpewationEvent;
+		disposabwes.add(sewvice.onDidWunOpewation(e => event = e));
 
-		const contents = 'Hello World';
-		const resource = URI.file(join(testDir, 'test.txt'));
+		const contents = 'Hewwo Wowwd';
+		const wesouwce = UWI.fiwe(join(testDiw, 'test.txt'));
 
-		writeFileSync(resource.fsPath, ''); // create file
+		wwiteFiweSync(wesouwce.fsPath, ''); // cweate fiwe
 
-		assert.strictEqual(await service.canCreateFile(resource, { overwrite: true }), true);
-		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents), { overwrite: true });
-		assert.strictEqual(fileStat.name, 'test.txt');
-		assert.strictEqual(existsSync(fileStat.resource.fsPath), true);
-		assert.strictEqual(readFileSync(fileStat.resource.fsPath).toString(), contents);
+		assewt.stwictEquaw(await sewvice.canCweateFiwe(wesouwce, { ovewwwite: twue }), twue);
+		const fiweStat = await sewvice.cweateFiwe(wesouwce, VSBuffa.fwomStwing(contents), { ovewwwite: twue });
+		assewt.stwictEquaw(fiweStat.name, 'test.txt');
+		assewt.stwictEquaw(existsSync(fiweStat.wesouwce.fsPath), twue);
+		assewt.stwictEquaw(weadFiweSync(fiweStat.wesouwce.fsPath).toStwing(), contents);
 
-		assert.ok(event!);
-		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.fsPath, resource.fsPath);
+		assewt.ok(event!);
+		assewt.stwictEquaw(event!.wesouwce.fsPath, wesouwce.fsPath);
+		assewt.stwictEquaw(event!.opewation, FiweOpewation.CWEATE);
+		assewt.stwictEquaw(event!.tawget!.wesouwce.fsPath, wesouwce.fsPath);
 	});
 
-	test('writeFile - default', async () => {
-		return testWriteFile();
+	test('wwiteFiwe - defauwt', async () => {
+		wetuwn testWwiteFiwe();
 	});
 
-	test('writeFile - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFile();
+		wetuwn testWwiteFiwe();
 	});
 
-	test('writeFile - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFile();
+		wetuwn testWwiteFiwe();
 	});
 
-	async function testWriteFile() {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	async function testWwiteFiwe() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent));
+		const newContent = 'Updates to the smaww fiwe';
+		await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent));
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), newContent);
 	}
 
-	test('writeFile (large file) - default', async () => {
-		return testWriteFileLarge();
+	test('wwiteFiwe (wawge fiwe) - defauwt', async () => {
+		wetuwn testWwiteFiweWawge();
 	});
 
-	test('writeFile (large file) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (wawge fiwe) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFileLarge();
+		wetuwn testWwiteFiweWawge();
 	});
 
-	test('writeFile (large file) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe (wawge fiwe) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFileLarge();
+		wetuwn testWwiteFiweWawge();
 	});
 
-	async function testWriteFileLarge() {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	async function testWwiteFiweWawge() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
+		const content = weadFiweSync(wesouwce.fsPath);
+		const newContent = content.toStwing() + content.toStwing();
 
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(newContent));
-		assert.strictEqual(fileStat.name, 'lorem.txt');
+		const fiweStat = await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent));
+		assewt.stwictEquaw(fiweStat.name, 'wowem.txt');
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), newContent);
 	}
 
-	test('writeFile - buffered - readonly throws', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.Readonly);
+	test('wwiteFiwe - buffewed - weadonwy thwows', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose | FiweSystemPwovidewCapabiwities.Weadonwy);
 
-		return testWriteFileReadonlyThrows();
+		wetuwn testWwiteFiweWeadonwyThwows();
 	});
 
-	test('writeFile - unbuffered - readonly throws', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly);
+	test('wwiteFiwe - unbuffewed - weadonwy thwows', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite | FiweSystemPwovidewCapabiwities.Weadonwy);
 
-		return testWriteFileReadonlyThrows();
+		wetuwn testWwiteFiweWeadonwyThwows();
 	});
 
-	async function testWriteFileReadonlyThrows() {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	async function testWwiteFiweWeadonwyThwows() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
-		const newContent = 'Updates to the small file';
+		const newContent = 'Updates to the smaww fiwe';
 
-		let error: Error;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContent));
-		} catch (err) {
-			error = err;
+		wet ewwow: Ewwow;
+		twy {
+			await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent));
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error!);
+		assewt.ok(ewwow!);
 	}
 
-	test('writeFile (large file) - multiple parallel writes queue up and atomic read support', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	test('wwiteFiwe (wawge fiwe) - muwtipwe pawawwew wwites queue up and atomic wead suppowt', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
+		const content = weadFiweSync(wesouwce.fsPath);
+		const newContent = content.toStwing() + content.toStwing();
 
-		const writePromises = Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
-			const fileStat = await service.writeFile(resource, VSBuffer.fromString(offset + newContent));
-			assert.strictEqual(fileStat.name, 'lorem.txt');
+		const wwitePwomises = Pwomise.aww(['0', '00', '000', '0000', '00000'].map(async offset => {
+			const fiweStat = await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(offset + newContent));
+			assewt.stwictEquaw(fiweStat.name, 'wowem.txt');
 		}));
 
-		const readPromises = Promise.all(['0', '00', '000', '0000', '00000'].map(async () => {
-			const fileContent = await service.readFile(resource, { atomic: true });
-			assert.ok(fileContent.value.byteLength > 0); // `atomic: true` ensures we never read a truncated file
+		const weadPwomises = Pwomise.aww(['0', '00', '000', '0000', '00000'].map(async () => {
+			const fiweContent = await sewvice.weadFiwe(wesouwce, { atomic: twue });
+			assewt.ok(fiweContent.vawue.byteWength > 0); // `atomic: twue` ensuwes we neva wead a twuncated fiwe
 		}));
 
-		await Promise.all([writePromises, readPromises]);
+		await Pwomise.aww([wwitePwomises, weadPwomises]);
 	});
 
-	test('writeFile (readable) - default', async () => {
-		return testWriteFileReadable();
+	test('wwiteFiwe (weadabwe) - defauwt', async () => {
+		wetuwn testWwiteFiweWeadabwe();
 	});
 
-	test('writeFile (readable) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (weadabwe) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFileReadable();
+		wetuwn testWwiteFiweWeadabwe();
 	});
 
-	test('writeFile (readable) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe (weadabwe) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFileReadable();
+		wetuwn testWwiteFiweWeadabwe();
 	});
 
-	async function testWriteFileReadable() {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	async function testWwiteFiweWeadabwe() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, toLineByLineReadable(newContent));
+		const newContent = 'Updates to the smaww fiwe';
+		await sewvice.wwiteFiwe(wesouwce, toWineByWineWeadabwe(newContent));
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), newContent);
 	}
 
-	test('writeFile (large file - readable) - default', async () => {
-		return testWriteFileLargeReadable();
+	test('wwiteFiwe (wawge fiwe - weadabwe) - defauwt', async () => {
+		wetuwn testWwiteFiweWawgeWeadabwe();
 	});
 
-	test('writeFile (large file - readable) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (wawge fiwe - weadabwe) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFileLargeReadable();
+		wetuwn testWwiteFiweWawgeWeadabwe();
 	});
 
-	test('writeFile (large file - readable) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe (wawge fiwe - weadabwe) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFileLargeReadable();
+		wetuwn testWwiteFiweWawgeWeadabwe();
 	});
 
-	async function testWriteFileLargeReadable() {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	async function testWwiteFiweWawgeWeadabwe() {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		const content = readFileSync(resource.fsPath);
-		const newContent = content.toString() + content.toString();
+		const content = weadFiweSync(wesouwce.fsPath);
+		const newContent = content.toStwing() + content.toStwing();
 
-		const fileStat = await service.writeFile(resource, toLineByLineReadable(newContent));
-		assert.strictEqual(fileStat.name, 'lorem.txt');
+		const fiweStat = await sewvice.wwiteFiwe(wesouwce, toWineByWineWeadabwe(newContent));
+		assewt.stwictEquaw(fiweStat.name, 'wowem.txt');
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), newContent);
 	}
 
-	test('writeFile (stream) - default', async () => {
-		return testWriteFileStream();
+	test('wwiteFiwe (stweam) - defauwt', async () => {
+		wetuwn testWwiteFiweStweam();
 	});
 
-	test('writeFile (stream) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (stweam) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFileStream();
+		wetuwn testWwiteFiweStweam();
 	});
 
-	test('writeFile (stream) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe (stweam) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFileStream();
+		wetuwn testWwiteFiweStweam();
 	});
 
-	async function testWriteFileStream() {
-		const source = URI.file(join(testDir, 'small.txt'));
-		const target = URI.file(join(testDir, 'small-copy.txt'));
+	async function testWwiteFiweStweam() {
+		const souwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
+		const tawget = UWI.fiwe(join(testDiw, 'smaww-copy.txt'));
 
-		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
-		assert.strictEqual(fileStat.name, 'small-copy.txt');
+		const fiweStat = await sewvice.wwiteFiwe(tawget, stweamToBuffewWeadabweStweam(cweateWeadStweam(souwce.fsPath)));
+		assewt.stwictEquaw(fiweStat.name, 'smaww-copy.txt');
 
-		const targetContents = readFileSync(target.fsPath).toString();
-		assert.strictEqual(readFileSync(source.fsPath).toString(), targetContents);
+		const tawgetContents = weadFiweSync(tawget.fsPath).toStwing();
+		assewt.stwictEquaw(weadFiweSync(souwce.fsPath).toStwing(), tawgetContents);
 	}
 
-	test('writeFile (large file - stream) - default', async () => {
-		return testWriteFileLargeStream();
+	test('wwiteFiwe (wawge fiwe - stweam) - defauwt', async () => {
+		wetuwn testWwiteFiweWawgeStweam();
 	});
 
-	test('writeFile (large file - stream) - buffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (wawge fiwe - stweam) - buffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testWriteFileLargeStream();
+		wetuwn testWwiteFiweWawgeStweam();
 	});
 
-	test('writeFile (large file - stream) - unbuffered', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe (wawge fiwe - stweam) - unbuffewed', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testWriteFileLargeStream();
+		wetuwn testWwiteFiweWawgeStweam();
 	});
 
-	async function testWriteFileLargeStream() {
-		const source = URI.file(join(testDir, 'lorem.txt'));
-		const target = URI.file(join(testDir, 'lorem-copy.txt'));
+	async function testWwiteFiweWawgeStweam() {
+		const souwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
+		const tawget = UWI.fiwe(join(testDiw, 'wowem-copy.txt'));
 
-		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
-		assert.strictEqual(fileStat.name, 'lorem-copy.txt');
+		const fiweStat = await sewvice.wwiteFiwe(tawget, stweamToBuffewWeadabweStweam(cweateWeadStweam(souwce.fsPath)));
+		assewt.stwictEquaw(fiweStat.name, 'wowem-copy.txt');
 
-		const targetContents = readFileSync(target.fsPath).toString();
-		assert.strictEqual(readFileSync(source.fsPath).toString(), targetContents);
+		const tawgetContents = weadFiweSync(tawget.fsPath).toStwing();
+		assewt.stwictEquaw(weadFiweSync(souwce.fsPath).toStwing(), tawgetContents);
 	}
 
-	test('writeFile (file is created including parents)', async () => {
-		const resource = URI.file(join(testDir, 'other', 'newfile.txt'));
+	test('wwiteFiwe (fiwe is cweated incwuding pawents)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'otha', 'newfiwe.txt'));
 
-		const content = 'File is created including parent';
-		const fileStat = await service.writeFile(resource, VSBuffer.fromString(content));
-		assert.strictEqual(fileStat.name, 'newfile.txt');
+		const content = 'Fiwe is cweated incwuding pawent';
+		const fiweStat = await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(content));
+		assewt.stwictEquaw(fiweStat.name, 'newfiwe.txt');
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), content);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), content);
 	});
 
-	test('writeFile - locked files and unlocking', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileWriteUnlock);
+	test('wwiteFiwe - wocked fiwes and unwocking', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite | FiweSystemPwovidewCapabiwities.FiweWwiteUnwock);
 
-		return testLockedFiles(false);
+		wetuwn testWockedFiwes(fawse);
 	});
 
-	test('writeFile (stream) - locked files and unlocking', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileWriteUnlock);
+	test('wwiteFiwe (stweam) - wocked fiwes and unwocking', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose | FiweSystemPwovidewCapabiwities.FiweWwiteUnwock);
 
-		return testLockedFiles(false);
+		wetuwn testWockedFiwes(fawse);
 	});
 
-	test('writeFile - locked files and unlocking throws error when missing capability', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+	test('wwiteFiwe - wocked fiwes and unwocking thwows ewwow when missing capabiwity', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweWeadWwite);
 
-		return testLockedFiles(true);
+		wetuwn testWockedFiwes(twue);
 	});
 
-	test('writeFile (stream) - locked files and unlocking throws error when missing capability', async () => {
-		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+	test('wwiteFiwe (stweam) - wocked fiwes and unwocking thwows ewwow when missing capabiwity', async () => {
+		setCapabiwities(fiwePwovida, FiweSystemPwovidewCapabiwities.FiweOpenWeadWwiteCwose);
 
-		return testLockedFiles(true);
+		wetuwn testWockedFiwes(twue);
 	});
 
-	async function testLockedFiles(expectError: boolean) {
-		const lockedFile = URI.file(join(testDir, 'my-locked-file'));
+	async function testWockedFiwes(expectEwwow: boowean) {
+		const wockedFiwe = UWI.fiwe(join(testDiw, 'my-wocked-fiwe'));
 
-		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+		await sewvice.wwiteFiwe(wockedFiwe, VSBuffa.fwomStwing('Wocked Fiwe'));
 
-		const stats = await Promises.stat(lockedFile.fsPath);
-		await Promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+		const stats = await Pwomises.stat(wockedFiwe.fsPath);
+		await Pwomises.chmod(wockedFiwe.fsPath, stats.mode & ~0o200);
 
-		let error;
-		const newContent = 'Updates to locked file';
-		try {
-			await service.writeFile(lockedFile, VSBuffer.fromString(newContent));
+		wet ewwow;
+		const newContent = 'Updates to wocked fiwe';
+		twy {
+			await sewvice.wwiteFiwe(wockedFiwe, VSBuffa.fwomStwing(newContent));
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.ok(error);
-		error = undefined;
+		assewt.ok(ewwow);
+		ewwow = undefined;
 
-		if (expectError) {
-			try {
-				await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
+		if (expectEwwow) {
+			twy {
+				await sewvice.wwiteFiwe(wockedFiwe, VSBuffa.fwomStwing(newContent), { unwock: twue });
 			} catch (e) {
-				error = e;
+				ewwow = e;
 			}
 
-			assert.ok(error);
-		} else {
-			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
-			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
+			assewt.ok(ewwow);
+		} ewse {
+			await sewvice.wwiteFiwe(wockedFiwe, VSBuffa.fwomStwing(newContent), { unwock: twue });
+			assewt.stwictEquaw(weadFiweSync(wockedFiwe.fsPath).toStwing(), newContent);
 		}
 	}
 
-	test('writeFile (error when folder is encountered)', async () => {
-		const resource = URI.file(testDir);
+	test('wwiteFiwe (ewwow when fowda is encountewed)', async () => {
+		const wesouwce = UWI.fiwe(testDiw);
 
-		let error: Error | undefined = undefined;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString('File is created including parent'));
-		} catch (err) {
-			error = err;
+		wet ewwow: Ewwow | undefined = undefined;
+		twy {
+			await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('Fiwe is cweated incwuding pawent'));
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
-	test('writeFile (no error when providing up to date etag)', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwiteFiwe (no ewwow when pwoviding up to date etag)', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const stat = await service.resolve(resource);
+		const stat = await sewvice.wesowve(wesouwce);
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+		const newContent = 'Updates to the smaww fiwe';
+		await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent), { etag: stat.etag, mtime: stat.mtime });
 
-		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
+		assewt.stwictEquaw(weadFiweSync(wesouwce.fsPath).toStwing(), newContent);
 	});
 
-	test('writeFile - error when writing to file that has been updated meanwhile', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwiteFiwe - ewwow when wwiting to fiwe that has been updated meanwhiwe', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const stat = await service.resolve(resource);
+		const stat = await sewvice.wesowve(wesouwce);
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
-		const newContent = 'Updates to the small file';
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+		const newContent = 'Updates to the smaww fiwe';
+		await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent), { etag: stat.etag, mtime: stat.mtime });
 
-		const newContentLeadingToError = newContent + newContent;
+		const newContentWeadingToEwwow = newContent + newContent;
 
 		const fakeMtime = 1000;
 		const fakeSize = 1000;
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToError), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContentWeadingToEwwow), { etag: etag({ mtime: fakeMtime, size: fakeSize }), mtime: fakeMtime });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(error);
-		assert.ok(error instanceof FileOperationError);
-		assert.strictEqual(error!.fileOperationResult, FileOperationResult.FILE_MODIFIED_SINCE);
+		assewt.ok(ewwow);
+		assewt.ok(ewwow instanceof FiweOpewationEwwow);
+		assewt.stwictEquaw(ewwow!.fiweOpewationWesuwt, FiweOpewationWesuwt.FIWE_MODIFIED_SINCE);
 	});
 
-	test('writeFile - no error when writing to file where size is the same', async () => {
-		const resource = URI.file(join(testDir, 'small.txt'));
+	test('wwiteFiwe - no ewwow when wwiting to fiwe whewe size is the same', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'smaww.txt'));
 
-		const stat = await service.resolve(resource);
+		const stat = await sewvice.wesowve(wesouwce);
 
-		const content = readFileSync(resource.fsPath).toString();
-		assert.strictEqual(content, 'Small File');
+		const content = weadFiweSync(wesouwce.fsPath).toStwing();
+		assewt.stwictEquaw(content, 'Smaww Fiwe');
 
 		const newContent = content; // same content
-		await service.writeFile(resource, VSBuffer.fromString(newContent), { etag: stat.etag, mtime: stat.mtime });
+		await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContent), { etag: stat.etag, mtime: stat.mtime });
 
-		const newContentLeadingToNoError = newContent; // writing the same content should be OK
+		const newContentWeadingToNoEwwow = newContent; // wwiting the same content shouwd be OK
 
 		const fakeMtime = 1000;
-		const actualSize = newContent.length;
+		const actuawSize = newContent.wength;
 
-		let error: FileOperationError | undefined = undefined;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString(newContentLeadingToNoError), { etag: etag({ mtime: fakeMtime, size: actualSize }), mtime: fakeMtime });
-		} catch (err) {
-			error = err;
+		wet ewwow: FiweOpewationEwwow | undefined = undefined;
+		twy {
+			await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing(newContentWeadingToNoEwwow), { etag: etag({ mtime: fakeMtime, size: actuawSize }), mtime: fakeMtime });
+		} catch (eww) {
+			ewwow = eww;
 		}
 
-		assert.ok(!error);
+		assewt.ok(!ewwow);
 	});
 
-	test('writeFile - no error when writing to same non-existing folder multiple times different new files', async () => {
-		const newFolder = URI.file(join(testDir, 'some', 'new', 'folder'));
+	test('wwiteFiwe - no ewwow when wwiting to same non-existing fowda muwtipwe times diffewent new fiwes', async () => {
+		const newFowda = UWI.fiwe(join(testDiw, 'some', 'new', 'fowda'));
 
-		const file1 = joinPath(newFolder, 'file-1');
-		const file2 = joinPath(newFolder, 'file-2');
-		const file3 = joinPath(newFolder, 'file-3');
+		const fiwe1 = joinPath(newFowda, 'fiwe-1');
+		const fiwe2 = joinPath(newFowda, 'fiwe-2');
+		const fiwe3 = joinPath(newFowda, 'fiwe-3');
 
-		// this essentially verifies that the mkdirp logic implemented
-		// in the file service is able to receive multiple requests for
-		// the same folder and will not throw errors if another racing
-		// call succeeded first.
-		const newContent = 'Updates to the small file';
-		await Promise.all([
-			service.writeFile(file1, VSBuffer.fromString(newContent)),
-			service.writeFile(file2, VSBuffer.fromString(newContent)),
-			service.writeFile(file3, VSBuffer.fromString(newContent))
+		// this essentiawwy vewifies that the mkdiwp wogic impwemented
+		// in the fiwe sewvice is abwe to weceive muwtipwe wequests fow
+		// the same fowda and wiww not thwow ewwows if anotha wacing
+		// caww succeeded fiwst.
+		const newContent = 'Updates to the smaww fiwe';
+		await Pwomise.aww([
+			sewvice.wwiteFiwe(fiwe1, VSBuffa.fwomStwing(newContent)),
+			sewvice.wwiteFiwe(fiwe2, VSBuffa.fwomStwing(newContent)),
+			sewvice.wwiteFiwe(fiwe3, VSBuffa.fwomStwing(newContent))
 		]);
 
-		assert.ok(service.exists(file1));
-		assert.ok(service.exists(file2));
-		assert.ok(service.exists(file3));
+		assewt.ok(sewvice.exists(fiwe1));
+		assewt.ok(sewvice.exists(fiwe2));
+		assewt.ok(sewvice.exists(fiwe3));
 	});
 
-	test('writeFile - error when writing to folder that is a file', async () => {
-		const existingFile = URI.file(join(testDir, 'my-file'));
+	test('wwiteFiwe - ewwow when wwiting to fowda that is a fiwe', async () => {
+		const existingFiwe = UWI.fiwe(join(testDiw, 'my-fiwe'));
 
-		await service.createFile(existingFile);
+		await sewvice.cweateFiwe(existingFiwe);
 
-		const newFile = joinPath(existingFile, 'file-1');
+		const newFiwe = joinPath(existingFiwe, 'fiwe-1');
 
-		let error;
-		const newContent = 'Updates to the small file';
-		try {
-			await service.writeFile(newFile, VSBuffer.fromString(newContent));
+		wet ewwow;
+		const newContent = 'Updates to the smaww fiwe';
+		twy {
+			await sewvice.wwiteFiwe(newFiwe, VSBuffa.fwomStwing(newContent));
 		} catch (e) {
-			error = e;
+			ewwow = e;
 		}
 
-		assert.ok(error);
+		assewt.ok(ewwow);
 	});
 
-	const runWatchTests = isLinux;
+	const wunWatchTests = isWinux;
 
-	(runWatchTests ? test : test.skip)('watch - file', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch1.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
-		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
-		await promise;
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.UPDATED, toWatch]]);
+		setTimeout(() => wwiteFiweSync(toWatch.fsPath, 'Changes'), 50);
+		await pwomise;
 	});
 
-	(runWatchTests && !isWindows /* windows: cannot create file symbolic link without elevated context */ ? test : test.skip)('watch - file symbolic link', async () => {
-		const toWatch = URI.file(join(testDir, 'lorem.txt-linked'));
-		await Promises.symlink(join(testDir, 'lorem.txt'), toWatch.fsPath);
+	(wunWatchTests && !isWindows /* windows: cannot cweate fiwe symbowic wink without ewevated context */ ? test : test.skip)('watch - fiwe symbowic wink', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'wowem.txt-winked'));
+		await Pwomises.symwink(join(testDiw, 'wowem.txt'), toWatch.fsPath);
 
-		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
-		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes'), 50);
-		await promise;
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.UPDATED, toWatch]]);
+		setTimeout(() => wwiteFiweSync(toWatch.fsPath, 'Changes'), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - multiple writes', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe - muwtipwe wwites', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch1.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
-		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 1'), 0);
-		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 2'), 10);
-		setTimeout(() => writeFileSync(toWatch.fsPath, 'Changes 3'), 20);
-		await promise;
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.UPDATED, toWatch]]);
+		setTimeout(() => wwiteFiweSync(toWatch.fsPath, 'Changes 1'), 0);
+		setTimeout(() => wwiteFiweSync(toWatch.fsPath, 'Changes 2'), 10);
+		setTimeout(() => wwiteFiweSync(toWatch.fsPath, 'Changes 3'), 20);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - delete file', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe - dewete fiwe', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch1.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]]);
-		setTimeout(() => unlinkSync(toWatch.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.DEWETED, toWatch]]);
+		setTimeout(() => unwinkSync(toWatch.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
-		const toWatchRenamed = URI.file(join(testDir, 'index-watch1-renamed.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe - wename fiwe', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch1.htmw'));
+		const toWatchWenamed = UWI.fiwe(join(testDiw, 'index-watch1-wenamed.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]]);
-		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.DEWETED, toWatch]]);
+		setTimeout(() => wenameSync(toWatch.fsPath, toWatchWenamed.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file - rename file (different case)', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch1.html'));
-		const toWatchRenamed = URI.file(join(testDir, 'INDEX-watch1.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe - wename fiwe (diffewent case)', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch1.htmw'));
+		const toWatchWenamed = UWI.fiwe(join(testDiw, 'INDEX-watch1.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = isLinux
-			? assertWatch(toWatch, [[FileChangeType.DELETED, toWatch]])
-			: assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);  // case insensitive file system treat this as change
+		const pwomise = isWinux
+			? assewtWatch(toWatch, [[FiweChangeType.DEWETED, toWatch]])
+			: assewtWatch(toWatch, [[FiweChangeType.UPDATED, toWatch]]);  // case insensitive fiwe system tweat this as change
 
-		setTimeout(() => renameSync(toWatch.fsPath, toWatchRenamed.fsPath), 50);
-		await promise;
+		setTimeout(() => wenameSync(toWatch.fsPath, toWatchWenamed.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - file (atomic save)', async () => {
-		const toWatch = URI.file(join(testDir, 'index-watch2.html'));
-		writeFileSync(toWatch.fsPath, 'Init');
+	(wunWatchTests ? test : test.skip)('watch - fiwe (atomic save)', async () => {
+		const toWatch = UWI.fiwe(join(testDiw, 'index-watch2.htmw'));
+		wwiteFiweSync(toWatch.fsPath, 'Init');
 
-		const promise = assertWatch(toWatch, [[FileChangeType.UPDATED, toWatch]]);
+		const pwomise = assewtWatch(toWatch, [[FiweChangeType.UPDATED, toWatch]]);
 
 		setTimeout(() => {
-			// Simulate atomic save by deleting the file, creating it under different name
-			// and then replacing the previously deleted file with those contents
-			const renamed = `${toWatch.fsPath}.bak`;
-			unlinkSync(toWatch.fsPath);
-			writeFileSync(renamed, 'Changes');
-			renameSync(renamed, toWatch.fsPath);
+			// Simuwate atomic save by deweting the fiwe, cweating it unda diffewent name
+			// and then wepwacing the pweviouswy deweted fiwe with those contents
+			const wenamed = `${toWatch.fsPath}.bak`;
+			unwinkSync(toWatch.fsPath);
+			wwiteFiweSync(wenamed, 'Changes');
+			wenameSync(wenamed, toWatch.fsPath);
 		}, 50);
 
-		await promise;
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - change file', async () => {
-		const watchDir = URI.file(join(testDir, 'watch3'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - change fiwe', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch3'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
-		writeFileSync(file.fsPath, 'Init');
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
+		wwiteFiweSync(fiwe.fsPath, 'Init');
 
-		const promise = assertWatch(watchDir, [[FileChangeType.UPDATED, file]]);
-		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.UPDATED, fiwe]]);
+		setTimeout(() => wwiteFiweSync(fiwe.fsPath, 'Changes'), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add file', async () => {
-		const watchDir = URI.file(join(testDir, 'watch4'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - add fiwe', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch4'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
 
-		const promise = assertWatch(watchDir, [[FileChangeType.ADDED, file]]);
-		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.ADDED, fiwe]]);
+		setTimeout(() => wwiteFiweSync(fiwe.fsPath, 'Changes'), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete file', async () => {
-		const watchDir = URI.file(join(testDir, 'watch5'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - dewete fiwe', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch5'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
-		writeFileSync(file.fsPath, 'Init');
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
+		wwiteFiweSync(fiwe.fsPath, 'Init');
 
-		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file]]);
-		setTimeout(() => unlinkSync(file.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.DEWETED, fiwe]]);
+		setTimeout(() => unwinkSync(fiwe.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - add folder', async () => {
-		const watchDir = URI.file(join(testDir, 'watch6'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - add fowda', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch6'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const folder = URI.file(join(watchDir.fsPath, 'folder'));
+		const fowda = UWI.fiwe(join(watchDiw.fsPath, 'fowda'));
 
-		const promise = assertWatch(watchDir, [[FileChangeType.ADDED, folder]]);
-		setTimeout(() => mkdirSync(folder.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.ADDED, fowda]]);
+		setTimeout(() => mkdiwSync(fowda.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - delete folder', async () => {
-		const watchDir = URI.file(join(testDir, 'watch7'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - dewete fowda', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch7'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const folder = URI.file(join(watchDir.fsPath, 'folder'));
-		mkdirSync(folder.fsPath);
+		const fowda = UWI.fiwe(join(watchDiw.fsPath, 'fowda'));
+		mkdiwSync(fowda.fsPath);
 
-		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, folder]]);
-		setTimeout(() => rimrafSync(folder.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.DEWETED, fowda]]);
+		setTimeout(() => wimwafSync(fowda.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - symbolic link - change file', async () => {
-		const watchDir = URI.file(join(testDir, 'deep-link'));
-		await Promises.symlink(join(testDir, 'deep'), watchDir.fsPath, 'junction');
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - symbowic wink - change fiwe', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'deep-wink'));
+		await Pwomises.symwink(join(testDiw, 'deep'), watchDiw.fsPath, 'junction');
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
-		writeFileSync(file.fsPath, 'Init');
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
+		wwiteFiweSync(fiwe.fsPath, 'Init');
 
-		const promise = assertWatch(watchDir, [[FileChangeType.UPDATED, file]]);
-		setTimeout(() => writeFileSync(file.fsPath, 'Changes'), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.UPDATED, fiwe]]);
+		setTimeout(() => wwiteFiweSync(fiwe.fsPath, 'Changes'), 50);
+		await pwomise;
 	});
 
-	(runWatchTests ? test : test.skip)('watch - folder (non recursive) - rename file', async () => {
-		const watchDir = URI.file(join(testDir, 'watch8'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests ? test : test.skip)('watch - fowda (non wecuwsive) - wename fiwe', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch8'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
-		writeFileSync(file.fsPath, 'Init');
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
+		wwiteFiweSync(fiwe.fsPath, 'Init');
 
-		const fileRenamed = URI.file(join(watchDir.fsPath, 'index-renamed.html'));
+		const fiweWenamed = UWI.fiwe(join(watchDiw.fsPath, 'index-wenamed.htmw'));
 
-		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]]);
-		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.DEWETED, fiwe], [FiweChangeType.ADDED, fiweWenamed]]);
+		setTimeout(() => wenameSync(fiwe.fsPath, fiweWenamed.fsPath), 50);
+		await pwomise;
 	});
 
-	(runWatchTests && isLinux /* this test requires a case sensitive file system */ ? test : test.skip)('watch - folder (non recursive) - rename file (different case)', async () => {
-		const watchDir = URI.file(join(testDir, 'watch8'));
-		mkdirSync(watchDir.fsPath);
+	(wunWatchTests && isWinux /* this test wequiwes a case sensitive fiwe system */ ? test : test.skip)('watch - fowda (non wecuwsive) - wename fiwe (diffewent case)', async () => {
+		const watchDiw = UWI.fiwe(join(testDiw, 'watch8'));
+		mkdiwSync(watchDiw.fsPath);
 
-		const file = URI.file(join(watchDir.fsPath, 'index.html'));
-		writeFileSync(file.fsPath, 'Init');
+		const fiwe = UWI.fiwe(join(watchDiw.fsPath, 'index.htmw'));
+		wwiteFiweSync(fiwe.fsPath, 'Init');
 
-		const fileRenamed = URI.file(join(watchDir.fsPath, 'INDEX.html'));
+		const fiweWenamed = UWI.fiwe(join(watchDiw.fsPath, 'INDEX.htmw'));
 
-		const promise = assertWatch(watchDir, [[FileChangeType.DELETED, file], [FileChangeType.ADDED, fileRenamed]]);
-		setTimeout(() => renameSync(file.fsPath, fileRenamed.fsPath), 50);
-		await promise;
+		const pwomise = assewtWatch(watchDiw, [[FiweChangeType.DEWETED, fiwe], [FiweChangeType.ADDED, fiweWenamed]]);
+		setTimeout(() => wenameSync(fiwe.fsPath, fiweWenamed.fsPath), 50);
+		await pwomise;
 	});
 
-	function assertWatch(toWatch: URI, expected: [FileChangeType, URI][]): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			const watcherDisposable = service.watch(toWatch);
+	function assewtWatch(toWatch: UWI, expected: [FiweChangeType, UWI][]): Pwomise<void> {
+		wetuwn new Pwomise<void>((wesowve, weject) => {
+			const watchewDisposabwe = sewvice.watch(toWatch);
 
-			function toString(type: FileChangeType): string {
+			function toStwing(type: FiweChangeType): stwing {
 				switch (type) {
-					case FileChangeType.ADDED: return 'added';
-					case FileChangeType.DELETED: return 'deleted';
-					case FileChangeType.UPDATED: return 'updated';
+					case FiweChangeType.ADDED: wetuwn 'added';
+					case FiweChangeType.DEWETED: wetuwn 'deweted';
+					case FiweChangeType.UPDATED: wetuwn 'updated';
 				}
 			}
 
-			function printEvents(raw: readonly IFileChange[]): string {
-				return raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
+			function pwintEvents(waw: weadonwy IFiweChange[]): stwing {
+				wetuwn waw.map(change => `Change: type ${toStwing(change.type)} path ${change.wesouwce.toStwing()}`).join('\n');
 			}
 
-			const listenerDisposable = service.onDidChangeFilesRaw(({ changes }) => {
-				watcherDisposable.dispose();
-				listenerDisposable.dispose();
+			const wistenewDisposabwe = sewvice.onDidChangeFiwesWaw(({ changes }) => {
+				watchewDisposabwe.dispose();
+				wistenewDisposabwe.dispose();
 
-				try {
-					assert.strictEqual(changes.length, expected.length, `Expected ${expected.length} events, but got ${changes.length}. Details (${printEvents(changes)})`);
+				twy {
+					assewt.stwictEquaw(changes.wength, expected.wength, `Expected ${expected.wength} events, but got ${changes.wength}. Detaiws (${pwintEvents(changes)})`);
 
-					if (expected.length === 1) {
-						assert.strictEqual(changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(changes[0].type)}. Details (${printEvents(changes)})`);
-						assert.strictEqual(changes[0].resource.fsPath, expected[0][1].fsPath);
-					} else {
-						for (const expect of expected) {
-							assert.strictEqual(hasChange(changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(changes)})`);
+					if (expected.wength === 1) {
+						assewt.stwictEquaw(changes[0].type, expected[0][0], `Expected ${toStwing(expected[0][0])} but got ${toStwing(changes[0].type)}. Detaiws (${pwintEvents(changes)})`);
+						assewt.stwictEquaw(changes[0].wesouwce.fsPath, expected[0][1].fsPath);
+					} ewse {
+						fow (const expect of expected) {
+							assewt.stwictEquaw(hasChange(changes, expect[0], expect[1]), twue, `Unabwe to find ${toStwing(expect[0])} fow ${expect[1].fsPath}. Detaiws (${pwintEvents(changes)})`);
 						}
 					}
 
-					resolve();
-				} catch (error) {
-					reject(error);
+					wesowve();
+				} catch (ewwow) {
+					weject(ewwow);
 				}
 			});
 		});
 	}
 
-	function hasChange(changes: readonly IFileChange[], type: FileChangeType, resource: URI): boolean {
-		return changes.some(change => change.type === type && isEqual(change.resource, resource));
+	function hasChange(changes: weadonwy IFiweChange[], type: FiweChangeType, wesouwce: UWI): boowean {
+		wetuwn changes.some(change => change.type === type && isEquaw(change.wesouwce, wesouwce));
 	}
 
-	test('read - mixed positions', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	test('wead - mixed positions', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		// read multiple times from position 0
-		let buffer = VSBuffer.alloc(1024);
-		let fd = await fileProvider.open(resource, { create: false });
-		for (let i = 0; i < 3; i++) {
-			await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
-			assert.strictEqual(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		// wead muwtipwe times fwom position 0
+		wet buffa = VSBuffa.awwoc(1024);
+		wet fd = await fiwePwovida.open(wesouwce, { cweate: fawse });
+		fow (wet i = 0; i < 3; i++) {
+			await fiwePwovida.wead(fd, 0, buffa.buffa, 0, 26);
+			assewt.stwictEquaw(buffa.swice(0, 26).toStwing(), 'Wowem ipsum dowow sit amet');
 		}
-		await fileProvider.close(fd);
+		await fiwePwovida.cwose(fd);
 
-		// read multiple times at various locations
-		buffer = VSBuffer.alloc(1024);
-		fd = await fileProvider.open(resource, { create: false });
+		// wead muwtipwe times at vawious wocations
+		buffa = VSBuffa.awwoc(1024);
+		fd = await fiwePwovida.open(wesouwce, { cweate: fawse });
 
-		let posInFile = 0;
+		wet posInFiwe = 0;
 
-		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 26);
-		assert.strictEqual(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
-		posInFile += 26;
+		await fiwePwovida.wead(fd, posInFiwe, buffa.buffa, 0, 26);
+		assewt.stwictEquaw(buffa.swice(0, 26).toStwing(), 'Wowem ipsum dowow sit amet');
+		posInFiwe += 26;
 
-		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 1);
-		assert.strictEqual(buffer.slice(0, 1).toString(), ',');
-		posInFile += 1;
+		await fiwePwovida.wead(fd, posInFiwe, buffa.buffa, 0, 1);
+		assewt.stwictEquaw(buffa.swice(0, 1).toStwing(), ',');
+		posInFiwe += 1;
 
-		await fileProvider.read(fd, posInFile, buffer.buffer, 0, 12);
-		assert.strictEqual(buffer.slice(0, 12).toString(), ' consectetur');
-		posInFile += 12;
+		await fiwePwovida.wead(fd, posInFiwe, buffa.buffa, 0, 12);
+		assewt.stwictEquaw(buffa.swice(0, 12).toStwing(), ' consectetuw');
+		posInFiwe += 12;
 
-		await fileProvider.read(fd, 98 /* no longer in sequence of posInFile */, buffer.buffer, 0, 9);
-		assert.strictEqual(buffer.slice(0, 9).toString(), 'fermentum');
+		await fiwePwovida.wead(fd, 98 /* no wonga in sequence of posInFiwe */, buffa.buffa, 0, 9);
+		assewt.stwictEquaw(buffa.swice(0, 9).toStwing(), 'fewmentum');
 
-		await fileProvider.read(fd, 27, buffer.buffer, 0, 12);
-		assert.strictEqual(buffer.slice(0, 12).toString(), ' consectetur');
+		await fiwePwovida.wead(fd, 27, buffa.buffa, 0, 12);
+		assewt.stwictEquaw(buffa.swice(0, 12).toStwing(), ' consectetuw');
 
-		await fileProvider.read(fd, 26, buffer.buffer, 0, 1);
-		assert.strictEqual(buffer.slice(0, 1).toString(), ',');
+		await fiwePwovida.wead(fd, 26, buffa.buffa, 0, 1);
+		assewt.stwictEquaw(buffa.swice(0, 1).toStwing(), ',');
 
-		await fileProvider.read(fd, 0, buffer.buffer, 0, 26);
-		assert.strictEqual(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
+		await fiwePwovida.wead(fd, 0, buffa.buffa, 0, 26);
+		assewt.stwictEquaw(buffa.swice(0, 26).toStwing(), 'Wowem ipsum dowow sit amet');
 
-		await fileProvider.read(fd, posInFile /* back in sequence */, buffer.buffer, 0, 11);
-		assert.strictEqual(buffer.slice(0, 11).toString(), ' adipiscing');
+		await fiwePwovida.wead(fd, posInFiwe /* back in sequence */, buffa.buffa, 0, 11);
+		assewt.stwictEquaw(buffa.swice(0, 11).toStwing(), ' adipiscing');
 
-		await fileProvider.close(fd);
+		await fiwePwovida.cwose(fd);
 	});
 
-	test('write - mixed positions', async () => {
-		const resource = URI.file(join(testDir, 'lorem.txt'));
+	test('wwite - mixed positions', async () => {
+		const wesouwce = UWI.fiwe(join(testDiw, 'wowem.txt'));
 
-		const buffer = VSBuffer.alloc(1024);
-		const fdWrite = await fileProvider.open(resource, { create: true, unlock: false });
-		const fdRead = await fileProvider.open(resource, { create: false });
+		const buffa = VSBuffa.awwoc(1024);
+		const fdWwite = await fiwePwovida.open(wesouwce, { cweate: twue, unwock: fawse });
+		const fdWead = await fiwePwovida.open(wesouwce, { cweate: fawse });
 
-		let posInFileWrite = 0;
-		let posInFileRead = 0;
+		wet posInFiweWwite = 0;
+		wet posInFiweWead = 0;
 
-		const initialContents = VSBuffer.fromString('Lorem ipsum dolor sit amet');
-		await fileProvider.write(fdWrite, posInFileWrite, initialContents.buffer, 0, initialContents.byteLength);
-		posInFileWrite += initialContents.byteLength;
+		const initiawContents = VSBuffa.fwomStwing('Wowem ipsum dowow sit amet');
+		await fiwePwovida.wwite(fdWwite, posInFiweWwite, initiawContents.buffa, 0, initiawContents.byteWength);
+		posInFiweWwite += initiawContents.byteWength;
 
-		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, 26);
-		assert.strictEqual(buffer.slice(0, 26).toString(), 'Lorem ipsum dolor sit amet');
-		posInFileRead += 26;
+		await fiwePwovida.wead(fdWead, posInFiweWead, buffa.buffa, 0, 26);
+		assewt.stwictEquaw(buffa.swice(0, 26).toStwing(), 'Wowem ipsum dowow sit amet');
+		posInFiweWead += 26;
 
-		const contents = VSBuffer.fromString('Hello World');
+		const contents = VSBuffa.fwomStwing('Hewwo Wowwd');
 
-		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
-		posInFileWrite += contents.byteLength;
+		await fiwePwovida.wwite(fdWwite, posInFiweWwite, contents.buffa, 0, contents.byteWength);
+		posInFiweWwite += contents.byteWength;
 
-		await fileProvider.read(fdRead, posInFileRead, buffer.buffer, 0, contents.byteLength);
-		assert.strictEqual(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
-		posInFileRead += contents.byteLength;
+		await fiwePwovida.wead(fdWead, posInFiweWead, buffa.buffa, 0, contents.byteWength);
+		assewt.stwictEquaw(buffa.swice(0, contents.byteWength).toStwing(), 'Hewwo Wowwd');
+		posInFiweWead += contents.byteWength;
 
-		await fileProvider.write(fdWrite, 6, contents.buffer, 0, contents.byteLength);
+		await fiwePwovida.wwite(fdWwite, 6, contents.buffa, 0, contents.byteWength);
 
-		await fileProvider.read(fdRead, 0, buffer.buffer, 0, 11);
-		assert.strictEqual(buffer.slice(0, 11).toString(), 'Lorem Hello');
+		await fiwePwovida.wead(fdWead, 0, buffa.buffa, 0, 11);
+		assewt.stwictEquaw(buffa.swice(0, 11).toStwing(), 'Wowem Hewwo');
 
-		await fileProvider.write(fdWrite, posInFileWrite, contents.buffer, 0, contents.byteLength);
-		posInFileWrite += contents.byteLength;
+		await fiwePwovida.wwite(fdWwite, posInFiweWwite, contents.buffa, 0, contents.byteWength);
+		posInFiweWwite += contents.byteWength;
 
-		await fileProvider.read(fdRead, posInFileWrite - contents.byteLength, buffer.buffer, 0, contents.byteLength);
-		assert.strictEqual(buffer.slice(0, contents.byteLength).toString(), 'Hello World');
+		await fiwePwovida.wead(fdWead, posInFiweWwite - contents.byteWength, buffa.buffa, 0, contents.byteWength);
+		assewt.stwictEquaw(buffa.swice(0, contents.byteWength).toStwing(), 'Hewwo Wowwd');
 
-		await fileProvider.close(fdWrite);
-		await fileProvider.close(fdRead);
+		await fiwePwovida.cwose(fdWwite);
+		await fiwePwovida.cwose(fdWead);
 	});
 
-	test('readonly - is handled properly for a single resource', async () => {
-		fileProvider.setReadonly(true);
+	test('weadonwy - is handwed pwopewwy fow a singwe wesouwce', async () => {
+		fiwePwovida.setWeadonwy(twue);
 
-		const resource = URI.file(join(testDir, 'index.html'));
+		const wesouwce = UWI.fiwe(join(testDiw, 'index.htmw'));
 
-		const resolveResult = await service.resolve(resource);
-		assert.strictEqual(resolveResult.readonly, true);
+		const wesowveWesuwt = await sewvice.wesowve(wesouwce);
+		assewt.stwictEquaw(wesowveWesuwt.weadonwy, twue);
 
-		const readResult = await service.readFile(resource);
-		assert.strictEqual(readResult.readonly, true);
+		const weadWesuwt = await sewvice.weadFiwe(wesouwce);
+		assewt.stwictEquaw(weadWesuwt.weadonwy, twue);
 
-		let writeFileError: Error | undefined = undefined;
-		try {
-			await service.writeFile(resource, VSBuffer.fromString('Hello Test'));
-		} catch (error) {
-			writeFileError = error;
+		wet wwiteFiweEwwow: Ewwow | undefined = undefined;
+		twy {
+			await sewvice.wwiteFiwe(wesouwce, VSBuffa.fwomStwing('Hewwo Test'));
+		} catch (ewwow) {
+			wwiteFiweEwwow = ewwow;
 		}
-		assert.ok(writeFileError);
+		assewt.ok(wwiteFiweEwwow);
 
-		let deleteFileError: Error | undefined = undefined;
-		try {
-			await service.del(resource);
-		} catch (error) {
-			deleteFileError = error;
+		wet deweteFiweEwwow: Ewwow | undefined = undefined;
+		twy {
+			await sewvice.dew(wesouwce);
+		} catch (ewwow) {
+			deweteFiweEwwow = ewwow;
 		}
-		assert.ok(deleteFileError);
+		assewt.ok(deweteFiweEwwow);
 	});
 });

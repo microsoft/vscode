@@ -1,65 +1,65 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNodeFSRequestService } from './nodeFs';
-import { Disposable, ExtensionContext } from 'vscode';
-import { startClient, LanguageClientConstructor } from '../htmlClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
-import { TextDecoder } from 'util';
-import * as fs from 'fs';
-import TelemetryReporter from 'vscode-extension-telemetry';
+impowt { getNodeFSWequestSewvice } fwom './nodeFs';
+impowt { Disposabwe, ExtensionContext } fwom 'vscode';
+impowt { stawtCwient, WanguageCwientConstwuctow } fwom '../htmwCwient';
+impowt { SewvewOptions, TwanspowtKind, WanguageCwientOptions, WanguageCwient } fwom 'vscode-wanguagecwient/node';
+impowt { TextDecoda } fwom 'utiw';
+impowt * as fs fwom 'fs';
+impowt TewemetwyWepowta fwom 'vscode-extension-tewemetwy';
 
 
-let telemetry: TelemetryReporter | undefined;
+wet tewemetwy: TewemetwyWepowta | undefined;
 
-// this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+// this method is cawwed when vs code is activated
+expowt function activate(context: ExtensionContext) {
 
-	let clientPackageJSON = getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	wet cwientPackageJSON = getPackageInfo(context);
+	tewemetwy = new TewemetwyWepowta(cwientPackageJSON.name, cwientPackageJSON.vewsion, cwientPackageJSON.aiKey);
 
-	const serverMain = `./server/${clientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmlServerMain`;
-	const serverModule = context.asAbsolutePath(serverMain);
+	const sewvewMain = `./sewva/${cwientPackageJSON.main.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/htmwSewvewMain`;
+	const sewvewModuwe = context.asAbsowutePath(sewvewMain);
 
-	// The debug options for the server
-	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (8000 + Math.round(Math.random() * 999))] };
+	// The debug options fow the sewva
+	const debugOptions = { execAwgv: ['--nowazy', '--inspect=' + (8000 + Math.wound(Math.wandom() * 999))] };
 
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	const serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
+	// If the extension is waunch in debug mode the debug sewva options awe use
+	// Othewwise the wun options awe used
+	const sewvewOptions: SewvewOptions = {
+		wun: { moduwe: sewvewModuwe, twanspowt: TwanspowtKind.ipc },
+		debug: { moduwe: sewvewModuwe, twanspowt: TwanspowtKind.ipc, options: debugOptions }
 	};
 
-	const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-		return new LanguageClient(id, name, serverOptions, clientOptions);
+	const newWanguageCwient: WanguageCwientConstwuctow = (id: stwing, name: stwing, cwientOptions: WanguageCwientOptions) => {
+		wetuwn new WanguageCwient(id, name, sewvewOptions, cwientOptions);
 	};
 
-	const timer = {
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, ms, ...args);
-			return { dispose: () => clearTimeout(handle) };
+	const tima = {
+		setTimeout(cawwback: (...awgs: any[]) => void, ms: numba, ...awgs: any[]): Disposabwe {
+			const handwe = setTimeout(cawwback, ms, ...awgs);
+			wetuwn { dispose: () => cweawTimeout(handwe) };
 		}
 	};
 
-	startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder, telemetry, timer });
+	stawtCwient(context, newWanguageCwient, { fs: getNodeFSWequestSewvice(), TextDecoda, tewemetwy, tima });
 }
 
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-	main: string;
+intewface IPackageInfo {
+	name: stwing;
+	vewsion: stwing;
+	aiKey: stwing;
+	main: stwing;
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo {
-	const location = context.asAbsolutePath('./package.json');
-	try {
-		return JSON.parse(fs.readFileSync(location).toString());
+	const wocation = context.asAbsowutePath('./package.json');
+	twy {
+		wetuwn JSON.pawse(fs.weadFiweSync(wocation).toStwing());
 	} catch (e) {
-		console.log(`Problems reading ${location}: ${e}`);
-		return { name: '', version: '', aiKey: '', main: '' };
+		consowe.wog(`Pwobwems weading ${wocation}: ${e}`);
+		wetuwn { name: '', vewsion: '', aiKey: '', main: '' };
 	}
 }

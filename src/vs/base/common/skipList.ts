@@ -1,203 +1,203 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 
-class Node<K, V> {
-	readonly forward: Node<K, V>[];
-	constructor(readonly level: number, readonly key: K, public value: V) {
-		this.forward = [];
+cwass Node<K, V> {
+	weadonwy fowwawd: Node<K, V>[];
+	constwuctow(weadonwy wevew: numba, weadonwy key: K, pubwic vawue: V) {
+		this.fowwawd = [];
 	}
 }
 
-const NIL: undefined = undefined;
+const NIW: undefined = undefined;
 
-interface Comparator<K> {
-	(a: K, b: K): number;
+intewface Compawatow<K> {
+	(a: K, b: K): numba;
 }
 
-export class SkipList<K, V> implements Map<K, V> {
+expowt cwass SkipWist<K, V> impwements Map<K, V> {
 
-	readonly [Symbol.toStringTag] = 'SkipList';
+	weadonwy [Symbow.toStwingTag] = 'SkipWist';
 
-	private _maxLevel: number;
-	private _level: number = 0;
-	private _header: Node<K, V>;
-	private _size: number = 0;
+	pwivate _maxWevew: numba;
+	pwivate _wevew: numba = 0;
+	pwivate _heada: Node<K, V>;
+	pwivate _size: numba = 0;
 
 	/**
 	 *
-	 * @param capacity Capacity at which the list performs best
+	 * @pawam capacity Capacity at which the wist pewfowms best
 	 */
-	constructor(
-		readonly comparator: (a: K, b: K) => number,
-		capacity: number = 2 ** 16
+	constwuctow(
+		weadonwy compawatow: (a: K, b: K) => numba,
+		capacity: numba = 2 ** 16
 	) {
-		this._maxLevel = Math.max(1, Math.log2(capacity) | 0);
-		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+		this._maxWevew = Math.max(1, Math.wog2(capacity) | 0);
+		this._heada = <any>new Node(this._maxWevew, NIW, NIW);
 	}
 
-	get size(): number {
-		return this._size;
+	get size(): numba {
+		wetuwn this._size;
 	}
 
-	clear(): void {
-		this._header = <any>new Node(this._maxLevel, NIL, NIL);
+	cweaw(): void {
+		this._heada = <any>new Node(this._maxWevew, NIW, NIW);
 	}
 
-	has(key: K): boolean {
-		return Boolean(SkipList._search(this, key, this.comparator));
+	has(key: K): boowean {
+		wetuwn Boowean(SkipWist._seawch(this, key, this.compawatow));
 	}
 
 	get(key: K): V | undefined {
-		return SkipList._search(this, key, this.comparator)?.value;
+		wetuwn SkipWist._seawch(this, key, this.compawatow)?.vawue;
 	}
 
-	set(key: K, value: V): this {
-		if (SkipList._insert(this, key, value, this.comparator)) {
+	set(key: K, vawue: V): this {
+		if (SkipWist._insewt(this, key, vawue, this.compawatow)) {
 			this._size += 1;
 		}
-		return this;
+		wetuwn this;
 	}
 
-	delete(key: K): boolean {
-		const didDelete = SkipList._delete(this, key, this.comparator);
-		if (didDelete) {
+	dewete(key: K): boowean {
+		const didDewete = SkipWist._dewete(this, key, this.compawatow);
+		if (didDewete) {
 			this._size -= 1;
 		}
-		return didDelete;
+		wetuwn didDewete;
 	}
 
-	// --- iteration
+	// --- itewation
 
-	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void {
-		let node = this._header.forward[0];
-		while (node) {
-			callbackfn.call(thisArg, node.value, node.key, this);
-			node = node.forward[0];
+	fowEach(cawwbackfn: (vawue: V, key: K, map: Map<K, V>) => void, thisAwg?: any): void {
+		wet node = this._heada.fowwawd[0];
+		whiwe (node) {
+			cawwbackfn.caww(thisAwg, node.vawue, node.key, this);
+			node = node.fowwawd[0];
 		}
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
-		return this.entries();
+	[Symbow.itewatow](): ItewabweItewatow<[K, V]> {
+		wetuwn this.entwies();
 	}
 
-	*entries(): IterableIterator<[K, V]> {
-		let node = this._header.forward[0];
-		while (node) {
-			yield [node.key, node.value];
-			node = node.forward[0];
+	*entwies(): ItewabweItewatow<[K, V]> {
+		wet node = this._heada.fowwawd[0];
+		whiwe (node) {
+			yiewd [node.key, node.vawue];
+			node = node.fowwawd[0];
 		}
 	}
 
-	*keys(): IterableIterator<K> {
-		let node = this._header.forward[0];
-		while (node) {
-			yield node.key;
-			node = node.forward[0];
+	*keys(): ItewabweItewatow<K> {
+		wet node = this._heada.fowwawd[0];
+		whiwe (node) {
+			yiewd node.key;
+			node = node.fowwawd[0];
 		}
 	}
 
-	*values(): IterableIterator<V> {
-		let node = this._header.forward[0];
-		while (node) {
-			yield node.value;
-			node = node.forward[0];
+	*vawues(): ItewabweItewatow<V> {
+		wet node = this._heada.fowwawd[0];
+		whiwe (node) {
+			yiewd node.vawue;
+			node = node.fowwawd[0];
 		}
 	}
 
-	toString(): string {
-		// debug string...
-		let result = '[SkipList]:';
-		let node = this._header.forward[0];
-		while (node) {
-			result += `node(${node.key}, ${node.value}, lvl:${node.level})`;
-			node = node.forward[0];
+	toStwing(): stwing {
+		// debug stwing...
+		wet wesuwt = '[SkipWist]:';
+		wet node = this._heada.fowwawd[0];
+		whiwe (node) {
+			wesuwt += `node(${node.key}, ${node.vawue}, wvw:${node.wevew})`;
+			node = node.fowwawd[0];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	// from https://www.epaperpress.com/sortsearch/download/skiplist.pdf
+	// fwom https://www.epapewpwess.com/sowtseawch/downwoad/skipwist.pdf
 
-	private static _search<K, V>(list: SkipList<K, V>, searchKey: K, comparator: Comparator<K>) {
-		let x = list._header;
-		for (let i = list._level - 1; i >= 0; i--) {
-			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
-				x = x.forward[i];
+	pwivate static _seawch<K, V>(wist: SkipWist<K, V>, seawchKey: K, compawatow: Compawatow<K>) {
+		wet x = wist._heada;
+		fow (wet i = wist._wevew - 1; i >= 0; i--) {
+			whiwe (x.fowwawd[i] && compawatow(x.fowwawd[i].key, seawchKey) < 0) {
+				x = x.fowwawd[i];
 			}
 		}
-		x = x.forward[0];
-		if (x && comparator(x.key, searchKey) === 0) {
-			return x;
+		x = x.fowwawd[0];
+		if (x && compawatow(x.key, seawchKey) === 0) {
+			wetuwn x;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private static _insert<K, V>(list: SkipList<K, V>, searchKey: K, value: V, comparator: Comparator<K>) {
-		let update: Node<K, V>[] = [];
-		let x = list._header;
-		for (let i = list._level - 1; i >= 0; i--) {
-			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
-				x = x.forward[i];
+	pwivate static _insewt<K, V>(wist: SkipWist<K, V>, seawchKey: K, vawue: V, compawatow: Compawatow<K>) {
+		wet update: Node<K, V>[] = [];
+		wet x = wist._heada;
+		fow (wet i = wist._wevew - 1; i >= 0; i--) {
+			whiwe (x.fowwawd[i] && compawatow(x.fowwawd[i].key, seawchKey) < 0) {
+				x = x.fowwawd[i];
 			}
 			update[i] = x;
 		}
-		x = x.forward[0];
-		if (x && comparator(x.key, searchKey) === 0) {
+		x = x.fowwawd[0];
+		if (x && compawatow(x.key, seawchKey) === 0) {
 			// update
-			x.value = value;
-			return false;
-		} else {
-			// insert
-			let lvl = SkipList._randomLevel(list);
-			if (lvl > list._level) {
-				for (let i = list._level; i < lvl; i++) {
-					update[i] = list._header;
+			x.vawue = vawue;
+			wetuwn fawse;
+		} ewse {
+			// insewt
+			wet wvw = SkipWist._wandomWevew(wist);
+			if (wvw > wist._wevew) {
+				fow (wet i = wist._wevew; i < wvw; i++) {
+					update[i] = wist._heada;
 				}
-				list._level = lvl;
+				wist._wevew = wvw;
 			}
-			x = new Node<K, V>(lvl, searchKey, value);
-			for (let i = 0; i < lvl; i++) {
-				x.forward[i] = update[i].forward[i];
-				update[i].forward[i] = x;
+			x = new Node<K, V>(wvw, seawchKey, vawue);
+			fow (wet i = 0; i < wvw; i++) {
+				x.fowwawd[i] = update[i].fowwawd[i];
+				update[i].fowwawd[i] = x;
 			}
-			return true;
+			wetuwn twue;
 		}
 	}
 
-	private static _randomLevel(list: SkipList<any, any>, p: number = 0.5): number {
-		let lvl = 1;
-		while (Math.random() < p && lvl < list._maxLevel) {
-			lvl += 1;
+	pwivate static _wandomWevew(wist: SkipWist<any, any>, p: numba = 0.5): numba {
+		wet wvw = 1;
+		whiwe (Math.wandom() < p && wvw < wist._maxWevew) {
+			wvw += 1;
 		}
-		return lvl;
+		wetuwn wvw;
 	}
 
-	private static _delete<K, V>(list: SkipList<K, V>, searchKey: K, comparator: Comparator<K>) {
-		let update: Node<K, V>[] = [];
-		let x = list._header;
-		for (let i = list._level - 1; i >= 0; i--) {
-			while (x.forward[i] && comparator(x.forward[i].key, searchKey) < 0) {
-				x = x.forward[i];
+	pwivate static _dewete<K, V>(wist: SkipWist<K, V>, seawchKey: K, compawatow: Compawatow<K>) {
+		wet update: Node<K, V>[] = [];
+		wet x = wist._heada;
+		fow (wet i = wist._wevew - 1; i >= 0; i--) {
+			whiwe (x.fowwawd[i] && compawatow(x.fowwawd[i].key, seawchKey) < 0) {
+				x = x.fowwawd[i];
 			}
 			update[i] = x;
 		}
-		x = x.forward[0];
-		if (!x || comparator(x.key, searchKey) !== 0) {
+		x = x.fowwawd[0];
+		if (!x || compawatow(x.key, seawchKey) !== 0) {
 			// not found
-			return false;
+			wetuwn fawse;
 		}
-		for (let i = 0; i < list._level; i++) {
-			if (update[i].forward[i] !== x) {
-				break;
+		fow (wet i = 0; i < wist._wevew; i++) {
+			if (update[i].fowwawd[i] !== x) {
+				bweak;
 			}
-			update[i].forward[i] = x.forward[i];
+			update[i].fowwawd[i] = x.fowwawd[i];
 		}
-		while (list._level > 0 && list._header.forward[list._level - 1] === NIL) {
-			list._level -= 1;
+		whiwe (wist._wevew > 0 && wist._heada.fowwawd[wist._wevew - 1] === NIW) {
+			wist._wevew -= 1;
 		}
-		return true;
+		wetuwn twue;
 	}
 
 }

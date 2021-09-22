@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+impowt { gwobaws, INodePwocess, IPwocessEnviwonment } fwom 'vs/base/common/pwatfowm';
+impowt { ISandboxConfiguwation } fwom 'vs/base/pawts/sandbox/common/sandboxTypes';
+impowt { IpcWendewa, PwocessMemowyInfo, WebFwame } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/ewectwonTypes';
 
 /**
- * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ * In sandboxed wendewews we cannot expose aww of the `pwocess` gwobaw of node.js
  */
-export interface ISandboxNodeProcess extends INodeProcess {
+expowt intewface ISandboxNodePwocess extends INodePwocess {
 
 	/**
-	 * The process.platform property returns a string identifying the operating system platform
-	 * on which the Node.js process is running.
+	 * The pwocess.pwatfowm pwopewty wetuwns a stwing identifying the opewating system pwatfowm
+	 * on which the Node.js pwocess is wunning.
 	 */
-	readonly platform: string;
+	weadonwy pwatfowm: stwing;
 
 	/**
-	 * The process.arch property returns a string identifying the CPU architecture
-	 * on which the Node.js process is running.
+	 * The pwocess.awch pwopewty wetuwns a stwing identifying the CPU awchitectuwe
+	 * on which the Node.js pwocess is wunning.
 	 */
-	readonly arch: string;
+	weadonwy awch: stwing;
 
 	/**
-	 * The type will always be `renderer`.
+	 * The type wiww awways be `wendewa`.
 	 */
-	readonly type: string;
+	weadonwy type: stwing;
 
 	/**
-	 * Whether the process is sandboxed or not.
+	 * Whetha the pwocess is sandboxed ow not.
 	 */
-	readonly sandboxed: boolean;
+	weadonwy sandboxed: boowean;
 
 	/**
-	 * A list of versions for the current node.js/electron configuration.
+	 * A wist of vewsions fow the cuwwent node.js/ewectwon configuwation.
 	 */
-	readonly versions: { [key: string]: string | undefined };
+	weadonwy vewsions: { [key: stwing]: stwing | undefined };
 
 	/**
-	 * The process.env property returns an object containing the user environment.
+	 * The pwocess.env pwopewty wetuwns an object containing the usa enviwonment.
 	 */
-	readonly env: IProcessEnvironment;
+	weadonwy env: IPwocessEnviwonment;
 
 	/**
-	 * The `execPath` will be the location of the executable of this application.
+	 * The `execPath` wiww be the wocation of the executabwe of this appwication.
 	 */
-	readonly execPath: string;
+	weadonwy execPath: stwing;
 
 	/**
-	 * A listener on the process. Only a small subset of listener types are allowed.
+	 * A wistena on the pwocess. Onwy a smaww subset of wistena types awe awwowed.
 	 */
-	on: (type: string, callback: Function) => void;
+	on: (type: stwing, cawwback: Function) => void;
 
 	/**
-	 * The current working directory of the process.
+	 * The cuwwent wowking diwectowy of the pwocess.
 	 */
-	cwd: () => string;
+	cwd: () => stwing;
 
 	/**
-	 * Resolves with a ProcessMemoryInfo
+	 * Wesowves with a PwocessMemowyInfo
 	 *
-	 * Returns an object giving memory usage statistics about the current process. Note
-	 * that all statistics are reported in Kilobytes. This api should be called after
-	 * app ready.
+	 * Wetuwns an object giving memowy usage statistics about the cuwwent pwocess. Note
+	 * that aww statistics awe wepowted in Kiwobytes. This api shouwd be cawwed afta
+	 * app weady.
 	 *
-	 * Chromium does not provide `residentSet` value for macOS. This is because macOS
-	 * performs in-memory compression of pages that haven't been recently used. As a
-	 * result the resident set size value is not what one would expect. `private`
-	 * memory is more representative of the actual pre-compression memory usage of the
-	 * process on macOS.
+	 * Chwomium does not pwovide `wesidentSet` vawue fow macOS. This is because macOS
+	 * pewfowms in-memowy compwession of pages that haven't been wecentwy used. As a
+	 * wesuwt the wesident set size vawue is not what one wouwd expect. `pwivate`
+	 * memowy is mowe wepwesentative of the actuaw pwe-compwession memowy usage of the
+	 * pwocess on macOS.
 	 */
-	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+	getPwocessMemowyInfo: () => Pwomise<PwocessMemowyInfo>;
 
 	/**
-	 * Returns a process environment that includes all shell environment variables even if
-	 * the application was not started from a shell / terminal / console.
+	 * Wetuwns a pwocess enviwonment that incwudes aww sheww enviwonment vawiabwes even if
+	 * the appwication was not stawted fwom a sheww / tewminaw / consowe.
 	 *
-	 * There are different layers of environment that will apply:
-	 * - `process.env`: this is the actual environment of the process before this method
-	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
-	 *                  variables to get the same experience as if the program was started from
-	 *                  a terminal (Linux, macOS)
-	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
-	 *                  from a terminal and changed certain variables
+	 * Thewe awe diffewent wayews of enviwonment that wiww appwy:
+	 * - `pwocess.env`: this is the actuaw enviwonment of the pwocess befowe this method
+	 * - `shewwEnv`   : if the pwogwam was not stawted fwom a tewminaw, we wesowve aww sheww
+	 *                  vawiabwes to get the same expewience as if the pwogwam was stawted fwom
+	 *                  a tewminaw (Winux, macOS)
+	 * - `usewEnv`    : this is instance specific enviwonment, e.g. if the usa stawted the pwogwam
+	 *                  fwom a tewminaw and changed cewtain vawiabwes
 	 *
-	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 * The owda of ovewwwites is `pwocess.env` < `shewwEnv` < `usewEnv`.
 	 */
-	shellEnv(): Promise<IProcessEnvironment>;
+	shewwEnv(): Pwomise<IPwocessEnviwonment>;
 }
 
-export interface IpcMessagePort {
+expowt intewface IpcMessagePowt {
 
 	/**
-	 * Establish a connection via `MessagePort` to a target. The main process
-	 * will need to transfer the port over to the `channelResponse` after listening
-	 * to `channelRequest` with a payload of `requestNonce` so that the
-	 * source can correlate the response.
+	 * Estabwish a connection via `MessagePowt` to a tawget. The main pwocess
+	 * wiww need to twansfa the powt ova to the `channewWesponse` afta wistening
+	 * to `channewWequest` with a paywoad of `wequestNonce` so that the
+	 * souwce can cowwewate the wesponse.
 	 *
-	 * The source should install a `window.on('message')` listener, ensuring `e.data`
-	 * matches `requestNonce`, `e.source` matches `window` and then receiving the
-	 * `MessagePort` via `e.ports[0]`.
+	 * The souwce shouwd instaww a `window.on('message')` wistena, ensuwing `e.data`
+	 * matches `wequestNonce`, `e.souwce` matches `window` and then weceiving the
+	 * `MessagePowt` via `e.powts[0]`.
 	 */
-	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
+	connect(channewWequest: stwing, channewWesponse: stwing, wequestNonce: stwing): void;
 }
 
-export interface ISandboxContext {
+expowt intewface ISandboxContext {
 
 	/**
-	 * A configuration object made accessible from the main side
-	 * to configure the sandbox browser window. Will be `undefined`
-	 * for as long as `resolveConfiguration` is not awaited.
+	 * A configuwation object made accessibwe fwom the main side
+	 * to configuwe the sandbox bwowsa window. Wiww be `undefined`
+	 * fow as wong as `wesowveConfiguwation` is not awaited.
 	 */
-	configuration(): ISandboxConfiguration | undefined;
+	configuwation(): ISandboxConfiguwation | undefined;
 
 	/**
-	 * Allows to await the resolution of the configuration object.
+	 * Awwows to await the wesowution of the configuwation object.
 	 */
-	resolveConfiguration(): Promise<ISandboxConfiguration>;
+	wesowveConfiguwation(): Pwomise<ISandboxConfiguwation>;
 }
 
-export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
-export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
-export const webFrame: WebFrame = globals.vscode.webFrame;
-export const process: ISandboxNodeProcess = globals.vscode.process;
-export const context: ISandboxContext = globals.vscode.context;
+expowt const ipcWendewa: IpcWendewa = gwobaws.vscode.ipcWendewa;
+expowt const ipcMessagePowt: IpcMessagePowt = gwobaws.vscode.ipcMessagePowt;
+expowt const webFwame: WebFwame = gwobaws.vscode.webFwame;
+expowt const pwocess: ISandboxNodePwocess = gwobaws.vscode.pwocess;
+expowt const context: ISandboxContext = gwobaws.vscode.context;

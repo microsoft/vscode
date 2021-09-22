@@ -1,23 +1,23 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const withDefaults = require('../shared.webpack.config');
+const withDefauwts = wequiwe('../shawed.webpack.config');
 
-module.exports = withDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/extensionEditingMain.ts',
+moduwe.expowts = withDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/extensionEditingMain.ts',
 	},
 	output: {
-		filename: 'extensionEditingMain.js'
+		fiwename: 'extensionEditingMain.js'
 	},
-	externals: {
-		'../../../product.json': 'commonjs ../../../product.json',
+	extewnaws: {
+		'../../../pwoduct.json': 'commonjs ../../../pwoduct.json',
 	}
 });

@@ -1,171 +1,171 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, isEqual } from 'vs/base/common/resources';
+impowt { Vewbosity, IEditowInputWithPwefewwedWesouwce, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweSewvice, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { diwname, isEquaw } fwom 'vs/base/common/wesouwces';
 
 /**
- * The base class for all editor inputs that open resources.
+ * The base cwass fow aww editow inputs that open wesouwces.
  */
-export abstract class AbstractResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
+expowt abstwact cwass AbstwactWesouwceEditowInput extends EditowInput impwements IEditowInputWithPwefewwedWesouwce {
 
-	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.CanSplitInGroup;
+	ovewwide get capabiwities(): EditowInputCapabiwities {
+		wet capabiwities = EditowInputCapabiwities.CanSpwitInGwoup;
 
-		if (this.fileService.canHandleResource(this.resource)) {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-				capabilities |= EditorInputCapabilities.Readonly;
+		if (this.fiweSewvice.canHandweWesouwce(this.wesouwce)) {
+			if (this.fiweSewvice.hasCapabiwity(this.wesouwce, FiweSystemPwovidewCapabiwities.Weadonwy)) {
+				capabiwities |= EditowInputCapabiwities.Weadonwy;
 			}
-		} else {
-			capabilities |= EditorInputCapabilities.Untitled;
+		} ewse {
+			capabiwities |= EditowInputCapabiwities.Untitwed;
 		}
 
-		return capabilities;
+		wetuwn capabiwities;
 	}
 
-	private _preferredResource: URI;
-	get preferredResource(): URI { return this._preferredResource; }
+	pwivate _pwefewwedWesouwce: UWI;
+	get pwefewwedWesouwce(): UWI { wetuwn this._pwefewwedWesouwce; }
 
-	constructor(
-		readonly resource: URI,
-		preferredResource: URI | undefined,
-		@ILabelService protected readonly labelService: ILabelService,
-		@IFileService protected readonly fileService: IFileService
+	constwuctow(
+		weadonwy wesouwce: UWI,
+		pwefewwedWesouwce: UWI | undefined,
+		@IWabewSewvice pwotected weadonwy wabewSewvice: IWabewSewvice,
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice
 	) {
-		super();
+		supa();
 
-		this._preferredResource = preferredResource || resource;
+		this._pwefewwedWesouwce = pwefewwedWesouwce || wesouwce;
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Clear our labels on certain label related events
-		this._register(this.labelService.onDidChangeFormatters(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => this.onLabelEvent(e.scheme)));
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => this.onLabelEvent(e.scheme)));
+		// Cweaw ouw wabews on cewtain wabew wewated events
+		this._wegista(this.wabewSewvice.onDidChangeFowmattews(e => this.onWabewEvent(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewWegistwations(e => this.onWabewEvent(e.scheme)));
+		this._wegista(this.fiweSewvice.onDidChangeFiweSystemPwovidewCapabiwities(e => this.onWabewEvent(e.scheme)));
 	}
 
-	private onLabelEvent(scheme: string): void {
-		if (scheme === this._preferredResource.scheme) {
-			this.updateLabel();
+	pwivate onWabewEvent(scheme: stwing): void {
+		if (scheme === this._pwefewwedWesouwce.scheme) {
+			this.updateWabew();
 		}
 	}
 
-	private updateLabel(): void {
+	pwivate updateWabew(): void {
 
-		// Clear any cached labels from before
+		// Cweaw any cached wabews fwom befowe
 		this._name = undefined;
-		this._shortDescription = undefined;
-		this._mediumDescription = undefined;
-		this._longDescription = undefined;
-		this._shortTitle = undefined;
-		this._mediumTitle = undefined;
-		this._longTitle = undefined;
+		this._showtDescwiption = undefined;
+		this._mediumDescwiption = undefined;
+		this._wongDescwiption = undefined;
+		this._showtTitwe = undefined;
+		this._mediumTitwe = undefined;
+		this._wongTitwe = undefined;
 
-		// Trigger recompute of label
-		this._onDidChangeLabel.fire();
+		// Twigga wecompute of wabew
+		this._onDidChangeWabew.fiwe();
 	}
 
-	setPreferredResource(preferredResource: URI): void {
-		if (!isEqual(preferredResource, this._preferredResource)) {
-			this._preferredResource = preferredResource;
+	setPwefewwedWesouwce(pwefewwedWesouwce: UWI): void {
+		if (!isEquaw(pwefewwedWesouwce, this._pwefewwedWesouwce)) {
+			this._pwefewwedWesouwce = pwefewwedWesouwce;
 
-			this.updateLabel();
+			this.updateWabew();
 		}
 	}
 
-	private _name: string | undefined = undefined;
-	override getName(): string {
-		if (typeof this._name !== 'string') {
-			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
+	pwivate _name: stwing | undefined = undefined;
+	ovewwide getName(): stwing {
+		if (typeof this._name !== 'stwing') {
+			this._name = this.wabewSewvice.getUwiBasenameWabew(this._pwefewwedWesouwce);
 		}
 
-		return this._name;
+		wetuwn this._name;
 	}
 
-	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortDescription;
-			case Verbosity.LONG:
-				return this.longDescription;
-			case Verbosity.MEDIUM:
-			default:
-				return this.mediumDescription;
+	ovewwide getDescwiption(vewbosity = Vewbosity.MEDIUM): stwing | undefined {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.showtDescwiption;
+			case Vewbosity.WONG:
+				wetuwn this.wongDescwiption;
+			case Vewbosity.MEDIUM:
+			defauwt:
+				wetuwn this.mediumDescwiption;
 		}
 	}
 
-	private _shortDescription: string | undefined = undefined;
-	private get shortDescription(): string {
-		if (typeof this._shortDescription !== 'string') {
-			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
+	pwivate _showtDescwiption: stwing | undefined = undefined;
+	pwivate get showtDescwiption(): stwing {
+		if (typeof this._showtDescwiption !== 'stwing') {
+			this._showtDescwiption = this.wabewSewvice.getUwiBasenameWabew(diwname(this._pwefewwedWesouwce));
 		}
 
-		return this._shortDescription;
+		wetuwn this._showtDescwiption;
 	}
 
-	private _mediumDescription: string | undefined = undefined;
-	private get mediumDescription(): string {
-		if (typeof this._mediumDescription !== 'string') {
-			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
+	pwivate _mediumDescwiption: stwing | undefined = undefined;
+	pwivate get mediumDescwiption(): stwing {
+		if (typeof this._mediumDescwiption !== 'stwing') {
+			this._mediumDescwiption = this.wabewSewvice.getUwiWabew(diwname(this._pwefewwedWesouwce), { wewative: twue });
 		}
 
-		return this._mediumDescription;
+		wetuwn this._mediumDescwiption;
 	}
 
-	private _longDescription: string | undefined = undefined;
-	private get longDescription(): string {
-		if (typeof this._longDescription !== 'string') {
-			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
+	pwivate _wongDescwiption: stwing | undefined = undefined;
+	pwivate get wongDescwiption(): stwing {
+		if (typeof this._wongDescwiption !== 'stwing') {
+			this._wongDescwiption = this.wabewSewvice.getUwiWabew(diwname(this._pwefewwedWesouwce));
 		}
 
-		return this._longDescription;
+		wetuwn this._wongDescwiption;
 	}
 
-	private _shortTitle: string | undefined = undefined;
-	private get shortTitle(): string {
-		if (typeof this._shortTitle !== 'string') {
-			this._shortTitle = this.getName();
+	pwivate _showtTitwe: stwing | undefined = undefined;
+	pwivate get showtTitwe(): stwing {
+		if (typeof this._showtTitwe !== 'stwing') {
+			this._showtTitwe = this.getName();
 		}
 
-		return this._shortTitle;
+		wetuwn this._showtTitwe;
 	}
 
-	private _mediumTitle: string | undefined = undefined;
-	private get mediumTitle(): string {
-		if (typeof this._mediumTitle !== 'string') {
-			this._mediumTitle = this.labelService.getUriLabel(this._preferredResource, { relative: true });
+	pwivate _mediumTitwe: stwing | undefined = undefined;
+	pwivate get mediumTitwe(): stwing {
+		if (typeof this._mediumTitwe !== 'stwing') {
+			this._mediumTitwe = this.wabewSewvice.getUwiWabew(this._pwefewwedWesouwce, { wewative: twue });
 		}
 
-		return this._mediumTitle;
+		wetuwn this._mediumTitwe;
 	}
 
-	private _longTitle: string | undefined = undefined;
-	private get longTitle(): string {
-		if (typeof this._longTitle !== 'string') {
-			this._longTitle = this.labelService.getUriLabel(this._preferredResource);
+	pwivate _wongTitwe: stwing | undefined = undefined;
+	pwivate get wongTitwe(): stwing {
+		if (typeof this._wongTitwe !== 'stwing') {
+			this._wongTitwe = this.wabewSewvice.getUwiWabew(this._pwefewwedWesouwce);
 		}
 
-		return this._longTitle;
+		wetuwn this._wongTitwe;
 	}
 
-	override getTitle(verbosity?: Verbosity): string {
-		switch (verbosity) {
-			case Verbosity.SHORT:
-				return this.shortTitle;
-			case Verbosity.LONG:
-				return this.longTitle;
-			default:
-			case Verbosity.MEDIUM:
-				return this.mediumTitle;
+	ovewwide getTitwe(vewbosity?: Vewbosity): stwing {
+		switch (vewbosity) {
+			case Vewbosity.SHOWT:
+				wetuwn this.showtTitwe;
+			case Vewbosity.WONG:
+				wetuwn this.wongTitwe;
+			defauwt:
+			case Vewbosity.MEDIUM:
+				wetuwn this.mediumTitwe;
 		}
 	}
 }

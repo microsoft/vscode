@@ -1,331 +1,331 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifierFromKey, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { EditPreferenceWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt { EventHewpa, getDomNodePagePosition } fwom 'vs/base/bwowsa/dom';
+impowt { IAction, SubmenuAction } fwom 'vs/base/common/actions';
+impowt { Dewaya } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { ICodeEditow, IEditowMouseEvent, MouseTawgetType } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt * as editowCommon fwom 'vs/editow/common/editowCommon';
+impowt { IModewDewtaDecowation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt * as nws fwom 'vs/nws';
+impowt { ConfiguwationTawget, IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ConfiguwationScope, Extensions as ConfiguwationExtensions, IConfiguwationPwopewtySchema, IConfiguwationWegistwy, ovewwideIdentifiewFwomKey, OVEWWIDE_PWOPEWTY_PATTEWN } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMawkewData, IMawkewSewvice, MawkewSevewity, MawkewTag } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { WangeHighwightDecowations } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { settingsEditIcon } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesIcons';
+impowt { EditPwefewenceWidget } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesWidgets';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwefewencesEditowModew, IPwefewencesSewvice, ISetting, ISettingsEditowModew, ISettingsGwoup } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { DefauwtSettingsEditowModew, SettingsEditowModew, WowkspaceConfiguwationEditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export interface IPreferencesRenderer extends IDisposable {
-	render(): void;
-	updatePreference(key: string, value: any, source: ISetting): void;
-	focusPreference(setting: ISetting): void;
-	clearFocus(setting: ISetting): void;
-	editPreference(setting: ISetting): boolean;
+expowt intewface IPwefewencesWendewa extends IDisposabwe {
+	wenda(): void;
+	updatePwefewence(key: stwing, vawue: any, souwce: ISetting): void;
+	focusPwefewence(setting: ISetting): void;
+	cweawFocus(setting: ISetting): void;
+	editPwefewence(setting: ISetting): boowean;
 }
 
-export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer {
+expowt cwass UsewSettingsWendewa extends Disposabwe impwements IPwefewencesWendewa {
 
-	private settingHighlighter: SettingHighlighter;
-	private editSettingActionRenderer: EditSettingRenderer;
-	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
-	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
+	pwivate settingHighwighta: SettingHighwighta;
+	pwivate editSettingActionWendewa: EditSettingWendewa;
+	pwivate modewChangeDewaya: Dewaya<void> = new Dewaya<void>(200);
+	pwivate associatedPwefewencesModew!: IPwefewencesEditowModew<ISetting>;
 
-	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
+	pwivate unsuppowtedSettingsWendewa: UnsuppowtedSettingsWendewa;
 
-	constructor(protected editor: ICodeEditor, readonly preferencesModel: SettingsEditorModel,
-		@IPreferencesService protected preferencesService: IPreferencesService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+	constwuctow(pwotected editow: ICodeEditow, weadonwy pwefewencesModew: SettingsEditowModew,
+		@IPwefewencesSewvice pwotected pwefewencesSewvice: IPwefewencesSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
-		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor));
-		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
-		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
+		supa();
+		this.settingHighwighta = this._wegista(instantiationSewvice.cweateInstance(SettingHighwighta, editow));
+		this.editSettingActionWendewa = this._wegista(this.instantiationSewvice.cweateInstance(EditSettingWendewa, this.editow, this.pwefewencesModew, this.settingHighwighta));
+		this._wegista(this.editSettingActionWendewa.onUpdateSetting(({ key, vawue, souwce }) => this.updatePwefewence(key, vawue, souwce)));
+		this._wegista(this.editow.getModew()!.onDidChangeContent(() => this.modewChangeDewaya.twigga(() => this.onModewChanged())));
+		this.unsuppowtedSettingsWendewa = this._wegista(instantiationSewvice.cweateInstance(UnsuppowtedSettingsWendewa, editow, pwefewencesModew));
 	}
 
-	render(): void {
-		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this.associatedPreferencesModel);
-		this.unsupportedSettingsRenderer.render();
+	wenda(): void {
+		this.editSettingActionWendewa.wenda(this.pwefewencesModew.settingsGwoups, this.associatedPwefewencesModew);
+		this.unsuppowtedSettingsWendewa.wenda();
 	}
 
-	updatePreference(key: string, value: any, source: IIndexedSetting): void {
-		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
-		const resource = this.preferencesModel.uri;
-		this.configurationService.updateValue(key, value, { overrideIdentifier, resource }, this.preferencesModel.configurationTarget)
-			.then(() => this.onSettingUpdated(source));
+	updatePwefewence(key: stwing, vawue: any, souwce: IIndexedSetting): void {
+		const ovewwideIdentifia = souwce.ovewwideOf ? ovewwideIdentifiewFwomKey(souwce.ovewwideOf.key) : nuww;
+		const wesouwce = this.pwefewencesModew.uwi;
+		this.configuwationSewvice.updateVawue(key, vawue, { ovewwideIdentifia, wesouwce }, this.pwefewencesModew.configuwationTawget)
+			.then(() => this.onSettingUpdated(souwce));
 	}
 
-	private onModelChanged(): void {
-		if (!this.editor.hasModel()) {
-			// model could have been disposed during the delay
-			return;
+	pwivate onModewChanged(): void {
+		if (!this.editow.hasModew()) {
+			// modew couwd have been disposed duwing the deway
+			wetuwn;
 		}
-		this.render();
+		this.wenda();
 	}
 
-	private onSettingUpdated(setting: ISetting) {
-		this.editor.focus();
+	pwivate onSettingUpdated(setting: ISetting) {
+		this.editow.focus();
 		setting = this.getSetting(setting)!;
 		if (setting) {
-			// TODO:@sandy Selection range should be template range
-			this.editor.setSelection(setting.valueRange);
-			this.settingHighlighter.highlight(setting, true);
+			// TODO:@sandy Sewection wange shouwd be tempwate wange
+			this.editow.setSewection(setting.vawueWange);
+			this.settingHighwighta.highwight(setting, twue);
 		}
 	}
 
-	private getSetting(setting: ISetting): ISetting | undefined {
-		const { key, overrideOf } = setting;
-		if (overrideOf) {
-			const setting = this.getSetting(overrideOf);
-			for (const override of setting!.overrides!) {
-				if (override.key === key) {
-					return override;
+	pwivate getSetting(setting: ISetting): ISetting | undefined {
+		const { key, ovewwideOf } = setting;
+		if (ovewwideOf) {
+			const setting = this.getSetting(ovewwideOf);
+			fow (const ovewwide of setting!.ovewwides!) {
+				if (ovewwide.key === key) {
+					wetuwn ovewwide;
 				}
 			}
-			return undefined;
+			wetuwn undefined;
 		}
 
-		return this.preferencesModel.getPreference(key);
+		wetuwn this.pwefewencesModew.getPwefewence(key);
 	}
 
-	focusPreference(setting: ISetting): void {
+	focusPwefewence(setting: ISetting): void {
 		const s = this.getSetting(setting);
 		if (s) {
-			this.settingHighlighter.highlight(s, true);
-			this.editor.setPosition({ lineNumber: s.keyRange.startLineNumber, column: s.keyRange.startColumn });
-		} else {
-			this.settingHighlighter.clear(true);
+			this.settingHighwighta.highwight(s, twue);
+			this.editow.setPosition({ wineNumba: s.keyWange.stawtWineNumba, cowumn: s.keyWange.stawtCowumn });
+		} ewse {
+			this.settingHighwighta.cweaw(twue);
 		}
 	}
 
-	clearFocus(setting: ISetting): void {
-		this.settingHighlighter.clear(true);
+	cweawFocus(setting: ISetting): void {
+		this.settingHighwighta.cweaw(twue);
 	}
 
-	editPreference(setting: ISetting): boolean {
-		const editableSetting = this.getSetting(setting);
-		return !!(editableSetting && this.editSettingActionRenderer.activateOnSetting(editableSetting));
+	editPwefewence(setting: ISetting): boowean {
+		const editabweSetting = this.getSetting(setting);
+		wetuwn !!(editabweSetting && this.editSettingActionWendewa.activateOnSetting(editabweSetting));
 	}
 }
 
-export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer {
+expowt cwass WowkspaceSettingsWendewa extends UsewSettingsWendewa impwements IPwefewencesWendewa {
 
-	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
+	pwivate wowkspaceConfiguwationWendewa: WowkspaceConfiguwationWendewa;
 
-	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
-		@IPreferencesService preferencesService: IPreferencesService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(editow: ICodeEditow, pwefewencesModew: SettingsEditowModew,
+		@IPwefewencesSewvice pwefewencesSewvice: IPwefewencesSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
+		supa(editow, pwefewencesModew, pwefewencesSewvice, configuwationSewvice, instantiationSewvice);
+		this.wowkspaceConfiguwationWendewa = this._wegista(instantiationSewvice.cweateInstance(WowkspaceConfiguwationWendewa, editow, pwefewencesModew));
 	}
 
-	override render(): void {
-		super.render();
-		this.workspaceConfigurationRenderer.render();
+	ovewwide wenda(): void {
+		supa.wenda();
+		this.wowkspaceConfiguwationWendewa.wenda();
 	}
 }
 
-export interface IIndexedSetting extends ISetting {
-	index: number;
-	groupId: string;
+expowt intewface IIndexedSetting extends ISetting {
+	index: numba;
+	gwoupId: stwing;
 }
 
-class EditSettingRenderer extends Disposable {
+cwass EditSettingWendewa extends Disposabwe {
 
-	private editPreferenceWidgetForCursorPosition: EditPreferenceWidget<IIndexedSetting>;
-	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<IIndexedSetting>;
+	pwivate editPwefewenceWidgetFowCuwsowPosition: EditPwefewenceWidget<IIndexedSetting>;
+	pwivate editPwefewenceWidgetFowMouseMove: EditPwefewenceWidget<IIndexedSetting>;
 
-	private settingsGroups: ISettingsGroup[] = [];
-	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
-	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
+	pwivate settingsGwoups: ISettingsGwoup[] = [];
+	associatedPwefewencesModew!: IPwefewencesEditowModew<ISetting>;
+	pwivate toggweEditPwefewencesFowMouseMoveDewaya: Dewaya<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
-	readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
+	pwivate weadonwy _onUpdateSetting: Emitta<{ key: stwing, vawue: any, souwce: IIndexedSetting }> = new Emitta<{ key: stwing, vawue: any, souwce: IIndexedSetting }>();
+	weadonwy onUpdateSetting: Event<{ key: stwing, vawue: any, souwce: IIndexedSetting }> = this._onUpdateSetting.event;
 
-	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
-		private settingHighlighter: SettingHighlighter,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+	constwuctow(pwivate editow: ICodeEditow, pwivate pwimawySettingsModew: ISettingsEditowModew,
+		pwivate settingHighwighta: SettingHighwighta,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice pwivate weadonwy contextMenuSewvice: IContextMenuSewvice
 	) {
-		super();
+		supa();
 
-		this.editPreferenceWidgetForCursorPosition = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.editPreferenceWidgetForMouseMove = <EditPreferenceWidget<IIndexedSetting>>this._register(this.instantiationService.createInstance(EditPreferenceWidget, editor));
-		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
+		this.editPwefewenceWidgetFowCuwsowPosition = <EditPwefewenceWidget<IIndexedSetting>>this._wegista(this.instantiationSewvice.cweateInstance(EditPwefewenceWidget, editow));
+		this.editPwefewenceWidgetFowMouseMove = <EditPwefewenceWidget<IIndexedSetting>>this._wegista(this.instantiationSewvice.cweateInstance(EditPwefewenceWidget, editow));
+		this.toggweEditPwefewencesFowMouseMoveDewaya = new Dewaya<void>(75);
 
-		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
-		this._register(this.editPreferenceWidgetForMouseMove.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove, e)));
+		this._wegista(this.editPwefewenceWidgetFowCuwsowPosition.onCwick(e => this.onEditSettingCwicked(this.editPwefewenceWidgetFowCuwsowPosition, e)));
+		this._wegista(this.editPwefewenceWidgetFowMouseMove.onCwick(e => this.onEditSettingCwicked(this.editPwefewenceWidgetFowMouseMove, e)));
 
-		this._register(this.editor.onDidChangeCursorPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
-		this._register(this.editor.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
-		this._register(this.editor.onDidChangeConfiguration(() => this.onConfigurationChanged()));
+		this._wegista(this.editow.onDidChangeCuwsowPosition(positionChangeEvent => this.onPositionChanged(positionChangeEvent)));
+		this._wegista(this.editow.onMouseMove(mouseMoveEvent => this.onMouseMoved(mouseMoveEvent)));
+		this._wegista(this.editow.onDidChangeConfiguwation(() => this.onConfiguwationChanged()));
 	}
 
-	render(settingsGroups: ISettingsGroup[], associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
-		this.editPreferenceWidgetForCursorPosition.hide();
-		this.editPreferenceWidgetForMouseMove.hide();
-		this.settingsGroups = settingsGroups;
-		this.associatedPreferencesModel = associatedPreferencesModel;
+	wenda(settingsGwoups: ISettingsGwoup[], associatedPwefewencesModew: IPwefewencesEditowModew<ISetting>): void {
+		this.editPwefewenceWidgetFowCuwsowPosition.hide();
+		this.editPwefewenceWidgetFowMouseMove.hide();
+		this.settingsGwoups = settingsGwoups;
+		this.associatedPwefewencesModew = associatedPwefewencesModew;
 
-		const settings = this.getSettings(this.editor.getPosition()!.lineNumber);
-		if (settings.length) {
-			this.showEditPreferencesWidget(this.editPreferenceWidgetForCursorPosition, settings);
+		const settings = this.getSettings(this.editow.getPosition()!.wineNumba);
+		if (settings.wength) {
+			this.showEditPwefewencesWidget(this.editPwefewenceWidgetFowCuwsowPosition, settings);
 		}
 	}
 
-	private isDefaultSettings(): boolean {
-		return this.primarySettingsModel instanceof DefaultSettingsEditorModel;
+	pwivate isDefauwtSettings(): boowean {
+		wetuwn this.pwimawySettingsModew instanceof DefauwtSettingsEditowModew;
 	}
 
-	private onConfigurationChanged(): void {
-		if (!this.editor.getOption(EditorOption.glyphMargin)) {
-			this.editPreferenceWidgetForCursorPosition.hide();
-			this.editPreferenceWidgetForMouseMove.hide();
+	pwivate onConfiguwationChanged(): void {
+		if (!this.editow.getOption(EditowOption.gwyphMawgin)) {
+			this.editPwefewenceWidgetFowCuwsowPosition.hide();
+			this.editPwefewenceWidgetFowMouseMove.hide();
 		}
 	}
 
-	private onPositionChanged(positionChangeEvent: ICursorPositionChangedEvent) {
-		this.editPreferenceWidgetForMouseMove.hide();
-		const settings = this.getSettings(positionChangeEvent.position.lineNumber);
-		if (settings.length) {
-			this.showEditPreferencesWidget(this.editPreferenceWidgetForCursorPosition, settings);
-		} else {
-			this.editPreferenceWidgetForCursorPosition.hide();
+	pwivate onPositionChanged(positionChangeEvent: ICuwsowPositionChangedEvent) {
+		this.editPwefewenceWidgetFowMouseMove.hide();
+		const settings = this.getSettings(positionChangeEvent.position.wineNumba);
+		if (settings.wength) {
+			this.showEditPwefewencesWidget(this.editPwefewenceWidgetFowCuwsowPosition, settings);
+		} ewse {
+			this.editPwefewenceWidgetFowCuwsowPosition.hide();
 		}
 	}
 
-	private onMouseMoved(mouseMoveEvent: IEditorMouseEvent): void {
-		const editPreferenceWidget = this.getEditPreferenceWidgetUnderMouse(mouseMoveEvent);
-		if (editPreferenceWidget) {
-			this.onMouseOver(editPreferenceWidget);
-			return;
+	pwivate onMouseMoved(mouseMoveEvent: IEditowMouseEvent): void {
+		const editPwefewenceWidget = this.getEditPwefewenceWidgetUndewMouse(mouseMoveEvent);
+		if (editPwefewenceWidget) {
+			this.onMouseOva(editPwefewenceWidget);
+			wetuwn;
 		}
-		this.settingHighlighter.clear();
-		this.toggleEditPreferencesForMouseMoveDelayer.trigger(() => this.toggleEditPreferenceWidgetForMouseMove(mouseMoveEvent));
+		this.settingHighwighta.cweaw();
+		this.toggweEditPwefewencesFowMouseMoveDewaya.twigga(() => this.toggweEditPwefewenceWidgetFowMouseMove(mouseMoveEvent));
 	}
 
-	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> | undefined {
-		if (mouseMoveEvent.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-			const line = mouseMoveEvent.target.position!.lineNumber;
-			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
-				return this.editPreferenceWidgetForMouseMove;
+	pwivate getEditPwefewenceWidgetUndewMouse(mouseMoveEvent: IEditowMouseEvent): EditPwefewenceWidget<ISetting> | undefined {
+		if (mouseMoveEvent.tawget.type === MouseTawgetType.GUTTEW_GWYPH_MAWGIN) {
+			const wine = mouseMoveEvent.tawget.position!.wineNumba;
+			if (this.editPwefewenceWidgetFowMouseMove.getWine() === wine && this.editPwefewenceWidgetFowMouseMove.isVisibwe()) {
+				wetuwn this.editPwefewenceWidgetFowMouseMove;
 			}
-			if (this.editPreferenceWidgetForCursorPosition.getLine() === line && this.editPreferenceWidgetForCursorPosition.isVisible()) {
-				return this.editPreferenceWidgetForCursorPosition;
+			if (this.editPwefewenceWidgetFowCuwsowPosition.getWine() === wine && this.editPwefewenceWidgetFowCuwsowPosition.isVisibwe()) {
+				wetuwn this.editPwefewenceWidgetFowCuwsowPosition;
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private toggleEditPreferenceWidgetForMouseMove(mouseMoveEvent: IEditorMouseEvent): void {
-		const settings = mouseMoveEvent.target.position ? this.getSettings(mouseMoveEvent.target.position.lineNumber) : null;
-		if (settings && settings.length) {
-			this.showEditPreferencesWidget(this.editPreferenceWidgetForMouseMove, settings);
-		} else {
-			this.editPreferenceWidgetForMouseMove.hide();
+	pwivate toggweEditPwefewenceWidgetFowMouseMove(mouseMoveEvent: IEditowMouseEvent): void {
+		const settings = mouseMoveEvent.tawget.position ? this.getSettings(mouseMoveEvent.tawget.position.wineNumba) : nuww;
+		if (settings && settings.wength) {
+			this.showEditPwefewencesWidget(this.editPwefewenceWidgetFowMouseMove, settings);
+		} ewse {
+			this.editPwefewenceWidgetFowMouseMove.hide();
 		}
 	}
 
-	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: IIndexedSetting[]) {
-		const line = settings[0].valueRange.startLineNumber;
-		if (this.editor.getOption(EditorOption.glyphMargin) && this.marginFreeFromOtherDecorations(line)) {
-			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
-			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCursorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCursorPosition;
-			editPreferenceWidgetToHide.hide();
+	pwivate showEditPwefewencesWidget(editPwefewencesWidget: EditPwefewenceWidget<ISetting>, settings: IIndexedSetting[]) {
+		const wine = settings[0].vawueWange.stawtWineNumba;
+		if (this.editow.getOption(EditowOption.gwyphMawgin) && this.mawginFweeFwomOthewDecowations(wine)) {
+			editPwefewencesWidget.show(wine, nws.wocawize('editTtiwe', "Edit"), settings);
+			const editPwefewenceWidgetToHide = editPwefewencesWidget === this.editPwefewenceWidgetFowCuwsowPosition ? this.editPwefewenceWidgetFowMouseMove : this.editPwefewenceWidgetFowCuwsowPosition;
+			editPwefewenceWidgetToHide.hide();
 		}
 	}
 
-	private marginFreeFromOtherDecorations(line: number): boolean {
-		const decorations = this.editor.getLineDecorations(line);
-		if (decorations) {
-			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(settingsEditIcon)) === -1) {
-					return false;
+	pwivate mawginFweeFwomOthewDecowations(wine: numba): boowean {
+		const decowations = this.editow.getWineDecowations(wine);
+		if (decowations) {
+			fow (const { options } of decowations) {
+				if (options.gwyphMawginCwassName && options.gwyphMawginCwassName.indexOf(ThemeIcon.asCwassName(settingsEditIcon)) === -1) {
+					wetuwn fawse;
 				}
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private getSettings(lineNumber: number): IIndexedSetting[] {
-		const configurationMap = this.getConfigurationsMap();
-		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
-			const configurationNode = configurationMap[setting.key];
-			if (configurationNode) {
-				if (this.isDefaultSettings()) {
-					if (setting.key === 'launch') {
-						// Do not show because of https://github.com/microsoft/vscode/issues/32593
-						return false;
+	pwivate getSettings(wineNumba: numba): IIndexedSetting[] {
+		const configuwationMap = this.getConfiguwationsMap();
+		wetuwn this.getSettingsAtWineNumba(wineNumba).fiwta(setting => {
+			const configuwationNode = configuwationMap[setting.key];
+			if (configuwationNode) {
+				if (this.isDefauwtSettings()) {
+					if (setting.key === 'waunch') {
+						// Do not show because of https://github.com/micwosoft/vscode/issues/32593
+						wetuwn fawse;
 					}
-					return true;
+					wetuwn twue;
 				}
-				if (configurationNode.type === 'boolean' || configurationNode.enum) {
-					if ((<SettingsEditorModel>this.primarySettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
-						return true;
+				if (configuwationNode.type === 'boowean' || configuwationNode.enum) {
+					if ((<SettingsEditowModew>this.pwimawySettingsModew).configuwationTawget !== ConfiguwationTawget.WOWKSPACE_FOWDa) {
+						wetuwn twue;
 					}
-					if (configurationNode.scope === ConfigurationScope.RESOURCE || configurationNode.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
-						return true;
+					if (configuwationNode.scope === ConfiguwationScope.WESOUWCE || configuwationNode.scope === ConfiguwationScope.WANGUAGE_OVEWWIDABWE) {
+						wetuwn twue;
 					}
 				}
 			}
-			return false;
+			wetuwn fawse;
 		});
 	}
 
-	private getSettingsAtLineNumber(lineNumber: number): IIndexedSetting[] {
-		// index of setting, across all groups/sections
-		let index = 0;
+	pwivate getSettingsAtWineNumba(wineNumba: numba): IIndexedSetting[] {
+		// index of setting, acwoss aww gwoups/sections
+		wet index = 0;
 
 		const settings: IIndexedSetting[] = [];
-		for (const group of this.settingsGroups) {
-			if (group.range.startLineNumber > lineNumber) {
-				break;
+		fow (const gwoup of this.settingsGwoups) {
+			if (gwoup.wange.stawtWineNumba > wineNumba) {
+				bweak;
 			}
-			if (lineNumber >= group.range.startLineNumber && lineNumber <= group.range.endLineNumber) {
-				for (const section of group.sections) {
-					for (const setting of section.settings) {
-						if (setting.range.startLineNumber > lineNumber) {
-							break;
+			if (wineNumba >= gwoup.wange.stawtWineNumba && wineNumba <= gwoup.wange.endWineNumba) {
+				fow (const section of gwoup.sections) {
+					fow (const setting of section.settings) {
+						if (setting.wange.stawtWineNumba > wineNumba) {
+							bweak;
 						}
-						if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-							if (!this.isDefaultSettings() && setting.overrides!.length) {
-								// Only one level because override settings cannot have override settings
-								for (const overrideSetting of setting.overrides!) {
-									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
-										settings.push({ ...overrideSetting, index, groupId: group.id });
+						if (wineNumba >= setting.wange.stawtWineNumba && wineNumba <= setting.wange.endWineNumba) {
+							if (!this.isDefauwtSettings() && setting.ovewwides!.wength) {
+								// Onwy one wevew because ovewwide settings cannot have ovewwide settings
+								fow (const ovewwideSetting of setting.ovewwides!) {
+									if (wineNumba >= ovewwideSetting.wange.stawtWineNumba && wineNumba <= ovewwideSetting.wange.endWineNumba) {
+										settings.push({ ...ovewwideSetting, index, gwoupId: gwoup.id });
 									}
 								}
-							} else {
-								settings.push({ ...setting, index, groupId: group.id });
+							} ewse {
+								settings.push({ ...setting, index, gwoupId: gwoup.id });
 							}
 						}
 
@@ -334,391 +334,391 @@ class EditSettingRenderer extends Disposable {
 				}
 			}
 		}
-		return settings;
+		wetuwn settings;
 	}
 
-	private onMouseOver(editPreferenceWidget: EditPreferenceWidget<ISetting>): void {
-		this.settingHighlighter.highlight(editPreferenceWidget.preferences[0]);
+	pwivate onMouseOva(editPwefewenceWidget: EditPwefewenceWidget<ISetting>): void {
+		this.settingHighwighta.highwight(editPwefewenceWidget.pwefewences[0]);
 	}
 
-	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
-		EventHelper.stop(e.event, true);
+	pwivate onEditSettingCwicked(editPwefewenceWidget: EditPwefewenceWidget<IIndexedSetting>, e: IEditowMouseEvent): void {
+		EventHewpa.stop(e.event, twue);
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
-		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
-			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+		const anchow = { x: e.event.posx, y: e.event.posy };
+		const actions = this.getSettings(editPwefewenceWidget.getWine()).wength === 1 ? this.getActions(editPwefewenceWidget.pwefewences[0], this.getConfiguwationsMap()[editPwefewenceWidget.pwefewences[0].key])
+			: editPwefewenceWidget.pwefewences.map(setting => new SubmenuAction(`pwefewences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfiguwationsMap()[setting.key])));
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => anchow,
 			getActions: () => actions
 		});
 	}
 
-	activateOnSetting(setting: ISetting): boolean {
-		const startLine = setting.keyRange.startLineNumber;
-		const settings = this.getSettings(startLine);
-		if (!settings.length) {
-			return false;
+	activateOnSetting(setting: ISetting): boowean {
+		const stawtWine = setting.keyWange.stawtWineNumba;
+		const settings = this.getSettings(stawtWine);
+		if (!settings.wength) {
+			wetuwn fawse;
 		}
 
-		this.editPreferenceWidgetForMouseMove.show(startLine, '', settings);
-		const actions = this.getActions(this.editPreferenceWidgetForMouseMove.preferences[0], this.getConfigurationsMap()[this.editPreferenceWidgetForMouseMove.preferences[0].key]);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.toAbsoluteCoords(new Position(startLine, 1)),
+		this.editPwefewenceWidgetFowMouseMove.show(stawtWine, '', settings);
+		const actions = this.getActions(this.editPwefewenceWidgetFowMouseMove.pwefewences[0], this.getConfiguwationsMap()[this.editPwefewenceWidgetFowMouseMove.pwefewences[0].key]);
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => this.toAbsowuteCoowds(new Position(stawtWine, 1)),
 			getActions: () => actions
 		});
 
-		return true;
+		wetuwn twue;
 	}
 
-	private toAbsoluteCoords(position: Position): { x: number, y: number } {
-		const positionCoords = this.editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this.editor.getDomNode()!);
-		const x = editorCoords.left + positionCoords!.left;
-		const y = editorCoords.top + positionCoords!.top + positionCoords!.height;
+	pwivate toAbsowuteCoowds(position: Position): { x: numba, y: numba } {
+		const positionCoowds = this.editow.getScwowwedVisibwePosition(position);
+		const editowCoowds = getDomNodePagePosition(this.editow.getDomNode()!);
+		const x = editowCoowds.weft + positionCoowds!.weft;
+		const y = editowCoowds.top + positionCoowds!.top + positionCoowds!.height;
 
-		return { x, y: y + 10 };
+		wetuwn { x, y: y + 10 };
 	}
 
-	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
-		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+	pwivate getConfiguwationsMap(): { [quawifiedKey: stwing]: IConfiguwationPwopewtySchema } {
+		wetuwn Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
 	}
 
-	private getActions(setting: IIndexedSetting, jsonSchema: IJSONSchema): IAction[] {
-		if (jsonSchema.type === 'boolean') {
-			return [<IAction>{
-				id: 'truthyValue',
-				label: 'true',
-				enabled: true,
-				run: () => this.updateSetting(setting.key, true, setting)
+	pwivate getActions(setting: IIndexedSetting, jsonSchema: IJSONSchema): IAction[] {
+		if (jsonSchema.type === 'boowean') {
+			wetuwn [<IAction>{
+				id: 'twuthyVawue',
+				wabew: 'twue',
+				enabwed: twue,
+				wun: () => this.updateSetting(setting.key, twue, setting)
 			}, <IAction>{
-				id: 'falsyValue',
-				label: 'false',
-				enabled: true,
-				run: () => this.updateSetting(setting.key, false, setting)
+				id: 'fawsyVawue',
+				wabew: 'fawse',
+				enabwed: twue,
+				wun: () => this.updateSetting(setting.key, fawse, setting)
 			}];
 		}
 		if (jsonSchema.enum) {
-			return jsonSchema.enum.map(value => {
-				return <IAction>{
-					id: value,
-					label: JSON.stringify(value),
-					enabled: true,
-					run: () => this.updateSetting(setting.key, value, setting)
+			wetuwn jsonSchema.enum.map(vawue => {
+				wetuwn <IAction>{
+					id: vawue,
+					wabew: JSON.stwingify(vawue),
+					enabwed: twue,
+					wun: () => this.updateSetting(setting.key, vawue, setting)
 				};
 			});
 		}
-		return this.getDefaultActions(setting);
+		wetuwn this.getDefauwtActions(setting);
 	}
 
-	private getDefaultActions(setting: IIndexedSetting): IAction[] {
-		if (this.isDefaultSettings()) {
-			const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
-			return [<IAction>{
-				id: 'setDefaultValue',
-				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
-				enabled: true,
-				run: () => this.updateSetting(setting.key, setting.value, setting)
+	pwivate getDefauwtActions(setting: IIndexedSetting): IAction[] {
+		if (this.isDefauwtSettings()) {
+			const settingInOthewModew = this.associatedPwefewencesModew.getPwefewence(setting.key);
+			wetuwn [<IAction>{
+				id: 'setDefauwtVawue',
+				wabew: settingInOthewModew ? nws.wocawize('wepwaceDefauwtVawue', "Wepwace in Settings") : nws.wocawize('copyDefauwtVawue', "Copy to Settings"),
+				enabwed: twue,
+				wun: () => this.updateSetting(setting.key, setting.vawue, setting)
 			}];
 		}
-		return [];
+		wetuwn [];
 	}
 
-	private updateSetting(key: string, value: any, source: IIndexedSetting): void {
-		this._onUpdateSetting.fire({ key, value, source });
+	pwivate updateSetting(key: stwing, vawue: any, souwce: IIndexedSetting): void {
+		this._onUpdateSetting.fiwe({ key, vawue, souwce });
 	}
 }
 
-class SettingHighlighter extends Disposable {
+cwass SettingHighwighta extends Disposabwe {
 
-	private fixedHighlighter: RangeHighlightDecorations;
-	private volatileHighlighter: RangeHighlightDecorations;
+	pwivate fixedHighwighta: WangeHighwightDecowations;
+	pwivate vowatiweHighwighta: WangeHighwightDecowations;
 
-	constructor(private editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
-		super();
-		this.fixedHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
-		this.volatileHighlighter = this._register(instantiationService.createInstance(RangeHighlightDecorations));
+	constwuctow(pwivate editow: ICodeEditow, @IInstantiationSewvice instantiationSewvice: IInstantiationSewvice) {
+		supa();
+		this.fixedHighwighta = this._wegista(instantiationSewvice.cweateInstance(WangeHighwightDecowations));
+		this.vowatiweHighwighta = this._wegista(instantiationSewvice.cweateInstance(WangeHighwightDecowations));
 	}
 
-	highlight(setting: ISetting, fix: boolean = false) {
-		this.volatileHighlighter.removeHighlightRange();
-		this.fixedHighlighter.removeHighlightRange();
+	highwight(setting: ISetting, fix: boowean = fawse) {
+		this.vowatiweHighwighta.wemoveHighwightWange();
+		this.fixedHighwighta.wemoveHighwightWange();
 
-		const highlighter = fix ? this.fixedHighlighter : this.volatileHighlighter;
-		highlighter.highlightRange({
-			range: setting.valueRange,
-			resource: this.editor.getModel()!.uri
-		}, this.editor);
+		const highwighta = fix ? this.fixedHighwighta : this.vowatiweHighwighta;
+		highwighta.highwightWange({
+			wange: setting.vawueWange,
+			wesouwce: this.editow.getModew()!.uwi
+		}, this.editow);
 
-		this.editor.revealLineInCenterIfOutsideViewport(setting.valueRange.startLineNumber, editorCommon.ScrollType.Smooth);
+		this.editow.weveawWineInCentewIfOutsideViewpowt(setting.vawueWange.stawtWineNumba, editowCommon.ScwowwType.Smooth);
 	}
 
-	clear(fix: boolean = false): void {
-		this.volatileHighlighter.removeHighlightRange();
+	cweaw(fix: boowean = fawse): void {
+		this.vowatiweHighwighta.wemoveHighwightWange();
 		if (fix) {
-			this.fixedHighlighter.removeHighlightRange();
+			this.fixedHighwighta.wemoveHighwightWange();
 		}
 	}
 }
 
-class UnsupportedSettingsRenderer extends Disposable implements modes.CodeActionProvider {
+cwass UnsuppowtedSettingsWendewa extends Disposabwe impwements modes.CodeActionPwovida {
 
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	pwivate wendewingDewaya: Dewaya<void> = new Dewaya<void>(200);
 
-	private readonly codeActions = new ResourceMap<[Range, modes.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	pwivate weadonwy codeActions = new WesouwceMap<[Wange, modes.CodeAction[]][]>(uwi => this.uwiIdentitySewvice.extUwi.getCompawisonKey(uwi));
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly settingsEditorModel: SettingsEditorModel,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		pwivate weadonwy settingsEditowModew: SettingsEditowModew,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceTwustManagementSewvice pwivate weadonwy wowkspaceTwustManagementSewvice: IWowkspaceTwustManagementSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
-		this._register(modes.CodeActionProviderRegistry.register({ pattern: settingsEditorModel.uri.path }, this));
+		supa();
+		this._wegista(this.editow.getModew()!.onDidChangeContent(() => this.dewayedWenda()));
+		this._wegista(Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.souwce === ConfiguwationTawget.DEFAUWT)(() => this.dewayedWenda()));
+		this._wegista(modes.CodeActionPwovidewWegistwy.wegista({ pattewn: settingsEditowModew.uwi.path }, this));
 	}
 
-	private delayedRender(): void {
-		this.renderingDelayer.trigger(() => this.render());
+	pwivate dewayedWenda(): void {
+		this.wendewingDewaya.twigga(() => this.wenda());
 	}
 
-	public render(): void {
-		this.codeActions.clear();
-		const markerData: IMarkerData[] = this.generateMarkerData();
-		if (markerData.length) {
-			this.markerService.changeOne('UnsupportedSettingsRenderer', this.settingsEditorModel.uri, markerData);
-		} else {
-			this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
+	pubwic wenda(): void {
+		this.codeActions.cweaw();
+		const mawkewData: IMawkewData[] = this.genewateMawkewData();
+		if (mawkewData.wength) {
+			this.mawkewSewvice.changeOne('UnsuppowtedSettingsWendewa', this.settingsEditowModew.uwi, mawkewData);
+		} ewse {
+			this.mawkewSewvice.wemove('UnsuppowtedSettingsWendewa', [this.settingsEditowModew.uwi]);
 		}
 	}
 
-	async provideCodeActions(model: ITextModel, range: Range | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList> {
+	async pwovideCodeActions(modew: ITextModew, wange: Wange | Sewection, context: modes.CodeActionContext, token: CancewwationToken): Pwomise<modes.CodeActionWist> {
 		const actions: modes.CodeAction[] = [];
-		const codeActionsByRange = this.codeActions.get(model.uri);
-		if (codeActionsByRange) {
-			for (const [codeActionsRange, codeActions] of codeActionsByRange) {
-				if (codeActionsRange.containsRange(range)) {
+		const codeActionsByWange = this.codeActions.get(modew.uwi);
+		if (codeActionsByWange) {
+			fow (const [codeActionsWange, codeActions] of codeActionsByWange) {
+				if (codeActionsWange.containsWange(wange)) {
 					actions.push(...codeActions);
 				}
 			}
 		}
-		return {
+		wetuwn {
 			actions,
 			dispose: () => { }
 		};
 	}
 
-	private generateMarkerData(): IMarkerData[] {
-		const markerData: IMarkerData[] = [];
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
-			for (const section of settingsGroup.sections) {
-				for (const setting of section.settings) {
-					const configuration = configurationRegistry[setting.key];
-					if (configuration) {
-						switch (this.settingsEditorModel.configurationTarget) {
-							case ConfigurationTarget.USER_LOCAL:
-								this.handleLocalUserConfiguration(setting, configuration, markerData);
-								break;
-							case ConfigurationTarget.USER_REMOTE:
-								this.handleRemoteUserConfiguration(setting, configuration, markerData);
-								break;
-							case ConfigurationTarget.WORKSPACE:
-								this.handleWorkspaceConfiguration(setting, configuration, markerData);
-								break;
-							case ConfigurationTarget.WORKSPACE_FOLDER:
-								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
-								break;
+	pwivate genewateMawkewData(): IMawkewData[] {
+		const mawkewData: IMawkewData[] = [];
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).getConfiguwationPwopewties();
+		fow (const settingsGwoup of this.settingsEditowModew.settingsGwoups) {
+			fow (const section of settingsGwoup.sections) {
+				fow (const setting of section.settings) {
+					const configuwation = configuwationWegistwy[setting.key];
+					if (configuwation) {
+						switch (this.settingsEditowModew.configuwationTawget) {
+							case ConfiguwationTawget.USEW_WOCAW:
+								this.handweWocawUsewConfiguwation(setting, configuwation, mawkewData);
+								bweak;
+							case ConfiguwationTawget.USEW_WEMOTE:
+								this.handweWemoteUsewConfiguwation(setting, configuwation, mawkewData);
+								bweak;
+							case ConfiguwationTawget.WOWKSPACE:
+								this.handweWowkspaceConfiguwation(setting, configuwation, mawkewData);
+								bweak;
+							case ConfiguwationTawget.WOWKSPACE_FOWDa:
+								this.handweWowkspaceFowdewConfiguwation(setting, configuwation, mawkewData);
+								bweak;
 						}
-					} else if (!OVERRIDE_PROPERTY_PATTERN.test(setting.key)) { // Ignore override settings (language specific settings)
-						markerData.push({
-							severity: MarkerSeverity.Hint,
-							tags: [MarkerTag.Unnecessary],
-							...setting.range,
-							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
+					} ewse if (!OVEWWIDE_PWOPEWTY_PATTEWN.test(setting.key)) { // Ignowe ovewwide settings (wanguage specific settings)
+						mawkewData.push({
+							sevewity: MawkewSevewity.Hint,
+							tags: [MawkewTag.Unnecessawy],
+							...setting.wange,
+							message: nws.wocawize('unknown configuwation setting', "Unknown Configuwation Setting")
 						});
 					}
 				}
 			}
 		}
-		return markerData;
+		wetuwn mawkewData;
 	}
 
-	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
-			markerData.push({
-				severity: MarkerSeverity.Hint,
-				tags: [MarkerTag.Unnecessary],
-				...setting.range,
-				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open a local window.")
+	pwivate handweWocawUsewConfiguwation(setting: ISetting, configuwation: IConfiguwationPwopewtySchema, mawkewData: IMawkewData[]): void {
+		if (this.enviwonmentSewvice.wemoteAuthowity && (configuwation.scope === ConfiguwationScope.MACHINE || configuwation.scope === ConfiguwationScope.MACHINE_OVEWWIDABWE)) {
+			mawkewData.push({
+				sevewity: MawkewSevewity.Hint,
+				tags: [MawkewTag.Unnecessawy],
+				...setting.wange,
+				message: nws.wocawize('unsuppowtedWemoteMachineSetting', "This setting cannot be appwied in this window. It wiww be appwied when you open a wocaw window.")
 			});
 		}
 	}
 
-	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
-			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+	pwivate handweWemoteUsewConfiguwation(setting: ISetting, configuwation: IConfiguwationPwopewtySchema, mawkewData: IMawkewData[]): void {
+		if (configuwation.scope === ConfiguwationScope.APPWICATION) {
+			mawkewData.push(this.genewateUnsuppowtedAppwicationSettingMawka(setting));
 		}
 	}
 
-	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
-			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+	pwivate handweWowkspaceConfiguwation(setting: ISetting, configuwation: IConfiguwationPwopewtySchema, mawkewData: IMawkewData[]): void {
+		if (configuwation.scope === ConfiguwationScope.APPWICATION) {
+			mawkewData.push(this.genewateUnsuppowtedAppwicationSettingMawka(setting));
 		}
 
-		if (configuration.scope === ConfigurationScope.MACHINE) {
-			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
+		if (configuwation.scope === ConfiguwationScope.MACHINE) {
+			mawkewData.push(this.genewateUnsuppowtedMachineSettingMawka(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
-			const marker = this.generateUntrustedSettingMarker(setting);
-			markerData.push(marker);
-			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
-			this.addCodeActions(marker, codeActions);
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted() && configuwation.westwicted) {
+			const mawka = this.genewateUntwustedSettingMawka(setting);
+			mawkewData.push(mawka);
+			const codeActions = this.genewateUntwustedSettingCodeActions([mawka]);
+			this.addCodeActions(mawka, codeActions);
 		}
 	}
 
-	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (configuration.scope === ConfigurationScope.APPLICATION) {
-			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+	pwivate handweWowkspaceFowdewConfiguwation(setting: ISetting, configuwation: IConfiguwationPwopewtySchema, mawkewData: IMawkewData[]): void {
+		if (configuwation.scope === ConfiguwationScope.APPWICATION) {
+			mawkewData.push(this.genewateUnsuppowtedAppwicationSettingMawka(setting));
 		}
 
-		if (configuration.scope === ConfigurationScope.MACHINE) {
-			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
+		if (configuwation.scope === ConfiguwationScope.MACHINE) {
+			mawkewData.push(this.genewateUnsuppowtedMachineSettingMawka(setting));
 		}
 
-		if (configuration.scope === ConfigurationScope.WINDOW) {
-			markerData.push({
-				severity: MarkerSeverity.Hint,
-				tags: [MarkerTag.Unnecessary],
-				...setting.range,
-				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied in this workspace. It will be applied when you open the containing workspace folder directly.")
+		if (configuwation.scope === ConfiguwationScope.WINDOW) {
+			mawkewData.push({
+				sevewity: MawkewSevewity.Hint,
+				tags: [MawkewTag.Unnecessawy],
+				...setting.wange,
+				message: nws.wocawize('unsuppowtedWindowSetting', "This setting cannot be appwied in this wowkspace. It wiww be appwied when you open the containing wowkspace fowda diwectwy.")
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && configuration.restricted) {
-			const marker = this.generateUntrustedSettingMarker(setting);
-			markerData.push(marker);
-			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
-			this.addCodeActions(marker, codeActions);
+		if (!this.wowkspaceTwustManagementSewvice.isWowkspaceTwusted() && configuwation.westwicted) {
+			const mawka = this.genewateUntwustedSettingMawka(setting);
+			mawkewData.push(mawka);
+			const codeActions = this.genewateUntwustedSettingCodeActions([mawka]);
+			this.addCodeActions(mawka, codeActions);
 		}
 	}
 
-	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
-		return {
-			severity: MarkerSeverity.Hint,
-			tags: [MarkerTag.Unnecessary],
-			...setting.range,
-			message: nls.localize('unsupportedApplicationSetting', "This setting can be applied only in application user settings")
+	pwivate genewateUnsuppowtedAppwicationSettingMawka(setting: ISetting): IMawkewData {
+		wetuwn {
+			sevewity: MawkewSevewity.Hint,
+			tags: [MawkewTag.Unnecessawy],
+			...setting.wange,
+			message: nws.wocawize('unsuppowtedAppwicationSetting', "This setting can be appwied onwy in appwication usa settings")
 		};
 	}
 
-	private generateUnsupportedMachineSettingMarker(setting: ISetting): IMarkerData {
-		return {
-			severity: MarkerSeverity.Hint,
-			tags: [MarkerTag.Unnecessary],
-			...setting.range,
-			message: nls.localize('unsupportedMachineSetting', "This setting can only be applied in user settings in local window or in remote settings in remote window.")
+	pwivate genewateUnsuppowtedMachineSettingMawka(setting: ISetting): IMawkewData {
+		wetuwn {
+			sevewity: MawkewSevewity.Hint,
+			tags: [MawkewTag.Unnecessawy],
+			...setting.wange,
+			message: nws.wocawize('unsuppowtedMachineSetting', "This setting can onwy be appwied in usa settings in wocaw window ow in wemote settings in wemote window.")
 		};
 	}
 
-	private generateUntrustedSettingMarker(setting: ISetting): IMarkerData {
-		return {
-			severity: MarkerSeverity.Warning,
-			...setting.range,
-			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
+	pwivate genewateUntwustedSettingMawka(setting: ISetting): IMawkewData {
+		wetuwn {
+			sevewity: MawkewSevewity.Wawning,
+			...setting.wange,
+			message: nws.wocawize('untwustedSetting', "This setting can onwy be appwied in a twusted wowkspace.")
 		};
 	}
 
-	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): modes.CodeAction[] {
-		return [{
-			title: nls.localize('manage workspace trust', "Manage Workspace Trust"),
+	pwivate genewateUntwustedSettingCodeActions(diagnostics: IMawkewData[]): modes.CodeAction[] {
+		wetuwn [{
+			titwe: nws.wocawize('manage wowkspace twust', "Manage Wowkspace Twust"),
 			command: {
-				id: 'workbench.trust.manage',
-				title: nls.localize('manage workspace trust', "Manage Workspace Trust")
+				id: 'wowkbench.twust.manage',
+				titwe: nws.wocawize('manage wowkspace twust', "Manage Wowkspace Twust")
 			},
 			diagnostics,
-			kind: CodeActionKind.QuickFix.value
+			kind: CodeActionKind.QuickFix.vawue
 		}];
 	}
 
-	private addCodeActions(range: IRange, codeActions: modes.CodeAction[]): void {
-		let actions = this.codeActions.get(this.settingsEditorModel.uri);
+	pwivate addCodeActions(wange: IWange, codeActions: modes.CodeAction[]): void {
+		wet actions = this.codeActions.get(this.settingsEditowModew.uwi);
 		if (!actions) {
 			actions = [];
-			this.codeActions.set(this.settingsEditorModel.uri, actions);
+			this.codeActions.set(this.settingsEditowModew.uwi, actions);
 		}
-		actions.push([Range.lift(range), codeActions]);
+		actions.push([Wange.wift(wange), codeActions]);
 	}
 
-	public override dispose(): void {
-		this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
-		this.codeActions.clear();
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this.mawkewSewvice.wemove('UnsuppowtedSettingsWendewa', [this.settingsEditowModew.uwi]);
+		this.codeActions.cweaw();
+		supa.dispose();
 	}
 
 }
 
-class WorkspaceConfigurationRenderer extends Disposable {
-	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
+cwass WowkspaceConfiguwationWendewa extends Disposabwe {
+	pwivate static weadonwy suppowtedKeys = ['fowdews', 'tasks', 'waunch', 'extensions', 'settings', 'wemoteAuthowity', 'twansient'];
 
-	private decorationIds: string[] = [];
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	pwivate decowationIds: stwing[] = [];
+	pwivate wendewingDewaya: Dewaya<void> = new Dewaya<void>(200);
 
-	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IMarkerService private readonly markerService: IMarkerService
+	constwuctow(pwivate editow: ICodeEditow, pwivate wowkspaceSettingsEditowModew: SettingsEditowModew,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice
 	) {
-		super();
-		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
+		supa();
+		this._wegista(this.editow.getModew()!.onDidChangeContent(() => this.wendewingDewaya.twigga(() => this.wenda())));
 	}
 
-	render(): void {
-		const markerData: IMarkerData[] = [];
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
-			const ranges: IRange[] = [];
-			for (const settingsGroup of this.workspaceSettingsEditorModel.configurationGroups) {
-				for (const section of settingsGroup.sections) {
-					for (const setting of section.settings) {
-						if (!WorkspaceConfigurationRenderer.supportedKeys.includes(setting.key)) {
-							markerData.push({
-								severity: MarkerSeverity.Hint,
-								tags: [MarkerTag.Unnecessary],
-								...setting.range,
-								message: nls.localize('unsupportedProperty', "Unsupported Property")
+	wenda(): void {
+		const mawkewData: IMawkewData[] = [];
+		if (this.wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.WOWKSPACE && this.wowkspaceSettingsEditowModew instanceof WowkspaceConfiguwationEditowModew) {
+			const wanges: IWange[] = [];
+			fow (const settingsGwoup of this.wowkspaceSettingsEditowModew.configuwationGwoups) {
+				fow (const section of settingsGwoup.sections) {
+					fow (const setting of section.settings) {
+						if (!WowkspaceConfiguwationWendewa.suppowtedKeys.incwudes(setting.key)) {
+							mawkewData.push({
+								sevewity: MawkewSevewity.Hint,
+								tags: [MawkewTag.Unnecessawy],
+								...setting.wange,
+								message: nws.wocawize('unsuppowtedPwopewty', "Unsuppowted Pwopewty")
 							});
 						}
 					}
 				}
 			}
-			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
+			this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, wanges.map(wange => this.cweateDecowation(wange)));
 		}
-		if (markerData.length) {
-			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
-		} else {
-			this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
+		if (mawkewData.wength) {
+			this.mawkewSewvice.changeOne('WowkspaceConfiguwationWendewa', this.wowkspaceSettingsEditowModew.uwi, mawkewData);
+		} ewse {
+			this.mawkewSewvice.wemove('WowkspaceConfiguwationWendewa', [this.wowkspaceSettingsEditowModew.uwi]);
 		}
 	}
 
-	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
-		description: 'dim-configuration',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		inlineClassName: 'dim-configuration'
+	pwivate static weadonwy _DIM_CONFIGUWATION_ = ModewDecowationOptions.wegista({
+		descwiption: 'dim-configuwation',
+		stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges,
+		inwineCwassName: 'dim-configuwation'
 	});
 
-	private createDecoration(range: IRange): IModelDeltaDecoration {
-		return {
-			range,
-			options: WorkspaceConfigurationRenderer._DIM_CONFIGURATION_
+	pwivate cweateDecowation(wange: IWange): IModewDewtaDecowation {
+		wetuwn {
+			wange,
+			options: WowkspaceConfiguwationWendewa._DIM_CONFIGUWATION_
 		};
 	}
 
-	override dispose(): void {
-		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
-		super.dispose();
+	ovewwide dispose(): void {
+		this.mawkewSewvice.wemove('WowkspaceConfiguwationWendewa', [this.wowkspaceSettingsEditowModew.uwi]);
+		this.decowationIds = this.editow.dewtaDecowations(this.decowationIds, []);
+		supa.dispose();
 	}
 }

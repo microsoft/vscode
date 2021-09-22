@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { References } from './peek';
-import { Commands } from './workbench';
-import { Code } from './code';
+impowt { Wefewences } fwom './peek';
+impowt { Commands } fwom './wowkbench';
+impowt { Code } fwom './code';
 
-const RENAME_BOX = '.monaco-editor .monaco-editor.rename-box';
-const RENAME_INPUT = `${RENAME_BOX} .rename-input`;
-const EDITOR = (filename: string) => `.monaco-editor[data-uri$="${filename}"]`;
-const VIEW_LINES = (filename: string) => `${EDITOR(filename)} .view-lines`;
-const LINE_NUMBERS = (filename: string) => `${EDITOR(filename)} .margin .margin-view-overlays .line-numbers`;
+const WENAME_BOX = '.monaco-editow .monaco-editow.wename-box';
+const WENAME_INPUT = `${WENAME_BOX} .wename-input`;
+const EDITOW = (fiwename: stwing) => `.monaco-editow[data-uwi$="${fiwename}"]`;
+const VIEW_WINES = (fiwename: stwing) => `${EDITOW(fiwename)} .view-wines`;
+const WINE_NUMBEWS = (fiwename: stwing) => `${EDITOW(fiwename)} .mawgin .mawgin-view-ovewways .wine-numbews`;
 
-export class Editor {
+expowt cwass Editow {
 
-	private static readonly FOLDING_EXPANDED = '.monaco-editor .margin .margin-view-overlays>:nth-child(${INDEX}) .folding';
-	private static readonly FOLDING_COLLAPSED = `${Editor.FOLDING_EXPANDED}.collapsed`;
+	pwivate static weadonwy FOWDING_EXPANDED = '.monaco-editow .mawgin .mawgin-view-ovewways>:nth-chiwd(${INDEX}) .fowding';
+	pwivate static weadonwy FOWDING_COWWAPSED = `${Editow.FOWDING_EXPANDED}.cowwapsed`;
 
-	constructor(private code: Code, private commands: Commands) { }
+	constwuctow(pwivate code: Code, pwivate commands: Commands) { }
 
-	async findReferences(filename: string, term: string, line: number): Promise<References> {
-		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek References');
-		const references = new References(this.code);
-		await references.waitUntilOpen();
-		return references;
+	async findWefewences(fiwename: stwing, tewm: stwing, wine: numba): Pwomise<Wefewences> {
+		await this.cwickOnTewm(fiwename, tewm, wine);
+		await this.commands.wunCommand('Peek Wefewences');
+		const wefewences = new Wefewences(this.code);
+		await wefewences.waitUntiwOpen();
+		wetuwn wefewences;
 	}
 
-	async rename(filename: string, line: number, from: string, to: string): Promise<void> {
-		await this.clickOnTerm(filename, from, line);
-		await this.commands.runCommand('Rename Symbol');
+	async wename(fiwename: stwing, wine: numba, fwom: stwing, to: stwing): Pwomise<void> {
+		await this.cwickOnTewm(fiwename, fwom, wine);
+		await this.commands.wunCommand('Wename Symbow');
 
-		await this.code.waitForActiveElement(RENAME_INPUT);
-		await this.code.waitForSetValue(RENAME_INPUT, to);
+		await this.code.waitFowActiveEwement(WENAME_INPUT);
+		await this.code.waitFowSetVawue(WENAME_INPUT, to);
 
-		await this.code.dispatchKeybinding('enter');
+		await this.code.dispatchKeybinding('enta');
 	}
 
-	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
-		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Implementations');
+	async gotoDefinition(fiwename: stwing, tewm: stwing, wine: numba): Pwomise<void> {
+		await this.cwickOnTewm(fiwename, tewm, wine);
+		await this.commands.wunCommand('Go to Impwementations');
 	}
 
-	async peekDefinition(filename: string, term: string, line: number): Promise<References> {
-		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Peek Definition');
-		const peek = new References(this.code);
-		await peek.waitUntilOpen();
-		return peek;
+	async peekDefinition(fiwename: stwing, tewm: stwing, wine: numba): Pwomise<Wefewences> {
+		await this.cwickOnTewm(fiwename, tewm, wine);
+		await this.commands.wunCommand('Peek Definition');
+		const peek = new Wefewences(this.code);
+		await peek.waitUntiwOpen();
+		wetuwn peek;
 	}
 
-	async waitForHighlightingLine(filename: string, line: number): Promise<void> {
-		const currentLineIndex = await this.getViewLineIndex(filename, line);
-		if (currentLineIndex) {
-			await this.code.waitForElement(`.monaco-editor .view-overlays>:nth-child(${currentLineIndex}) .current-line`);
-			return;
+	async waitFowHighwightingWine(fiwename: stwing, wine: numba): Pwomise<void> {
+		const cuwwentWineIndex = await this.getViewWineIndex(fiwename, wine);
+		if (cuwwentWineIndex) {
+			await this.code.waitFowEwement(`.monaco-editow .view-ovewways>:nth-chiwd(${cuwwentWineIndex}) .cuwwent-wine`);
+			wetuwn;
 		}
-		throw new Error('Cannot find line ' + line);
+		thwow new Ewwow('Cannot find wine ' + wine);
 	}
 
-	private async getSelector(filename: string, term: string, line: number): Promise<string> {
-		const lineIndex = await this.getViewLineIndex(filename, line);
-		const classNames = await this.getClassSelectors(filename, term, lineIndex);
+	pwivate async getSewectow(fiwename: stwing, tewm: stwing, wine: numba): Pwomise<stwing> {
+		const wineIndex = await this.getViewWineIndex(fiwename, wine);
+		const cwassNames = await this.getCwassSewectows(fiwename, tewm, wineIndex);
 
-		return `${VIEW_LINES(filename)}>:nth-child(${lineIndex}) span span.${classNames[0]}`;
+		wetuwn `${VIEW_WINES(fiwename)}>:nth-chiwd(${wineIndex}) span span.${cwassNames[0]}`;
 	}
 
-	async foldAtLine(filename: string, line: number): Promise<any> {
-		const lineIndex = await this.getViewLineIndex(filename, line);
-		await this.code.waitAndClick(Editor.FOLDING_EXPANDED.replace('${INDEX}', '' + lineIndex));
-		await this.code.waitForElement(Editor.FOLDING_COLLAPSED.replace('${INDEX}', '' + lineIndex));
+	async fowdAtWine(fiwename: stwing, wine: numba): Pwomise<any> {
+		const wineIndex = await this.getViewWineIndex(fiwename, wine);
+		await this.code.waitAndCwick(Editow.FOWDING_EXPANDED.wepwace('${INDEX}', '' + wineIndex));
+		await this.code.waitFowEwement(Editow.FOWDING_COWWAPSED.wepwace('${INDEX}', '' + wineIndex));
 	}
 
-	async unfoldAtLine(filename: string, line: number): Promise<any> {
-		const lineIndex = await this.getViewLineIndex(filename, line);
-		await this.code.waitAndClick(Editor.FOLDING_COLLAPSED.replace('${INDEX}', '' + lineIndex));
-		await this.code.waitForElement(Editor.FOLDING_EXPANDED.replace('${INDEX}', '' + lineIndex));
+	async unfowdAtWine(fiwename: stwing, wine: numba): Pwomise<any> {
+		const wineIndex = await this.getViewWineIndex(fiwename, wine);
+		await this.code.waitAndCwick(Editow.FOWDING_COWWAPSED.wepwace('${INDEX}', '' + wineIndex));
+		await this.code.waitFowEwement(Editow.FOWDING_EXPANDED.wepwace('${INDEX}', '' + wineIndex));
 	}
 
-	private async clickOnTerm(filename: string, term: string, line: number): Promise<void> {
-		const selector = await this.getSelector(filename, term, line);
-		await this.code.waitAndClick(selector);
+	pwivate async cwickOnTewm(fiwename: stwing, tewm: stwing, wine: numba): Pwomise<void> {
+		const sewectow = await this.getSewectow(fiwename, tewm, wine);
+		await this.code.waitAndCwick(sewectow);
 	}
 
-	async waitForEditorFocus(filename: string, lineNumber: number, selectorPrefix = ''): Promise<void> {
-		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
-		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
-		const textarea = `${editor} textarea`;
+	async waitFowEditowFocus(fiwename: stwing, wineNumba: numba, sewectowPwefix = ''): Pwomise<void> {
+		const editow = [sewectowPwefix || '', EDITOW(fiwename)].join(' ');
+		const wine = `${editow} .view-wines > .view-wine:nth-chiwd(${wineNumba})`;
+		const textawea = `${editow} textawea`;
 
-		await this.code.waitAndClick(line, 1, 1);
-		await this.code.waitForActiveElement(textarea);
+		await this.code.waitAndCwick(wine, 1, 1);
+		await this.code.waitFowActiveEwement(textawea);
 	}
 
-	async waitForTypeInEditor(filename: string, text: string, selectorPrefix = ''): Promise<any> {
-		const editor = [selectorPrefix || '', EDITOR(filename)].join(' ');
+	async waitFowTypeInEditow(fiwename: stwing, text: stwing, sewectowPwefix = ''): Pwomise<any> {
+		const editow = [sewectowPwefix || '', EDITOW(fiwename)].join(' ');
 
-		await this.code.waitForElement(editor);
+		await this.code.waitFowEwement(editow);
 
-		const textarea = `${editor} textarea`;
-		await this.code.waitForActiveElement(textarea);
+		const textawea = `${editow} textawea`;
+		await this.code.waitFowActiveEwement(textawea);
 
-		await this.code.waitForTypeInEditor(textarea, text);
+		await this.code.waitFowTypeInEditow(textawea, text);
 
-		await this.waitForEditorContents(filename, c => c.indexOf(text) > -1, selectorPrefix);
+		await this.waitFowEditowContents(fiwename, c => c.indexOf(text) > -1, sewectowPwefix);
 	}
 
-	async waitForEditorContents(filename: string, accept: (contents: string) => boolean, selectorPrefix = ''): Promise<any> {
-		const selector = [selectorPrefix || '', `${EDITOR(filename)} .view-lines`].join(' ');
-		return this.code.waitForTextContent(selector, undefined, c => accept(c.replace(/\u00a0/g, ' ')));
+	async waitFowEditowContents(fiwename: stwing, accept: (contents: stwing) => boowean, sewectowPwefix = ''): Pwomise<any> {
+		const sewectow = [sewectowPwefix || '', `${EDITOW(fiwename)} .view-wines`].join(' ');
+		wetuwn this.code.waitFowTextContent(sewectow, undefined, c => accept(c.wepwace(/\u00a0/g, ' ')));
 	}
 
-	private async getClassSelectors(filename: string, term: string, viewline: number): Promise<string[]> {
-		const elements = await this.code.waitForElements(`${VIEW_LINES(filename)}>:nth-child(${viewline}) span span`, false, els => els.some(el => el.textContent === term));
-		const { className } = elements.filter(r => r.textContent === term)[0];
-		return className.split(/\s/g);
+	pwivate async getCwassSewectows(fiwename: stwing, tewm: stwing, viewwine: numba): Pwomise<stwing[]> {
+		const ewements = await this.code.waitFowEwements(`${VIEW_WINES(fiwename)}>:nth-chiwd(${viewwine}) span span`, fawse, ews => ews.some(ew => ew.textContent === tewm));
+		const { cwassName } = ewements.fiwta(w => w.textContent === tewm)[0];
+		wetuwn cwassName.spwit(/\s/g);
 	}
 
-	private async getViewLineIndex(filename: string, line: number): Promise<number> {
-		const elements = await this.code.waitForElements(LINE_NUMBERS(filename), false, els => {
-			return els.some(el => el.textContent === `${line}`);
+	pwivate async getViewWineIndex(fiwename: stwing, wine: numba): Pwomise<numba> {
+		const ewements = await this.code.waitFowEwements(WINE_NUMBEWS(fiwename), fawse, ews => {
+			wetuwn ews.some(ew => ew.textContent === `${wine}`);
 		});
 
-		for (let index = 0; index < elements.length; index++) {
-			if (elements[index].textContent === `${line}`) {
-				return index + 1;
+		fow (wet index = 0; index < ewements.wength; index++) {
+			if (ewements[index].textContent === `${wine}`) {
+				wetuwn index + 1;
 			}
 		}
 
-		throw new Error('Line not found');
+		thwow new Ewwow('Wine not found');
 	}
 }

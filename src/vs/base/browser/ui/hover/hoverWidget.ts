@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hover';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./hova';
 
 const $ = dom.$;
 
-export const enum HoverPosition {
-	LEFT, RIGHT, BELOW, ABOVE
+expowt const enum HovewPosition {
+	WEFT, WIGHT, BEWOW, ABOVE
 }
 
-export class HoverWidget extends Disposable {
+expowt cwass HovewWidget extends Disposabwe {
 
-	public readonly containerDomNode: HTMLElement;
-	public readonly contentsDomNode: HTMLElement;
-	private readonly _scrollbar: DomScrollableElement;
+	pubwic weadonwy containewDomNode: HTMWEwement;
+	pubwic weadonwy contentsDomNode: HTMWEwement;
+	pwivate weadonwy _scwowwbaw: DomScwowwabweEwement;
 
-	constructor() {
-		super();
+	constwuctow() {
+		supa();
 
-		this.containerDomNode = document.createElement('div');
-		this.containerDomNode.className = 'monaco-hover';
-		this.containerDomNode.tabIndex = 0;
-		this.containerDomNode.setAttribute('role', 'tooltip');
+		this.containewDomNode = document.cweateEwement('div');
+		this.containewDomNode.cwassName = 'monaco-hova';
+		this.containewDomNode.tabIndex = 0;
+		this.containewDomNode.setAttwibute('wowe', 'toowtip');
 
-		this.contentsDomNode = document.createElement('div');
-		this.contentsDomNode.className = 'monaco-hover-content';
+		this.contentsDomNode = document.cweateEwement('div');
+		this.contentsDomNode.cwassName = 'monaco-hova-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
-			consumeMouseWheelIfScrollbarIsNeeded: true
+		this._scwowwbaw = this._wegista(new DomScwowwabweEwement(this.contentsDomNode, {
+			consumeMouseWheewIfScwowwbawIsNeeded: twue
 		}));
-		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
+		this.containewDomNode.appendChiwd(this._scwowwbaw.getDomNode());
 	}
 
-	public onContentsChanged(): void {
-		this._scrollbar.scanDomNode();
+	pubwic onContentsChanged(): void {
+		this._scwowwbaw.scanDomNode();
 	}
 }
 
-export class HoverAction extends Disposable {
-	public static render(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
-		return new HoverAction(parent, actionOptions, keybindingLabel);
+expowt cwass HovewAction extends Disposabwe {
+	pubwic static wenda(pawent: HTMWEwement, actionOptions: { wabew: stwing, iconCwass?: stwing, wun: (tawget: HTMWEwement) => void, commandId: stwing }, keybindingWabew: stwing | nuww) {
+		wetuwn new HovewAction(pawent, actionOptions, keybindingWabew);
 	}
 
-	private readonly actionContainer: HTMLElement;
-	private readonly action: HTMLElement;
+	pwivate weadonwy actionContaina: HTMWEwement;
+	pwivate weadonwy action: HTMWEwement;
 
-	private constructor(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
-		super();
+	pwivate constwuctow(pawent: HTMWEwement, actionOptions: { wabew: stwing, iconCwass?: stwing, wun: (tawget: HTMWEwement) => void, commandId: stwing }, keybindingWabew: stwing | nuww) {
+		supa();
 
-		this.actionContainer = dom.append(parent, $('div.action-container'));
-		this.action = dom.append(this.actionContainer, $('a.action'));
-		this.action.setAttribute('href', '#');
-		this.action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
+		this.actionContaina = dom.append(pawent, $('div.action-containa'));
+		this.action = dom.append(this.actionContaina, $('a.action'));
+		this.action.setAttwibute('hwef', '#');
+		this.action.setAttwibute('wowe', 'button');
+		if (actionOptions.iconCwass) {
+			dom.append(this.action, $(`span.icon.${actionOptions.iconCwass}`));
 		}
-		const label = dom.append(this.action, $('span'));
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		const wabew = dom.append(this.action, $('span'));
+		wabew.textContent = keybindingWabew ? `${actionOptions.wabew} (${keybindingWabew})` : actionOptions.wabew;
 
-		this._register(dom.addDisposableListener(this.actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(this.actionContainer);
+		this._wegista(dom.addDisposabweWistena(this.actionContaina, dom.EventType.CWICK, e => {
+			e.stopPwopagation();
+			e.pweventDefauwt();
+			actionOptions.wun(this.actionContaina);
 		}));
 
-		this.setEnabled(true);
+		this.setEnabwed(twue);
 	}
 
-	public setEnabled(enabled: boolean): void {
-		if (enabled) {
-			this.actionContainer.classList.remove('disabled');
-			this.actionContainer.removeAttribute('aria-disabled');
-		} else {
-			this.actionContainer.classList.add('disabled');
-			this.actionContainer.setAttribute('aria-disabled', 'true');
+	pubwic setEnabwed(enabwed: boowean): void {
+		if (enabwed) {
+			this.actionContaina.cwassWist.wemove('disabwed');
+			this.actionContaina.wemoveAttwibute('awia-disabwed');
+		} ewse {
+			this.actionContaina.cwassWist.add('disabwed');
+			this.actionContaina.setAttwibute('awia-disabwed', 'twue');
 		}
 	}
 }

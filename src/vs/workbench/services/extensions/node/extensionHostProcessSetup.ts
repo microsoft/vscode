@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nativeWatchdog from 'native-watchdog';
-import * as net from 'net';
-import * as minimist from 'minimist';
-import * as performance from 'vs/base/common/performance';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/common/product';
-import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
-import { Promises } from 'vs/base/node/pfs';
-import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
-import { boolean } from 'vs/editor/common/config/editorOptions';
+impowt * as nativeWatchdog fwom 'native-watchdog';
+impowt * as net fwom 'net';
+impowt * as minimist fwom 'minimist';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { isPwomiseCancewedEwwow, onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { PewsistentPwotocow, PwotocowConstants, BuffewedEmitta } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { NodeSocket, WebSocketNodeSocket } fwom 'vs/base/pawts/ipc/node/ipc.net';
+impowt pwoduct fwom 'vs/pwatfowm/pwoduct/common/pwoduct';
+impowt { IInitData } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { MessageType, cweateMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostWeadyMessage, IExtHostWeduceGwaceTimeMessage, ExtensionHostExitCode } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostPwotocow';
+impowt { ExtensionHostMain, IExitFn } fwom 'vs/wowkbench/sewvices/extensions/common/extensionHostMain';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IUWITwansfowma, UWITwansfowma, IWawUWITwansfowma } fwom 'vs/base/common/uwiIpc';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { weawpath } fwom 'vs/base/node/extpath';
+impowt { IHostUtiws } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { PwocessTimeWunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { boowean } fwom 'vs/editow/common/config/editowOptions';
 
-import 'vs/workbench/api/common/extHost.common.services';
-import 'vs/workbench/api/node/extHost.node.services';
+impowt 'vs/wowkbench/api/common/extHost.common.sewvices';
+impowt 'vs/wowkbench/api/node/extHost.node.sewvices';
 
-interface ParsedExtHostArgs {
-	uriTransformerPath?: string;
-	skipWorkspaceStorageLock?: boolean;
-	useHostProxy?: string;
+intewface PawsedExtHostAwgs {
+	uwiTwansfowmewPath?: stwing;
+	skipWowkspaceStowageWock?: boowean;
+	useHostPwoxy?: stwing;
 }
 
-// workaround for https://github.com/microsoft/vscode/issues/85490
-// remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
-(function removeInspectPort() {
-	for (let i = 0; i < process.execArgv.length; i++) {
-		if (process.execArgv[i] === '--inspect-port=0') {
-			process.execArgv.splice(i, 1);
+// wowkawound fow https://github.com/micwosoft/vscode/issues/85490
+// wemove --inspect-powt=0 afta stawt so that it doesn't twigga WSP debugging
+(function wemoveInspectPowt() {
+	fow (wet i = 0; i < pwocess.execAwgv.wength; i++) {
+		if (pwocess.execAwgv[i] === '--inspect-powt=0') {
+			pwocess.execAwgv.spwice(i, 1);
 			i--;
 		}
 	}
 })();
 
-const args = minimist(process.argv.slice(2), {
-	string: [
-		'uriTransformerPath',
-		'useHostProxy'
+const awgs = minimist(pwocess.awgv.swice(2), {
+	stwing: [
+		'uwiTwansfowmewPath',
+		'useHostPwoxy'
 	],
-	boolean: [
-		'skipWorkspaceStorageLock'
+	boowean: [
+		'skipWowkspaceStowageWock'
 	]
-}) as ParsedExtHostArgs;
+}) as PawsedExtHostAwgs;
 
-// With Electron 2.x and node.js 8.x the "natives" module
-// can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
-// https://github.com/electron/electron/issues/10905). To prevent this from
-// happening we essentially blocklist this module from getting loaded in any
-// extension by patching the node require() function.
+// With Ewectwon 2.x and node.js 8.x the "natives" moduwe
+// can cause a native cwash (see https://github.com/nodejs/node/issues/19891 and
+// https://github.com/ewectwon/ewectwon/issues/10905). To pwevent this fwom
+// happening we essentiawwy bwockwist this moduwe fwom getting woaded in any
+// extension by patching the node wequiwe() function.
 (function () {
-	const Module = require.__$__nodeRequire('module') as any;
-	const originalLoad = Module._load;
+	const Moduwe = wequiwe.__$__nodeWequiwe('moduwe') as any;
+	const owiginawWoad = Moduwe._woad;
 
-	Module._load = function (request: string) {
-		if (request === 'natives') {
-			throw new Error('Either the extension or a NPM dependency is using the "natives" node module which is unsupported as it can cause a crash of the extension host. Click [here](https://go.microsoft.com/fwlink/?linkid=871887) to find out more');
+	Moduwe._woad = function (wequest: stwing) {
+		if (wequest === 'natives') {
+			thwow new Ewwow('Eitha the extension ow a NPM dependency is using the "natives" node moduwe which is unsuppowted as it can cause a cwash of the extension host. Cwick [hewe](https://go.micwosoft.com/fwwink/?winkid=871887) to find out mowe');
 		}
 
-		return originalLoad.apply(this, arguments);
+		wetuwn owiginawWoad.appwy(this, awguments);
 	};
 })();
 
-// custom process.exit logic...
-const nativeExit: IExitFn = process.exit.bind(process);
-function patchProcess(allowExit: boolean) {
-	process.exit = function (code?: number) {
-		if (allowExit) {
+// custom pwocess.exit wogic...
+const nativeExit: IExitFn = pwocess.exit.bind(pwocess);
+function patchPwocess(awwowExit: boowean) {
+	pwocess.exit = function (code?: numba) {
+		if (awwowExit) {
 			nativeExit(code);
-		} else {
-			const err = new Error('An extension called process.exit() and this was prevented.');
-			console.warn(err.stack);
+		} ewse {
+			const eww = new Ewwow('An extension cawwed pwocess.exit() and this was pwevented.');
+			consowe.wawn(eww.stack);
 		}
-	} as (code?: number) => never;
+	} as (code?: numba) => neva;
 
-	// override Electron's process.crash() method
-	process.crash = function () {
-		const err = new Error('An extension called process.crash() and this was prevented.');
-		console.warn(err.stack);
+	// ovewwide Ewectwon's pwocess.cwash() method
+	pwocess.cwash = function () {
+		const eww = new Ewwow('An extension cawwed pwocess.cwash() and this was pwevented.');
+		consowe.wawn(eww.stack);
 	};
 }
 
-interface IRendererConnection {
-	protocol: IMessagePassingProtocol;
+intewface IWendewewConnection {
+	pwotocow: IMessagePassingPwotocow;
 	initData: IInitData;
 }
 
-// This calls exit directly in case the initialization is not finished and we need to exit
-// Otherwise, if initialization completed we go to extensionHostMain.terminate()
-let onTerminate = function (reason: string) {
+// This cawws exit diwectwy in case the initiawization is not finished and we need to exit
+// Othewwise, if initiawization compweted we go to extensionHostMain.tewminate()
+wet onTewminate = function (weason: stwing) {
 	nativeExit();
 };
 
-function _createExtHostProtocol(): Promise<PersistentProtocol> {
-	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
+function _cweateExtHostPwotocow(): Pwomise<PewsistentPwotocow> {
+	if (pwocess.env.VSCODE_EXTHOST_WIWW_SEND_SOCKET) {
 
-		return new Promise<PersistentProtocol>((resolve, reject) => {
+		wetuwn new Pwomise<PewsistentPwotocow>((wesowve, weject) => {
 
-			let protocol: PersistentProtocol | null = null;
+			wet pwotocow: PewsistentPwotocow | nuww = nuww;
 
-			let timer = setTimeout(() => {
-				onTerminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
+			wet tima = setTimeout(() => {
+				onTewminate('VSCODE_EXTHOST_IPC_SOCKET timeout');
 			}, 60000);
 
-			const reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
-			const reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
-			const disconnectRunner1 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (1)'), reconnectionGraceTime);
-			const disconnectRunner2 = new ProcessTimeRunOnceScheduler(() => onTerminate('renderer disconnected for too long (2)'), reconnectionShortGraceTime);
+			const weconnectionGwaceTime = PwotocowConstants.WeconnectionGwaceTime;
+			const weconnectionShowtGwaceTime = PwotocowConstants.WeconnectionShowtGwaceTime;
+			const disconnectWunnew1 = new PwocessTimeWunOnceScheduwa(() => onTewminate('wendewa disconnected fow too wong (1)'), weconnectionGwaceTime);
+			const disconnectWunnew2 = new PwocessTimeWunOnceScheduwa(() => onTewminate('wendewa disconnected fow too wong (2)'), weconnectionShowtGwaceTime);
 
-			process.on('message', (msg: IExtHostSocketMessage | IExtHostReduceGraceTimeMessage, handle: net.Socket) => {
+			pwocess.on('message', (msg: IExtHostSocketMessage | IExtHostWeduceGwaceTimeMessage, handwe: net.Socket) => {
 				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_SOCKET') {
-					const initialDataChunk = VSBuffer.wrap(Buffer.from(msg.initialDataChunk, 'base64'));
-					let socket: NodeSocket | WebSocketNodeSocket;
-					if (msg.skipWebSocketFrames) {
-						socket = new NodeSocket(handle);
-					} else {
-						const inflateBytes = VSBuffer.wrap(Buffer.from(msg.inflateBytes, 'base64'));
-						socket = new WebSocketNodeSocket(new NodeSocket(handle), msg.permessageDeflate, inflateBytes, false);
+					const initiawDataChunk = VSBuffa.wwap(Buffa.fwom(msg.initiawDataChunk, 'base64'));
+					wet socket: NodeSocket | WebSocketNodeSocket;
+					if (msg.skipWebSocketFwames) {
+						socket = new NodeSocket(handwe);
+					} ewse {
+						const infwateBytes = VSBuffa.wwap(Buffa.fwom(msg.infwateBytes, 'base64'));
+						socket = new WebSocketNodeSocket(new NodeSocket(handwe), msg.pewmessageDefwate, infwateBytes, fawse);
 					}
-					if (protocol) {
-						// reconnection case
-						disconnectRunner1.cancel();
-						disconnectRunner2.cancel();
-						protocol.beginAcceptReconnection(socket, initialDataChunk);
-						protocol.endAcceptReconnection();
-					} else {
-						clearTimeout(timer);
-						protocol = new PersistentProtocol(socket, initialDataChunk);
-						protocol.onDidDispose(() => onTerminate('renderer disconnected'));
-						resolve(protocol);
+					if (pwotocow) {
+						// weconnection case
+						disconnectWunnew1.cancew();
+						disconnectWunnew2.cancew();
+						pwotocow.beginAcceptWeconnection(socket, initiawDataChunk);
+						pwotocow.endAcceptWeconnection();
+					} ewse {
+						cweawTimeout(tima);
+						pwotocow = new PewsistentPwotocow(socket, initiawDataChunk);
+						pwotocow.onDidDispose(() => onTewminate('wendewa disconnected'));
+						wesowve(pwotocow);
 
-						// Wait for rich client to reconnect
-						protocol.onSocketClose(() => {
-							// The socket has closed, let's give the renderer a certain amount of time to reconnect
-							disconnectRunner1.schedule();
+						// Wait fow wich cwient to weconnect
+						pwotocow.onSocketCwose(() => {
+							// The socket has cwosed, wet's give the wendewa a cewtain amount of time to weconnect
+							disconnectWunnew1.scheduwe();
 						});
 					}
 				}
-				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_REDUCE_GRACE_TIME') {
-					if (disconnectRunner2.isScheduled()) {
-						// we are disconnected and already running the short reconnection timer
-						return;
+				if (msg && msg.type === 'VSCODE_EXTHOST_IPC_WEDUCE_GWACE_TIME') {
+					if (disconnectWunnew2.isScheduwed()) {
+						// we awe disconnected and awweady wunning the showt weconnection tima
+						wetuwn;
 					}
-					if (disconnectRunner1.isScheduled()) {
-						// we are disconnected and running the long reconnection timer
-						disconnectRunner2.schedule();
+					if (disconnectWunnew1.isScheduwed()) {
+						// we awe disconnected and wunning the wong weconnection tima
+						disconnectWunnew2.scheduwe();
 					}
 				}
 			});
 
-			// Now that we have managed to install a message listener, ask the other side to send us the socket
-			const req: IExtHostReadyMessage = { type: 'VSCODE_EXTHOST_IPC_READY' };
-			if (process.send) {
-				process.send(req);
+			// Now that we have managed to instaww a message wistena, ask the otha side to send us the socket
+			const weq: IExtHostWeadyMessage = { type: 'VSCODE_EXTHOST_IPC_WEADY' };
+			if (pwocess.send) {
+				pwocess.send(weq);
 			}
 		});
 
-	} else {
+	} ewse {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		const pipeName = pwocess.env.VSCODE_IPC_HOOK_EXTHOST!;
 
-		return new Promise<PersistentProtocol>((resolve, reject) => {
+		wetuwn new Pwomise<PewsistentPwotocow>((wesowve, weject) => {
 
-			const socket = net.createConnection(pipeName, () => {
-				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket)));
+			const socket = net.cweateConnection(pipeName, () => {
+				socket.wemoveWistena('ewwow', weject);
+				wesowve(new PewsistentPwotocow(new NodeSocket(socket)));
 			});
-			socket.once('error', reject);
+			socket.once('ewwow', weject);
 
-			socket.on('close', () => {
-				onTerminate('renderer closed the socket');
+			socket.on('cwose', () => {
+				onTewminate('wendewa cwosed the socket');
 			});
 		});
 	}
 }
 
-async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
+async function cweateExtHostPwotocow(): Pwomise<IMessagePassingPwotocow> {
 
-	const protocol = await _createExtHostProtocol();
+	const pwotocow = await _cweateExtHostPwotocow();
 
-	return new class implements IMessagePassingProtocol {
+	wetuwn new cwass impwements IMessagePassingPwotocow {
 
-		private readonly _onMessage = new BufferedEmitter<VSBuffer>();
-		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
+		pwivate weadonwy _onMessage = new BuffewedEmitta<VSBuffa>();
+		weadonwy onMessage: Event<VSBuffa> = this._onMessage.event;
 
-		private _terminating: boolean;
+		pwivate _tewminating: boowean;
 
-		constructor() {
-			this._terminating = false;
-			protocol.onMessage((msg) => {
-				if (isMessageOfType(msg, MessageType.Terminate)) {
-					this._terminating = true;
-					onTerminate('received terminate message from renderer');
-				} else {
-					this._onMessage.fire(msg);
+		constwuctow() {
+			this._tewminating = fawse;
+			pwotocow.onMessage((msg) => {
+				if (isMessageOfType(msg, MessageType.Tewminate)) {
+					this._tewminating = twue;
+					onTewminate('weceived tewminate message fwom wendewa');
+				} ewse {
+					this._onMessage.fiwe(msg);
 				}
 			});
 		}
 
 		send(msg: any): void {
-			if (!this._terminating) {
-				protocol.send(msg);
+			if (!this._tewminating) {
+				pwotocow.send(msg);
 			}
 		}
 
-		drain(): Promise<void> {
-			return protocol.drain();
+		dwain(): Pwomise<void> {
+			wetuwn pwotocow.dwain();
 		}
 	};
 }
 
-function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
-	return new Promise<IRendererConnection>((c) => {
+function connectToWendewa(pwotocow: IMessagePassingPwotocow): Pwomise<IWendewewConnection> {
+	wetuwn new Pwomise<IWendewewConnection>((c) => {
 
-		// Listen init data message
-		const first = protocol.onMessage(raw => {
-			first.dispose();
+		// Wisten init data message
+		const fiwst = pwotocow.onMessage(waw => {
+			fiwst.dispose();
 
-			const initData = <IInitData>JSON.parse(raw.toString());
+			const initData = <IInitData>JSON.pawse(waw.toStwing());
 
-			const rendererCommit = initData.commit;
-			const myCommit = product.commit;
+			const wendewewCommit = initData.commit;
+			const myCommit = pwoduct.commit;
 
-			if (rendererCommit && myCommit) {
-				// Running in the built version where commits are defined
-				if (rendererCommit !== myCommit) {
-					nativeExit(ExtensionHostExitCode.VersionMismatch);
+			if (wendewewCommit && myCommit) {
+				// Wunning in the buiwt vewsion whewe commits awe defined
+				if (wendewewCommit !== myCommit) {
+					nativeExit(ExtensionHostExitCode.VewsionMismatch);
 				}
 			}
 
-			// Print a console message when rejection isn't handled within N seconds. For details:
-			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
-			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: Promise<any>[] = [];
-			process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-				unhandledPromises.push(promise);
+			// Pwint a consowe message when wejection isn't handwed within N seconds. Fow detaiws:
+			// see https://nodejs.owg/api/pwocess.htmw#pwocess_event_unhandwedwejection
+			// and https://nodejs.owg/api/pwocess.htmw#pwocess_event_wejectionhandwed
+			const unhandwedPwomises: Pwomise<any>[] = [];
+			pwocess.on('unhandwedWejection', (weason: any, pwomise: Pwomise<any>) => {
+				unhandwedPwomises.push(pwomise);
 				setTimeout(() => {
-					const idx = unhandledPromises.indexOf(promise);
+					const idx = unhandwedPwomises.indexOf(pwomise);
 					if (idx >= 0) {
-						promise.catch(e => {
-							unhandledPromises.splice(idx, 1);
-							if (!isPromiseCanceledError(e)) {
-								console.warn(`rejected promise not handled within 1 second: ${e}`);
+						pwomise.catch(e => {
+							unhandwedPwomises.spwice(idx, 1);
+							if (!isPwomiseCancewedEwwow(e)) {
+								consowe.wawn(`wejected pwomise not handwed within 1 second: ${e}`);
 								if (e && e.stack) {
-									console.warn(`stack trace: ${e.stack}`);
+									consowe.wawn(`stack twace: ${e.stack}`);
 								}
-								onUnexpectedError(reason);
+								onUnexpectedEwwow(weason);
 							}
 						});
 					}
 				}, 1000);
 			});
 
-			process.on('rejectionHandled', (promise: Promise<any>) => {
-				const idx = unhandledPromises.indexOf(promise);
+			pwocess.on('wejectionHandwed', (pwomise: Pwomise<any>) => {
+				const idx = unhandwedPwomises.indexOf(pwomise);
 				if (idx >= 0) {
-					unhandledPromises.splice(idx, 1);
+					unhandwedPwomises.spwice(idx, 1);
 				}
 			});
 
-			// Print a console message when an exception isn't handled.
-			process.on('uncaughtException', function (err: Error) {
-				onUnexpectedError(err);
+			// Pwint a consowe message when an exception isn't handwed.
+			pwocess.on('uncaughtException', function (eww: Ewwow) {
+				onUnexpectedEwwow(eww);
 			});
 
-			// Kill oneself if one's parent dies. Much drama.
-			let epermErrors = 0;
-			setInterval(function () {
-				try {
-					process.kill(initData.parentPid, 0); // throws an exception if the main process doesn't exist anymore.
-					epermErrors = 0;
+			// Kiww onesewf if one's pawent dies. Much dwama.
+			wet epewmEwwows = 0;
+			setIntewvaw(function () {
+				twy {
+					pwocess.kiww(initData.pawentPid, 0); // thwows an exception if the main pwocess doesn't exist anymowe.
+					epewmEwwows = 0;
 				} catch (e) {
-					if (e && e.code === 'EPERM') {
-						// Even if the parent process is still alive,
-						// some antivirus software can lead to an EPERM error to be thrown here.
-						// Let's terminate only if we get 3 consecutive EPERM errors.
-						epermErrors++;
-						if (epermErrors >= 3) {
-							onTerminate(`parent process ${initData.parentPid} does not exist anymore (3 x EPERM): ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+					if (e && e.code === 'EPEWM') {
+						// Even if the pawent pwocess is stiww awive,
+						// some antiviwus softwawe can wead to an EPEWM ewwow to be thwown hewe.
+						// Wet's tewminate onwy if we get 3 consecutive EPEWM ewwows.
+						epewmEwwows++;
+						if (epewmEwwows >= 3) {
+							onTewminate(`pawent pwocess ${initData.pawentPid} does not exist anymowe (3 x EPEWM): ${e.message} (code: ${e.code}) (ewwno: ${e.ewwno})`);
 						}
-					} else {
-						onTerminate(`parent process ${initData.parentPid} does not exist anymore: ${e.message} (code: ${e.code}) (errno: ${e.errno})`);
+					} ewse {
+						onTewminate(`pawent pwocess ${initData.pawentPid} does not exist anymowe: ${e.message} (code: ${e.code}) (ewwno: ${e.ewwno})`);
 					}
 				}
 			}, 1000);
 
-			// In certain cases, the event loop can become busy and never yield
-			// e.g. while-true or process.nextTick endless loops
-			// So also use the native node module to do it from a separate thread
-			let watchdog: typeof nativeWatchdog;
-			try {
-				watchdog = require.__$__nodeRequire('native-watchdog');
-				watchdog.start(initData.parentPid);
-			} catch (err) {
-				// no problem...
-				onUnexpectedError(err);
+			// In cewtain cases, the event woop can become busy and neva yiewd
+			// e.g. whiwe-twue ow pwocess.nextTick endwess woops
+			// So awso use the native node moduwe to do it fwom a sepawate thwead
+			wet watchdog: typeof nativeWatchdog;
+			twy {
+				watchdog = wequiwe.__$__nodeWequiwe('native-watchdog');
+				watchdog.stawt(initData.pawentPid);
+			} catch (eww) {
+				// no pwobwem...
+				onUnexpectedEwwow(eww);
 			}
 
-			// Tell the outside that we are initialized
-			protocol.send(createMessageOfType(MessageType.Initialized));
+			// Teww the outside that we awe initiawized
+			pwotocow.send(cweateMessageOfType(MessageType.Initiawized));
 
-			c({ protocol, initData });
+			c({ pwotocow, initData });
 		});
 
-		// Tell the outside that we are ready to receive messages
-		protocol.send(createMessageOfType(MessageType.Ready));
+		// Teww the outside that we awe weady to weceive messages
+		pwotocow.send(cweateMessageOfType(MessageType.Weady));
 	});
 }
 
-export async function startExtensionHostProcess(): Promise<void> {
-	performance.mark(`code/extHost/willConnectToRenderer`);
-	const protocol = await createExtHostProtocol();
-	performance.mark(`code/extHost/didConnectToRenderer`);
-	const renderer = await connectToRenderer(protocol);
-	performance.mark(`code/extHost/didWaitForInitData`);
-	const { initData } = renderer;
+expowt async function stawtExtensionHostPwocess(): Pwomise<void> {
+	pewfowmance.mawk(`code/extHost/wiwwConnectToWendewa`);
+	const pwotocow = await cweateExtHostPwotocow();
+	pewfowmance.mawk(`code/extHost/didConnectToWendewa`);
+	const wendewa = await connectToWendewa(pwotocow);
+	pewfowmance.mawk(`code/extHost/didWaitFowInitData`);
+	const { initData } = wendewa;
 	// setup things
-	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
-	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
-	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
+	patchPwocess(!!initData.enviwonment.extensionTestsWocationUWI); // to suppowt otha test fwamewowks wike Jasmin that use pwocess.exit (https://github.com/micwosoft/vscode/issues/37708)
+	initData.enviwonment.useHostPwoxy = awgs.useHostPwoxy !== undefined ? awgs.useHostPwoxy !== 'fawse' : undefined;
+	initData.enviwonment.skipWowkspaceStowageWock = boowean(awgs.skipWowkspaceStowageWock, fawse);
 
-	// host abstraction
-	const hostUtils = new class NodeHost implements IHostUtils {
-		declare readonly _serviceBrand: undefined;
-		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return Promises.exists(path); }
-		realpath(path: string) { return realpath(path); }
+	// host abstwaction
+	const hostUtiws = new cwass NodeHost impwements IHostUtiws {
+		decwawe weadonwy _sewviceBwand: undefined;
+		exit(code: numba) { nativeExit(code); }
+		exists(path: stwing) { wetuwn Pwomises.exists(path); }
+		weawpath(path: stwing) { wetuwn weawpath(path); }
 	};
 
-	// Attempt to load uri transformer
-	let uriTransformer: IURITransformer | null = null;
-	if (initData.remote.authority && args.uriTransformerPath) {
-		try {
-			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
-			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remote.authority);
-			uriTransformer = new URITransformer(rawURITransformer);
+	// Attempt to woad uwi twansfowma
+	wet uwiTwansfowma: IUWITwansfowma | nuww = nuww;
+	if (initData.wemote.authowity && awgs.uwiTwansfowmewPath) {
+		twy {
+			const wawUWITwansfowmewFactowy = <any>wequiwe.__$__nodeWequiwe(awgs.uwiTwansfowmewPath);
+			const wawUWITwansfowma = <IWawUWITwansfowma>wawUWITwansfowmewFactowy(initData.wemote.authowity);
+			uwiTwansfowma = new UWITwansfowma(wawUWITwansfowma);
 		} catch (e) {
-			console.error(e);
+			consowe.ewwow(e);
 		}
 	}
 
 	const extensionHostMain = new ExtensionHostMain(
-		renderer.protocol,
+		wendewa.pwotocow,
 		initData,
-		hostUtils,
-		uriTransformer
+		hostUtiws,
+		uwiTwansfowma
 	);
 
-	// rewrite onTerminate-function to be a proper shutdown
-	onTerminate = (reason: string) => extensionHostMain.terminate(reason);
+	// wewwite onTewminate-function to be a pwopa shutdown
+	onTewminate = (weason: stwing) => extensionHostMain.tewminate(weason);
 }

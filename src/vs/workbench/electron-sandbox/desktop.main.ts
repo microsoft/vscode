@@ -1,37 +1,37 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Schemas } from 'vs/base/common/network';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { initFileSystem, simpleFileSystemProvider, simpleWorkspaceDir } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+impowt { INativeWowkbenchConfiguwation, INativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { initFiweSystem, simpweFiweSystemPwovida, simpweWowkspaceDiw } fwom 'vs/wowkbench/ewectwon-sandbox/sandbox.simpwesewvices';
+impowt { ShawedDesktopMain } fwom 'vs/wowkbench/ewectwon-sandbox/shawed.desktop.main';
 
-class DesktopMain extends SharedDesktopMain {
+cwass DesktopMain extends ShawedDesktopMain {
 
-	constructor(configuration: INativeWorkbenchConfiguration) {
-		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } });
+	constwuctow(configuwation: INativeWowkbenchConfiguwation) {
+		supa({ ...configuwation, wowkspace: { id: configuwation.wowkspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uwi: simpweWowkspaceDiw } });
 	}
 
-	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<void> {
+	pwotected wegistewFiweSystemPwovidews(enviwonmentSewvice: INativeWowkbenchEnviwonmentSewvice, fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice): Pwomise<void> {
 
-		// Local Files
-		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);
+		// Wocaw Fiwes
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, simpweFiweSystemPwovida);
 
-		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, simpleFileSystemProvider, Schemas.userData, logService));
+		// Usa Data Pwovida
+		fiweSewvice.wegistewPwovida(Schemas.usewData, new FiweUsewDataPwovida(Schemas.fiwe, simpweFiweSystemPwovida, Schemas.usewData, wogSewvice));
 
-		// Init our in-memory file system
-		return initFileSystem(environmentService, fileService);
+		// Init ouw in-memowy fiwe system
+		wetuwn initFiweSystem(enviwonmentSewvice, fiweSewvice);
 	}
 }
 
-export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
-	const workbench = new DesktopMain(configuration);
+expowt function main(configuwation: INativeWowkbenchConfiguwation): Pwomise<void> {
+	const wowkbench = new DesktopMain(configuwation);
 
-	return workbench.open();
+	wetuwn wowkbench.open();
 }

@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { basename, dirname } from 'vs/base/common/resources';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { CountBadge } fwom 'vs/base/bwowsa/ui/countBadge/countBadge';
+impowt { HighwightedWabew } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { IconWabew } fwom 'vs/base/bwowsa/ui/iconWabew/iconWabew';
+impowt { IIdentityPwovida, IKeyboawdNavigationWabewPwovida, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { IAsyncDataSouwce, ITweeNode, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { cweateMatches, FuzzyScowe, IMatch } fwom 'vs/base/common/fiwtews';
+impowt { getBaseWabew } fwom 'vs/base/common/wabews';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { basename, diwname } fwom 'vs/base/common/wesouwces';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { attachBadgeStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { FiweWefewences, OneWefewence, WefewencesModew } fwom '../wefewencesModew';
 
-//#region data source
+//#wegion data souwce
 
-export type TreeElement = FileReferences | OneReference;
+expowt type TweeEwement = FiweWefewences | OneWefewence;
 
-export class DataSource implements IAsyncDataSource<ReferencesModel | FileReferences, TreeElement> {
+expowt cwass DataSouwce impwements IAsyncDataSouwce<WefewencesModew | FiweWefewences, TweeEwement> {
 
-	constructor(@ITextModelService private readonly _resolverService: ITextModelService) { }
+	constwuctow(@ITextModewSewvice pwivate weadonwy _wesowvewSewvice: ITextModewSewvice) { }
 
-	hasChildren(element: ReferencesModel | FileReferences | TreeElement): boolean {
-		if (element instanceof ReferencesModel) {
-			return true;
+	hasChiwdwen(ewement: WefewencesModew | FiweWefewences | TweeEwement): boowean {
+		if (ewement instanceof WefewencesModew) {
+			wetuwn twue;
 		}
-		if (element instanceof FileReferences) {
-			return true;
+		if (ewement instanceof FiweWefewences) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	getChildren(element: ReferencesModel | FileReferences | TreeElement): TreeElement[] | Promise<TreeElement[]> {
-		if (element instanceof ReferencesModel) {
-			return element.groups;
+	getChiwdwen(ewement: WefewencesModew | FiweWefewences | TweeEwement): TweeEwement[] | Pwomise<TweeEwement[]> {
+		if (ewement instanceof WefewencesModew) {
+			wetuwn ewement.gwoups;
 		}
 
-		if (element instanceof FileReferences) {
-			return element.resolve(this._resolverService).then(val => {
-				// if (element.failure) {
-				// 	// refresh the element on failure so that
-				// 	// we can update its rendering
-				// 	return tree.refresh(element).then(() => val.children);
+		if (ewement instanceof FiweWefewences) {
+			wetuwn ewement.wesowve(this._wesowvewSewvice).then(vaw => {
+				// if (ewement.faiwuwe) {
+				// 	// wefwesh the ewement on faiwuwe so that
+				// 	// we can update its wendewing
+				// 	wetuwn twee.wefwesh(ewement).then(() => vaw.chiwdwen);
 				// }
-				return val.children;
+				wetuwn vaw.chiwdwen;
 			});
 		}
 
-		throw new Error('bad tree');
+		thwow new Ewwow('bad twee');
 	}
 }
 
-//#endregion
+//#endwegion
 
-export class Delegate implements IListVirtualDelegate<TreeElement> {
-	getHeight(): number {
-		return 23;
+expowt cwass Dewegate impwements IWistViwtuawDewegate<TweeEwement> {
+	getHeight(): numba {
+		wetuwn 23;
 	}
-	getTemplateId(element: FileReferences | OneReference): string {
-		if (element instanceof FileReferences) {
-			return FileReferencesRenderer.id;
-		} else {
-			return OneReferenceRenderer.id;
+	getTempwateId(ewement: FiweWefewences | OneWefewence): stwing {
+		if (ewement instanceof FiweWefewences) {
+			wetuwn FiweWefewencesWendewa.id;
+		} ewse {
+			wetuwn OneWefewenceWendewa.id;
 		}
 	}
 }
 
-export class StringRepresentationProvider implements IKeyboardNavigationLabelProvider<TreeElement> {
+expowt cwass StwingWepwesentationPwovida impwements IKeyboawdNavigationWabewPwovida<TweeEwement> {
 
-	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
+	constwuctow(@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
-		if (element instanceof OneReference) {
-			const parts = element.parent.getPreview(element)?.preview(element.range);
-			if (parts) {
-				return parts.value;
+	getKeyboawdNavigationWabew(ewement: TweeEwement): { toStwing(): stwing; } {
+		if (ewement instanceof OneWefewence) {
+			const pawts = ewement.pawent.getPweview(ewement)?.pweview(ewement.wange);
+			if (pawts) {
+				wetuwn pawts.vawue;
 			}
 		}
-		// FileReferences or unresolved OneReference
-		return basename(element.uri);
+		// FiweWefewences ow unwesowved OneWefewence
+		wetuwn basename(ewement.uwi);
 	}
 
-	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
-		return this._keybindingService.mightProducePrintableCharacter(event);
-	}
-}
-
-export class IdentityProvider implements IIdentityProvider<TreeElement> {
-
-	getId(element: TreeElement): { toString(): string; } {
-		return element instanceof OneReference ? element.id : element.uri;
+	mightPwoducePwintabweChawacta(event: IKeyboawdEvent): boowean {
+		wetuwn this._keybindingSewvice.mightPwoducePwintabweChawacta(event);
 	}
 }
 
-//#region render: File
+expowt cwass IdentityPwovida impwements IIdentityPwovida<TweeEwement> {
 
-class FileReferencesTemplate extends Disposable {
+	getId(ewement: TweeEwement): { toStwing(): stwing; } {
+		wetuwn ewement instanceof OneWefewence ? ewement.id : ewement.uwi;
+	}
+}
 
-	readonly file: IconLabel;
-	readonly badge: CountBadge;
+//#wegion wenda: Fiwe
 
-	constructor(
-		container: HTMLElement,
-		@ILabelService private readonly _uriLabel: ILabelService,
-		@IThemeService themeService: IThemeService,
+cwass FiweWefewencesTempwate extends Disposabwe {
+
+	weadonwy fiwe: IconWabew;
+	weadonwy badge: CountBadge;
+
+	constwuctow(
+		containa: HTMWEwement,
+		@IWabewSewvice pwivate weadonwy _uwiWabew: IWabewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super();
-		const parent = document.createElement('div');
-		parent.classList.add('reference-file');
-		this.file = this._register(new IconLabel(parent, { supportHighlights: true }));
+		supa();
+		const pawent = document.cweateEwement('div');
+		pawent.cwassWist.add('wefewence-fiwe');
+		this.fiwe = this._wegista(new IconWabew(pawent, { suppowtHighwights: twue }));
 
-		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
-		this._register(attachBadgeStyler(this.badge, themeService));
+		this.badge = new CountBadge(dom.append(pawent, dom.$('.count')));
+		this._wegista(attachBadgeStywa(this.badge, themeSewvice));
 
-		container.appendChild(parent);
+		containa.appendChiwd(pawent);
 	}
 
-	set(element: FileReferences, matches: IMatch[]) {
-		let parent = dirname(element.uri);
-		this.file.setLabel(getBaseLabel(element.uri), this._uriLabel.getUriLabel(parent, { relative: true }), { title: this._uriLabel.getUriLabel(element.uri), matches });
-		const len = element.children.length;
-		this.badge.setCount(len);
-		if (len > 1) {
-			this.badge.setTitleFormat(localize('referencesCount', "{0} references", len));
-		} else {
-			this.badge.setTitleFormat(localize('referenceCount', "{0} reference", len));
+	set(ewement: FiweWefewences, matches: IMatch[]) {
+		wet pawent = diwname(ewement.uwi);
+		this.fiwe.setWabew(getBaseWabew(ewement.uwi), this._uwiWabew.getUwiWabew(pawent, { wewative: twue }), { titwe: this._uwiWabew.getUwiWabew(ewement.uwi), matches });
+		const wen = ewement.chiwdwen.wength;
+		this.badge.setCount(wen);
+		if (wen > 1) {
+			this.badge.setTitweFowmat(wocawize('wefewencesCount', "{0} wefewences", wen));
+		} ewse {
+			this.badge.setTitweFowmat(wocawize('wefewenceCount', "{0} wefewence", wen));
 		}
 	}
 }
 
-export class FileReferencesRenderer implements ITreeRenderer<FileReferences, FuzzyScore, FileReferencesTemplate> {
+expowt cwass FiweWefewencesWendewa impwements ITweeWendewa<FiweWefewences, FuzzyScowe, FiweWefewencesTempwate> {
 
-	static readonly id = 'FileReferencesRenderer';
+	static weadonwy id = 'FiweWefewencesWendewa';
 
-	readonly templateId: string = FileReferencesRenderer.id;
+	weadonwy tempwateId: stwing = FiweWefewencesWendewa.id;
 
-	constructor(@IInstantiationService private readonly _instantiationService: IInstantiationService) { }
+	constwuctow(@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice) { }
 
-	renderTemplate(container: HTMLElement): FileReferencesTemplate {
-		return this._instantiationService.createInstance(FileReferencesTemplate, container);
+	wendewTempwate(containa: HTMWEwement): FiweWefewencesTempwate {
+		wetuwn this._instantiationSewvice.cweateInstance(FiweWefewencesTempwate, containa);
 	}
-	renderElement(node: ITreeNode<FileReferences, FuzzyScore>, index: number, template: FileReferencesTemplate): void {
-		template.set(node.element, createMatches(node.filterData));
+	wendewEwement(node: ITweeNode<FiweWefewences, FuzzyScowe>, index: numba, tempwate: FiweWefewencesTempwate): void {
+		tempwate.set(node.ewement, cweateMatches(node.fiwtewData));
 	}
-	disposeTemplate(templateData: FileReferencesTemplate): void {
-		templateData.dispose();
+	disposeTempwate(tempwateData: FiweWefewencesTempwate): void {
+		tempwateData.dispose();
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region render: Reference
-class OneReferenceTemplate {
+//#wegion wenda: Wefewence
+cwass OneWefewenceTempwate {
 
-	readonly label: HighlightedLabel;
+	weadonwy wabew: HighwightedWabew;
 
-	constructor(container: HTMLElement) {
-		this.label = new HighlightedLabel(container, false);
+	constwuctow(containa: HTMWEwement) {
+		this.wabew = new HighwightedWabew(containa, fawse);
 	}
 
-	set(element: OneReference, score?: FuzzyScore): void {
-		const preview = element.parent.getPreview(element)?.preview(element.range);
-		if (!preview || !preview.value) {
-			// this means we FAILED to resolve the document or the value is the empty string
-			this.label.set(`${basename(element.uri)}:${element.range.startLineNumber + 1}:${element.range.startColumn + 1}`);
-		} else {
-			// render search match as highlight unless
-			// we have score, then render the score
-			const { value, highlight } = preview;
-			if (score && !FuzzyScore.isDefault(score)) {
-				this.label.element.classList.toggle('referenceMatch', false);
-				this.label.set(value, createMatches(score));
-			} else {
-				this.label.element.classList.toggle('referenceMatch', true);
-				this.label.set(value, [highlight]);
+	set(ewement: OneWefewence, scowe?: FuzzyScowe): void {
+		const pweview = ewement.pawent.getPweview(ewement)?.pweview(ewement.wange);
+		if (!pweview || !pweview.vawue) {
+			// this means we FAIWED to wesowve the document ow the vawue is the empty stwing
+			this.wabew.set(`${basename(ewement.uwi)}:${ewement.wange.stawtWineNumba + 1}:${ewement.wange.stawtCowumn + 1}`);
+		} ewse {
+			// wenda seawch match as highwight unwess
+			// we have scowe, then wenda the scowe
+			const { vawue, highwight } = pweview;
+			if (scowe && !FuzzyScowe.isDefauwt(scowe)) {
+				this.wabew.ewement.cwassWist.toggwe('wefewenceMatch', fawse);
+				this.wabew.set(vawue, cweateMatches(scowe));
+			} ewse {
+				this.wabew.ewement.cwassWist.toggwe('wefewenceMatch', twue);
+				this.wabew.set(vawue, [highwight]);
 			}
 		}
 	}
 }
 
-export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzyScore, OneReferenceTemplate> {
+expowt cwass OneWefewenceWendewa impwements ITweeWendewa<OneWefewence, FuzzyScowe, OneWefewenceTempwate> {
 
-	static readonly id = 'OneReferenceRenderer';
+	static weadonwy id = 'OneWefewenceWendewa';
 
-	readonly templateId: string = OneReferenceRenderer.id;
+	weadonwy tempwateId: stwing = OneWefewenceWendewa.id;
 
-	renderTemplate(container: HTMLElement): OneReferenceTemplate {
-		return new OneReferenceTemplate(container);
+	wendewTempwate(containa: HTMWEwement): OneWefewenceTempwate {
+		wetuwn new OneWefewenceTempwate(containa);
 	}
-	renderElement(node: ITreeNode<OneReference, FuzzyScore>, index: number, templateData: OneReferenceTemplate): void {
-		templateData.set(node.element, node.filterData);
+	wendewEwement(node: ITweeNode<OneWefewence, FuzzyScowe>, index: numba, tempwateData: OneWefewenceTempwate): void {
+		tempwateData.set(node.ewement, node.fiwtewData);
 	}
-	disposeTemplate(): void {
+	disposeTempwate(): void {
 	}
 }
 
-//#endregion
+//#endwegion
 
 
-export class AccessibilityProvider implements IListAccessibilityProvider<FileReferences | OneReference> {
+expowt cwass AccessibiwityPwovida impwements IWistAccessibiwityPwovida<FiweWefewences | OneWefewence> {
 
-	getWidgetAriaLabel(): string {
-		return localize('treeAriaLabel', "References");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn wocawize('tweeAwiaWabew', "Wefewences");
 	}
 
-	getAriaLabel(element: FileReferences | OneReference): string | null {
-		return element.ariaMessage;
+	getAwiaWabew(ewement: FiweWefewences | OneWefewence): stwing | nuww {
+		wetuwn ewement.awiaMessage;
 	}
 }

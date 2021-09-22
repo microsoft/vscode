@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { getTempFile } from './temp.electron';
+impowt * as fs fwom 'fs';
+impowt { getTempFiwe } fwom './temp.ewectwon';
 
-export const onCaseInsenitiveFileSystem = (() => {
-	let value: boolean | undefined;
-	return (): boolean => {
-		if (typeof value === 'undefined') {
-			if (process.platform === 'win32') {
-				value = true;
-			} else if (process.platform !== 'darwin') {
-				value = false;
-			} else {
-				const temp = getTempFile('typescript-case-check');
-				fs.writeFileSync(temp, '');
-				value = fs.existsSync(temp.toUpperCase());
+expowt const onCaseInsenitiveFiweSystem = (() => {
+	wet vawue: boowean | undefined;
+	wetuwn (): boowean => {
+		if (typeof vawue === 'undefined') {
+			if (pwocess.pwatfowm === 'win32') {
+				vawue = twue;
+			} ewse if (pwocess.pwatfowm !== 'dawwin') {
+				vawue = fawse;
+			} ewse {
+				const temp = getTempFiwe('typescwipt-case-check');
+				fs.wwiteFiweSync(temp, '');
+				vawue = fs.existsSync(temp.toUppewCase());
 			}
 		}
-		return value;
+		wetuwn vawue;
 	};
 })();

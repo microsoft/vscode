@@ -1,447 +1,447 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/base/test/common/utils';
-import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { timeout } from 'vs/base/common/async';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { toWesouwce } fwom 'vs/base/test/common/utiws';
+impowt { FiweEditowInput } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowInput';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, getWastWesowvedFiweStat } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowFactowyWegistwy, Vewbosity, EditowExtensions, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { EncodingMode, TextFiweOpewationEwwow, TextFiweOpewationWesuwt } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { FiweOpewationWesuwt, FiweOpewationEwwow, NotModifiedSinceFiweOpewationEwwow, FiweSystemPwovidewCapabiwities } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { TextFiweEditowModew } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModew';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { ModesWegistwy, PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { BinawyEditowModew } fwom 'vs/wowkbench/common/editow/binawyEditowModew';
+impowt { IWesouwceEditowInput } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { FiweEditowInputSewiawiza } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/editows/fiweEditowHandwa';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { TextEditowSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textEditowSewvice';
 
-suite('Files - FileEditorInput', () => {
+suite('Fiwes - FiweEditowInput', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
-	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode, preferredContents);
+	function cweateFiweInput(wesouwce: UWI, pwefewwedWesouwce?: UWI, pwefewwedMode?: stwing, pwefewwedName?: stwing, pwefewwedDescwiption?: stwing, pwefewwedContents?: stwing): FiweEditowInput {
+		wetuwn instantiationSewvice.cweateInstance(FiweEditowInput, wesouwce, pwefewwedWesouwce, pwefewwedName, pwefewwedDescwiption, undefined, pwefewwedMode, pwefewwedContents);
 	}
 
-	class TestTextEditorService extends TextEditorService {
-		override createTextEditor(input: IResourceEditorInput) {
-			return createFileInput(input.resource);
+	cwass TestTextEditowSewvice extends TextEditowSewvice {
+		ovewwide cweateTextEditow(input: IWesouwceEditowInput) {
+			wetuwn cweateFiweInput(input.wesouwce);
 		}
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService({
-			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
+		instantiationSewvice = wowkbenchInstantiationSewvice({
+			textEditowSewvice: instantiationSewvice => instantiationSewvice.cweateInstance(TestTextEditowSewvice)
 		});
 
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
 	test('Basics', async function () {
-		let input = createFileInput(toResource.call(this, '/foo/bar/file.js'));
-		const otherInput = createFileInput(toResource.call(this, 'foo/bar/otherfile.js'));
-		const otherInputSame = createFileInput(toResource.call(this, 'foo/bar/file.js'));
+		wet input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'));
+		const othewInput = cweateFiweInput(toWesouwce.caww(this, 'foo/baw/othewfiwe.js'));
+		const othewInputSame = cweateFiweInput(toWesouwce.caww(this, 'foo/baw/fiwe.js'));
 
-		assert(input.matches(input));
-		assert(input.matches(otherInputSame));
-		assert(!input.matches(otherInput));
-		assert.ok(input.getName());
-		assert.ok(input.getDescription());
-		assert.ok(input.getTitle(Verbosity.SHORT));
+		assewt(input.matches(input));
+		assewt(input.matches(othewInputSame));
+		assewt(!input.matches(othewInput));
+		assewt.ok(input.getName());
+		assewt.ok(input.getDescwiption());
+		assewt.ok(input.getTitwe(Vewbosity.SHOWT));
 
-		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
-		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
-		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
-		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
+		assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+		assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
+		assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.Singweton));
+		assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.WequiwesTwust));
 
-		const untypedInput = input.toUntyped({ preserveViewState: 0 });
-		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
+		const untypedInput = input.toUntyped({ pwesewveViewState: 0 });
+		assewt.stwictEquaw(untypedInput.wesouwce.toStwing(), input.wesouwce.toStwing());
 
-		assert.strictEqual('file.js', input.getName());
+		assewt.stwictEquaw('fiwe.js', input.getName());
 
-		assert.strictEqual(toResource.call(this, '/foo/bar/file.js').fsPath, input.resource.fsPath);
-		assert(input.resource instanceof URI);
+		assewt.stwictEquaw(toWesouwce.caww(this, '/foo/baw/fiwe.js').fsPath, input.wesouwce.fsPath);
+		assewt(input.wesouwce instanceof UWI);
 
-		input = createFileInput(toResource.call(this, '/foo/bar.html'));
+		input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw.htmw'));
 
-		const inputToResolve: FileEditorInput = createFileInput(toResource.call(this, '/foo/bar/file.js'));
-		const sameOtherInput: FileEditorInput = createFileInput(toResource.call(this, '/foo/bar/file.js'));
+		const inputToWesowve: FiweEditowInput = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'));
+		const sameOthewInput: FiweEditowInput = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'));
 
-		let resolved = await inputToResolve.resolve();
-		assert.ok(inputToResolve.isResolved());
+		wet wesowved = await inputToWesowve.wesowve();
+		assewt.ok(inputToWesowve.isWesowved());
 
-		const resolvedModelA = resolved;
-		resolved = await inputToResolve.resolve();
-		assert(resolvedModelA === resolved); // OK: Resolved Model cached globally per input
+		const wesowvedModewA = wesowved;
+		wesowved = await inputToWesowve.wesowve();
+		assewt(wesowvedModewA === wesowved); // OK: Wesowved Modew cached gwobawwy pew input
 
-		try {
-			DisposableStore.DISABLE_DISPOSED_WARNING = true; // prevent unwanted warning output from occuring
+		twy {
+			DisposabweStowe.DISABWE_DISPOSED_WAWNING = twue; // pwevent unwanted wawning output fwom occuwing
 
-			const otherResolved = await sameOtherInput.resolve();
-			assert(otherResolved === resolvedModelA); // OK: Resolved Model cached globally per input
-			inputToResolve.dispose();
+			const othewWesowved = await sameOthewInput.wesowve();
+			assewt(othewWesowved === wesowvedModewA); // OK: Wesowved Modew cached gwobawwy pew input
+			inputToWesowve.dispose();
 
-			resolved = await inputToResolve.resolve();
-			assert(resolvedModelA === resolved); // Model is still the same because we had 2 clients
-			inputToResolve.dispose();
-			sameOtherInput.dispose();
-			resolvedModelA.dispose();
+			wesowved = await inputToWesowve.wesowve();
+			assewt(wesowvedModewA === wesowved); // Modew is stiww the same because we had 2 cwients
+			inputToWesowve.dispose();
+			sameOthewInput.dispose();
+			wesowvedModewA.dispose();
 
-			resolved = await inputToResolve.resolve();
-			assert(resolvedModelA !== resolved); // Different instance, because input got disposed
+			wesowved = await inputToWesowve.wesowve();
+			assewt(wesowvedModewA !== wesowved); // Diffewent instance, because input got disposed
 
-			const stat = getLastResolvedFileStat(resolved);
-			resolved = await inputToResolve.resolve();
+			const stat = getWastWesowvedFiweStat(wesowved);
+			wesowved = await inputToWesowve.wesowve();
 			await timeout(0);
-			assert(stat !== getLastResolvedFileStat(resolved)); // Different stat, because resolve always goes to the server for refresh
-		} finally {
-			DisposableStore.DISABLE_DISPOSED_WARNING = false;
+			assewt(stat !== getWastWesowvedFiweStat(wesowved)); // Diffewent stat, because wesowve awways goes to the sewva fow wefwesh
+		} finawwy {
+			DisposabweStowe.DISABWE_DISPOSED_WAWNING = fawse;
 		}
 	});
 
-	test('reports as untitled without supported file scheme', async function () {
-		let input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingScheme' }));
+	test('wepowts as untitwed without suppowted fiwe scheme', async function () {
+		wet input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js').with({ scheme: 'someTestingScheme' }));
 
-		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
-		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assewt.ok(input.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+		assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
 	});
 
-	test('reports as readonly with readonly file scheme', async function () {
+	test('wepowts as weadonwy with weadonwy fiwe scheme', async function () {
 
-		class ReadonlyInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
-			override readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
+		cwass WeadonwyInMemowyFiweSystemPwovida extends InMemowyFiweSystemPwovida {
+			ovewwide weadonwy capabiwities: FiweSystemPwovidewCapabiwities = FiweSystemPwovidewCapabiwities.Weadonwy;
 		}
 
-		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', new ReadonlyInMemoryFileSystemProvider());
-		try {
-			let input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
+		const disposabwe = accessow.fiweSewvice.wegistewPwovida('someTestingWeadonwyScheme', new WeadonwyInMemowyFiweSystemPwovida());
+		twy {
+			wet input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js').with({ scheme: 'someTestingWeadonwyScheme' }));
 
-			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
-			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
-		} finally {
-			disposable.dispose();
+			assewt.ok(!input.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+			assewt.ok(input.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
+		} finawwy {
+			disposabwe.dispose();
 		}
 	});
 
-	test('preferred resource', function () {
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
-		const preferredResource = toResource.call(this, '/foo/bar/UPDATEFILE.js');
+	test('pwefewwed wesouwce', function () {
+		const wesouwce = toWesouwce.caww(this, '/foo/baw/updatefiwe.js');
+		const pwefewwedWesouwce = toWesouwce.caww(this, '/foo/baw/UPDATEFIWE.js');
 
-		const inputWithoutPreferredResource = createFileInput(resource);
-		assert.strictEqual(inputWithoutPreferredResource.resource.toString(), resource.toString());
-		assert.strictEqual(inputWithoutPreferredResource.preferredResource.toString(), resource.toString());
+		const inputWithoutPwefewwedWesouwce = cweateFiweInput(wesouwce);
+		assewt.stwictEquaw(inputWithoutPwefewwedWesouwce.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(inputWithoutPwefewwedWesouwce.pwefewwedWesouwce.toStwing(), wesouwce.toStwing());
 
-		const inputWithPreferredResource = createFileInput(resource, preferredResource);
+		const inputWithPwefewwedWesouwce = cweateFiweInput(wesouwce, pwefewwedWesouwce);
 
-		assert.strictEqual(inputWithPreferredResource.resource.toString(), resource.toString());
-		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), preferredResource.toString());
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.pwefewwedWesouwce.toStwing(), pwefewwedWesouwce.toStwing());
 
-		let didChangeLabel = false;
-		const listener = inputWithPreferredResource.onDidChangeLabel(e => {
-			didChangeLabel = true;
+		wet didChangeWabew = fawse;
+		const wistena = inputWithPwefewwedWesouwce.onDidChangeWabew(e => {
+			didChangeWabew = twue;
 		});
 
-		assert.strictEqual(inputWithPreferredResource.getName(), 'UPDATEFILE.js');
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.getName(), 'UPDATEFIWE.js');
 
-		const otherPreferredResource = toResource.call(this, '/FOO/BAR/updateFILE.js');
-		inputWithPreferredResource.setPreferredResource(otherPreferredResource);
+		const othewPwefewwedWesouwce = toWesouwce.caww(this, '/FOO/BAW/updateFIWE.js');
+		inputWithPwefewwedWesouwce.setPwefewwedWesouwce(othewPwefewwedWesouwce);
 
-		assert.strictEqual(inputWithPreferredResource.resource.toString(), resource.toString());
-		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), otherPreferredResource.toString());
-		assert.strictEqual(inputWithPreferredResource.getName(), 'updateFILE.js');
-		assert.strictEqual(didChangeLabel, true);
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.wesouwce.toStwing(), wesouwce.toStwing());
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.pwefewwedWesouwce.toStwing(), othewPwefewwedWesouwce.toStwing());
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.getName(), 'updateFIWE.js');
+		assewt.stwictEquaw(didChangeWabew, twue);
 
-		listener.dispose();
+		wistena.dispose();
 	});
 
-	test('preferred mode', async function () {
-		const mode = 'file-input-test';
-		ModesRegistry.registerLanguage({
+	test('pwefewwed mode', async function () {
+		const mode = 'fiwe-input-test';
+		ModesWegistwy.wegistewWanguage({
 			id: mode,
 		});
 
-		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, mode);
-		assert.strictEqual(input.getPreferredMode(), mode);
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'), undefined, mode);
+		assewt.stwictEquaw(input.getPwefewwedMode(), mode);
 
-		const model = await input.resolve() as TextFileEditorModel;
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		const modew = await input.wesowve() as TextFiweEditowModew;
+		assewt.stwictEquaw(modew.textEditowModew!.getModeId(), mode);
 
 		input.setMode('text');
-		assert.strictEqual(input.getPreferredMode(), 'text');
-		assert.strictEqual(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+		assewt.stwictEquaw(input.getPwefewwedMode(), 'text');
+		assewt.stwictEquaw(modew.textEditowModew!.getModeId(), PWAINTEXT_MODE_ID);
 
-		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
-		input2.setPreferredMode(mode);
+		const input2 = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'));
+		input2.setPwefewwedMode(mode);
 
-		const model2 = await input2.resolve() as TextFileEditorModel;
-		assert.strictEqual(model2.textEditorModel!.getModeId(), mode);
+		const modew2 = await input2.wesowve() as TextFiweEditowModew;
+		assewt.stwictEquaw(modew2.textEditowModew!.getModeId(), mode);
 	});
 
-	test('preferred contents', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined, undefined, 'My contents');
+	test('pwefewwed contents', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'), undefined, undefined, undefined, undefined, 'My contents');
 
-		const model = await input.resolve() as TextFileEditorModel;
-		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
-		assert.strictEqual(input.isDirty(), true);
+		const modew = await input.wesowve() as TextFiweEditowModew;
+		assewt.stwictEquaw(modew.textEditowModew!.getVawue(), 'My contents');
+		assewt.stwictEquaw(input.isDiwty(), twue);
 
-		const untypedInput = input.toUntyped({ preserveViewState: 0 });
-		assert.strictEqual(untypedInput.contents, 'My contents');
+		const untypedInput = input.toUntyped({ pwesewveViewState: 0 });
+		assewt.stwictEquaw(untypedInput.contents, 'My contents');
 
 		const untypedInputWithoutContents = input.toUntyped();
-		assert.strictEqual(untypedInputWithoutContents.contents, undefined);
+		assewt.stwictEquaw(untypedInputWithoutContents.contents, undefined);
 
-		input.setPreferredContents('Other contents');
-		await input.resolve();
-		assert.strictEqual(model.textEditorModel!.getValue(), 'Other contents');
+		input.setPwefewwedContents('Otha contents');
+		await input.wesowve();
+		assewt.stwictEquaw(modew.textEditowModew!.getVawue(), 'Otha contents');
 
-		model.textEditorModel?.setValue('Changed contents');
-		await input.resolve();
-		assert.strictEqual(model.textEditorModel!.getValue(), 'Changed contents'); // preferred contents only used once
+		modew.textEditowModew?.setVawue('Changed contents');
+		await input.wesowve();
+		assewt.stwictEquaw(modew.textEditowModew!.getVawue(), 'Changed contents'); // pwefewwed contents onwy used once
 
-		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
-		input2.setPreferredContents('My contents');
+		const input2 = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/fiwe.js'));
+		input2.setPwefewwedContents('My contents');
 
-		const model2 = await input2.resolve() as TextFileEditorModel;
-		assert.strictEqual(model2.textEditorModel!.getValue(), 'My contents');
-		assert.strictEqual(input2.isDirty(), true);
+		const modew2 = await input2.wesowve() as TextFiweEditowModew;
+		assewt.stwictEquaw(modew2.textEditowModew!.getVawue(), 'My contents');
+		assewt.stwictEquaw(input2.isDiwty(), twue);
 	});
 
 	test('matches', function () {
-		const input1 = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
-		const input2 = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
-		const input3 = createFileInput(toResource.call(this, '/foo/bar/other.js'));
-		const input2Upper = createFileInput(toResource.call(this, '/foo/bar/UPDATEFILE.js'));
+		const input1 = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
+		const input2 = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
+		const input3 = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/otha.js'));
+		const input2Uppa = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/UPDATEFIWE.js'));
 
-		assert.strictEqual(input1.matches(input1), true);
-		assert.strictEqual(input1.matches(input2), true);
-		assert.strictEqual(input1.matches(input3), false);
+		assewt.stwictEquaw(input1.matches(input1), twue);
+		assewt.stwictEquaw(input1.matches(input2), twue);
+		assewt.stwictEquaw(input1.matches(input3), fawse);
 
-		assert.strictEqual(input1.matches(input2Upper), false);
+		assewt.stwictEquaw(input1.matches(input2Uppa), fawse);
 	});
 
 	test('getEncoding/setEncoding', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
 		await input.setEncoding('utf16', EncodingMode.Encode);
-		assert.strictEqual(input.getEncoding(), 'utf16');
+		assewt.stwictEquaw(input.getEncoding(), 'utf16');
 
-		const resolved = await input.resolve() as TextFileEditorModel;
-		assert.strictEqual(input.getEncoding(), resolved.getEncoding());
-		resolved.dispose();
+		const wesowved = await input.wesowve() as TextFiweEditowModew;
+		assewt.stwictEquaw(input.getEncoding(), wesowved.getEncoding());
+		wesowved.dispose();
 	});
 
 	test('save', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		const resolved = await input.resolve() as TextFileEditorModel;
-		resolved.textEditorModel!.setValue('changed');
-		assert.ok(input.isDirty());
+		const wesowved = await input.wesowve() as TextFiweEditowModew;
+		wesowved.textEditowModew!.setVawue('changed');
+		assewt.ok(input.isDiwty());
 
 		await input.save(0);
-		assert.ok(!input.isDirty());
-		resolved.dispose();
+		assewt.ok(!input.isDiwty());
+		wesowved.dispose();
 	});
 
-	test('revert', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+	test('wevewt', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		const resolved = await input.resolve() as TextFileEditorModel;
-		resolved.textEditorModel!.setValue('changed');
-		assert.ok(input.isDirty());
+		const wesowved = await input.wesowve() as TextFiweEditowModew;
+		wesowved.textEditowModew!.setVawue('changed');
+		assewt.ok(input.isDiwty());
 
-		await input.revert(0);
-		assert.ok(!input.isDirty());
+		await input.wevewt(0);
+		assewt.ok(!input.isDiwty());
 
 		input.dispose();
-		assert.ok(input.isDisposed());
+		assewt.ok(input.isDisposed());
 
-		resolved.dispose();
+		wesowved.dispose();
 	});
 
-	test('resolve handles binary files', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+	test('wesowve handwes binawy fiwes', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
+		accessow.textFiweSewvice.setWeadStweamEwwowOnce(new TextFiweOpewationEwwow('ewwow', TextFiweOpewationWesuwt.FIWE_IS_BINAWY));
 
-		const resolved = await input.resolve();
-		assert.ok(resolved);
-		resolved.dispose();
+		const wesowved = await input.wesowve();
+		assewt.ok(wesowved);
+		wesowved.dispose();
 	});
 
-	test('resolve handles too large files', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+	test('wesowve handwes too wawge fiwes', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+		accessow.textFiweSewvice.setWeadStweamEwwowOnce(new FiweOpewationEwwow('ewwow', FiweOpewationWesuwt.FIWE_TOO_WAWGE));
 
-		const resolved = await input.resolve();
-		assert.ok(resolved);
-		resolved.dispose();
+		const wesowved = await input.wesowve();
+		assewt.ok(wesowved);
+		wesowved.dispose();
 	});
 
-	test('attaches to model when created and reports dirty', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+	test('attaches to modew when cweated and wepowts diwty', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		let listenerCount = 0;
-		const listener = input.onDidChangeDirty(() => {
-			listenerCount++;
+		wet wistenewCount = 0;
+		const wistena = input.onDidChangeDiwty(() => {
+			wistenewCount++;
 		});
 
-		// instead of going through file input resolve method
-		// we resolve the model directly through the service
-		const model = await accessor.textFileService.files.resolve(input.resource);
-		model.textEditorModel?.setValue('hello world');
+		// instead of going thwough fiwe input wesowve method
+		// we wesowve the modew diwectwy thwough the sewvice
+		const modew = await accessow.textFiweSewvice.fiwes.wesowve(input.wesouwce);
+		modew.textEditowModew?.setVawue('hewwo wowwd');
 
-		assert.strictEqual(listenerCount, 1);
-		assert.ok(input.isDirty());
+		assewt.stwictEquaw(wistenewCount, 1);
+		assewt.ok(input.isDiwty());
 
 		input.dispose();
-		listener.dispose();
+		wistena.dispose();
 	});
 
-	test('force open text/binary', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
-		input.setForceOpenAsBinary();
+	test('fowce open text/binawy', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
+		input.setFowceOpenAsBinawy();
 
-		let resolved = await input.resolve();
-		assert.ok(resolved instanceof BinaryEditorModel);
+		wet wesowved = await input.wesowve();
+		assewt.ok(wesowved instanceof BinawyEditowModew);
 
-		input.setForceOpenAsText();
+		input.setFowceOpenAsText();
 
-		resolved = await input.resolve();
-		assert.ok(resolved instanceof TextFileEditorModel);
+		wesowved = await input.wesowve();
+		assewt.ok(wesowved instanceof TextFiweEditowModew);
 
-		resolved.dispose();
+		wesowved.dispose();
 	});
 
-	test('file editor serializer', async function () {
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+	test('fiwe editow sewiawiza', async function () {
+		instantiationSewvice.invokeFunction(accessow => Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).stawt(accessow));
 
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		const disposable = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
+		const disposabwe = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).wegistewEditowSewiawiza('wowkbench.editows.fiwes.fiweEditowInput', FiweEditowInputSewiawiza);
 
-		const editorSerializer = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getEditorSerializer(input.typeId);
-		if (!editorSerializer) {
-			assert.fail('File Editor Input Serializer missing');
+		const editowSewiawiza = Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).getEditowSewiawiza(input.typeId);
+		if (!editowSewiawiza) {
+			assewt.faiw('Fiwe Editow Input Sewiawiza missing');
 		}
 
-		assert.strictEqual(editorSerializer.canSerialize(input), true);
+		assewt.stwictEquaw(editowSewiawiza.canSewiawize(input), twue);
 
-		const inputSerialized = editorSerializer.serialize(input);
-		if (!inputSerialized) {
-			assert.fail('Unexpected serialized file input');
+		const inputSewiawized = editowSewiawiza.sewiawize(input);
+		if (!inputSewiawized) {
+			assewt.faiw('Unexpected sewiawized fiwe input');
 		}
 
-		const inputDeserialized = editorSerializer.deserialize(instantiationService, inputSerialized);
-		assert.strictEqual(inputDeserialized ? input.matches(inputDeserialized) : false, true);
+		const inputDesewiawized = editowSewiawiza.desewiawize(instantiationSewvice, inputSewiawized);
+		assewt.stwictEquaw(inputDesewiawized ? input.matches(inputDesewiawized) : fawse, twue);
 
-		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
-		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);
+		const pwefewwedWesouwce = toWesouwce.caww(this, '/foo/baw/UPDATEfiwe.js');
+		const inputWithPwefewwedWesouwce = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'), pwefewwedWesouwce);
 
-		const inputWithPreferredResourceSerialized = editorSerializer.serialize(inputWithPreferredResource);
-		if (!inputWithPreferredResourceSerialized) {
-			assert.fail('Unexpected serialized file input');
+		const inputWithPwefewwedWesouwceSewiawized = editowSewiawiza.sewiawize(inputWithPwefewwedWesouwce);
+		if (!inputWithPwefewwedWesouwceSewiawized) {
+			assewt.faiw('Unexpected sewiawized fiwe input');
 		}
 
-		const inputWithPreferredResourceDeserialized = editorSerializer.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
-		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
-		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+		const inputWithPwefewwedWesouwceDesewiawized = editowSewiawiza.desewiawize(instantiationSewvice, inputWithPwefewwedWesouwceSewiawized) as FiweEditowInput;
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.wesouwce.toStwing(), inputWithPwefewwedWesouwceDesewiawized.wesouwce.toStwing());
+		assewt.stwictEquaw(inputWithPwefewwedWesouwce.pwefewwedWesouwce.toStwing(), inputWithPwefewwedWesouwceDesewiawized.pwefewwedWesouwce.toStwing());
 
-		disposable.dispose();
+		disposabwe.dispose();
 	});
 
-	test('preferred name/description', async function () {
+	test('pwefewwed name/descwiption', async function () {
 
-		// Works with custom file input
-		const customFileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js').with({ scheme: 'test-custom' }), undefined, undefined, 'My Name', 'My Description');
+		// Wowks with custom fiwe input
+		const customFiweInput = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js').with({ scheme: 'test-custom' }), undefined, undefined, 'My Name', 'My Descwiption');
 
-		let didChangeLabelCounter = 0;
-		customFileInput.onDidChangeLabel(() => {
-			didChangeLabelCounter++;
+		wet didChangeWabewCounta = 0;
+		customFiweInput.onDidChangeWabew(() => {
+			didChangeWabewCounta++;
 		});
 
-		assert.strictEqual(customFileInput.getName(), 'My Name');
-		assert.strictEqual(customFileInput.getDescription(), 'My Description');
+		assewt.stwictEquaw(customFiweInput.getName(), 'My Name');
+		assewt.stwictEquaw(customFiweInput.getDescwiption(), 'My Descwiption');
 
-		customFileInput.setPreferredName('My Name 2');
-		customFileInput.setPreferredDescription('My Description 2');
+		customFiweInput.setPwefewwedName('My Name 2');
+		customFiweInput.setPwefewwedDescwiption('My Descwiption 2');
 
-		assert.strictEqual(customFileInput.getName(), 'My Name 2');
-		assert.strictEqual(customFileInput.getDescription(), 'My Description 2');
+		assewt.stwictEquaw(customFiweInput.getName(), 'My Name 2');
+		assewt.stwictEquaw(customFiweInput.getDescwiption(), 'My Descwiption 2');
 
-		assert.strictEqual(didChangeLabelCounter, 2);
+		assewt.stwictEquaw(didChangeWabewCounta, 2);
 
-		customFileInput.dispose();
+		customFiweInput.dispose();
 
-		// Disallowed with local file input
-		const fileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, 'My Name', 'My Description');
+		// Disawwowed with wocaw fiwe input
+		const fiweInput = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'), undefined, undefined, 'My Name', 'My Descwiption');
 
-		didChangeLabelCounter = 0;
-		fileInput.onDidChangeLabel(() => {
-			didChangeLabelCounter++;
+		didChangeWabewCounta = 0;
+		fiweInput.onDidChangeWabew(() => {
+			didChangeWabewCounta++;
 		});
 
-		assert.notStrictEqual(fileInput.getName(), 'My Name');
-		assert.notStrictEqual(fileInput.getDescription(), 'My Description');
+		assewt.notStwictEquaw(fiweInput.getName(), 'My Name');
+		assewt.notStwictEquaw(fiweInput.getDescwiption(), 'My Descwiption');
 
-		fileInput.setPreferredName('My Name 2');
-		fileInput.setPreferredDescription('My Description 2');
+		fiweInput.setPwefewwedName('My Name 2');
+		fiweInput.setPwefewwedDescwiption('My Descwiption 2');
 
-		assert.notStrictEqual(fileInput.getName(), 'My Name 2');
-		assert.notStrictEqual(fileInput.getDescription(), 'My Description 2');
+		assewt.notStwictEquaw(fiweInput.getName(), 'My Name 2');
+		assewt.notStwictEquaw(fiweInput.getDescwiption(), 'My Descwiption 2');
 
-		assert.strictEqual(didChangeLabelCounter, 0);
+		assewt.stwictEquaw(didChangeWabewCounta, 0);
 
-		fileInput.dispose();
+		fiweInput.dispose();
 	});
 
-	test('reports readonly changes', async function () {
-		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+	test('wepowts weadonwy changes', async function () {
+		const input = cweateFiweInput(toWesouwce.caww(this, '/foo/baw/updatefiwe.js'));
 
-		let listenerCount = 0;
-		const listener = input.onDidChangeCapabilities(() => {
-			listenerCount++;
+		wet wistenewCount = 0;
+		const wistena = input.onDidChangeCapabiwities(() => {
+			wistenewCount++;
 		});
 
-		const model = await accessor.textFileService.files.resolve(input.resource);
+		const modew = await accessow.textFiweSewvice.fiwes.wesowve(input.wesouwce);
 
-		assert.strictEqual(model.isReadonly(), false);
-		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assewt.stwictEquaw(modew.isWeadonwy(), fawse);
+		assewt.stwictEquaw(input.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
 
-		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
+		const stat = await accessow.fiweSewvice.wesowve(input.wesouwce, { wesowveMetadata: twue });
 
-		try {
-			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: true });
-			await input.resolve();
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new NotModifiedSinceFiweOpewationEwwow('fiwe not modified since', { ...stat, weadonwy: twue });
+			await input.wesowve();
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(model.isReadonly(), true);
-		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
-		assert.strictEqual(listenerCount, 1);
+		assewt.stwictEquaw(modew.isWeadonwy(), twue);
+		assewt.stwictEquaw(input.hasCapabiwity(EditowInputCapabiwities.Weadonwy), twue);
+		assewt.stwictEquaw(wistenewCount, 1);
 
-		try {
-			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: false });
-			await input.resolve();
-		} finally {
-			accessor.fileService.readShouldThrowError = undefined;
+		twy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = new NotModifiedSinceFiweOpewationEwwow('fiwe not modified since', { ...stat, weadonwy: fawse });
+			await input.wesowve();
+		} finawwy {
+			accessow.fiweSewvice.weadShouwdThwowEwwow = undefined;
 		}
 
-		assert.strictEqual(model.isReadonly(), false);
-		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
-		assert.strictEqual(listenerCount, 2);
+		assewt.stwictEquaw(modew.isWeadonwy(), fawse);
+		assewt.stwictEquaw(input.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
+		assewt.stwictEquaw(wistenewCount, 2);
 
 		input.dispose();
-		listener.dispose();
+		wistena.dispose();
 	});
 });

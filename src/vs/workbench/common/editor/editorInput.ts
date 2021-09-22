@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { isEqual } from 'vs/base/common/resources';
-import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEditowModew } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { fiwstOwDefauwt } fwom 'vs/base/common/awways';
+impowt { EditowInputCapabiwities, Vewbosity, GwoupIdentifia, ISaveOptions, IWevewtOptions, IMoveWesuwt, IEditowDescwiptow, IEditowPane, IUntypedEditowInput, EditowWesouwceAccessow, AbstwactEditowInput, isEditowInput, IEditowIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { ConfiwmWesuwt } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
 /**
- * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
- * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
+ * Editow inputs awe wightweight objects that can be passed to the wowkbench API to open inside the editow pawt.
+ * Each editow input is mapped to an editow that is capabwe of opening it thwough the Pwatfowm facade.
  */
-export abstract class EditorInput extends AbstractEditorInput {
+expowt abstwact cwass EditowInput extends AbstwactEditowInput {
 
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
-	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
-	private readonly _onWillDispose = this._register(new Emitter<void>());
+	pwotected weadonwy _onDidChangeDiwty = this._wegista(new Emitta<void>());
+	pwotected weadonwy _onDidChangeWabew = this._wegista(new Emitta<void>());
+	pwotected weadonwy _onDidChangeCapabiwities = this._wegista(new Emitta<void>());
+	pwivate weadonwy _onWiwwDispose = this._wegista(new Emitta<void>());
 
 	/**
-	 * Triggered when this input changes its dirty state.
+	 * Twiggewed when this input changes its diwty state.
 	 */
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	weadonwy onDidChangeDiwty = this._onDidChangeDiwty.event;
 
 	/**
-	 * Triggered when this input changes its label
+	 * Twiggewed when this input changes its wabew
 	 */
-	readonly onDidChangeLabel = this._onDidChangeLabel.event;
+	weadonwy onDidChangeWabew = this._onDidChangeWabew.event;
 
 	/**
-	 * Triggered when this input changes its capabilities.
+	 * Twiggewed when this input changes its capabiwities.
 	 */
-	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+	weadonwy onDidChangeCapabiwities = this._onDidChangeCapabiwities.event;
 
 	/**
-	 * Triggered when this input is about to be disposed.
+	 * Twiggewed when this input is about to be disposed.
 	 */
-	readonly onWillDispose = this._onWillDispose.event;
+	weadonwy onWiwwDispose = this._onWiwwDispose.event;
 
-	private disposed: boolean = false;
+	pwivate disposed: boowean = fawse;
 
 	/**
-	 * Unique type identifier for this input. Every editor input of the
-	 * same class should share the same type identifier. The type identifier
-	 * is used for example for serialising/deserialising editor inputs
-	 * via the serialisers of the `IEditorInputFactoryRegistry`.
+	 * Unique type identifia fow this input. Evewy editow input of the
+	 * same cwass shouwd shawe the same type identifia. The type identifia
+	 * is used fow exampwe fow sewiawising/desewiawising editow inputs
+	 * via the sewiawisews of the `IEditowInputFactowyWegistwy`.
 	 */
-	abstract get typeId(): string;
+	abstwact get typeId(): stwing;
 
 	/**
-	 * Returns the optional associated resource of this input.
+	 * Wetuwns the optionaw associated wesouwce of this input.
 	 *
-	 * This resource should be unique for all editors of the same
-	 * kind and input and is often used to identify the editor input among
-	 * others.
+	 * This wesouwce shouwd be unique fow aww editows of the same
+	 * kind and input and is often used to identify the editow input among
+	 * othews.
 	 *
-	 * **Note:** DO NOT use this property for anything but identity
-	 * checks. DO NOT use this property to present as label to the user.
-	 * Please refer to `EditorResourceAccessor` documentation in that case.
+	 * **Note:** DO NOT use this pwopewty fow anything but identity
+	 * checks. DO NOT use this pwopewty to pwesent as wabew to the usa.
+	 * Pwease wefa to `EditowWesouwceAccessow` documentation in that case.
 	 */
-	abstract get resource(): URI | undefined;
+	abstwact get wesouwce(): UWI | undefined;
 
 	/**
-	 * Identifies the type of editor this input represents
-	 * This ID is registered with the {@link EditorResolverService} to allow
-	 * for resolving an untyped input to a typed one
+	 * Identifies the type of editow this input wepwesents
+	 * This ID is wegistewed with the {@wink EditowWesowvewSewvice} to awwow
+	 * fow wesowving an untyped input to a typed one
 	 */
-	get editorId(): string | undefined {
-		return undefined;
+	get editowId(): stwing | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * The capabilities of the input.
+	 * The capabiwities of the input.
 	 */
-	get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly;
+	get capabiwities(): EditowInputCapabiwities {
+		wetuwn EditowInputCapabiwities.Weadonwy;
 	}
 
 	/**
-	 * Figure out if the input has the provided capability.
+	 * Figuwe out if the input has the pwovided capabiwity.
 	 */
-	hasCapability(capability: EditorInputCapabilities): boolean {
-		if (capability === EditorInputCapabilities.None) {
-			return this.capabilities === EditorInputCapabilities.None;
+	hasCapabiwity(capabiwity: EditowInputCapabiwities): boowean {
+		if (capabiwity === EditowInputCapabiwities.None) {
+			wetuwn this.capabiwities === EditowInputCapabiwities.None;
 		}
 
-		return (this.capabilities & capability) !== 0;
+		wetuwn (this.capabiwities & capabiwity) !== 0;
 	}
 
 	/**
-	 * Returns the display name of this input.
+	 * Wetuwns the dispway name of this input.
 	 */
-	getName(): string {
-		return `Editor ${this.typeId}`;
+	getName(): stwing {
+		wetuwn `Editow ${this.typeId}`;
 	}
 
 	/**
-	 * Returns the display description of this input.
+	 * Wetuwns the dispway descwiption of this input.
 	 */
-	getDescription(verbosity?: Verbosity): string | undefined {
-		return undefined;
+	getDescwiption(vewbosity?: Vewbosity): stwing | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns the display title of this input.
+	 * Wetuwns the dispway titwe of this input.
 	 */
-	getTitle(verbosity?: Verbosity): string {
-		return this.getName();
+	getTitwe(vewbosity?: Vewbosity): stwing {
+		wetuwn this.getName();
 	}
 
 	/**
-	 * Returns the extra classes to apply to the label of this input.
+	 * Wetuwns the extwa cwasses to appwy to the wabew of this input.
 	 */
-	getLabelExtraClasses(): string[] {
-		return [];
+	getWabewExtwaCwasses(): stwing[] {
+		wetuwn [];
 	}
 
 	/**
-	 * Returns the aria label to be read out by a screen reader.
+	 * Wetuwns the awia wabew to be wead out by a scween weada.
 	 */
-	getAriaLabel(): string {
-		return this.getTitle(Verbosity.SHORT);
+	getAwiaWabew(): stwing {
+		wetuwn this.getTitwe(Vewbosity.SHOWT);
 	}
 
 	/**
-	 * Returns a descriptor suitable for telemetry events.
+	 * Wetuwns a descwiptow suitabwe fow tewemetwy events.
 	 *
-	 * Subclasses should extend if they can contribute.
+	 * Subcwasses shouwd extend if they can contwibute.
 	 */
-	getTelemetryDescriptor(): { [key: string]: unknown } {
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	getTewemetwyDescwiptow(): { [key: stwing]: unknown } {
+		/* __GDPW__FWAGMENT__
+			"EditowTewemetwyDescwiptow" : {
+				"typeId" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		return { typeId: this.typeId };
+		wetuwn { typeId: this.typeId };
 	}
 
 	/**
-	 * Returns if this input is dirty or not.
+	 * Wetuwns if this input is diwty ow not.
 	 */
-	isDirty(): boolean {
-		return false;
+	isDiwty(): boowean {
+		wetuwn fawse;
 	}
 
 	/**
-	 * Returns if this input is currently being saved or soon to be
-	 * saved. Based on this assumption the editor may for example
-	 * decide to not signal the dirty state to the user assuming that
-	 * the save is scheduled to happen anyway.
+	 * Wetuwns if this input is cuwwentwy being saved ow soon to be
+	 * saved. Based on this assumption the editow may fow exampwe
+	 * decide to not signaw the diwty state to the usa assuming that
+	 * the save is scheduwed to happen anyway.
 	 */
-	isSaving(): boolean {
-		return false;
+	isSaving(): boowean {
+		wetuwn fawse;
 	}
 
 	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
-	 * Subclasses should override to provide a meaningful model or return
-	 * `null` if the editor does not require a model.
+	 * Wetuwns a type of `IEditowModew` that wepwesents the wesowved input.
+	 * Subcwasses shouwd ovewwide to pwovide a meaningfuw modew ow wetuwn
+	 * `nuww` if the editow does not wequiwe a modew.
 	 */
-	async resolve(): Promise<IEditorModel | null> {
-		return null;
+	async wesowve(): Pwomise<IEditowModew | nuww> {
+		wetuwn nuww;
 	}
 
 	/**
-	 * Optional: if this method is implemented, allows an editor to
-	 * control what should happen when the editor (or a list of editors
-	 * of the same kind) is dirty and there is an intent to close it.
+	 * Optionaw: if this method is impwemented, awwows an editow to
+	 * contwow what shouwd happen when the editow (ow a wist of editows
+	 * of the same kind) is diwty and thewe is an intent to cwose it.
 	 *
-	 * By default a file specific dialog will open. If the editor is
-	 * not dealing with files, this method should be implemented to
-	 * show a different dialog.
+	 * By defauwt a fiwe specific diawog wiww open. If the editow is
+	 * not deawing with fiwes, this method shouwd be impwemented to
+	 * show a diffewent diawog.
 	 *
-	 * @param editors if more than one editor is closed, will pass in
-	 * each editor of the same kind to be able to show a combined dialog.
+	 * @pawam editows if mowe than one editow is cwosed, wiww pass in
+	 * each editow of the same kind to be abwe to show a combined diawog.
 	 */
-	confirm?(editors?: ReadonlyArray<IEditorIdentifier>): Promise<ConfirmResult>;
+	confiwm?(editows?: WeadonwyAwway<IEditowIdentifia>): Pwomise<ConfiwmWesuwt>;
 
 	/**
-	 * Saves the editor. The provided groupId helps implementors
-	 * to e.g. preserve view state of the editor and re-open it
-	 * in the correct group after saving.
+	 * Saves the editow. The pwovided gwoupId hewps impwementows
+	 * to e.g. pwesewve view state of the editow and we-open it
+	 * in the cowwect gwoup afta saving.
 	 *
-	 * @returns the resulting editor input (typically the same) of
-	 * this operation or `undefined` to indicate that the operation
-	 * failed or was canceled.
+	 * @wetuwns the wesuwting editow input (typicawwy the same) of
+	 * this opewation ow `undefined` to indicate that the opewation
+	 * faiwed ow was cancewed.
 	 */
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		return this;
+	async save(gwoup: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		wetuwn this;
 	}
 
 	/**
-	 * Saves the editor to a different location. The provided `group`
-	 * helps implementors to e.g. preserve view state of the editor
-	 * and re-open it in the correct group after saving.
+	 * Saves the editow to a diffewent wocation. The pwovided `gwoup`
+	 * hewps impwementows to e.g. pwesewve view state of the editow
+	 * and we-open it in the cowwect gwoup afta saving.
 	 *
-	 * @returns the resulting editor input (typically a different one)
-	 * of this operation or `undefined` to indicate that the operation
-	 * failed or was canceled.
+	 * @wetuwns the wesuwting editow input (typicawwy a diffewent one)
+	 * of this opewation ow `undefined` to indicate that the opewation
+	 * faiwed ow was cancewed.
 	 */
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
-		return this;
+	async saveAs(gwoup: GwoupIdentifia, options?: ISaveOptions): Pwomise<EditowInput | undefined> {
+		wetuwn this;
 	}
 
 	/**
-	 * Reverts this input from the provided group.
+	 * Wevewts this input fwom the pwovided gwoup.
 	 */
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
+	async wevewt(gwoup: GwoupIdentifia, options?: IWevewtOptions): Pwomise<void> { }
 
 	/**
-	 * Called to determine how to handle a resource that is renamed that matches
-	 * the editors resource (or is a child of).
+	 * Cawwed to detewmine how to handwe a wesouwce that is wenamed that matches
+	 * the editows wesouwce (ow is a chiwd of).
 	 *
-	 * Implementors are free to not implement this method to signal no intent
-	 * to participate. If an editor is returned though, it will replace the
-	 * current one with that editor and optional options.
+	 * Impwementows awe fwee to not impwement this method to signaw no intent
+	 * to pawticipate. If an editow is wetuwned though, it wiww wepwace the
+	 * cuwwent one with that editow and optionaw options.
 	 */
-	async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
-		return undefined;
+	async wename(gwoup: GwoupIdentifia, tawget: UWI): Pwomise<IMoveWesuwt | undefined> {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns a copy of the current editor input. Used when we can't just reuse the input
+	 * Wetuwns a copy of the cuwwent editow input. Used when we can't just weuse the input
 	 */
-	copy(): EditorInput {
-		return this;
+	copy(): EditowInput {
+		wetuwn this;
 	}
 
 	/**
-	 * Returns if the other object matches this input.
+	 * Wetuwns if the otha object matches this input.
 	 */
-	matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+	matches(othewInput: EditowInput | IUntypedEditowInput): boowean {
 
 		// Typed inputs: via  === check
-		if (isEditorInput(otherInput)) {
-			return this === otherInput;
+		if (isEditowInput(othewInput)) {
+			wetuwn this === othewInput;
 		}
 
-		// Untyped inputs: go into properties
-		const otherInputEditorId = otherInput.options?.override;
+		// Untyped inputs: go into pwopewties
+		const othewInputEditowId = othewInput.options?.ovewwide;
 
-		if (this.editorId === undefined) {
-			return false; // untyped inputs can only match for editors that have adopted `editorId`
+		if (this.editowId === undefined) {
+			wetuwn fawse; // untyped inputs can onwy match fow editows that have adopted `editowId`
 		}
 
-		if (this.editorId !== otherInputEditorId) {
-			return false; // untyped input uses another `editorId`
+		if (this.editowId !== othewInputEditowId) {
+			wetuwn fawse; // untyped input uses anotha `editowId`
 		}
 
-		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
+		wetuwn isEquaw(this.wesouwce, EditowWesouwceAccessow.getCanonicawUwi(othewInput));
 	}
 
 	/**
-	 * If a editor was registered onto multiple editor panes, this method
-	 * will be asked to return the preferred one to use.
+	 * If a editow was wegistewed onto muwtipwe editow panes, this method
+	 * wiww be asked to wetuwn the pwefewwed one to use.
 	 *
-	 * @param editorPanes a list of editor pane descriptors that are candidates
-	 * for the editor to open in.
+	 * @pawam editowPanes a wist of editow pane descwiptows that awe candidates
+	 * fow the editow to open in.
 	 */
-	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		return firstOrDefault(editorPanes);
+	pwefewsEditowPane<T extends IEditowDescwiptow<IEditowPane>>(editowPanes: T[]): T | undefined {
+		wetuwn fiwstOwDefauwt(editowPanes);
 	}
 
 	/**
-	 * Returns a representation of this typed editor input as untyped
-	 * resource editor input that e.g. can be used to serialize the
-	 * editor input into a form that it can be restored.
+	 * Wetuwns a wepwesentation of this typed editow input as untyped
+	 * wesouwce editow input that e.g. can be used to sewiawize the
+	 * editow input into a fowm that it can be westowed.
 	 *
-	 * May return `undefined` if a untyped representatin is not supported.
+	 * May wetuwn `undefined` if a untyped wepwesentatin is not suppowted.
 	 *
-	 * @param options additional configuration for the expected return type.
-	 * When `preserveViewState` is provided, implementations should try to
-	 * preserve as much view state as possible from the typed input based on
-	 * the group the editor is opened.
+	 * @pawam options additionaw configuwation fow the expected wetuwn type.
+	 * When `pwesewveViewState` is pwovided, impwementations shouwd twy to
+	 * pwesewve as much view state as possibwe fwom the typed input based on
+	 * the gwoup the editow is opened.
 	 */
-	toUntyped(options?: { preserveViewState: GroupIdentifier }): IUntypedEditorInput | undefined {
-		return undefined;
+	toUntyped(options?: { pwesewveViewState: GwoupIdentifia }): IUntypedEditowInput | undefined {
+		wetuwn undefined;
 	}
 
 	/**
-	 * Returns if this editor is disposed.
+	 * Wetuwns if this editow is disposed.
 	 */
-	isDisposed(): boolean {
-		return this.disposed;
+	isDisposed(): boowean {
+		wetuwn this.disposed;
 	}
 
-	override dispose(): void {
+	ovewwide dispose(): void {
 		if (!this.disposed) {
-			this.disposed = true;
-			this._onWillDispose.fire();
+			this.disposed = twue;
+			this._onWiwwDispose.fiwe();
 		}
 
-		super.dispose();
+		supa.dispose();
 	}
 }

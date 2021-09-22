@@ -1,322 +1,322 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import {
-	IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension, InstallExtensionResult
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { Emitter } from 'vs/base/common/event';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { timeout } from 'vs/base/common/async';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { OS } from 'vs/base/common/platform';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { ExpewimentActionType, ExpewimentState, IExpewiment, ExpewimentSewvice, getCuwwentActivationWecowd, cuwwentSchemaVewsion } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { TestWifecycweSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt {
+	IExtensionManagementSewvice, DidUninstawwExtensionEvent, InstawwExtensionEvent, IExtensionIdentifia, IWocawExtension, InstawwExtensionWesuwt
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { ExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/node/extensionManagementSewvice';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { TestExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/test/bwowsa/extensionEnabwementSewvice.test';
+impowt { NativeUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { ITewemetwySewvice, wastSessionDateStowageKey } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IStowageSewvice, StowageScope } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IWiwwActivateEvent, IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { TestExtensionSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkspaceTwustManagementSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspaceTwust';
+impowt { TestWowkspaceTwustManagementSewvice } fwom 'vs/wowkbench/sewvices/wowkspaces/test/common/testWowkspaceTwustSewvice';
 
-interface ExperimentSettings {
-	enabled?: boolean;
-	id?: string;
-	state?: ExperimentState;
+intewface ExpewimentSettings {
+	enabwed?: boowean;
+	id?: stwing;
+	state?: ExpewimentState;
 }
 
-let experimentData: { [i: string]: any; } = {
-	experiments: []
+wet expewimentData: { [i: stwing]: any; } = {
+	expewiments: []
 };
 
-const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
+const wocaw = aWocawExtension('instawwedExtension1', { vewsion: '1.0.0' });
 
-function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = Object.assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = Object.assign({
-		type: ExtensionType.User,
-		location: URI.file(`pub.${name}`),
-		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
-		metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
-	}, properties);
-	return <ILocalExtension>Object.create({ manifest, ...properties });
+function aWocawExtension(name: stwing = 'someext', manifest: any = {}, pwopewties: any = {}): IWocawExtension {
+	manifest = Object.assign({ name, pubwisha: 'pub', vewsion: '1.0.0' }, manifest);
+	pwopewties = Object.assign({
+		type: ExtensionType.Usa,
+		wocation: UWI.fiwe(`pub.${name}`),
+		identifia: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name), uuid: undefined },
+		metadata: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name), pubwishewId: manifest.pubwisha, pubwishewDispwayName: 'somename' }
+	}, pwopewties);
+	wetuwn <IWocawExtension>Object.cweate({ manifest, ...pwopewties });
 }
 
-export class TestExperimentService extends ExperimentService {
-	public override getExperiments(): Promise<any[]> {
-		return Promise.resolve(experimentData.experiments);
+expowt cwass TestExpewimentSewvice extends ExpewimentSewvice {
+	pubwic ovewwide getExpewiments(): Pwomise<any[]> {
+		wetuwn Pwomise.wesowve(expewimentData.expewiments);
 	}
 }
 
-suite('Experiment Service', () => {
-	let instantiationService: TestInstantiationService;
-	let testConfigurationService: TestConfigurationService;
-	let testObject: ExperimentService;
-	let activationEvent: Emitter<IWillActivateEvent>;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
+suite('Expewiment Sewvice', () => {
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet testConfiguwationSewvice: TestConfiguwationSewvice;
+	wet testObject: ExpewimentSewvice;
+	wet activationEvent: Emitta<IWiwwActivateEvent>;
+	wet instawwEvent: Emitta<InstawwExtensionEvent>,
+		didInstawwEvent: Emitta<weadonwy InstawwExtensionWesuwt[]>,
+		uninstawwEvent: Emitta<IExtensionIdentifia>,
+		didUninstawwEvent: Emitta<DidUninstawwExtensionEvent>;
 
 	suiteSetup(() => {
-		instantiationService = new TestInstantiationService();
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
-		activationEvent = new Emitter<IWillActivateEvent>();
+		instantiationSewvice = new TestInstantiationSewvice();
+		instawwEvent = new Emitta<InstawwExtensionEvent>();
+		didInstawwEvent = new Emitta<weadonwy InstawwExtensionWesuwt[]>();
+		uninstawwEvent = new Emitta<IExtensionIdentifia>();
+		didUninstawwEvent = new Emitta<DidUninstawwExtensionEvent>();
+		activationEvent = new Emitta<IWiwwActivateEvent>();
 
-		instantiationService.stub(IExtensionService, TestExtensionService);
-		instantiationService.stub(IExtensionService, 'onWillActivateByEvent', activationEvent.event);
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtensions', didInstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IURLService, NativeURLService);
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		testConfigurationService = new TestConfigurationService();
-		instantiationService.stub(IConfigurationService, testConfigurationService);
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => c, getBoolean: (a: string, b: StorageScope, c?: boolean) => c, store: () => { }, remove: () => { } });
-		instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+		instantiationSewvice.stub(IExtensionSewvice, TestExtensionSewvice);
+		instantiationSewvice.stub(IExtensionSewvice, 'onWiwwActivateByEvent', activationEvent.event);
+		instantiationSewvice.stub(IExtensionManagementSewvice, ExtensionManagementSewvice);
+		instantiationSewvice.stub(IExtensionManagementSewvice, 'onInstawwExtension', instawwEvent.event);
+		instantiationSewvice.stub(IExtensionManagementSewvice, 'onDidInstawwExtensions', didInstawwEvent.event);
+		instantiationSewvice.stub(IExtensionManagementSewvice, 'onUninstawwExtension', uninstawwEvent.event);
+		instantiationSewvice.stub(IExtensionManagementSewvice, 'onDidUninstawwExtension', didUninstawwEvent.event);
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IUWWSewvice, NativeUWWSewvice);
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocaw]);
+		testConfiguwationSewvice = new TestConfiguwationSewvice();
+		instantiationSewvice.stub(IConfiguwationSewvice, testConfiguwationSewvice);
+		instantiationSewvice.stub(IWifecycweSewvice, new TestWifecycweSewvice());
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{ get: (a: stwing, b: StowageScope, c?: stwing) => c, getBoowean: (a: stwing, b: StowageScope, c?: boowean) => c, stowe: () => { }, wemove: () => { } });
+		instantiationSewvice.stub(IWowkspaceTwustManagementSewvice, new TestWowkspaceTwustManagementSewvice());
 
 		setup(() => {
-			instantiationService.stub(IProductService, {});
-			instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => c, getBoolean: (a: string, b: StorageScope, c?: boolean) => c, store: () => { }, remove: () => { } });
+			instantiationSewvice.stub(IPwoductSewvice, {});
+			instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{ get: (a: stwing, b: StowageScope, c?: stwing) => c, getBoowean: (a: stwing, b: StowageScope, c?: boowean) => c, stowe: () => { }, wemove: () => { } });
 		});
 
-		teardown(() => {
+		teawdown(() => {
 			if (testObject) {
 				testObject.dispose();
 			}
 		});
 	});
 
-	test('Simple Experiment Test', () => {
-		experimentData = {
-			experiments: [
+	test('Simpwe Expewiment Test', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1'
+					id: 'expewiment1'
 				},
 				{
-					id: 'experiment2',
-					enabled: false
+					id: 'expewiment2',
+					enabwed: fawse
 				},
 				{
-					id: 'experiment3',
-					enabled: true
+					id: 'expewiment3',
+					enabwed: twue
 				},
 				{
-					id: 'experiment4',
-					enabled: true,
+					id: 'expewiment4',
+					enabwed: twue,
 					condition: {
 
 					}
 				},
 				{
-					id: 'experiment5',
-					enabled: true,
+					id: 'expewiment5',
+					enabwed: twue,
 					condition: {
-						insidersOnly: true
+						insidewsOnwy: twue
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		const tests: Promise<IExperiment>[] = [];
-		tests.push(testObject.getExperimentById('experiment1'));
-		tests.push(testObject.getExperimentById('experiment2'));
-		tests.push(testObject.getExperimentById('experiment3'));
-		tests.push(testObject.getExperimentById('experiment4'));
-		tests.push(testObject.getExperimentById('experiment5'));
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		const tests: Pwomise<IExpewiment>[] = [];
+		tests.push(testObject.getExpewimentById('expewiment1'));
+		tests.push(testObject.getExpewimentById('expewiment2'));
+		tests.push(testObject.getExpewimentById('expewiment3'));
+		tests.push(testObject.getExpewimentById('expewiment4'));
+		tests.push(testObject.getExpewimentById('expewiment5'));
 
-		return Promise.all(tests).then(results => {
-			assert.strictEqual(results[0].id, 'experiment1');
-			assert.strictEqual(results[0].enabled, false);
-			assert.strictEqual(results[0].state, ExperimentState.NoRun);
+		wetuwn Pwomise.aww(tests).then(wesuwts => {
+			assewt.stwictEquaw(wesuwts[0].id, 'expewiment1');
+			assewt.stwictEquaw(wesuwts[0].enabwed, fawse);
+			assewt.stwictEquaw(wesuwts[0].state, ExpewimentState.NoWun);
 
-			assert.strictEqual(results[1].id, 'experiment2');
-			assert.strictEqual(results[1].enabled, false);
-			assert.strictEqual(results[1].state, ExperimentState.NoRun);
+			assewt.stwictEquaw(wesuwts[1].id, 'expewiment2');
+			assewt.stwictEquaw(wesuwts[1].enabwed, fawse);
+			assewt.stwictEquaw(wesuwts[1].state, ExpewimentState.NoWun);
 
-			assert.strictEqual(results[2].id, 'experiment3');
-			assert.strictEqual(results[2].enabled, true);
-			assert.strictEqual(results[2].state, ExperimentState.Run);
+			assewt.stwictEquaw(wesuwts[2].id, 'expewiment3');
+			assewt.stwictEquaw(wesuwts[2].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[2].state, ExpewimentState.Wun);
 
-			assert.strictEqual(results[3].id, 'experiment4');
-			assert.strictEqual(results[3].enabled, true);
-			assert.strictEqual(results[3].state, ExperimentState.Run);
+			assewt.stwictEquaw(wesuwts[3].id, 'expewiment4');
+			assewt.stwictEquaw(wesuwts[3].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[3].state, ExpewimentState.Wun);
 
-			assert.strictEqual(results[4].id, 'experiment5');
-			assert.strictEqual(results[4].enabled, true);
-			assert.strictEqual(results[4].state, ExperimentState.Run);
+			assewt.stwictEquaw(wesuwts[4].id, 'expewiment5');
+			assewt.stwictEquaw(wesuwts[4].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[4].state, ExpewimentState.Wun);
 		});
 	});
 
-	test('filters out experiments with newer schema versions', async () => {
-		experimentData = {
-			experiments: [
+	test('fiwtews out expewiments with newa schema vewsions', async () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					// no version == 0
+					id: 'expewiment1',
+					// no vewsion == 0
 				},
 				{
-					id: 'experiment2',
-					schemaVersion: currentSchemaVersion,
+					id: 'expewiment2',
+					schemaVewsion: cuwwentSchemaVewsion,
 				},
 				{
-					id: 'experiment3',
-					schemaVersion: currentSchemaVersion + 1,
+					id: 'expewiment3',
+					schemaVewsion: cuwwentSchemaVewsion + 1,
 				},
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		const actual = await Promise.all([
-			testObject.getExperimentById('experiment1'),
-			testObject.getExperimentById('experiment2'),
-			testObject.getExperimentById('experiment3'),
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		const actuaw = await Pwomise.aww([
+			testObject.getExpewimentById('expewiment1'),
+			testObject.getExpewimentById('expewiment2'),
+			testObject.getExpewimentById('expewiment3'),
 		]);
 
-		assert.strictEqual(actual[0]?.id, 'experiment1');
-		assert.strictEqual(actual[1]?.id, 'experiment2');
-		assert.strictEqual(actual[2], undefined);
+		assewt.stwictEquaw(actuaw[0]?.id, 'expewiment1');
+		assewt.stwictEquaw(actuaw[1]?.id, 'expewiment2');
+		assewt.stwictEquaw(actuaw[2], undefined);
 	});
 
-	test('Insiders only experiment shouldnt be enabled in stable', () => {
-		experimentData = {
-			experiments: [
+	test('Insidews onwy expewiment shouwdnt be enabwed in stabwe', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						insidersOnly: true
+						insidewsOnwy: twue
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IProductService, { quality: 'stable' });
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		instantiationSewvice.stub(IPwoductSewvice, { quawity: 'stabwe' });
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('NewUsers experiment shouldnt be enabled for old users', () => {
-		experimentData = {
-			experiments: [
+	test('NewUsews expewiment shouwdnt be enabwed fow owd usews', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						newUser: true
+						newUsa: twue
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => {
-				return a === lastSessionDateStorageKey ? 'some-date' : undefined;
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => {
+				wetuwn a === wastSessionDateStowageKey ? 'some-date' : undefined;
 			},
-			getBoolean: (a: string, b: StorageScope, c?: boolean) => c, store: () => { }, remove: () => { }
+			getBoowean: (a: stwing, b: StowageScope, c?: boowean) => c, stowe: () => { }, wemove: () => { }
 		});
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('OldUsers experiment shouldnt be enabled for new users', () => {
-		experimentData = {
-			experiments: [
+	test('OwdUsews expewiment shouwdnt be enabwed fow new usews', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						newUser: false
+						newUsa: fawse
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Experiment without NewUser condition should be enabled for old users', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment without NewUsa condition shouwd be enabwed fow owd usews', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {}
 				}
 			]
 		};
 
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c: string | undefined) => {
-				return a === lastSessionDateStorageKey ? 'some-date' : undefined;
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c: stwing | undefined) => {
+				wetuwn a === wastSessionDateStowageKey ? 'some-date' : undefined;
 			},
-			getBoolean: (a: string, b: StorageScope, c?: boolean) => c, store: () => { }, remove: () => { }
+			getBoowean: (a: stwing, b: StowageScope, c?: boowean) => c, stowe: () => { }, wemove: () => { }
 		});
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Experiment without NewUser condition should be enabled for new users', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment without NewUsa condition shouwd be enabwed fow new usews', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Experiment with OS should be enabled on current OS', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with OS shouwd be enabwed on cuwwent OS', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						os: [OS],
 					}
@@ -324,18 +324,18 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Experiment with OS should be disabled on other OS', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with OS shouwd be disabwed on otha OS', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						os: [OS - 1],
 					}
@@ -343,18 +343,18 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Activation event experiment with not enough events should be evaluating', () => {
-		experimentData = {
-			experiments: [
+	test('Activation event expewiment with not enough events shouwd be evawuating', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						activationEvent: {
 							event: 'my:event',
@@ -365,25 +365,25 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
-			return a === 'experimentEventRecord-my-event'
-				? JSON.stringify({ count: [2], mostRecentBucket: Date.now() })
+		instantiationSewvice.stub(IStowageSewvice, 'get', (a: stwing, b: StowageScope, c?: stwing) => {
+			wetuwn a === 'expewimentEventWecowd-my-event'
+				? JSON.stwingify({ count: [2], mostWecentBucket: Date.now() })
 				: undefined;
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Evaluating);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Evawuating);
 		});
 	});
 
-	test('Activation event works with enough events', () => {
-		experimentData = {
-			experiments: [
+	test('Activation event wowks with enough events', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						activationEvent: {
 							event: 'my:event',
@@ -394,25 +394,25 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
-			return a === 'experimentEventRecord-my-event'
-				? JSON.stringify({ count: [10], mostRecentBucket: Date.now() })
+		instantiationSewvice.stub(IStowageSewvice, 'get', (a: stwing, b: StowageScope, c?: stwing) => {
+			wetuwn a === 'expewimentEventWecowd-my-event'
+				? JSON.stwingify({ count: [10], mostWecentBucket: Date.now() })
 				: undefined;
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Activation event does not work with old data', () => {
-		experimentData = {
-			experiments: [
+	test('Activation event does not wowk with owd data', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						activationEvent: {
 							event: 'my:event',
@@ -423,66 +423,66 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
-			return a === 'experimentEventRecord-my-event'
-				? JSON.stringify({ count: [10], mostRecentBucket: Date.now() - (1000 * 60 * 60 * 24 * 10) })
+		instantiationSewvice.stub(IStowageSewvice, 'get', (a: stwing, b: StowageScope, c?: stwing) => {
+			wetuwn a === 'expewimentEventWecowd-my-event'
+				? JSON.stwingify({ count: [10], mostWecentBucket: Date.now() - (1000 * 60 * 60 * 24 * 10) })
 				: undefined;
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Evaluating);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Evawuating);
 		});
 	});
 
-	test('Parses activation records correctly', () => {
-		const timers = sinon.useFakeTimers(); // so Date.now() is stable
+	test('Pawses activation wecowds cowwectwy', () => {
+		const timews = sinon.useFakeTimews(); // so Date.now() is stabwe
 		const oneDay = 1000 * 60 * 60 * 24;
-		teardown(() => timers.restore());
+		teawdown(() => timews.westowe());
 
-		let rec = getCurrentActivationRecord();
+		wet wec = getCuwwentActivationWecowd();
 
-		// good default:
-		assert.deepStrictEqual(rec, {
+		// good defauwt:
+		assewt.deepStwictEquaw(wec, {
 			count: [0, 0, 0, 0, 0, 0, 0],
-			mostRecentBucket: Date.now(),
+			mostWecentBucket: Date.now(),
 		});
 
-		rec.count[0] = 1;
-		timers.tick(1);
-		rec = getCurrentActivationRecord(rec);
+		wec.count[0] = 1;
+		timews.tick(1);
+		wec = getCuwwentActivationWecowd(wec);
 
-		// does not advance unnecessarily
-		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
+		// does not advance unnecessawiwy
+		assewt.deepStwictEquaw(getCuwwentActivationWecowd(wec), {
 			count: [1, 0, 0, 0, 0, 0, 0],
-			mostRecentBucket: Date.now() - 1,
+			mostWecentBucket: Date.now() - 1,
 		});
 
 		// advances time
-		timers.tick(oneDay * 3);
-		rec = getCurrentActivationRecord(rec);
-		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
+		timews.tick(oneDay * 3);
+		wec = getCuwwentActivationWecowd(wec);
+		assewt.deepStwictEquaw(getCuwwentActivationWecowd(wec), {
 			count: [0, 0, 0, 1, 0, 0, 0],
-			mostRecentBucket: Date.now() - 1,
+			mostWecentBucket: Date.now() - 1,
 		});
 
-		// rotates off time
-		timers.tick(oneDay * 4);
-		rec.count[0] = 2;
-		rec = getCurrentActivationRecord(rec);
-		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
+		// wotates off time
+		timews.tick(oneDay * 4);
+		wec.count[0] = 2;
+		wec = getCuwwentActivationWecowd(wec);
+		assewt.deepStwictEquaw(getCuwwentActivationWecowd(wec), {
 			count: [0, 0, 0, 0, 2, 0, 0],
-			mostRecentBucket: Date.now() - 1,
+			mostWecentBucket: Date.now() - 1,
 		});
 	});
 
 	test('Activation event updates', async () => {
-		experimentData = {
-			experiments: [
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						activationEvent: {
 							event: 'my:event',
@@ -493,35 +493,35 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
-			return a === 'experimentEventRecord-my-event'
-				? JSON.stringify({ count: [10, 0, 0, 0, 0, 0, 0], mostRecentBucket: Date.now() - (1000 * 60 * 60 * 24 * 2) })
+		instantiationSewvice.stub(IStowageSewvice, 'get', (a: stwing, b: StowageScope, c?: stwing) => {
+			wetuwn a === 'expewimentEventWecowd-my-event'
+				? JSON.stwingify({ count: [10, 0, 0, 0, 0, 0, 0], mostWecentBucket: Date.now() - (1000 * 60 * 60 * 24 * 2) })
 				: undefined;
 		});
 
-		let didGetCall = false;
-		instantiationService.stub(IStorageService, 'store', (key: string, value: string, scope: StorageScope) => {
-			if (key.includes('experimentEventRecord')) {
-				didGetCall = true;
-				assert.strictEqual(key, 'experimentEventRecord-my-event');
-				assert.deepStrictEqual(JSON.parse(value).count, [1, 0, 10, 0, 0, 0, 0]);
-				assert.strictEqual(scope, StorageScope.GLOBAL);
+		wet didGetCaww = fawse;
+		instantiationSewvice.stub(IStowageSewvice, 'stowe', (key: stwing, vawue: stwing, scope: StowageScope) => {
+			if (key.incwudes('expewimentEventWecowd')) {
+				didGetCaww = twue;
+				assewt.stwictEquaw(key, 'expewimentEventWecowd-my-event');
+				assewt.deepStwictEquaw(JSON.pawse(vawue).count, [1, 0, 10, 0, 0, 0, 0]);
+				assewt.stwictEquaw(scope, StowageScope.GWOBAW);
 			}
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		await testObject.getExperimentById('experiment1');
-		activationEvent.fire({ event: 'not our event', activation: Promise.resolve() });
-		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
-		assert(didGetCall);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		await testObject.getExpewimentById('expewiment1');
+		activationEvent.fiwe({ event: 'not ouw event', activation: Pwomise.wesowve() });
+		activationEvent.fiwe({ event: 'my:event', activation: Pwomise.wesowve() });
+		assewt(didGetCaww);
 	});
 
-	test('Activation events run experiments in realtime', async () => {
-		experimentData = {
-			experiments: [
+	test('Activation events wun expewiments in weawtime', async () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
 						activationEvent: {
 							event: 'my:event',
@@ -532,230 +532,230 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		let calls = 0;
-		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
-			return a === 'experimentEventRecord-my-event'
-				? JSON.stringify({ count: [++calls, 0, 0, 0, 0, 0, 0], mostRecentBucket: Date.now() })
+		wet cawws = 0;
+		instantiationSewvice.stub(IStowageSewvice, 'get', (a: stwing, b: StowageScope, c?: stwing) => {
+			wetuwn a === 'expewimentEventWecowd-my-event'
+				? JSON.stwingify({ count: [++cawws, 0, 0, 0, 0, 0, 0], mostWecentBucket: Date.now() })
 				: undefined;
 		});
 
-		const enabledListener = sinon.stub();
-		testObject = instantiationService.createInstance(TestExperimentService);
-		testObject.onExperimentEnabled(enabledListener);
+		const enabwedWistena = sinon.stub();
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		testObject.onExpewimentEnabwed(enabwedWistena);
 
-		assert.strictEqual((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
-		assert.strictEqual((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
-		assert.strictEqual(enabledListener.callCount, 0);
+		assewt.stwictEquaw((await testObject.getExpewimentById('expewiment1')).state, ExpewimentState.Evawuating);
+		assewt.stwictEquaw((await testObject.getExpewimentById('expewiment1')).state, ExpewimentState.Evawuating);
+		assewt.stwictEquaw(enabwedWistena.cawwCount, 0);
 
-		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
+		activationEvent.fiwe({ event: 'my:event', activation: Pwomise.wesowve() });
 		await timeout(1);
-		assert.strictEqual(enabledListener.callCount, 1);
-		assert.strictEqual((await testObject.getExperimentById('experiment1')).state, ExperimentState.Run);
+		assewt.stwictEquaw(enabwedWistena.cawwCount, 1);
+		assewt.stwictEquaw((await testObject.getExpewimentById('expewiment1')).state, ExpewimentState.Wun);
 	});
 
-	test('Experiment not matching user setting should be disabled', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment not matching usa setting shouwd be disabwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						userSetting: { neat: true }
+						usewSetting: { neat: twue }
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IConfigurationService, 'getValue',
-			(key: string) => key === 'neat' ? false : undefined);
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		instantiationSewvice.stub(IConfiguwationSewvice, 'getVawue',
+			(key: stwing) => key === 'neat' ? fawse : undefined);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Experiment matching user setting should be enabled', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment matching usa setting shouwd be enabwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						userSetting: { neat: true }
+						usewSetting: { neat: twue }
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IConfigurationService, 'getValue',
-			(key: string) => key === 'neat' ? true : undefined);
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		instantiationSewvice.stub(IConfiguwationSewvice, 'getVawue',
+			(key: stwing) => key === 'neat' ? twue : undefined);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Experiment with no matching display language should be disabled', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with no matching dispway wanguage shouwd be disabwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						displayLanguage: 'somethingthat-nooneknows'
+						dispwayWanguage: 'somethingthat-nooneknows'
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Experiment with condition type InstalledExtensions is enabled when one of the expected extensions is installed', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with condition type InstawwedExtensions is enabwed when one of the expected extensions is instawwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						installedExtensions: {
-							inlcudes: ['pub.installedExtension1', 'uninstalled-extention-id']
+						instawwedExtensions: {
+							inwcudes: ['pub.instawwedExtension1', 'uninstawwed-extention-id']
 						}
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Experiment with condition type InstalledExtensions is disabled when none of the expected extensions is installed', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with condition type InstawwedExtensions is disabwed when none of the expected extensions is instawwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						installedExtensions: {
-							includes: ['uninstalled-extention-id1', 'uninstalled-extention-id2']
+						instawwedExtensions: {
+							incwudes: ['uninstawwed-extention-id1', 'uninstawwed-extention-id2']
 						}
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Experiment with condition type InstalledExtensions is disabled when one of the exlcuded extensions is installed', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with condition type InstawwedExtensions is disabwed when one of the exwcuded extensions is instawwed', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						installedExtensions: {
-							excludes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+						instawwedExtensions: {
+							excwudes: ['pub.instawwedExtension1', 'uninstawwed-extention-id2']
 						}
 					}
 				}
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.NoRun);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
 		});
 	});
 
-	test('Experiment that is marked as complete should be disabled regardless of the conditions', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment that is mawked as compwete shouwd be disabwed wegawdwess of the conditions', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						installedExtensions: {
-							includes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+						instawwedExtensions: {
+							incwudes: ['pub.instawwedExtension1', 'uninstawwed-extention-id2']
 						}
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify({ state: ExperimentState.Complete }) : c,
-			store: () => { }
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => a === 'expewiments.expewiment1' ? JSON.stwingify({ state: ExpewimentState.Compwete }) : c,
+			stowe: () => { }
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Complete);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Compwete);
 		});
 	});
 
-	test('Experiment with evaluate only once should read enablement from storage service', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment with evawuate onwy once shouwd wead enabwement fwom stowage sewvice', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					condition: {
-						installedExtensions: {
-							excludes: ['pub.installedExtension1', 'uninstalled-extention-id2']
+						instawwedExtensions: {
+							excwudes: ['pub.instawwedExtension1', 'uninstawwed-extention-id2']
 						},
-						evaluateOnlyOnce: true
+						evawuateOnwyOnce: twue
 					}
 				}
 			]
 		};
 
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify({ enabled: true, state: ExperimentState.Run }) : c,
-			store: () => { }
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => a === 'expewiments.expewiment1' ? JSON.stwingify({ enabwed: twue, state: ExpewimentState.Wun }) : c,
+			stowe: () => { }
 		});
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
 		});
 	});
 
-	test('Curated list should be available if experiment is enabled.', () => {
-		const promptText = 'Hello there! Can you see this?';
-		const curatedExtensionsKey = 'AzureDeploy';
-		const curatedExtensionsList = ['uninstalled-extention-id1', 'uninstalled-extention-id2'];
-		experimentData = {
-			experiments: [
+	test('Cuwated wist shouwd be avaiwabwe if expewiment is enabwed.', () => {
+		const pwomptText = 'Hewwo thewe! Can you see this?';
+		const cuwatedExtensionsKey = 'AzuweDepwoy';
+		const cuwatedExtensionsWist = ['uninstawwed-extention-id1', 'uninstawwed-extention-id2'];
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: true,
+					id: 'expewiment1',
+					enabwed: twue,
 					action: {
-						type: 'Prompt',
-						properties: {
-							promptText,
+						type: 'Pwompt',
+						pwopewties: {
+							pwomptText,
 							commands: [
 								{
-									text: 'Search Marketplace',
-									dontShowAgain: true,
-									curatedExtensionsKey,
-									curatedExtensionsList
+									text: 'Seawch Mawketpwace',
+									dontShowAgain: twue,
+									cuwatedExtensionsKey,
+									cuwatedExtensionsWist
 								},
 								{
 									text: 'No'
@@ -767,35 +767,35 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, true);
-			assert.strictEqual(result.state, ExperimentState.Run);
-			return testObject.getCuratedExtensionsList(curatedExtensionsKey).then(curatedList => {
-				assert.strictEqual(curatedList, curatedExtensionsList);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, twue);
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.Wun);
+			wetuwn testObject.getCuwatedExtensionsWist(cuwatedExtensionsKey).then(cuwatedWist => {
+				assewt.stwictEquaw(cuwatedWist, cuwatedExtensionsWist);
 			});
 		});
 	});
 
-	test('Curated list shouldnt be available if experiment is disabled.', () => {
-		const promptText = 'Hello there! Can you see this?';
-		const curatedExtensionsKey = 'AzureDeploy';
-		const curatedExtensionsList = ['uninstalled-extention-id1', 'uninstalled-extention-id2'];
-		experimentData = {
-			experiments: [
+	test('Cuwated wist shouwdnt be avaiwabwe if expewiment is disabwed.', () => {
+		const pwomptText = 'Hewwo thewe! Can you see this?';
+		const cuwatedExtensionsKey = 'AzuweDepwoy';
+		const cuwatedExtensionsWist = ['uninstawwed-extention-id1', 'uninstawwed-extention-id2'];
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: false,
+					id: 'expewiment1',
+					enabwed: fawse,
 					action: {
-						type: 'Prompt',
-						properties: {
-							promptText,
+						type: 'Pwompt',
+						pwopewties: {
+							pwomptText,
 							commands: [
 								{
-									text: 'Search Marketplace',
-									dontShowAgain: true,
-									curatedExtensionsKey,
-									curatedExtensionsList
+									text: 'Seawch Mawketpwace',
+									dontShowAgain: twue,
+									cuwatedExtensionsKey,
+									cuwatedExtensionsWist
 								},
 								{
 									text: 'No'
@@ -807,27 +807,27 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, false);
-			assert.strictEqual(result.action?.type, 'Prompt');
-			assert.strictEqual(result.state, ExperimentState.NoRun);
-			return testObject.getCuratedExtensionsList(curatedExtensionsKey).then(curatedList => {
-				assert.strictEqual(curatedList.length, 0);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, fawse);
+			assewt.stwictEquaw(wesuwt.action?.type, 'Pwompt');
+			assewt.stwictEquaw(wesuwt.state, ExpewimentState.NoWun);
+			wetuwn testObject.getCuwatedExtensionsWist(cuwatedExtensionsKey).then(cuwatedWist => {
+				assewt.stwictEquaw(cuwatedWist.wength, 0);
 			});
 		});
 	});
 
 	test('Maps action2 to action.', () => {
-		experimentData = {
-			experiments: [
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: false,
+					id: 'expewiment1',
+					enabwed: fawse,
 					action2: {
-						type: 'Prompt',
-						properties: {
-							promptText: 'Hello world',
+						type: 'Pwompt',
+						pwopewties: {
+							pwomptText: 'Hewwo wowwd',
 							commands: []
 						}
 					}
@@ -835,236 +835,236 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.action?.type, 'Prompt');
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.action?.type, 'Pwompt');
 		});
 	});
 
-	test('Experiment that is disabled or deleted should be removed from storage', () => {
-		experimentData = {
-			experiments: [
+	test('Expewiment that is disabwed ow deweted shouwd be wemoved fwom stowage', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment1',
-					enabled: false
+					id: 'expewiment1',
+					enabwed: fawse
 				},
 				{
-					id: 'experiment3',
-					enabled: true
+					id: 'expewiment3',
+					enabwed: twue
 				}
 			]
 		};
 
-		let storageDataExperiment1: ExperimentSettings | null = { enabled: false };
-		let storageDataExperiment2: ExperimentSettings | null = { enabled: false };
-		let storageDataAllExperiments: string[] | null = ['experiment1', 'experiment2', 'experiment3'];
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => {
+		wet stowageDataExpewiment1: ExpewimentSettings | nuww = { enabwed: fawse };
+		wet stowageDataExpewiment2: ExpewimentSettings | nuww = { enabwed: fawse };
+		wet stowageDataAwwExpewiments: stwing[] | nuww = ['expewiment1', 'expewiment2', 'expewiment3'];
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => {
 				switch (a) {
-					case 'experiments.experiment1':
-						return JSON.stringify(storageDataExperiment1);
-					case 'experiments.experiment2':
-						return JSON.stringify(storageDataExperiment2);
-					case 'allExperiments':
-						return JSON.stringify(storageDataAllExperiments);
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						wetuwn JSON.stwingify(stowageDataExpewiment1);
+					case 'expewiments.expewiment2':
+						wetuwn JSON.stwingify(stowageDataExpewiment2);
+					case 'awwExpewiments':
+						wetuwn JSON.stwingify(stowageDataAwwExpewiments);
+					defauwt:
+						bweak;
 				}
-				return c;
+				wetuwn c;
 			},
-			store: (a: string, b: any, c: StorageScope) => {
+			stowe: (a: stwing, b: any, c: StowageScope) => {
 				switch (a) {
-					case 'experiments.experiment1':
-						storageDataExperiment1 = JSON.parse(b);
-						break;
-					case 'experiments.experiment2':
-						storageDataExperiment2 = JSON.parse(b);
-						break;
-					case 'allExperiments':
-						storageDataAllExperiments = JSON.parse(b);
-						break;
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						stowageDataExpewiment1 = JSON.pawse(b);
+						bweak;
+					case 'expewiments.expewiment2':
+						stowageDataExpewiment2 = JSON.pawse(b);
+						bweak;
+					case 'awwExpewiments':
+						stowageDataAwwExpewiments = JSON.pawse(b);
+						bweak;
+					defauwt:
+						bweak;
 				}
 			},
-			remove: (a: string) => {
+			wemove: (a: stwing) => {
 				switch (a) {
-					case 'experiments.experiment1':
-						storageDataExperiment1 = null;
-						break;
-					case 'experiments.experiment2':
-						storageDataExperiment2 = null;
-						break;
-					case 'allExperiments':
-						storageDataAllExperiments = null;
-						break;
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						stowageDataExpewiment1 = nuww;
+						bweak;
+					case 'expewiments.expewiment2':
+						stowageDataExpewiment2 = nuww;
+						bweak;
+					case 'awwExpewiments':
+						stowageDataAwwExpewiments = nuww;
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		const disabledExperiment = testObject.getExperimentById('experiment1').then(result => {
-			assert.strictEqual(result.enabled, false);
-			assert.strictEqual(!!storageDataExperiment1, false);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		const disabwedExpewiment = testObject.getExpewimentById('expewiment1').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.enabwed, fawse);
+			assewt.stwictEquaw(!!stowageDataExpewiment1, fawse);
 		});
-		const deletedExperiment = testObject.getExperimentById('experiment2').then(result => {
-			assert.strictEqual(!!result, false);
-			assert.strictEqual(!!storageDataExperiment2, false);
+		const dewetedExpewiment = testObject.getExpewimentById('expewiment2').then(wesuwt => {
+			assewt.stwictEquaw(!!wesuwt, fawse);
+			assewt.stwictEquaw(!!stowageDataExpewiment2, fawse);
 		});
-		return Promise.all([disabledExperiment, deletedExperiment]).then(() => {
-			assert.strictEqual(storageDataAllExperiments!.length, 1);
-			assert.strictEqual(storageDataAllExperiments![0], 'experiment3');
+		wetuwn Pwomise.aww([disabwedExpewiment, dewetedExpewiment]).then(() => {
+			assewt.stwictEquaw(stowageDataAwwExpewiments!.wength, 1);
+			assewt.stwictEquaw(stowageDataAwwExpewiments![0], 'expewiment3');
 		});
 
 	});
 
-	test('Offline mode', () => {
-		experimentData = {
-			experiments: null
+	test('Offwine mode', () => {
+		expewimentData = {
+			expewiments: nuww
 		};
 
-		let storageDataExperiment1: ExperimentSettings | null = { enabled: true, state: ExperimentState.Run };
-		let storageDataExperiment2: ExperimentSettings | null = { enabled: true, state: ExperimentState.NoRun };
-		let storageDataExperiment3: ExperimentSettings | null = { enabled: true, state: ExperimentState.Evaluating };
-		let storageDataExperiment4: ExperimentSettings | null = { enabled: true, state: ExperimentState.Complete };
-		let storageDataAllExperiments: string[] | null = ['experiment1', 'experiment2', 'experiment3', 'experiment4'];
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => {
+		wet stowageDataExpewiment1: ExpewimentSettings | nuww = { enabwed: twue, state: ExpewimentState.Wun };
+		wet stowageDataExpewiment2: ExpewimentSettings | nuww = { enabwed: twue, state: ExpewimentState.NoWun };
+		wet stowageDataExpewiment3: ExpewimentSettings | nuww = { enabwed: twue, state: ExpewimentState.Evawuating };
+		wet stowageDataExpewiment4: ExpewimentSettings | nuww = { enabwed: twue, state: ExpewimentState.Compwete };
+		wet stowageDataAwwExpewiments: stwing[] | nuww = ['expewiment1', 'expewiment2', 'expewiment3', 'expewiment4'];
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => {
 				switch (a) {
-					case 'experiments.experiment1':
-						return JSON.stringify(storageDataExperiment1);
-					case 'experiments.experiment2':
-						return JSON.stringify(storageDataExperiment2);
-					case 'experiments.experiment3':
-						return JSON.stringify(storageDataExperiment3);
-					case 'experiments.experiment4':
-						return JSON.stringify(storageDataExperiment4);
-					case 'allExperiments':
-						return JSON.stringify(storageDataAllExperiments);
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						wetuwn JSON.stwingify(stowageDataExpewiment1);
+					case 'expewiments.expewiment2':
+						wetuwn JSON.stwingify(stowageDataExpewiment2);
+					case 'expewiments.expewiment3':
+						wetuwn JSON.stwingify(stowageDataExpewiment3);
+					case 'expewiments.expewiment4':
+						wetuwn JSON.stwingify(stowageDataExpewiment4);
+					case 'awwExpewiments':
+						wetuwn JSON.stwingify(stowageDataAwwExpewiments);
+					defauwt:
+						bweak;
 				}
-				return c;
+				wetuwn c;
 			},
-			store: (a, b, c) => {
+			stowe: (a, b, c) => {
 				switch (a) {
-					case 'experiments.experiment1':
-						storageDataExperiment1 = JSON.parse(b + '');
-						break;
-					case 'experiments.experiment2':
-						storageDataExperiment2 = JSON.parse(b + '');
-						break;
-					case 'experiments.experiment3':
-						storageDataExperiment3 = JSON.parse(b + '');
-						break;
-					case 'experiments.experiment4':
-						storageDataExperiment4 = JSON.parse(b + '');
-						break;
-					case 'allExperiments':
-						storageDataAllExperiments = JSON.parse(b + '');
-						break;
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						stowageDataExpewiment1 = JSON.pawse(b + '');
+						bweak;
+					case 'expewiments.expewiment2':
+						stowageDataExpewiment2 = JSON.pawse(b + '');
+						bweak;
+					case 'expewiments.expewiment3':
+						stowageDataExpewiment3 = JSON.pawse(b + '');
+						bweak;
+					case 'expewiments.expewiment4':
+						stowageDataExpewiment4 = JSON.pawse(b + '');
+						bweak;
+					case 'awwExpewiments':
+						stowageDataAwwExpewiments = JSON.pawse(b + '');
+						bweak;
+					defauwt:
+						bweak;
 				}
 			},
-			remove: a => {
+			wemove: a => {
 				switch (a) {
-					case 'experiments.experiment1':
-						storageDataExperiment1 = null;
-						break;
-					case 'experiments.experiment2':
-						storageDataExperiment2 = null;
-						break;
-					case 'experiments.experiment3':
-						storageDataExperiment3 = null;
-						break;
-					case 'experiments.experiment4':
-						storageDataExperiment4 = null;
-						break;
-					case 'allExperiments':
-						storageDataAllExperiments = null;
-						break;
-					default:
-						break;
+					case 'expewiments.expewiment1':
+						stowageDataExpewiment1 = nuww;
+						bweak;
+					case 'expewiments.expewiment2':
+						stowageDataExpewiment2 = nuww;
+						bweak;
+					case 'expewiments.expewiment3':
+						stowageDataExpewiment3 = nuww;
+						bweak;
+					case 'expewiments.expewiment4':
+						stowageDataExpewiment4 = nuww;
+						bweak;
+					case 'awwExpewiments':
+						stowageDataAwwExpewiments = nuww;
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
 
-		const tests: Promise<IExperiment>[] = [];
-		tests.push(testObject.getExperimentById('experiment1'));
-		tests.push(testObject.getExperimentById('experiment2'));
-		tests.push(testObject.getExperimentById('experiment3'));
-		tests.push(testObject.getExperimentById('experiment4'));
+		const tests: Pwomise<IExpewiment>[] = [];
+		tests.push(testObject.getExpewimentById('expewiment1'));
+		tests.push(testObject.getExpewimentById('expewiment2'));
+		tests.push(testObject.getExpewimentById('expewiment3'));
+		tests.push(testObject.getExpewimentById('expewiment4'));
 
-		return Promise.all(tests).then(results => {
-			assert.strictEqual(results[0].id, 'experiment1');
-			assert.strictEqual(results[0].enabled, true);
-			assert.strictEqual(results[0].state, ExperimentState.Run);
+		wetuwn Pwomise.aww(tests).then(wesuwts => {
+			assewt.stwictEquaw(wesuwts[0].id, 'expewiment1');
+			assewt.stwictEquaw(wesuwts[0].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[0].state, ExpewimentState.Wun);
 
-			assert.strictEqual(results[1].id, 'experiment2');
-			assert.strictEqual(results[1].enabled, true);
-			assert.strictEqual(results[1].state, ExperimentState.NoRun);
+			assewt.stwictEquaw(wesuwts[1].id, 'expewiment2');
+			assewt.stwictEquaw(wesuwts[1].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[1].state, ExpewimentState.NoWun);
 
-			assert.strictEqual(results[2].id, 'experiment3');
-			assert.strictEqual(results[2].enabled, true);
-			assert.strictEqual(results[2].state, ExperimentState.Evaluating);
+			assewt.stwictEquaw(wesuwts[2].id, 'expewiment3');
+			assewt.stwictEquaw(wesuwts[2].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[2].state, ExpewimentState.Evawuating);
 
-			assert.strictEqual(results[3].id, 'experiment4');
-			assert.strictEqual(results[3].enabled, true);
-			assert.strictEqual(results[3].state, ExperimentState.Complete);
+			assewt.stwictEquaw(wesuwts[3].id, 'expewiment4');
+			assewt.stwictEquaw(wesuwts[3].enabwed, twue);
+			assewt.stwictEquaw(wesuwts[3].state, ExpewimentState.Compwete);
 		});
 
 	});
 
-	test('getExperimentByType', () => {
-		const customProperties = {
-			some: 'random-value'
+	test('getExpewimentByType', () => {
+		const customPwopewties = {
+			some: 'wandom-vawue'
 		};
-		experimentData = {
-			experiments: [
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'simple-experiment',
-					enabled: true
+					id: 'simpwe-expewiment',
+					enabwed: twue
 				},
 				{
-					id: 'custom-experiment',
-					enabled: true,
+					id: 'custom-expewiment',
+					enabwed: twue,
 					action: {
 						type: 'Custom',
-						properties: customProperties
+						pwopewties: customPwopewties
 					}
 				},
 				{
-					id: 'custom-experiment-no-properties',
-					enabled: true,
+					id: 'custom-expewiment-no-pwopewties',
+					enabwed: twue,
 					action: {
 						type: 'Custom'
 					}
 				},
 				{
-					id: 'prompt-with-no-commands',
-					enabled: true,
+					id: 'pwompt-with-no-commands',
+					enabwed: twue,
 					action: {
-						type: 'Prompt',
-						properties: {
-							promptText: 'someText'
+						type: 'Pwompt',
+						pwopewties: {
+							pwomptText: 'someText'
 						}
 					}
 				},
 				{
-					id: 'prompt-with-commands',
-					enabled: true,
+					id: 'pwompt-with-commands',
+					enabwed: twue,
 					action: {
-						type: 'Prompt',
-						properties: {
-							promptText: 'someText',
+						type: 'Pwompt',
+						pwopewties: {
+							pwomptText: 'someText',
 							commands: [
 								{
-									text: 'Hello'
+									text: 'Hewwo'
 								}
 							]
 						}
@@ -1073,92 +1073,92 @@ suite('Experiment Service', () => {
 			]
 		};
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		const custom = testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
-			assert.strictEqual(result.length, 3);
-			assert.strictEqual(result[0].id, 'simple-experiment');
-			assert.strictEqual(result[1].id, 'custom-experiment');
-			assert.strictEqual(result[1].action!.properties, customProperties);
-			assert.strictEqual(result[2].id, 'custom-experiment-no-properties');
-			assert.strictEqual(!!result[2].action!.properties, true);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		const custom = testObject.getExpewimentsByType(ExpewimentActionType.Custom).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 3);
+			assewt.stwictEquaw(wesuwt[0].id, 'simpwe-expewiment');
+			assewt.stwictEquaw(wesuwt[1].id, 'custom-expewiment');
+			assewt.stwictEquaw(wesuwt[1].action!.pwopewties, customPwopewties);
+			assewt.stwictEquaw(wesuwt[2].id, 'custom-expewiment-no-pwopewties');
+			assewt.stwictEquaw(!!wesuwt[2].action!.pwopewties, twue);
 		});
-		const prompt = testObject.getExperimentsByType(ExperimentActionType.Prompt).then(result => {
-			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0].id, 'prompt-with-no-commands');
-			assert.strictEqual(result[1].id, 'prompt-with-commands');
+		const pwompt = testObject.getExpewimentsByType(ExpewimentActionType.Pwompt).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2);
+			assewt.stwictEquaw(wesuwt[0].id, 'pwompt-with-no-commands');
+			assewt.stwictEquaw(wesuwt[1].id, 'pwompt-with-commands');
 		});
-		return Promise.all([custom, prompt]);
+		wetuwn Pwomise.aww([custom, pwompt]);
 	});
 
-	test('experimentsPreviouslyRun includes, excludes check', () => {
-		experimentData = {
-			experiments: [
+	test('expewimentsPweviouswyWun incwudes, excwudes check', () => {
+		expewimentData = {
+			expewiments: [
 				{
-					id: 'experiment3',
-					enabled: true,
+					id: 'expewiment3',
+					enabwed: twue,
 					condition: {
-						experimentsPreviouslyRun: {
-							includes: ['experiment1'],
-							excludes: ['experiment2']
+						expewimentsPweviouswyWun: {
+							incwudes: ['expewiment1'],
+							excwudes: ['expewiment2']
 						}
 					}
 				},
 				{
-					id: 'experiment4',
-					enabled: true,
+					id: 'expewiment4',
+					enabwed: twue,
 					condition: {
-						experimentsPreviouslyRun: {
-							includes: ['experiment1'],
-							excludes: ['experiment200']
+						expewimentsPweviouswyWun: {
+							incwudes: ['expewiment1'],
+							excwudes: ['expewiment200']
 						}
 					}
 				}
 			]
 		};
 
-		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
-		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Evaluating };
-		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
-			get: (a: string, b: StorageScope, c?: string) => {
+		wet stowageDataExpewiment3 = { enabwed: twue, state: ExpewimentState.Evawuating };
+		wet stowageDataExpewiment4 = { enabwed: twue, state: ExpewimentState.Evawuating };
+		instantiationSewvice.stub(IStowageSewvice, <Pawtiaw<IStowageSewvice>>{
+			get: (a: stwing, b: StowageScope, c?: stwing) => {
 				switch (a) {
-					case 'currentOrPreviouslyRunExperiments':
-						return JSON.stringify(['experiment1', 'experiment2']);
-					default:
-						break;
+					case 'cuwwentOwPweviouswyWunExpewiments':
+						wetuwn JSON.stwingify(['expewiment1', 'expewiment2']);
+					defauwt:
+						bweak;
 				}
-				return c;
+				wetuwn c;
 			},
-			store: (a, b, c) => {
+			stowe: (a, b, c) => {
 				switch (a) {
-					case 'experiments.experiment3':
-						storageDataExperiment3 = JSON.parse(b + '');
-						break;
-					case 'experiments.experiment4':
-						storageDataExperiment4 = JSON.parse(b + '');
-						break;
-					default:
-						break;
+					case 'expewiments.expewiment3':
+						stowageDataExpewiment3 = JSON.pawse(b + '');
+						bweak;
+					case 'expewiments.expewiment4':
+						stowageDataExpewiment4 = JSON.pawse(b + '');
+						bweak;
+					defauwt:
+						bweak;
 				}
 			}
 		});
 
-		testObject = instantiationService.createInstance(TestExperimentService);
-		return testObject.getExperimentsByType(ExperimentActionType.Custom).then(result => {
-			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0].id, 'experiment3');
-			assert.strictEqual(result[0].state, ExperimentState.NoRun);
-			assert.strictEqual(result[1].id, 'experiment4');
-			assert.strictEqual(result[1].state, ExperimentState.Run);
-			assert.strictEqual(storageDataExperiment3.state, ExperimentState.NoRun);
-			assert.strictEqual(storageDataExperiment4.state, ExperimentState.Run);
-			return Promise.resolve(null);
+		testObject = instantiationSewvice.cweateInstance(TestExpewimentSewvice);
+		wetuwn testObject.getExpewimentsByType(ExpewimentActionType.Custom).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2);
+			assewt.stwictEquaw(wesuwt[0].id, 'expewiment3');
+			assewt.stwictEquaw(wesuwt[0].state, ExpewimentState.NoWun);
+			assewt.stwictEquaw(wesuwt[1].id, 'expewiment4');
+			assewt.stwictEquaw(wesuwt[1].state, ExpewimentState.Wun);
+			assewt.stwictEquaw(stowageDataExpewiment3.state, ExpewimentState.NoWun);
+			assewt.stwictEquaw(stowageDataExpewiment4.state, ExpewimentState.Wun);
+			wetuwn Pwomise.wesowve(nuww);
 		});
 	});
-	// test('Experiment with condition type FileEdit should increment editcount as appropriate', () => {
+	// test('Expewiment with condition type FiweEdit shouwd incwement editcount as appwopwiate', () => {
 
 	// });
 
-	// test('Experiment with condition type WorkspaceEdit should increment editcount as appropriate', () => {
+	// test('Expewiment with condition type WowkspaceEdit shouwd incwement editcount as appwopwiate', () => {
 
 	// });
 

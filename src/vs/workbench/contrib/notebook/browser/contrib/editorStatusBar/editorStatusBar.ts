@@ -1,88 +1,88 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import { HoverProviderRegistry } from 'vs/editor/common/modes';
-import * as nls from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+impowt { Disposabwe, DisposabweStowe, IDisposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { uppewcaseFiwstWetta } fwom 'vs/base/common/stwings';
+impowt { HovewPwovidewWegistwy } fwom 'vs/editow/common/modes';
+impowt * as nws fwom 'vs/nws';
+impowt { Action2, MenuId, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IQuickInputButton, IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt type { SewectKewnewWetuwnAwgs } fwom 'vs/wowkbench/api/common/extHostNotebookKewnews';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { IExtensionsViewPaneContaina, VIEWWET_ID as EXTENSION_VIEWWET_ID } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { NOTEBOOK_ACTIONS_CATEGOWY, SEWECT_KEWNEW_ID } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwowwa/coweActions';
+impowt { getNotebookEditowFwomEditowPane, INotebookEditow, KEWNEW_EXTENSIONS, NOTEBOOK_MISSING_KEWNEW_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOW, NOTEBOOK_KEWNEW_COUNT } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { configuweKewnewIcon, sewectKewnewIcon } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookIcons';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookKewnew, INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { IStatusbawEntwyAccessow, IStatusbawSewvice, StatusbawAwignment } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: '_notebook.selectKernel',
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
-			// precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
-			icon: selectKernelIcon,
-			f1: true,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: '_notebook.sewectKewnew',
+			categowy: NOTEBOOK_ACTIONS_CATEGOWY,
+			titwe: { vawue: nws.wocawize('notebookActions.sewectKewnew', "Sewect Notebook Kewnew"), owiginaw: 'Sewect Notebook Kewnew' },
+			// pwecondition: NOTEBOOK_IS_ACTIVE_EDITOW,
+			icon: sewectKewnewIcon,
+			f1: twue,
 			menu: [{
-				id: MenuId.EditorTitle,
-				when: ContextKeyExpr.and(
-					NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
-					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+				id: MenuId.EditowTitwe,
+				when: ContextKeyExpw.and(
+					NOTEBOOK_IS_ACTIVE_EDITOW,
+					ContextKeyExpw.ow(NOTEBOOK_KEWNEW_COUNT.notEquawsTo(0), NOTEBOOK_MISSING_KEWNEW_EXTENSION),
+					ContextKeyExpw.notEquaws('config.notebook.gwobawToowbaw', twue)
 				),
-				group: 'navigation',
-				order: -10
+				gwoup: 'navigation',
+				owda: -10
 			}, {
-				id: MenuId.NotebookToolbar,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(NOTEBOOK_KERNEL_COUNT.notEqualsTo(0), NOTEBOOK_MISSING_KERNEL_EXTENSION),
-					ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+				id: MenuId.NotebookToowbaw,
+				when: ContextKeyExpw.and(
+					ContextKeyExpw.ow(NOTEBOOK_KEWNEW_COUNT.notEquawsTo(0), NOTEBOOK_MISSING_KEWNEW_EXTENSION),
+					ContextKeyExpw.equaws('config.notebook.gwobawToowbaw', twue)
 				),
-				group: 'status',
-				order: -10
+				gwoup: 'status',
+				owda: -10
 			}, {
-				id: MenuId.InteractiveToolbar,
-				when: NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
-				group: 'status',
-				order: -10
+				id: MenuId.IntewactiveToowbaw,
+				when: NOTEBOOK_KEWNEW_COUNT.notEquawsTo(0),
+				gwoup: 'status',
+				owda: -10
 			}],
-			description: {
-				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
-				args: [
+			descwiption: {
+				descwiption: nws.wocawize('notebookActions.sewectKewnew.awgs', "Notebook Kewnew Awgs"),
+				awgs: [
 					{
-						name: 'kernelInfo',
-						description: 'The kernel info',
+						name: 'kewnewInfo',
+						descwiption: 'The kewnew info',
 						schema: {
 							'type': 'object',
-							'required': ['id', 'extension'],
-							'properties': {
+							'wequiwed': ['id', 'extension'],
+							'pwopewties': {
 								'id': {
-									'type': 'string'
+									'type': 'stwing'
 								},
 								'extension': {
-									'type': 'string'
+									'type': 'stwing'
 								},
-								'notebookEditorId': {
-									'type': 'string'
+								'notebookEditowId': {
+									'type': 'stwing'
 								}
 							}
 						}
@@ -92,358 +92,358 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean, notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
-		const notebookKernelService = accessor.get(INotebookKernelService);
-		const editorService = accessor.get(IEditorService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const labelService = accessor.get(ILabelService);
-		const logService = accessor.get(ILogService);
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+	async wun(accessow: SewvicesAccessow, context?: SewectKewnewWetuwnAwgs | { ui?: boowean, notebookEditow?: NotebookEditowWidget }): Pwomise<boowean> {
+		const notebookKewnewSewvice = accessow.get(INotebookKewnewSewvice);
+		const editowSewvice = accessow.get(IEditowSewvice);
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const wabewSewvice = accessow.get(IWabewSewvice);
+		const wogSewvice = accessow.get(IWogSewvice);
+		const paneCompositeSewvice = accessow.get(IPaneCompositePawtSewvice);
 
-		let editor: INotebookEditor | undefined;
-		if (context !== undefined && 'notebookEditorId' in context) {
-			const editorId = context.notebookEditorId;
-			const matchingEditor = editorService.visibleEditorPanes.find((editorPane) => {
-				const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
-				return notebookEditor?.getId() === editorId;
+		wet editow: INotebookEditow | undefined;
+		if (context !== undefined && 'notebookEditowId' in context) {
+			const editowId = context.notebookEditowId;
+			const matchingEditow = editowSewvice.visibweEditowPanes.find((editowPane) => {
+				const notebookEditow = getNotebookEditowFwomEditowPane(editowPane);
+				wetuwn notebookEditow?.getId() === editowId;
 			});
-			editor = getNotebookEditorFromEditorPane(matchingEditor);
-		} else if (context !== undefined && 'notebookEditor' in context) {
-			editor = context?.notebookEditor;
-		} else {
-			editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+			editow = getNotebookEditowFwomEditowPane(matchingEditow);
+		} ewse if (context !== undefined && 'notebookEditow' in context) {
+			editow = context?.notebookEditow;
+		} ewse {
+			editow = getNotebookEditowFwomEditowPane(editowSewvice.activeEditowPane);
 		}
 
-		if (!editor || !editor.hasModel()) {
-			return false;
+		if (!editow || !editow.hasModew()) {
+			wetuwn fawse;
 		}
-		let controllerId = context && 'id' in context ? context.id : undefined;
-		let extensionId = context && 'extension' in context ? context.extension : undefined;
+		wet contwowwewId = context && 'id' in context ? context.id : undefined;
+		wet extensionId = context && 'extension' in context ? context.extension : undefined;
 
-		if (controllerId && (typeof controllerId !== 'string' || typeof extensionId !== 'string')) {
-			// validate context: id & extension MUST be strings
-			controllerId = undefined;
+		if (contwowwewId && (typeof contwowwewId !== 'stwing' || typeof extensionId !== 'stwing')) {
+			// vawidate context: id & extension MUST be stwings
+			contwowwewId = undefined;
 			extensionId = undefined;
 		}
 
-		const notebook = editor.textModel;
-		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
+		const notebook = editow.textModew;
+		const { sewected, aww } = notebookKewnewSewvice.getMatchingKewnew(notebook);
 
-		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
-			// current kernel is wanted kernel -> done
-			return true;
+		if (sewected && contwowwewId && sewected.id === contwowwewId && ExtensionIdentifia.equaws(sewected.extension, extensionId)) {
+			// cuwwent kewnew is wanted kewnew -> done
+			wetuwn twue;
 		}
 
-		let newKernel: INotebookKernel | undefined;
-		if (controllerId) {
-			const wantedId = `${extensionId}/${controllerId}`;
-			for (let candidate of all) {
+		wet newKewnew: INotebookKewnew | undefined;
+		if (contwowwewId) {
+			const wantedId = `${extensionId}/${contwowwewId}`;
+			fow (wet candidate of aww) {
 				if (candidate.id === wantedId) {
-					newKernel = candidate;
-					break;
+					newKewnew = candidate;
+					bweak;
 				}
 			}
-			if (!newKernel) {
-				logService.warn(`wanted kernel DOES NOT EXIST, wanted: ${wantedId}, all: ${all.map(k => k.id)}`);
-				return false;
+			if (!newKewnew) {
+				wogSewvice.wawn(`wanted kewnew DOES NOT EXIST, wanted: ${wantedId}, aww: ${aww.map(k => k.id)}`);
+				wetuwn fawse;
 			}
 		}
 
-		if (!newKernel) {
-			type KernelPick = IQuickPickItem & { kernel: INotebookKernel; };
+		if (!newKewnew) {
+			type KewnewPick = IQuickPickItem & { kewnew: INotebookKewnew; };
 			const configButton: IQuickInputButton = {
-				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
+				iconCwass: ThemeIcon.asCwassName(configuweKewnewIcon),
+				toowtip: nws.wocawize('notebook.pwomptKewnew.setDefauwtToowtip', "Set as defauwt fow '{0}' notebooks", editow.textModew.viewType)
 			};
-			const picks: (KernelPick | IQuickPickItem)[] = all.map(kernel => {
-				const res = <KernelPick>{
-					kernel,
-					picked: kernel.id === selected?.id,
-					label: kernel.label,
-					description: kernel.description,
-					detail: kernel.detail,
+			const picks: (KewnewPick | IQuickPickItem)[] = aww.map(kewnew => {
+				const wes = <KewnewPick>{
+					kewnew,
+					picked: kewnew.id === sewected?.id,
+					wabew: kewnew.wabew,
+					descwiption: kewnew.descwiption,
+					detaiw: kewnew.detaiw,
 					buttons: [configButton]
 				};
-				if (kernel.id === selected?.id) {
-					if (!res.description) {
-						res.description = nls.localize('current1', "Currently Selected");
-					} else {
-						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
+				if (kewnew.id === sewected?.id) {
+					if (!wes.descwiption) {
+						wes.descwiption = nws.wocawize('cuwwent1', "Cuwwentwy Sewected");
+					} ewse {
+						wes.descwiption = nws.wocawize('cuwwent2', "{0} - Cuwwentwy Sewected", wes.descwiption);
 					}
 				}
-				{ return res; }
+				{ wetuwn wes; }
 			});
-			if (!all.length) {
+			if (!aww.wength) {
 				picks.push({
-					id: 'install',
-					label: nls.localize('installKernels', "Install kernels from the marketplace"),
+					id: 'instaww',
+					wabew: nws.wocawize('instawwKewnews', "Instaww kewnews fwom the mawketpwace"),
 				});
 			}
 
-			const pick = await quickInputService.pick(picks, {
-				placeHolder: selected
-					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
-					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),
-				onDidTriggerItemButton: (context) => {
-					if ('kernel' in context.item) {
-						notebookKernelService.selectKernelForNotebookType(context.item.kernel, notebook.viewType);
+			const pick = await quickInputSewvice.pick(picks, {
+				pwaceHowda: sewected
+					? nws.wocawize('pwompt.pwacehowda.change', "Change kewnew fow '{0}'", wabewSewvice.getUwiWabew(notebook.uwi, { wewative: twue }))
+					: nws.wocawize('pwompt.pwacehowda.sewect', "Sewect kewnew fow '{0}'", wabewSewvice.getUwiWabew(notebook.uwi, { wewative: twue })),
+				onDidTwiggewItemButton: (context) => {
+					if ('kewnew' in context.item) {
+						notebookKewnewSewvice.sewectKewnewFowNotebookType(context.item.kewnew, notebook.viewType);
 					}
 				}
 			});
 
 			if (pick) {
-				if (pick.id === 'install') {
-					await this._showKernelExtension(paneCompositeService, notebook.viewType);
-				} else if ('kernel' in pick) {
-					newKernel = pick.kernel;
+				if (pick.id === 'instaww') {
+					await this._showKewnewExtension(paneCompositeSewvice, notebook.viewType);
+				} ewse if ('kewnew' in pick) {
+					newKewnew = pick.kewnew;
 				}
 			}
 		}
 
-		if (newKernel) {
-			notebookKernelService.selectKernelForNotebook(newKernel, notebook);
-			return true;
+		if (newKewnew) {
+			notebookKewnewSewvice.sewectKewnewFowNotebook(newKewnew, notebook);
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private async _showKernelExtension(paneCompositePartService: IPaneCompositePartService, viewType: string) {
-		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+	pwivate async _showKewnewExtension(paneCompositePawtSewvice: IPaneCompositePawtSewvice, viewType: stwing) {
+		const viewwet = await paneCompositePawtSewvice.openPaneComposite(EXTENSION_VIEWWET_ID, ViewContainewWocation.Sidebaw, twue);
+		const view = viewwet?.getViewPaneContaina() as IExtensionsViewPaneContaina | undefined;
 
-		const extId = KERNEL_EXTENSIONS.get(viewType);
+		const extId = KEWNEW_EXTENSIONS.get(viewType);
 		if (extId) {
-			view?.search(`@id:${extId}`);
-		} else {
-			const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
-			view?.search(`@tag:notebookKernel${pascalCased}`);
+			view?.seawch(`@id:${extId}`);
+		} ewse {
+			const pascawCased = viewType.spwit(/[^a-z0-9]/ig).map(uppewcaseFiwstWetta).join('');
+			view?.seawch(`@tag:notebookKewnew${pascawCased}`);
 		}
 	}
 });
 
 
-class ImplictKernelSelector implements IDisposable {
+cwass ImpwictKewnewSewectow impwements IDisposabwe {
 
-	readonly dispose: () => void;
+	weadonwy dispose: () => void;
 
-	constructor(
-		notebook: NotebookTextModel,
-		suggested: INotebookKernel,
-		@INotebookKernelService notebookKernelService: INotebookKernelService,
-		@ILogService logService: ILogService
+	constwuctow(
+		notebook: NotebookTextModew,
+		suggested: INotebookKewnew,
+		@INotebookKewnewSewvice notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice
 	) {
-		const disposables = new DisposableStore();
-		this.dispose = disposables.dispose.bind(disposables);
+		const disposabwes = new DisposabweStowe();
+		this.dispose = disposabwes.dispose.bind(disposabwes);
 
-		const selectKernel = () => {
-			disposables.clear();
-			notebookKernelService.selectKernelForNotebook(suggested, notebook);
+		const sewectKewnew = () => {
+			disposabwes.cweaw();
+			notebookKewnewSewvice.sewectKewnewFowNotebook(suggested, notebook);
 		};
 
-		// IMPLICITLY select a suggested kernel when the notebook has been changed
-		// e.g change cell source, move cells, etc
-		disposables.add(notebook.onDidChangeContent(e => {
-			for (let event of e.rawEvents) {
+		// IMPWICITWY sewect a suggested kewnew when the notebook has been changed
+		// e.g change ceww souwce, move cewws, etc
+		disposabwes.add(notebook.onDidChangeContent(e => {
+			fow (wet event of e.wawEvents) {
 				switch (event.kind) {
-					case NotebookCellsChangeType.ChangeCellContent:
-					case NotebookCellsChangeType.ModelChange:
-					case NotebookCellsChangeType.Move:
-					case NotebookCellsChangeType.ChangeLanguage:
-						logService.trace('IMPLICIT kernel selection because of change event', event.kind);
-						selectKernel();
-						break;
+					case NotebookCewwsChangeType.ChangeCewwContent:
+					case NotebookCewwsChangeType.ModewChange:
+					case NotebookCewwsChangeType.Move:
+					case NotebookCewwsChangeType.ChangeWanguage:
+						wogSewvice.twace('IMPWICIT kewnew sewection because of change event', event.kind);
+						sewectKewnew();
+						bweak;
 				}
 			}
 		}));
 
 
-		// IMPLICITLY select a suggested kernel when users start to hover. This should
-		// be a strong enough hint that the user wants to interact with the notebook. Maybe
-		// add more triggers like goto-providers or completion-providers
-		disposables.add(HoverProviderRegistry.register({ scheme: Schemas.vscodeNotebookCell, pattern: notebook.uri.path }, {
-			provideHover() {
-				logService.trace('IMPLICIT kernel selection because of hover');
-				selectKernel();
-				return undefined;
+		// IMPWICITWY sewect a suggested kewnew when usews stawt to hova. This shouwd
+		// be a stwong enough hint that the usa wants to intewact with the notebook. Maybe
+		// add mowe twiggews wike goto-pwovidews ow compwetion-pwovidews
+		disposabwes.add(HovewPwovidewWegistwy.wegista({ scheme: Schemas.vscodeNotebookCeww, pattewn: notebook.uwi.path }, {
+			pwovideHova() {
+				wogSewvice.twace('IMPWICIT kewnew sewection because of hova');
+				sewectKewnew();
+				wetuwn undefined;
 			}
 		}));
 	}
 }
 
-export class KernelStatus extends Disposable implements IWorkbenchContribution {
+expowt cwass KewnewStatus extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly _editorDisposables = this._register(new DisposableStore());
-	private readonly _kernelInfoElement = this._register(new DisposableStore());
+	pwivate weadonwy _editowDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy _kewnewInfoEwement = this._wegista(new DisposabweStowe());
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
-		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@ILogService private readonly _logService: ILogService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IStatusbawSewvice pwivate weadonwy _statusbawSewvice: IStatusbawSewvice,
+		@INotebookKewnewSewvice pwivate weadonwy _notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
 	) {
-		super();
-		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
+		supa();
+		this._wegista(this._editowSewvice.onDidActiveEditowChange(() => this._updateStatusbaw()));
 	}
 
-	private _updateStatusbar() {
-		this._editorDisposables.clear();
+	pwivate _updateStatusbaw() {
+		this._editowDisposabwes.cweaw();
 
-		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (!activeEditor) {
-			// not a notebook -> clean-up, done
-			this._kernelInfoElement.clear();
-			return;
+		const activeEditow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+		if (!activeEditow) {
+			// not a notebook -> cwean-up, done
+			this._kewnewInfoEwement.cweaw();
+			wetuwn;
 		}
 
 		const updateStatus = () => {
-			if (activeEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
-				// kernel info rendered in the notebook toolbar already
-				this._kernelInfoElement.clear();
-				return;
+			if (activeEditow.notebookOptions.getWayoutConfiguwation().gwobawToowbaw) {
+				// kewnew info wendewed in the notebook toowbaw awweady
+				this._kewnewInfoEwement.cweaw();
+				wetuwn;
 			}
 
-			const notebook = activeEditor.textModel;
+			const notebook = activeEditow.textModew;
 			if (notebook) {
-				this._showKernelStatus(notebook);
-			} else {
-				this._kernelInfoElement.clear();
+				this._showKewnewStatus(notebook);
+			} ewse {
+				this._kewnewInfoEwement.cweaw();
 			}
 		};
 
-		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
-		this._editorDisposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(updateStatus));
-		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
-		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
-		this._editorDisposables.add(activeEditor.notebookOptions.onDidChangeOptions(updateStatus));
+		this._editowDisposabwes.add(this._notebookKewnewSewvice.onDidAddKewnew(updateStatus));
+		this._editowDisposabwes.add(this._notebookKewnewSewvice.onDidChangeSewectedNotebooks(updateStatus));
+		this._editowDisposabwes.add(this._notebookKewnewSewvice.onDidChangeNotebookAffinity(updateStatus));
+		this._editowDisposabwes.add(activeEditow.onDidChangeModew(updateStatus));
+		this._editowDisposabwes.add(activeEditow.notebookOptions.onDidChangeOptions(updateStatus));
 		updateStatus();
 	}
 
-	private _showKernelStatus(notebook: NotebookTextModel) {
+	pwivate _showKewnewStatus(notebook: NotebookTextModew) {
 
-		this._kernelInfoElement.clear();
+		this._kewnewInfoEwement.cweaw();
 
-		let { selected, suggested, all } = this._notebookKernelService.getMatchingKernel(notebook);
-		let isSuggested = false;
+		wet { sewected, suggested, aww } = this._notebookKewnewSewvice.getMatchingKewnew(notebook);
+		wet isSuggested = fawse;
 
-		if (all.length === 0) {
-			// no kernel -> no status
-			return;
+		if (aww.wength === 0) {
+			// no kewnew -> no status
+			wetuwn;
 
-		} else if (selected || suggested) {
-			// selected or single kernel
-			let kernel = selected;
+		} ewse if (sewected || suggested) {
+			// sewected ow singwe kewnew
+			wet kewnew = sewected;
 
-			if (!kernel) {
-				// proceed with suggested kernel - show UI and install handler that selects the kernel
-				// when non trivial interactions with the notebook happen.
-				kernel = suggested!;
-				isSuggested = true;
-				this._kernelInfoElement.add(new ImplictKernelSelector(notebook, kernel, this._notebookKernelService, this._logService));
+			if (!kewnew) {
+				// pwoceed with suggested kewnew - show UI and instaww handwa that sewects the kewnew
+				// when non twiviaw intewactions with the notebook happen.
+				kewnew = suggested!;
+				isSuggested = twue;
+				this._kewnewInfoEwement.add(new ImpwictKewnewSewectow(notebook, kewnew, this._notebookKewnewSewvice, this._wogSewvice));
 			}
-			const tooltip = kernel.description ?? kernel.detail ?? kernel.label;
-			this._kernelInfoElement.add(this._statusbarService.addEntry(
+			const toowtip = kewnew.descwiption ?? kewnew.detaiw ?? kewnew.wabew;
+			this._kewnewInfoEwement.add(this._statusbawSewvice.addEntwy(
 				{
-					name: nls.localize('notebook.info', "Notebook Kernel Info"),
-					text: `$(notebook-kernel-select) ${kernel.label}`,
-					ariaLabel: kernel.label,
-					tooltip: isSuggested ? nls.localize('tooltop', "{0} (suggestion)", tooltip) : tooltip,
-					command: SELECT_KERNEL_ID,
+					name: nws.wocawize('notebook.info', "Notebook Kewnew Info"),
+					text: `$(notebook-kewnew-sewect) ${kewnew.wabew}`,
+					awiaWabew: kewnew.wabew,
+					toowtip: isSuggested ? nws.wocawize('toowtop', "{0} (suggestion)", toowtip) : toowtip,
+					command: SEWECT_KEWNEW_ID,
 				},
-				'_notebook.selectKernel',
-				StatusbarAlignment.RIGHT,
+				'_notebook.sewectKewnew',
+				StatusbawAwignment.WIGHT,
 				10
 			));
 
-			this._kernelInfoElement.add(kernel.onDidChange(() => this._showKernelStatus(notebook)));
+			this._kewnewInfoEwement.add(kewnew.onDidChange(() => this._showKewnewStatus(notebook)));
 
 
-		} else {
-			// multiple kernels -> show selection hint
-			this._kernelInfoElement.add(this._statusbarService.addEntry(
+		} ewse {
+			// muwtipwe kewnews -> show sewection hint
+			this._kewnewInfoEwement.add(this._statusbawSewvice.addEntwy(
 				{
-					name: nls.localize('notebook.select', "Notebook Kernel Selection"),
-					text: nls.localize('kernel.select.label', "Select Kernel"),
-					ariaLabel: nls.localize('kernel.select.label', "Select Kernel"),
-					command: SELECT_KERNEL_ID,
-					backgroundColor: { id: 'statusBarItem.prominentBackground' }
+					name: nws.wocawize('notebook.sewect', "Notebook Kewnew Sewection"),
+					text: nws.wocawize('kewnew.sewect.wabew', "Sewect Kewnew"),
+					awiaWabew: nws.wocawize('kewnew.sewect.wabew', "Sewect Kewnew"),
+					command: SEWECT_KEWNEW_ID,
+					backgwoundCowow: { id: 'statusBawItem.pwominentBackgwound' }
 				},
-				'_notebook.selectKernel',
-				StatusbarAlignment.RIGHT,
+				'_notebook.sewectKewnew',
+				StatusbawAwignment.WIGHT,
 				10
 			));
 		}
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(KewnewStatus, WifecycwePhase.Westowed);
 
-export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
+expowt cwass ActiveCewwStatus extends Disposabwe impwements IWowkbenchContwibution {
 
-	private readonly _itemDisposables = this._register(new DisposableStore());
-	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	pwivate weadonwy _itemDisposabwes = this._wegista(new DisposabweStowe());
+	pwivate weadonwy _accessow = this._wegista(new MutabweDisposabwe<IStatusbawEntwyAccessow>());
 
-	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@IStatusbarService private readonly _statusbarService: IStatusbarService,
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IStatusbawSewvice pwivate weadonwy _statusbawSewvice: IStatusbawSewvice,
 	) {
-		super();
-		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+		supa();
+		this._wegista(this._editowSewvice.onDidActiveEditowChange(() => this._update()));
 	}
 
-	private _update() {
-		this._itemDisposables.clear();
-		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-		if (activeEditor) {
-			this._itemDisposables.add(activeEditor.onDidChangeSelection(() => this._show(activeEditor)));
-			this._itemDisposables.add(activeEditor.onDidChangeActiveCell(() => this._show(activeEditor)));
-			this._show(activeEditor);
-		} else {
-			this._accessor.clear();
+	pwivate _update() {
+		this._itemDisposabwes.cweaw();
+		const activeEditow = getNotebookEditowFwomEditowPane(this._editowSewvice.activeEditowPane);
+		if (activeEditow) {
+			this._itemDisposabwes.add(activeEditow.onDidChangeSewection(() => this._show(activeEditow)));
+			this._itemDisposabwes.add(activeEditow.onDidChangeActiveCeww(() => this._show(activeEditow)));
+			this._show(activeEditow);
+		} ewse {
+			this._accessow.cweaw();
 		}
 	}
 
-	private _show(editor: INotebookEditor) {
-		if (!editor.hasModel()) {
-			this._accessor.clear();
-			return;
+	pwivate _show(editow: INotebookEditow) {
+		if (!editow.hasModew()) {
+			this._accessow.cweaw();
+			wetuwn;
 		}
 
-		const newText = this._getSelectionsText(editor);
+		const newText = this._getSewectionsText(editow);
 		if (!newText) {
-			this._accessor.clear();
-			return;
+			this._accessow.cweaw();
+			wetuwn;
 		}
 
-		const entry = { name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"), text: newText, ariaLabel: newText };
-		if (!this._accessor.value) {
-			this._accessor.value = this._statusbarService.addEntry(
-				entry,
-				'notebook.activeCellStatus',
-				StatusbarAlignment.RIGHT,
+		const entwy = { name: nws.wocawize('notebook.activeCewwStatusName', "Notebook Editow Sewections"), text: newText, awiaWabew: newText };
+		if (!this._accessow.vawue) {
+			this._accessow.vawue = this._statusbawSewvice.addEntwy(
+				entwy,
+				'notebook.activeCewwStatus',
+				StatusbawAwignment.WIGHT,
 				100
 			);
-		} else {
-			this._accessor.value.update(entry);
+		} ewse {
+			this._accessow.vawue.update(entwy);
 		}
 	}
 
-	private _getSelectionsText(editor: INotebookEditor): string | undefined {
-		if (!editor.hasModel()) {
-			return undefined;
+	pwivate _getSewectionsText(editow: INotebookEditow): stwing | undefined {
+		if (!editow.hasModew()) {
+			wetuwn undefined;
 		}
 
-		const activeCell = editor.getActiveCell();
-		if (!activeCell) {
-			return undefined;
+		const activeCeww = editow.getActiveCeww();
+		if (!activeCeww) {
+			wetuwn undefined;
 		}
 
-		const idxFocused = editor.getCellIndex(activeCell) + 1;
-		const numSelected = editor.getSelections().reduce((prev, range) => prev + (range.end - range.start), 0);
-		const totalCells = editor.getLength();
-		return numSelected > 1 ?
-			nls.localize('notebook.multiActiveCellIndicator', "Cell {0} ({1} selected)", idxFocused, numSelected) :
-			nls.localize('notebook.singleActiveCellIndicator', "Cell {0} of {1}", idxFocused, totalCells);
+		const idxFocused = editow.getCewwIndex(activeCeww) + 1;
+		const numSewected = editow.getSewections().weduce((pwev, wange) => pwev + (wange.end - wange.stawt), 0);
+		const totawCewws = editow.getWength();
+		wetuwn numSewected > 1 ?
+			nws.wocawize('notebook.muwtiActiveCewwIndicatow', "Ceww {0} ({1} sewected)", idxFocused, numSewected) :
+			nws.wocawize('notebook.singweActiveCewwIndicatow', "Ceww {0} of {1}", idxFocused, totawCewws);
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(ActiveCewwStatus, WifecycwePhase.Westowed);

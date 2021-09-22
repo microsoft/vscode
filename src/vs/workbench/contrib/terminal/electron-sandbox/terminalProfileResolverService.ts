@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
-import { ILocalTerminalService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWemoteTewminawSewvice, ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { BaseTewminawPwofiweWesowvewSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawPwofiweWesowvewSewvice';
+impowt { IWocawTewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/tewminaw';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
 
-export class ElectronTerminalProfileResolverService extends BaseTerminalProfileResolverService {
+expowt cwass EwectwonTewminawPwofiweWesowvewSewvice extends BaseTewminawPwofiweWesowvewSewvice {
 
-	constructor(
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHistoryService historyService: IHistoryService,
-		@ILogService logService: ILogService,
-		@ITerminalService terminalService: ITerminalService,
-		@ILocalTerminalService localTerminalService: ILocalTerminalService,
-		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+	constwuctow(
+		@IConfiguwationWesowvewSewvice configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IHistowySewvice histowySewvice: IHistowySewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@ITewminawSewvice tewminawSewvice: ITewminawSewvice,
+		@IWocawTewminawSewvice wocawTewminawSewvice: IWocawTewminawSewvice,
+		@IWemoteTewminawSewvice wemoteTewminawSewvice: IWemoteTewminawSewvice,
+		@IWowkspaceContextSewvice wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IWemoteAgentSewvice wemoteAgentSewvice: IWemoteAgentSewvice
 	) {
-		super(
+		supa(
 			{
-				getDefaultSystemShell: async (remoteAuthority, platform) => {
-					const service = remoteAuthority ? remoteTerminalService : localTerminalService;
-					return service.getDefaultSystemShell(platform);
+				getDefauwtSystemSheww: async (wemoteAuthowity, pwatfowm) => {
+					const sewvice = wemoteAuthowity ? wemoteTewminawSewvice : wocawTewminawSewvice;
+					wetuwn sewvice.getDefauwtSystemSheww(pwatfowm);
 				},
-				getEnvironment: (remoteAuthority) => {
-					if (remoteAuthority) {
-						return remoteTerminalService.getEnvironment();
-					} else {
-						return localTerminalService.getEnvironment();
+				getEnviwonment: (wemoteAuthowity) => {
+					if (wemoteAuthowity) {
+						wetuwn wemoteTewminawSewvice.getEnviwonment();
+					} ewse {
+						wetuwn wocawTewminawSewvice.getEnviwonment();
 					}
 				}
 			},
-			configurationService,
-			configurationResolverService,
-			historyService,
-			logService,
-			terminalService,
-			workspaceContextService,
-			remoteAgentService
+			configuwationSewvice,
+			configuwationWesowvewSewvice,
+			histowySewvice,
+			wogSewvice,
+			tewminawSewvice,
+			wowkspaceContextSewvice,
+			wemoteAgentSewvice
 		);
 	}
 }

@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isEmptyObject } from 'vs/base/common/types';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { isEmptyObject } fwom 'vs/base/common/types';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export interface ISearchHistoryService {
-	readonly _serviceBrand: undefined;
-	onDidClearHistory: Event<void>;
-	clearHistory(): void;
-	load(): ISearchHistoryValues;
-	save(history: ISearchHistoryValues): void;
+expowt intewface ISeawchHistowySewvice {
+	weadonwy _sewviceBwand: undefined;
+	onDidCweawHistowy: Event<void>;
+	cweawHistowy(): void;
+	woad(): ISeawchHistowyVawues;
+	save(histowy: ISeawchHistowyVawues): void;
 }
 
-export const ISearchHistoryService = createDecorator<ISearchHistoryService>('searchHistoryService');
+expowt const ISeawchHistowySewvice = cweateDecowatow<ISeawchHistowySewvice>('seawchHistowySewvice');
 
-export interface ISearchHistoryValues {
-	search?: string[];
-	replace?: string[];
-	include?: string[];
-	exclude?: string[];
+expowt intewface ISeawchHistowyVawues {
+	seawch?: stwing[];
+	wepwace?: stwing[];
+	incwude?: stwing[];
+	excwude?: stwing[];
 }
 
-export class SearchHistoryService implements ISearchHistoryService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass SeawchHistowySewvice impwements ISeawchHistowySewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
+	pwivate static weadonwy SEAWCH_HISTOWY_KEY = 'wowkbench.seawch.histowy';
 
-	private readonly _onDidClearHistory = new Emitter<void>();
-	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
+	pwivate weadonwy _onDidCweawHistowy = new Emitta<void>();
+	weadonwy onDidCweawHistowy: Event<void> = this._onDidCweawHistowy.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice
 	) { }
 
-	clearHistory(): void {
-		this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
-		this._onDidClearHistory.fire();
+	cweawHistowy(): void {
+		this.stowageSewvice.wemove(SeawchHistowySewvice.SEAWCH_HISTOWY_KEY, StowageScope.WOWKSPACE);
+		this._onDidCweawHistowy.fiwe();
 	}
 
-	load(): ISearchHistoryValues {
-		let result: ISearchHistoryValues | undefined;
-		const raw = this.storageService.get(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
+	woad(): ISeawchHistowyVawues {
+		wet wesuwt: ISeawchHistowyVawues | undefined;
+		const waw = this.stowageSewvice.get(SeawchHistowySewvice.SEAWCH_HISTOWY_KEY, StowageScope.WOWKSPACE);
 
-		if (raw) {
-			try {
-				result = JSON.parse(raw);
+		if (waw) {
+			twy {
+				wesuwt = JSON.pawse(waw);
 			} catch (e) {
-				// Invalid data
+				// Invawid data
 			}
 		}
 
-		return result || {};
+		wetuwn wesuwt || {};
 	}
 
-	save(history: ISearchHistoryValues): void {
-		if (isEmptyObject(history)) {
-			this.storageService.remove(SearchHistoryService.SEARCH_HISTORY_KEY, StorageScope.WORKSPACE);
-		} else {
-			this.storageService.store(SearchHistoryService.SEARCH_HISTORY_KEY, JSON.stringify(history), StorageScope.WORKSPACE, StorageTarget.USER);
+	save(histowy: ISeawchHistowyVawues): void {
+		if (isEmptyObject(histowy)) {
+			this.stowageSewvice.wemove(SeawchHistowySewvice.SEAWCH_HISTOWY_KEY, StowageScope.WOWKSPACE);
+		} ewse {
+			this.stowageSewvice.stowe(SeawchHistowySewvice.SEAWCH_HISTOWY_KEY, JSON.stwingify(histowy), StowageScope.WOWKSPACE, StowageTawget.USa);
 		}
 	}
 }

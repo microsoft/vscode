@@ -1,638 +1,638 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { Constants } from 'vs/base/common/uint';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { EditowAutoCwosingStwategy, EditowAutoSuwwoundStwategy, ConfiguwationChangedEvent, EditowAutoCwosingEditStwategy, EditowOption, EditowAutoIndentStwategy } fwom 'vs/editow/common/config/editowOptions';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, IConfiguwation } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew, PositionAffinity, TextModewWesowvedOptions } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { AutoCwosingPaiws, IAutoCwosingPaiw } fwom 'vs/editow/common/modes/wanguageConfiguwation';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { ICoowdinatesConvewta } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { Constants } fwom 'vs/base/common/uint';
 
-export interface IColumnSelectData {
-	isReal: boolean;
-	fromViewLineNumber: number;
-	fromViewVisualColumn: number;
-	toViewLineNumber: number;
-	toViewVisualColumn: number;
+expowt intewface ICowumnSewectData {
+	isWeaw: boowean;
+	fwomViewWineNumba: numba;
+	fwomViewVisuawCowumn: numba;
+	toViewWineNumba: numba;
+	toViewVisuawCowumn: numba;
 }
 
-export const enum RevealTarget {
-	Primary = 0,
+expowt const enum WeveawTawget {
+	Pwimawy = 0,
 	TopMost = 1,
 	BottomMost = 2
 }
 
 /**
- * This is an operation type that will be recorded for undo/redo purposes.
- * The goal is to introduce an undo stop when the controller switches between different operation types.
+ * This is an opewation type that wiww be wecowded fow undo/wedo puwposes.
+ * The goaw is to intwoduce an undo stop when the contwowwa switches between diffewent opewation types.
  */
-export const enum EditOperationType {
-	Other = 0,
-	DeletingLeft = 2,
-	DeletingRight = 3,
-	TypingOther = 4,
-	TypingFirstSpace = 5,
+expowt const enum EditOpewationType {
+	Otha = 0,
+	DewetingWeft = 2,
+	DewetingWight = 3,
+	TypingOtha = 4,
+	TypingFiwstSpace = 5,
 	TypingConsecutiveSpace = 6,
 }
 
-export interface CharacterMap {
-	[char: string]: string;
+expowt intewface ChawactewMap {
+	[chaw: stwing]: stwing;
 }
-export interface MultipleCharacterMap {
-	[char: string]: string[];
+expowt intewface MuwtipweChawactewMap {
+	[chaw: stwing]: stwing[];
 }
 
-const autoCloseAlways = () => true;
-const autoCloseNever = () => false;
-const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
+const autoCwoseAwways = () => twue;
+const autoCwoseNeva = () => fawse;
+const autoCwoseBefoweWhitespace = (chw: stwing) => (chw === ' ' || chw === '\t');
 
-export class CursorConfiguration {
-	_cursorMoveConfigurationBrand: void = undefined;
+expowt cwass CuwsowConfiguwation {
+	_cuwsowMoveConfiguwationBwand: void = undefined;
 
-	public readonly readOnly: boolean;
-	public readonly tabSize: number;
-	public readonly indentSize: number;
-	public readonly insertSpaces: boolean;
-	public readonly stickyTabStops: boolean;
-	public readonly pageSize: number;
-	public readonly lineHeight: number;
-	public readonly useTabStops: boolean;
-	public readonly wordSeparators: string;
-	public readonly emptySelectionClipboard: boolean;
-	public readonly copyWithSyntaxHighlighting: boolean;
-	public readonly multiCursorMergeOverlapping: boolean;
-	public readonly multiCursorPaste: 'spread' | 'full';
-	public readonly autoClosingBrackets: EditorAutoClosingStrategy;
-	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
-	public readonly autoClosingDelete: EditorAutoClosingEditStrategy;
-	public readonly autoClosingOvertype: EditorAutoClosingEditStrategy;
-	public readonly autoSurround: EditorAutoSurroundStrategy;
-	public readonly autoIndent: EditorAutoIndentStrategy;
-	public readonly autoClosingPairs: AutoClosingPairs;
-	public readonly surroundingPairs: CharacterMap;
-	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
+	pubwic weadonwy weadOnwy: boowean;
+	pubwic weadonwy tabSize: numba;
+	pubwic weadonwy indentSize: numba;
+	pubwic weadonwy insewtSpaces: boowean;
+	pubwic weadonwy stickyTabStops: boowean;
+	pubwic weadonwy pageSize: numba;
+	pubwic weadonwy wineHeight: numba;
+	pubwic weadonwy useTabStops: boowean;
+	pubwic weadonwy wowdSepawatows: stwing;
+	pubwic weadonwy emptySewectionCwipboawd: boowean;
+	pubwic weadonwy copyWithSyntaxHighwighting: boowean;
+	pubwic weadonwy muwtiCuwsowMewgeOvewwapping: boowean;
+	pubwic weadonwy muwtiCuwsowPaste: 'spwead' | 'fuww';
+	pubwic weadonwy autoCwosingBwackets: EditowAutoCwosingStwategy;
+	pubwic weadonwy autoCwosingQuotes: EditowAutoCwosingStwategy;
+	pubwic weadonwy autoCwosingDewete: EditowAutoCwosingEditStwategy;
+	pubwic weadonwy autoCwosingOvewtype: EditowAutoCwosingEditStwategy;
+	pubwic weadonwy autoSuwwound: EditowAutoSuwwoundStwategy;
+	pubwic weadonwy autoIndent: EditowAutoIndentStwategy;
+	pubwic weadonwy autoCwosingPaiws: AutoCwosingPaiws;
+	pubwic weadonwy suwwoundingPaiws: ChawactewMap;
+	pubwic weadonwy shouwdAutoCwoseBefowe: { quote: (ch: stwing) => boowean, bwacket: (ch: stwing) => boowean };
 
-	private readonly _languageIdentifier: LanguageIdentifier;
-	private _electricChars: { [key: string]: boolean; } | null;
+	pwivate weadonwy _wanguageIdentifia: WanguageIdentifia;
+	pwivate _ewectwicChaws: { [key: stwing]: boowean; } | nuww;
 
-	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
-		return (
-			e.hasChanged(EditorOption.layoutInfo)
-			|| e.hasChanged(EditorOption.wordSeparators)
-			|| e.hasChanged(EditorOption.emptySelectionClipboard)
-			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
-			|| e.hasChanged(EditorOption.multiCursorPaste)
-			|| e.hasChanged(EditorOption.autoClosingBrackets)
-			|| e.hasChanged(EditorOption.autoClosingQuotes)
-			|| e.hasChanged(EditorOption.autoClosingDelete)
-			|| e.hasChanged(EditorOption.autoClosingOvertype)
-			|| e.hasChanged(EditorOption.autoSurround)
-			|| e.hasChanged(EditorOption.useTabStops)
-			|| e.hasChanged(EditorOption.lineHeight)
-			|| e.hasChanged(EditorOption.readOnly)
+	pubwic static shouwdWecweate(e: ConfiguwationChangedEvent): boowean {
+		wetuwn (
+			e.hasChanged(EditowOption.wayoutInfo)
+			|| e.hasChanged(EditowOption.wowdSepawatows)
+			|| e.hasChanged(EditowOption.emptySewectionCwipboawd)
+			|| e.hasChanged(EditowOption.muwtiCuwsowMewgeOvewwapping)
+			|| e.hasChanged(EditowOption.muwtiCuwsowPaste)
+			|| e.hasChanged(EditowOption.autoCwosingBwackets)
+			|| e.hasChanged(EditowOption.autoCwosingQuotes)
+			|| e.hasChanged(EditowOption.autoCwosingDewete)
+			|| e.hasChanged(EditowOption.autoCwosingOvewtype)
+			|| e.hasChanged(EditowOption.autoSuwwound)
+			|| e.hasChanged(EditowOption.useTabStops)
+			|| e.hasChanged(EditowOption.wineHeight)
+			|| e.hasChanged(EditowOption.weadOnwy)
 		);
 	}
 
-	constructor(
-		languageIdentifier: LanguageIdentifier,
-		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration
+	constwuctow(
+		wanguageIdentifia: WanguageIdentifia,
+		modewOptions: TextModewWesowvedOptions,
+		configuwation: IConfiguwation
 	) {
-		this._languageIdentifier = languageIdentifier;
+		this._wanguageIdentifia = wanguageIdentifia;
 
-		const options = configuration.options;
-		const layoutInfo = options.get(EditorOption.layoutInfo);
+		const options = configuwation.options;
+		const wayoutInfo = options.get(EditowOption.wayoutInfo);
 
-		this.readOnly = options.get(EditorOption.readOnly);
-		this.tabSize = modelOptions.tabSize;
-		this.indentSize = modelOptions.indentSize;
-		this.insertSpaces = modelOptions.insertSpaces;
-		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
-		this.lineHeight = options.get(EditorOption.lineHeight);
-		this.pageSize = Math.max(1, Math.floor(layoutInfo.height / this.lineHeight) - 2);
-		this.useTabStops = options.get(EditorOption.useTabStops);
-		this.wordSeparators = options.get(EditorOption.wordSeparators);
-		this.emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
-		this.copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
-		this.multiCursorMergeOverlapping = options.get(EditorOption.multiCursorMergeOverlapping);
-		this.multiCursorPaste = options.get(EditorOption.multiCursorPaste);
-		this.autoClosingBrackets = options.get(EditorOption.autoClosingBrackets);
-		this.autoClosingQuotes = options.get(EditorOption.autoClosingQuotes);
-		this.autoClosingDelete = options.get(EditorOption.autoClosingDelete);
-		this.autoClosingOvertype = options.get(EditorOption.autoClosingOvertype);
-		this.autoSurround = options.get(EditorOption.autoSurround);
-		this.autoIndent = options.get(EditorOption.autoIndent);
+		this.weadOnwy = options.get(EditowOption.weadOnwy);
+		this.tabSize = modewOptions.tabSize;
+		this.indentSize = modewOptions.indentSize;
+		this.insewtSpaces = modewOptions.insewtSpaces;
+		this.stickyTabStops = options.get(EditowOption.stickyTabStops);
+		this.wineHeight = options.get(EditowOption.wineHeight);
+		this.pageSize = Math.max(1, Math.fwoow(wayoutInfo.height / this.wineHeight) - 2);
+		this.useTabStops = options.get(EditowOption.useTabStops);
+		this.wowdSepawatows = options.get(EditowOption.wowdSepawatows);
+		this.emptySewectionCwipboawd = options.get(EditowOption.emptySewectionCwipboawd);
+		this.copyWithSyntaxHighwighting = options.get(EditowOption.copyWithSyntaxHighwighting);
+		this.muwtiCuwsowMewgeOvewwapping = options.get(EditowOption.muwtiCuwsowMewgeOvewwapping);
+		this.muwtiCuwsowPaste = options.get(EditowOption.muwtiCuwsowPaste);
+		this.autoCwosingBwackets = options.get(EditowOption.autoCwosingBwackets);
+		this.autoCwosingQuotes = options.get(EditowOption.autoCwosingQuotes);
+		this.autoCwosingDewete = options.get(EditowOption.autoCwosingDewete);
+		this.autoCwosingOvewtype = options.get(EditowOption.autoCwosingOvewtype);
+		this.autoSuwwound = options.get(EditowOption.autoSuwwound);
+		this.autoIndent = options.get(EditowOption.autoIndent);
 
-		this.surroundingPairs = {};
-		this._electricChars = null;
+		this.suwwoundingPaiws = {};
+		this._ewectwicChaws = nuww;
 
-		this.shouldAutoCloseBefore = {
-			quote: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingQuotes),
-			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
+		this.shouwdAutoCwoseBefowe = {
+			quote: CuwsowConfiguwation._getShouwdAutoCwose(wanguageIdentifia, this.autoCwosingQuotes),
+			bwacket: CuwsowConfiguwation._getShouwdAutoCwose(wanguageIdentifia, this.autoCwosingBwackets)
 		};
 
-		this.autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		this.autoCwosingPaiws = WanguageConfiguwationWegistwy.getAutoCwosingPaiws(wanguageIdentifia.id);
 
-		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
-		if (surroundingPairs) {
-			for (const pair of surroundingPairs) {
-				this.surroundingPairs[pair.open] = pair.close;
+		wet suwwoundingPaiws = CuwsowConfiguwation._getSuwwoundingPaiws(wanguageIdentifia);
+		if (suwwoundingPaiws) {
+			fow (const paiw of suwwoundingPaiws) {
+				this.suwwoundingPaiws[paiw.open] = paiw.cwose;
 			}
 		}
 	}
 
-	public get electricChars() {
-		if (!this._electricChars) {
-			this._electricChars = {};
-			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
-			if (electricChars) {
-				for (const char of electricChars) {
-					this._electricChars[char] = true;
+	pubwic get ewectwicChaws() {
+		if (!this._ewectwicChaws) {
+			this._ewectwicChaws = {};
+			wet ewectwicChaws = CuwsowConfiguwation._getEwectwicChawactews(this._wanguageIdentifia);
+			if (ewectwicChaws) {
+				fow (const chaw of ewectwicChaws) {
+					this._ewectwicChaws[chaw] = twue;
 				}
 			}
 		}
-		return this._electricChars;
+		wetuwn this._ewectwicChaws;
 	}
 
-	public normalizeIndentation(str: string): string {
-		return TextModel.normalizeIndentation(str, this.indentSize, this.insertSpaces);
+	pubwic nowmawizeIndentation(stw: stwing): stwing {
+		wetuwn TextModew.nowmawizeIndentation(stw, this.indentSize, this.insewtSpaces);
 	}
 
-	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
-		try {
-			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
+	pwivate static _getEwectwicChawactews(wanguageIdentifia: WanguageIdentifia): stwing[] | nuww {
+		twy {
+			wetuwn WanguageConfiguwationWegistwy.getEwectwicChawactews(wanguageIdentifia.id);
 		} catch (e) {
-			onUnexpectedError(e);
-			return null;
+			onUnexpectedEwwow(e);
+			wetuwn nuww;
 		}
 	}
 
-	private static _getShouldAutoClose(languageIdentifier: LanguageIdentifier, autoCloseConfig: EditorAutoClosingStrategy): (ch: string) => boolean {
-		switch (autoCloseConfig) {
-			case 'beforeWhitespace':
-				return autoCloseBeforeWhitespace;
-			case 'languageDefined':
-				return CursorConfiguration._getLanguageDefinedShouldAutoClose(languageIdentifier);
-			case 'always':
-				return autoCloseAlways;
-			case 'never':
-				return autoCloseNever;
+	pwivate static _getShouwdAutoCwose(wanguageIdentifia: WanguageIdentifia, autoCwoseConfig: EditowAutoCwosingStwategy): (ch: stwing) => boowean {
+		switch (autoCwoseConfig) {
+			case 'befoweWhitespace':
+				wetuwn autoCwoseBefoweWhitespace;
+			case 'wanguageDefined':
+				wetuwn CuwsowConfiguwation._getWanguageDefinedShouwdAutoCwose(wanguageIdentifia);
+			case 'awways':
+				wetuwn autoCwoseAwways;
+			case 'neva':
+				wetuwn autoCwoseNeva;
 		}
 	}
 
-	private static _getLanguageDefinedShouldAutoClose(languageIdentifier: LanguageIdentifier): (ch: string) => boolean {
-		try {
-			const autoCloseBeforeSet = LanguageConfigurationRegistry.getAutoCloseBeforeSet(languageIdentifier.id);
-			return c => autoCloseBeforeSet.indexOf(c) !== -1;
+	pwivate static _getWanguageDefinedShouwdAutoCwose(wanguageIdentifia: WanguageIdentifia): (ch: stwing) => boowean {
+		twy {
+			const autoCwoseBefoweSet = WanguageConfiguwationWegistwy.getAutoCwoseBefoweSet(wanguageIdentifia.id);
+			wetuwn c => autoCwoseBefoweSet.indexOf(c) !== -1;
 		} catch (e) {
-			onUnexpectedError(e);
-			return autoCloseNever;
+			onUnexpectedEwwow(e);
+			wetuwn autoCwoseNeva;
 		}
 	}
 
-	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] | null {
-		try {
-			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
+	pwivate static _getSuwwoundingPaiws(wanguageIdentifia: WanguageIdentifia): IAutoCwosingPaiw[] | nuww {
+		twy {
+			wetuwn WanguageConfiguwationWegistwy.getSuwwoundingPaiws(wanguageIdentifia.id);
 		} catch (e) {
-			onUnexpectedError(e);
-			return null;
+			onUnexpectedEwwow(e);
+			wetuwn nuww;
 		}
 	}
 }
 
 /**
- * Represents a simple model (either the model or the view model).
+ * Wepwesents a simpwe modew (eitha the modew ow the view modew).
  */
-export interface ICursorSimpleModel {
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
-	getLineMinColumn(lineNumber: number): number;
-	getLineMaxColumn(lineNumber: number): number;
-	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
-	getLineLastNonWhitespaceColumn(lineNumber: number): number;
-	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+expowt intewface ICuwsowSimpweModew {
+	getWineCount(): numba;
+	getWineContent(wineNumba: numba): stwing;
+	getWineMinCowumn(wineNumba: numba): numba;
+	getWineMaxCowumn(wineNumba: numba): numba;
+	getWineFiwstNonWhitespaceCowumn(wineNumba: numba): numba;
+	getWineWastNonWhitespaceCowumn(wineNumba: numba): numba;
+	nowmawizePosition(position: Position, affinity: PositionAffinity): Position;
 
 	/**
-	 * Gets the column at which indentation stops at a given line.
-	 * @internal
+	 * Gets the cowumn at which indentation stops at a given wine.
+	 * @intewnaw
 	 */
-	getLineIndentColumn(lineNumber: number): number;
+	getWineIndentCowumn(wineNumba: numba): numba;
 }
 
 /**
- * Represents the cursor state on either the model or on the view model.
+ * Wepwesents the cuwsow state on eitha the modew ow on the view modew.
  */
-export class SingleCursorState {
-	_singleCursorStateBrand: void = undefined;
+expowt cwass SingweCuwsowState {
+	_singweCuwsowStateBwand: void = undefined;
 
-	// --- selection can start as a range (think double click and drag)
-	public readonly selectionStart: Range;
-	public readonly selectionStartLeftoverVisibleColumns: number;
-	public readonly position: Position;
-	public readonly leftoverVisibleColumns: number;
-	public readonly selection: Selection;
+	// --- sewection can stawt as a wange (think doubwe cwick and dwag)
+	pubwic weadonwy sewectionStawt: Wange;
+	pubwic weadonwy sewectionStawtWeftovewVisibweCowumns: numba;
+	pubwic weadonwy position: Position;
+	pubwic weadonwy weftovewVisibweCowumns: numba;
+	pubwic weadonwy sewection: Sewection;
 
-	constructor(
-		selectionStart: Range,
-		selectionStartLeftoverVisibleColumns: number,
+	constwuctow(
+		sewectionStawt: Wange,
+		sewectionStawtWeftovewVisibweCowumns: numba,
 		position: Position,
-		leftoverVisibleColumns: number,
+		weftovewVisibweCowumns: numba,
 	) {
-		this.selectionStart = selectionStart;
-		this.selectionStartLeftoverVisibleColumns = selectionStartLeftoverVisibleColumns;
+		this.sewectionStawt = sewectionStawt;
+		this.sewectionStawtWeftovewVisibweCowumns = sewectionStawtWeftovewVisibweCowumns;
 		this.position = position;
-		this.leftoverVisibleColumns = leftoverVisibleColumns;
-		this.selection = SingleCursorState._computeSelection(this.selectionStart, this.position);
+		this.weftovewVisibweCowumns = weftovewVisibweCowumns;
+		this.sewection = SingweCuwsowState._computeSewection(this.sewectionStawt, this.position);
 	}
 
-	public equals(other: SingleCursorState) {
-		return (
-			this.selectionStartLeftoverVisibleColumns === other.selectionStartLeftoverVisibleColumns
-			&& this.leftoverVisibleColumns === other.leftoverVisibleColumns
-			&& this.position.equals(other.position)
-			&& this.selectionStart.equalsRange(other.selectionStart)
+	pubwic equaws(otha: SingweCuwsowState) {
+		wetuwn (
+			this.sewectionStawtWeftovewVisibweCowumns === otha.sewectionStawtWeftovewVisibweCowumns
+			&& this.weftovewVisibweCowumns === otha.weftovewVisibweCowumns
+			&& this.position.equaws(otha.position)
+			&& this.sewectionStawt.equawsWange(otha.sewectionStawt)
 		);
 	}
 
-	public hasSelection(): boolean {
-		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
+	pubwic hasSewection(): boowean {
+		wetuwn (!this.sewection.isEmpty() || !this.sewectionStawt.isEmpty());
 	}
 
-	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
-		if (inSelectionMode) {
+	pubwic move(inSewectionMode: boowean, wineNumba: numba, cowumn: numba, weftovewVisibweCowumns: numba): SingweCuwsowState {
+		if (inSewectionMode) {
 			// move just position
-			return new SingleCursorState(
-				this.selectionStart,
-				this.selectionStartLeftoverVisibleColumns,
-				new Position(lineNumber, column),
-				leftoverVisibleColumns
+			wetuwn new SingweCuwsowState(
+				this.sewectionStawt,
+				this.sewectionStawtWeftovewVisibweCowumns,
+				new Position(wineNumba, cowumn),
+				weftovewVisibweCowumns
 			);
-		} else {
-			// move everything
-			return new SingleCursorState(
-				new Range(lineNumber, column, lineNumber, column),
-				leftoverVisibleColumns,
-				new Position(lineNumber, column),
-				leftoverVisibleColumns
+		} ewse {
+			// move evewything
+			wetuwn new SingweCuwsowState(
+				new Wange(wineNumba, cowumn, wineNumba, cowumn),
+				weftovewVisibweCowumns,
+				new Position(wineNumba, cowumn),
+				weftovewVisibweCowumns
 			);
 		}
 	}
 
-	private static _computeSelection(selectionStart: Range, position: Position): Selection {
-		let startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
-		if (selectionStart.isEmpty()) {
-			startLineNumber = selectionStart.startLineNumber;
-			startColumn = selectionStart.startColumn;
-			endLineNumber = position.lineNumber;
-			endColumn = position.column;
-		} else {
-			if (position.isBeforeOrEqual(selectionStart.getStartPosition())) {
-				startLineNumber = selectionStart.endLineNumber;
-				startColumn = selectionStart.endColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
-			} else {
-				startLineNumber = selectionStart.startLineNumber;
-				startColumn = selectionStart.startColumn;
-				endLineNumber = position.lineNumber;
-				endColumn = position.column;
+	pwivate static _computeSewection(sewectionStawt: Wange, position: Position): Sewection {
+		wet stawtWineNumba: numba, stawtCowumn: numba, endWineNumba: numba, endCowumn: numba;
+		if (sewectionStawt.isEmpty()) {
+			stawtWineNumba = sewectionStawt.stawtWineNumba;
+			stawtCowumn = sewectionStawt.stawtCowumn;
+			endWineNumba = position.wineNumba;
+			endCowumn = position.cowumn;
+		} ewse {
+			if (position.isBefoweOwEquaw(sewectionStawt.getStawtPosition())) {
+				stawtWineNumba = sewectionStawt.endWineNumba;
+				stawtCowumn = sewectionStawt.endCowumn;
+				endWineNumba = position.wineNumba;
+				endCowumn = position.cowumn;
+			} ewse {
+				stawtWineNumba = sewectionStawt.stawtWineNumba;
+				stawtCowumn = sewectionStawt.stawtCowumn;
+				endWineNumba = position.wineNumba;
+				endCowumn = position.cowumn;
 			}
 		}
-		return new Selection(
-			startLineNumber,
-			startColumn,
-			endLineNumber,
-			endColumn
+		wetuwn new Sewection(
+			stawtWineNumba,
+			stawtCowumn,
+			endWineNumba,
+			endCowumn
 		);
 	}
 }
 
-export class CursorContext {
-	_cursorContextBrand: void = undefined;
+expowt cwass CuwsowContext {
+	_cuwsowContextBwand: void = undefined;
 
-	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
-	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly cursorConfig: CursorConfiguration;
+	pubwic weadonwy modew: ITextModew;
+	pubwic weadonwy viewModew: ICuwsowSimpweModew;
+	pubwic weadonwy coowdinatesConvewta: ICoowdinatesConvewta;
+	pubwic weadonwy cuwsowConfig: CuwsowConfiguwation;
 
-	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
-		this.model = model;
-		this.viewModel = viewModel;
-		this.coordinatesConverter = coordinatesConverter;
-		this.cursorConfig = cursorConfig;
+	constwuctow(modew: ITextModew, viewModew: ICuwsowSimpweModew, coowdinatesConvewta: ICoowdinatesConvewta, cuwsowConfig: CuwsowConfiguwation) {
+		this.modew = modew;
+		this.viewModew = viewModew;
+		this.coowdinatesConvewta = coowdinatesConvewta;
+		this.cuwsowConfig = cuwsowConfig;
 	}
 }
 
-export class PartialModelCursorState {
-	readonly modelState: SingleCursorState;
-	readonly viewState: null;
+expowt cwass PawtiawModewCuwsowState {
+	weadonwy modewState: SingweCuwsowState;
+	weadonwy viewState: nuww;
 
-	constructor(modelState: SingleCursorState) {
-		this.modelState = modelState;
-		this.viewState = null;
+	constwuctow(modewState: SingweCuwsowState) {
+		this.modewState = modewState;
+		this.viewState = nuww;
 	}
 }
 
-export class PartialViewCursorState {
-	readonly modelState: null;
-	readonly viewState: SingleCursorState;
+expowt cwass PawtiawViewCuwsowState {
+	weadonwy modewState: nuww;
+	weadonwy viewState: SingweCuwsowState;
 
-	constructor(viewState: SingleCursorState) {
-		this.modelState = null;
+	constwuctow(viewState: SingweCuwsowState) {
+		this.modewState = nuww;
 		this.viewState = viewState;
 	}
 }
 
-export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;
+expowt type PawtiawCuwsowState = CuwsowState | PawtiawModewCuwsowState | PawtiawViewCuwsowState;
 
-export class CursorState {
-	_cursorStateBrand: void = undefined;
+expowt cwass CuwsowState {
+	_cuwsowStateBwand: void = undefined;
 
-	public static fromModelState(modelState: SingleCursorState): PartialModelCursorState {
-		return new PartialModelCursorState(modelState);
+	pubwic static fwomModewState(modewState: SingweCuwsowState): PawtiawModewCuwsowState {
+		wetuwn new PawtiawModewCuwsowState(modewState);
 	}
 
-	public static fromViewState(viewState: SingleCursorState): PartialViewCursorState {
-		return new PartialViewCursorState(viewState);
+	pubwic static fwomViewState(viewState: SingweCuwsowState): PawtiawViewCuwsowState {
+		wetuwn new PawtiawViewCuwsowState(viewState);
 	}
 
-	public static fromModelSelection(modelSelection: ISelection): PartialModelCursorState {
-		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
-		const selectionStartColumn = modelSelection.selectionStartColumn;
-		const positionLineNumber = modelSelection.positionLineNumber;
-		const positionColumn = modelSelection.positionColumn;
-		const modelState = new SingleCursorState(
-			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
-			new Position(positionLineNumber, positionColumn), 0
+	pubwic static fwomModewSewection(modewSewection: ISewection): PawtiawModewCuwsowState {
+		const sewectionStawtWineNumba = modewSewection.sewectionStawtWineNumba;
+		const sewectionStawtCowumn = modewSewection.sewectionStawtCowumn;
+		const positionWineNumba = modewSewection.positionWineNumba;
+		const positionCowumn = modewSewection.positionCowumn;
+		const modewState = new SingweCuwsowState(
+			new Wange(sewectionStawtWineNumba, sewectionStawtCowumn, sewectionStawtWineNumba, sewectionStawtCowumn), 0,
+			new Position(positionWineNumba, positionCowumn), 0
 		);
-		return CursorState.fromModelState(modelState);
+		wetuwn CuwsowState.fwomModewState(modewState);
 	}
 
-	public static fromModelSelections(modelSelections: readonly ISelection[]): PartialModelCursorState[] {
-		let states: PartialModelCursorState[] = [];
-		for (let i = 0, len = modelSelections.length; i < len; i++) {
-			states[i] = this.fromModelSelection(modelSelections[i]);
+	pubwic static fwomModewSewections(modewSewections: weadonwy ISewection[]): PawtiawModewCuwsowState[] {
+		wet states: PawtiawModewCuwsowState[] = [];
+		fow (wet i = 0, wen = modewSewections.wength; i < wen; i++) {
+			states[i] = this.fwomModewSewection(modewSewections[i]);
 		}
-		return states;
+		wetuwn states;
 	}
 
-	readonly modelState: SingleCursorState;
-	readonly viewState: SingleCursorState;
+	weadonwy modewState: SingweCuwsowState;
+	weadonwy viewState: SingweCuwsowState;
 
-	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
-		this.modelState = modelState;
+	constwuctow(modewState: SingweCuwsowState, viewState: SingweCuwsowState) {
+		this.modewState = modewState;
 		this.viewState = viewState;
 	}
 
-	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
+	pubwic equaws(otha: CuwsowState): boowean {
+		wetuwn (this.viewState.equaws(otha.viewState) && this.modewState.equaws(otha.modewState));
 	}
 }
 
-export class EditOperationResult {
-	_editOperationResultBrand: void = undefined;
+expowt cwass EditOpewationWesuwt {
+	_editOpewationWesuwtBwand: void = undefined;
 
-	readonly type: EditOperationType;
-	readonly commands: Array<ICommand | null>;
-	readonly shouldPushStackElementBefore: boolean;
-	readonly shouldPushStackElementAfter: boolean;
+	weadonwy type: EditOpewationType;
+	weadonwy commands: Awway<ICommand | nuww>;
+	weadonwy shouwdPushStackEwementBefowe: boowean;
+	weadonwy shouwdPushStackEwementAfta: boowean;
 
-	constructor(
-		type: EditOperationType,
-		commands: Array<ICommand | null>,
+	constwuctow(
+		type: EditOpewationType,
+		commands: Awway<ICommand | nuww>,
 		opts: {
-			shouldPushStackElementBefore: boolean;
-			shouldPushStackElementAfter: boolean;
+			shouwdPushStackEwementBefowe: boowean;
+			shouwdPushStackEwementAfta: boowean;
 		}
 	) {
 		this.type = type;
 		this.commands = commands;
-		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
-		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
+		this.shouwdPushStackEwementBefowe = opts.shouwdPushStackEwementBefowe;
+		this.shouwdPushStackEwementAfta = opts.shouwdPushStackEwementAfta;
 	}
 }
 
 /**
- * Common operations that work and make sense both on the model and on the view model.
+ * Common opewations that wowk and make sense both on the modew and on the view modew.
  */
-export class CursorColumns {
+expowt cwass CuwsowCowumns {
 
-	public static visibleColumnFromColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
+	pubwic static visibweCowumnFwomCowumn(wineContent: stwing, cowumn: numba, tabSize: numba): numba {
+		const wineContentWength = wineContent.wength;
+		const endOffset = cowumn - 1 < wineContentWength ? cowumn - 1 : wineContentWength;
 
-		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		wet wesuwt = 0;
+		wet i = 0;
+		whiwe (i < endOffset) {
+			const codePoint = stwings.getNextCodePoint(wineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
 
-			if (codePoint === CharCode.Tab) {
-				result = CursorColumns.nextRenderTabStop(result, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < endOffset) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
+			if (codePoint === ChawCode.Tab) {
+				wesuwt = CuwsowCowumns.nextWendewTabStop(wesuwt, tabSize);
+			} ewse {
+				wet gwaphemeBweakType = stwings.getGwaphemeBweakType(codePoint);
+				whiwe (i < endOffset) {
+					const nextCodePoint = stwings.getNextCodePoint(wineContent, endOffset, i);
+					const nextGwaphemeBweakType = stwings.getGwaphemeBweakType(nextCodePoint);
+					if (stwings.bweakBetweenGwaphemeBweakType(gwaphemeBweakType, nextGwaphemeBweakType)) {
+						bweak;
 					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
+					i += (nextCodePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
+					gwaphemeBweakType = nextGwaphemeBweakType;
 				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					result = result + 2;
-				} else {
-					result = result + 1;
+				if (stwings.isFuwwWidthChawacta(codePoint) || stwings.isEmojiImpwecise(codePoint)) {
+					wesuwt = wesuwt + 2;
+				} ewse {
+					wesuwt = wesuwt + 1;
 				}
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * Returns an array that maps one based columns to one based visible columns. The entry at position 0 is -1.
+	 * Wetuwns an awway that maps one based cowumns to one based visibwe cowumns. The entwy at position 0 is -1.
 	*/
-	public static visibleColumnsByColumns(lineContent: string, tabSize: number): number[] {
-		const endOffset = lineContent.length;
+	pubwic static visibweCowumnsByCowumns(wineContent: stwing, tabSize: numba): numba[] {
+		const endOffset = wineContent.wength;
 
-		let result = new Array<number>();
-		result.push(-1);
-		let pos = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		wet wesuwt = new Awway<numba>();
+		wesuwt.push(-1);
+		wet pos = 0;
+		wet i = 0;
+		whiwe (i < endOffset) {
+			const codePoint = stwings.getNextCodePoint(wineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
 
-			result.push(pos);
-			if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
-				result.push(pos);
+			wesuwt.push(pos);
+			if (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN) {
+				wesuwt.push(pos);
 			}
 
-			if (codePoint === CharCode.Tab) {
-				pos = CursorColumns.nextRenderTabStop(pos, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < endOffset) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
+			if (codePoint === ChawCode.Tab) {
+				pos = CuwsowCowumns.nextWendewTabStop(pos, tabSize);
+			} ewse {
+				wet gwaphemeBweakType = stwings.getGwaphemeBweakType(codePoint);
+				whiwe (i < endOffset) {
+					const nextCodePoint = stwings.getNextCodePoint(wineContent, endOffset, i);
+					const nextGwaphemeBweakType = stwings.getGwaphemeBweakType(nextCodePoint);
+					if (stwings.bweakBetweenGwaphemeBweakType(gwaphemeBweakType, nextGwaphemeBweakType)) {
+						bweak;
 					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					i += (nextCodePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
 
-					result.push(pos);
-					if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
-						result.push(pos);
+					wesuwt.push(pos);
+					if (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN) {
+						wesuwt.push(pos);
 					}
 
-					graphemeBreakType = nextGraphemeBreakType;
+					gwaphemeBweakType = nextGwaphemeBweakType;
 				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+				if (stwings.isFuwwWidthChawacta(codePoint) || stwings.isEmojiImpwecise(codePoint)) {
 					pos = pos + 2;
-				} else {
+				} ewse {
 					pos = pos + 1;
 				}
 			}
 		}
-		result.push(pos);
-		return result;
+		wesuwt.push(pos);
+		wetuwn wesuwt;
 	}
 
-	public static toStatusbarColumn(lineContent: string, column: number, tabSize: number): number {
-		const lineContentLength = lineContent.length;
-		const endOffset = column - 1 < lineContentLength ? column - 1 : lineContentLength;
+	pubwic static toStatusbawCowumn(wineContent: stwing, cowumn: numba, tabSize: numba): numba {
+		const wineContentWength = wineContent.wength;
+		const endOffset = cowumn - 1 < wineContentWength ? cowumn - 1 : wineContentWength;
 
-		let result = 0;
-		let i = 0;
-		while (i < endOffset) {
-			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		wet wesuwt = 0;
+		wet i = 0;
+		whiwe (i < endOffset) {
+			const codePoint = stwings.getNextCodePoint(wineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
 
-			if (codePoint === CharCode.Tab) {
-				result = CursorColumns.nextRenderTabStop(result, tabSize);
-			} else {
-				result = result + 1;
+			if (codePoint === ChawCode.Tab) {
+				wesuwt = CuwsowCowumns.nextWendewTabStop(wesuwt, tabSize);
+			} ewse {
+				wesuwt = wesuwt + 1;
 			}
 		}
 
-		return result + 1;
+		wetuwn wesuwt + 1;
 	}
 
-	public static visibleColumnFromColumn2(config: CursorConfiguration, model: ICursorSimpleModel, position: Position): number {
-		return this.visibleColumnFromColumn(model.getLineContent(position.lineNumber), position.column, config.tabSize);
+	pubwic static visibweCowumnFwomCowumn2(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, position: Position): numba {
+		wetuwn this.visibweCowumnFwomCowumn(modew.getWineContent(position.wineNumba), position.cowumn, config.tabSize);
 	}
 
-	public static columnFromVisibleColumn(lineContent: string, visibleColumn: number, tabSize: number): number {
-		if (visibleColumn <= 0) {
-			return 1;
+	pubwic static cowumnFwomVisibweCowumn(wineContent: stwing, visibweCowumn: numba, tabSize: numba): numba {
+		if (visibweCowumn <= 0) {
+			wetuwn 1;
 		}
 
-		const lineLength = lineContent.length;
+		const wineWength = wineContent.wength;
 
-		let beforeVisibleColumn = 0;
-		let beforeColumn = 1;
-		let i = 0;
-		while (i < lineLength) {
-			const codePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+		wet befoweVisibweCowumn = 0;
+		wet befoweCowumn = 1;
+		wet i = 0;
+		whiwe (i < wineWength) {
+			const codePoint = stwings.getNextCodePoint(wineContent, wineWength, i);
+			i += (codePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
 
-			let afterVisibleColumn: number;
-			if (codePoint === CharCode.Tab) {
-				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
-			} else {
-				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
-				while (i < lineLength) {
-					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
-					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
-						break;
+			wet aftewVisibweCowumn: numba;
+			if (codePoint === ChawCode.Tab) {
+				aftewVisibweCowumn = CuwsowCowumns.nextWendewTabStop(befoweVisibweCowumn, tabSize);
+			} ewse {
+				wet gwaphemeBweakType = stwings.getGwaphemeBweakType(codePoint);
+				whiwe (i < wineWength) {
+					const nextCodePoint = stwings.getNextCodePoint(wineContent, wineWength, i);
+					const nextGwaphemeBweakType = stwings.getGwaphemeBweakType(nextCodePoint);
+					if (stwings.bweakBetweenGwaphemeBweakType(gwaphemeBweakType, nextGwaphemeBweakType)) {
+						bweak;
 					}
-					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
-					graphemeBreakType = nextGraphemeBreakType;
+					i += (nextCodePoint >= Constants.UNICODE_SUPPWEMENTAWY_PWANE_BEGIN ? 2 : 1);
+					gwaphemeBweakType = nextGwaphemeBweakType;
 				}
-				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
-					afterVisibleColumn = beforeVisibleColumn + 2;
-				} else {
-					afterVisibleColumn = beforeVisibleColumn + 1;
-				}
-			}
-			const afterColumn = i + 1;
-
-			if (afterVisibleColumn >= visibleColumn) {
-				const beforeDelta = visibleColumn - beforeVisibleColumn;
-				const afterDelta = afterVisibleColumn - visibleColumn;
-				if (afterDelta < beforeDelta) {
-					return afterColumn;
-				} else {
-					return beforeColumn;
+				if (stwings.isFuwwWidthChawacta(codePoint) || stwings.isEmojiImpwecise(codePoint)) {
+					aftewVisibweCowumn = befoweVisibweCowumn + 2;
+				} ewse {
+					aftewVisibweCowumn = befoweVisibweCowumn + 1;
 				}
 			}
+			const aftewCowumn = i + 1;
 
-			beforeVisibleColumn = afterVisibleColumn;
-			beforeColumn = afterColumn;
+			if (aftewVisibweCowumn >= visibweCowumn) {
+				const befoweDewta = visibweCowumn - befoweVisibweCowumn;
+				const aftewDewta = aftewVisibweCowumn - visibweCowumn;
+				if (aftewDewta < befoweDewta) {
+					wetuwn aftewCowumn;
+				} ewse {
+					wetuwn befoweCowumn;
+				}
+			}
+
+			befoweVisibweCowumn = aftewVisibweCowumn;
+			befoweCowumn = aftewCowumn;
 		}
 
-		// walked the entire string
-		return lineLength + 1;
+		// wawked the entiwe stwing
+		wetuwn wineWength + 1;
 	}
 
-	public static columnFromVisibleColumn2(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, visibleColumn: number): number {
-		let result = this.columnFromVisibleColumn(model.getLineContent(lineNumber), visibleColumn, config.tabSize);
+	pubwic static cowumnFwomVisibweCowumn2(config: CuwsowConfiguwation, modew: ICuwsowSimpweModew, wineNumba: numba, visibweCowumn: numba): numba {
+		wet wesuwt = this.cowumnFwomVisibweCowumn(modew.getWineContent(wineNumba), visibweCowumn, config.tabSize);
 
-		let minColumn = model.getLineMinColumn(lineNumber);
-		if (result < minColumn) {
-			return minColumn;
+		wet minCowumn = modew.getWineMinCowumn(wineNumba);
+		if (wesuwt < minCowumn) {
+			wetuwn minCowumn;
 		}
 
-		let maxColumn = model.getLineMaxColumn(lineNumber);
-		if (result > maxColumn) {
-			return maxColumn;
+		wet maxCowumn = modew.getWineMaxCowumn(wineNumba);
+		if (wesuwt > maxCowumn) {
+			wetuwn maxCowumn;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This wowks with 0-based cowumns (as oposed to the weguwaw 1-based cowumns)
 	 */
-	public static nextRenderTabStop(visibleColumn: number, tabSize: number): number {
-		return visibleColumn + tabSize - visibleColumn % tabSize;
+	pubwic static nextWendewTabStop(visibweCowumn: numba, tabSize: numba): numba {
+		wetuwn visibweCowumn + tabSize - visibweCowumn % tabSize;
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as oposed to the regular 1-based columns)
+	 * ATTENTION: This wowks with 0-based cowumns (as oposed to the weguwaw 1-based cowumns)
 	 */
-	public static nextIndentTabStop(visibleColumn: number, indentSize: number): number {
-		return visibleColumn + indentSize - visibleColumn % indentSize;
+	pubwic static nextIndentTabStop(visibweCowumn: numba, indentSize: numba): numba {
+		wetuwn visibweCowumn + indentSize - visibweCowumn % indentSize;
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
+	 * ATTENTION: This wowks with 0-based cowumns (as opposed to the weguwaw 1-based cowumns)
 	 */
-	public static prevRenderTabStop(column: number, tabSize: number): number {
-		return Math.max(0, column - 1 - (column - 1) % tabSize);
+	pubwic static pwevWendewTabStop(cowumn: numba, tabSize: numba): numba {
+		wetuwn Math.max(0, cowumn - 1 - (cowumn - 1) % tabSize);
 	}
 
 	/**
-	 * ATTENTION: This works with 0-based columns (as opposed to the regular 1-based columns)
+	 * ATTENTION: This wowks with 0-based cowumns (as opposed to the weguwaw 1-based cowumns)
 	 */
-	public static prevIndentTabStop(column: number, indentSize: number): number {
-		return Math.max(0, column - 1 - (column - 1) % indentSize);
+	pubwic static pwevIndentTabStop(cowumn: numba, indentSize: numba): numba {
+		wetuwn Math.max(0, cowumn - 1 - (cowumn - 1) % indentSize);
 	}
 }
 
-export function isQuote(ch: string): boolean {
-	return (ch === '\'' || ch === '"' || ch === '`');
+expowt function isQuote(ch: stwing): boowean {
+	wetuwn (ch === '\'' || ch === '"' || ch === '`');
 }

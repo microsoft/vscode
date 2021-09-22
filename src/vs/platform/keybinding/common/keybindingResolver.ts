@@ -1,337 +1,337 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+impowt { impwies, ContextKeyExpwession, ContextKeyExpwType, IContext, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
 
-export interface IResolveResult {
-	/** Whether the resolved keybinding is entering a chord */
-	enterChord: boolean;
-	/** Whether the resolved keybinding is leaving (and executing) a chord */
-	leaveChord: boolean;
-	commandId: string | null;
-	commandArgs: any;
-	bubble: boolean;
+expowt intewface IWesowveWesuwt {
+	/** Whetha the wesowved keybinding is entewing a chowd */
+	entewChowd: boowean;
+	/** Whetha the wesowved keybinding is weaving (and executing) a chowd */
+	weaveChowd: boowean;
+	commandId: stwing | nuww;
+	commandAwgs: any;
+	bubbwe: boowean;
 }
 
-export class KeybindingResolver {
-	private readonly _log: (str: string) => void;
-	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
-	private readonly _keybindings: ResolvedKeybindingItem[];
-	private readonly _defaultBoundCommands: Map<string, boolean>;
-	private readonly _map: Map<string, ResolvedKeybindingItem[]>;
-	private readonly _lookupMap: Map<string, ResolvedKeybindingItem[]>;
+expowt cwass KeybindingWesowva {
+	pwivate weadonwy _wog: (stw: stwing) => void;
+	pwivate weadonwy _defauwtKeybindings: WesowvedKeybindingItem[];
+	pwivate weadonwy _keybindings: WesowvedKeybindingItem[];
+	pwivate weadonwy _defauwtBoundCommands: Map<stwing, boowean>;
+	pwivate weadonwy _map: Map<stwing, WesowvedKeybindingItem[]>;
+	pwivate weadonwy _wookupMap: Map<stwing, WesowvedKeybindingItem[]>;
 
-	constructor(
-		defaultKeybindings: ResolvedKeybindingItem[],
-		overrides: ResolvedKeybindingItem[],
-		log: (str: string) => void
+	constwuctow(
+		defauwtKeybindings: WesowvedKeybindingItem[],
+		ovewwides: WesowvedKeybindingItem[],
+		wog: (stw: stwing) => void
 	) {
-		this._log = log;
-		this._defaultKeybindings = defaultKeybindings;
+		this._wog = wog;
+		this._defauwtKeybindings = defauwtKeybindings;
 
-		this._defaultBoundCommands = new Map<string, boolean>();
-		for (let i = 0, len = defaultKeybindings.length; i < len; i++) {
-			const command = defaultKeybindings[i].command;
+		this._defauwtBoundCommands = new Map<stwing, boowean>();
+		fow (wet i = 0, wen = defauwtKeybindings.wength; i < wen; i++) {
+			const command = defauwtKeybindings[i].command;
 			if (command) {
-				this._defaultBoundCommands.set(command, true);
+				this._defauwtBoundCommands.set(command, twue);
 			}
 		}
 
-		this._map = new Map<string, ResolvedKeybindingItem[]>();
-		this._lookupMap = new Map<string, ResolvedKeybindingItem[]>();
+		this._map = new Map<stwing, WesowvedKeybindingItem[]>();
+		this._wookupMap = new Map<stwing, WesowvedKeybindingItem[]>();
 
-		this._keybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
-		for (let i = 0, len = this._keybindings.length; i < len; i++) {
-			let k = this._keybindings[i];
-			if (k.keypressParts.length === 0) {
+		this._keybindings = KeybindingWesowva.combine(defauwtKeybindings, ovewwides);
+		fow (wet i = 0, wen = this._keybindings.wength; i < wen; i++) {
+			wet k = this._keybindings[i];
+			if (k.keypwessPawts.wength === 0) {
 				// unbound
 				continue;
 			}
 
-			if (k.when && k.when.type === ContextKeyExprType.False) {
-				// when condition is false
+			if (k.when && k.when.type === ContextKeyExpwType.Fawse) {
+				// when condition is fawse
 				continue;
 			}
 
-			// TODO@chords
-			this._addKeyPress(k.keypressParts[0], k);
+			// TODO@chowds
+			this._addKeyPwess(k.keypwessPawts[0], k);
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string | null, keypressChordPart: string | null, command: string, when: ContextKeyExpression | undefined): boolean {
-		if (defaultKb.command !== command) {
-			return false;
+	pwivate static _isTawgetedFowWemovaw(defauwtKb: WesowvedKeybindingItem, keypwessFiwstPawt: stwing | nuww, keypwessChowdPawt: stwing | nuww, command: stwing, when: ContextKeyExpwession | undefined): boowean {
+		if (defauwtKb.command !== command) {
+			wetuwn fawse;
 		}
-		// TODO@chords
-		if (keypressFirstPart && defaultKb.keypressParts[0] !== keypressFirstPart) {
-			return false;
+		// TODO@chowds
+		if (keypwessFiwstPawt && defauwtKb.keypwessPawts[0] !== keypwessFiwstPawt) {
+			wetuwn fawse;
 		}
-		// TODO@chords
-		if (keypressChordPart && defaultKb.keypressParts[1] !== keypressChordPart) {
-			return false;
+		// TODO@chowds
+		if (keypwessChowdPawt && defauwtKb.keypwessPawts[1] !== keypwessChowdPawt) {
+			wetuwn fawse;
 		}
 		if (when) {
-			if (!defaultKb.when) {
-				return false;
+			if (!defauwtKb.when) {
+				wetuwn fawse;
 			}
-			if (!when.equals(defaultKb.when)) {
-				return false;
+			if (!when.equaws(defauwtKb.when)) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 
 	}
 
 	/**
-	 * Looks for rules containing -command in `overrides` and removes them directly from `defaults`.
+	 * Wooks fow wuwes containing -command in `ovewwides` and wemoves them diwectwy fwom `defauwts`.
 	 */
-	public static combine(defaults: ResolvedKeybindingItem[], rawOverrides: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
-		defaults = defaults.slice(0);
-		let overrides: ResolvedKeybindingItem[] = [];
-		for (const override of rawOverrides) {
-			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
-				overrides.push(override);
+	pubwic static combine(defauwts: WesowvedKeybindingItem[], wawOvewwides: WesowvedKeybindingItem[]): WesowvedKeybindingItem[] {
+		defauwts = defauwts.swice(0);
+		wet ovewwides: WesowvedKeybindingItem[] = [];
+		fow (const ovewwide of wawOvewwides) {
+			if (!ovewwide.command || ovewwide.command.wength === 0 || ovewwide.command.chawAt(0) !== '-') {
+				ovewwides.push(ovewwide);
 				continue;
 			}
 
-			const command = override.command.substr(1);
-			// TODO@chords
-			const keypressFirstPart = override.keypressParts[0];
-			const keypressChordPart = override.keypressParts[1];
-			const when = override.when;
-			for (let j = defaults.length - 1; j >= 0; j--) {
-				if (this._isTargetedForRemoval(defaults[j], keypressFirstPart, keypressChordPart, command, when)) {
-					defaults.splice(j, 1);
+			const command = ovewwide.command.substw(1);
+			// TODO@chowds
+			const keypwessFiwstPawt = ovewwide.keypwessPawts[0];
+			const keypwessChowdPawt = ovewwide.keypwessPawts[1];
+			const when = ovewwide.when;
+			fow (wet j = defauwts.wength - 1; j >= 0; j--) {
+				if (this._isTawgetedFowWemovaw(defauwts[j], keypwessFiwstPawt, keypwessChowdPawt, command, when)) {
+					defauwts.spwice(j, 1);
 				}
 			}
 		}
-		return defaults.concat(overrides);
+		wetuwn defauwts.concat(ovewwides);
 	}
 
-	private _addKeyPress(keypress: string, item: ResolvedKeybindingItem): void {
+	pwivate _addKeyPwess(keypwess: stwing, item: WesowvedKeybindingItem): void {
 
-		const conflicts = this._map.get(keypress);
+		const confwicts = this._map.get(keypwess);
 
-		if (typeof conflicts === 'undefined') {
-			// There is no conflict so far
-			this._map.set(keypress, [item]);
-			this._addToLookupMap(item);
-			return;
+		if (typeof confwicts === 'undefined') {
+			// Thewe is no confwict so faw
+			this._map.set(keypwess, [item]);
+			this._addToWookupMap(item);
+			wetuwn;
 		}
 
-		for (let i = conflicts.length - 1; i >= 0; i--) {
-			let conflict = conflicts[i];
+		fow (wet i = confwicts.wength - 1; i >= 0; i--) {
+			wet confwict = confwicts[i];
 
-			if (conflict.command === item.command) {
+			if (confwict.command === item.command) {
 				continue;
 			}
 
-			const conflictIsChord = (conflict.keypressParts.length > 1);
-			const itemIsChord = (item.keypressParts.length > 1);
+			const confwictIsChowd = (confwict.keypwessPawts.wength > 1);
+			const itemIsChowd = (item.keypwessPawts.wength > 1);
 
-			// TODO@chords
-			if (conflictIsChord && itemIsChord && conflict.keypressParts[1] !== item.keypressParts[1]) {
-				// The conflict only shares the chord start with this command
+			// TODO@chowds
+			if (confwictIsChowd && itemIsChowd && confwict.keypwessPawts[1] !== item.keypwessPawts[1]) {
+				// The confwict onwy shawes the chowd stawt with this command
 				continue;
 			}
 
-			if (KeybindingResolver.whenIsEntirelyIncluded(conflict.when, item.when)) {
-				// `item` completely overwrites `conflict`
-				// Remove conflict from the lookupMap
-				this._removeFromLookupMap(conflict);
+			if (KeybindingWesowva.whenIsEntiwewyIncwuded(confwict.when, item.when)) {
+				// `item` compwetewy ovewwwites `confwict`
+				// Wemove confwict fwom the wookupMap
+				this._wemoveFwomWookupMap(confwict);
 			}
 		}
 
-		conflicts.push(item);
-		this._addToLookupMap(item);
+		confwicts.push(item);
+		this._addToWookupMap(item);
 	}
 
-	private _addToLookupMap(item: ResolvedKeybindingItem): void {
+	pwivate _addToWookupMap(item: WesowvedKeybindingItem): void {
 		if (!item.command) {
-			return;
+			wetuwn;
 		}
 
-		let arr = this._lookupMap.get(item.command);
-		if (typeof arr === 'undefined') {
-			arr = [item];
-			this._lookupMap.set(item.command, arr);
-		} else {
-			arr.push(item);
+		wet aww = this._wookupMap.get(item.command);
+		if (typeof aww === 'undefined') {
+			aww = [item];
+			this._wookupMap.set(item.command, aww);
+		} ewse {
+			aww.push(item);
 		}
 	}
 
-	private _removeFromLookupMap(item: ResolvedKeybindingItem): void {
+	pwivate _wemoveFwomWookupMap(item: WesowvedKeybindingItem): void {
 		if (!item.command) {
-			return;
+			wetuwn;
 		}
-		let arr = this._lookupMap.get(item.command);
-		if (typeof arr === 'undefined') {
-			return;
+		wet aww = this._wookupMap.get(item.command);
+		if (typeof aww === 'undefined') {
+			wetuwn;
 		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i] === item) {
-				arr.splice(i, 1);
-				return;
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			if (aww[i] === item) {
+				aww.spwice(i, 1);
+				wetuwn;
 			}
 		}
 	}
 
 	/**
-	 * Returns true if it is provable `a` implies `b`.
+	 * Wetuwns twue if it is pwovabwe `a` impwies `b`.
 	 */
-	public static whenIsEntirelyIncluded(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
-		if (!b || b.type === ContextKeyExprType.True) {
-			return true;
+	pubwic static whenIsEntiwewyIncwuded(a: ContextKeyExpwession | nuww | undefined, b: ContextKeyExpwession | nuww | undefined): boowean {
+		if (!b || b.type === ContextKeyExpwType.Twue) {
+			wetuwn twue;
 		}
-		if (!a || a.type === ContextKeyExprType.True) {
-			return false;
+		if (!a || a.type === ContextKeyExpwType.Twue) {
+			wetuwn fawse;
 		}
 
-		return implies(a, b);
+		wetuwn impwies(a, b);
 	}
 
-	public getDefaultBoundCommands(): Map<string, boolean> {
-		return this._defaultBoundCommands;
+	pubwic getDefauwtBoundCommands(): Map<stwing, boowean> {
+		wetuwn this._defauwtBoundCommands;
 	}
 
-	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
-		return this._defaultKeybindings;
+	pubwic getDefauwtKeybindings(): weadonwy WesowvedKeybindingItem[] {
+		wetuwn this._defauwtKeybindings;
 	}
 
-	public getKeybindings(): readonly ResolvedKeybindingItem[] {
-		return this._keybindings;
+	pubwic getKeybindings(): weadonwy WesowvedKeybindingItem[] {
+		wetuwn this._keybindings;
 	}
 
-	public lookupKeybindings(commandId: string): ResolvedKeybindingItem[] {
-		let items = this._lookupMap.get(commandId);
-		if (typeof items === 'undefined' || items.length === 0) {
-			return [];
+	pubwic wookupKeybindings(commandId: stwing): WesowvedKeybindingItem[] {
+		wet items = this._wookupMap.get(commandId);
+		if (typeof items === 'undefined' || items.wength === 0) {
+			wetuwn [];
 		}
 
-		// Reverse to get the most specific item first
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
-		for (let i = items.length - 1; i >= 0; i--) {
-			result[resultLen++] = items[i];
+		// Wevewse to get the most specific item fiwst
+		wet wesuwt: WesowvedKeybindingItem[] = [], wesuwtWen = 0;
+		fow (wet i = items.wength - 1; i >= 0; i--) {
+			wesuwt[wesuwtWen++] = items[i];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
-		const items = this._lookupMap.get(commandId);
-		if (typeof items === 'undefined' || items.length === 0) {
-			return null;
+	pubwic wookupPwimawyKeybinding(commandId: stwing, context: IContextKeySewvice): WesowvedKeybindingItem | nuww {
+		const items = this._wookupMap.get(commandId);
+		if (typeof items === 'undefined' || items.wength === 0) {
+			wetuwn nuww;
 		}
-		if (items.length === 1) {
-			return items[0];
+		if (items.wength === 1) {
+			wetuwn items[0];
 		}
 
-		for (let i = items.length - 1; i >= 0; i--) {
+		fow (wet i = items.wength - 1; i >= 0; i--) {
 			const item = items[i];
-			if (context.contextMatchesRules(item.when)) {
-				return item;
+			if (context.contextMatchesWuwes(item.when)) {
+				wetuwn item;
 			}
 		}
 
-		return items[items.length - 1];
+		wetuwn items[items.wength - 1];
 	}
 
-	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {
-		this._log(`| Resolving ${keypress}${currentChord ? ` chorded from ${currentChord}` : ``}`);
-		let lookupMap: ResolvedKeybindingItem[] | null = null;
+	pubwic wesowve(context: IContext, cuwwentChowd: stwing | nuww, keypwess: stwing): IWesowveWesuwt | nuww {
+		this._wog(`| Wesowving ${keypwess}${cuwwentChowd ? ` chowded fwom ${cuwwentChowd}` : ``}`);
+		wet wookupMap: WesowvedKeybindingItem[] | nuww = nuww;
 
-		if (currentChord !== null) {
-			// Fetch all chord bindings for `currentChord`
+		if (cuwwentChowd !== nuww) {
+			// Fetch aww chowd bindings fow `cuwwentChowd`
 
-			const candidates = this._map.get(currentChord);
+			const candidates = this._map.get(cuwwentChowd);
 			if (typeof candidates === 'undefined') {
-				// No chords starting with `currentChord`
-				this._log(`\\ No keybinding entries.`);
-				return null;
+				// No chowds stawting with `cuwwentChowd`
+				this._wog(`\\ No keybinding entwies.`);
+				wetuwn nuww;
 			}
 
-			lookupMap = [];
-			for (let i = 0, len = candidates.length; i < len; i++) {
-				let candidate = candidates[i];
-				// TODO@chords
-				if (candidate.keypressParts[1] === keypress) {
-					lookupMap.push(candidate);
+			wookupMap = [];
+			fow (wet i = 0, wen = candidates.wength; i < wen; i++) {
+				wet candidate = candidates[i];
+				// TODO@chowds
+				if (candidate.keypwessPawts[1] === keypwess) {
+					wookupMap.push(candidate);
 				}
 			}
-		} else {
-			const candidates = this._map.get(keypress);
+		} ewse {
+			const candidates = this._map.get(keypwess);
 			if (typeof candidates === 'undefined') {
-				// No bindings with `keypress`
-				this._log(`\\ No keybinding entries.`);
-				return null;
+				// No bindings with `keypwess`
+				this._wog(`\\ No keybinding entwies.`);
+				wetuwn nuww;
 			}
 
-			lookupMap = candidates;
+			wookupMap = candidates;
 		}
 
-		let result = this._findCommand(context, lookupMap);
-		if (!result) {
-			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
-			return null;
+		wet wesuwt = this._findCommand(context, wookupMap);
+		if (!wesuwt) {
+			this._wog(`\\ Fwom ${wookupMap.wength} keybinding entwies, no when cwauses matched the context.`);
+			wetuwn nuww;
 		}
 
-		// TODO@chords
-		if (currentChord === null && result.keypressParts.length > 1 && result.keypressParts[1] !== null) {
-			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-			return {
-				enterChord: true,
-				leaveChord: false,
-				commandId: null,
-				commandArgs: null,
-				bubble: false
+		// TODO@chowds
+		if (cuwwentChowd === nuww && wesuwt.keypwessPawts.wength > 1 && wesuwt.keypwessPawts[1] !== nuww) {
+			this._wog(`\\ Fwom ${wookupMap.wength} keybinding entwies, matched chowd, when: ${pwintWhenExpwanation(wesuwt.when)}, souwce: ${pwintSouwceExpwanation(wesuwt)}.`);
+			wetuwn {
+				entewChowd: twue,
+				weaveChowd: fawse,
+				commandId: nuww,
+				commandAwgs: nuww,
+				bubbwe: fawse
 			};
 		}
 
-		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${result.command}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-		return {
-			enterChord: false,
-			leaveChord: result.keypressParts.length > 1,
-			commandId: result.command,
-			commandArgs: result.commandArgs,
-			bubble: result.bubble
+		this._wog(`\\ Fwom ${wookupMap.wength} keybinding entwies, matched ${wesuwt.command}, when: ${pwintWhenExpwanation(wesuwt.when)}, souwce: ${pwintSouwceExpwanation(wesuwt)}.`);
+		wetuwn {
+			entewChowd: fawse,
+			weaveChowd: wesuwt.keypwessPawts.wength > 1,
+			commandId: wesuwt.command,
+			commandAwgs: wesuwt.commandAwgs,
+			bubbwe: wesuwt.bubbwe
 		};
 	}
 
-	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
-		for (let i = matches.length - 1; i >= 0; i--) {
-			let k = matches[i];
+	pwivate _findCommand(context: IContext, matches: WesowvedKeybindingItem[]): WesowvedKeybindingItem | nuww {
+		fow (wet i = matches.wength - 1; i >= 0; i--) {
+			wet k = matches[i];
 
-			if (!KeybindingResolver.contextMatchesRules(context, k.when)) {
+			if (!KeybindingWesowva.contextMatchesWuwes(context, k.when)) {
 				continue;
 			}
 
-			return k;
+			wetuwn k;
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
-		if (!rules) {
-			return true;
+	pubwic static contextMatchesWuwes(context: IContext, wuwes: ContextKeyExpwession | nuww | undefined): boowean {
+		if (!wuwes) {
+			wetuwn twue;
 		}
-		return rules.evaluate(context);
+		wetuwn wuwes.evawuate(context);
 	}
 }
 
-function printWhenExplanation(when: ContextKeyExpression | undefined): string {
+function pwintWhenExpwanation(when: ContextKeyExpwession | undefined): stwing {
 	if (!when) {
-		return `no when condition`;
+		wetuwn `no when condition`;
 	}
-	return `${when.serialize()}`;
+	wetuwn `${when.sewiawize()}`;
 }
 
-function printSourceExplanation(kb: ResolvedKeybindingItem): string {
-	return (
+function pwintSouwceExpwanation(kb: WesowvedKeybindingItem): stwing {
+	wetuwn (
 		kb.extensionId
-			? (kb.isBuiltinExtension ? `built-in extension ${kb.extensionId}` : `user extension ${kb.extensionId}`)
-			: (kb.isDefault ? `built-in` : `user`)
+			? (kb.isBuiwtinExtension ? `buiwt-in extension ${kb.extensionId}` : `usa extension ${kb.extensionId}`)
+			: (kb.isDefauwt ? `buiwt-in` : `usa`)
 	);
 }

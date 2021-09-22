@@ -1,644 +1,644 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as perf from 'vs/base/common/performance';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+impowt * as pewf fwom 'vs/base/common/pewfowmance';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IUpdateSewvice } fwom 'vs/pwatfowm/update/common/update';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { Bawwia } fwom 'vs/base/common/async';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { ViewContainewWocation } fwom 'vs/wowkbench/common/views';
 
-/* __GDPR__FRAGMENT__
-	"IMemoryInfo" : {
-		"workingSetSize" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"privateBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"sharedBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
+/* __GDPW__FWAGMENT__
+	"IMemowyInfo" : {
+		"wowkingSetSize" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"pwivateBytes": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"shawedBytes": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue }
 	}
 */
-export interface IMemoryInfo {
-	readonly workingSetSize: number;
-	readonly privateBytes: number;
-	readonly sharedBytes: number;
+expowt intewface IMemowyInfo {
+	weadonwy wowkingSetSize: numba;
+	weadonwy pwivateBytes: numba;
+	weadonwy shawedBytes: numba;
 }
 
-/* __GDPR__FRAGMENT__
-	"IStartupMetrics" : {
-		"version" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"ellapsed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"isLatestVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"didUseCachedData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"windowKind": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"windowCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"viewletId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"panelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"editorIds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWaitForWindowConfig" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedSharedProcesConnected" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedRequiredUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedOtherUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedExtensionsReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"arch" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"totalmem" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"freemem" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"meminfo" : { "${inline}": [ "${IMemoryInfo}" ] },
-		"cpus.count" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"cpus.speed" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"cpus.model" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"initialStartup" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+/* __GDPW__FWAGMENT__
+	"IStawtupMetwics" : {
+		"vewsion" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"ewwapsed" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"isWatestVewsion": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"didUseCachedData": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"windowKind": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"windowCount": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"viewwetId": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"panewId": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"editowIds": { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"timews.ewwapsedAppWeady" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedNwsGenewation" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWoadMainBundwe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedCwashWepowta" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedMainSewva" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWindowCweate" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWindowWoad" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWindowWoadToWequiwe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWaitFowWindowConfig" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedStowageInit" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWowkspaceSewviceInit" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedShawedPwocesConnected" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWequiwedUsewDataInit" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedOthewUsewDataInit" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWequiwe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedExtensions" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedExtensionsWeady" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedViewwetWestowe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedPanewWestowe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedEditowWestowe" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"timews.ewwapsedWowkbench" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"pwatfowm" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"wewease" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"awch" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"totawmem" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"fweemem" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"meminfo" : { "${inwine}": [ "${IMemowyInfo}" ] },
+		"cpus.count" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"cpus.speed" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"cpus.modew" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" },
+		"initiawStawtup" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"hasAccessibiwitySuppowt" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"isVMWikewyhood" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"emptyWowkbench" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth", "isMeasuwement": twue },
+		"woadavg" : { "cwassification": "SystemMetaData", "puwpose": "PewfowmanceAndHeawth" }
 	}
 */
-export interface IStartupMetrics {
+expowt intewface IStawtupMetwics {
 
 	/**
-	 * The version of these metrics.
+	 * The vewsion of these metwics.
 	 */
-	readonly version: 2;
+	weadonwy vewsion: 2;
 
 	/**
-	 * If this started the main process and renderer or just a renderer (new or reloaded).
+	 * If this stawted the main pwocess and wendewa ow just a wendewa (new ow wewoaded).
 	 */
-	readonly initialStartup: boolean;
+	weadonwy initiawStawtup: boowean;
 
 	/**
-	 * No folder, no file, no workspace has been opened
+	 * No fowda, no fiwe, no wowkspace has been opened
 	 */
-	readonly emptyWorkbench: boolean;
+	weadonwy emptyWowkbench: boowean;
 
 	/**
-	 * This is the latest (stable/insider) version. Iff not we should ignore this
-	 * measurement.
+	 * This is the watest (stabwe/insida) vewsion. Iff not we shouwd ignowe this
+	 * measuwement.
 	 */
-	readonly isLatestVersion: boolean;
+	weadonwy isWatestVewsion: boowean;
 
 	/**
-	 * Whether we asked for and V8 accepted cached data.
+	 * Whetha we asked fow and V8 accepted cached data.
 	 */
-	readonly didUseCachedData: boolean;
+	weadonwy didUseCachedData: boowean;
 
 	/**
-	 * How/why the window was created. See https://github.com/microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
+	 * How/why the window was cweated. See https://github.com/micwosoft/vscode/bwob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/swc/vs/pwatfowm/wifecycwe/common/wifecycwe.ts#W50
 	 */
-	readonly windowKind: number;
+	weadonwy windowKind: numba;
 
 	/**
-	 * The total number of windows that have been restored/created
+	 * The totaw numba of windows that have been westowed/cweated
 	 */
-	readonly windowCount: number;
+	weadonwy windowCount: numba;
 
 	/**
-	 * The active viewlet id or `undedined`
+	 * The active viewwet id ow `undedined`
 	 */
-	readonly viewletId?: string;
+	weadonwy viewwetId?: stwing;
 
 	/**
-	 * The active panel id or `undefined`
+	 * The active panew id ow `undefined`
 	 */
-	readonly panelId?: string;
+	weadonwy panewId?: stwing;
 
 	/**
-	 * The editor input types or `[]`
+	 * The editow input types ow `[]`
 	 */
-	readonly editorIds: string[];
+	weadonwy editowIds: stwing[];
 
 	/**
-	 * The time it took to create the workbench.
+	 * The time it took to cweate the wowkbench.
 	 *
-	 * * Happens in the main-process *and* the renderer-process
-	 * * Measured with the *start* and `didStartWorkbench`-performance mark. The *start* is either the start of the
-	 * main process or the start of the renderer.
-	 * * This should be looked at carefully because times vary depending on
-	 *  * This being the first window, the only window, or a reloaded window
-	 *  * Cached data being present and used or not
-	 *  * The numbers and types of editors being restored
-	 *  * The numbers of windows being restored (when starting 'fresh')
-	 *  * The viewlet being restored (esp. when it's a contributed viewlet)
+	 * * Happens in the main-pwocess *and* the wendewa-pwocess
+	 * * Measuwed with the *stawt* and `didStawtWowkbench`-pewfowmance mawk. The *stawt* is eitha the stawt of the
+	 * main pwocess ow the stawt of the wendewa.
+	 * * This shouwd be wooked at cawefuwwy because times vawy depending on
+	 *  * This being the fiwst window, the onwy window, ow a wewoaded window
+	 *  * Cached data being pwesent and used ow not
+	 *  * The numbews and types of editows being westowed
+	 *  * The numbews of windows being westowed (when stawting 'fwesh')
+	 *  * The viewwet being westowed (esp. when it's a contwibuted viewwet)
 	 */
-	readonly ellapsed: number;
+	weadonwy ewwapsed: numba;
 
 	/**
-	 * Individual timers...
+	 * Individuaw timews...
 	 */
-	readonly timers: {
+	weadonwy timews: {
 		/**
-		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
-		 * of JavaScript code till receiving that event.
+		 * The time it took to weceieve the [`weady`](https://ewectwonjs.owg/docs/api/app#event-weady)-event. Measuwed fwom the fiwst wine
+		 * of JavaScwipt code tiww weceiving that event.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `main:started` and `main:appReady` performance marks.
-		 * * This can be compared between insider and stable builds.
-		 * * This should be looked at per OS version and per electron version.
-		 * * This is often affected by AV software (and can change with AV software updates outside of our release-cycle).
-		 * * It is not our code running here and we can only observe what's happening.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `main:stawted` and `main:appWeady` pewfowmance mawks.
+		 * * This can be compawed between insida and stabwe buiwds.
+		 * * This shouwd be wooked at pew OS vewsion and pew ewectwon vewsion.
+		 * * This is often affected by AV softwawe (and can change with AV softwawe updates outside of ouw wewease-cycwe).
+		 * * It is not ouw code wunning hewe and we can onwy obsewve what's happening.
 		 */
-		readonly ellapsedAppReady?: number;
+		weadonwy ewwapsedAppWeady?: numba;
 
 		/**
-		 * The time it took to generate NLS data.
+		 * The time it took to genewate NWS data.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `nlsGeneration:start` and `nlsGeneration:end` performance marks.
-		 * * This only happens when a non-english locale is being used.
-		 * * It is our code running here and we should monitor this carefully for regressions.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `nwsGenewation:stawt` and `nwsGenewation:end` pewfowmance mawks.
+		 * * This onwy happens when a non-engwish wocawe is being used.
+		 * * It is ouw code wunning hewe and we shouwd monitow this cawefuwwy fow wegwessions.
 		 */
-		readonly ellapsedNlsGeneration?: number;
+		weadonwy ewwapsedNwsGenewation?: numba;
 
 		/**
-		 * The time it took to load the main bundle.
+		 * The time it took to woad the main bundwe.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwWoadMainBundwe` and `didWoadMainBundwe` pewfowmance mawks.
 		 */
-		readonly ellapsedLoadMainBundle?: number;
+		weadonwy ewwapsedWoadMainBundwe?: numba;
 
 		/**
-		 * The time it took to start the crash reporter.
+		 * The time it took to stawt the cwash wepowta.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willStartCrashReporter` and `didStartCrashReporter` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwStawtCwashWepowta` and `didStawtCwashWepowta` pewfowmance mawks.
 		 */
-		readonly ellapsedCrashReporter?: number;
+		weadonwy ewwapsedCwashWepowta?: numba;
 
 		/**
-		 * The time it took to create the main instance server.
+		 * The time it took to cweate the main instance sewva.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willStartMainServer` and `didStartMainServer` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwStawtMainSewva` and `didStawtMainSewva` pewfowmance mawks.
 		 */
-		readonly ellapsedMainServer?: number;
+		weadonwy ewwapsedMainSewva?: numba;
 
 		/**
-		 * The time it took to create the window.
+		 * The time it took to cweate the window.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willCreateCodeWindow` and `didCreateCodeWindow` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwCweateCodeWindow` and `didCweateCodeWindow` pewfowmance mawks.
 		 */
-		readonly ellapsedWindowCreate?: number;
+		weadonwy ewwapsedWindowCweate?: numba;
 
 		/**
-		 * The time it took to create the electron browser window.
+		 * The time it took to cweate the ewectwon bwowsa window.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willCreateCodeBrowserWindow` and `didCreateCodeBrowserWindow` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwCweateCodeBwowsewWindow` and `didCweateCodeBwowsewWindow` pewfowmance mawks.
 		 */
-		readonly ellapsedBrowserWindowCreate?: number;
+		weadonwy ewwapsedBwowsewWindowCweate?: numba;
 
 		/**
-		 * The time it took to restore and validate window state.
+		 * The time it took to westowe and vawidate window state.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willRestoreCodeWindowState` and `didRestoreCodeWindowState` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwWestoweCodeWindowState` and `didWestoweCodeWindowState` pewfowmance mawks.
 		 */
-		readonly ellapsedWindowRestoreState?: number;
+		weadonwy ewwapsedWindowWestoweState?: numba;
 
 		/**
 		 * The time it took to maximize/show the window.
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `willMaximizeCodeWindow` and `didMaximizeCodeWindow` performance marks.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `wiwwMaximizeCodeWindow` and `didMaximizeCodeWindow` pewfowmance mawks.
 		 */
-		readonly ellapsedWindowMaximize?: number;
+		weadonwy ewwapsedWindowMaximize?: numba;
 
 		/**
-		 * The time it took to tell electron to open/restore a renderer (browser window).
+		 * The time it took to teww ewectwon to open/westowe a wendewa (bwowsa window).
 		 *
-		 * * Happens in the main-process
-		 * * Measured with the `main:appReady` and `code/willOpenNewWindow` performance marks.
-		 * * This can be compared between insider and stable builds.
-		 * * It is our code running here and we should monitor this carefully for regressions.
+		 * * Happens in the main-pwocess
+		 * * Measuwed with the `main:appWeady` and `code/wiwwOpenNewWindow` pewfowmance mawks.
+		 * * This can be compawed between insida and stabwe buiwds.
+		 * * It is ouw code wunning hewe and we shouwd monitow this cawefuwwy fow wegwessions.
 		 */
-		readonly ellapsedWindowLoad?: number;
+		weadonwy ewwapsedWindowWoad?: numba;
 
 		/**
-		 * The time it took to create a new renderer (browser window) and to initialize that to the point
-		 * of load the main-bundle (`workbench.desktop.main.js`).
+		 * The time it took to cweate a new wendewa (bwowsa window) and to initiawize that to the point
+		 * of woad the main-bundwe (`wowkbench.desktop.main.js`).
 		 *
-		 * * Happens in the main-process *and* the renderer-process
-		 * * Measured with the `code/willOpenNewWindow` and `willLoadWorkbenchMain` performance marks.
-		 * * This can be compared between insider and stable builds.
-		 * * It is mostly not our code running here and we can only observe what's happening.
+		 * * Happens in the main-pwocess *and* the wendewa-pwocess
+		 * * Measuwed with the `code/wiwwOpenNewWindow` and `wiwwWoadWowkbenchMain` pewfowmance mawks.
+		 * * This can be compawed between insida and stabwe buiwds.
+		 * * It is mostwy not ouw code wunning hewe and we can onwy obsewve what's happening.
 		 *
 		 */
-		readonly ellapsedWindowLoadToRequire: number;
+		weadonwy ewwapsedWindowWoadToWequiwe: numba;
 
 		/**
-		 * The time it took to wait for resolving the window configuration. This time the workbench
-		 * will not continue to load and be blocked entirely.
+		 * The time it took to wait fow wesowving the window configuwation. This time the wowkbench
+		 * wiww not continue to woad and be bwocked entiwewy.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willWaitForWindowConfig` and `didWaitForWindowConfig` performance marks.
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWaitFowWindowConfig` and `didWaitFowWindowConfig` pewfowmance mawks.
 		 */
-		readonly ellapsedWaitForWindowConfig: number;
+		weadonwy ewwapsedWaitFowWindowConfig: numba;
 
 		/**
-		 * The time it took to init the storage database connection from the workbench.
+		 * The time it took to init the stowage database connection fwom the wowkbench.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `code/willInitStorage` and `code/didInitStorage` performance marks.
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `code/wiwwInitStowage` and `code/didInitStowage` pewfowmance mawks.
 		 */
-		readonly ellapsedStorageInit: number;
+		weadonwy ewwapsedStowageInit: numba;
 
 		/**
-		 * The time it took to initialize the workspace and configuration service.
+		 * The time it took to initiawize the wowkspace and configuwation sewvice.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willInitWorkspaceService` and `didInitWorkspaceService` performance marks.
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwInitWowkspaceSewvice` and `didInitWowkspaceSewvice` pewfowmance mawks.
 		 */
-		readonly ellapsedWorkspaceServiceInit: number;
+		weadonwy ewwapsedWowkspaceSewviceInit: numba;
 
 		/**
-		 * The time it took to connect to the shared process.
+		 * The time it took to connect to the shawed pwocess.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willConnectSharedProcess` and `didConnectSharedProcess` performance marks.
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwConnectShawedPwocess` and `didConnectShawedPwocess` pewfowmance mawks.
 		 */
-		readonly ellapsedSharedProcesConnected: number;
+		weadonwy ewwapsedShawedPwocesConnected: numba;
 
 		/**
-		 * The time it took to initialize required user data (settings & global state) using settings sync service.
+		 * The time it took to initiawize wequiwed usa data (settings & gwobaw state) using settings sync sewvice.
 		 *
-		 * * Happens in the renderer-process (only in Web)
-		 * * Measured with the `willInitRequiredUserData` and `didInitRequiredUserData` performance marks.
+		 * * Happens in the wendewa-pwocess (onwy in Web)
+		 * * Measuwed with the `wiwwInitWequiwedUsewData` and `didInitWequiwedUsewData` pewfowmance mawks.
 		 */
-		readonly ellapsedRequiredUserDataInit: number;
+		weadonwy ewwapsedWequiwedUsewDataInit: numba;
 
 		/**
-		 * The time it took to initialize other user data (keybindings, snippets & extensions) using settings sync service.
+		 * The time it took to initiawize otha usa data (keybindings, snippets & extensions) using settings sync sewvice.
 		 *
-		 * * Happens in the renderer-process (only in Web)
-		 * * Measured with the `willInitOtherUserData` and `didInitOtherUserData` performance marks.
+		 * * Happens in the wendewa-pwocess (onwy in Web)
+		 * * Measuwed with the `wiwwInitOthewUsewData` and `didInitOthewUsewData` pewfowmance mawks.
 		 */
-		readonly ellapsedOtherUserDataInit: number;
+		weadonwy ewwapsedOthewUsewDataInit: numba;
 
 		/**
-		 * The time it took to load the main-bundle of the workbench, e.g. `workbench.desktop.main.js`.
+		 * The time it took to woad the main-bundwe of the wowkbench, e.g. `wowkbench.desktop.main.js`.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willLoadWorkbenchMain` and `didLoadWorkbenchMain` performance marks.
-		 * * This varies *a lot* when V8 cached data could be used or not
-		 * * This should be looked at with and without V8 cached data usage and per electron/v8 version
-		 * * This is affected by the size of our code bundle (which  grows about 3-5% per release)
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWoadWowkbenchMain` and `didWoadWowkbenchMain` pewfowmance mawks.
+		 * * This vawies *a wot* when V8 cached data couwd be used ow not
+		 * * This shouwd be wooked at with and without V8 cached data usage and pew ewectwon/v8 vewsion
+		 * * This is affected by the size of ouw code bundwe (which  gwows about 3-5% pew wewease)
 		 */
-		readonly ellapsedRequire: number;
+		weadonwy ewwapsedWequiwe: numba;
 
 		/**
-		 * The time it took to read extensions' package.json-files *and* interpret them (invoking
-		 * the contribution points).
+		 * The time it took to wead extensions' package.json-fiwes *and* intewpwet them (invoking
+		 * the contwibution points).
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willLoadExtensions` and `didLoadExtensions` performance marks.
-		 * * Reading of package.json-files is avoided by caching them all in a single file (after the read,
-		 * until another extension is installed)
-		 * * Happens in parallel to other things, depends on async timing
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWoadExtensions` and `didWoadExtensions` pewfowmance mawks.
+		 * * Weading of package.json-fiwes is avoided by caching them aww in a singwe fiwe (afta the wead,
+		 * untiw anotha extension is instawwed)
+		 * * Happens in pawawwew to otha things, depends on async timing
 		 */
-		readonly ellapsedExtensions: number;
+		weadonwy ewwapsedExtensions: numba;
 
-		// the time from start till `didLoadExtensions`
-		// remove?
-		readonly ellapsedExtensionsReady: number;
-
-		/**
-		 * The time it took to restore the viewlet.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willRestoreViewlet` and `didRestoreViewlet` performance marks.
-		 * * This should be looked at per viewlet-type/id.
-		 * * Happens in parallel to other things, depends on async timing
-		 */
-		readonly ellapsedViewletRestore: number;
+		// the time fwom stawt tiww `didWoadExtensions`
+		// wemove?
+		weadonwy ewwapsedExtensionsWeady: numba;
 
 		/**
-		 * The time it took to restore the panel.
+		 * The time it took to westowe the viewwet.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willRestorePanel` and `didRestorePanel` performance marks.
-		 * * This should be looked at per panel-type/id.
-		 * * Happens in parallel to other things, depends on async timing
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWestoweViewwet` and `didWestoweViewwet` pewfowmance mawks.
+		 * * This shouwd be wooked at pew viewwet-type/id.
+		 * * Happens in pawawwew to otha things, depends on async timing
 		 */
-		readonly ellapsedPanelRestore: number;
+		weadonwy ewwapsedViewwetWestowe: numba;
 
 		/**
-		 * The time it took to restore and fully resolve visible editors - that is text editor
-		 * and complex editor likes the settings UI or webviews (markdown preview).
+		 * The time it took to westowe the panew.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willRestoreEditors` and `didRestoreEditors` performance marks.
-		 * * This should be looked at per editor and per editor type.
-		 * * Happens in parallel to other things, depends on async timing
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWestowePanew` and `didWestowePanew` pewfowmance mawks.
+		 * * This shouwd be wooked at pew panew-type/id.
+		 * * Happens in pawawwew to otha things, depends on async timing
 		 */
-		readonly ellapsedEditorRestore: number;
+		weadonwy ewwapsedPanewWestowe: numba;
 
 		/**
-		 * The time it took to create the workbench.
+		 * The time it took to westowe and fuwwy wesowve visibwe editows - that is text editow
+		 * and compwex editow wikes the settings UI ow webviews (mawkdown pweview).
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `willStartWorkbench` and `didStartWorkbench` performance marks.
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwWestoweEditows` and `didWestoweEditows` pewfowmance mawks.
+		 * * This shouwd be wooked at pew editow and pew editow type.
+		 * * Happens in pawawwew to otha things, depends on async timing
 		 */
-		readonly ellapsedWorkbench: number;
+		weadonwy ewwapsedEditowWestowe: numba;
 
 		/**
-		 * This time it took inside the renderer to start the workbench.
+		 * The time it took to cweate the wowkbench.
 		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `renderer/started` and `didStartWorkbench` performance marks
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wiwwStawtWowkbench` and `didStawtWowkbench` pewfowmance mawks.
 		 */
-		readonly ellapsedRenderer: number;
+		weadonwy ewwapsedWowkbench: numba;
+
+		/**
+		 * This time it took inside the wendewa to stawt the wowkbench.
+		 *
+		 * * Happens in the wendewa-pwocess
+		 * * Measuwed with the `wendewa/stawted` and `didStawtWowkbench` pewfowmance mawks
+		 */
+		weadonwy ewwapsedWendewa: numba;
 	};
 
-	readonly hasAccessibilitySupport: boolean;
-	readonly isVMLikelyhood?: number;
-	readonly platform?: string;
-	readonly release?: string;
-	readonly arch?: string;
-	readonly totalmem?: number;
-	readonly freemem?: number;
-	readonly meminfo?: IMemoryInfo;
-	readonly cpus?: { count: number; speed: number; model: string; };
-	readonly loadavg?: number[];
+	weadonwy hasAccessibiwitySuppowt: boowean;
+	weadonwy isVMWikewyhood?: numba;
+	weadonwy pwatfowm?: stwing;
+	weadonwy wewease?: stwing;
+	weadonwy awch?: stwing;
+	weadonwy totawmem?: numba;
+	weadonwy fweemem?: numba;
+	weadonwy meminfo?: IMemowyInfo;
+	weadonwy cpus?: { count: numba; speed: numba; modew: stwing; };
+	weadonwy woadavg?: numba[];
 }
 
-export interface ITimerService {
-	readonly _serviceBrand: undefined;
+expowt intewface ITimewSewvice {
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * A promise that resolved when startup timings and perf marks
-	 * are available. This depends on lifecycle phases and extension
-	 * hosts being started.
+	 * A pwomise that wesowved when stawtup timings and pewf mawks
+	 * awe avaiwabwe. This depends on wifecycwe phases and extension
+	 * hosts being stawted.
 	 */
-	whenReady(): Promise<boolean>;
+	whenWeady(): Pwomise<boowean>;
 
 	/**
-	 * Startup metrics. Can ONLY be accessed after `whenReady` has resolved.
+	 * Stawtup metwics. Can ONWY be accessed afta `whenWeady` has wesowved.
 	 */
-	readonly startupMetrics: IStartupMetrics;
+	weadonwy stawtupMetwics: IStawtupMetwics;
 
 	/**
-	 * Deliver performance marks from a source, like the main process or extension hosts.
-	 * The source argument acts as an identifier and therefore it must be unique.
+	 * Dewiva pewfowmance mawks fwom a souwce, wike the main pwocess ow extension hosts.
+	 * The souwce awgument acts as an identifia and thewefowe it must be unique.
 	 */
-	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void;
+	setPewfowmanceMawks(souwce: stwing, mawks: pewf.PewfowmanceMawk[]): void;
 
 	/**
-	 * Get all currently known performance marks by source. There is no sorting of the
-	 * returned tuples but the marks of a tuple are guaranteed to be sorted by start times.
+	 * Get aww cuwwentwy known pewfowmance mawks by souwce. Thewe is no sowting of the
+	 * wetuwned tupwes but the mawks of a tupwe awe guawanteed to be sowted by stawt times.
 	 */
-	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
+	getPewfowmanceMawks(): [souwce: stwing, mawks: weadonwy pewf.PewfowmanceMawk[]][];
 }
 
-export const ITimerService = createDecorator<ITimerService>('timerService');
+expowt const ITimewSewvice = cweateDecowatow<ITimewSewvice>('timewSewvice');
 
 
-class PerfMarks {
+cwass PewfMawks {
 
-	private readonly _entries: [string, perf.PerformanceMark[]][] = [];
+	pwivate weadonwy _entwies: [stwing, pewf.PewfowmanceMawk[]][] = [];
 
-	setMarks(source: string, entries: perf.PerformanceMark[]): void {
-		this._entries.push([source, entries]);
+	setMawks(souwce: stwing, entwies: pewf.PewfowmanceMawk[]): void {
+		this._entwies.push([souwce, entwies]);
 	}
 
-	getDuration(from: string, to: string): number {
-		const fromEntry = this._findEntry(from);
-		if (!fromEntry) {
-			return 0;
+	getDuwation(fwom: stwing, to: stwing): numba {
+		const fwomEntwy = this._findEntwy(fwom);
+		if (!fwomEntwy) {
+			wetuwn 0;
 		}
-		const toEntry = this._findEntry(to);
-		if (!toEntry) {
-			return 0;
+		const toEntwy = this._findEntwy(to);
+		if (!toEntwy) {
+			wetuwn 0;
 		}
-		return toEntry.startTime - fromEntry.startTime;
+		wetuwn toEntwy.stawtTime - fwomEntwy.stawtTime;
 	}
 
-	private _findEntry(name: string): perf.PerformanceMark | void {
-		for (let [, marks] of this._entries) {
-			for (let i = marks.length - 1; i >= 0; i--) {
-				if (marks[i].name === name) {
-					return marks[i];
+	pwivate _findEntwy(name: stwing): pewf.PewfowmanceMawk | void {
+		fow (wet [, mawks] of this._entwies) {
+			fow (wet i = mawks.wength - 1; i >= 0; i--) {
+				if (mawks[i].name === name) {
+					wetuwn mawks[i];
 				}
 			}
 		}
 	}
 
-	getEntries() {
-		return this._entries.slice(0);
+	getEntwies() {
+		wetuwn this._entwies.swice(0);
 	}
 }
 
-export type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
+expowt type Wwiteabwe<T> = { -weadonwy [P in keyof T]: Wwiteabwe<T[P]> };
 
-export abstract class AbstractTimerService implements ITimerService {
+expowt abstwact cwass AbstwactTimewSewvice impwements ITimewSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly _barrier = new Barrier();
-	private readonly _marks = new PerfMarks();
-	private _startupMetrics?: IStartupMetrics;
+	pwivate weadonwy _bawwia = new Bawwia();
+	pwivate weadonwy _mawks = new PewfMawks();
+	pwivate _stawtupMetwics?: IStawtupMetwics;
 
-	constructor(
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IUpdateService private readonly _updateService: IUpdateService,
-		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	constwuctow(
+		@IWifecycweSewvice pwivate weadonwy _wifecycweSewvice: IWifecycweSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy _contextSewvice: IWowkspaceContextSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
+		@IUpdateSewvice pwivate weadonwy _updateSewvice: IUpdateSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy _paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy _accessibiwitySewvice: IAccessibiwitySewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWowkbenchWayoutSewvice wayoutSewvice: IWowkbenchWayoutSewvice
 	) {
-		Promise.all([
-			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
-			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
-			layoutService.whenRestored									// layout restored (including visible editors resolved)
+		Pwomise.aww([
+			this._extensionSewvice.whenInstawwedExtensionsWegistewed(), // extensions wegistewed
+			_wifecycweSewvice.when(WifecycwePhase.Westowed),			// wowkbench cweated and pawts westowed
+			wayoutSewvice.whenWestowed									// wayout westowed (incwuding visibwe editows wesowved)
 		]).then(() => {
-			// set perf mark from renderer
-			this.setPerformanceMarks('renderer', perf.getMarks());
-			return this._computeStartupMetrics();
-		}).then(metrics => {
-			this._startupMetrics = metrics;
-			this._reportStartupTimes(metrics);
-			this._barrier.open();
+			// set pewf mawk fwom wendewa
+			this.setPewfowmanceMawks('wendewa', pewf.getMawks());
+			wetuwn this._computeStawtupMetwics();
+		}).then(metwics => {
+			this._stawtupMetwics = metwics;
+			this._wepowtStawtupTimes(metwics);
+			this._bawwia.open();
 		});
 	}
 
-	whenReady(): Promise<boolean> {
-		return this._barrier.wait();
+	whenWeady(): Pwomise<boowean> {
+		wetuwn this._bawwia.wait();
 	}
 
-	get startupMetrics(): IStartupMetrics {
-		if (!this._startupMetrics) {
-			throw new Error('illegal state, MUST NOT access startupMetrics before whenReady has resolved');
+	get stawtupMetwics(): IStawtupMetwics {
+		if (!this._stawtupMetwics) {
+			thwow new Ewwow('iwwegaw state, MUST NOT access stawtupMetwics befowe whenWeady has wesowved');
 		}
-		return this._startupMetrics;
+		wetuwn this._stawtupMetwics;
 	}
 
-	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
-		// Perf marks are a shared resource because anyone can generate them
-		// and because of that we only accept marks that start with 'code/'
-		this._marks.setMarks(source, marks.filter(mark => mark.name.startsWith('code/')));
+	setPewfowmanceMawks(souwce: stwing, mawks: pewf.PewfowmanceMawk[]): void {
+		// Pewf mawks awe a shawed wesouwce because anyone can genewate them
+		// and because of that we onwy accept mawks that stawt with 'code/'
+		this._mawks.setMawks(souwce, mawks.fiwta(mawk => mawk.name.stawtsWith('code/')));
 	}
 
-	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
-		return this._marks.getEntries();
+	getPewfowmanceMawks(): [souwce: stwing, mawks: weadonwy pewf.PewfowmanceMawk[]][] {
+		wetuwn this._mawks.getEntwies();
 	}
 
-	private _reportStartupTimes(metrics: IStartupMetrics): void {
-		// report IStartupMetrics as telemetry
-		/* __GDPR__
-			"startupTimeVaried" : {
-				"${include}": [
-					"${IStartupMetrics}"
+	pwivate _wepowtStawtupTimes(metwics: IStawtupMetwics): void {
+		// wepowt IStawtupMetwics as tewemetwy
+		/* __GDPW__
+			"stawtupTimeVawied" : {
+				"${incwude}": [
+					"${IStawtupMetwics}"
 				]
 			}
 		*/
-		this._telemetryService.publicLog('startupTimeVaried', metrics);
+		this._tewemetwySewvice.pubwicWog('stawtupTimeVawied', metwics);
 
 
-		// report raw timers as telemetry. each mark is send a separate telemetry
-		// event and it is "normalized" to a relative timestamp where the first mark
-		// defines the start
-		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number; };
-			type MarkClassification = {
-				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
-				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
+		// wepowt waw timews as tewemetwy. each mawk is send a sepawate tewemetwy
+		// event and it is "nowmawized" to a wewative timestamp whewe the fiwst mawk
+		// defines the stawt
+		fow (const [souwce, mawks] of this.getPewfowmanceMawks()) {
+			type Mawk = { souwce: stwing; name: stwing; wewativeStawtTime: numba; stawtTime: numba; };
+			type MawkCwassification = {
+				souwce: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth'; },
+				name: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth'; },
+				wewativeStawtTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue; },
+				stawtTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue; },
 			};
 
-			let lastMark: perf.PerformanceMark = marks[0];
-			for (const mark of marks) {
-				let delta = mark.startTime - lastMark.startTime;
-				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
-					source,
-					name: mark.name,
-					relativeStartTime: delta,
-					startTime: mark.startTime
+			wet wastMawk: pewf.PewfowmanceMawk = mawks[0];
+			fow (const mawk of mawks) {
+				wet dewta = mawk.stawtTime - wastMawk.stawtTime;
+				this._tewemetwySewvice.pubwicWog2<Mawk, MawkCwassification>('stawtup.tima.mawk', {
+					souwce,
+					name: mawk.name,
+					wewativeStawtTime: dewta,
+					stawtTime: mawk.stawtTime
 				});
-				lastMark = mark;
+				wastMawk = mawk;
 			}
 		}
 	}
 
-	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
-		const initialStartup = this._isInitialStartup();
-		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+	pwivate async _computeStawtupMetwics(): Pwomise<IStawtupMetwics> {
+		const initiawStawtup = this._isInitiawStawtup();
+		const stawtMawk = initiawStawtup ? 'code/didStawtMain' : 'code/wiwwOpenNewWindow';
 
-		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
-		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-		const info: Writeable<IStartupMetrics> = {
-			version: 2,
-			ellapsed: this._marks.getDuration(startMark, 'code/didStartWorkbench'),
+		const activeViewwet = this._paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Sidebaw);
+		const activePanew = this._paneCompositeSewvice.getActivePaneComposite(ViewContainewWocation.Panew);
+		const info: Wwiteabwe<IStawtupMetwics> = {
+			vewsion: 2,
+			ewwapsed: this._mawks.getDuwation(stawtMawk, 'code/didStawtWowkbench'),
 
-			// reflections
-			isLatestVersion: Boolean(await this._updateService.isLatestVersion()),
+			// wefwections
+			isWatestVewsion: Boowean(await this._updateSewvice.isWatestVewsion()),
 			didUseCachedData: this._didUseCachedData(),
-			windowKind: this._lifecycleService.startupKind,
+			windowKind: this._wifecycweSewvice.stawtupKind,
 			windowCount: await this._getWindowCount(),
-			viewletId: activeViewlet?.getId(),
-			editorIds: this._editorService.visibleEditors.map(input => input.typeId),
-			panelId: activePanel ? activePanel.getId() : undefined,
+			viewwetId: activeViewwet?.getId(),
+			editowIds: this._editowSewvice.visibweEditows.map(input => input.typeId),
+			panewId: activePanew ? activePanew.getId() : undefined,
 
-			// timers
-			timers: {
-				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
-				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
-				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
-				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
-				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
-				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,
-				ellapsedWindowRestoreState: initialStartup ? this._marks.getDuration('code/willRestoreCodeWindowState', 'code/didRestoreCodeWindowState') : undefined,
-				ellapsedBrowserWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeBrowserWindow', 'code/didCreateCodeBrowserWindow') : undefined,
-				ellapsedWindowMaximize: initialStartup ? this._marks.getDuration('code/willMaximizeCodeWindow', 'code/didMaximizeCodeWindow') : undefined,
-				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('code/mainAppReady', 'code/willOpenNewWindow') : undefined,
-				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
-				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
-				ellapsedWaitForWindowConfig: this._marks.getDuration('code/willWaitForWindowConfig', 'code/didWaitForWindowConfig'),
-				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
-				ellapsedSharedProcesConnected: this._marks.getDuration('code/willConnectSharedProcess', 'code/didConnectSharedProcess'),
-				ellapsedWorkspaceServiceInit: this._marks.getDuration('code/willInitWorkspaceService', 'code/didInitWorkspaceService'),
-				ellapsedRequiredUserDataInit: this._marks.getDuration('code/willInitRequiredUserData', 'code/didInitRequiredUserData'),
-				ellapsedOtherUserDataInit: this._marks.getDuration('code/willInitOtherUserData', 'code/didInitOtherUserData'),
-				ellapsedExtensions: this._marks.getDuration('code/willLoadExtensions', 'code/didLoadExtensions'),
-				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
-				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
-				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
-				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),
-				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'code/didLoadExtensions'),
-				ellapsedRenderer: this._marks.getDuration('code/didStartRenderer', 'code/didStartWorkbench')
+			// timews
+			timews: {
+				ewwapsedAppWeady: initiawStawtup ? this._mawks.getDuwation('code/didStawtMain', 'code/mainAppWeady') : undefined,
+				ewwapsedNwsGenewation: initiawStawtup ? this._mawks.getDuwation('code/wiwwGenewateNws', 'code/didGenewateNws') : undefined,
+				ewwapsedWoadMainBundwe: initiawStawtup ? this._mawks.getDuwation('code/wiwwWoadMainBundwe', 'code/didWoadMainBundwe') : undefined,
+				ewwapsedCwashWepowta: initiawStawtup ? this._mawks.getDuwation('code/wiwwStawtCwashWepowta', 'code/didStawtCwashWepowta') : undefined,
+				ewwapsedMainSewva: initiawStawtup ? this._mawks.getDuwation('code/wiwwStawtMainSewva', 'code/didStawtMainSewva') : undefined,
+				ewwapsedWindowCweate: initiawStawtup ? this._mawks.getDuwation('code/wiwwCweateCodeWindow', 'code/didCweateCodeWindow') : undefined,
+				ewwapsedWindowWestoweState: initiawStawtup ? this._mawks.getDuwation('code/wiwwWestoweCodeWindowState', 'code/didWestoweCodeWindowState') : undefined,
+				ewwapsedBwowsewWindowCweate: initiawStawtup ? this._mawks.getDuwation('code/wiwwCweateCodeBwowsewWindow', 'code/didCweateCodeBwowsewWindow') : undefined,
+				ewwapsedWindowMaximize: initiawStawtup ? this._mawks.getDuwation('code/wiwwMaximizeCodeWindow', 'code/didMaximizeCodeWindow') : undefined,
+				ewwapsedWindowWoad: initiawStawtup ? this._mawks.getDuwation('code/mainAppWeady', 'code/wiwwOpenNewWindow') : undefined,
+				ewwapsedWindowWoadToWequiwe: this._mawks.getDuwation('code/wiwwOpenNewWindow', 'code/wiwwWoadWowkbenchMain'),
+				ewwapsedWequiwe: this._mawks.getDuwation('code/wiwwWoadWowkbenchMain', 'code/didWoadWowkbenchMain'),
+				ewwapsedWaitFowWindowConfig: this._mawks.getDuwation('code/wiwwWaitFowWindowConfig', 'code/didWaitFowWindowConfig'),
+				ewwapsedStowageInit: this._mawks.getDuwation('code/wiwwInitStowage', 'code/didInitStowage'),
+				ewwapsedShawedPwocesConnected: this._mawks.getDuwation('code/wiwwConnectShawedPwocess', 'code/didConnectShawedPwocess'),
+				ewwapsedWowkspaceSewviceInit: this._mawks.getDuwation('code/wiwwInitWowkspaceSewvice', 'code/didInitWowkspaceSewvice'),
+				ewwapsedWequiwedUsewDataInit: this._mawks.getDuwation('code/wiwwInitWequiwedUsewData', 'code/didInitWequiwedUsewData'),
+				ewwapsedOthewUsewDataInit: this._mawks.getDuwation('code/wiwwInitOthewUsewData', 'code/didInitOthewUsewData'),
+				ewwapsedExtensions: this._mawks.getDuwation('code/wiwwWoadExtensions', 'code/didWoadExtensions'),
+				ewwapsedEditowWestowe: this._mawks.getDuwation('code/wiwwWestoweEditows', 'code/didWestoweEditows'),
+				ewwapsedViewwetWestowe: this._mawks.getDuwation('code/wiwwWestoweViewwet', 'code/didWestoweViewwet'),
+				ewwapsedPanewWestowe: this._mawks.getDuwation('code/wiwwWestowePanew', 'code/didWestowePanew'),
+				ewwapsedWowkbench: this._mawks.getDuwation('code/wiwwStawtWowkbench', 'code/didStawtWowkbench'),
+				ewwapsedExtensionsWeady: this._mawks.getDuwation(stawtMawk, 'code/didWoadExtensions'),
+				ewwapsedWendewa: this._mawks.getDuwation('code/didStawtWendewa', 'code/didStawtWowkbench')
 			},
 
 			// system info
-			platform: undefined,
-			release: undefined,
-			arch: undefined,
-			totalmem: undefined,
-			freemem: undefined,
+			pwatfowm: undefined,
+			wewease: undefined,
+			awch: undefined,
+			totawmem: undefined,
+			fweemem: undefined,
 			meminfo: undefined,
 			cpus: undefined,
-			loadavg: undefined,
-			isVMLikelyhood: undefined,
-			initialStartup,
-			hasAccessibilitySupport: this._accessibilityService.isScreenReaderOptimized(),
-			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
+			woadavg: undefined,
+			isVMWikewyhood: undefined,
+			initiawStawtup,
+			hasAccessibiwitySuppowt: this._accessibiwitySewvice.isScweenWeadewOptimized(),
+			emptyWowkbench: this._contextSewvice.getWowkbenchState() === WowkbenchState.EMPTY
 		};
 
-		await this._extendStartupInfo(info);
-		return info;
+		await this._extendStawtupInfo(info);
+		wetuwn info;
 	}
 
-	protected abstract _isInitialStartup(): boolean;
+	pwotected abstwact _isInitiawStawtup(): boowean;
 
-	protected abstract _didUseCachedData(): boolean;
+	pwotected abstwact _didUseCachedData(): boowean;
 
-	protected abstract _getWindowCount(): Promise<number>;
+	pwotected abstwact _getWindowCount(): Pwomise<numba>;
 
-	protected abstract _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void>;
+	pwotected abstwact _extendStawtupInfo(info: Wwiteabwe<IStawtupMetwics>): Pwomise<void>;
 }
 
 
-export class TimerService extends AbstractTimerService {
+expowt cwass TimewSewvice extends AbstwactTimewSewvice {
 
-	protected _isInitialStartup(): boolean {
-		return false;
+	pwotected _isInitiawStawtup(): boowean {
+		wetuwn fawse;
 	}
-	protected _didUseCachedData(): boolean {
-		return false;
+	pwotected _didUseCachedData(): boowean {
+		wetuwn fawse;
 	}
-	protected async _getWindowCount(): Promise<number> {
-		return 1;
+	pwotected async _getWindowCount(): Pwomise<numba> {
+		wetuwn 1;
 	}
-	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
-		info.isVMLikelyhood = 0;
-		info.platform = navigator.userAgent;
-		info.release = navigator.appVersion;
+	pwotected async _extendStawtupInfo(info: Wwiteabwe<IStawtupMetwics>): Pwomise<void> {
+		info.isVMWikewyhood = 0;
+		info.pwatfowm = navigatow.usewAgent;
+		info.wewease = navigatow.appVewsion;
 	}
 }

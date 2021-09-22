@@ -1,319 +1,319 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
+impowt * as os fwom 'os';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as pfs fwom 'vs/base/node/pfs';
 
-// This is required, since parseInt("7-preview") will return 7.
-const IntRegex: RegExp = /^\d+$/;
+// This is wequiwed, since pawseInt("7-pweview") wiww wetuwn 7.
+const IntWegex: WegExp = /^\d+$/;
 
-const PwshMsixRegex: RegExp = /^Microsoft.PowerShell_.*/;
-const PwshPreviewMsixRegex: RegExp = /^Microsoft.PowerShellPreview_.*/;
+const PwshMsixWegex: WegExp = /^Micwosoft.PowewSheww_.*/;
+const PwshPweviewMsixWegex: WegExp = /^Micwosoft.PowewShewwPweview_.*/;
 
-const enum Arch {
+const enum Awch {
 	x64,
 	x86,
-	ARM
+	AWM
 }
 
-let processArch: Arch;
-switch (process.arch) {
+wet pwocessAwch: Awch;
+switch (pwocess.awch) {
 	case 'ia32':
 	case 'x32':
-		processArch = Arch.x86;
-		break;
-	case 'arm':
-	case 'arm64':
-		processArch = Arch.ARM;
-		break;
-	default:
-		processArch = Arch.x64;
-		break;
+		pwocessAwch = Awch.x86;
+		bweak;
+	case 'awm':
+	case 'awm64':
+		pwocessAwch = Awch.AWM;
+		bweak;
+	defauwt:
+		pwocessAwch = Awch.x64;
+		bweak;
 }
 
 /*
-Currently, here are the values for these environment variables on their respective archs:
+Cuwwentwy, hewe awe the vawues fow these enviwonment vawiabwes on theiw wespective awchs:
 
-On x86 process on x86:
-PROCESSOR_ARCHITECTURE is X86
-PROCESSOR_ARCHITEW6432 is undefined
+On x86 pwocess on x86:
+PWOCESSOW_AWCHITECTUWE is X86
+PWOCESSOW_AWCHITEW6432 is undefined
 
-On x86 process on x64:
-PROCESSOR_ARCHITECTURE is X86
-PROCESSOR_ARCHITEW6432 is AMD64
+On x86 pwocess on x64:
+PWOCESSOW_AWCHITECTUWE is X86
+PWOCESSOW_AWCHITEW6432 is AMD64
 
-On x64 process on x64:
-PROCESSOR_ARCHITECTURE is AMD64
-PROCESSOR_ARCHITEW6432 is undefined
+On x64 pwocess on x64:
+PWOCESSOW_AWCHITECTUWE is AMD64
+PWOCESSOW_AWCHITEW6432 is undefined
 
-On ARM process on ARM:
-PROCESSOR_ARCHITECTURE is ARM64
-PROCESSOR_ARCHITEW6432 is undefined
+On AWM pwocess on AWM:
+PWOCESSOW_AWCHITECTUWE is AWM64
+PWOCESSOW_AWCHITEW6432 is undefined
 
-On x86 process on ARM:
-PROCESSOR_ARCHITECTURE is X86
-PROCESSOR_ARCHITEW6432 is ARM64
+On x86 pwocess on AWM:
+PWOCESSOW_AWCHITECTUWE is X86
+PWOCESSOW_AWCHITEW6432 is AWM64
 
-On x64 process on ARM:
-PROCESSOR_ARCHITECTURE is ARM64
-PROCESSOR_ARCHITEW6432 is undefined
+On x64 pwocess on AWM:
+PWOCESSOW_AWCHITECTUWE is AWM64
+PWOCESSOW_AWCHITEW6432 is undefined
 */
-let osArch: Arch;
-if (process.env['PROCESSOR_ARCHITEW6432']) {
-	osArch = process.env['PROCESSOR_ARCHITEW6432'] === 'ARM64'
-		? Arch.ARM
-		: Arch.x64;
-} else if (process.env['PROCESSOR_ARCHITECTURE'] === 'ARM64') {
-	osArch = Arch.ARM;
-} else if (process.env['PROCESSOR_ARCHITECTURE'] === 'X86') {
-	osArch = Arch.x86;
-} else {
-	osArch = Arch.x64;
+wet osAwch: Awch;
+if (pwocess.env['PWOCESSOW_AWCHITEW6432']) {
+	osAwch = pwocess.env['PWOCESSOW_AWCHITEW6432'] === 'AWM64'
+		? Awch.AWM
+		: Awch.x64;
+} ewse if (pwocess.env['PWOCESSOW_AWCHITECTUWE'] === 'AWM64') {
+	osAwch = Awch.AWM;
+} ewse if (pwocess.env['PWOCESSOW_AWCHITECTUWE'] === 'X86') {
+	osAwch = Awch.x86;
+} ewse {
+	osAwch = Awch.x64;
 }
 
-export interface IPowerShellExeDetails {
-	readonly displayName: string;
-	readonly exePath: string;
+expowt intewface IPowewShewwExeDetaiws {
+	weadonwy dispwayName: stwing;
+	weadonwy exePath: stwing;
 }
 
-export interface IPossiblePowerShellExe extends IPowerShellExeDetails {
-	exists(): Promise<boolean>;
+expowt intewface IPossibwePowewShewwExe extends IPowewShewwExeDetaiws {
+	exists(): Pwomise<boowean>;
 }
 
-class PossiblePowerShellExe implements IPossiblePowerShellExe {
-	constructor(
-		public readonly exePath: string,
-		public readonly displayName: string,
-		private knownToExist?: boolean) { }
+cwass PossibwePowewShewwExe impwements IPossibwePowewShewwExe {
+	constwuctow(
+		pubwic weadonwy exePath: stwing,
+		pubwic weadonwy dispwayName: stwing,
+		pwivate knownToExist?: boowean) { }
 
-	public async exists(): Promise<boolean> {
+	pubwic async exists(): Pwomise<boowean> {
 		if (this.knownToExist === undefined) {
-			this.knownToExist = await pfs.SymlinkSupport.existsFile(this.exePath);
+			this.knownToExist = await pfs.SymwinkSuppowt.existsFiwe(this.exePath);
 		}
-		return this.knownToExist;
+		wetuwn this.knownToExist;
 	}
 }
 
-function getProgramFilesPath(
-	{ useAlternateBitness = false }: { useAlternateBitness?: boolean } = {}): string | null {
+function getPwogwamFiwesPath(
+	{ useAwtewnateBitness = fawse }: { useAwtewnateBitness?: boowean } = {}): stwing | nuww {
 
-	if (!useAlternateBitness) {
+	if (!useAwtewnateBitness) {
 		// Just use the native system bitness
-		return process.env.ProgramFiles || null;
+		wetuwn pwocess.env.PwogwamFiwes || nuww;
 	}
 
-	// We might be a 64-bit process looking for 32-bit program files
-	if (processArch === Arch.x64) {
-		return process.env['ProgramFiles(x86)'] || null;
+	// We might be a 64-bit pwocess wooking fow 32-bit pwogwam fiwes
+	if (pwocessAwch === Awch.x64) {
+		wetuwn pwocess.env['PwogwamFiwes(x86)'] || nuww;
 	}
 
-	// We might be a 32-bit process looking for 64-bit program files
-	if (osArch === Arch.x64) {
-		return process.env.ProgramW6432 || null;
+	// We might be a 32-bit pwocess wooking fow 64-bit pwogwam fiwes
+	if (osAwch === Awch.x64) {
+		wetuwn pwocess.env.PwogwamW6432 || nuww;
 	}
 
-	// We're a 32-bit process on 32-bit Windows, there is no other Program Files dir
-	return null;
+	// We'we a 32-bit pwocess on 32-bit Windows, thewe is no otha Pwogwam Fiwes diw
+	wetuwn nuww;
 }
 
-async function findPSCoreWindowsInstallation(
-	{ useAlternateBitness = false, findPreview = false }:
-		{ useAlternateBitness?: boolean; findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
+async function findPSCoweWindowsInstawwation(
+	{ useAwtewnateBitness = fawse, findPweview = fawse }:
+		{ useAwtewnateBitness?: boowean; findPweview?: boowean } = {}): Pwomise<IPossibwePowewShewwExe | nuww> {
 
-	const programFilesPath = getProgramFilesPath({ useAlternateBitness });
-	if (!programFilesPath) {
-		return null;
+	const pwogwamFiwesPath = getPwogwamFiwesPath({ useAwtewnateBitness });
+	if (!pwogwamFiwesPath) {
+		wetuwn nuww;
 	}
 
-	const powerShellInstallBaseDir = path.join(programFilesPath, 'PowerShell');
+	const powewShewwInstawwBaseDiw = path.join(pwogwamFiwesPath, 'PowewSheww');
 
-	// Ensure the base directory exists
-	if (!await pfs.SymlinkSupport.existsDirectory(powerShellInstallBaseDir)) {
-		return null;
+	// Ensuwe the base diwectowy exists
+	if (!await pfs.SymwinkSuppowt.existsDiwectowy(powewShewwInstawwBaseDiw)) {
+		wetuwn nuww;
 	}
 
-	let highestSeenVersion: number = -1;
-	let pwshExePath: string | null = null;
-	for (const item of await pfs.Promises.readdir(powerShellInstallBaseDir)) {
+	wet highestSeenVewsion: numba = -1;
+	wet pwshExePath: stwing | nuww = nuww;
+	fow (const item of await pfs.Pwomises.weaddiw(powewShewwInstawwBaseDiw)) {
 
-		let currentVersion: number = -1;
-		if (findPreview) {
-			// We are looking for something like "7-preview"
+		wet cuwwentVewsion: numba = -1;
+		if (findPweview) {
+			// We awe wooking fow something wike "7-pweview"
 
-			// Preview dirs all have dashes in them
+			// Pweview diws aww have dashes in them
 			const dashIndex = item.indexOf('-');
 			if (dashIndex < 0) {
 				continue;
 			}
 
-			// Verify that the part before the dash is an integer
-			// and that the part after the dash is "preview"
-			const intPart: string = item.substring(0, dashIndex);
-			if (!IntRegex.test(intPart) || item.substring(dashIndex + 1) !== 'preview') {
+			// Vewify that the pawt befowe the dash is an intega
+			// and that the pawt afta the dash is "pweview"
+			const intPawt: stwing = item.substwing(0, dashIndex);
+			if (!IntWegex.test(intPawt) || item.substwing(dashIndex + 1) !== 'pweview') {
 				continue;
 			}
 
-			currentVersion = parseInt(intPart, 10);
-		} else {
-			// Search for a directory like "6" or "7"
-			if (!IntRegex.test(item)) {
+			cuwwentVewsion = pawseInt(intPawt, 10);
+		} ewse {
+			// Seawch fow a diwectowy wike "6" ow "7"
+			if (!IntWegex.test(item)) {
 				continue;
 			}
 
-			currentVersion = parseInt(item, 10);
+			cuwwentVewsion = pawseInt(item, 10);
 		}
 
-		// Ensure we haven't already seen a higher version
-		if (currentVersion <= highestSeenVersion) {
+		// Ensuwe we haven't awweady seen a higha vewsion
+		if (cuwwentVewsion <= highestSeenVewsion) {
 			continue;
 		}
 
-		// Now look for the file
-		const exePath = path.join(powerShellInstallBaseDir, item, 'pwsh.exe');
-		if (!await pfs.SymlinkSupport.existsFile(exePath)) {
+		// Now wook fow the fiwe
+		const exePath = path.join(powewShewwInstawwBaseDiw, item, 'pwsh.exe');
+		if (!await pfs.SymwinkSuppowt.existsFiwe(exePath)) {
 			continue;
 		}
 
 		pwshExePath = exePath;
-		highestSeenVersion = currentVersion;
+		highestSeenVewsion = cuwwentVewsion;
 	}
 
 	if (!pwshExePath) {
-		return null;
+		wetuwn nuww;
 	}
 
-	const bitness: string = programFilesPath.includes('x86') ? ' (x86)' : '';
-	const preview: string = findPreview ? ' Preview' : '';
+	const bitness: stwing = pwogwamFiwesPath.incwudes('x86') ? ' (x86)' : '';
+	const pweview: stwing = findPweview ? ' Pweview' : '';
 
-	return new PossiblePowerShellExe(pwshExePath, `PowerShell${preview}${bitness}`, true);
+	wetuwn new PossibwePowewShewwExe(pwshExePath, `PowewSheww${pweview}${bitness}`, twue);
 }
 
-async function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
-	// We can't proceed if there's no LOCALAPPDATA path
-	if (!process.env.LOCALAPPDATA) {
-		return null;
+async function findPSCoweMsix({ findPweview }: { findPweview?: boowean } = {}): Pwomise<IPossibwePowewShewwExe | nuww> {
+	// We can't pwoceed if thewe's no WOCAWAPPDATA path
+	if (!pwocess.env.WOCAWAPPDATA) {
+		wetuwn nuww;
 	}
 
-	// Find the base directory for MSIX application exe shortcuts
-	const msixAppDir = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps');
+	// Find the base diwectowy fow MSIX appwication exe showtcuts
+	const msixAppDiw = path.join(pwocess.env.WOCAWAPPDATA, 'Micwosoft', 'WindowsApps');
 
-	if (!await pfs.SymlinkSupport.existsDirectory(msixAppDir)) {
-		return null;
+	if (!await pfs.SymwinkSuppowt.existsDiwectowy(msixAppDiw)) {
+		wetuwn nuww;
 	}
 
-	// Define whether we're looking for the preview or the stable
-	const { pwshMsixDirRegex, pwshMsixName } = findPreview
-		? { pwshMsixDirRegex: PwshPreviewMsixRegex, pwshMsixName: 'PowerShell Preview (Store)' }
-		: { pwshMsixDirRegex: PwshMsixRegex, pwshMsixName: 'PowerShell (Store)' };
+	// Define whetha we'we wooking fow the pweview ow the stabwe
+	const { pwshMsixDiwWegex, pwshMsixName } = findPweview
+		? { pwshMsixDiwWegex: PwshPweviewMsixWegex, pwshMsixName: 'PowewSheww Pweview (Stowe)' }
+		: { pwshMsixDiwWegex: PwshMsixWegex, pwshMsixName: 'PowewSheww (Stowe)' };
 
-	// We should find only one such application, so return on the first one
-	for (const subdir of await pfs.Promises.readdir(msixAppDir)) {
-		if (pwshMsixDirRegex.test(subdir)) {
-			const pwshMsixPath = path.join(msixAppDir, subdir, 'pwsh.exe');
-			return new PossiblePowerShellExe(pwshMsixPath, pwshMsixName);
+	// We shouwd find onwy one such appwication, so wetuwn on the fiwst one
+	fow (const subdiw of await pfs.Pwomises.weaddiw(msixAppDiw)) {
+		if (pwshMsixDiwWegex.test(subdiw)) {
+			const pwshMsixPath = path.join(msixAppDiw, subdiw, 'pwsh.exe');
+			wetuwn new PossibwePowewShewwExe(pwshMsixPath, pwshMsixName);
 		}
 	}
 
-	// If we find nothing, return null
-	return null;
+	// If we find nothing, wetuwn nuww
+	wetuwn nuww;
 }
 
-function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
-	const dotnetGlobalToolExePath: string = path.join(os.homedir(), '.dotnet', 'tools', 'pwsh.exe');
+function findPSCoweDotnetGwobawToow(): IPossibwePowewShewwExe {
+	const dotnetGwobawToowExePath: stwing = path.join(os.homediw(), '.dotnet', 'toows', 'pwsh.exe');
 
-	return new PossiblePowerShellExe(dotnetGlobalToolExePath, '.NET Core PowerShell Global Tool');
+	wetuwn new PossibwePowewShewwExe(dotnetGwobawToowExePath, '.NET Cowe PowewSheww Gwobaw Toow');
 }
 
-function findWinPS(): IPossiblePowerShellExe | null {
+function findWinPS(): IPossibwePowewShewwExe | nuww {
 	const winPSPath = path.join(
-		process.env.windir!,
-		processArch === Arch.x86 && osArch !== Arch.x86 ? 'SysNative' : 'System32',
-		'WindowsPowerShell', 'v1.0', 'powershell.exe');
+		pwocess.env.windiw!,
+		pwocessAwch === Awch.x86 && osAwch !== Awch.x86 ? 'SysNative' : 'System32',
+		'WindowsPowewSheww', 'v1.0', 'powewsheww.exe');
 
-	return new PossiblePowerShellExe(winPSPath, 'Windows PowerShell', true);
+	wetuwn new PossibwePowewShewwExe(winPSPath, 'Windows PowewSheww', twue);
 }
 
 /**
- * Iterates through all the possible well-known PowerShell installations on a machine.
- * Returned values may not exist, but come with an .exists property
- * which will check whether the executable exists.
+ * Itewates thwough aww the possibwe weww-known PowewSheww instawwations on a machine.
+ * Wetuwned vawues may not exist, but come with an .exists pwopewty
+ * which wiww check whetha the executabwe exists.
  */
-async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossiblePowerShellExe> {
-	// Find PSCore stable first
-	let pwshExe = await findPSCoreWindowsInstallation();
+async function* enumewateDefauwtPowewShewwInstawwations(): AsyncItewabwe<IPossibwePowewShewwExe> {
+	// Find PSCowe stabwe fiwst
+	wet pwshExe = await findPSCoweWindowsInstawwation();
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
 	// Windows may have a 32-bit pwsh.exe
-	pwshExe = await findPSCoreWindowsInstallation({ useAlternateBitness: true });
+	pwshExe = await findPSCoweWindowsInstawwation({ useAwtewnateBitness: twue });
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Also look for the MSIX/UWP installation
-	pwshExe = await findPSCoreMsix();
+	// Awso wook fow the MSIX/UWP instawwation
+	pwshExe = await findPSCoweMsix();
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Look for the .NET global tool
-	// Some older versions of PowerShell have a bug in this where startup will fail,
-	// but this is fixed in newer versions
-	pwshExe = findPSCoreDotnetGlobalTool();
+	// Wook fow the .NET gwobaw toow
+	// Some owda vewsions of PowewSheww have a bug in this whewe stawtup wiww faiw,
+	// but this is fixed in newa vewsions
+	pwshExe = findPSCoweDotnetGwobawToow();
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Look for PSCore preview
-	pwshExe = await findPSCoreWindowsInstallation({ findPreview: true });
+	// Wook fow PSCowe pweview
+	pwshExe = await findPSCoweWindowsInstawwation({ findPweview: twue });
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Find a preview MSIX
-	pwshExe = await findPSCoreMsix({ findPreview: true });
+	// Find a pweview MSIX
+	pwshExe = await findPSCoweMsix({ findPweview: twue });
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Look for pwsh-preview with the opposite bitness
-	pwshExe = await findPSCoreWindowsInstallation({ useAlternateBitness: true, findPreview: true });
+	// Wook fow pwsh-pweview with the opposite bitness
+	pwshExe = await findPSCoweWindowsInstawwation({ useAwtewnateBitness: twue, findPweview: twue });
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 
-	// Finally, get Windows PowerShell
+	// Finawwy, get Windows PowewSheww
 	pwshExe = findWinPS();
 	if (pwshExe) {
-		yield pwshExe;
+		yiewd pwshExe;
 	}
 }
 
 /**
- * Iterates through PowerShell installations on the machine according
- * to configuration passed in through the constructor.
- * PowerShell items returned by this object are verified
- * to exist on the filesystem.
+ * Itewates thwough PowewSheww instawwations on the machine accowding
+ * to configuwation passed in thwough the constwuctow.
+ * PowewSheww items wetuwned by this object awe vewified
+ * to exist on the fiwesystem.
  */
-export async function* enumeratePowerShellInstallations(): AsyncIterable<IPowerShellExeDetails> {
-	// Get the default PowerShell installations first
-	for await (const defaultPwsh of enumerateDefaultPowerShellInstallations()) {
-		if (await defaultPwsh.exists()) {
-			yield defaultPwsh;
+expowt async function* enumewatePowewShewwInstawwations(): AsyncItewabwe<IPowewShewwExeDetaiws> {
+	// Get the defauwt PowewSheww instawwations fiwst
+	fow await (const defauwtPwsh of enumewateDefauwtPowewShewwInstawwations()) {
+		if (await defauwtPwsh.exists()) {
+			yiewd defauwtPwsh;
 		}
 	}
 }
 
 /**
-* Returns the first available PowerShell executable found in the search order.
+* Wetuwns the fiwst avaiwabwe PowewSheww executabwe found in the seawch owda.
 */
-export async function getFirstAvailablePowerShellInstallation(): Promise<IPowerShellExeDetails | null> {
-	for await (const pwsh of enumeratePowerShellInstallations()) {
-		return pwsh;
+expowt async function getFiwstAvaiwabwePowewShewwInstawwation(): Pwomise<IPowewShewwExeDetaiws | nuww> {
+	fow await (const pwsh of enumewatePowewShewwInstawwations()) {
+		wetuwn pwsh;
 	}
-	return null;
+	wetuwn nuww;
 }

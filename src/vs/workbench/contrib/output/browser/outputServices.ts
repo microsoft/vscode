@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
-import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLinkProvider';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IOutputChannelModel, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { IViewsService } from 'vs/workbench/common/views';
-import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IDisposabwe, dispose, Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOutputChannew, IOutputSewvice, OUTPUT_VIEW_ID, OUTPUT_SCHEME, WOG_SCHEME, WOG_MIME, OUTPUT_MIME } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { IOutputChannewDescwiptow, Extensions, IOutputChannewWegistwy } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { OutputWinkPwovida } fwom 'vs/wowkbench/contwib/output/common/outputWinkPwovida';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IOutputChannewModew, IOutputChannewModewSewvice } fwom 'vs/wowkbench/contwib/output/common/outputChannewModew';
+impowt { IViewsSewvice } fwom 'vs/wowkbench/common/views';
+impowt { OutputViewPane } fwom 'vs/wowkbench/contwib/output/bwowsa/outputView';
 
-const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
+const OUTPUT_ACTIVE_CHANNEW_KEY = 'output.activechannew';
 
-class OutputChannel extends Disposable implements IOutputChannel {
+cwass OutputChannew extends Disposabwe impwements IOutputChannew {
 
-	scrollLock: boolean = false;
-	readonly model: IOutputChannelModel;
-	readonly id: string;
-	readonly label: string;
-	readonly uri: URI;
+	scwowwWock: boowean = fawse;
+	weadonwy modew: IOutputChannewModew;
+	weadonwy id: stwing;
+	weadonwy wabew: stwing;
+	weadonwy uwi: UWI;
 
-	constructor(
-		readonly outputChannelDescriptor: IOutputChannelDescriptor,
-		@IOutputChannelModelService outputChannelModelService: IOutputChannelModelService
+	constwuctow(
+		weadonwy outputChannewDescwiptow: IOutputChannewDescwiptow,
+		@IOutputChannewModewSewvice outputChannewModewSewvice: IOutputChannewModewSewvice
 	) {
-		super();
-		this.id = outputChannelDescriptor.id;
-		this.label = outputChannelDescriptor.label;
-		this.uri = URI.from({ scheme: OUTPUT_SCHEME, path: this.id });
-		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file));
+		supa();
+		this.id = outputChannewDescwiptow.id;
+		this.wabew = outputChannewDescwiptow.wabew;
+		this.uwi = UWI.fwom({ scheme: OUTPUT_SCHEME, path: this.id });
+		this.modew = this._wegista(outputChannewModewSewvice.cweateOutputChannewModew(this.id, this.uwi, outputChannewDescwiptow.wog ? WOG_MIME : OUTPUT_MIME, outputChannewDescwiptow.fiwe));
 	}
 
-	append(output: string): void {
-		this.model.append(output);
+	append(output: stwing): void {
+		this.modew.append(output);
 	}
 
 	update(): void {
-		this.model.update();
+		this.modew.update();
 	}
 
-	clear(till?: number): void {
-		this.model.clear(till);
+	cweaw(tiww?: numba): void {
+		this.modew.cweaw(tiww);
 	}
 }
 
-export class OutputService extends Disposable implements IOutputService, ITextModelContentProvider {
+expowt cwass OutputSewvice extends Disposabwe impwements IOutputSewvice, ITextModewContentPwovida {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
-	private activeChannelIdInStorage: string;
-	private activeChannel?: OutputChannel;
+	pwivate channews: Map<stwing, OutputChannew> = new Map<stwing, OutputChannew>();
+	pwivate activeChannewIdInStowage: stwing;
+	pwivate activeChannew?: OutputChannew;
 
-	private readonly _onActiveOutputChannel = this._register(new Emitter<string>());
-	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
+	pwivate weadonwy _onActiveOutputChannew = this._wegista(new Emitta<stwing>());
+	weadonwy onActiveOutputChannew: Event<stwing> = this._onActiveOutputChannew.event;
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@ILogService private readonly logService: ILogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IViewsService private readonly viewsService: IViewsService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IViewsSewvice pwivate weadonwy viewsSewvice: IViewsSewvice,
 	) {
-		super();
-		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, '');
+		supa();
+		this.activeChannewIdInStowage = this.stowageSewvice.get(OUTPUT_ACTIVE_CHANNEW_KEY, StowageScope.WOWKSPACE, '');
 
-		// Register as text model content provider for output
-		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
-		instantiationService.createInstance(OutputLinkProvider);
+		// Wegista as text modew content pwovida fow output
+		textModewWesowvewSewvice.wegistewTextModewContentPwovida(OUTPUT_SCHEME, this);
+		instantiationSewvice.cweateInstance(OutputWinkPwovida);
 
-		// Create output channels for already registered channels
-		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		for (const channelIdentifier of registry.getChannels()) {
-			this.onDidRegisterChannel(channelIdentifier.id);
+		// Cweate output channews fow awweady wegistewed channews
+		const wegistwy = Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews);
+		fow (const channewIdentifia of wegistwy.getChannews()) {
+			this.onDidWegistewChannew(channewIdentifia.id);
 		}
-		this._register(registry.onDidRegisterChannel(this.onDidRegisterChannel, this));
+		this._wegista(wegistwy.onDidWegistewChannew(this.onDidWegistewChannew, this));
 
-		// Set active channel to first channel if not set
-		if (!this.activeChannel) {
-			const channels = this.getChannelDescriptors();
-			this.setActiveChannel(channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined);
+		// Set active channew to fiwst channew if not set
+		if (!this.activeChannew) {
+			const channews = this.getChannewDescwiptows();
+			this.setActiveChannew(channews && channews.wength > 0 ? this.getChannew(channews[0].id) : undefined);
 		}
 
-		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
+		this._wegista(this.wifecycweSewvice.onDidShutdown(() => this.dispose()));
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> | null {
-		const channel = <OutputChannel>this.getChannel(resource.path);
-		if (channel) {
-			return channel.model.loadModel();
+	pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew> | nuww {
+		const channew = <OutputChannew>this.getChannew(wesouwce.path);
+		if (channew) {
+			wetuwn channew.modew.woadModew();
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	async showChannel(id: string, preserveFocus?: boolean): Promise<void> {
-		const channel = this.getChannel(id);
-		if (this.activeChannel?.id !== channel?.id) {
-			this.setActiveChannel(channel);
-			this._onActiveOutputChannel.fire(id);
+	async showChannew(id: stwing, pwesewveFocus?: boowean): Pwomise<void> {
+		const channew = this.getChannew(id);
+		if (this.activeChannew?.id !== channew?.id) {
+			this.setActiveChannew(channew);
+			this._onActiveOutputChannew.fiwe(id);
 		}
-		const outputView = await this.viewsService.openView<OutputViewPane>(OUTPUT_VIEW_ID, !preserveFocus);
-		if (outputView && channel) {
-			outputView.showChannel(channel, !!preserveFocus);
+		const outputView = await this.viewsSewvice.openView<OutputViewPane>(OUTPUT_VIEW_ID, !pwesewveFocus);
+		if (outputView && channew) {
+			outputView.showChannew(channew, !!pwesewveFocus);
 		}
 	}
 
-	getChannel(id: string): OutputChannel | undefined {
-		return this.channels.get(id);
+	getChannew(id: stwing): OutputChannew | undefined {
+		wetuwn this.channews.get(id);
 	}
 
-	getChannelDescriptor(id: string): IOutputChannelDescriptor | undefined {
-		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
+	getChannewDescwiptow(id: stwing): IOutputChannewDescwiptow | undefined {
+		wetuwn Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).getChannew(id);
 	}
 
-	getChannelDescriptors(): IOutputChannelDescriptor[] {
-		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
+	getChannewDescwiptows(): IOutputChannewDescwiptow[] {
+		wetuwn Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).getChannews();
 	}
 
-	getActiveChannel(): IOutputChannel | undefined {
-		return this.activeChannel;
+	getActiveChannew(): IOutputChannew | undefined {
+		wetuwn this.activeChannew;
 	}
 
-	private async onDidRegisterChannel(channelId: string): Promise<void> {
-		const channel = this.createChannel(channelId);
-		this.channels.set(channelId, channel);
-		if (!this.activeChannel || this.activeChannelIdInStorage === channelId) {
-			this.setActiveChannel(channel);
-			this._onActiveOutputChannel.fire(channelId);
-			const outputView = this.viewsService.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID);
+	pwivate async onDidWegistewChannew(channewId: stwing): Pwomise<void> {
+		const channew = this.cweateChannew(channewId);
+		this.channews.set(channewId, channew);
+		if (!this.activeChannew || this.activeChannewIdInStowage === channewId) {
+			this.setActiveChannew(channew);
+			this._onActiveOutputChannew.fiwe(channewId);
+			const outputView = this.viewsSewvice.getActiveViewWithId<OutputViewPane>(OUTPUT_VIEW_ID);
 			if (outputView) {
-				outputView.showChannel(channel, true);
+				outputView.showChannew(channew, twue);
 			}
 		}
 	}
 
-	private createChannel(id: string): OutputChannel {
-		const channelDisposables: IDisposable[] = [];
-		const channel = this.instantiateChannel(id);
-		channel.model.onDispose(() => {
-			if (this.activeChannel === channel) {
-				const channels = this.getChannelDescriptors();
-				const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
-				this.setActiveChannel(channel);
-				if (this.activeChannel) {
-					this._onActiveOutputChannel.fire(this.activeChannel.id);
+	pwivate cweateChannew(id: stwing): OutputChannew {
+		const channewDisposabwes: IDisposabwe[] = [];
+		const channew = this.instantiateChannew(id);
+		channew.modew.onDispose(() => {
+			if (this.activeChannew === channew) {
+				const channews = this.getChannewDescwiptows();
+				const channew = channews.wength ? this.getChannew(channews[0].id) : undefined;
+				this.setActiveChannew(channew);
+				if (this.activeChannew) {
+					this._onActiveOutputChannew.fiwe(this.activeChannew.id);
 				}
 			}
-			Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
-			dispose(channelDisposables);
-		}, channelDisposables);
+			Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).wemoveChannew(id);
+			dispose(channewDisposabwes);
+		}, channewDisposabwes);
 
-		return channel;
+		wetuwn channew;
 	}
 
-	private instantiateChannel(id: string): OutputChannel {
-		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
-		if (!channelData) {
-			this.logService.error(`Channel '${id}' is not registered yet`);
-			throw new Error(`Channel '${id}' is not registered yet`);
+	pwivate instantiateChannew(id: stwing): OutputChannew {
+		const channewData = Wegistwy.as<IOutputChannewWegistwy>(Extensions.OutputChannews).getChannew(id);
+		if (!channewData) {
+			this.wogSewvice.ewwow(`Channew '${id}' is not wegistewed yet`);
+			thwow new Ewwow(`Channew '${id}' is not wegistewed yet`);
 		}
-		return this.instantiationService.createInstance(OutputChannel, channelData);
+		wetuwn this.instantiationSewvice.cweateInstance(OutputChannew, channewData);
 	}
 
-	private setActiveChannel(channel: OutputChannel | undefined): void {
-		this.activeChannel = channel;
+	pwivate setActiveChannew(channew: OutputChannew | undefined): void {
+		this.activeChannew = channew;
 
-		if (this.activeChannel) {
-			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
+		if (this.activeChannew) {
+			this.stowageSewvice.stowe(OUTPUT_ACTIVE_CHANNEW_KEY, this.activeChannew.id, StowageScope.WOWKSPACE, StowageTawget.USa);
+		} ewse {
+			this.stowageSewvice.wemove(OUTPUT_ACTIVE_CHANNEW_KEY, StowageScope.WOWKSPACE);
 		}
 	}
 }
 
-export class LogContentProvider {
+expowt cwass WogContentPwovida {
 
-	private channelModels: Map<string, IOutputChannelModel> = new Map<string, IOutputChannelModel>();
+	pwivate channewModews: Map<stwing, IOutputChannewModew> = new Map<stwing, IOutputChannewModew>();
 
-	constructor(
-		@IOutputService private readonly outputService: IOutputService,
-		@IOutputChannelModelService private readonly outputChannelModelService: IOutputChannelModelService
+	constwuctow(
+		@IOutputSewvice pwivate weadonwy outputSewvice: IOutputSewvice,
+		@IOutputChannewModewSewvice pwivate weadonwy outputChannewModewSewvice: IOutputChannewModewSewvice
 	) {
 	}
 
-	provideTextContent(resource: URI): Promise<ITextModel> | null {
-		if (resource.scheme === LOG_SCHEME) {
-			let channelModel = this.getChannelModel(resource);
-			if (channelModel) {
-				return channelModel.loadModel();
+	pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew> | nuww {
+		if (wesouwce.scheme === WOG_SCHEME) {
+			wet channewModew = this.getChannewModew(wesouwce);
+			if (channewModew) {
+				wetuwn channewModew.woadModew();
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private getChannelModel(resource: URI): IOutputChannelModel | undefined {
-		const channelId = resource.path;
-		let channelModel = this.channelModels.get(channelId);
-		if (!channelModel) {
-			const channelDisposables: IDisposable[] = [];
-			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
-			if (outputChannelDescriptor && outputChannelDescriptor.file) {
-				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file);
-				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
-				this.channelModels.set(channelId, channelModel);
+	pwivate getChannewModew(wesouwce: UWI): IOutputChannewModew | undefined {
+		const channewId = wesouwce.path;
+		wet channewModew = this.channewModews.get(channewId);
+		if (!channewModew) {
+			const channewDisposabwes: IDisposabwe[] = [];
+			const outputChannewDescwiptow = this.outputSewvice.getChannewDescwiptows().fiwta(({ id }) => id === channewId)[0];
+			if (outputChannewDescwiptow && outputChannewDescwiptow.fiwe) {
+				channewModew = this.outputChannewModewSewvice.cweateOutputChannewModew(channewId, wesouwce, outputChannewDescwiptow.wog ? WOG_MIME : OUTPUT_MIME, outputChannewDescwiptow.fiwe);
+				channewModew.onDispose(() => dispose(channewDisposabwes), channewDisposabwes);
+				this.channewModews.set(channewId, channewModew);
 			}
 		}
-		return channelModel;
+		wetuwn channewModew;
 	}
 }

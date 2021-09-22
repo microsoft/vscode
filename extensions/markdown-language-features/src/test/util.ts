@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as os from 'os';
+impowt * as os fwom 'os';
 
-export const joinLines = (...args: string[]) =>
-	args.join(os.platform() === 'win32' ? '\r\n' : '\n');
+expowt const joinWines = (...awgs: stwing[]) =>
+	awgs.join(os.pwatfowm() === 'win32' ? '\w\n' : '\n');

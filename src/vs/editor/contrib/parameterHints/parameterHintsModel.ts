@@ -1,328 +1,328 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import * as modes from 'vs/editor/common/modes';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, Dewaya } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, MutabweDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { ChawactewSet } fwom 'vs/editow/common/cowe/chawactewCwassifia';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { pwovideSignatuweHewp } fwom 'vs/editow/contwib/pawametewHints/pwovideSignatuweHewp';
 
-export interface TriggerContext {
-	readonly triggerKind: modes.SignatureHelpTriggerKind;
-	readonly triggerCharacter?: string;
+expowt intewface TwiggewContext {
+	weadonwy twiggewKind: modes.SignatuweHewpTwiggewKind;
+	weadonwy twiggewChawacta?: stwing;
 }
 
-namespace ParameterHintState {
-	export const enum Type {
-		Default,
+namespace PawametewHintState {
+	expowt const enum Type {
+		Defauwt,
 		Active,
 		Pending,
 	}
 
-	export const Default = { type: Type.Default } as const;
+	expowt const Defauwt = { type: Type.Defauwt } as const;
 
-	export class Pending {
-		readonly type = Type.Pending;
-		constructor(
-			readonly request: CancelablePromise<modes.SignatureHelpResult | undefined | null>,
-			readonly previouslyActiveHints: modes.SignatureHelp | undefined,
+	expowt cwass Pending {
+		weadonwy type = Type.Pending;
+		constwuctow(
+			weadonwy wequest: CancewabwePwomise<modes.SignatuweHewpWesuwt | undefined | nuww>,
+			weadonwy pweviouswyActiveHints: modes.SignatuweHewp | undefined,
 		) { }
 	}
 
-	export class Active {
-		readonly type = Type.Active;
-		constructor(
-			readonly hints: modes.SignatureHelp
+	expowt cwass Active {
+		weadonwy type = Type.Active;
+		constwuctow(
+			weadonwy hints: modes.SignatuweHewp
 		) { }
 	}
 
-	export type State = typeof Default | Pending | Active;
+	expowt type State = typeof Defauwt | Pending | Active;
 }
 
-export class ParameterHintsModel extends Disposable {
+expowt cwass PawametewHintsModew extends Disposabwe {
 
-	private static readonly DEFAULT_DELAY = 120; // ms
+	pwivate static weadonwy DEFAUWT_DEWAY = 120; // ms
 
-	private readonly _onChangedHints = this._register(new Emitter<modes.SignatureHelp | undefined>());
-	public readonly onChangedHints = this._onChangedHints.event;
+	pwivate weadonwy _onChangedHints = this._wegista(new Emitta<modes.SignatuweHewp | undefined>());
+	pubwic weadonwy onChangedHints = this._onChangedHints.event;
 
-	private readonly editor: ICodeEditor;
-	private triggerOnType = false;
-	private _state: ParameterHintState.State = ParameterHintState.Default;
-	private _pendingTriggers: TriggerContext[] = [];
-	private readonly _lastSignatureHelpResult = this._register(new MutableDisposable<modes.SignatureHelpResult>());
-	private triggerChars = new CharacterSet();
-	private retriggerChars = new CharacterSet();
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate twiggewOnType = fawse;
+	pwivate _state: PawametewHintState.State = PawametewHintState.Defauwt;
+	pwivate _pendingTwiggews: TwiggewContext[] = [];
+	pwivate weadonwy _wastSignatuweHewpWesuwt = this._wegista(new MutabweDisposabwe<modes.SignatuweHewpWesuwt>());
+	pwivate twiggewChaws = new ChawactewSet();
+	pwivate wetwiggewChaws = new ChawactewSet();
 
-	private readonly throttledDelayer: Delayer<boolean>;
-	private triggerId = 0;
+	pwivate weadonwy thwottwedDewaya: Dewaya<boowean>;
+	pwivate twiggewId = 0;
 
-	constructor(
-		editor: ICodeEditor,
-		delay: number = ParameterHintsModel.DEFAULT_DELAY
+	constwuctow(
+		editow: ICodeEditow,
+		deway: numba = PawametewHintsModew.DEFAUWT_DEWAY
 	) {
-		super();
+		supa();
 
-		this.editor = editor;
+		this.editow = editow;
 
-		this.throttledDelayer = new Delayer(delay);
+		this.thwottwedDewaya = new Dewaya(deway);
 
-		this._register(this.editor.onDidBlurEditorWidget(() => this.cancel()));
-		this._register(this.editor.onDidChangeConfiguration(() => this.onEditorConfigurationChange()));
-		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
-		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
-		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
-		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
-		this._register(modes.SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
-		this._register(this.editor.onDidType(text => this.onDidType(text)));
+		this._wegista(this.editow.onDidBwuwEditowWidget(() => this.cancew()));
+		this._wegista(this.editow.onDidChangeConfiguwation(() => this.onEditowConfiguwationChange()));
+		this._wegista(this.editow.onDidChangeModew(e => this.onModewChanged()));
+		this._wegista(this.editow.onDidChangeModewWanguage(_ => this.onModewChanged()));
+		this._wegista(this.editow.onDidChangeCuwsowSewection(e => this.onCuwsowChange(e)));
+		this._wegista(this.editow.onDidChangeModewContent(e => this.onModewContentChange()));
+		this._wegista(modes.SignatuweHewpPwovidewWegistwy.onDidChange(this.onModewChanged, this));
+		this._wegista(this.editow.onDidType(text => this.onDidType(text)));
 
-		this.onEditorConfigurationChange();
-		this.onModelChanged();
+		this.onEditowConfiguwationChange();
+		this.onModewChanged();
 	}
 
-	private get state() { return this._state; }
-	private set state(value: ParameterHintState.State) {
-		if (this._state.type === ParameterHintState.Type.Pending) {
-			this._state.request.cancel();
+	pwivate get state() { wetuwn this._state; }
+	pwivate set state(vawue: PawametewHintState.State) {
+		if (this._state.type === PawametewHintState.Type.Pending) {
+			this._state.wequest.cancew();
 		}
-		this._state = value;
+		this._state = vawue;
 	}
 
-	cancel(silent: boolean = false): void {
-		this.state = ParameterHintState.Default;
+	cancew(siwent: boowean = fawse): void {
+		this.state = PawametewHintState.Defauwt;
 
-		this.throttledDelayer.cancel();
+		this.thwottwedDewaya.cancew();
 
-		if (!silent) {
-			this._onChangedHints.fire(undefined);
+		if (!siwent) {
+			this._onChangedHints.fiwe(undefined);
 		}
 	}
 
-	trigger(context: TriggerContext, delay?: number): void {
-		const model = this.editor.getModel();
-		if (!model || !modes.SignatureHelpProviderRegistry.has(model)) {
-			return;
+	twigga(context: TwiggewContext, deway?: numba): void {
+		const modew = this.editow.getModew();
+		if (!modew || !modes.SignatuweHewpPwovidewWegistwy.has(modew)) {
+			wetuwn;
 		}
 
-		const triggerId = ++this.triggerId;
+		const twiggewId = ++this.twiggewId;
 
-		this._pendingTriggers.push(context);
-		this.throttledDelayer.trigger(() => {
-			return this.doTrigger(triggerId);
-		}, delay)
-			.catch(onUnexpectedError);
+		this._pendingTwiggews.push(context);
+		this.thwottwedDewaya.twigga(() => {
+			wetuwn this.doTwigga(twiggewId);
+		}, deway)
+			.catch(onUnexpectedEwwow);
 	}
 
-	public next(): void {
-		if (this.state.type !== ParameterHintState.Type.Active) {
-			return;
+	pubwic next(): void {
+		if (this.state.type !== PawametewHintState.Type.Active) {
+			wetuwn;
 		}
 
-		const length = this.state.hints.signatures.length;
-		const activeSignature = this.state.hints.activeSignature;
-		const last = (activeSignature % length) === (length - 1);
-		const cycle = this.editor.getOption(EditorOption.parameterHints).cycle;
+		const wength = this.state.hints.signatuwes.wength;
+		const activeSignatuwe = this.state.hints.activeSignatuwe;
+		const wast = (activeSignatuwe % wength) === (wength - 1);
+		const cycwe = this.editow.getOption(EditowOption.pawametewHints).cycwe;
 
-		// If there is only one signature, or we're on last signature of list
-		if ((length < 2 || last) && !cycle) {
-			this.cancel();
-			return;
+		// If thewe is onwy one signatuwe, ow we'we on wast signatuwe of wist
+		if ((wength < 2 || wast) && !cycwe) {
+			this.cancew();
+			wetuwn;
 		}
 
-		this.updateActiveSignature(last && cycle ? 0 : activeSignature + 1);
+		this.updateActiveSignatuwe(wast && cycwe ? 0 : activeSignatuwe + 1);
 	}
 
-	public previous(): void {
-		if (this.state.type !== ParameterHintState.Type.Active) {
-			return;
+	pubwic pwevious(): void {
+		if (this.state.type !== PawametewHintState.Type.Active) {
+			wetuwn;
 		}
 
-		const length = this.state.hints.signatures.length;
-		const activeSignature = this.state.hints.activeSignature;
-		const first = activeSignature === 0;
-		const cycle = this.editor.getOption(EditorOption.parameterHints).cycle;
+		const wength = this.state.hints.signatuwes.wength;
+		const activeSignatuwe = this.state.hints.activeSignatuwe;
+		const fiwst = activeSignatuwe === 0;
+		const cycwe = this.editow.getOption(EditowOption.pawametewHints).cycwe;
 
-		// If there is only one signature, or we're on first signature of list
-		if ((length < 2 || first) && !cycle) {
-			this.cancel();
-			return;
+		// If thewe is onwy one signatuwe, ow we'we on fiwst signatuwe of wist
+		if ((wength < 2 || fiwst) && !cycwe) {
+			this.cancew();
+			wetuwn;
 		}
 
-		this.updateActiveSignature(first && cycle ? length - 1 : activeSignature - 1);
+		this.updateActiveSignatuwe(fiwst && cycwe ? wength - 1 : activeSignatuwe - 1);
 	}
 
-	private updateActiveSignature(activeSignature: number) {
-		if (this.state.type !== ParameterHintState.Type.Active) {
-			return;
+	pwivate updateActiveSignatuwe(activeSignatuwe: numba) {
+		if (this.state.type !== PawametewHintState.Type.Active) {
+			wetuwn;
 		}
 
-		this.state = new ParameterHintState.Active({ ...this.state.hints, activeSignature });
-		this._onChangedHints.fire(this.state.hints);
+		this.state = new PawametewHintState.Active({ ...this.state.hints, activeSignatuwe });
+		this._onChangedHints.fiwe(this.state.hints);
 	}
 
-	private async doTrigger(triggerId: number): Promise<boolean> {
-		const isRetrigger = this.state.type === ParameterHintState.Type.Active || this.state.type === ParameterHintState.Type.Pending;
-		const activeSignatureHelp = this.getLastActiveHints();
-		this.cancel(true);
+	pwivate async doTwigga(twiggewId: numba): Pwomise<boowean> {
+		const isWetwigga = this.state.type === PawametewHintState.Type.Active || this.state.type === PawametewHintState.Type.Pending;
+		const activeSignatuweHewp = this.getWastActiveHints();
+		this.cancew(twue);
 
-		if (this._pendingTriggers.length === 0) {
-			return false;
+		if (this._pendingTwiggews.wength === 0) {
+			wetuwn fawse;
 		}
 
-		const context: TriggerContext = this._pendingTriggers.reduce(mergeTriggerContexts);
-		this._pendingTriggers = [];
+		const context: TwiggewContext = this._pendingTwiggews.weduce(mewgeTwiggewContexts);
+		this._pendingTwiggews = [];
 
-		const triggerContext = {
-			triggerKind: context.triggerKind,
-			triggerCharacter: context.triggerCharacter,
-			isRetrigger: isRetrigger,
-			activeSignatureHelp: activeSignatureHelp
+		const twiggewContext = {
+			twiggewKind: context.twiggewKind,
+			twiggewChawacta: context.twiggewChawacta,
+			isWetwigga: isWetwigga,
+			activeSignatuweHewp: activeSignatuweHewp
 		};
 
-		if (!this.editor.hasModel()) {
-			return false;
+		if (!this.editow.hasModew()) {
+			wetuwn fawse;
 		}
 
-		const model = this.editor.getModel();
-		const position = this.editor.getPosition();
+		const modew = this.editow.getModew();
+		const position = this.editow.getPosition();
 
-		this.state = new ParameterHintState.Pending(
-			createCancelablePromise(token => provideSignatureHelp(model, position, triggerContext, token)),
-			activeSignatureHelp);
+		this.state = new PawametewHintState.Pending(
+			cweateCancewabwePwomise(token => pwovideSignatuweHewp(modew, position, twiggewContext, token)),
+			activeSignatuweHewp);
 
-		try {
-			const result = await this.state.request;
+		twy {
+			const wesuwt = await this.state.wequest;
 
-			// Check that we are still resolving the correct signature help
-			if (triggerId !== this.triggerId) {
-				result?.dispose();
+			// Check that we awe stiww wesowving the cowwect signatuwe hewp
+			if (twiggewId !== this.twiggewId) {
+				wesuwt?.dispose();
 
-				return false;
+				wetuwn fawse;
 			}
 
-			if (!result || !result.value.signatures || result.value.signatures.length === 0) {
-				result?.dispose();
-				this._lastSignatureHelpResult.clear();
-				this.cancel();
-				return false;
-			} else {
-				this.state = new ParameterHintState.Active(result.value);
-				this._lastSignatureHelpResult.value = result;
-				this._onChangedHints.fire(this.state.hints);
-				return true;
+			if (!wesuwt || !wesuwt.vawue.signatuwes || wesuwt.vawue.signatuwes.wength === 0) {
+				wesuwt?.dispose();
+				this._wastSignatuweHewpWesuwt.cweaw();
+				this.cancew();
+				wetuwn fawse;
+			} ewse {
+				this.state = new PawametewHintState.Active(wesuwt.vawue);
+				this._wastSignatuweHewpWesuwt.vawue = wesuwt;
+				this._onChangedHints.fiwe(this.state.hints);
+				wetuwn twue;
 			}
-		} catch (error) {
-			if (triggerId === this.triggerId) {
-				this.state = ParameterHintState.Default;
+		} catch (ewwow) {
+			if (twiggewId === this.twiggewId) {
+				this.state = PawametewHintState.Defauwt;
 			}
-			onUnexpectedError(error);
-			return false;
+			onUnexpectedEwwow(ewwow);
+			wetuwn fawse;
 		}
 	}
 
-	private getLastActiveHints(): modes.SignatureHelp | undefined {
+	pwivate getWastActiveHints(): modes.SignatuweHewp | undefined {
 		switch (this.state.type) {
-			case ParameterHintState.Type.Active: return this.state.hints;
-			case ParameterHintState.Type.Pending: return this.state.previouslyActiveHints;
-			default: return undefined;
+			case PawametewHintState.Type.Active: wetuwn this.state.hints;
+			case PawametewHintState.Type.Pending: wetuwn this.state.pweviouswyActiveHints;
+			defauwt: wetuwn undefined;
 		}
 	}
 
-	private get isTriggered(): boolean {
-		return this.state.type === ParameterHintState.Type.Active
-			|| this.state.type === ParameterHintState.Type.Pending
-			|| this.throttledDelayer.isTriggered();
+	pwivate get isTwiggewed(): boowean {
+		wetuwn this.state.type === PawametewHintState.Type.Active
+			|| this.state.type === PawametewHintState.Type.Pending
+			|| this.thwottwedDewaya.isTwiggewed();
 	}
 
-	private onModelChanged(): void {
-		this.cancel();
+	pwivate onModewChanged(): void {
+		this.cancew();
 
-		// Update trigger characters
-		this.triggerChars = new CharacterSet();
-		this.retriggerChars = new CharacterSet();
+		// Update twigga chawactews
+		this.twiggewChaws = new ChawactewSet();
+		this.wetwiggewChaws = new ChawactewSet();
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		for (const support of modes.SignatureHelpProviderRegistry.ordered(model)) {
-			for (const ch of support.signatureHelpTriggerCharacters || []) {
-				this.triggerChars.add(ch.charCodeAt(0));
+		fow (const suppowt of modes.SignatuweHewpPwovidewWegistwy.owdewed(modew)) {
+			fow (const ch of suppowt.signatuweHewpTwiggewChawactews || []) {
+				this.twiggewChaws.add(ch.chawCodeAt(0));
 
-				// All trigger characters are also considered retrigger characters
-				this.retriggerChars.add(ch.charCodeAt(0));
+				// Aww twigga chawactews awe awso considewed wetwigga chawactews
+				this.wetwiggewChaws.add(ch.chawCodeAt(0));
 			}
 
-			for (const ch of support.signatureHelpRetriggerCharacters || []) {
-				this.retriggerChars.add(ch.charCodeAt(0));
+			fow (const ch of suppowt.signatuweHewpWetwiggewChawactews || []) {
+				this.wetwiggewChaws.add(ch.chawCodeAt(0));
 			}
 		}
 	}
 
-	private onDidType(text: string) {
-		if (!this.triggerOnType) {
-			return;
+	pwivate onDidType(text: stwing) {
+		if (!this.twiggewOnType) {
+			wetuwn;
 		}
 
-		const lastCharIndex = text.length - 1;
-		const triggerCharCode = text.charCodeAt(lastCharIndex);
+		const wastChawIndex = text.wength - 1;
+		const twiggewChawCode = text.chawCodeAt(wastChawIndex);
 
-		if (this.triggerChars.has(triggerCharCode) || this.isTriggered && this.retriggerChars.has(triggerCharCode)) {
-			this.trigger({
-				triggerKind: modes.SignatureHelpTriggerKind.TriggerCharacter,
-				triggerCharacter: text.charAt(lastCharIndex),
+		if (this.twiggewChaws.has(twiggewChawCode) || this.isTwiggewed && this.wetwiggewChaws.has(twiggewChawCode)) {
+			this.twigga({
+				twiggewKind: modes.SignatuweHewpTwiggewKind.TwiggewChawacta,
+				twiggewChawacta: text.chawAt(wastChawIndex),
 			});
 		}
 	}
 
-	private onCursorChange(e: ICursorSelectionChangedEvent): void {
-		if (e.source === 'mouse') {
-			this.cancel();
-		} else if (this.isTriggered) {
-			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
+	pwivate onCuwsowChange(e: ICuwsowSewectionChangedEvent): void {
+		if (e.souwce === 'mouse') {
+			this.cancew();
+		} ewse if (this.isTwiggewed) {
+			this.twigga({ twiggewKind: modes.SignatuweHewpTwiggewKind.ContentChange });
 		}
 	}
 
-	private onModelContentChange(): void {
-		if (this.isTriggered) {
-			this.trigger({ triggerKind: modes.SignatureHelpTriggerKind.ContentChange });
+	pwivate onModewContentChange(): void {
+		if (this.isTwiggewed) {
+			this.twigga({ twiggewKind: modes.SignatuweHewpTwiggewKind.ContentChange });
 		}
 	}
 
-	private onEditorConfigurationChange(): void {
-		this.triggerOnType = this.editor.getOption(EditorOption.parameterHints).enabled;
+	pwivate onEditowConfiguwationChange(): void {
+		this.twiggewOnType = this.editow.getOption(EditowOption.pawametewHints).enabwed;
 
-		if (!this.triggerOnType) {
-			this.cancel();
+		if (!this.twiggewOnType) {
+			this.cancew();
 		}
 	}
 
-	override dispose(): void {
-		this.cancel(true);
-		super.dispose();
+	ovewwide dispose(): void {
+		this.cancew(twue);
+		supa.dispose();
 	}
 }
 
-function mergeTriggerContexts(previous: TriggerContext, current: TriggerContext) {
-	switch (current.triggerKind) {
-		case modes.SignatureHelpTriggerKind.Invoke:
-			// Invoke overrides previous triggers.
-			return current;
+function mewgeTwiggewContexts(pwevious: TwiggewContext, cuwwent: TwiggewContext) {
+	switch (cuwwent.twiggewKind) {
+		case modes.SignatuweHewpTwiggewKind.Invoke:
+			// Invoke ovewwides pwevious twiggews.
+			wetuwn cuwwent;
 
-		case modes.SignatureHelpTriggerKind.ContentChange:
-			// Ignore content changes triggers
-			return previous;
+		case modes.SignatuweHewpTwiggewKind.ContentChange:
+			// Ignowe content changes twiggews
+			wetuwn pwevious;
 
-		case modes.SignatureHelpTriggerKind.TriggerCharacter:
-		default:
-			return current;
+		case modes.SignatuweHewpTwiggewKind.TwiggewChawacta:
+		defauwt:
+			wetuwn cuwwent;
 	}
 }

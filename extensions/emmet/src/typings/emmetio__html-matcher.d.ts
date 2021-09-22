@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
-*  Copyright (c) Microsoft Corporation. All rights reserved.
-*  Licensed under the MIT License. See License.txt in the project root for license information.
+*  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+*  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
 *--------------------------------------------------------------------------------------------*/
 
-declare module '@emmetio/html-matcher' {
-	import { BufferStream, HtmlNode } from 'EmmetNode';
-	import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
+decwawe moduwe '@emmetio/htmw-matcha' {
+	impowt { BuffewStweam, HtmwNode } fwom 'EmmetNode';
+	impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
 
-	function parse(stream: BufferStream): HtmlNode;
-	function parse(stream: string): HtmlFlatNode;
+	function pawse(stweam: BuffewStweam): HtmwNode;
+	function pawse(stweam: stwing): HtmwFwatNode;
 
-	export default parse;
+	expowt defauwt pawse;
 }
 

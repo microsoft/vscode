@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
-import findUp = require('find-up');
-import * as path from 'path';
-import whichPM = require('which-pm');
-import { Uri, workspace } from 'vscode';
+impowt findWowkspaceWoot = wequiwe('../node_moduwes/find-yawn-wowkspace-woot');
+impowt findUp = wequiwe('find-up');
+impowt * as path fwom 'path';
+impowt whichPM = wequiwe('which-pm');
+impowt { Uwi, wowkspace } fwom 'vscode';
 
-async function pathExists(filePath: string) {
-	try {
-		await workspace.fs.stat(Uri.file(filePath));
+async function pathExists(fiwePath: stwing) {
+	twy {
+		await wowkspace.fs.stat(Uwi.fiwe(fiwePath));
 	} catch {
-		return false;
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-async function isPNPMPreferred(pkgPath: string) {
-	if (await pathExists(path.join(pkgPath, 'pnpm-lock.yaml'))) {
-		return true;
+async function isPNPMPwefewwed(pkgPath: stwing) {
+	if (await pathExists(path.join(pkgPath, 'pnpm-wock.yamw'))) {
+		wetuwn twue;
 	}
-	if (await pathExists(path.join(pkgPath, 'shrinkwrap.yaml'))) {
-		return true;
+	if (await pathExists(path.join(pkgPath, 'shwinkwwap.yamw'))) {
+		wetuwn twue;
 	}
-	if (await findUp('pnpm-lock.yaml', { cwd: pkgPath })) {
-		return true;
+	if (await findUp('pnpm-wock.yamw', { cwd: pkgPath })) {
+		wetuwn twue;
 	}
 
-	return false;
+	wetuwn fawse;
 }
 
-async function isYarnPreferred(pkgPath: string) {
-	if (await pathExists(path.join(pkgPath, 'yarn.lock'))) {
-		return true;
+async function isYawnPwefewwed(pkgPath: stwing) {
+	if (await pathExists(path.join(pkgPath, 'yawn.wock'))) {
+		wetuwn twue;
 	}
 
-	try {
-		if (typeof findWorkspaceRoot(pkgPath) === 'string') {
-			return true;
+	twy {
+		if (typeof findWowkspaceWoot(pkgPath) === 'stwing') {
+			wetuwn twue;
 		}
-	} catch (err) { }
+	} catch (eww) { }
 
-	return false;
+	wetuwn fawse;
 }
 
-const isNPMPreferred = (pkgPath: string) => {
-	return pathExists(path.join(pkgPath, 'package-lock.json'));
+const isNPMPwefewwed = (pkgPath: stwing) => {
+	wetuwn pathExists(path.join(pkgPath, 'package-wock.json'));
 };
 
-export async function findPreferredPM(pkgPath: string): Promise<{ name: string, multiplePMDetected: boolean }> {
-	const detectedPackageManagers: string[] = [];
+expowt async function findPwefewwedPM(pkgPath: stwing): Pwomise<{ name: stwing, muwtipwePMDetected: boowean }> {
+	const detectedPackageManagews: stwing[] = [];
 
-	if (await isNPMPreferred(pkgPath)) {
-		detectedPackageManagers.push('npm');
+	if (await isNPMPwefewwed(pkgPath)) {
+		detectedPackageManagews.push('npm');
 	}
 
-	if (await isYarnPreferred(pkgPath)) {
-		detectedPackageManagers.push('yarn');
+	if (await isYawnPwefewwed(pkgPath)) {
+		detectedPackageManagews.push('yawn');
 	}
 
-	if (await isPNPMPreferred(pkgPath)) {
-		detectedPackageManagers.push('pnpm');
+	if (await isPNPMPwefewwed(pkgPath)) {
+		detectedPackageManagews.push('pnpm');
 	}
 
-	const pmUsedForInstallation: { name: string } | null = await whichPM(pkgPath);
+	const pmUsedFowInstawwation: { name: stwing } | nuww = await whichPM(pkgPath);
 
-	if (pmUsedForInstallation && !detectedPackageManagers.includes(pmUsedForInstallation.name)) {
-		detectedPackageManagers.push(pmUsedForInstallation.name);
+	if (pmUsedFowInstawwation && !detectedPackageManagews.incwudes(pmUsedFowInstawwation.name)) {
+		detectedPackageManagews.push(pmUsedFowInstawwation.name);
 	}
 
-	const multiplePMDetected = detectedPackageManagers.length > 1;
+	const muwtipwePMDetected = detectedPackageManagews.wength > 1;
 
-	return {
-		name: detectedPackageManagers[0] || 'npm',
-		multiplePMDetected
+	wetuwn {
+		name: detectedPackageManagews[0] || 'npm',
+		muwtipwePMDetected
 	};
 }

@@ -1,746 +1,746 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { IPath, normalize } from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { isObject } from 'vs/base/common/types';
-import { URI as uri } from 'vs/base/common/uri';
-import { Selection } from 'vs/editor/common/core/selection';
-import { EditorType } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
-import { IWorkspace, IWorkspaceFolder, Workspace } from 'vs/platform/workspace/common/workspace';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { TestEditorService, TestProductService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+impowt * as assewt fwom 'assewt';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IPath, nowmawize } fwom 'vs/base/common/path';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { isObject } fwom 'vs/base/common/types';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { EditowType } fwom 'vs/editow/common/editowCommon';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IFowmattewChangeEvent, IWabewSewvice, WesouwceWabewFowmatta } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IWowkspace, IWowkspaceFowda, Wowkspace } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { testWowkspace } fwom 'vs/pwatfowm/wowkspace/test/common/testWowkspace';
+impowt { IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { BaseConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/bwowsa/configuwationWesowvewSewvice';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { NativeWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/ewectwon-sandbox/enviwonmentSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { TestEditowSewvice, TestPwoductSewvice, TestQuickInputSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { TestWowkbenchConfiguwation } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
 
-const mockLineNumber = 10;
-class TestEditorServiceWithActiveEditor extends TestEditorService {
-	override get activeTextEditorControl(): any {
-		return {
-			getEditorType() {
-				return EditorType.ICodeEditor;
+const mockWineNumba = 10;
+cwass TestEditowSewviceWithActiveEditow extends TestEditowSewvice {
+	ovewwide get activeTextEditowContwow(): any {
+		wetuwn {
+			getEditowType() {
+				wetuwn EditowType.ICodeEditow;
 			},
-			getSelection() {
-				return new Selection(mockLineNumber, 1, mockLineNumber, 10);
+			getSewection() {
+				wetuwn new Sewection(mockWineNumba, 1, mockWineNumba, 10);
 			}
 		};
 	}
-	override get activeEditor(): any {
-		return {
-			get resource(): any {
-				return uri.parse('file:///VSCode/workspaceLocation/file');
+	ovewwide get activeEditow(): any {
+		wetuwn {
+			get wesouwce(): any {
+				wetuwn uwi.pawse('fiwe:///VSCode/wowkspaceWocation/fiwe');
 			}
 		};
 	}
 }
 
-class TestConfigurationResolverService extends BaseConfigurationResolverService {
+cwass TestConfiguwationWesowvewSewvice extends BaseConfiguwationWesowvewSewvice {
 
 }
 
-const nullContext = {
-	getAppRoot: () => undefined,
+const nuwwContext = {
+	getAppWoot: () => undefined,
 	getExecPath: () => undefined
 };
 
-suite('Configuration Resolver Service', () => {
-	let configurationResolverService: IConfigurationResolverService | null;
-	let envVariables: { [key: string]: string } = { key1: 'Value for key1', key2: 'Value for key2' };
-	let environmentService: MockWorkbenchEnvironmentService;
-	let mockCommandService: MockCommandService;
-	let editorService: TestEditorServiceWithActiveEditor;
-	let containingWorkspace: Workspace;
-	let workspace: IWorkspaceFolder;
-	let quickInputService: TestQuickInputService;
-	let labelService: MockLabelService;
-	let pathService: MockPathService;
+suite('Configuwation Wesowva Sewvice', () => {
+	wet configuwationWesowvewSewvice: IConfiguwationWesowvewSewvice | nuww;
+	wet envVawiabwes: { [key: stwing]: stwing } = { key1: 'Vawue fow key1', key2: 'Vawue fow key2' };
+	wet enviwonmentSewvice: MockWowkbenchEnviwonmentSewvice;
+	wet mockCommandSewvice: MockCommandSewvice;
+	wet editowSewvice: TestEditowSewviceWithActiveEditow;
+	wet containingWowkspace: Wowkspace;
+	wet wowkspace: IWowkspaceFowda;
+	wet quickInputSewvice: TestQuickInputSewvice;
+	wet wabewSewvice: MockWabewSewvice;
+	wet pathSewvice: MockPathSewvice;
 
 	setup(() => {
-		mockCommandService = new MockCommandService();
-		editorService = new TestEditorServiceWithActiveEditor();
-		quickInputService = new TestQuickInputService();
-		environmentService = new MockWorkbenchEnvironmentService(envVariables);
-		labelService = new MockLabelService();
-		pathService = new MockPathService();
-		containingWorkspace = testWorkspace(uri.parse('file:///VSCode/workspaceLocation'));
-		workspace = containingWorkspace.folders[0];
-		configurationResolverService = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService, pathService);
+		mockCommandSewvice = new MockCommandSewvice();
+		editowSewvice = new TestEditowSewviceWithActiveEditow();
+		quickInputSewvice = new TestQuickInputSewvice();
+		enviwonmentSewvice = new MockWowkbenchEnviwonmentSewvice(envVawiabwes);
+		wabewSewvice = new MockWabewSewvice();
+		pathSewvice = new MockPathSewvice();
+		containingWowkspace = testWowkspace(uwi.pawse('fiwe:///VSCode/wowkspaceWocation'));
+		wowkspace = containingWowkspace.fowdews[0];
+		configuwationWesowvewSewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), editowSewvice, new MockInputsConfiguwationSewvice(), mockCommandSewvice, new TestContextSewvice(containingWowkspace), quickInputSewvice, wabewSewvice, pathSewvice);
 	});
 
-	teardown(() => {
-		configurationResolverService = null;
+	teawdown(() => {
+		configuwationWesowvewSewvice = nuww;
 	});
 
 	test('substitute one', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} xyz'), 'abc /VSCode/workspaceLocation xyz');
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda} xyz'), 'abc \\VSCode\\wowkspaceWocation xyz');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda} xyz'), 'abc /VSCode/wowkspaceWocation xyz');
 		}
 	});
 
-	test('workspace folder with argument', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /VSCode/workspaceLocation xyz');
+	test('wowkspace fowda with awgument', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda:wowkspaceWocation} xyz'), 'abc \\VSCode\\wowkspaceWocation xyz');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda:wowkspaceWocation} xyz'), 'abc /VSCode/wowkspaceWocation xyz');
 		}
 	});
 
-	test('workspace folder with invalid argument', () => {
-		assert.rejects(async () => await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder:invalidLocation} xyz'));
+	test('wowkspace fowda with invawid awgument', () => {
+		assewt.wejects(async () => await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda:invawidWocation} xyz'));
 	});
 
-	test('workspace folder with undefined workspace folder', () => {
-		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder} xyz'));
+	test('wowkspace fowda with undefined wowkspace fowda', () => {
+		assewt.wejects(async () => await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wowkspaceFowda} xyz'));
 	});
 
-	test('workspace folder with argument and undefined workspace folder', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc \\VSCode\\workspaceLocation xyz');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /VSCode/workspaceLocation xyz');
+	test('wowkspace fowda with awgument and undefined wowkspace fowda', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wowkspaceFowda:wowkspaceWocation} xyz'), 'abc \\VSCode\\wowkspaceWocation xyz');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wowkspaceFowda:wowkspaceWocation} xyz'), 'abc /VSCode/wowkspaceWocation xyz');
 		}
 	});
 
-	test('workspace folder with invalid argument and undefined workspace folder', () => {
-		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${workspaceFolder:invalidLocation} xyz'));
+	test('wowkspace fowda with invawid awgument and undefined wowkspace fowda', () => {
+		assewt.wejects(async () => await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wowkspaceFowda:invawidWocation} xyz'));
 	});
 
-	test('workspace root folder name', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceRootFolderName} xyz'), 'abc workspaceLocation xyz');
+	test('wowkspace woot fowda name', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceWootFowdewName} xyz'), 'abc wowkspaceWocation xyz');
 	});
 
-	test('current selected line number', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${lineNumber} xyz'), `abc ${mockLineNumber} xyz`);
+	test('cuwwent sewected wine numba', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wineNumba} xyz'), `abc ${mockWineNumba} xyz`);
 	});
 
-	test('relative file', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${relativeFile} xyz'), 'abc file xyz');
+	test('wewative fiwe', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wewativeFiwe} xyz'), 'abc fiwe xyz');
 	});
 
-	test('relative file with argument', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${relativeFile:workspaceLocation} xyz'), 'abc file xyz');
+	test('wewative fiwe with awgument', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wewativeFiwe:wowkspaceWocation} xyz'), 'abc fiwe xyz');
 	});
 
-	test('relative file with invalid argument', () => {
-		assert.rejects(async () => await configurationResolverService!.resolveAsync(workspace, 'abc ${relativeFile:invalidLocation} xyz'));
+	test('wewative fiwe with invawid awgument', () => {
+		assewt.wejects(async () => await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wewativeFiwe:invawidWocation} xyz'));
 	});
 
-	test('relative file with undefined workspace folder', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc \\VSCode\\workspaceLocation\\file xyz');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile} xyz'), 'abc /VSCode/workspaceLocation/file xyz');
+	test('wewative fiwe with undefined wowkspace fowda', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wewativeFiwe} xyz'), 'abc \\VSCode\\wowkspaceWocation\\fiwe xyz');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wewativeFiwe} xyz'), 'abc /VSCode/wowkspaceWocation/fiwe xyz');
 		}
 	});
 
-	test('relative file with argument and undefined workspace folder', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile:workspaceLocation} xyz'), 'abc file xyz');
+	test('wewative fiwe with awgument and undefined wowkspace fowda', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wewativeFiwe:wowkspaceWocation} xyz'), 'abc fiwe xyz');
 	});
 
-	test('relative file with invalid argument and undefined workspace folder', () => {
-		assert.rejects(async () => await configurationResolverService!.resolveAsync(undefined, 'abc ${relativeFile:invalidLocation} xyz'));
+	test('wewative fiwe with invawid awgument and undefined wowkspace fowda', () => {
+		assewt.wejects(async () => await configuwationWesowvewSewvice!.wesowveAsync(undefined, 'abc ${wewativeFiwe:invawidWocation} xyz'));
 	});
 
 	test('substitute many', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation');
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${wowkspaceFowda} - ${wowkspaceFowda}'), '\\VSCode\\wowkspaceWocation - \\VSCode\\wowkspaceWocation');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${wowkspaceFowda} - ${wowkspaceFowda}'), '/VSCode/wowkspaceWocation - /VSCode/wowkspaceWocation');
 		}
 	});
 
-	test('substitute one env variable', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc \\VSCode\\workspaceLocation Value for key1 xyz');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, 'abc ${workspaceFolder} ${env:key1} xyz'), 'abc /VSCode/workspaceLocation Value for key1 xyz');
+	test('substitute one env vawiabwe', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda} ${env:key1} xyz'), 'abc \\VSCode\\wowkspaceWocation Vawue fow key1 xyz');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, 'abc ${wowkspaceFowda} ${env:key1} xyz'), 'abc /VSCode/wowkspaceWocation Vawue fow key1 xyz');
 		}
 	});
 
-	test('substitute many env variable', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '\\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), '/VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+	test('substitute many env vawiabwe', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${wowkspaceFowda} - ${wowkspaceFowda} ${env:key1} - ${env:key2}'), '\\VSCode\\wowkspaceWocation - \\VSCode\\wowkspaceWocation Vawue fow key1 - Vawue fow key2');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${wowkspaceFowda} - ${wowkspaceFowda} ${env:key1} - ${env:key2}'), '/VSCode/wowkspaceWocation - /VSCode/wowkspaceWocation Vawue fow key1 - Vawue fow key2');
 		}
 	});
 
-	test('disallows nested keys (#77289)', async () => {
-		assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} ${env:key1${env:key2}}'), 'Value for key1 ${env:key1${env:key2}}');
+	test('disawwows nested keys (#77289)', async () => {
+		assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${env:key1} ${env:key1${env:key2}}'), 'Vawue fow key1 ${env:key1${env:key2}}');
 	});
 
-	// test('substitute keys and values in object', () => {
+	// test('substitute keys and vawues in object', () => {
 	// 	const myObject = {
-	// 		'${workspaceRootFolderName}': '${lineNumber}',
-	// 		'hey ${env:key1} ': '${workspaceRootFolderName}'
+	// 		'${wowkspaceWootFowdewName}': '${wineNumba}',
+	// 		'hey ${env:key1} ': '${wowkspaceWootFowdewName}'
 	// 	};
-	// 	assert.deepStrictEqual(configurationResolverService!.resolveAsync(workspace, myObject), {
-	// 		'workspaceLocation': `${editorService.mockLineNumber}`,
-	// 		'hey Value for key1 ': 'workspaceLocation'
+	// 	assewt.deepStwictEquaw(configuwationWesowvewSewvice!.wesowveAsync(wowkspace, myObject), {
+	// 		'wowkspaceWocation': `${editowSewvice.mockWineNumba}`,
+	// 		'hey Vawue fow key1 ': 'wowkspaceWocation'
 	// 	});
 	// });
 
 
-	test('substitute one env variable using platform case sensitivity', async () => {
-		if (platform.isWindows) {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
-		} else {
-			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
+	test('substitute one env vawiabwe using pwatfowm case sensitivity', async () => {
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${env:key1} - ${env:Key1}'), 'Vawue fow key1 - Vawue fow key1');
+		} ewse {
+			assewt.stwictEquaw(await configuwationWesowvewSewvice!.wesowveAsync(wowkspace, '${env:key1} - ${env:Key1}'), 'Vawue fow key1 - ');
 		}
 	});
 
-	test('substitute one configuration variable', async () => {
-		let configurationService: IConfigurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('substitute one configuwation vawiabwe', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
+			tewminaw: {
+				integwated: {
+					fontFamiwy: 'baw'
 				}
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.fontFamiwy} xyz'), 'abc foo xyz');
 	});
 
-	test('substitute configuration variable with undefined workspace folder', async () => {
-		let configurationService: IConfigurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('substitute configuwation vawiabwe with undefined wowkspace fowda', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		assert.strictEqual(await service.resolveAsync(undefined, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		assewt.stwictEquaw(await sewvice.wesowveAsync(undefined, 'abc ${config:editow.fontFamiwy} xyz'), 'abc foo xyz');
 	});
 
-	test('substitute many configuration variables', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('substitute many configuwation vawiabwes', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
+			tewminaw: {
+				integwated: {
+					fontFamiwy: 'baw'
 				}
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.fontFamiwy} ${config:tewminaw.integwated.fontFamiwy} xyz'), 'abc foo baw xyz');
 	});
 
-	test('substitute one env variable and a configuration variable', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('substitute one env vawiabwe and a configuwation vawiabwe', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
+			tewminaw: {
+				integwated: {
+					fontFamiwy: 'baw'
 				}
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		if (platform.isWindows) {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
-		} else {
-			assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo /VSCode/workspaceLocation Value for key1 xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.fontFamiwy} ${wowkspaceFowda} ${env:key1} xyz'), 'abc foo \\VSCode\\wowkspaceWocation Vawue fow key1 xyz');
+		} ewse {
+			assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.fontFamiwy} ${wowkspaceFowda} ${env:key1} xyz'), 'abc foo /VSCode/wowkspaceWocation Vawue fow key1 xyz');
 		}
 	});
 
-	test('substitute many env variable and a configuration variable', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('substitute many env vawiabwe and a configuwation vawiabwe', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
+			tewminaw: {
+				integwated: {
+					fontFamiwy: 'baw'
 				}
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		if (platform.isWindows) {
-			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
-		} else {
-			assert.strictEqual(await service.resolveAsync(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar /VSCode/workspaceLocation - /VSCode/workspaceLocation Value for key1 - Value for key2');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		if (pwatfowm.isWindows) {
+			assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, '${config:editow.fontFamiwy} ${config:tewminaw.integwated.fontFamiwy} ${wowkspaceFowda} - ${wowkspaceFowda} ${env:key1} - ${env:key2}'), 'foo baw \\VSCode\\wowkspaceWocation - \\VSCode\\wowkspaceWocation Vawue fow key1 - Vawue fow key2');
+		} ewse {
+			assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, '${config:editow.fontFamiwy} ${config:tewminaw.integwated.fontFamiwy} ${wowkspaceFowda} - ${wowkspaceFowda} ${env:key1} - ${env:key2}'), 'foo baw /VSCode/wowkspaceWocation - /VSCode/wowkspaceWocation Vawue fow key1 - Vawue fow key2');
 		}
 	});
 
-	test('mixed types of configuration variables', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo',
-				lineNumbers: 123,
-				insertSpaces: false
+	test('mixed types of configuwation vawiabwes', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo',
+				wineNumbews: 123,
+				insewtSpaces: fawse
 			},
-			terminal: {
-				integrated: {
-					fontFamily: 'bar'
+			tewminaw: {
+				integwated: {
+					fontFamiwy: 'baw'
 				}
 			},
 			json: {
 				schemas: [
 					{
-						fileMatch: [
-							'/myfile',
-							'/myOtherfile'
+						fiweMatch: [
+							'/myfiwe',
+							'/myOthewfiwe'
 						],
-						url: 'schemaURL'
+						uww: 'schemaUWW'
 					}
 				]
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.fontFamiwy} ${config:editow.wineNumbews} ${config:editow.insewtSpaces} xyz'), 'abc foo 123 fawse xyz');
 	});
 
-	test('uses original variable as fallback', async () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {}
+	test('uses owiginaw vawiabwe as fawwback', async () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
-		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
-		assert.strictEqual(await service.resolveAsync(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
+		assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${unknownVawiabwe} xyz'), 'abc ${unknownVawiabwe} xyz');
+		assewt.stwictEquaw(await sewvice.wesowveAsync(wowkspace, 'abc ${env:unknownVawiabwe} xyz'), 'abc  xyz');
 	});
 
-	test('configuration variables with invalid accessor', () => {
-		let configurationService: IConfigurationService;
-		configurationService = new TestConfigurationService({
-			editor: {
-				fontFamily: 'foo'
+	test('configuwation vawiabwes with invawid accessow', () => {
+		wet configuwationSewvice: IConfiguwationSewvice;
+		configuwationSewvice = new TestConfiguwationSewvice({
+			editow: {
+				fontFamiwy: 'foo'
 			}
 		});
 
-		let service = new TestConfigurationResolverService(nullContext, Promise.resolve(environmentService.userEnv), new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService, pathService);
+		wet sewvice = new TestConfiguwationWesowvewSewvice(nuwwContext, Pwomise.wesowve(enviwonmentSewvice.usewEnv), new TestEditowSewviceWithActiveEditow(), configuwationSewvice, mockCommandSewvice, new TestContextSewvice(), quickInputSewvice, wabewSewvice, pathSewvice);
 
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${env:} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${config} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${config:} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${config:editor} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${config:editor..fontFamily} xyz'));
-		assert.rejects(async () => await service.resolveAsync(workspace, 'abc ${config:editor.none.none2} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${env} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${env:} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${config} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${config:} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow..fontFamiwy} xyz'));
+		assewt.wejects(async () => await sewvice.wesowveAsync(wowkspace, 'abc ${config:editow.none.none2} xyz'));
 	});
 
-	test('a single command variable', () => {
+	test('a singwe command vawiabwe', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${command:command1}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${command:command1}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration).then(result => {
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(undefined, configuwation).then(wesuwt => {
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'command1-result',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'command1-wesuwt',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(1, mockCommandService.callCount);
+			assewt.stwictEquaw(1, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('an old style command variable', () => {
-		const configuration = {
-			'name': 'Attach to Process',
+	test('an owd stywe command vawiabwe', () => {
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${command:commandVariable1}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${command:commandVawiabwe1}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
-		const commandVariables = Object.create(null);
-		commandVariables['commandVariable1'] = 'command1';
+		const commandVawiabwes = Object.cweate(nuww);
+		commandVawiabwes['commandVawiabwe1'] = 'command1';
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(undefined, configuwation, undefined, commandVawiabwes).then(wesuwt => {
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'command1-result',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'command1-wesuwt',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(1, mockCommandService.callCount);
+			assewt.stwictEquaw(1, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('multiple new and old-style command variables', () => {
+	test('muwtipwe new and owd-stywe command vawiabwes', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${command:commandVariable1}',
+			'wequest': 'attach',
+			'pwocessId': '${command:commandVawiabwe1}',
 			'pid': '${command:command2}',
-			'sourceMaps': false,
-			'outDir': 'src/${command:command2}',
+			'souwceMaps': fawse,
+			'outDiw': 'swc/${command:command2}',
 			'env': {
-				'processId': '__${command:command2}__',
+				'pwocessId': '__${command:command2}__',
 			}
 		};
-		const commandVariables = Object.create(null);
-		commandVariables['commandVariable1'] = 'command1';
+		const commandVawiabwes = Object.cweate(nuww);
+		commandVawiabwes['commandVawiabwe1'] = 'command1';
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(undefined, configuwation, undefined, commandVawiabwes).then(wesuwt => {
 			const expected = {
-				'name': 'Attach to Process',
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'command1-result',
-				'pid': 'command2-result',
-				'sourceMaps': false,
-				'outDir': 'src/command2-result',
+				'wequest': 'attach',
+				'pwocessId': 'command1-wesuwt',
+				'pid': 'command2-wesuwt',
+				'souwceMaps': fawse,
+				'outDiw': 'swc/command2-wesuwt',
 				'env': {
-					'processId': '__command2-result__',
+					'pwocessId': '__command2-wesuwt__',
 				}
 			};
 
-			assert.deepStrictEqual(Object.keys(result), Object.keys(expected));
-			Object.keys(result).forEach(property => {
-				const expectedProperty = (<any>expected)[property];
-				if (isObject(result[property])) {
-					assert.deepStrictEqual({ ...result[property] }, expectedProperty);
-				} else {
-					assert.deepStrictEqual(result[property], expectedProperty);
+			assewt.deepStwictEquaw(Object.keys(wesuwt), Object.keys(expected));
+			Object.keys(wesuwt).fowEach(pwopewty => {
+				const expectedPwopewty = (<any>expected)[pwopewty];
+				if (isObject(wesuwt[pwopewty])) {
+					assewt.deepStwictEquaw({ ...wesuwt[pwopewty] }, expectedPwopewty);
+				} ewse {
+					assewt.deepStwictEquaw(wesuwt[pwopewty], expectedPwopewty);
 				}
 			});
-			assert.strictEqual(2, mockCommandService.callCount);
+			assewt.stwictEquaw(2, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('a command variable that relies on resolved env vars', () => {
+	test('a command vawiabwe that wewies on wesowved env vaws', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${command:commandVariable1}',
-			'value': '${env:key1}'
+			'wequest': 'attach',
+			'pwocessId': '${command:commandVawiabwe1}',
+			'vawue': '${env:key1}'
 		};
-		const commandVariables = Object.create(null);
-		commandVariables['commandVariable1'] = 'command1';
+		const commandVawiabwes = Object.cweate(nuww);
+		commandVawiabwes['commandVawiabwe1'] = 'command1';
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(undefined, configuwation, undefined, commandVawiabwes).then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'Value for key1',
-				'value': 'Value for key1'
+				'wequest': 'attach',
+				'pwocessId': 'Vawue fow key1',
+				'vawue': 'Vawue fow key1'
 			});
 
-			assert.strictEqual(1, mockCommandService.callCount);
+			assewt.stwictEquaw(1, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('a single prompt input variable', () => {
+	test('a singwe pwompt input vawiabwe', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${input:input1}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${input:input1}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(wowkspace, configuwation, 'tasks').then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'resolvedEnterinput1',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'wesowvedEntewinput1',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(0, mockCommandService.callCount);
+			assewt.stwictEquaw(0, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('a single pick input variable', () => {
+	test('a singwe pick input vawiabwe', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${input:input2}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${input:input2}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(wowkspace, configuwation, 'tasks').then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'selectedPick',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'sewectedPick',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(0, mockCommandService.callCount);
+			assewt.stwictEquaw(0, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('a single command input variable', () => {
+	test('a singwe command input vawiabwe', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${input:input4}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${input:input4}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(wowkspace, configuwation, 'tasks').then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'arg for command',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'awg fow command',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(1, mockCommandService.callCount);
+			assewt.stwictEquaw(1, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('several input variables and command', () => {
+	test('sevewaw input vawiabwes and command', () => {
 
-		const configuration = {
+		const configuwation = {
 			'name': '${input:input3}',
 			'type': '${command:command1}',
-			'request': '${input:input1}',
-			'processId': '${input:input2}',
+			'wequest': '${input:input1}',
+			'pwocessId': '${input:input2}',
 			'command': '${input:input4}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(wowkspace, configuwation, 'tasks').then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'resolvedEnterinput3',
-				'type': 'command1-result',
-				'request': 'resolvedEnterinput1',
-				'processId': 'selectedPick',
-				'command': 'arg for command',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'wesowvedEntewinput3',
+				'type': 'command1-wesuwt',
+				'wequest': 'wesowvedEntewinput1',
+				'pwocessId': 'sewectedPick',
+				'command': 'awg fow command',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(2, mockCommandService.callCount);
+			assewt.stwictEquaw(2, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('input variable with undefined workspace folder', () => {
+	test('input vawiabwe with undefined wowkspace fowda', () => {
 
-		const configuration = {
-			'name': 'Attach to Process',
+		const configuwation = {
+			'name': 'Attach to Pwocess',
 			'type': 'node',
-			'request': 'attach',
-			'processId': '${input:input1}',
-			'port': 5858,
-			'sourceMaps': false,
-			'outDir': null
+			'wequest': 'attach',
+			'pwocessId': '${input:input1}',
+			'powt': 5858,
+			'souwceMaps': fawse,
+			'outDiw': nuww
 		};
 
-		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, 'tasks').then(result => {
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(undefined, configuwation, 'tasks').then(wesuwt => {
 
-			assert.deepStrictEqual({ ...result }, {
-				'name': 'Attach to Process',
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': 'Attach to Pwocess',
 				'type': 'node',
-				'request': 'attach',
-				'processId': 'resolvedEnterinput1',
-				'port': 5858,
-				'sourceMaps': false,
-				'outDir': null
+				'wequest': 'attach',
+				'pwocessId': 'wesowvedEntewinput1',
+				'powt': 5858,
+				'souwceMaps': fawse,
+				'outDiw': nuww
 			});
 
-			assert.strictEqual(0, mockCommandService.callCount);
+			assewt.stwictEquaw(0, mockCommandSewvice.cawwCount);
 		});
 	});
 
-	test('contributed variable', () => {
-		const buildTask = 'npm: compile';
-		const variable = 'defaultBuildTask';
-		const configuration = {
-			'name': '${' + variable + '}',
+	test('contwibuted vawiabwe', () => {
+		const buiwdTask = 'npm: compiwe';
+		const vawiabwe = 'defauwtBuiwdTask';
+		const configuwation = {
+			'name': '${' + vawiabwe + '}',
 		};
-		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
-		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
-			assert.deepStrictEqual({ ...result }, {
-				'name': `${buildTask}`
+		configuwationWesowvewSewvice!.contwibuteVawiabwe(vawiabwe, async () => { wetuwn buiwdTask; });
+		wetuwn configuwationWesowvewSewvice!.wesowveWithIntewactionWepwace(wowkspace, configuwation).then(wesuwt => {
+			assewt.deepStwictEquaw({ ...wesuwt }, {
+				'name': `${buiwdTask}`
 			});
 		});
 	});
 });
 
 
-class MockCommandService implements ICommandService {
+cwass MockCommandSewvice impwements ICommandSewvice {
 
-	public _serviceBrand: undefined;
-	public callCount = 0;
+	pubwic _sewviceBwand: undefined;
+	pubwic cawwCount = 0;
 
-	onWillExecuteCommand = () => Disposable.None;
-	onDidExecuteCommand = () => Disposable.None;
-	public executeCommand(commandId: string, ...args: any[]): Promise<any> {
-		this.callCount++;
+	onWiwwExecuteCommand = () => Disposabwe.None;
+	onDidExecuteCommand = () => Disposabwe.None;
+	pubwic executeCommand(commandId: stwing, ...awgs: any[]): Pwomise<any> {
+		this.cawwCount++;
 
-		let result = `${commandId}-result`;
-		if (args.length >= 1) {
-			if (args[0] && args[0].value) {
-				result = args[0].value;
+		wet wesuwt = `${commandId}-wesuwt`;
+		if (awgs.wength >= 1) {
+			if (awgs[0] && awgs[0].vawue) {
+				wesuwt = awgs[0].vawue;
 			}
 		}
 
-		return Promise.resolve(result);
+		wetuwn Pwomise.wesowve(wesuwt);
 	}
 }
 
-class MockLabelService implements ILabelService {
-	_serviceBrand: undefined;
-	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
-		return normalize(resource.fsPath);
+cwass MockWabewSewvice impwements IWabewSewvice {
+	_sewviceBwand: undefined;
+	getUwiWabew(wesouwce: uwi, options?: { wewative?: boowean | undefined; noPwefix?: boowean | undefined; endWithSepawatow?: boowean | undefined; }): stwing {
+		wetuwn nowmawize(wesouwce.fsPath);
 	}
-	getUriBasenameLabel(resource: uri): string {
-		throw new Error('Method not implemented.');
+	getUwiBasenameWabew(wesouwce: uwi): stwing {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean; }): string {
-		throw new Error('Method not implemented.');
+	getWowkspaceWabew(wowkspace: uwi | IWowkspaceIdentifia | IWowkspace, options?: { vewbose: boowean; }): stwing {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getHostLabel(scheme: string, authority?: string): string {
-		throw new Error('Method not implemented.');
+	getHostWabew(scheme: stwing, authowity?: stwing): stwing {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	public getHostTooltip(): string | undefined {
-		throw new Error('Method not implemented.');
+	pubwic getHostToowtip(): stwing | undefined {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	getSeparator(scheme: string, authority?: string): '/' | '\\' {
-		throw new Error('Method not implemented.');
+	getSepawatow(scheme: stwing, authowity?: stwing): '/' | '\\' {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
-		throw new Error('Method not implemented.');
+	wegistewFowmatta(fowmatta: WesouwceWabewFowmatta): IDisposabwe {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+	onDidChangeFowmattews: Event<IFowmattewChangeEvent> = new Emitta<IFowmattewChangeEvent>().event;
 }
 
-class MockPathService implements IPathService {
-	_serviceBrand: undefined;
-	get path(): Promise<IPath> {
-		throw new Error('Property not implemented');
+cwass MockPathSewvice impwements IPathSewvice {
+	_sewviceBwand: undefined;
+	get path(): Pwomise<IPath> {
+		thwow new Ewwow('Pwopewty not impwemented');
 	}
-	defaultUriScheme: string = Schemas.file;
-	fileURI(path: string): Promise<uri> {
-		throw new Error('Method not implemented.');
+	defauwtUwiScheme: stwing = Schemas.fiwe;
+	fiweUWI(path: stwing): Pwomise<uwi> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	userHome(options?: { preferLocal: boolean; }): Promise<uri> {
-		throw new Error('Method not implemented.');
+	usewHome(options?: { pwefewWocaw: boowean; }): Pwomise<uwi> {
+		thwow new Ewwow('Method not impwemented.');
 	}
-	resolvedUserHome: uri | undefined;
+	wesowvedUsewHome: uwi | undefined;
 }
 
-class MockInputsConfigurationService extends TestConfigurationService {
-	public override getValue(arg1?: any, arg2?: any): any {
-		let configuration;
-		if (arg1 === 'tasks') {
-			configuration = {
+cwass MockInputsConfiguwationSewvice extends TestConfiguwationSewvice {
+	pubwic ovewwide getVawue(awg1?: any, awg2?: any): any {
+		wet configuwation;
+		if (awg1 === 'tasks') {
+			configuwation = {
 				inputs: [
 					{
 						id: 'input1',
-						type: 'promptString',
-						description: 'Enterinput1',
-						default: 'default input1'
+						type: 'pwomptStwing',
+						descwiption: 'Entewinput1',
+						defauwt: 'defauwt input1'
 					},
 					{
 						id: 'input2',
-						type: 'pickString',
-						description: 'Enterinput1',
-						default: 'option2',
+						type: 'pickStwing',
+						descwiption: 'Entewinput1',
+						defauwt: 'option2',
 						options: ['option1', 'option2', 'option3']
 					},
 					{
 						id: 'input3',
-						type: 'promptString',
-						description: 'Enterinput3',
-						default: 'default input3',
-						password: true
+						type: 'pwomptStwing',
+						descwiption: 'Entewinput3',
+						defauwt: 'defauwt input3',
+						passwowd: twue
 					},
 					{
 						id: 'input4',
 						type: 'command',
 						command: 'command1',
-						args: {
-							value: 'arg for command'
+						awgs: {
+							vawue: 'awg fow command'
 						}
 					}
 				]
 			};
 		}
-		return configuration;
+		wetuwn configuwation;
 	}
 }
 
-class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
+cwass MockWowkbenchEnviwonmentSewvice extends NativeWowkbenchEnviwonmentSewvice {
 
-	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
+	constwuctow(pubwic usewEnv: pwatfowm.IPwocessEnviwonment) {
+		supa({ ...TestWowkbenchConfiguwation, usewEnv }, TestPwoductSewvice);
 	}
 }

@@ -1,769 +1,769 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as objects from 'vs/base/common/objects';
-import { Action } from 'vs/base/common/actions';
-import * as errors from 'vs/base/common/errors';
-import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Schemas } from 'vs/base/common/network';
+impowt * as nws fwom 'vs/nws';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { Action } fwom 'vs/base/common/actions';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { ICustomEndpointTewemetwySewvice, ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { fowmatPII, isUwi } fwom 'vs/wowkbench/contwib/debug/common/debugUtiws';
+impowt { IDebugAdapta, IConfig, AdaptewEndEvent, IDebugga } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IExtensionHostDebugSewvice, IOpenExtensionWindowWesuwt } fwom 'vs/pwatfowm/debug/common/extensionHostDebug';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { INotificationSewvice, Sevewity } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
 
 /**
- * This interface represents a single command line argument split into a "prefix" and a "path" half.
- * The optional "prefix" contains arbitrary text and the optional "path" contains a file system path.
- * Concatenating both results in the original command line argument.
+ * This intewface wepwesents a singwe command wine awgument spwit into a "pwefix" and a "path" hawf.
+ * The optionaw "pwefix" contains awbitwawy text and the optionaw "path" contains a fiwe system path.
+ * Concatenating both wesuwts in the owiginaw command wine awgument.
  */
-interface ILaunchVSCodeArgument {
-	prefix?: string;
-	path?: string;
+intewface IWaunchVSCodeAwgument {
+	pwefix?: stwing;
+	path?: stwing;
 }
 
-interface ILaunchVSCodeArguments {
-	args: ILaunchVSCodeArgument[];
-	debugRenderer?: boolean;
-	env?: { [key: string]: string | null; };
+intewface IWaunchVSCodeAwguments {
+	awgs: IWaunchVSCodeAwgument[];
+	debugWendewa?: boowean;
+	env?: { [key: stwing]: stwing | nuww; };
 }
 
 /**
- * Encapsulates the DebugAdapter lifecycle and some idiosyncrasies of the Debug Adapter Protocol.
+ * Encapsuwates the DebugAdapta wifecycwe and some idiosyncwasies of the Debug Adapta Pwotocow.
  */
-export class RawDebugSession implements IDisposable {
+expowt cwass WawDebugSession impwements IDisposabwe {
 
-	private allThreadsContinued = true;
-	private _readyForBreakpoints = false;
-	private _capabilities: DebugProtocol.Capabilities;
+	pwivate awwThweadsContinued = twue;
+	pwivate _weadyFowBweakpoints = fawse;
+	pwivate _capabiwities: DebugPwotocow.Capabiwities;
 
 	// shutdown
-	private debugAdapterStopped = false;
-	private inShutdown = false;
-	private terminated = false;
-	private firedAdapterExitEvent = false;
+	pwivate debugAdaptewStopped = fawse;
+	pwivate inShutdown = fawse;
+	pwivate tewminated = fawse;
+	pwivate fiwedAdaptewExitEvent = fawse;
 
-	// telemetry
-	private startTime = 0;
-	private didReceiveStoppedEvent = false;
+	// tewemetwy
+	pwivate stawtTime = 0;
+	pwivate didWeceiveStoppedEvent = fawse;
 
 	// DAP events
-	private readonly _onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
-	private readonly _onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
-	private readonly _onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-	private readonly _onDidTerminateDebugee = new Emitter<DebugProtocol.TerminatedEvent>();
-	private readonly _onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
-	private readonly _onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
-	private readonly _onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
-	private readonly _onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-	private readonly _onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
-	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
-	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
-	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
-	private readonly _onDidInvalidated = new Emitter<DebugProtocol.InvalidatedEvent>();
-	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
-	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
+	pwivate weadonwy _onDidInitiawize = new Emitta<DebugPwotocow.InitiawizedEvent>();
+	pwivate weadonwy _onDidStop = new Emitta<DebugPwotocow.StoppedEvent>();
+	pwivate weadonwy _onDidContinued = new Emitta<DebugPwotocow.ContinuedEvent>();
+	pwivate weadonwy _onDidTewminateDebugee = new Emitta<DebugPwotocow.TewminatedEvent>();
+	pwivate weadonwy _onDidExitDebugee = new Emitta<DebugPwotocow.ExitedEvent>();
+	pwivate weadonwy _onDidThwead = new Emitta<DebugPwotocow.ThweadEvent>();
+	pwivate weadonwy _onDidOutput = new Emitta<DebugPwotocow.OutputEvent>();
+	pwivate weadonwy _onDidBweakpoint = new Emitta<DebugPwotocow.BweakpointEvent>();
+	pwivate weadonwy _onDidWoadedSouwce = new Emitta<DebugPwotocow.WoadedSouwceEvent>();
+	pwivate weadonwy _onDidPwogwessStawt = new Emitta<DebugPwotocow.PwogwessStawtEvent>();
+	pwivate weadonwy _onDidPwogwessUpdate = new Emitta<DebugPwotocow.PwogwessUpdateEvent>();
+	pwivate weadonwy _onDidPwogwessEnd = new Emitta<DebugPwotocow.PwogwessEndEvent>();
+	pwivate weadonwy _onDidInvawidated = new Emitta<DebugPwotocow.InvawidatedEvent>();
+	pwivate weadonwy _onDidCustomEvent = new Emitta<DebugPwotocow.Event>();
+	pwivate weadonwy _onDidEvent = new Emitta<DebugPwotocow.Event>();
 
 	// DA events
-	private readonly _onDidExitAdapter = new Emitter<AdapterEndEvent>();
-	private debugAdapter: IDebugAdapter | null;
+	pwivate weadonwy _onDidExitAdapta = new Emitta<AdaptewEndEvent>();
+	pwivate debugAdapta: IDebugAdapta | nuww;
 
-	private toDispose: IDisposable[] = [];
+	pwivate toDispose: IDisposabwe[] = [];
 
-	constructor(
-		debugAdapter: IDebugAdapter,
-		public readonly dbgr: IDebugger,
-		private readonly sessionId: string,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICustomEndpointTelemetryService private readonly customTelemetryService: ICustomEndpointTelemetryService,
-		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IDialogService private readonly dialogSerivce: IDialogService,
+	constwuctow(
+		debugAdapta: IDebugAdapta,
+		pubwic weadonwy dbgw: IDebugga,
+		pwivate weadonwy sessionId: stwing,
+		@ITewemetwySewvice pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		@ICustomEndpointTewemetwySewvice pwivate weadonwy customTewemetwySewvice: ICustomEndpointTewemetwySewvice,
+		@IExtensionHostDebugSewvice pwivate weadonwy extensionHostDebugSewvice: IExtensionHostDebugSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@INotificationSewvice pwivate weadonwy notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewivce: IDiawogSewvice,
 	) {
-		this.debugAdapter = debugAdapter;
-		this._capabilities = Object.create(null);
+		this.debugAdapta = debugAdapta;
+		this._capabiwities = Object.cweate(nuww);
 
-		this.toDispose.push(this.debugAdapter.onError(err => {
-			this.shutdown(err);
+		this.toDispose.push(this.debugAdapta.onEwwow(eww => {
+			this.shutdown(eww);
 		}));
 
-		this.toDispose.push(this.debugAdapter.onExit(code => {
+		this.toDispose.push(this.debugAdapta.onExit(code => {
 			if (code !== 0) {
-				this.shutdown(new Error(`exit code: ${code}`));
-			} else {
-				// normal exit
+				this.shutdown(new Ewwow(`exit code: ${code}`));
+			} ewse {
+				// nowmaw exit
 				this.shutdown();
 			}
 		}));
 
-		this.debugAdapter.onEvent(event => {
+		this.debugAdapta.onEvent(event => {
 			switch (event.event) {
-				case 'initialized':
-					this._readyForBreakpoints = true;
-					this._onDidInitialize.fire(event);
-					break;
-				case 'loadedSource':
-					this._onDidLoadedSource.fire(<DebugProtocol.LoadedSourceEvent>event);
-					break;
-				case 'capabilities':
+				case 'initiawized':
+					this._weadyFowBweakpoints = twue;
+					this._onDidInitiawize.fiwe(event);
+					bweak;
+				case 'woadedSouwce':
+					this._onDidWoadedSouwce.fiwe(<DebugPwotocow.WoadedSouwceEvent>event);
+					bweak;
+				case 'capabiwities':
 					if (event.body) {
-						const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-						this.mergeCapabilities(capabilities);
+						const capabiwities = (<DebugPwotocow.CapabiwitiesEvent>event).body.capabiwities;
+						this.mewgeCapabiwities(capabiwities);
 					}
-					break;
+					bweak;
 				case 'stopped':
-					this.didReceiveStoppedEvent = true;		// telemetry: remember that debugger stopped successfully
-					this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
-					break;
+					this.didWeceiveStoppedEvent = twue;		// tewemetwy: wememba that debugga stopped successfuwwy
+					this._onDidStop.fiwe(<DebugPwotocow.StoppedEvent>event);
+					bweak;
 				case 'continued':
-					this.allThreadsContinued = (<DebugProtocol.ContinuedEvent>event).body.allThreadsContinued === false ? false : true;
-					this._onDidContinued.fire(<DebugProtocol.ContinuedEvent>event);
-					break;
-				case 'thread':
-					this._onDidThread.fire(<DebugProtocol.ThreadEvent>event);
-					break;
+					this.awwThweadsContinued = (<DebugPwotocow.ContinuedEvent>event).body.awwThweadsContinued === fawse ? fawse : twue;
+					this._onDidContinued.fiwe(<DebugPwotocow.ContinuedEvent>event);
+					bweak;
+				case 'thwead':
+					this._onDidThwead.fiwe(<DebugPwotocow.ThweadEvent>event);
+					bweak;
 				case 'output':
-					this._onDidOutput.fire(<DebugProtocol.OutputEvent>event);
-					break;
-				case 'breakpoint':
-					this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
-					break;
-				case 'terminated':
-					this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
-					break;
+					this._onDidOutput.fiwe(<DebugPwotocow.OutputEvent>event);
+					bweak;
+				case 'bweakpoint':
+					this._onDidBweakpoint.fiwe(<DebugPwotocow.BweakpointEvent>event);
+					bweak;
+				case 'tewminated':
+					this._onDidTewminateDebugee.fiwe(<DebugPwotocow.TewminatedEvent>event);
+					bweak;
 				case 'exit':
-					this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
-					break;
-				case 'progressStart':
-					this._onDidProgressStart.fire(event as DebugProtocol.ProgressStartEvent);
-					break;
-				case 'progressUpdate':
-					this._onDidProgressUpdate.fire(event as DebugProtocol.ProgressUpdateEvent);
-					break;
-				case 'progressEnd':
-					this._onDidProgressEnd.fire(event as DebugProtocol.ProgressEndEvent);
-					break;
-				case 'invalidated':
-					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
-					break;
-				case 'process':
-					break;
-				case 'module':
-					break;
-				default:
-					this._onDidCustomEvent.fire(event);
-					break;
+					this._onDidExitDebugee.fiwe(<DebugPwotocow.ExitedEvent>event);
+					bweak;
+				case 'pwogwessStawt':
+					this._onDidPwogwessStawt.fiwe(event as DebugPwotocow.PwogwessStawtEvent);
+					bweak;
+				case 'pwogwessUpdate':
+					this._onDidPwogwessUpdate.fiwe(event as DebugPwotocow.PwogwessUpdateEvent);
+					bweak;
+				case 'pwogwessEnd':
+					this._onDidPwogwessEnd.fiwe(event as DebugPwotocow.PwogwessEndEvent);
+					bweak;
+				case 'invawidated':
+					this._onDidInvawidated.fiwe(event as DebugPwotocow.InvawidatedEvent);
+					bweak;
+				case 'pwocess':
+					bweak;
+				case 'moduwe':
+					bweak;
+				defauwt:
+					this._onDidCustomEvent.fiwe(event);
+					bweak;
 			}
-			this._onDidEvent.fire(event);
+			this._onDidEvent.fiwe(event);
 		});
 
-		this.debugAdapter.onRequest(request => this.dispatchRequest(request, dbgr));
+		this.debugAdapta.onWequest(wequest => this.dispatchWequest(wequest, dbgw));
 	}
 
-	get onDidExitAdapter(): Event<AdapterEndEvent> {
-		return this._onDidExitAdapter.event;
+	get onDidExitAdapta(): Event<AdaptewEndEvent> {
+		wetuwn this._onDidExitAdapta.event;
 	}
 
-	get capabilities(): DebugProtocol.Capabilities {
-		return this._capabilities;
+	get capabiwities(): DebugPwotocow.Capabiwities {
+		wetuwn this._capabiwities;
 	}
 
 	/**
-	 * DA is ready to accepts setBreakpoint requests.
-	 * Becomes true after "initialized" events has been received.
+	 * DA is weady to accepts setBweakpoint wequests.
+	 * Becomes twue afta "initiawized" events has been weceived.
 	 */
-	get readyForBreakpoints(): boolean {
-		return this._readyForBreakpoints;
+	get weadyFowBweakpoints(): boowean {
+		wetuwn this._weadyFowBweakpoints;
 	}
 
 	//---- DAP events
 
-	get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
-		return this._onDidInitialize.event;
+	get onDidInitiawize(): Event<DebugPwotocow.InitiawizedEvent> {
+		wetuwn this._onDidInitiawize.event;
 	}
 
-	get onDidStop(): Event<DebugProtocol.StoppedEvent> {
-		return this._onDidStop.event;
+	get onDidStop(): Event<DebugPwotocow.StoppedEvent> {
+		wetuwn this._onDidStop.event;
 	}
 
-	get onDidContinued(): Event<DebugProtocol.ContinuedEvent> {
-		return this._onDidContinued.event;
+	get onDidContinued(): Event<DebugPwotocow.ContinuedEvent> {
+		wetuwn this._onDidContinued.event;
 	}
 
-	get onDidTerminateDebugee(): Event<DebugProtocol.TerminatedEvent> {
-		return this._onDidTerminateDebugee.event;
+	get onDidTewminateDebugee(): Event<DebugPwotocow.TewminatedEvent> {
+		wetuwn this._onDidTewminateDebugee.event;
 	}
 
-	get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
-		return this._onDidExitDebugee.event;
+	get onDidExitDebugee(): Event<DebugPwotocow.ExitedEvent> {
+		wetuwn this._onDidExitDebugee.event;
 	}
 
-	get onDidThread(): Event<DebugProtocol.ThreadEvent> {
-		return this._onDidThread.event;
+	get onDidThwead(): Event<DebugPwotocow.ThweadEvent> {
+		wetuwn this._onDidThwead.event;
 	}
 
-	get onDidOutput(): Event<DebugProtocol.OutputEvent> {
-		return this._onDidOutput.event;
+	get onDidOutput(): Event<DebugPwotocow.OutputEvent> {
+		wetuwn this._onDidOutput.event;
 	}
 
-	get onDidBreakpoint(): Event<DebugProtocol.BreakpointEvent> {
-		return this._onDidBreakpoint.event;
+	get onDidBweakpoint(): Event<DebugPwotocow.BweakpointEvent> {
+		wetuwn this._onDidBweakpoint.event;
 	}
 
-	get onDidLoadedSource(): Event<DebugProtocol.LoadedSourceEvent> {
-		return this._onDidLoadedSource.event;
+	get onDidWoadedSouwce(): Event<DebugPwotocow.WoadedSouwceEvent> {
+		wetuwn this._onDidWoadedSouwce.event;
 	}
 
-	get onDidCustomEvent(): Event<DebugProtocol.Event> {
-		return this._onDidCustomEvent.event;
+	get onDidCustomEvent(): Event<DebugPwotocow.Event> {
+		wetuwn this._onDidCustomEvent.event;
 	}
 
-	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
-		return this._onDidProgressStart.event;
+	get onDidPwogwessStawt(): Event<DebugPwotocow.PwogwessStawtEvent> {
+		wetuwn this._onDidPwogwessStawt.event;
 	}
 
-	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
-		return this._onDidProgressUpdate.event;
+	get onDidPwogwessUpdate(): Event<DebugPwotocow.PwogwessUpdateEvent> {
+		wetuwn this._onDidPwogwessUpdate.event;
 	}
 
-	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
-		return this._onDidProgressEnd.event;
+	get onDidPwogwessEnd(): Event<DebugPwotocow.PwogwessEndEvent> {
+		wetuwn this._onDidPwogwessEnd.event;
 	}
 
-	get onDidInvalidated(): Event<DebugProtocol.InvalidatedEvent> {
-		return this._onDidInvalidated.event;
+	get onDidInvawidated(): Event<DebugPwotocow.InvawidatedEvent> {
+		wetuwn this._onDidInvawidated.event;
 	}
 
-	get onDidEvent(): Event<DebugProtocol.Event> {
-		return this._onDidEvent.event;
+	get onDidEvent(): Event<DebugPwotocow.Event> {
+		wetuwn this._onDidEvent.event;
 	}
 
-	//---- DebugAdapter lifecycle
+	//---- DebugAdapta wifecycwe
 
 	/**
-	 * Starts the underlying debug adapter and tracks the session time for telemetry.
+	 * Stawts the undewwying debug adapta and twacks the session time fow tewemetwy.
 	 */
-	async start(): Promise<void> {
-		if (!this.debugAdapter) {
-			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, can not start debug session.")));
+	async stawt(): Pwomise<void> {
+		if (!this.debugAdapta) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('noDebugAdaptewStawt', "No debug adapta, can not stawt debug session.")));
 		}
 
-		await this.debugAdapter.startSession();
-		this.startTime = new Date().getTime();
+		await this.debugAdapta.stawtSession();
+		this.stawtTime = new Date().getTime();
 	}
 
 	/**
-	 * Send client capabilities to the debug adapter and receive DA capabilities in return.
+	 * Send cwient capabiwities to the debug adapta and weceive DA capabiwities in wetuwn.
 	 */
-	async initialize(args: DebugProtocol.InitializeRequestArguments): Promise<DebugProtocol.InitializeResponse | undefined> {
-		const response = await this.send('initialize', args, undefined, undefined, false);
-		if (response) {
-			this.mergeCapabilities(response.body);
+	async initiawize(awgs: DebugPwotocow.InitiawizeWequestAwguments): Pwomise<DebugPwotocow.InitiawizeWesponse | undefined> {
+		const wesponse = await this.send('initiawize', awgs, undefined, undefined, fawse);
+		if (wesponse) {
+			this.mewgeCapabiwities(wesponse.body);
 		}
 
-		return response;
+		wetuwn wesponse;
 	}
 
 	/**
-	 * Terminate the debuggee and shutdown the adapter
+	 * Tewminate the debuggee and shutdown the adapta
 	 */
-	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
-		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
-		return this.shutdown(undefined, args.restart, terminateDebuggee);
+	disconnect(awgs: DebugPwotocow.DisconnectAwguments): Pwomise<any> {
+		const tewminateDebuggee = this.capabiwities.suppowtTewminateDebuggee ? awgs.tewminateDebuggee : undefined;
+		wetuwn this.shutdown(undefined, awgs.westawt, tewminateDebuggee);
 	}
 
-	//---- DAP requests
+	//---- DAP wequests
 
-	async launchOrAttach(config: IConfig): Promise<DebugProtocol.Response | undefined> {
-		const response = await this.send(config.request, config, undefined, undefined, false);
-		if (response) {
-			this.mergeCapabilities(response.body);
+	async waunchOwAttach(config: IConfig): Pwomise<DebugPwotocow.Wesponse | undefined> {
+		const wesponse = await this.send(config.wequest, config, undefined, undefined, fawse);
+		if (wesponse) {
+			this.mewgeCapabiwities(wesponse.body);
 		}
 
-		return response;
+		wetuwn wesponse;
 	}
 
 	/**
-	 * Try killing the debuggee softly...
+	 * Twy kiwwing the debuggee softwy...
 	 */
-	terminate(restart = false): Promise<DebugProtocol.TerminateResponse | undefined> {
-		if (this.capabilities.supportsTerminateRequest) {
-			if (!this.terminated) {
-				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 2000);
+	tewminate(westawt = fawse): Pwomise<DebugPwotocow.TewminateWesponse | undefined> {
+		if (this.capabiwities.suppowtsTewminateWequest) {
+			if (!this.tewminated) {
+				this.tewminated = twue;
+				wetuwn this.send('tewminate', { westawt }, undefined, 2000);
 			}
-			return this.disconnect({ terminateDebuggee: true, restart });
+			wetuwn this.disconnect({ tewminateDebuggee: twue, westawt });
 		}
-		return Promise.reject(new Error('terminated not supported'));
+		wetuwn Pwomise.weject(new Ewwow('tewminated not suppowted'));
 	}
 
-	restart(args: DebugProtocol.RestartArguments): Promise<DebugProtocol.RestartResponse | undefined> {
-		if (this.capabilities.supportsRestartRequest) {
-			return this.send('restart', args);
+	westawt(awgs: DebugPwotocow.WestawtAwguments): Pwomise<DebugPwotocow.WestawtWesponse | undefined> {
+		if (this.capabiwities.suppowtsWestawtWequest) {
+			wetuwn this.send('westawt', awgs);
 		}
-		return Promise.reject(new Error('restart not supported'));
+		wetuwn Pwomise.weject(new Ewwow('westawt not suppowted'));
 	}
 
-	async next(args: DebugProtocol.NextArguments): Promise<DebugProtocol.NextResponse | undefined> {
-		const response = await this.send('next', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
-		return response;
+	async next(awgs: DebugPwotocow.NextAwguments): Pwomise<DebugPwotocow.NextWesponse | undefined> {
+		const wesponse = await this.send('next', awgs);
+		this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+		wetuwn wesponse;
 	}
 
-	async stepIn(args: DebugProtocol.StepInArguments): Promise<DebugProtocol.StepInResponse | undefined> {
-		const response = await this.send('stepIn', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
-		return response;
+	async stepIn(awgs: DebugPwotocow.StepInAwguments): Pwomise<DebugPwotocow.StepInWesponse | undefined> {
+		const wesponse = await this.send('stepIn', awgs);
+		this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+		wetuwn wesponse;
 	}
 
-	async stepOut(args: DebugProtocol.StepOutArguments): Promise<DebugProtocol.StepOutResponse | undefined> {
-		const response = await this.send('stepOut', args);
-		this.fireSimulatedContinuedEvent(args.threadId);
-		return response;
+	async stepOut(awgs: DebugPwotocow.StepOutAwguments): Pwomise<DebugPwotocow.StepOutWesponse | undefined> {
+		const wesponse = await this.send('stepOut', awgs);
+		this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+		wetuwn wesponse;
 	}
 
-	async continue(args: DebugProtocol.ContinueArguments): Promise<DebugProtocol.ContinueResponse | undefined> {
-		const response = await this.send<DebugProtocol.ContinueResponse>('continue', args);
-		if (response && response.body && response.body.allThreadsContinued !== undefined) {
-			this.allThreadsContinued = response.body.allThreadsContinued;
+	async continue(awgs: DebugPwotocow.ContinueAwguments): Pwomise<DebugPwotocow.ContinueWesponse | undefined> {
+		const wesponse = await this.send<DebugPwotocow.ContinueWesponse>('continue', awgs);
+		if (wesponse && wesponse.body && wesponse.body.awwThweadsContinued !== undefined) {
+			this.awwThweadsContinued = wesponse.body.awwThweadsContinued;
 		}
-		this.fireSimulatedContinuedEvent(args.threadId, this.allThreadsContinued);
+		this.fiweSimuwatedContinuedEvent(awgs.thweadId, this.awwThweadsContinued);
 
-		return response;
+		wetuwn wesponse;
 	}
 
-	pause(args: DebugProtocol.PauseArguments): Promise<DebugProtocol.PauseResponse | undefined> {
-		return this.send('pause', args);
+	pause(awgs: DebugPwotocow.PauseAwguments): Pwomise<DebugPwotocow.PauseWesponse | undefined> {
+		wetuwn this.send('pause', awgs);
 	}
 
-	terminateThreads(args: DebugProtocol.TerminateThreadsArguments): Promise<DebugProtocol.TerminateThreadsResponse | undefined> {
-		if (this.capabilities.supportsTerminateThreadsRequest) {
-			return this.send('terminateThreads', args);
+	tewminateThweads(awgs: DebugPwotocow.TewminateThweadsAwguments): Pwomise<DebugPwotocow.TewminateThweadsWesponse | undefined> {
+		if (this.capabiwities.suppowtsTewminateThweadsWequest) {
+			wetuwn this.send('tewminateThweads', awgs);
 		}
-		return Promise.reject(new Error('terminateThreads not supported'));
+		wetuwn Pwomise.weject(new Ewwow('tewminateThweads not suppowted'));
 	}
 
-	setVariable(args: DebugProtocol.SetVariableArguments): Promise<DebugProtocol.SetVariableResponse | undefined> {
-		if (this.capabilities.supportsSetVariable) {
-			return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
+	setVawiabwe(awgs: DebugPwotocow.SetVawiabweAwguments): Pwomise<DebugPwotocow.SetVawiabweWesponse | undefined> {
+		if (this.capabiwities.suppowtsSetVawiabwe) {
+			wetuwn this.send<DebugPwotocow.SetVawiabweWesponse>('setVawiabwe', awgs);
 		}
-		return Promise.reject(new Error('setVariable not supported'));
+		wetuwn Pwomise.weject(new Ewwow('setVawiabwe not suppowted'));
 	}
 
-	setExpression(args: DebugProtocol.SetExpressionArguments): Promise<DebugProtocol.SetExpressionResponse | undefined> {
-		if (this.capabilities.supportsSetExpression) {
-			return this.send<DebugProtocol.SetExpressionResponse>('setExpression', args);
+	setExpwession(awgs: DebugPwotocow.SetExpwessionAwguments): Pwomise<DebugPwotocow.SetExpwessionWesponse | undefined> {
+		if (this.capabiwities.suppowtsSetExpwession) {
+			wetuwn this.send<DebugPwotocow.SetExpwessionWesponse>('setExpwession', awgs);
 		}
-		return Promise.reject(new Error('setExpression not supported'));
+		wetuwn Pwomise.weject(new Ewwow('setExpwession not suppowted'));
 	}
 
-	async restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): Promise<DebugProtocol.RestartFrameResponse | undefined> {
-		if (this.capabilities.supportsRestartFrame) {
-			const response = await this.send('restartFrame', args);
-			this.fireSimulatedContinuedEvent(threadId);
-			return response;
+	async westawtFwame(awgs: DebugPwotocow.WestawtFwameAwguments, thweadId: numba): Pwomise<DebugPwotocow.WestawtFwameWesponse | undefined> {
+		if (this.capabiwities.suppowtsWestawtFwame) {
+			const wesponse = await this.send('westawtFwame', awgs);
+			this.fiweSimuwatedContinuedEvent(thweadId);
+			wetuwn wesponse;
 		}
-		return Promise.reject(new Error('restartFrame not supported'));
+		wetuwn Pwomise.weject(new Ewwow('westawtFwame not suppowted'));
 	}
 
-	stepInTargets(args: DebugProtocol.StepInTargetsArguments): Promise<DebugProtocol.StepInTargetsResponse | undefined> {
-		if (this.capabilities.supportsStepInTargetsRequest) {
-			return this.send('stepInTargets', args);
+	stepInTawgets(awgs: DebugPwotocow.StepInTawgetsAwguments): Pwomise<DebugPwotocow.StepInTawgetsWesponse | undefined> {
+		if (this.capabiwities.suppowtsStepInTawgetsWequest) {
+			wetuwn this.send('stepInTawgets', awgs);
 		}
-		return Promise.reject(new Error('stepInTargets not supported'));
+		wetuwn Pwomise.weject(new Ewwow('stepInTawgets not suppowted'));
 	}
 
-	completions(args: DebugProtocol.CompletionsArguments, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined> {
-		if (this.capabilities.supportsCompletionsRequest) {
-			return this.send<DebugProtocol.CompletionsResponse>('completions', args, token);
+	compwetions(awgs: DebugPwotocow.CompwetionsAwguments, token: CancewwationToken): Pwomise<DebugPwotocow.CompwetionsWesponse | undefined> {
+		if (this.capabiwities.suppowtsCompwetionsWequest) {
+			wetuwn this.send<DebugPwotocow.CompwetionsWesponse>('compwetions', awgs, token);
 		}
-		return Promise.reject(new Error('completions not supported'));
+		wetuwn Pwomise.weject(new Ewwow('compwetions not suppowted'));
 	}
 
-	setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): Promise<DebugProtocol.SetBreakpointsResponse | undefined> {
-		return this.send<DebugProtocol.SetBreakpointsResponse>('setBreakpoints', args);
+	setBweakpoints(awgs: DebugPwotocow.SetBweakpointsAwguments): Pwomise<DebugPwotocow.SetBweakpointsWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.SetBweakpointsWesponse>('setBweakpoints', awgs);
 	}
 
-	setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): Promise<DebugProtocol.SetFunctionBreakpointsResponse | undefined> {
-		if (this.capabilities.supportsFunctionBreakpoints) {
-			return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
+	setFunctionBweakpoints(awgs: DebugPwotocow.SetFunctionBweakpointsAwguments): Pwomise<DebugPwotocow.SetFunctionBweakpointsWesponse | undefined> {
+		if (this.capabiwities.suppowtsFunctionBweakpoints) {
+			wetuwn this.send<DebugPwotocow.SetFunctionBweakpointsWesponse>('setFunctionBweakpoints', awgs);
 		}
-		return Promise.reject(new Error('setFunctionBreakpoints not supported'));
+		wetuwn Pwomise.weject(new Ewwow('setFunctionBweakpoints not suppowted'));
 	}
 
-	dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<DebugProtocol.DataBreakpointInfoResponse | undefined> {
-		if (this.capabilities.supportsDataBreakpoints) {
-			return this.send<DebugProtocol.DataBreakpointInfoResponse>('dataBreakpointInfo', args);
+	dataBweakpointInfo(awgs: DebugPwotocow.DataBweakpointInfoAwguments): Pwomise<DebugPwotocow.DataBweakpointInfoWesponse | undefined> {
+		if (this.capabiwities.suppowtsDataBweakpoints) {
+			wetuwn this.send<DebugPwotocow.DataBweakpointInfoWesponse>('dataBweakpointInfo', awgs);
 		}
-		return Promise.reject(new Error('dataBreakpointInfo not supported'));
+		wetuwn Pwomise.weject(new Ewwow('dataBweakpointInfo not suppowted'));
 	}
 
-	setDataBreakpoints(args: DebugProtocol.SetDataBreakpointsArguments): Promise<DebugProtocol.SetDataBreakpointsResponse | undefined> {
-		if (this.capabilities.supportsDataBreakpoints) {
-			return this.send<DebugProtocol.SetDataBreakpointsResponse>('setDataBreakpoints', args);
+	setDataBweakpoints(awgs: DebugPwotocow.SetDataBweakpointsAwguments): Pwomise<DebugPwotocow.SetDataBweakpointsWesponse | undefined> {
+		if (this.capabiwities.suppowtsDataBweakpoints) {
+			wetuwn this.send<DebugPwotocow.SetDataBweakpointsWesponse>('setDataBweakpoints', awgs);
 		}
-		return Promise.reject(new Error('setDataBreakpoints not supported'));
+		wetuwn Pwomise.weject(new Ewwow('setDataBweakpoints not suppowted'));
 	}
 
-	setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): Promise<DebugProtocol.SetExceptionBreakpointsResponse | undefined> {
-		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
+	setExceptionBweakpoints(awgs: DebugPwotocow.SetExceptionBweakpointsAwguments): Pwomise<DebugPwotocow.SetExceptionBweakpointsWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.SetExceptionBweakpointsWesponse>('setExceptionBweakpoints', awgs);
 	}
 
-	breakpointLocations(args: DebugProtocol.BreakpointLocationsArguments): Promise<DebugProtocol.BreakpointLocationsResponse | undefined> {
-		if (this.capabilities.supportsBreakpointLocationsRequest) {
-			return this.send('breakpointLocations', args);
+	bweakpointWocations(awgs: DebugPwotocow.BweakpointWocationsAwguments): Pwomise<DebugPwotocow.BweakpointWocationsWesponse | undefined> {
+		if (this.capabiwities.suppowtsBweakpointWocationsWequest) {
+			wetuwn this.send('bweakpointWocations', awgs);
 		}
-		return Promise.reject(new Error('breakpointLocations is not supported'));
+		wetuwn Pwomise.weject(new Ewwow('bweakpointWocations is not suppowted'));
 	}
 
-	configurationDone(): Promise<DebugProtocol.ConfigurationDoneResponse | undefined> {
-		if (this.capabilities.supportsConfigurationDoneRequest) {
-			return this.send('configurationDone', null);
+	configuwationDone(): Pwomise<DebugPwotocow.ConfiguwationDoneWesponse | undefined> {
+		if (this.capabiwities.suppowtsConfiguwationDoneWequest) {
+			wetuwn this.send('configuwationDone', nuww);
 		}
-		return Promise.reject(new Error('configurationDone not supported'));
+		wetuwn Pwomise.weject(new Ewwow('configuwationDone not suppowted'));
 	}
 
-	stackTrace(args: DebugProtocol.StackTraceArguments, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse | undefined> {
-		return this.send<DebugProtocol.StackTraceResponse>('stackTrace', args, token);
+	stackTwace(awgs: DebugPwotocow.StackTwaceAwguments, token: CancewwationToken): Pwomise<DebugPwotocow.StackTwaceWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.StackTwaceWesponse>('stackTwace', awgs, token);
 	}
 
-	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): Promise<DebugProtocol.ExceptionInfoResponse | undefined> {
-		if (this.capabilities.supportsExceptionInfoRequest) {
-			return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
+	exceptionInfo(awgs: DebugPwotocow.ExceptionInfoAwguments): Pwomise<DebugPwotocow.ExceptionInfoWesponse | undefined> {
+		if (this.capabiwities.suppowtsExceptionInfoWequest) {
+			wetuwn this.send<DebugPwotocow.ExceptionInfoWesponse>('exceptionInfo', awgs);
 		}
-		return Promise.reject(new Error('exceptionInfo not supported'));
+		wetuwn Pwomise.weject(new Ewwow('exceptionInfo not suppowted'));
 	}
 
-	scopes(args: DebugProtocol.ScopesArguments, token: CancellationToken): Promise<DebugProtocol.ScopesResponse | undefined> {
-		return this.send<DebugProtocol.ScopesResponse>('scopes', args, token);
+	scopes(awgs: DebugPwotocow.ScopesAwguments, token: CancewwationToken): Pwomise<DebugPwotocow.ScopesWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.ScopesWesponse>('scopes', awgs, token);
 	}
 
-	variables(args: DebugProtocol.VariablesArguments, token?: CancellationToken): Promise<DebugProtocol.VariablesResponse | undefined> {
-		return this.send<DebugProtocol.VariablesResponse>('variables', args, token);
+	vawiabwes(awgs: DebugPwotocow.VawiabwesAwguments, token?: CancewwationToken): Pwomise<DebugPwotocow.VawiabwesWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.VawiabwesWesponse>('vawiabwes', awgs, token);
 	}
 
-	source(args: DebugProtocol.SourceArguments): Promise<DebugProtocol.SourceResponse | undefined> {
-		return this.send<DebugProtocol.SourceResponse>('source', args);
+	souwce(awgs: DebugPwotocow.SouwceAwguments): Pwomise<DebugPwotocow.SouwceWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.SouwceWesponse>('souwce', awgs);
 	}
 
-	loadedSources(args: DebugProtocol.LoadedSourcesArguments): Promise<DebugProtocol.LoadedSourcesResponse | undefined> {
-		if (this.capabilities.supportsLoadedSourcesRequest) {
-			return this.send<DebugProtocol.LoadedSourcesResponse>('loadedSources', args);
+	woadedSouwces(awgs: DebugPwotocow.WoadedSouwcesAwguments): Pwomise<DebugPwotocow.WoadedSouwcesWesponse | undefined> {
+		if (this.capabiwities.suppowtsWoadedSouwcesWequest) {
+			wetuwn this.send<DebugPwotocow.WoadedSouwcesWesponse>('woadedSouwces', awgs);
 		}
-		return Promise.reject(new Error('loadedSources not supported'));
+		wetuwn Pwomise.weject(new Ewwow('woadedSouwces not suppowted'));
 	}
 
-	threads(): Promise<DebugProtocol.ThreadsResponse | undefined> {
-		return this.send<DebugProtocol.ThreadsResponse>('threads', null);
+	thweads(): Pwomise<DebugPwotocow.ThweadsWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.ThweadsWesponse>('thweads', nuww);
 	}
 
-	evaluate(args: DebugProtocol.EvaluateArguments): Promise<DebugProtocol.EvaluateResponse | undefined> {
-		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
+	evawuate(awgs: DebugPwotocow.EvawuateAwguments): Pwomise<DebugPwotocow.EvawuateWesponse | undefined> {
+		wetuwn this.send<DebugPwotocow.EvawuateWesponse>('evawuate', awgs);
 	}
 
-	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
-		if (this.capabilities.supportsStepBack) {
-			const response = await this.send('stepBack', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
+	async stepBack(awgs: DebugPwotocow.StepBackAwguments): Pwomise<DebugPwotocow.StepBackWesponse | undefined> {
+		if (this.capabiwities.suppowtsStepBack) {
+			const wesponse = await this.send('stepBack', awgs);
+			this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+			wetuwn wesponse;
 		}
-		return Promise.reject(new Error('stepBack not supported'));
+		wetuwn Pwomise.weject(new Ewwow('stepBack not suppowted'));
 	}
 
-	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
-		if (this.capabilities.supportsStepBack) {
-			const response = await this.send('reverseContinue', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
+	async wevewseContinue(awgs: DebugPwotocow.WevewseContinueAwguments): Pwomise<DebugPwotocow.WevewseContinueWesponse | undefined> {
+		if (this.capabiwities.suppowtsStepBack) {
+			const wesponse = await this.send('wevewseContinue', awgs);
+			this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+			wetuwn wesponse;
 		}
-		return Promise.reject(new Error('reverseContinue not supported'));
+		wetuwn Pwomise.weject(new Ewwow('wevewseContinue not suppowted'));
 	}
 
-	gotoTargets(args: DebugProtocol.GotoTargetsArguments): Promise<DebugProtocol.GotoTargetsResponse | undefined> {
-		if (this.capabilities.supportsGotoTargetsRequest) {
-			return this.send('gotoTargets', args);
+	gotoTawgets(awgs: DebugPwotocow.GotoTawgetsAwguments): Pwomise<DebugPwotocow.GotoTawgetsWesponse | undefined> {
+		if (this.capabiwities.suppowtsGotoTawgetsWequest) {
+			wetuwn this.send('gotoTawgets', awgs);
 		}
-		return Promise.reject(new Error('gotoTargets is not supported'));
+		wetuwn Pwomise.weject(new Ewwow('gotoTawgets is not suppowted'));
 	}
 
-	async goto(args: DebugProtocol.GotoArguments): Promise<DebugProtocol.GotoResponse | undefined> {
-		if (this.capabilities.supportsGotoTargetsRequest) {
-			const response = await this.send('goto', args);
-			this.fireSimulatedContinuedEvent(args.threadId);
-			return response;
-		}
-
-		return Promise.reject(new Error('goto is not supported'));
-	}
-
-	async setInstructionBreakpoints(args: DebugProtocol.SetInstructionBreakpointsArguments): Promise<DebugProtocol.SetInstructionBreakpointsResponse | undefined> {
-		if (this.capabilities.supportsInstructionBreakpoints) {
-			return await this.send('setInstructionBreakpoints', args);
+	async goto(awgs: DebugPwotocow.GotoAwguments): Pwomise<DebugPwotocow.GotoWesponse | undefined> {
+		if (this.capabiwities.suppowtsGotoTawgetsWequest) {
+			const wesponse = await this.send('goto', awgs);
+			this.fiweSimuwatedContinuedEvent(awgs.thweadId);
+			wetuwn wesponse;
 		}
 
-		return Promise.reject(new Error('setInstructionBreakpoints is not supported'));
+		wetuwn Pwomise.weject(new Ewwow('goto is not suppowted'));
 	}
 
-	async disassemble(args: DebugProtocol.DisassembleArguments): Promise<DebugProtocol.DisassembleResponse | undefined> {
-		if (this.capabilities.supportsDisassembleRequest) {
-			return await this.send('disassemble', args);
+	async setInstwuctionBweakpoints(awgs: DebugPwotocow.SetInstwuctionBweakpointsAwguments): Pwomise<DebugPwotocow.SetInstwuctionBweakpointsWesponse | undefined> {
+		if (this.capabiwities.suppowtsInstwuctionBweakpoints) {
+			wetuwn await this.send('setInstwuctionBweakpoints', awgs);
 		}
 
-		return Promise.reject(new Error('disassemble is not supported'));
+		wetuwn Pwomise.weject(new Ewwow('setInstwuctionBweakpoints is not suppowted'));
 	}
 
-	cancel(args: DebugProtocol.CancelArguments): Promise<DebugProtocol.CancelResponse | undefined> {
-		return this.send('cancel', args);
+	async disassembwe(awgs: DebugPwotocow.DisassembweAwguments): Pwomise<DebugPwotocow.DisassembweWesponse | undefined> {
+		if (this.capabiwities.suppowtsDisassembweWequest) {
+			wetuwn await this.send('disassembwe', awgs);
+		}
+
+		wetuwn Pwomise.weject(new Ewwow('disassembwe is not suppowted'));
 	}
 
-	custom(request: string, args: any): Promise<DebugProtocol.Response | undefined> {
-		return this.send(request, args);
+	cancew(awgs: DebugPwotocow.CancewAwguments): Pwomise<DebugPwotocow.CancewWesponse | undefined> {
+		wetuwn this.send('cancew', awgs);
 	}
 
-	//---- private
+	custom(wequest: stwing, awgs: any): Pwomise<DebugPwotocow.Wesponse | undefined> {
+		wetuwn this.send(wequest, awgs);
+	}
 
-	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined): Promise<any> {
+	//---- pwivate
+
+	pwivate async shutdown(ewwow?: Ewwow, westawt = fawse, tewminateDebuggee: boowean | undefined = undefined): Pwomise<any> {
 		if (!this.inShutdown) {
-			this.inShutdown = true;
-			if (this.debugAdapter) {
-				try {
-					const args = typeof terminateDebuggee === 'boolean' ? { restart, terminateDebuggee } : { restart };
-					this.send('disconnect', args, undefined, 2000);
+			this.inShutdown = twue;
+			if (this.debugAdapta) {
+				twy {
+					const awgs = typeof tewminateDebuggee === 'boowean' ? { westawt, tewminateDebuggee } : { westawt };
+					this.send('disconnect', awgs, undefined, 2000);
 				} catch (e) {
-					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
-				} finally {
-					this.stopAdapter(error);
+					// Catch the potentiaw 'disconnect' ewwow - no need to show it to the usa since the adapta is shutting down
+				} finawwy {
+					this.stopAdapta(ewwow);
 				}
-			} else {
-				return this.stopAdapter(error);
+			} ewse {
+				wetuwn this.stopAdapta(ewwow);
 			}
 		}
 	}
 
-	private async stopAdapter(error?: Error): Promise<any> {
-		try {
-			if (this.debugAdapter) {
-				const da = this.debugAdapter;
-				this.debugAdapter = null;
+	pwivate async stopAdapta(ewwow?: Ewwow): Pwomise<any> {
+		twy {
+			if (this.debugAdapta) {
+				const da = this.debugAdapta;
+				this.debugAdapta = nuww;
 				await da.stopSession();
-				this.debugAdapterStopped = true;
+				this.debugAdaptewStopped = twue;
 			}
-		} finally {
-			this.fireAdapterExitEvent(error);
+		} finawwy {
+			this.fiweAdaptewExitEvent(ewwow);
 		}
 	}
 
-	private fireAdapterExitEvent(error?: Error): void {
-		if (!this.firedAdapterExitEvent) {
-			this.firedAdapterExitEvent = true;
+	pwivate fiweAdaptewExitEvent(ewwow?: Ewwow): void {
+		if (!this.fiwedAdaptewExitEvent) {
+			this.fiwedAdaptewExitEvent = twue;
 
-			const e: AdapterEndEvent = {
-				emittedStopped: this.didReceiveStoppedEvent,
-				sessionLengthInSeconds: (new Date().getTime() - this.startTime) / 1000
+			const e: AdaptewEndEvent = {
+				emittedStopped: this.didWeceiveStoppedEvent,
+				sessionWengthInSeconds: (new Date().getTime() - this.stawtTime) / 1000
 			};
-			if (error && !this.debugAdapterStopped) {
-				e.error = error;
+			if (ewwow && !this.debugAdaptewStopped) {
+				e.ewwow = ewwow;
 			}
-			this._onDidExitAdapter.fire(e);
+			this._onDidExitAdapta.fiwe(e);
 		}
 	}
 
-	private async dispatchRequest(request: DebugProtocol.Request, dbgr: IDebugger): Promise<void> {
+	pwivate async dispatchWequest(wequest: DebugPwotocow.Wequest, dbgw: IDebugga): Pwomise<void> {
 
-		const response: DebugProtocol.Response = {
-			type: 'response',
+		const wesponse: DebugPwotocow.Wesponse = {
+			type: 'wesponse',
 			seq: 0,
-			command: request.command,
-			request_seq: request.seq,
-			success: true
+			command: wequest.command,
+			wequest_seq: wequest.seq,
+			success: twue
 		};
 
-		const safeSendResponse = (response: DebugProtocol.Response) => this.debugAdapter && this.debugAdapter.sendResponse(response);
+		const safeSendWesponse = (wesponse: DebugPwotocow.Wesponse) => this.debugAdapta && this.debugAdapta.sendWesponse(wesponse);
 
-		switch (request.command) {
-			case 'launchVSCode':
-				try {
-					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-					if (!result.success) {
-						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
-							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
-						if (showResult.choice === 0) {
-							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
-						} else {
-							response.success = false;
-							safeSendResponse(response);
+		switch (wequest.command) {
+			case 'waunchVSCode':
+				twy {
+					wet wesuwt = await this.waunchVsCode(<IWaunchVSCodeAwguments>wequest.awguments);
+					if (!wesuwt.success) {
+						const showWesuwt = await this.diawogSewivce.show(Sevewity.Wawning, nws.wocawize('canNotStawt', "The debugga needs to open a new tab ow window fow the debuggee but the bwowsa pwevented this. You must give pewmission to continue."),
+							[nws.wocawize('continue', "Continue"), nws.wocawize('cancew', "Cancew")], { cancewId: 1 });
+						if (showWesuwt.choice === 0) {
+							wesuwt = await this.waunchVsCode(<IWaunchVSCodeAwguments>wequest.awguments);
+						} ewse {
+							wesponse.success = fawse;
+							safeSendWesponse(wesponse);
 							await this.shutdown();
 						}
 					}
-					response.body = {
-						rendererDebugPort: result.rendererDebugPort,
+					wesponse.body = {
+						wendewewDebugPowt: wesuwt.wendewewDebugPowt,
 					};
-					safeSendResponse(response);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
+					safeSendWesponse(wesponse);
+				} catch (eww) {
+					wesponse.success = fawse;
+					wesponse.message = eww.message;
+					safeSendWesponse(wesponse);
 				}
-				break;
-			case 'runInTerminal':
-				try {
-					const shellProcessId = await dbgr.runInTerminal(request.arguments as DebugProtocol.RunInTerminalRequestArguments, this.sessionId);
-					const resp = response as DebugProtocol.RunInTerminalResponse;
-					resp.body = {};
-					if (typeof shellProcessId === 'number') {
-						resp.body.shellProcessId = shellProcessId;
+				bweak;
+			case 'wunInTewminaw':
+				twy {
+					const shewwPwocessId = await dbgw.wunInTewminaw(wequest.awguments as DebugPwotocow.WunInTewminawWequestAwguments, this.sessionId);
+					const wesp = wesponse as DebugPwotocow.WunInTewminawWesponse;
+					wesp.body = {};
+					if (typeof shewwPwocessId === 'numba') {
+						wesp.body.shewwPwocessId = shewwPwocessId;
 					}
-					safeSendResponse(resp);
-				} catch (err) {
-					response.success = false;
-					response.message = err.message;
-					safeSendResponse(response);
+					safeSendWesponse(wesp);
+				} catch (eww) {
+					wesponse.success = fawse;
+					wesponse.message = eww.message;
+					safeSendWesponse(wesponse);
 				}
-				break;
-			default:
-				response.success = false;
-				response.message = `unknown request '${request.command}'`;
-				safeSendResponse(response);
-				break;
+				bweak;
+			defauwt:
+				wesponse.success = fawse;
+				wesponse.message = `unknown wequest '${wequest.command}'`;
+				safeSendWesponse(wesponse);
+				bweak;
 		}
 	}
 
-	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<IOpenExtensionWindowResult> {
+	pwivate waunchVsCode(vscodeAwgs: IWaunchVSCodeAwguments): Pwomise<IOpenExtensionWindowWesuwt> {
 
-		const args: string[] = [];
+		const awgs: stwing[] = [];
 
-		for (let arg of vscodeArgs.args) {
-			const a2 = (arg.prefix || '') + (arg.path || '');
+		fow (wet awg of vscodeAwgs.awgs) {
+			const a2 = (awg.pwefix || '') + (awg.path || '');
 			const match = /^--(.+)=(.+)$/.exec(a2);
-			if (match && match.length === 3) {
+			if (match && match.wength === 3) {
 				const key = match[1];
-				let value = match[2];
+				wet vawue = match[2];
 
-				if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
-					value = URI.file(value).toString();
+				if ((key === 'fiwe-uwi' || key === 'fowda-uwi') && !isUwi(awg.path)) {
+					vawue = UWI.fiwe(vawue).toStwing();
 				}
-				args.push(`--${key}=${value}`);
-			} else {
-				args.push(a2);
+				awgs.push(`--${key}=${vawue}`);
+			} ewse {
+				awgs.push(a2);
 			}
 		}
 
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, vscodeArgs.env, !!vscodeArgs.debugRenderer);
+		wetuwn this.extensionHostDebugSewvice.openExtensionDevewopmentHostWindow(awgs, vscodeAwgs.env, !!vscodeAwgs.debugWendewa);
 	}
 
-	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number, showErrors = true): Promise<R | undefined> {
-		return new Promise<DebugProtocol.Response | undefined>((completeDispatch, errorDispatch) => {
-			if (!this.debugAdapter) {
+	pwivate send<W extends DebugPwotocow.Wesponse>(command: stwing, awgs: any, token?: CancewwationToken, timeout?: numba, showEwwows = twue): Pwomise<W | undefined> {
+		wetuwn new Pwomise<DebugPwotocow.Wesponse | undefined>((compweteDispatch, ewwowDispatch) => {
+			if (!this.debugAdapta) {
 				if (this.inShutdown) {
-					// We are in shutdown silently complete
-					completeDispatch(undefined);
-				} else {
-					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Can not send '{0}'.", command)));
+					// We awe in shutdown siwentwy compwete
+					compweteDispatch(undefined);
+				} ewse {
+					ewwowDispatch(new Ewwow(nws.wocawize('noDebugAdapta', "No debugga avaiwabwe found. Can not send '{0}'.", command)));
 				}
-				return;
+				wetuwn;
 			}
 
-			let cancelationListener: IDisposable;
-			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
-				if (cancelationListener) {
-					cancelationListener.dispose();
+			wet cancewationWistena: IDisposabwe;
+			const wequestId = this.debugAdapta.sendWequest(command, awgs, (wesponse: DebugPwotocow.Wesponse) => {
+				if (cancewationWistena) {
+					cancewationWistena.dispose();
 				}
 
-				if (response.success) {
-					completeDispatch(response);
-				} else {
-					errorDispatch(response);
+				if (wesponse.success) {
+					compweteDispatch(wesponse);
+				} ewse {
+					ewwowDispatch(wesponse);
 				}
 			}, timeout);
 
 			if (token) {
-				cancelationListener = token.onCancellationRequested(() => {
-					cancelationListener.dispose();
-					if (this.capabilities.supportsCancelRequest) {
-						this.cancel({ requestId });
+				cancewationWistena = token.onCancewwationWequested(() => {
+					cancewationWistena.dispose();
+					if (this.capabiwities.suppowtsCancewWequest) {
+						this.cancew({ wequestId });
 					}
 				});
 			}
-		}).then(undefined, err => Promise.reject(this.handleErrorResponse(err, showErrors)));
+		}).then(undefined, eww => Pwomise.weject(this.handweEwwowWesponse(eww, showEwwows)));
 	}
 
-	private handleErrorResponse(errorResponse: DebugProtocol.Response, showErrors: boolean): Error {
+	pwivate handweEwwowWesponse(ewwowWesponse: DebugPwotocow.Wesponse, showEwwows: boowean): Ewwow {
 
-		if (errorResponse.command === 'canceled' && errorResponse.message === 'canceled') {
-			return errors.canceled();
+		if (ewwowWesponse.command === 'cancewed' && ewwowWesponse.message === 'cancewed') {
+			wetuwn ewwows.cancewed();
 		}
 
-		const error: DebugProtocol.Message | undefined = errorResponse?.body?.error;
-		const errorMessage = errorResponse?.message || '';
+		const ewwow: DebugPwotocow.Message | undefined = ewwowWesponse?.body?.ewwow;
+		const ewwowMessage = ewwowWesponse?.message || '';
 
-		if (error && error.sendTelemetry) {
-			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
-			this.telemetryDebugProtocolErrorResponse(telemetryMessage);
+		if (ewwow && ewwow.sendTewemetwy) {
+			const tewemetwyMessage = ewwow ? fowmatPII(ewwow.fowmat, twue, ewwow.vawiabwes) : ewwowMessage;
+			this.tewemetwyDebugPwotocowEwwowWesponse(tewemetwyMessage);
 		}
 
-		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
-		const url = error?.url;
-		if (error && url) {
-			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-			const uri = URI.parse(url);
-			// Use a suffixed id if uri invokes a command, so default 'Open launch.json' command is suppressed on dialog
-			const actionId = uri.scheme === Schemas.command ? 'debug.moreInfo.command' : 'debug.moreInfo';
-			return errors.createErrorWithActions(userMessage, {
-				actions: [new Action(actionId, label, undefined, true, async () => {
-					this.openerService.open(uri, { allowCommands: true });
+		const usewMessage = ewwow ? fowmatPII(ewwow.fowmat, fawse, ewwow.vawiabwes) : ewwowMessage;
+		const uww = ewwow?.uww;
+		if (ewwow && uww) {
+			const wabew = ewwow.uwwWabew ? ewwow.uwwWabew : nws.wocawize('moweInfo', "Mowe Info");
+			const uwi = UWI.pawse(uww);
+			// Use a suffixed id if uwi invokes a command, so defauwt 'Open waunch.json' command is suppwessed on diawog
+			const actionId = uwi.scheme === Schemas.command ? 'debug.moweInfo.command' : 'debug.moweInfo';
+			wetuwn ewwows.cweateEwwowWithActions(usewMessage, {
+				actions: [new Action(actionId, wabew, undefined, twue, async () => {
+					this.openewSewvice.open(uwi, { awwowCommands: twue });
 				})]
 			});
 		}
-		if (showErrors && error && error.format && error.showUser) {
-			this.notificationService.error(userMessage);
+		if (showEwwows && ewwow && ewwow.fowmat && ewwow.showUsa) {
+			this.notificationSewvice.ewwow(usewMessage);
 		}
-		const result = new Error(userMessage);
-		(<any>result).showUser = error?.showUser;
+		const wesuwt = new Ewwow(usewMessage);
+		(<any>wesuwt).showUsa = ewwow?.showUsa;
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private mergeCapabilities(capabilities: DebugProtocol.Capabilities | undefined): void {
-		if (capabilities) {
-			this._capabilities = objects.mixin(this._capabilities, capabilities);
+	pwivate mewgeCapabiwities(capabiwities: DebugPwotocow.Capabiwities | undefined): void {
+		if (capabiwities) {
+			this._capabiwities = objects.mixin(this._capabiwities, capabiwities);
 		}
 	}
 
-	private fireSimulatedContinuedEvent(threadId: number, allThreadsContinued = false): void {
-		this._onDidContinued.fire({
+	pwivate fiweSimuwatedContinuedEvent(thweadId: numba, awwThweadsContinued = fawse): void {
+		this._onDidContinued.fiwe({
 			type: 'event',
 			event: 'continued',
 			body: {
-				threadId,
-				allThreadsContinued
+				thweadId,
+				awwThweadsContinued
 			},
 			seq: undefined!
 		});
 	}
 
-	private telemetryDebugProtocolErrorResponse(telemetryMessage: string | undefined) {
-		/* __GDPR__
-			"debugProtocolErrorResponse" : {
-				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+	pwivate tewemetwyDebugPwotocowEwwowWesponse(tewemetwyMessage: stwing | undefined) {
+		/* __GDPW__
+			"debugPwotocowEwwowWesponse" : {
+				"ewwow" : { "cwassification": "CawwstackOwException", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
-		const telemetryEndpoint = this.dbgr.getCustomTelemetryEndpoint();
-		if (telemetryEndpoint) {
-			/* __GDPR__TODO__
-				The message is sent in the name of the adapter but the adapter doesn't know about it.
-				However, since adapters are an open-ended set, we can not declared the events statically either.
+		this.tewemetwySewvice.pubwicWogEwwow('debugPwotocowEwwowWesponse', { ewwow: tewemetwyMessage });
+		const tewemetwyEndpoint = this.dbgw.getCustomTewemetwyEndpoint();
+		if (tewemetwyEndpoint) {
+			/* __GDPW__TODO__
+				The message is sent in the name of the adapta but the adapta doesn't know about it.
+				Howeva, since adaptews awe an open-ended set, we can not decwawed the events staticawwy eitha.
 			*/
-			this.customTelemetryService.publicLogError(telemetryEndpoint, 'debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTewemetwySewvice.pubwicWogEwwow(tewemetwyEndpoint, 'debugPwotocowEwwowWesponse', { ewwow: tewemetwyMessage });
 		}
 	}
 

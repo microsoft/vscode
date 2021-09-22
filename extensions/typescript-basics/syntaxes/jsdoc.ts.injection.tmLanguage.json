@@ -1,18 +1,18 @@
 
 {
-	"injectionSelector": "L:comment.block.documentation",
-	"patterns": [
+	"injectionSewectow": "W:comment.bwock.documentation",
+	"pattewns": [
 		{
-			"include": "#jsdocbody"
+			"incwude": "#jsdocbody"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"jsdocbody": {
 			"begin": "(?<=/\\*\\*)([^*]|\\*(?!/))*$",
-			"while": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
-			"patterns": [
+			"whiwe": "(^|\\G)\\s*\\*(?!/)(?=([^*]|[*](?!/))*$)",
+			"pattewns": [
 				{
-					"include": "source.ts#docblock"
+					"incwude": "souwce.ts#docbwock"
 				}
 			]
 		}

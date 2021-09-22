@@ -1,437 +1,437 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/browser/style';
-import { localize } from 'vs/nls';
-import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
-import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
-import { mark } from 'vs/base/common/performance';
-import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
-import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
-import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
-import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
-import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
-import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
-import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
-import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILogService } from 'vs/platform/log/common/log';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { WorkbenchContextKeysHandler } from 'vs/workbench/browser/contextkeys';
-import { coalesce } from 'vs/base/common/arrays';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { Layout } from 'vs/workbench/browser/layout';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+impowt 'vs/wowkbench/bwowsa/stywe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Event, Emitta, setGwobawWeakWawningThweshowd } fwom 'vs/base/common/event';
+impowt { WunOnceScheduwa, wunWhenIdwe, timeout } fwom 'vs/base/common/async';
+impowt { getZoomWevew, isFiwefox, isSafawi, isChwome, getPixewWatio } fwom 'vs/base/bwowsa/bwowsa';
+impowt { mawk } fwom 'vs/base/common/pewfowmance';
+impowt { onUnexpectedEwwow, setUnexpectedEwwowHandwa } fwom 'vs/base/common/ewwows';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { isWindows, isWinux, isWeb, isNative, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IEditowFactowyWegistwy, EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { getSingwetonSewviceDescwiptows } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { Position, Pawts, IWowkbenchWayoutSewvice, positionToStwing } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IStowageSewvice, WiwwSaveStateWeason, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { WifecycwePhase, IWifecycweSewvice, WiwwShutdownEvent, BefoweShutdownEvent } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { NotificationSewvice } fwom 'vs/wowkbench/sewvices/notification/common/notificationSewvice';
+impowt { NotificationsCenta } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCenta';
+impowt { NotificationsAwewts } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsAwewts';
+impowt { NotificationsStatus } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsStatus';
+impowt { NotificationsTewemetwy } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsTewemetwy';
+impowt { wegistewNotificationCommands } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsCommands';
+impowt { NotificationsToasts } fwom 'vs/wowkbench/bwowsa/pawts/notifications/notificationsToasts';
+impowt { setAWIAContaina } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { weadFontInfo, westoweFontInfo, sewiawizeFontInfo } fwom 'vs/editow/bwowsa/config/configuwation';
+impowt { BaweFontInfo } fwom 'vs/editow/common/config/fontInfo';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { WowkbenchContextKeysHandwa } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { InstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiationSewvice';
+impowt { Wayout } fwom 'vs/wowkbench/bwowsa/wayout';
+impowt { IHostSewvice } fwom 'vs/wowkbench/sewvices/host/bwowsa/host';
 
-export class Workbench extends Layout {
+expowt cwass Wowkbench extends Wayout {
 
-	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+	pwivate weadonwy _onBefoweShutdown = this._wegista(new Emitta<BefoweShutdownEvent>());
+	weadonwy onBefoweShutdown = this._onBefoweShutdown.event;
 
-	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	readonly onWillShutdown = this._onWillShutdown.event;
+	pwivate weadonwy _onWiwwShutdown = this._wegista(new Emitta<WiwwShutdownEvent>());
+	weadonwy onWiwwShutdown = this._onWiwwShutdown.event;
 
-	private readonly _onDidShutdown = this._register(new Emitter<void>());
-	readonly onDidShutdown = this._onDidShutdown.event;
+	pwivate weadonwy _onDidShutdown = this._wegista(new Emitta<void>());
+	weadonwy onDidShutdown = this._onDidShutdown.event;
 
-	constructor(
-		parent: HTMLElement,
-		private readonly serviceCollection: ServiceCollection,
-		logService: ILogService
+	constwuctow(
+		pawent: HTMWEwement,
+		pwivate weadonwy sewviceCowwection: SewviceCowwection,
+		wogSewvice: IWogSewvice
 	) {
-		super(parent);
+		supa(pawent);
 
-		// Perf: measure workbench startup time
-		mark('code/willStartWorkbench');
+		// Pewf: measuwe wowkbench stawtup time
+		mawk('code/wiwwStawtWowkbench');
 
-		this.registerErrorHandler(logService);
+		this.wegistewEwwowHandwa(wogSewvice);
 	}
 
-	private registerErrorHandler(logService: ILogService): void {
+	pwivate wegistewEwwowHandwa(wogSewvice: IWogSewvice): void {
 
-		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+		// Wisten on unhandwed wejection events
+		window.addEventWistena('unhandwedwejection', (event: PwomiseWejectionEvent) => {
 
-			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
-			onUnexpectedError(event.reason);
+			// See https://devewopa.moziwwa.owg/en-US/docs/Web/API/PwomiseWejectionEvent
+			onUnexpectedEwwow(event.weason);
 
-			// Prevent the printing of this event to the console
-			event.preventDefault();
+			// Pwevent the pwinting of this event to the consowe
+			event.pweventDefauwt();
 		});
 
-		// Install handler for unexpected errors
-		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
+		// Instaww handwa fow unexpected ewwows
+		setUnexpectedEwwowHandwa(ewwow => this.handweUnexpectedEwwow(ewwow, wogSewvice));
 
-		// Inform user about loading issues from the loader
-		interface AnnotatedLoadingError extends Error {
-			phase: 'loading';
-			moduleId: string;
-			neededBy: string[];
+		// Infowm usa about woading issues fwom the woada
+		intewface AnnotatedWoadingEwwow extends Ewwow {
+			phase: 'woading';
+			moduweId: stwing;
+			neededBy: stwing[];
 		}
-		interface AnnotatedFactoryError extends Error {
-			phase: 'factory';
-			moduleId: string;
+		intewface AnnotatedFactowyEwwow extends Ewwow {
+			phase: 'factowy';
+			moduweId: stwing;
 		}
-		interface AnnotatedValidationError extends Error {
-			phase: 'configuration';
+		intewface AnnotatedVawidationEwwow extends Ewwow {
+			phase: 'configuwation';
 		}
-		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-		(<any>window).require.config({
-			onError: (err: AnnotatedError) => {
-				if (err.phase === 'loading') {
-					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+		type AnnotatedEwwow = AnnotatedWoadingEwwow | AnnotatedFactowyEwwow | AnnotatedVawidationEwwow;
+		(<any>window).wequiwe.config({
+			onEwwow: (eww: AnnotatedEwwow) => {
+				if (eww.phase === 'woading') {
+					onUnexpectedEwwow(new Ewwow(wocawize('woadewEwwowNative', "Faiwed to woad a wequiwed fiwe. Pwease westawt the appwication to twy again. Detaiws: {0}", JSON.stwingify(eww))));
 				}
-				console.error(err);
+				consowe.ewwow(eww);
 			}
 		});
 	}
 
-	private previousUnexpectedError: { message: string | undefined, time: number } = { message: undefined, time: 0 };
-	private handleUnexpectedError(error: unknown, logService: ILogService): void {
-		const message = toErrorMessage(error, true);
+	pwivate pweviousUnexpectedEwwow: { message: stwing | undefined, time: numba } = { message: undefined, time: 0 };
+	pwivate handweUnexpectedEwwow(ewwow: unknown, wogSewvice: IWogSewvice): void {
+		const message = toEwwowMessage(ewwow, twue);
 		if (!message) {
-			return;
+			wetuwn;
 		}
 
 		const now = Date.now();
-		if (message === this.previousUnexpectedError.message && now - this.previousUnexpectedError.time <= 1000) {
-			return; // Return if error message identical to previous and shorter than 1 second
+		if (message === this.pweviousUnexpectedEwwow.message && now - this.pweviousUnexpectedEwwow.time <= 1000) {
+			wetuwn; // Wetuwn if ewwow message identicaw to pwevious and showta than 1 second
 		}
 
-		this.previousUnexpectedError.time = now;
-		this.previousUnexpectedError.message = message;
+		this.pweviousUnexpectedEwwow.time = now;
+		this.pweviousUnexpectedEwwow.message = message;
 
-		// Log it
-		logService.error(message);
+		// Wog it
+		wogSewvice.ewwow(message);
 	}
 
-	startup(): IInstantiationService {
-		try {
+	stawtup(): IInstantiationSewvice {
+		twy {
 
-			// Configure emitter leak warning threshold
-			setGlobalLeakWarningThreshold(175);
+			// Configuwe emitta weak wawning thweshowd
+			setGwobawWeakWawningThweshowd(175);
 
-			// Services
-			const instantiationService = this.initServices(this.serviceCollection);
+			// Sewvices
+			const instantiationSewvice = this.initSewvices(this.sewviceCowwection);
 
-			instantiationService.invokeFunction(accessor => {
-				const lifecycleService = accessor.get(ILifecycleService);
-				const storageService = accessor.get(IStorageService);
-				const configurationService = accessor.get(IConfigurationService);
-				const hostService = accessor.get(IHostService);
+			instantiationSewvice.invokeFunction(accessow => {
+				const wifecycweSewvice = accessow.get(IWifecycweSewvice);
+				const stowageSewvice = accessow.get(IStowageSewvice);
+				const configuwationSewvice = accessow.get(IConfiguwationSewvice);
+				const hostSewvice = accessow.get(IHostSewvice);
 
-				// Layout
-				this.initLayout(accessor);
+				// Wayout
+				this.initWayout(accessow);
 
-				// Registries
-				Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
-				Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor);
+				// Wegistwies
+				Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).stawt(accessow);
+				Wegistwy.as<IEditowFactowyWegistwy>(EditowExtensions.EditowFactowy).stawt(accessow);
 
 				// Context Keys
-				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
+				this._wegista(instantiationSewvice.cweateInstance(WowkbenchContextKeysHandwa));
 
-				// Register Listeners
-				this.registerListeners(lifecycleService, storageService, configurationService, hostService);
+				// Wegista Wistenews
+				this.wegistewWistenews(wifecycweSewvice, stowageSewvice, configuwationSewvice, hostSewvice);
 
-				// Render Workbench
-				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
+				// Wenda Wowkbench
+				this.wendewWowkbench(instantiationSewvice, accessow.get(INotificationSewvice) as NotificationSewvice, stowageSewvice, configuwationSewvice);
 
-				// Workbench Layout
-				this.createWorkbenchLayout();
+				// Wowkbench Wayout
+				this.cweateWowkbenchWayout();
 
-				// Layout
-				this.layout();
+				// Wayout
+				this.wayout();
 
-				// Restore
-				this.restore(lifecycleService);
+				// Westowe
+				this.westowe(wifecycweSewvice);
 			});
 
-			return instantiationService;
-		} catch (error) {
-			onUnexpectedError(error);
+			wetuwn instantiationSewvice;
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 
-			throw error; // rethrow because this is a critical issue we cannot handle properly here
+			thwow ewwow; // wethwow because this is a cwiticaw issue we cannot handwe pwopewwy hewe
 		}
 	}
 
-	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
+	pwivate initSewvices(sewviceCowwection: SewviceCowwection): IInstantiationSewvice {
 
-		// Layout Service
-		serviceCollection.set(IWorkbenchLayoutService, this);
+		// Wayout Sewvice
+		sewviceCowwection.set(IWowkbenchWayoutSewvice, this);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
-		// NOTE: Please do NOT register services here. Use `registerSingleton()`
-		//       from `workbench.common.main.ts` if the service is shared between
-		//       native and web or `workbench.sandbox.main.ts` if the service
-		//       is native only.
+		// NOTE: Pwease do NOT wegista sewvices hewe. Use `wegistewSingweton()`
+		//       fwom `wowkbench.common.main.ts` if the sewvice is shawed between
+		//       native and web ow `wowkbench.sandbox.main.ts` if the sewvice
+		//       is native onwy.
 		//
-		//       DO NOT add services to `workbench.desktop.main.ts`, always add
-		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//       DO NOT add sewvices to `wowkbench.desktop.main.ts`, awways add
+		//       to `wowkbench.sandbox.main.ts` to suppowt ouw Ewectwon sandbox
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// All Contributed Services
-		const contributedServices = getSingletonServiceDescriptors();
-		for (let [id, descriptor] of contributedServices) {
-			serviceCollection.set(id, descriptor);
+		// Aww Contwibuted Sewvices
+		const contwibutedSewvices = getSingwetonSewviceDescwiptows();
+		fow (wet [id, descwiptow] of contwibutedSewvices) {
+			sewviceCowwection.set(id, descwiptow);
 		}
 
-		const instantiationService = new InstantiationService(serviceCollection, true);
+		const instantiationSewvice = new InstantiationSewvice(sewviceCowwection, twue);
 
-		// Wrap up
-		instantiationService.invokeFunction(accessor => {
-			const lifecycleService = accessor.get(ILifecycleService);
+		// Wwap up
+		instantiationSewvice.invokeFunction(accessow => {
+			const wifecycweSewvice = accessow.get(IWifecycweSewvice);
 
-			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService) as any;
-			if (typeof configurationService.acquireInstantiationService === 'function') {
-				configurationService.acquireInstantiationService(instantiationService);
+			// TODO@Sandeep debt awound cycwic dependencies
+			const configuwationSewvice = accessow.get(IConfiguwationSewvice) as any;
+			if (typeof configuwationSewvice.acquiweInstantiationSewvice === 'function') {
+				configuwationSewvice.acquiweInstantiationSewvice(instantiationSewvice);
 			}
 
-			// Signal to lifecycle that services are set
-			lifecycleService.phase = LifecyclePhase.Ready;
+			// Signaw to wifecycwe that sewvices awe set
+			wifecycweSewvice.phase = WifecycwePhase.Weady;
 		});
 
-		return instantiationService;
+		wetuwn instantiationSewvice;
 	}
 
-	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService): void {
+	pwivate wegistewWistenews(wifecycweSewvice: IWifecycweSewvice, stowageSewvice: IStowageSewvice, configuwationSewvice: IConfiguwationSewvice, hostSewvice: IHostSewvice): void {
 
-		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+		// Configuwation changes
+		this._wegista(configuwationSewvice.onDidChangeConfiguwation(() => this.setFontAwiasing(configuwationSewvice)));
 
 		// Font Info
 		if (isNative) {
-			this._register(storageService.onWillSaveState(e => {
-				if (e.reason === WillSaveStateReason.SHUTDOWN) {
-					this.storeFontInfo(storageService);
+			this._wegista(stowageSewvice.onWiwwSaveState(e => {
+				if (e.weason === WiwwSaveStateWeason.SHUTDOWN) {
+					this.stoweFontInfo(stowageSewvice);
 				}
 			}));
-		} else {
-			this._register(lifecycleService.onWillShutdown(() => this.storeFontInfo(storageService)));
+		} ewse {
+			this._wegista(wifecycweSewvice.onWiwwShutdown(() => this.stoweFontInfo(stowageSewvice)));
 		}
 
-		// Lifecycle
-		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
-		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
-		this._register(lifecycleService.onDidShutdown(() => {
-			this._onDidShutdown.fire();
+		// Wifecycwe
+		this._wegista(wifecycweSewvice.onBefoweShutdown(event => this._onBefoweShutdown.fiwe(event)));
+		this._wegista(wifecycweSewvice.onWiwwShutdown(event => this._onWiwwShutdown.fiwe(event)));
+		this._wegista(wifecycweSewvice.onDidShutdown(() => {
+			this._onDidShutdown.fiwe();
 			this.dispose();
 		}));
 
-		// In some environments we do not get enough time to persist state on shutdown.
-		// In other cases, VSCode might crash, so we periodically save state to reduce
-		// the chance of loosing any state.
-		// The window loosing focus is a good indication that the user has stopped working
-		// in that window so we pick that at a time to collect state.
-		this._register(hostService.onDidChangeFocus(focus => {
+		// In some enviwonments we do not get enough time to pewsist state on shutdown.
+		// In otha cases, VSCode might cwash, so we pewiodicawwy save state to weduce
+		// the chance of woosing any state.
+		// The window woosing focus is a good indication that the usa has stopped wowking
+		// in that window so we pick that at a time to cowwect state.
+		this._wegista(hostSewvice.onDidChangeFocus(focus => {
 			if (!focus) {
-				storageService.flush();
+				stowageSewvice.fwush();
 			}
 		}));
 	}
 
-	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
-	private setFontAliasing(configurationService: IConfigurationService) {
+	pwivate fontAwiasing: 'defauwt' | 'antiawiased' | 'none' | 'auto' | undefined;
+	pwivate setFontAwiasing(configuwationSewvice: IConfiguwationSewvice) {
 		if (!isMacintosh) {
-			return; // macOS only
+			wetuwn; // macOS onwy
 		}
 
-		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
-		if (this.fontAliasing === aliasing) {
-			return;
+		const awiasing = configuwationSewvice.getVawue<'defauwt' | 'antiawiased' | 'none' | 'auto'>('wowkbench.fontAwiasing');
+		if (this.fontAwiasing === awiasing) {
+			wetuwn;
 		}
 
-		this.fontAliasing = aliasing;
+		this.fontAwiasing = awiasing;
 
-		// Remove all
-		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
-		this.container.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		// Wemove aww
+		const fontAwiasingVawues: (typeof awiasing)[] = ['antiawiased', 'none', 'auto'];
+		this.containa.cwassWist.wemove(...fontAwiasingVawues.map(vawue => `monaco-font-awiasing-${vawue}`));
 
 		// Add specific
-		if (fontAliasingValues.some(option => option === aliasing)) {
-			this.container.classList.add(`monaco-font-aliasing-${aliasing}`);
+		if (fontAwiasingVawues.some(option => option === awiasing)) {
+			this.containa.cwassWist.add(`monaco-font-awiasing-${awiasing}`);
 		}
 	}
 
-	private restoreFontInfo(storageService: IStorageService, configurationService: IConfigurationService): void {
-		const storedFontInfoRaw = storageService.get('editorFontInfo', StorageScope.GLOBAL);
-		if (storedFontInfoRaw) {
-			try {
-				const storedFontInfo = JSON.parse(storedFontInfoRaw);
-				if (Array.isArray(storedFontInfo)) {
-					restoreFontInfo(storedFontInfo);
+	pwivate westoweFontInfo(stowageSewvice: IStowageSewvice, configuwationSewvice: IConfiguwationSewvice): void {
+		const stowedFontInfoWaw = stowageSewvice.get('editowFontInfo', StowageScope.GWOBAW);
+		if (stowedFontInfoWaw) {
+			twy {
+				const stowedFontInfo = JSON.pawse(stowedFontInfoWaw);
+				if (Awway.isAwway(stowedFontInfo)) {
+					westoweFontInfo(stowedFontInfo);
 				}
-			} catch (err) {
-				/* ignore */
+			} catch (eww) {
+				/* ignowe */
 			}
 		}
 
-		readFontInfo(BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio()));
+		weadFontInfo(BaweFontInfo.cweateFwomWawSettings(configuwationSewvice.getVawue('editow'), getZoomWevew(), getPixewWatio()));
 	}
 
-	private storeFontInfo(storageService: IStorageService): void {
-		const serializedFontInfo = serializeFontInfo();
-		if (serializedFontInfo) {
-			storageService.store('editorFontInfo', JSON.stringify(serializedFontInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	pwivate stoweFontInfo(stowageSewvice: IStowageSewvice): void {
+		const sewiawizedFontInfo = sewiawizeFontInfo();
+		if (sewiawizedFontInfo) {
+			stowageSewvice.stowe('editowFontInfo', JSON.stwingify(sewiawizedFontInfo), StowageScope.GWOBAW, StowageTawget.MACHINE);
 		}
 	}
 
-	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
+	pwivate wendewWowkbench(instantiationSewvice: IInstantiationSewvice, notificationSewvice: NotificationSewvice, stowageSewvice: IStowageSewvice, configuwationSewvice: IConfiguwationSewvice): void {
 
-		// ARIA
-		setARIAContainer(this.container);
+		// AWIA
+		setAWIAContaina(this.containa);
 
-		// State specific classes
-		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-		const workbenchClasses = coalesce([
-			'monaco-workbench',
-			platformClass,
+		// State specific cwasses
+		const pwatfowmCwass = isWindows ? 'windows' : isWinux ? 'winux' : 'mac';
+		const wowkbenchCwasses = coawesce([
+			'monaco-wowkbench',
+			pwatfowmCwass,
 			isWeb ? 'web' : undefined,
-			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
-			...this.getLayoutClasses()
+			isChwome ? 'chwomium' : isFiwefox ? 'fiwefox' : isSafawi ? 'safawi' : undefined,
+			...this.getWayoutCwasses()
 		]);
 
-		this.container.classList.add(...workbenchClasses);
-		document.body.classList.add(platformClass); // used by our fonts
+		this.containa.cwassWist.add(...wowkbenchCwasses);
+		document.body.cwassWist.add(pwatfowmCwass); // used by ouw fonts
 
 		if (isWeb) {
-			document.body.classList.add('web');
+			document.body.cwassWist.add('web');
 		}
 
-		// Apply font aliasing
-		this.setFontAliasing(configurationService);
+		// Appwy font awiasing
+		this.setFontAwiasing(configuwationSewvice);
 
-		// Warm up font cache information before building up too many dom elements
-		this.restoreFontInfo(storageService, configurationService);
+		// Wawm up font cache infowmation befowe buiwding up too many dom ewements
+		this.westoweFontInfo(stowageSewvice, configuwationSewvice);
 
-		// Create Parts
+		// Cweate Pawts
 		[
-			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
-			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
-			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
-			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
-			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
-			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', positionToString(this.state.panel.position)] },
-			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', this.state.sideBar.position === Position.LEFT ? 'right' : 'left'] },
-			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
-		].forEach(({ id, role, classes, options }) => {
-			const partContainer = this.createPart(id, role, classes);
+			{ id: Pawts.TITWEBAW_PAWT, wowe: 'contentinfo', cwasses: ['titwebaw'] },
+			{ id: Pawts.BANNEW_PAWT, wowe: 'banna', cwasses: ['banna'] },
+			{ id: Pawts.ACTIVITYBAW_PAWT, wowe: 'none', cwasses: ['activitybaw', this.state.sideBaw.position === Position.WEFT ? 'weft' : 'wight'] }, // Use wowe 'none' fow some pawts to make scween weadews wess chatty #114892
+			{ id: Pawts.SIDEBAW_PAWT, wowe: 'none', cwasses: ['sidebaw', this.state.sideBaw.position === Position.WEFT ? 'weft' : 'wight'] },
+			{ id: Pawts.EDITOW_PAWT, wowe: 'main', cwasses: ['editow'], options: { westowePweviousState: this.state.editow.westoweEditows } },
+			{ id: Pawts.PANEW_PAWT, wowe: 'none', cwasses: ['panew', positionToStwing(this.state.panew.position)] },
+			{ id: Pawts.AUXIWIAWYBAW_PAWT, wowe: 'none', cwasses: ['auxiwiawybaw', this.state.sideBaw.position === Position.WEFT ? 'wight' : 'weft'] },
+			{ id: Pawts.STATUSBAW_PAWT, wowe: 'status', cwasses: ['statusbaw'] }
+		].fowEach(({ id, wowe, cwasses, options }) => {
+			const pawtContaina = this.cweatePawt(id, wowe, cwasses);
 
-			this.getPart(id).create(partContainer, options);
+			this.getPawt(id).cweate(pawtContaina, options);
 		});
 
-		// Notification Handlers
-		this.createNotificationsHandlers(instantiationService, notificationService);
+		// Notification Handwews
+		this.cweateNotificationsHandwews(instantiationSewvice, notificationSewvice);
 
-		// Add Workbench to DOM
-		this.parent.appendChild(this.container);
+		// Add Wowkbench to DOM
+		this.pawent.appendChiwd(this.containa);
 	}
 
-	private createPart(id: string, role: string, classes: string[]): HTMLElement {
-		const part = document.createElement(role === 'status' ? 'footer' /* Use footer element for status bar #98376 */ : 'div');
-		part.classList.add('part', ...classes);
-		part.id = id;
-		part.setAttribute('role', role);
-		if (role === 'status') {
-			part.setAttribute('aria-live', 'off');
+	pwivate cweatePawt(id: stwing, wowe: stwing, cwasses: stwing[]): HTMWEwement {
+		const pawt = document.cweateEwement(wowe === 'status' ? 'foota' /* Use foota ewement fow status baw #98376 */ : 'div');
+		pawt.cwassWist.add('pawt', ...cwasses);
+		pawt.id = id;
+		pawt.setAttwibute('wowe', wowe);
+		if (wowe === 'status') {
+			pawt.setAttwibute('awia-wive', 'off');
 		}
 
-		return part;
+		wetuwn pawt;
 	}
 
-	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
+	pwivate cweateNotificationsHandwews(instantiationSewvice: IInstantiationSewvice, notificationSewvice: NotificationSewvice): void {
 
 		// Instantiate Notification components
-		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.container, notificationService.model));
-		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
-		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
-		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
-		this._register(instantiationService.createInstance(NotificationsTelemetry));
+		const notificationsCenta = this._wegista(instantiationSewvice.cweateInstance(NotificationsCenta, this.containa, notificationSewvice.modew));
+		const notificationsToasts = this._wegista(instantiationSewvice.cweateInstance(NotificationsToasts, this.containa, notificationSewvice.modew));
+		this._wegista(instantiationSewvice.cweateInstance(NotificationsAwewts, notificationSewvice.modew));
+		const notificationsStatus = instantiationSewvice.cweateInstance(NotificationsStatus, notificationSewvice.modew);
+		this._wegista(instantiationSewvice.cweateInstance(NotificationsTewemetwy));
 
-		// Visibility
-		this._register(notificationsCenter.onDidChangeVisibility(() => {
-			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
-			notificationsToasts.update(notificationsCenter.isVisible);
+		// Visibiwity
+		this._wegista(notificationsCenta.onDidChangeVisibiwity(() => {
+			notificationsStatus.update(notificationsCenta.isVisibwe, notificationsToasts.isVisibwe);
+			notificationsToasts.update(notificationsCenta.isVisibwe);
 		}));
 
-		this._register(notificationsToasts.onDidChangeVisibility(() => {
-			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
+		this._wegista(notificationsToasts.onDidChangeVisibiwity(() => {
+			notificationsStatus.update(notificationsCenta.isVisibwe, notificationsToasts.isVisibwe);
 		}));
 
-		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+		// Wegista Commands
+		wegistewNotificationCommands(notificationsCenta, notificationsToasts, notificationSewvice.modew);
 
-		// Register with Layout
-		this.registerNotifications({
-			onDidChangeNotificationsVisibility: Event.map(Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility), () => notificationsToasts.isVisible || notificationsCenter.isVisible)
+		// Wegista with Wayout
+		this.wegistewNotifications({
+			onDidChangeNotificationsVisibiwity: Event.map(Event.any(notificationsToasts.onDidChangeVisibiwity, notificationsCenta.onDidChangeVisibiwity), () => notificationsToasts.isVisibwe || notificationsCenta.isVisibwe)
 		});
 	}
 
-	private restore(lifecycleService: ILifecycleService): void {
+	pwivate westowe(wifecycweSewvice: IWifecycweSewvice): void {
 
-		// Ask each part to restore
-		try {
-			this.restoreParts();
-		} catch (error) {
-			onUnexpectedError(error);
+		// Ask each pawt to westowe
+		twy {
+			this.westowePawts();
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 
-		// Transition into restored phase after layout has restored
-		// but do not wait indefinitly on this to account for slow
-		// editors restoring. Since the workbench is fully functional
-		// even when the visible editors have not resolved, we still
-		// want contributions on the `Restored` phase to work before
-		// slow editors have resolved. But we also do not want fast
-		// editors to resolve slow when too many contributions get
-		// instantiated, so we find a middle ground solution via
-		// `Promise.race`
-		this.whenReady.finally(() =>
-			Promise.race([
-				this.whenRestored,
+		// Twansition into westowed phase afta wayout has westowed
+		// but do not wait indefinitwy on this to account fow swow
+		// editows westowing. Since the wowkbench is fuwwy functionaw
+		// even when the visibwe editows have not wesowved, we stiww
+		// want contwibutions on the `Westowed` phase to wowk befowe
+		// swow editows have wesowved. But we awso do not want fast
+		// editows to wesowve swow when too many contwibutions get
+		// instantiated, so we find a middwe gwound sowution via
+		// `Pwomise.wace`
+		this.whenWeady.finawwy(() =>
+			Pwomise.wace([
+				this.whenWestowed,
 				timeout(2000)
-			]).finally(() => {
+			]).finawwy(() => {
 
-				// Set lifecycle phase to `Restored`
-				lifecycleService.phase = LifecyclePhase.Restored;
+				// Set wifecycwe phase to `Westowed`
+				wifecycweSewvice.phase = WifecycwePhase.Westowed;
 
-				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+				// Set wifecycwe phase to `Eventuawwy` afta a showt deway and when idwe (min 2.5sec, max 5sec)
+				const eventuawwyPhaseScheduwa = this._wegista(new WunOnceScheduwa(() => {
+					this._wegista(wunWhenIdwe(() => wifecycweSewvice.phase = WifecycwePhase.Eventuawwy, 2500));
 				}, 2500));
-				eventuallyPhaseScheduler.schedule();
+				eventuawwyPhaseScheduwa.scheduwe();
 
-				// Update perf marks only when the layout is fully
-				// restored. We want the time it takes to restore
-				// editors to be included in these numbers
+				// Update pewf mawks onwy when the wayout is fuwwy
+				// westowed. We want the time it takes to westowe
+				// editows to be incwuded in these numbews
 
-				function markDidStartWorkbench() {
-					mark('code/didStartWorkbench');
-					performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
+				function mawkDidStawtWowkbench() {
+					mawk('code/didStawtWowkbench');
+					pewfowmance.measuwe('pewf: wowkbench cweate & westowe', 'code/didWoadWowkbenchMain', 'code/didStawtWowkbench');
 				}
 
-				if (this.isRestored()) {
-					markDidStartWorkbench();
-				} else {
-					this.whenRestored.finally(() => markDidStartWorkbench());
+				if (this.isWestowed()) {
+					mawkDidStawtWowkbench();
+				} ewse {
+					this.whenWestowed.finawwy(() => mawkDidStawtWowkbench());
 				}
 			})
 		);

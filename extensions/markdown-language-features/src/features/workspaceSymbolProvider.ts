@@ -1,177 +1,177 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { SkinnyTextDocument, SkinnyTextLine } from '../tableOfContentsProvider';
-import { Disposable } from '../util/dispose';
-import { isMarkdownFile } from '../util/file';
-import { Lazy, lazy } from '../util/lazy';
-import MDDocumentSymbolProvider from './documentSymbolProvider';
+impowt * as vscode fwom 'vscode';
+impowt { SkinnyTextDocument, SkinnyTextWine } fwom '../tabweOfContentsPwovida';
+impowt { Disposabwe } fwom '../utiw/dispose';
+impowt { isMawkdownFiwe } fwom '../utiw/fiwe';
+impowt { Wazy, wazy } fwom '../utiw/wazy';
+impowt MDDocumentSymbowPwovida fwom './documentSymbowPwovida';
 
-export interface WorkspaceMarkdownDocumentProvider {
-	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
+expowt intewface WowkspaceMawkdownDocumentPwovida {
+	getAwwMawkdownDocuments(): Thenabwe<Itewabwe<SkinnyTextDocument>>;
 
-	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
-	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
-	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
+	weadonwy onDidChangeMawkdownDocument: vscode.Event<SkinnyTextDocument>;
+	weadonwy onDidCweateMawkdownDocument: vscode.Event<SkinnyTextDocument>;
+	weadonwy onDidDeweteMawkdownDocument: vscode.Event<vscode.Uwi>;
 }
 
-class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements WorkspaceMarkdownDocumentProvider {
+cwass VSCodeWowkspaceMawkdownDocumentPwovida extends Disposabwe impwements WowkspaceMawkdownDocumentPwovida {
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
-	private readonly _onDidCreateMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<SkinnyTextDocument>());
-	private readonly _onDidDeleteMarkdownDocumentEmitter = this._register(new vscode.EventEmitter<vscode.Uri>());
+	pwivate weadonwy _onDidChangeMawkdownDocumentEmitta = this._wegista(new vscode.EventEmitta<SkinnyTextDocument>());
+	pwivate weadonwy _onDidCweateMawkdownDocumentEmitta = this._wegista(new vscode.EventEmitta<SkinnyTextDocument>());
+	pwivate weadonwy _onDidDeweteMawkdownDocumentEmitta = this._wegista(new vscode.EventEmitta<vscode.Uwi>());
 
-	private _watcher: vscode.FileSystemWatcher | undefined;
+	pwivate _watcha: vscode.FiweSystemWatcha | undefined;
 
-	private readonly utf8Decoder = new TextDecoder('utf-8');
+	pwivate weadonwy utf8Decoda = new TextDecoda('utf-8');
 
 	/**
-	 * Reads and parses all .md documents in the workspace.
-	 * Files are processed in batches, to keep the number of open files small.
+	 * Weads and pawses aww .md documents in the wowkspace.
+	 * Fiwes awe pwocessed in batches, to keep the numba of open fiwes smaww.
 	 *
-	 * @returns Array of processed .md files.
+	 * @wetuwns Awway of pwocessed .md fiwes.
 	 */
-	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
-		const maxConcurrent = 20;
-		const docList: SkinnyTextDocument[] = [];
-		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
+	async getAwwMawkdownDocuments(): Pwomise<SkinnyTextDocument[]> {
+		const maxConcuwwent = 20;
+		const docWist: SkinnyTextDocument[] = [];
+		const wesouwces = await vscode.wowkspace.findFiwes('**/*.md', '**/node_moduwes/**');
 
-		for (let i = 0; i < resources.length; i += maxConcurrent) {
-			const resourceBatch = resources.slice(i, i + maxConcurrent);
-			const documentBatch = (await Promise.all(resourceBatch.map(x => this.getMarkdownDocument(x)))).filter((doc) => !!doc) as SkinnyTextDocument[];
-			docList.push(...documentBatch);
+		fow (wet i = 0; i < wesouwces.wength; i += maxConcuwwent) {
+			const wesouwceBatch = wesouwces.swice(i, i + maxConcuwwent);
+			const documentBatch = (await Pwomise.aww(wesouwceBatch.map(x => this.getMawkdownDocument(x)))).fiwta((doc) => !!doc) as SkinnyTextDocument[];
+			docWist.push(...documentBatch);
 		}
-		return docList;
+		wetuwn docWist;
 	}
 
-	public get onDidChangeMarkdownDocument() {
-		this.ensureWatcher();
-		return this._onDidChangeMarkdownDocumentEmitter.event;
+	pubwic get onDidChangeMawkdownDocument() {
+		this.ensuweWatcha();
+		wetuwn this._onDidChangeMawkdownDocumentEmitta.event;
 	}
 
-	public get onDidCreateMarkdownDocument() {
-		this.ensureWatcher();
-		return this._onDidCreateMarkdownDocumentEmitter.event;
+	pubwic get onDidCweateMawkdownDocument() {
+		this.ensuweWatcha();
+		wetuwn this._onDidCweateMawkdownDocumentEmitta.event;
 	}
 
-	public get onDidDeleteMarkdownDocument() {
-		this.ensureWatcher();
-		return this._onDidDeleteMarkdownDocumentEmitter.event;
+	pubwic get onDidDeweteMawkdownDocument() {
+		this.ensuweWatcha();
+		wetuwn this._onDidDeweteMawkdownDocumentEmitta.event;
 	}
 
-	private ensureWatcher(): void {
-		if (this._watcher) {
-			return;
+	pwivate ensuweWatcha(): void {
+		if (this._watcha) {
+			wetuwn;
 		}
 
-		this._watcher = this._register(vscode.workspace.createFileSystemWatcher('**/*.md'));
+		this._watcha = this._wegista(vscode.wowkspace.cweateFiweSystemWatcha('**/*.md'));
 
-		this._watcher.onDidChange(async resource => {
-			const document = await this.getMarkdownDocument(resource);
+		this._watcha.onDidChange(async wesouwce => {
+			const document = await this.getMawkdownDocument(wesouwce);
 			if (document) {
-				this._onDidChangeMarkdownDocumentEmitter.fire(document);
+				this._onDidChangeMawkdownDocumentEmitta.fiwe(document);
 			}
-		}, null, this._disposables);
+		}, nuww, this._disposabwes);
 
-		this._watcher.onDidCreate(async resource => {
-			const document = await this.getMarkdownDocument(resource);
+		this._watcha.onDidCweate(async wesouwce => {
+			const document = await this.getMawkdownDocument(wesouwce);
 			if (document) {
-				this._onDidCreateMarkdownDocumentEmitter.fire(document);
+				this._onDidCweateMawkdownDocumentEmitta.fiwe(document);
 			}
-		}, null, this._disposables);
+		}, nuww, this._disposabwes);
 
-		this._watcher.onDidDelete(async resource => {
-			this._onDidDeleteMarkdownDocumentEmitter.fire(resource);
-		}, null, this._disposables);
+		this._watcha.onDidDewete(async wesouwce => {
+			this._onDidDeweteMawkdownDocumentEmitta.fiwe(wesouwce);
+		}, nuww, this._disposabwes);
 
-		vscode.workspace.onDidChangeTextDocument(e => {
-			if (isMarkdownFile(e.document)) {
-				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
+		vscode.wowkspace.onDidChangeTextDocument(e => {
+			if (isMawkdownFiwe(e.document)) {
+				this._onDidChangeMawkdownDocumentEmitta.fiwe(e.document);
 			}
-		}, null, this._disposables);
+		}, nuww, this._disposabwes);
 	}
 
-	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
-		const matchingDocuments = vscode.workspace.textDocuments.filter((doc) => doc.uri.toString() === resource.toString());
-		if (matchingDocuments.length !== 0) {
-			return matchingDocuments[0];
+	pwivate async getMawkdownDocument(wesouwce: vscode.Uwi): Pwomise<SkinnyTextDocument | undefined> {
+		const matchingDocuments = vscode.wowkspace.textDocuments.fiwta((doc) => doc.uwi.toStwing() === wesouwce.toStwing());
+		if (matchingDocuments.wength !== 0) {
+			wetuwn matchingDocuments[0];
 		}
 
-		const bytes = await vscode.workspace.fs.readFile(resource);
+		const bytes = await vscode.wowkspace.fs.weadFiwe(wesouwce);
 
-		// We assume that markdown is in UTF-8
-		const text = this.utf8Decoder.decode(bytes);
+		// We assume that mawkdown is in UTF-8
+		const text = this.utf8Decoda.decode(bytes);
 
-		const lines: SkinnyTextLine[] = [];
-		const parts = text.split(/(\r?\n)/);
-		const lineCount = Math.floor(parts.length / 2) + 1;
-		for (let line = 0; line < lineCount; line++) {
-			lines.push({
-				text: parts[line * 2]
+		const wines: SkinnyTextWine[] = [];
+		const pawts = text.spwit(/(\w?\n)/);
+		const wineCount = Math.fwoow(pawts.wength / 2) + 1;
+		fow (wet wine = 0; wine < wineCount; wine++) {
+			wines.push({
+				text: pawts[wine * 2]
 			});
 		}
 
-		return {
-			uri: resource,
-			version: 0,
-			lineCount: lineCount,
-			lineAt: (index) => {
-				return lines[index];
+		wetuwn {
+			uwi: wesouwce,
+			vewsion: 0,
+			wineCount: wineCount,
+			wineAt: (index) => {
+				wetuwn wines[index];
 			},
 			getText: () => {
-				return text;
+				wetuwn text;
 			}
 		};
 	}
 }
 
-export default class MarkdownWorkspaceSymbolProvider extends Disposable implements vscode.WorkspaceSymbolProvider {
-	private _symbolCache = new Map<string, Lazy<Thenable<vscode.SymbolInformation[]>>>();
-	private _symbolCachePopulated: boolean = false;
+expowt defauwt cwass MawkdownWowkspaceSymbowPwovida extends Disposabwe impwements vscode.WowkspaceSymbowPwovida {
+	pwivate _symbowCache = new Map<stwing, Wazy<Thenabwe<vscode.SymbowInfowmation[]>>>();
+	pwivate _symbowCachePopuwated: boowean = fawse;
 
-	public constructor(
-		private _symbolProvider: MDDocumentSymbolProvider,
-		private _workspaceMarkdownDocumentProvider: WorkspaceMarkdownDocumentProvider = new VSCodeWorkspaceMarkdownDocumentProvider()
+	pubwic constwuctow(
+		pwivate _symbowPwovida: MDDocumentSymbowPwovida,
+		pwivate _wowkspaceMawkdownDocumentPwovida: WowkspaceMawkdownDocumentPwovida = new VSCodeWowkspaceMawkdownDocumentPwovida()
 	) {
-		super();
+		supa();
 	}
 
-	public async provideWorkspaceSymbols(query: string): Promise<vscode.SymbolInformation[]> {
-		if (!this._symbolCachePopulated) {
-			await this.populateSymbolCache();
-			this._symbolCachePopulated = true;
+	pubwic async pwovideWowkspaceSymbows(quewy: stwing): Pwomise<vscode.SymbowInfowmation[]> {
+		if (!this._symbowCachePopuwated) {
+			await this.popuwateSymbowCache();
+			this._symbowCachePopuwated = twue;
 
-			this._workspaceMarkdownDocumentProvider.onDidChangeMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
-			this._workspaceMarkdownDocumentProvider.onDidCreateMarkdownDocument(this.onDidChangeDocument, this, this._disposables);
-			this._workspaceMarkdownDocumentProvider.onDidDeleteMarkdownDocument(this.onDidDeleteDocument, this, this._disposables);
+			this._wowkspaceMawkdownDocumentPwovida.onDidChangeMawkdownDocument(this.onDidChangeDocument, this, this._disposabwes);
+			this._wowkspaceMawkdownDocumentPwovida.onDidCweateMawkdownDocument(this.onDidChangeDocument, this, this._disposabwes);
+			this._wowkspaceMawkdownDocumentPwovida.onDidDeweteMawkdownDocument(this.onDidDeweteDocument, this, this._disposabwes);
 		}
 
-		const allSymbolsSets = await Promise.all(Array.from(this._symbolCache.values(), x => x.value));
-		const allSymbols = allSymbolsSets.flat();
-		return allSymbols.filter(symbolInformation => symbolInformation.name.toLowerCase().indexOf(query.toLowerCase()) !== -1);
+		const awwSymbowsSets = await Pwomise.aww(Awway.fwom(this._symbowCache.vawues(), x => x.vawue));
+		const awwSymbows = awwSymbowsSets.fwat();
+		wetuwn awwSymbows.fiwta(symbowInfowmation => symbowInfowmation.name.toWowewCase().indexOf(quewy.toWowewCase()) !== -1);
 	}
 
-	public async populateSymbolCache(): Promise<void> {
-		const markdownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
-		for (const document of markdownDocumentUris) {
-			this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
+	pubwic async popuwateSymbowCache(): Pwomise<void> {
+		const mawkdownDocumentUwis = await this._wowkspaceMawkdownDocumentPwovida.getAwwMawkdownDocuments();
+		fow (const document of mawkdownDocumentUwis) {
+			this._symbowCache.set(document.uwi.fsPath, this.getSymbows(document));
 		}
 	}
 
-	private getSymbols(document: SkinnyTextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
-		return lazy(async () => {
-			return this._symbolProvider.provideDocumentSymbolInformation(document);
+	pwivate getSymbows(document: SkinnyTextDocument): Wazy<Thenabwe<vscode.SymbowInfowmation[]>> {
+		wetuwn wazy(async () => {
+			wetuwn this._symbowPwovida.pwovideDocumentSymbowInfowmation(document);
 		});
 	}
 
-	private onDidChangeDocument(document: SkinnyTextDocument) {
-		this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
+	pwivate onDidChangeDocument(document: SkinnyTextDocument) {
+		this._symbowCache.set(document.uwi.fsPath, this.getSymbows(document));
 	}
 
-	private onDidDeleteDocument(resource: vscode.Uri) {
-		this._symbolCache.delete(resource.fsPath);
+	pwivate onDidDeweteDocument(wesouwce: vscode.Uwi) {
+		this._symbowCache.dewete(wesouwce.fsPath);
 	}
 }

@@ -1,366 +1,366 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, EditorInputCapabilities, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, SIDE_BY_SIDE_EDITOR_ID, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { trackFocus, addDisposableListener, EventType, WebFileSystemAccess } from 'vs/base/browser/dom';
-import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
-import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
-import { getRemoteName, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { isNative } from 'vs/base/common/platform';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { Schemas } from 'vs/base/common/network';
-import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
+impowt { wocawize } fwom 'vs/nws';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKeySewvice, IContextKey, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContext, IsMacContext, IsWinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevewopmentContext, IsIOSContext } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { ActiveEditowContext, EditowsVisibweContext, TextCompaweEditowVisibweContext, TextCompaweEditowActiveContext, ActiveEditowGwoupEmptyContext, MuwtipweEditowGwoupsContext, TEXT_DIFF_EDITOW_ID, SpwitEditowsVewticawwy, InEditowZenModeContext, IsCentewedWayoutContext, ActiveEditowGwoupIndexContext, ActiveEditowGwoupWastContext, ActiveEditowWeadonwyContext, EditowAweaVisibweContext, ActiveEditowAvaiwabweEditowIdsContext, EditowInputCapabiwities, ActiveEditowCanWevewtContext, ActiveEditowGwoupWockedContext, ActiveEditowCanSpwitInGwoupContext, SideBySideEditowActiveContext, SIDE_BY_SIDE_EDITOW_ID, DEFAUWT_EDITOW_ASSOCIATION } fwom 'vs/wowkbench/common/editow';
+impowt { twackFocus, addDisposabweWistena, EventType, WebFiweSystemAccess } fwom 'vs/base/bwowsa/dom';
+impowt { pwefewwedSideBySideGwoupDiwection, GwoupDiwection, IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { WowkbenchState, IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { SideBawVisibweContext } fwom 'vs/wowkbench/common/viewwet';
+impowt { IWowkbenchWayoutSewvice, Pawts, positionToStwing } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { PanewMaximizedContext, PanewPositionContext, PanewVisibweContext } fwom 'vs/wowkbench/common/panew';
+impowt { getWemoteName, getViwtuawWowkspaceScheme } fwom 'vs/pwatfowm/wemote/common/wemoteHosts';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { isNative } fwom 'vs/base/common/pwatfowm';
+impowt { IEditowWesowvewSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowWesowvewSewvice';
+impowt { IPaneCompositePawtSewvice } fwom 'vs/wowkbench/sewvices/panecomposite/bwowsa/panecomposite';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { AuxiwiawyBawVisibweContext } fwom 'vs/wowkbench/common/auxiwiawybaw';
 
-export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
-export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
+expowt const WowkbenchStateContext = new WawContextKey<stwing>('wowkbenchState', undefined, { type: 'stwing', descwiption: wocawize('wowkbenchState', "The kind of wowkspace opened in the window, eitha 'empty' (no wowkspace), 'fowda' (singwe fowda) ow 'wowkspace' (muwti-woot wowkspace)") });
+expowt const WowkspaceFowdewCountContext = new WawContextKey<numba>('wowkspaceFowdewCount', 0, wocawize('wowkspaceFowdewCount', "The numba of woot fowdews in the wowkspace"));
 
-export const OpenFolderWorkspaceSupportContext = new RawContextKey<boolean>('openFolderWorkspaceSupport', true, true);
-export const EnterMultiRootWorkspaceSupportContext = new RawContextKey<boolean>('enterMultiRootWorkspaceSupport', true, true);
-export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true, true);
+expowt const OpenFowdewWowkspaceSuppowtContext = new WawContextKey<boowean>('openFowdewWowkspaceSuppowt', twue, twue);
+expowt const EntewMuwtiWootWowkspaceSuppowtContext = new WawContextKey<boowean>('entewMuwtiWootWowkspaceSuppowt', twue, twue);
+expowt const EmptyWowkspaceSuppowtContext = new WawContextKey<boowean>('emptyWowkspaceSuppowt', twue, twue);
 
-export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any dirty working copies"));
+expowt const DiwtyWowkingCopiesContext = new WawContextKey<boowean>('diwtyWowkingCopies', fawse, wocawize('diwtyWowkingCopies', "Whetha thewe awe any diwty wowking copies"));
 
-export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
-export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace if is from a virtual file system or an empty string."));
+expowt const WemoteNameContext = new WawContextKey<stwing>('wemoteName', '', wocawize('wemoteName', "The name of the wemote the window is connected to ow an empty stwing if not connected to any wemote"));
+expowt const ViwtuawWowkspaceContext = new WawContextKey<stwing>('viwtuawWowkspace', '', wocawize('viwtuawWowkspace', "The scheme of the cuwwent wowkspace if is fwom a viwtuaw fiwe system ow an empty stwing."));
 
-export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
+expowt const IsFuwwscweenContext = new WawContextKey<boowean>('isFuwwscween', fawse, wocawize('isFuwwscween', "Whetha the window is in fuwwscween mode"));
 
-// Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
-export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true);
+// Suppowt fow FiweSystemAccess web APIs (https://wicg.github.io/fiwe-system-access)
+expowt const HasWebFiweSystemAccess = new WawContextKey<boowean>('hasWebFiweSystemAccess', fawse, twue);
 
-export class WorkbenchContextKeysHandler extends Disposable {
-	private inputFocusedContext: IContextKey<boolean>;
+expowt cwass WowkbenchContextKeysHandwa extends Disposabwe {
+	pwivate inputFocusedContext: IContextKey<boowean>;
 
-	private dirtyWorkingCopiesContext: IContextKey<boolean>;
+	pwivate diwtyWowkingCopiesContext: IContextKey<boowean>;
 
-	private activeEditorContext: IContextKey<string | null>;
-	private activeEditorIsReadonly: IContextKey<boolean>;
-	private activeEditorCanRevert: IContextKey<boolean>;
-	private activeEditorCanSplitInGroup: IContextKey<boolean>;
-	private activeEditorAvailableEditorIds: IContextKey<string>;
+	pwivate activeEditowContext: IContextKey<stwing | nuww>;
+	pwivate activeEditowIsWeadonwy: IContextKey<boowean>;
+	pwivate activeEditowCanWevewt: IContextKey<boowean>;
+	pwivate activeEditowCanSpwitInGwoup: IContextKey<boowean>;
+	pwivate activeEditowAvaiwabweEditowIds: IContextKey<stwing>;
 
-	private activeEditorGroupEmpty: IContextKey<boolean>;
-	private activeEditorGroupIndex: IContextKey<number>;
-	private activeEditorGroupLast: IContextKey<boolean>;
-	private activeEditorGroupLocked: IContextKey<boolean>;
-	private multipleEditorGroupsContext: IContextKey<boolean>;
+	pwivate activeEditowGwoupEmpty: IContextKey<boowean>;
+	pwivate activeEditowGwoupIndex: IContextKey<numba>;
+	pwivate activeEditowGwoupWast: IContextKey<boowean>;
+	pwivate activeEditowGwoupWocked: IContextKey<boowean>;
+	pwivate muwtipweEditowGwoupsContext: IContextKey<boowean>;
 
-	private editorsVisibleContext: IContextKey<boolean>;
+	pwivate editowsVisibweContext: IContextKey<boowean>;
 
-	private textCompareEditorVisibleContext: IContextKey<boolean>;
-	private textCompareEditorActiveContext: IContextKey<boolean>;
+	pwivate textCompaweEditowVisibweContext: IContextKey<boowean>;
+	pwivate textCompaweEditowActiveContext: IContextKey<boowean>;
 
-	private sideBySideEditorActiveContext: IContextKey<boolean>;
-	private splitEditorsVerticallyContext: IContextKey<boolean>;
+	pwivate sideBySideEditowActiveContext: IContextKey<boowean>;
+	pwivate spwitEditowsVewticawwyContext: IContextKey<boowean>;
 
-	private workbenchStateContext: IContextKey<string>;
-	private workspaceFolderCountContext: IContextKey<number>;
+	pwivate wowkbenchStateContext: IContextKey<stwing>;
+	pwivate wowkspaceFowdewCountContext: IContextKey<numba>;
 
-	private openFolderWorkspaceSupportContext: IContextKey<boolean>;
-	private enterMultiRootWorkspaceSupportContext: IContextKey<boolean>;
-	private emptyWorkspaceSupportContext: IContextKey<boolean>;
+	pwivate openFowdewWowkspaceSuppowtContext: IContextKey<boowean>;
+	pwivate entewMuwtiWootWowkspaceSuppowtContext: IContextKey<boowean>;
+	pwivate emptyWowkspaceSuppowtContext: IContextKey<boowean>;
 
-	private virtualWorkspaceContext: IContextKey<string>;
+	pwivate viwtuawWowkspaceContext: IContextKey<stwing>;
 
-	private inZenModeContext: IContextKey<boolean>;
-	private isFullscreenContext: IContextKey<boolean>;
-	private isCenteredLayoutContext: IContextKey<boolean>;
-	private sideBarVisibleContext: IContextKey<boolean>;
-	private editorAreaVisibleContext: IContextKey<boolean>;
-	private panelPositionContext: IContextKey<string>;
-	private panelVisibleContext: IContextKey<boolean>;
-	private panelMaximizedContext: IContextKey<boolean>;
-	private auxiliaryBarVisibleContext: IContextKey<boolean>;
+	pwivate inZenModeContext: IContextKey<boowean>;
+	pwivate isFuwwscweenContext: IContextKey<boowean>;
+	pwivate isCentewedWayoutContext: IContextKey<boowean>;
+	pwivate sideBawVisibweContext: IContextKey<boowean>;
+	pwivate editowAweaVisibweContext: IContextKey<boowean>;
+	pwivate panewPositionContext: IContextKey<stwing>;
+	pwivate panewVisibweContext: IContextKey<boowean>;
+	pwivate panewMaximizedContext: IContextKey<boowean>;
+	pwivate auxiwiawyBawVisibweContext: IContextKey<boowean>;
 
-	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+	constwuctow(
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IEditowWesowvewSewvice pwivate weadonwy editowWesowvewSewvice: IEditowWesowvewSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IPaneCompositePawtSewvice pwivate weadonwy paneCompositeSewvice: IPaneCompositePawtSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice
 	) {
-		super();
+		supa();
 
-		// Platform
-		IsMacContext.bindTo(this.contextKeyService);
-		IsLinuxContext.bindTo(this.contextKeyService);
-		IsWindowsContext.bindTo(this.contextKeyService);
+		// Pwatfowm
+		IsMacContext.bindTo(this.contextKeySewvice);
+		IsWinuxContext.bindTo(this.contextKeySewvice);
+		IsWindowsContext.bindTo(this.contextKeySewvice);
 
-		IsWebContext.bindTo(this.contextKeyService);
-		IsMacNativeContext.bindTo(this.contextKeyService);
-		IsIOSContext.bindTo(this.contextKeyService);
+		IsWebContext.bindTo(this.contextKeySewvice);
+		IsMacNativeContext.bindTo(this.contextKeySewvice);
+		IsIOSContext.bindTo(this.contextKeySewvice);
 
-		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
+		WemoteNameContext.bindTo(this.contextKeySewvice).set(getWemoteName(this.enviwonmentSewvice.wemoteAuthowity) || '');
 
-		this.virtualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
-		this.updateVirtualWorkspaceContextKey();
+		this.viwtuawWowkspaceContext = ViwtuawWowkspaceContext.bindTo(this.contextKeySewvice);
+		this.updateViwtuawWowkspaceContextKey();
 
-		// Capabilities
-		HasWebFileSystemAccess.bindTo(this.contextKeyService).set(WebFileSystemAccess.supported(window));
+		// Capabiwities
+		HasWebFiweSystemAccess.bindTo(this.contextKeySewvice).set(WebFiweSystemAccess.suppowted(window));
 
-		// Development
-		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
+		// Devewopment
+		IsDevewopmentContext.bindTo(this.contextKeySewvice).set(!this.enviwonmentSewvice.isBuiwt || this.enviwonmentSewvice.isExtensionDevewopment);
 
-		// Editors
-		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
-		this.activeEditorIsReadonly = ActiveEditorReadonlyContext.bindTo(this.contextKeyService);
-		this.activeEditorCanRevert = ActiveEditorCanRevertContext.bindTo(this.contextKeyService);
-		this.activeEditorCanSplitInGroup = ActiveEditorCanSplitInGroupContext.bindTo(this.contextKeyService);
-		this.activeEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextKeyService);
-		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
-		this.textCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
-		this.textCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
-		this.sideBySideEditorActiveContext = SideBySideEditorActiveContext.bindTo(this.contextKeyService);
-		this.activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
-		this.activeEditorGroupIndex = ActiveEditorGroupIndexContext.bindTo(this.contextKeyService);
-		this.activeEditorGroupLast = ActiveEditorGroupLastContext.bindTo(this.contextKeyService);
-		this.activeEditorGroupLocked = ActiveEditorGroupLockedContext.bindTo(this.contextKeyService);
-		this.multipleEditorGroupsContext = MultipleEditorGroupsContext.bindTo(this.contextKeyService);
+		// Editows
+		this.activeEditowContext = ActiveEditowContext.bindTo(this.contextKeySewvice);
+		this.activeEditowIsWeadonwy = ActiveEditowWeadonwyContext.bindTo(this.contextKeySewvice);
+		this.activeEditowCanWevewt = ActiveEditowCanWevewtContext.bindTo(this.contextKeySewvice);
+		this.activeEditowCanSpwitInGwoup = ActiveEditowCanSpwitInGwoupContext.bindTo(this.contextKeySewvice);
+		this.activeEditowAvaiwabweEditowIds = ActiveEditowAvaiwabweEditowIdsContext.bindTo(this.contextKeySewvice);
+		this.editowsVisibweContext = EditowsVisibweContext.bindTo(this.contextKeySewvice);
+		this.textCompaweEditowVisibweContext = TextCompaweEditowVisibweContext.bindTo(this.contextKeySewvice);
+		this.textCompaweEditowActiveContext = TextCompaweEditowActiveContext.bindTo(this.contextKeySewvice);
+		this.sideBySideEditowActiveContext = SideBySideEditowActiveContext.bindTo(this.contextKeySewvice);
+		this.activeEditowGwoupEmpty = ActiveEditowGwoupEmptyContext.bindTo(this.contextKeySewvice);
+		this.activeEditowGwoupIndex = ActiveEditowGwoupIndexContext.bindTo(this.contextKeySewvice);
+		this.activeEditowGwoupWast = ActiveEditowGwoupWastContext.bindTo(this.contextKeySewvice);
+		this.activeEditowGwoupWocked = ActiveEditowGwoupWockedContext.bindTo(this.contextKeySewvice);
+		this.muwtipweEditowGwoupsContext = MuwtipweEditowGwoupsContext.bindTo(this.contextKeySewvice);
 
-		// Working Copies
-		this.dirtyWorkingCopiesContext = DirtyWorkingCopiesContext.bindTo(this.contextKeyService);
-		this.dirtyWorkingCopiesContext.set(this.workingCopyService.hasDirty);
+		// Wowking Copies
+		this.diwtyWowkingCopiesContext = DiwtyWowkingCopiesContext.bindTo(this.contextKeySewvice);
+		this.diwtyWowkingCopiesContext.set(this.wowkingCopySewvice.hasDiwty);
 
 		// Inputs
-		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeyService);
+		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeySewvice);
 
-		// Workbench State
-		this.workbenchStateContext = WorkbenchStateContext.bindTo(this.contextKeyService);
-		this.updateWorkbenchStateContextKey();
+		// Wowkbench State
+		this.wowkbenchStateContext = WowkbenchStateContext.bindTo(this.contextKeySewvice);
+		this.updateWowkbenchStateContextKey();
 
-		// Workspace Folder Count
-		this.workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
-		this.updateWorkspaceFolderCountContextKey();
+		// Wowkspace Fowda Count
+		this.wowkspaceFowdewCountContext = WowkspaceFowdewCountContext.bindTo(this.contextKeySewvice);
+		this.updateWowkspaceFowdewCountContextKey();
 
-		// Opening folder support: support for opening a folder workspace
-		// (e.g. "Open Folder...") is limited in web when not connected
-		// to a remote.
-		this.openFolderWorkspaceSupportContext = OpenFolderWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.openFolderWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+		// Opening fowda suppowt: suppowt fow opening a fowda wowkspace
+		// (e.g. "Open Fowda...") is wimited in web when not connected
+		// to a wemote.
+		this.openFowdewWowkspaceSuppowtContext = OpenFowdewWowkspaceSuppowtContext.bindTo(this.contextKeySewvice);
+		this.openFowdewWowkspaceSuppowtContext.set(isNative || typeof this.enviwonmentSewvice.wemoteAuthowity === 'stwing');
 
-		// Empty workspace support: empty workspaces require built-in file system
-		// providers to be available that allow to enter a workspace or open loose
-		// files. This condition is met:
-		// - desktop: always
-		// -     web: only when connected to a remote
-		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+		// Empty wowkspace suppowt: empty wowkspaces wequiwe buiwt-in fiwe system
+		// pwovidews to be avaiwabwe that awwow to enta a wowkspace ow open woose
+		// fiwes. This condition is met:
+		// - desktop: awways
+		// -     web: onwy when connected to a wemote
+		this.emptyWowkspaceSuppowtContext = EmptyWowkspaceSuppowtContext.bindTo(this.contextKeySewvice);
+		this.emptyWowkspaceSuppowtContext.set(isNative || typeof this.enviwonmentSewvice.wemoteAuthowity === 'stwing');
 
-		// Entering a multi root workspace support: support for entering a multi-root
-		// workspace (e.g. "Open Workspace from File...", "Duplicate Workspace", "Save Workspace")
-		// is driven by the ability to resolve a workspace configuration file (*.code-workspace)
-		// with a built-in file system provider.
+		// Entewing a muwti woot wowkspace suppowt: suppowt fow entewing a muwti-woot
+		// wowkspace (e.g. "Open Wowkspace fwom Fiwe...", "Dupwicate Wowkspace", "Save Wowkspace")
+		// is dwiven by the abiwity to wesowve a wowkspace configuwation fiwe (*.code-wowkspace)
+		// with a buiwt-in fiwe system pwovida.
 		// This condition is met:
-		// - desktop: always
-		// -     web: only when connected to a remote
-		this.enterMultiRootWorkspaceSupportContext = EnterMultiRootWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.enterMultiRootWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+		// - desktop: awways
+		// -     web: onwy when connected to a wemote
+		this.entewMuwtiWootWowkspaceSuppowtContext = EntewMuwtiWootWowkspaceSuppowtContext.bindTo(this.contextKeySewvice);
+		this.entewMuwtiWootWowkspaceSuppowtContext.set(isNative || typeof this.enviwonmentSewvice.wemoteAuthowity === 'stwing');
 
-		// Editor Layout
-		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
-		this.updateSplitEditorsVerticallyContext();
+		// Editow Wayout
+		this.spwitEditowsVewticawwyContext = SpwitEditowsVewticawwy.bindTo(this.contextKeySewvice);
+		this.updateSpwitEditowsVewticawwyContext();
 
-		// Fullscreen
-		this.isFullscreenContext = IsFullscreenContext.bindTo(this.contextKeyService);
+		// Fuwwscween
+		this.isFuwwscweenContext = IsFuwwscweenContext.bindTo(this.contextKeySewvice);
 
 		// Zen Mode
-		this.inZenModeContext = InEditorZenModeContext.bindTo(this.contextKeyService);
+		this.inZenModeContext = InEditowZenModeContext.bindTo(this.contextKeySewvice);
 
-		// Centered Layout
-		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
+		// Centewed Wayout
+		this.isCentewedWayoutContext = IsCentewedWayoutContext.bindTo(this.contextKeySewvice);
 
-		// Editor Area
-		this.editorAreaVisibleContext = EditorAreaVisibleContext.bindTo(this.contextKeyService);
+		// Editow Awea
+		this.editowAweaVisibweContext = EditowAweaVisibweContext.bindTo(this.contextKeySewvice);
 
-		// Sidebar
-		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+		// Sidebaw
+		this.sideBawVisibweContext = SideBawVisibweContext.bindTo(this.contextKeySewvice);
 
-		// Panel
-		this.panelPositionContext = PanelPositionContext.bindTo(this.contextKeyService);
-		this.panelPositionContext.set(positionToString(this.layoutService.getPanelPosition()));
-		this.panelVisibleContext = PanelVisibleContext.bindTo(this.contextKeyService);
-		this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
-		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
-		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
+		// Panew
+		this.panewPositionContext = PanewPositionContext.bindTo(this.contextKeySewvice);
+		this.panewPositionContext.set(positionToStwing(this.wayoutSewvice.getPanewPosition()));
+		this.panewVisibweContext = PanewVisibweContext.bindTo(this.contextKeySewvice);
+		this.panewVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT));
+		this.panewMaximizedContext = PanewMaximizedContext.bindTo(this.contextKeySewvice);
+		this.panewMaximizedContext.set(this.wayoutSewvice.isPanewMaximized());
 
-		// Auxiliarybar
-		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
-		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		// Auxiwiawybaw
+		this.auxiwiawyBawVisibweContext = AuxiwiawyBawVisibweContext.bindTo(this.contextKeySewvice);
+		this.auxiwiawyBawVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT));
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this.editorGroupService.whenReady.then(() => this.updateEditorContextKeys());
+	pwivate wegistewWistenews(): void {
+		this.editowGwoupSewvice.whenWeady.then(() => this.updateEditowContextKeys());
 
-		this._register(this.editorService.onDidActiveEditorChange(() => this.updateEditorContextKeys()));
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.updateEditorContextKeys()));
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.updateEditowContextKeys()));
+		this._wegista(this.editowSewvice.onDidVisibweEditowsChange(() => this.updateEditowContextKeys()));
 
-		this._register(this.editorGroupService.onDidAddGroup(() => this.updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.updateEditorContextKeys()));
-		this._register(this.editorGroupService.onDidChangeGroupIndex(() => this.updateEditorContextKeys()));
+		this._wegista(this.editowGwoupSewvice.onDidAddGwoup(() => this.updateEditowContextKeys()));
+		this._wegista(this.editowGwoupSewvice.onDidWemoveGwoup(() => this.updateEditowContextKeys()));
+		this._wegista(this.editowGwoupSewvice.onDidChangeGwoupIndex(() => this.updateEditowContextKeys()));
 
-		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
-		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
+		this._wegista(this.editowGwoupSewvice.onDidChangeActiveGwoup(() => this.updateEditowGwoupContextKeys()));
+		this._wegista(this.editowGwoupSewvice.onDidChangeGwoupWocked(() => this.updateEditowGwoupContextKeys()));
 
-		this._register(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true));
+		this._wegista(addDisposabweWistena(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), twue));
 
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
-			this.updateWorkspaceFolderCountContextKey();
-			this.updateVirtualWorkspaceContextKey();
+		this._wegista(this.contextSewvice.onDidChangeWowkbenchState(() => this.updateWowkbenchStateContextKey()));
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => {
+			this.updateWowkspaceFowdewCountContextKey();
+			this.updateViwtuawWowkspaceContextKey();
 		}));
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
-				this.updateSplitEditorsVerticallyContext();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('wowkbench.editow.openSideBySideDiwection')) {
+				this.updateSpwitEditowsVewticawwyContext();
 			}
 		}));
 
-		this._register(this.layoutService.onDidChangeZenMode(enabled => this.inZenModeContext.set(enabled)));
-		this._register(this.layoutService.onDidChangeFullscreen(fullscreen => this.isFullscreenContext.set(fullscreen)));
-		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
-		this._register(this.layoutService.onDidChangePanelPosition(position => this.panelPositionContext.set(position)));
+		this._wegista(this.wayoutSewvice.onDidChangeZenMode(enabwed => this.inZenModeContext.set(enabwed)));
+		this._wegista(this.wayoutSewvice.onDidChangeFuwwscween(fuwwscween => this.isFuwwscweenContext.set(fuwwscween)));
+		this._wegista(this.wayoutSewvice.onDidChangeCentewedWayout(centewed => this.isCentewedWayoutContext.set(centewed)));
+		this._wegista(this.wayoutSewvice.onDidChangePanewPosition(position => this.panewPositionContext.set(position)));
 
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeCwose(() => this.updateSideBawContextKeys()));
+		this._wegista(this.paneCompositeSewvice.onDidPaneCompositeOpen(() => this.updateSideBawContextKeys()));
 
-		this._register(this.layoutService.onDidChangePartVisibility(() => {
-			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
-			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
-			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
-			this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		this._wegista(this.wayoutSewvice.onDidChangePawtVisibiwity(() => {
+			this.editowAweaVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.EDITOW_PAWT));
+			this.panewVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.PANEW_PAWT));
+			this.panewMaximizedContext.set(this.wayoutSewvice.isPanewMaximized());
+			this.auxiwiawyBawVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.AUXIWIAWYBAW_PAWT));
 		}));
 
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.diwtyWowkingCopiesContext.set(wowkingCopy.isDiwty() || this.wowkingCopySewvice.hasDiwty)));
 	}
 
-	private updateEditorContextKeys(): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		const visibleEditorPanes = this.editorService.visibleEditorPanes;
+	pwivate updateEditowContextKeys(): void {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		const visibweEditowPanes = this.editowSewvice.visibweEditowPanes;
 
-		this.textCompareEditorActiveContext.set(activeEditorPane?.getId() === TEXT_DIFF_EDITOR_ID);
-		this.textCompareEditorVisibleContext.set(visibleEditorPanes.some(editorPane => editorPane.getId() === TEXT_DIFF_EDITOR_ID));
+		this.textCompaweEditowActiveContext.set(activeEditowPane?.getId() === TEXT_DIFF_EDITOW_ID);
+		this.textCompaweEditowVisibweContext.set(visibweEditowPanes.some(editowPane => editowPane.getId() === TEXT_DIFF_EDITOW_ID));
 
-		this.sideBySideEditorActiveContext.set(activeEditorPane?.getId() === SIDE_BY_SIDE_EDITOR_ID);
+		this.sideBySideEditowActiveContext.set(activeEditowPane?.getId() === SIDE_BY_SIDE_EDITOW_ID);
 
-		if (visibleEditorPanes.length > 0) {
-			this.editorsVisibleContext.set(true);
-		} else {
-			this.editorsVisibleContext.reset();
+		if (visibweEditowPanes.wength > 0) {
+			this.editowsVisibweContext.set(twue);
+		} ewse {
+			this.editowsVisibweContext.weset();
 		}
 
-		if (!this.editorService.activeEditor) {
-			this.activeEditorGroupEmpty.set(true);
-		} else {
-			this.activeEditorGroupEmpty.reset();
+		if (!this.editowSewvice.activeEditow) {
+			this.activeEditowGwoupEmpty.set(twue);
+		} ewse {
+			this.activeEditowGwoupEmpty.weset();
 		}
 
-		this.updateEditorGroupContextKeys();
+		this.updateEditowGwoupContextKeys();
 
-		if (activeEditorPane) {
-			this.activeEditorContext.set(activeEditorPane.getId());
-			this.activeEditorIsReadonly.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly));
-			this.activeEditorCanRevert.set(!activeEditorPane.input.hasCapability(EditorInputCapabilities.Untitled));
-			this.activeEditorCanSplitInGroup.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.CanSplitInGroup));
+		if (activeEditowPane) {
+			this.activeEditowContext.set(activeEditowPane.getId());
+			this.activeEditowIsWeadonwy.set(activeEditowPane.input.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
+			this.activeEditowCanWevewt.set(!activeEditowPane.input.hasCapabiwity(EditowInputCapabiwities.Untitwed));
+			this.activeEditowCanSpwitInGwoup.set(activeEditowPane.input.hasCapabiwity(EditowInputCapabiwities.CanSpwitInGwoup));
 
-			const activeEditorResource = activeEditorPane.input.resource;
-			const editors = activeEditorResource ? this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id) : [];
-			// Non text editor untitled files cannot be easily serialized between extensions
-			// so instead we disable this context key to prevent common commands that act on the active editor
-			if (activeEditorResource?.scheme === Schemas.untitled && activeEditorPane.input.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-				this.activeEditorAvailableEditorIds.set('');
-			} else {
-				this.activeEditorAvailableEditorIds.set(editors.join(','));
+			const activeEditowWesouwce = activeEditowPane.input.wesouwce;
+			const editows = activeEditowWesouwce ? this.editowWesowvewSewvice.getEditows(activeEditowWesouwce).map(editow => editow.id) : [];
+			// Non text editow untitwed fiwes cannot be easiwy sewiawized between extensions
+			// so instead we disabwe this context key to pwevent common commands that act on the active editow
+			if (activeEditowWesouwce?.scheme === Schemas.untitwed && activeEditowPane.input.editowId !== DEFAUWT_EDITOW_ASSOCIATION.id) {
+				this.activeEditowAvaiwabweEditowIds.set('');
+			} ewse {
+				this.activeEditowAvaiwabweEditowIds.set(editows.join(','));
 			}
-		} else {
-			this.activeEditorContext.reset();
-			this.activeEditorIsReadonly.reset();
-			this.activeEditorCanRevert.reset();
-			this.activeEditorCanSplitInGroup.reset();
-			this.activeEditorAvailableEditorIds.reset();
+		} ewse {
+			this.activeEditowContext.weset();
+			this.activeEditowIsWeadonwy.weset();
+			this.activeEditowCanWevewt.weset();
+			this.activeEditowCanSpwitInGwoup.weset();
+			this.activeEditowAvaiwabweEditowIds.weset();
 		}
 	}
 
-	private updateEditorGroupContextKeys(): void {
-		const groupCount = this.editorGroupService.count;
-		if (groupCount > 1) {
-			this.multipleEditorGroupsContext.set(true);
-		} else {
-			this.multipleEditorGroupsContext.reset();
+	pwivate updateEditowGwoupContextKeys(): void {
+		const gwoupCount = this.editowGwoupSewvice.count;
+		if (gwoupCount > 1) {
+			this.muwtipweEditowGwoupsContext.set(twue);
+		} ewse {
+			this.muwtipweEditowGwoupsContext.weset();
 		}
 
-		const activeGroup = this.editorGroupService.activeGroup;
-		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
-		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
-		this.activeEditorGroupLocked.set(activeGroup.isLocked);
+		const activeGwoup = this.editowGwoupSewvice.activeGwoup;
+		this.activeEditowGwoupIndex.set(activeGwoup.index + 1); // not zewo-indexed
+		this.activeEditowGwoupWast.set(activeGwoup.index === gwoupCount - 1);
+		this.activeEditowGwoupWocked.set(activeGwoup.isWocked);
 	}
 
-	private updateInputContextKeys(): void {
+	pwivate updateInputContextKeys(): void {
 
-		function activeElementIsInput(): boolean {
-			return !!document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+		function activeEwementIsInput(): boowean {
+			wetuwn !!document.activeEwement && (document.activeEwement.tagName === 'INPUT' || document.activeEwement.tagName === 'TEXTAWEA');
 		}
 
-		const isInputFocused = activeElementIsInput();
+		const isInputFocused = activeEwementIsInput();
 		this.inputFocusedContext.set(isInputFocused);
 
 		if (isInputFocused) {
-			const tracker = trackFocus(document.activeElement as HTMLElement);
-			Event.once(tracker.onDidBlur)(() => {
-				this.inputFocusedContext.set(activeElementIsInput());
+			const twacka = twackFocus(document.activeEwement as HTMWEwement);
+			Event.once(twacka.onDidBwuw)(() => {
+				this.inputFocusedContext.set(activeEwementIsInput());
 
-				tracker.dispose();
+				twacka.dispose();
 			});
 		}
 	}
 
-	private updateWorkbenchStateContextKey(): void {
-		this.workbenchStateContext.set(this.getWorkbenchStateString());
+	pwivate updateWowkbenchStateContextKey(): void {
+		this.wowkbenchStateContext.set(this.getWowkbenchStateStwing());
 	}
 
-	private updateWorkspaceFolderCountContextKey(): void {
-		this.workspaceFolderCountContext.set(this.contextService.getWorkspace().folders.length);
+	pwivate updateWowkspaceFowdewCountContextKey(): void {
+		this.wowkspaceFowdewCountContext.set(this.contextSewvice.getWowkspace().fowdews.wength);
 	}
 
-	private updateSplitEditorsVerticallyContext(): void {
-		const direction = preferredSideBySideGroupDirection(this.configurationService);
-		this.splitEditorsVerticallyContext.set(direction === GroupDirection.DOWN);
+	pwivate updateSpwitEditowsVewticawwyContext(): void {
+		const diwection = pwefewwedSideBySideGwoupDiwection(this.configuwationSewvice);
+		this.spwitEditowsVewticawwyContext.set(diwection === GwoupDiwection.DOWN);
 	}
 
-	private getWorkbenchStateString(): string {
-		switch (this.contextService.getWorkbenchState()) {
-			case WorkbenchState.EMPTY: return 'empty';
-			case WorkbenchState.FOLDER: return 'folder';
-			case WorkbenchState.WORKSPACE: return 'workspace';
+	pwivate getWowkbenchStateStwing(): stwing {
+		switch (this.contextSewvice.getWowkbenchState()) {
+			case WowkbenchState.EMPTY: wetuwn 'empty';
+			case WowkbenchState.FOWDa: wetuwn 'fowda';
+			case WowkbenchState.WOWKSPACE: wetuwn 'wowkspace';
 		}
 	}
 
-	private updateSideBarContextKeys(): void {
-		this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
+	pwivate updateSideBawContextKeys(): void {
+		this.sideBawVisibweContext.set(this.wayoutSewvice.isVisibwe(Pawts.SIDEBAW_PAWT));
 	}
 
-	private updateVirtualWorkspaceContextKey(): void {
-		this.virtualWorkspaceContext.set(getVirtualWorkspaceScheme(this.contextService.getWorkspace()) || '');
+	pwivate updateViwtuawWowkspaceContextKey(): void {
+		this.viwtuawWowkspaceContext.set(getViwtuawWowkspaceScheme(this.contextSewvice.getWowkspace()) || '');
 	}
 }

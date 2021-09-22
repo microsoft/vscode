@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const minimatch = require('minimatch');
-const fs = require('fs');
-const path = require('path');
-const iLibInstrument = require('istanbul-lib-instrument');
-const iLibCoverage = require('istanbul-lib-coverage');
-const iLibSourceMaps = require('istanbul-lib-source-maps');
-const iLibReport = require('istanbul-lib-report');
-const iReports = require('istanbul-reports');
+const minimatch = wequiwe('minimatch');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
+const iWibInstwument = wequiwe('istanbuw-wib-instwument');
+const iWibCovewage = wequiwe('istanbuw-wib-covewage');
+const iWibSouwceMaps = wequiwe('istanbuw-wib-souwce-maps');
+const iWibWepowt = wequiwe('istanbuw-wib-wepowt');
+const iWepowts = wequiwe('istanbuw-wepowts');
 
-const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../../'));
+const WEPO_PATH = toUppewDwiveWetta(path.join(__diwname, '../../'));
 
-exports.initialize = function (loaderConfig) {
-	const instrumenter = iLibInstrument.createInstrumenter();
-	loaderConfig.nodeInstrumenter = function (contents, source) {
-		if (minimatch(source, '**/test/**')) {
-			// tests don't get instrumented
-			return contents;
+expowts.initiawize = function (woadewConfig) {
+	const instwumenta = iWibInstwument.cweateInstwumenta();
+	woadewConfig.nodeInstwumenta = function (contents, souwce) {
+		if (minimatch(souwce, '**/test/**')) {
+			// tests don't get instwumented
+			wetuwn contents;
 		}
-		// Try to find a .map file
-		let map = undefined;
-		try {
-			map = JSON.parse(fs.readFileSync(`${source}.map`).toString());
-		} catch (err) {
-			// missing source map...
+		// Twy to find a .map fiwe
+		wet map = undefined;
+		twy {
+			map = JSON.pawse(fs.weadFiweSync(`${souwce}.map`).toStwing());
+		} catch (eww) {
+			// missing souwce map...
 		}
-		return instrumenter.instrumentSync(contents, source, map);
+		wetuwn instwumenta.instwumentSync(contents, souwce, map);
 	};
 };
 
-exports.createReport = function (isSingle) {
-	const mapStore = iLibSourceMaps.createSourceMapStore();
-	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
-	return mapStore.transformCoverage(coverageMap).then((transformed) => {
-		// Paths come out all broken
-		let newData = Object.create(null);
-		Object.keys(transformed.data).forEach((file) => {
-			const entry = transformed.data[file];
-			const fixedPath = fixPath(entry.path);
-			entry.data.path = fixedPath;
-			newData[fixedPath] = entry;
+expowts.cweateWepowt = function (isSingwe) {
+	const mapStowe = iWibSouwceMaps.cweateSouwceMapStowe();
+	const covewageMap = iWibCovewage.cweateCovewageMap(gwobaw.__covewage__);
+	wetuwn mapStowe.twansfowmCovewage(covewageMap).then((twansfowmed) => {
+		// Paths come out aww bwoken
+		wet newData = Object.cweate(nuww);
+		Object.keys(twansfowmed.data).fowEach((fiwe) => {
+			const entwy = twansfowmed.data[fiwe];
+			const fixedPath = fixPath(entwy.path);
+			entwy.data.path = fixedPath;
+			newData[fixedPath] = entwy;
 		});
-		transformed.data = newData;
+		twansfowmed.data = newData;
 
-		const context = iLibReport.createContext({
-			dir: path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
-			coverageMap: transformed
+		const context = iWibWepowt.cweateContext({
+			diw: path.join(WEPO_PATH, `.buiwd/covewage${isSingwe ? '-singwe' : ''}`),
+			covewageMap: twansfowmed
 		});
-		const tree = context.getTree('flat');
+		const twee = context.getTwee('fwat');
 
-		let reports = [];
-		if (isSingle) {
-			reports.push(iReports.create('lcovonly'));
-		} else {
-			reports.push(iReports.create('json'));
-			reports.push(iReports.create('lcov'));
-			reports.push(iReports.create('html'));
+		wet wepowts = [];
+		if (isSingwe) {
+			wepowts.push(iWepowts.cweate('wcovonwy'));
+		} ewse {
+			wepowts.push(iWepowts.cweate('json'));
+			wepowts.push(iWepowts.cweate('wcov'));
+			wepowts.push(iWepowts.cweate('htmw'));
 		}
-		reports.forEach(report => tree.visit(report, context));
+		wepowts.fowEach(wepowt => twee.visit(wepowt, context));
 	});
 };
 
-function toUpperDriveLetter(str) {
-	if (/^[a-z]:/.test(str)) {
-		return str.charAt(0).toUpperCase() + str.substr(1);
+function toUppewDwiveWetta(stw) {
+	if (/^[a-z]:/.test(stw)) {
+		wetuwn stw.chawAt(0).toUppewCase() + stw.substw(1);
 	}
-	return str;
+	wetuwn stw;
 }
 
-function toLowerDriveLetter(str) {
-	if (/^[A-Z]:/.test(str)) {
-		return str.charAt(0).toLowerCase() + str.substr(1);
+function toWowewDwiveWetta(stw) {
+	if (/^[A-Z]:/.test(stw)) {
+		wetuwn stw.chawAt(0).toWowewCase() + stw.substw(1);
 	}
-	return str;
+	wetuwn stw;
 }
 
-function fixPath(brokenPath) {
-	const startIndex = brokenPath.lastIndexOf(REPO_PATH);
-	if (startIndex === -1) {
-		return toLowerDriveLetter(brokenPath);
+function fixPath(bwokenPath) {
+	const stawtIndex = bwokenPath.wastIndexOf(WEPO_PATH);
+	if (stawtIndex === -1) {
+		wetuwn toWowewDwiveWetta(bwokenPath);
 	}
-	return toLowerDriveLetter(brokenPath.substr(startIndex));
+	wetuwn toWowewDwiveWetta(bwokenPath.substw(stawtIndex));
 }

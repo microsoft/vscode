@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TextWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/textWesouwceEditowInput';
+impowt { TextWesouwceEditowModew } fwom 'vs/wowkbench/common/editow/textWesouwceEditowModew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { snapshotToStwing } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { ModesWegistwy, PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
 
-suite('TextResourceEditorInput', () => {
+suite('TextWesouwceEditowInput', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
 	test('basics', async () => {
-		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		const wesouwce = UWI.fwom({ scheme: 'inmemowy', authowity: nuww!, path: 'thePath' });
+		accessow.modewSewvice.cweateModew('function test() {}', accessow.modeSewvice.cweate('text'), wesouwce);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
+		const input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', undefined, undefined);
 
-		const model = await input.resolve();
+		const modew = await input.wesowve();
 
-		assert.ok(model);
-		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'function test() {}');
+		assewt.ok(modew);
+		assewt.stwictEquaw(snapshotToStwing(((modew as TextWesouwceEditowModew).cweateSnapshot()!)), 'function test() {}');
 	});
 
-	test('preferred mode (via ctor)', async () => {
-		ModesRegistry.registerLanguage({
-			id: 'resource-input-test',
+	test('pwefewwed mode (via ctow)', async () => {
+		ModesWegistwy.wegistewWanguage({
+			id: 'wesouwce-input-test',
 		});
 
-		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		const wesouwce = UWI.fwom({ scheme: 'inmemowy', authowity: nuww!, path: 'thePath' });
+		accessow.modewSewvice.cweateModew('function test() {}', accessow.modeSewvice.cweate('text'), wesouwce);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', 'resource-input-test', undefined);
+		const input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', 'wesouwce-input-test', undefined);
 
-		const model = await input.resolve();
-		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getModeId(), 'resource-input-test');
+		const modew = await input.wesowve();
+		assewt.ok(modew);
+		assewt.stwictEquaw(modew.textEditowModew?.getModeId(), 'wesouwce-input-test');
 
 		input.setMode('text');
-		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+		assewt.stwictEquaw(modew.textEditowModew?.getModeId(), PWAINTEXT_MODE_ID);
 
-		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getModeId(), PLAINTEXT_MODE_ID);
+		await input.wesowve();
+		assewt.stwictEquaw(modew.textEditowModew?.getModeId(), PWAINTEXT_MODE_ID);
 	});
 
-	test('preferred mode (via setPreferredMode)', async () => {
-		ModesRegistry.registerLanguage({
-			id: 'resource-input-test',
+	test('pwefewwed mode (via setPwefewwedMode)', async () => {
+		ModesWegistwy.wegistewWanguage({
+			id: 'wesouwce-input-test',
 		});
 
-		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+		const wesouwce = UWI.fwom({ scheme: 'inmemowy', authowity: nuww!, path: 'thePath' });
+		accessow.modewSewvice.cweateModew('function test() {}', accessow.modeSewvice.cweate('text'), wesouwce);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
-		input.setPreferredMode('resource-input-test');
+		const input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', undefined, undefined);
+		input.setPwefewwedMode('wesouwce-input-test');
 
-		const model = await input.resolve();
-		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getModeId(), 'resource-input-test');
+		const modew = await input.wesowve();
+		assewt.ok(modew);
+		assewt.stwictEquaw(modew.textEditowModew?.getModeId(), 'wesouwce-input-test');
 	});
 
-	test('preferred contents (via ctor)', async () => {
-		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+	test('pwefewwed contents (via ctow)', async () => {
+		const wesouwce = UWI.fwom({ scheme: 'inmemowy', authowity: nuww!, path: 'thePath' });
+		accessow.modewSewvice.cweateModew('function test() {}', accessow.modeSewvice.cweate('text'), wesouwce);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, 'My Resource Input Contents');
+		const input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', undefined, 'My Wesouwce Input Contents');
 
-		const model = await input.resolve();
-		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+		const modew = await input.wesowve();
+		assewt.ok(modew);
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'My Wesouwce Input Contents');
 
-		model.textEditorModel.setValue('Some other contents');
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
+		modew.textEditowModew.setVawue('Some otha contents');
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Some otha contents');
 
-		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
+		await input.wesowve();
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Some otha contents'); // pwefewwed contents onwy used once
 	});
 
-	test('preferred contents (via setPreferredContents)', async () => {
-		const resource = URI.from({ scheme: 'inmemory', authority: null!, path: 'thePath' });
-		accessor.modelService.createModel('function test() {}', accessor.modeService.create('text'), resource);
+	test('pwefewwed contents (via setPwefewwedContents)', async () => {
+		const wesouwce = UWI.fwom({ scheme: 'inmemowy', authowity: nuww!, path: 'thePath' });
+		accessow.modewSewvice.cweateModew('function test() {}', accessow.modeSewvice.cweate('text'), wesouwce);
 
-		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
-		input.setPreferredContents('My Resource Input Contents');
+		const input = instantiationSewvice.cweateInstance(TextWesouwceEditowInput, wesouwce, 'The Name', 'The Descwiption', undefined, undefined);
+		input.setPwefewwedContents('My Wesouwce Input Contents');
 
-		const model = await input.resolve();
-		assert.ok(model);
-		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+		const modew = await input.wesowve();
+		assewt.ok(modew);
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'My Wesouwce Input Contents');
 
-		model.textEditorModel.setValue('Some other contents');
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
+		modew.textEditowModew.setVawue('Some otha contents');
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Some otha contents');
 
-		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
+		await input.wesowve();
+		assewt.stwictEquaw(modew.textEditowModew?.getVawue(), 'Some otha contents'); // pwefewwed contents onwy used once
 	});
 });

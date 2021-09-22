@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as cp from 'child_process';
-import * as playwright from 'playwright';
-import * as url from 'url';
-import * as tmp from 'tmp';
-import * as rimraf from 'rimraf';
-import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as optimistLib from 'optimist';
-import { StdioOptions } from 'node:child_process';
+impowt * as path fwom 'path';
+impowt * as cp fwom 'chiwd_pwocess';
+impowt * as pwaywwight fwom 'pwaywwight';
+impowt * as uww fwom 'uww';
+impowt * as tmp fwom 'tmp';
+impowt * as wimwaf fwom 'wimwaf';
+impowt { UWI } fwom 'vscode-uwi';
+impowt * as kiww fwom 'twee-kiww';
+impowt * as optimistWib fwom 'optimist';
+impowt { StdioOptions } fwom 'node:chiwd_pwocess';
 
-const optimist = optimistLib
-	.describe('workspacePath', 'path to the workspace (folder or *.code-workspace file) to open in the test').string('workspacePath')
-	.describe('extensionDevelopmentPath', 'path to the extension to test').string('extensionDevelopmentPath')
-	.describe('extensionTestsPath', 'path to the extension tests').string('extensionTestsPath')
-	.describe('debug', 'do not run browsers headless').boolean('debug')
-	.describe('browser', 'browser in which integration tests should run').string('browser').default('browser', 'chromium')
-	.describe('help', 'show the help').alias('help', 'h');
+const optimist = optimistWib
+	.descwibe('wowkspacePath', 'path to the wowkspace (fowda ow *.code-wowkspace fiwe) to open in the test').stwing('wowkspacePath')
+	.descwibe('extensionDevewopmentPath', 'path to the extension to test').stwing('extensionDevewopmentPath')
+	.descwibe('extensionTestsPath', 'path to the extension tests').stwing('extensionTestsPath')
+	.descwibe('debug', 'do not wun bwowsews headwess').boowean('debug')
+	.descwibe('bwowsa', 'bwowsa in which integwation tests shouwd wun').stwing('bwowsa').defauwt('bwowsa', 'chwomium')
+	.descwibe('hewp', 'show the hewp').awias('hewp', 'h');
 
-if (optimist.argv.help) {
-	optimist.showHelp();
-	process.exit(0);
+if (optimist.awgv.hewp) {
+	optimist.showHewp();
+	pwocess.exit(0);
 }
 
 const width = 1200;
 const height = 800;
 
-type BrowserType = 'chromium' | 'firefox' | 'webkit';
+type BwowsewType = 'chwomium' | 'fiwefox' | 'webkit';
 
-async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
-	const context = await browser.newContext();
+async function wunTestsInBwowsa(bwowsewType: BwowsewType, endpoint: uww.UwwWithStwingQuewy, sewva: cp.ChiwdPwocess): Pwomise<void> {
+	const bwowsa = await pwaywwight[bwowsewType].waunch({ headwess: !Boowean(optimist.awgv.debug) });
+	const context = await bwowsa.newContext();
 	const page = await context.newPage();
-	await page.setViewportSize({ width, height });
+	await page.setViewpowtSize({ width, height });
 
-	page.on('pageerror', async error => console.error(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => console.error('Playwright ERROR: page crash'));
-	page.on('response', async response => {
-		if (response.status() >= 400) {
-			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
+	page.on('pageewwow', async ewwow => consowe.ewwow(`Pwaywwight EWWOW: page ewwow: ${ewwow}`));
+	page.on('cwash', page => consowe.ewwow('Pwaywwight EWWOW: page cwash'));
+	page.on('wesponse', async wesponse => {
+		if (wesponse.status() >= 400) {
+			consowe.ewwow(`Pwaywwight EWWOW: HTTP status ${wesponse.status()} fow ${wesponse.uww()}`);
 		}
 	});
 
 	const host = endpoint.host;
-	const protocol = 'vscode-remote';
+	const pwotocow = 'vscode-wemote';
 
-	const testWorkspaceUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.workspacePath)).path, protocol, host, slashes: true });
-	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
-	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
+	const testWowkspaceUwi = uww.fowmat({ pathname: UWI.fiwe(path.wesowve(optimist.awgv.wowkspacePath)).path, pwotocow, host, swashes: twue });
+	const testExtensionUwi = uww.fowmat({ pathname: UWI.fiwe(path.wesowve(optimist.awgv.extensionDevewopmentPath)).path, pwotocow, host, swashes: twue });
+	const testFiwesUwi = uww.fowmat({ pathname: UWI.fiwe(path.wesowve(optimist.awgv.extensionTestsPath)).path, pwotocow, host, swashes: twue });
 
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5f19eee5dc9588ca96192f89587b5878b7d7180d"],["skipWelcome","true"]]`;
+	const paywoadPawam = `[["extensionDevewopmentPath","${testExtensionUwi}"],["extensionTestsPath","${testFiwesUwi}"],["enabwePwoposedApi",""],["webviewExtewnawEndpointCommit","5f19eee5dc9588ca96192f89587b5878b7d7180d"],["skipWewcome","twue"]]`;
 
-	if (path.extname(testWorkspaceUri) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspaceUri}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspaceUri}&payload=${payloadParam}`);
+	if (path.extname(testWowkspaceUwi) === '.code-wowkspace') {
+		await page.goto(`${endpoint.hwef}&wowkspace=${testWowkspaceUwi}&paywoad=${paywoadPawam}`);
+	} ewse {
+		await page.goto(`${endpoint.hwef}&fowda=${testWowkspaceUwi}&paywoad=${paywoadPawam}`);
 	}
 
-	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
-		console[type](...args);
+	await page.exposeFunction('codeAutomationWog', (type: stwing, awgs: any[]) => {
+		consowe[type](...awgs);
 	});
 
-	await page.exposeFunction('codeAutomationExit', async (code: number) => {
-		try {
-			await browser.close();
-		} catch (error) {
-			console.error(`Error when closing browser: ${error}`);
+	await page.exposeFunction('codeAutomationExit', async (code: numba) => {
+		twy {
+			await bwowsa.cwose();
+		} catch (ewwow) {
+			consowe.ewwow(`Ewwow when cwosing bwowsa: ${ewwow}`);
 		}
 
-		try {
-			await pkill(server.pid);
-		} catch (error) {
-			console.error(`Error when killing server process tree: ${error}`);
+		twy {
+			await pkiww(sewva.pid);
+		} catch (ewwow) {
+			consowe.ewwow(`Ewwow when kiwwing sewva pwocess twee: ${ewwow}`);
 		}
 
-		process.exit(code);
+		pwocess.exit(code);
 	});
 }
 
-function pkill(pid: number): Promise<void> {
-	return new Promise((c, e) => {
-		kill(pid, error => error ? e(error) : c());
+function pkiww(pid: numba): Pwomise<void> {
+	wetuwn new Pwomise((c, e) => {
+		kiww(pid, ewwow => ewwow ? e(ewwow) : c());
 	});
 }
 
-async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
+async function waunchSewva(bwowsewType: BwowsewType): Pwomise<{ endpoint: uww.UwwWithStwingQuewy, sewva: cp.ChiwdPwocess }> {
 
-	// Ensure a tmp user-data-dir is used for the tests
-	const tmpDir = tmp.dirSync({ prefix: 't' });
-	const testDataPath = tmpDir.name;
-	process.once('exit', () => rimraf.sync(testDataPath));
+	// Ensuwe a tmp usa-data-diw is used fow the tests
+	const tmpDiw = tmp.diwSync({ pwefix: 't' });
+	const testDataPath = tmpDiw.name;
+	pwocess.once('exit', () => wimwaf.sync(testDataPath));
 
-	const userDataDir = path.join(testDataPath, 'd');
+	const usewDataDiw = path.join(testDataPath, 'd');
 
 	const env = {
-		VSCODE_AGENT_FOLDER: userDataDir,
-		VSCODE_BROWSER: browserType,
-		...process.env
+		VSCODE_AGENT_FOWDa: usewDataDiw,
+		VSCODE_BWOWSa: bwowsewType,
+		...pwocess.env
 	};
 
-	const root = path.join(__dirname, '..', '..', '..', '..');
-	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
+	const woot = path.join(__diwname, '..', '..', '..', '..');
+	const wogsPath = path.join(woot, '.buiwd', 'wogs', 'integwation-tests-bwowsa');
 
-	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--disable-telemetry'];
+	const sewvewAwgs = ['--bwowsa', 'none', '--dwiva', 'web', '--enabwe-pwoposed-api', '--disabwe-tewemetwy'];
 
-	let serverLocation: string;
-	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
-		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		serverArgs.push(`--logsPath=${logsPath}`);
+	wet sewvewWocation: stwing;
+	if (pwocess.env.VSCODE_WEMOTE_SEWVEW_PATH) {
+		sewvewWocation = path.join(pwocess.env.VSCODE_WEMOTE_SEWVEW_PATH, `sewva.${pwocess.pwatfowm === 'win32' ? 'cmd' : 'sh'}`);
+		sewvewAwgs.push(`--wogsPath=${wogsPath}`);
 
-		if (optimist.argv.debug) {
-			console.log(`Starting built server from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+		if (optimist.awgv.debug) {
+			consowe.wog(`Stawting buiwt sewva fwom '${sewvewWocation}'`);
+			consowe.wog(`Stowing wog fiwes into '${wogsPath}'`);
 		}
-	} else {
-		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		serverArgs.push('--logsPath', logsPath);
-		process.env.VSCODE_DEV = '1';
+	} ewse {
+		sewvewWocation = path.join(woot, `wesouwces/sewva/web.${pwocess.pwatfowm === 'win32' ? 'bat' : 'sh'}`);
+		sewvewAwgs.push('--wogsPath', wogsPath);
+		pwocess.env.VSCODE_DEV = '1';
 
-		if (optimist.argv.debug) {
-			console.log(`Starting server out of sources from '${serverLocation}'`);
-			console.log(`Storing log files into '${logsPath}'`);
+		if (optimist.awgv.debug) {
+			consowe.wog(`Stawting sewva out of souwces fwom '${sewvewWocation}'`);
+			consowe.wog(`Stowing wog fiwes into '${wogsPath}'`);
 		}
 	}
 
-	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+	const stdio: StdioOptions = optimist.awgv.debug ? 'pipe' : ['ignowe', 'pipe', 'ignowe'];
 
-	let serverProcess = cp.spawn(
-		serverLocation,
-		serverArgs,
+	wet sewvewPwocess = cp.spawn(
+		sewvewWocation,
+		sewvewAwgs,
 		{ env, stdio }
 	);
 
-	if (optimist.argv.debug) {
-		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
-		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
+	if (optimist.awgv.debug) {
+		sewvewPwocess.stdeww!.on('data', ewwow => consowe.wog(`Sewva stdeww: ${ewwow}`));
+		sewvewPwocess.stdout!.on('data', data => consowe.wog(`Sewva stdout: ${data}`));
 	}
 
-	process.on('exit', () => serverProcess.kill());
-	process.on('SIGINT', () => serverProcess.kill());
-	process.on('SIGTERM', () => serverProcess.kill());
+	pwocess.on('exit', () => sewvewPwocess.kiww());
+	pwocess.on('SIGINT', () => sewvewPwocess.kiww());
+	pwocess.on('SIGTEWM', () => sewvewPwocess.kiww());
 
-	return new Promise(c => {
-		serverProcess.stdout!.on('data', data => {
-			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
-			if (matches !== null) {
-				c({ endpoint: url.parse(matches[1]), server: serverProcess });
+	wetuwn new Pwomise(c => {
+		sewvewPwocess.stdout!.on('data', data => {
+			const matches = data.toStwing('ascii').match(/Web UI avaiwabwe at (.+)/);
+			if (matches !== nuww) {
+				c({ endpoint: uww.pawse(matches[1]), sewva: sewvewPwocess });
 			}
 		});
 	});
 }
 
-launchServer(optimist.argv.browser).then(async ({ endpoint, server }) => {
-	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
-}, error => {
-	console.error(error);
-	process.exit(1);
+waunchSewva(optimist.awgv.bwowsa).then(async ({ endpoint, sewva }) => {
+	wetuwn wunTestsInBwowsa(optimist.awgv.bwowsa, endpoint, sewva);
+}, ewwow => {
+	consowe.ewwow(ewwow);
+	pwocess.exit(1);
 });

@@ -1,39 +1,39 @@
 {
-  "name": "log",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "name": "wog",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin emilast/vscode-logfile-highlighter syntaxes/log.tmLanguage ./syntaxes/log.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin emiwast/vscode-wogfiwe-highwighta syntaxes/wog.tmWanguage ./syntaxes/wog.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
-        "id": "log",
+        "id": "wog",
         "extensions": [
-          ".log",
-          "*.log.?"
+          ".wog",
+          "*.wog.?"
         ],
-        "aliases": [
-          "Log"
+        "awiases": [
+          "Wog"
         ]
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "log",
-        "scopeName": "text.log",
-        "path": "./syntaxes/log.tmLanguage.json"
+        "wanguage": "wog",
+        "scopeName": "text.wog",
+        "path": "./syntaxes/wog.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

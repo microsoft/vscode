@@ -1,79 +1,79 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
 
-export interface IMarcoPoloEvent {
-	answer: string;
+expowt intewface IMawcoPowoEvent {
+	answa: stwing;
 }
 
-export interface ITestService {
-	onMarco: Event<IMarcoPoloEvent>;
-	marco(): Promise<string>;
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }>;
-	cancelMe(): Promise<boolean>;
+expowt intewface ITestSewvice {
+	onMawco: Event<IMawcoPowoEvent>;
+	mawco(): Pwomise<stwing>;
+	pong(ping: stwing): Pwomise<{ incoming: stwing, outgoing: stwing }>;
+	cancewMe(): Pwomise<boowean>;
 }
 
-export class TestService implements ITestService {
+expowt cwass TestSewvice impwements ITestSewvice {
 
-	private readonly _onMarco = new Emitter<IMarcoPoloEvent>();
-	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
+	pwivate weadonwy _onMawco = new Emitta<IMawcoPowoEvent>();
+	onMawco: Event<IMawcoPowoEvent> = this._onMawco.event;
 
-	marco(): Promise<string> {
-		this._onMarco.fire({ answer: 'polo' });
-		return Promise.resolve('polo');
+	mawco(): Pwomise<stwing> {
+		this._onMawco.fiwe({ answa: 'powo' });
+		wetuwn Pwomise.wesowve('powo');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
-		return Promise.resolve({ incoming: ping, outgoing: 'pong' });
+	pong(ping: stwing): Pwomise<{ incoming: stwing, outgoing: stwing }> {
+		wetuwn Pwomise.wesowve({ incoming: ping, outgoing: 'pong' });
 	}
 
-	cancelMe(): Promise<boolean> {
-		return Promise.resolve(timeout(100)).then(() => true);
+	cancewMe(): Pwomise<boowean> {
+		wetuwn Pwomise.wesowve(timeout(100)).then(() => twue);
 	}
 }
 
-export class TestChannel implements IServerChannel {
+expowt cwass TestChannew impwements ISewvewChannew {
 
-	constructor(private testService: ITestService) { }
+	constwuctow(pwivate testSewvice: ITestSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'marco': return this.testService.onMarco;
+			case 'mawco': wetuwn this.testSewvice.onMawco;
 		}
 
-		throw new Error('Event not found');
+		thwow new Ewwow('Event not found');
 	}
 
-	call(_: unknown, command: string, ...args: any[]): Promise<any> {
+	caww(_: unknown, command: stwing, ...awgs: any[]): Pwomise<any> {
 		switch (command) {
-			case 'pong': return this.testService.pong(args[0]);
-			case 'cancelMe': return this.testService.cancelMe();
-			case 'marco': return this.testService.marco();
-			default: return Promise.reject(new Error(`command not found: ${command}`));
+			case 'pong': wetuwn this.testSewvice.pong(awgs[0]);
+			case 'cancewMe': wetuwn this.testSewvice.cancewMe();
+			case 'mawco': wetuwn this.testSewvice.mawco();
+			defauwt: wetuwn Pwomise.weject(new Ewwow(`command not found: ${command}`));
 		}
 	}
 }
 
-export class TestServiceClient implements ITestService {
+expowt cwass TestSewviceCwient impwements ITestSewvice {
 
-	get onMarco(): Event<IMarcoPoloEvent> { return this.channel.listen('marco'); }
+	get onMawco(): Event<IMawcoPowoEvent> { wetuwn this.channew.wisten('mawco'); }
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	marco(): Promise<string> {
-		return this.channel.call('marco');
+	mawco(): Pwomise<stwing> {
+		wetuwn this.channew.caww('mawco');
 	}
 
-	pong(ping: string): Promise<{ incoming: string, outgoing: string }> {
-		return this.channel.call('pong', ping);
+	pong(ping: stwing): Pwomise<{ incoming: stwing, outgoing: stwing }> {
+		wetuwn this.channew.caww('pong', ping);
 	}
 
-	cancelMe(): Promise<boolean> {
-		return this.channel.call('cancelMe');
+	cancewMe(): Pwomise<boowean> {
+		wetuwn this.channew.caww('cancewMe');
 	}
 }

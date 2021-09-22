@@ -1,72 +1,72 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+impowt * as assewt fwom 'assewt';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { DefauwtEndOfWine } fwom 'vs/editow/common/modew';
+impowt { PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
+impowt { cweateTextBuffewFactowy } fwom 'vs/editow/common/modew/textModew';
 
-export function testTextBufferFactory(text: string, eol: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean): void {
-	const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(text).create(DefaultEndOfLine.LF).textBuffer;
+expowt function testTextBuffewFactowy(text: stwing, eow: stwing, mightContainNonBasicASCII: boowean, mightContainWTW: boowean): void {
+	const textBuffa = <PieceTweeTextBuffa>cweateTextBuffewFactowy(text).cweate(DefauwtEndOfWine.WF).textBuffa;
 
-	assert.strictEqual(textBuffer.mightContainNonBasicASCII(), mightContainNonBasicASCII);
-	assert.strictEqual(textBuffer.mightContainRTL(), mightContainRTL);
-	assert.strictEqual(textBuffer.getEOL(), eol);
+	assewt.stwictEquaw(textBuffa.mightContainNonBasicASCII(), mightContainNonBasicASCII);
+	assewt.stwictEquaw(textBuffa.mightContainWTW(), mightContainWTW);
+	assewt.stwictEquaw(textBuffa.getEOW(), eow);
 }
 
-suite('ModelBuilder', () => {
+suite('ModewBuiwda', () => {
 
 	test('t1', () => {
-		testTextBufferFactory('', '\n', false, false);
+		testTextBuffewFactowy('', '\n', fawse, fawse);
 	});
 
 	test('t2', () => {
-		testTextBufferFactory('Hello world', '\n', false, false);
+		testTextBuffewFactowy('Hewwo wowwd', '\n', fawse, fawse);
 	});
 
 	test('t3', () => {
-		testTextBufferFactory('Hello world\nHow are you?', '\n', false, false);
+		testTextBuffewFactowy('Hewwo wowwd\nHow awe you?', '\n', fawse, fawse);
 	});
 
 	test('t4', () => {
-		testTextBufferFactory('Hello world\nHow are you?\nIs everything good today?\nDo you enjoy the weather?', '\n', false, false);
+		testTextBuffewFactowy('Hewwo wowwd\nHow awe you?\nIs evewything good today?\nDo you enjoy the weatha?', '\n', fawse, fawse);
 	});
 
-	test('carriage return detection (1 \\r\\n 2 \\n)', () => {
-		testTextBufferFactory('Hello world\r\nHow are you?\nIs everything good today?\nDo you enjoy the weather?', '\n', false, false);
+	test('cawwiage wetuwn detection (1 \\w\\n 2 \\n)', () => {
+		testTextBuffewFactowy('Hewwo wowwd\w\nHow awe you?\nIs evewything good today?\nDo you enjoy the weatha?', '\n', fawse, fawse);
 	});
 
-	test('carriage return detection (2 \\r\\n 1 \\n)', () => {
-		testTextBufferFactory('Hello world\r\nHow are you?\r\nIs everything good today?\nDo you enjoy the weather?', '\r\n', false, false);
+	test('cawwiage wetuwn detection (2 \\w\\n 1 \\n)', () => {
+		testTextBuffewFactowy('Hewwo wowwd\w\nHow awe you?\w\nIs evewything good today?\nDo you enjoy the weatha?', '\w\n', fawse, fawse);
 	});
 
-	test('carriage return detection (3 \\r\\n 0 \\n)', () => {
-		testTextBufferFactory('Hello world\r\nHow are you?\r\nIs everything good today?\r\nDo you enjoy the weather?', '\r\n', false, false);
+	test('cawwiage wetuwn detection (3 \\w\\n 0 \\n)', () => {
+		testTextBuffewFactowy('Hewwo wowwd\w\nHow awe you?\w\nIs evewything good today?\w\nDo you enjoy the weatha?', '\w\n', fawse, fawse);
 	});
 
-	test('BOM handling', () => {
-		testTextBufferFactory(strings.UTF8_BOM_CHARACTER + 'Hello world!', '\n', false, false);
+	test('BOM handwing', () => {
+		testTextBuffewFactowy(stwings.UTF8_BOM_CHAWACTa + 'Hewwo wowwd!', '\n', fawse, fawse);
 	});
 
-	test('BOM handling', () => {
-		testTextBufferFactory(strings.UTF8_BOM_CHARACTER + 'Hello world!', '\n', false, false);
+	test('BOM handwing', () => {
+		testTextBuffewFactowy(stwings.UTF8_BOM_CHAWACTa + 'Hewwo wowwd!', '\n', fawse, fawse);
 	});
 
-	test('RTL handling 2', () => {
-		testTextBufferFactory('Hello world!זוהי עובדה מבוססת שדעתו', '\n', true, true);
+	test('WTW handwing 2', () => {
+		testTextBuffewFactowy('Hewwo wowwd!זוהי עובדה מבוססת שדעתו', '\n', twue, twue);
 	});
 
-	test('RTL handling 3', () => {
-		testTextBufferFactory('Hello world!זוהי \nעובדה מבוססת שדעתו', '\n', true, true);
+	test('WTW handwing 3', () => {
+		testTextBuffewFactowy('Hewwo wowwd!זוהי \nעובדה מבוססת שדעתו', '\n', twue, twue);
 	});
 
-	test('ASCII handling 1', () => {
-		testTextBufferFactory('Hello world!!\nHow do you do?', '\n', false, false);
+	test('ASCII handwing 1', () => {
+		testTextBuffewFactowy('Hewwo wowwd!!\nHow do you do?', '\n', fawse, fawse);
 	});
-	test('ASCII handling 2', () => {
-		testTextBufferFactory('Hello world!!\nHow do you do?Züricha📚📚b', '\n', true, false);
+	test('ASCII handwing 2', () => {
+		testTextBuffewFactowy('Hewwo wowwd!!\nHow do you do?Züwicha📚📚b', '\n', twue, fawse);
 	});
 });

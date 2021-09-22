@@ -1,220 +1,220 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as viewEvents fwom 'vs/editow/common/view/viewEvents';
 
-export class ViewEventHandler extends Disposable {
+expowt cwass ViewEventHandwa extends Disposabwe {
 
-	private _shouldRender: boolean;
+	pwivate _shouwdWenda: boowean;
 
-	constructor() {
-		super();
-		this._shouldRender = true;
-	}
-
-	public shouldRender(): boolean {
-		return this._shouldRender;
+	constwuctow() {
+		supa();
+		this._shouwdWenda = twue;
 	}
 
-	public forceShouldRender(): void {
-		this._shouldRender = true;
+	pubwic shouwdWenda(): boowean {
+		wetuwn this._shouwdWenda;
 	}
 
-	protected setShouldRender(): void {
-		this._shouldRender = true;
+	pubwic fowceShouwdWenda(): void {
+		this._shouwdWenda = twue;
 	}
 
-	public onDidRender(): void {
-		this._shouldRender = false;
+	pwotected setShouwdWenda(): void {
+		this._shouwdWenda = twue;
 	}
 
-	// --- begin event handlers
-
-	public onCompositionStart(e: viewEvents.ViewCompositionStartEvent): boolean {
-		return false;
-	}
-	public onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boolean {
-		return false;
-	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return false;
-	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
-		return false;
-	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return false;
-	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return false;
-	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		return false;
-	}
-	public onLanguageConfigurationChanged(e: viewEvents.ViewLanguageConfigurationEvent): boolean {
-		return false;
-	}
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
-		return false;
-	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
-		return false;
-	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		return false;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		return false;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
-	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return false;
-	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		return false;
-	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
-		return false;
-	}
-	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
-		return false;
-	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return false;
+	pubwic onDidWenda(): void {
+		this._shouwdWenda = fawse;
 	}
 
-	// --- end event handlers
+	// --- begin event handwews
 
-	public handleEvents(events: viewEvents.ViewEvent[]): void {
+	pubwic onCompositionStawt(e: viewEvents.ViewCompositionStawtEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onCompositionEnd(e: viewEvents.ViewCompositionEndEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onConfiguwationChanged(e: viewEvents.ViewConfiguwationChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onCuwsowStateChanged(e: viewEvents.ViewCuwsowStateChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onDecowationsChanged(e: viewEvents.ViewDecowationsChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onFwushed(e: viewEvents.ViewFwushedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWanguageConfiguwationChanged(e: viewEvents.ViewWanguageConfiguwationEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWineMappingChanged(e: viewEvents.ViewWineMappingChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWinesChanged(e: viewEvents.ViewWinesChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWinesDeweted(e: viewEvents.ViewWinesDewetedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWinesInsewted(e: viewEvents.ViewWinesInsewtedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onWeveawWangeWequest(e: viewEvents.ViewWeveawWangeWequestEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onScwowwChanged(e: viewEvents.ViewScwowwChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onTokensCowowsChanged(e: viewEvents.ViewTokensCowowsChangedEvent): boowean {
+		wetuwn fawse;
+	}
+	pubwic onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boowean {
+		wetuwn fawse;
+	}
 
-		let shouldRender = false;
+	// --- end event handwews
 
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
+	pubwic handweEvents(events: viewEvents.ViewEvent[]): void {
+
+		wet shouwdWenda = fawse;
+
+		fow (wet i = 0, wen = events.wength; i < wen; i++) {
+			wet e = events[i];
 
 			switch (e.type) {
 
-				case viewEvents.ViewEventType.ViewCompositionStart:
-					if (this.onCompositionStart(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewCompositionStawt:
+					if (this.onCompositionStawt(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
 				case viewEvents.ViewEventType.ViewCompositionEnd:
 					if (this.onCompositionEnd(e)) {
-						shouldRender = true;
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewConfigurationChanged:
-					if (this.onConfigurationChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewConfiguwationChanged:
+					if (this.onConfiguwationChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewCursorStateChanged:
-					if (this.onCursorStateChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewCuwsowStateChanged:
+					if (this.onCuwsowStateChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewDecorationsChanged:
-					if (this.onDecorationsChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewDecowationsChanged:
+					if (this.onDecowationsChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewFlushed:
-					if (this.onFlushed(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewFwushed:
+					if (this.onFwushed(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
 				case viewEvents.ViewEventType.ViewFocusChanged:
 					if (this.onFocusChanged(e)) {
-						shouldRender = true;
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewLanguageConfigurationChanged:
-					if (this.onLanguageConfigurationChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWanguageConfiguwationChanged:
+					if (this.onWanguageConfiguwationChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewLineMappingChanged:
-					if (this.onLineMappingChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWineMappingChanged:
+					if (this.onWineMappingChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewLinesChanged:
-					if (this.onLinesChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWinesChanged:
+					if (this.onWinesChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewLinesDeleted:
-					if (this.onLinesDeleted(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWinesDeweted:
+					if (this.onWinesDeweted(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewLinesInserted:
-					if (this.onLinesInserted(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWinesInsewted:
+					if (this.onWinesInsewted(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewRevealRangeRequest:
-					if (this.onRevealRangeRequest(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewWeveawWangeWequest:
+					if (this.onWeveawWangeWequest(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewScrollChanged:
-					if (this.onScrollChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewScwowwChanged:
+					if (this.onScwowwChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
 				case viewEvents.ViewEventType.ViewTokensChanged:
 					if (this.onTokensChanged(e)) {
-						shouldRender = true;
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
 				case viewEvents.ViewEventType.ViewThemeChanged:
 					if (this.onThemeChanged(e)) {
-						shouldRender = true;
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				case viewEvents.ViewEventType.ViewTokensColorsChanged:
-					if (this.onTokensColorsChanged(e)) {
-						shouldRender = true;
+				case viewEvents.ViewEventType.ViewTokensCowowsChanged:
+					if (this.onTokensCowowsChanged(e)) {
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
-						shouldRender = true;
+						shouwdWenda = twue;
 					}
-					break;
+					bweak;
 
-				default:
-					console.info('View received unknown event: ');
-					console.info(e);
+				defauwt:
+					consowe.info('View weceived unknown event: ');
+					consowe.info(e);
 			}
 		}
 
-		if (shouldRender) {
-			this._shouldRender = true;
+		if (shouwdWenda) {
+			this._shouwdWenda = twue;
 		}
 	}
 }

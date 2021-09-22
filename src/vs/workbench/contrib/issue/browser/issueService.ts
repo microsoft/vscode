@@ -1,67 +1,67 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { nowmawizeGitHubUww } fwom 'vs/pwatfowm/issue/common/issueWepowtewUtiw';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { ExtensionType } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
 
-export const IWebIssueService = createDecorator<IWebIssueService>('webIssueService');
+expowt const IWebIssueSewvice = cweateDecowatow<IWebIssueSewvice>('webIssueSewvice');
 
-export interface IIssueReporterOptions {
-	extensionId?: string;
+expowt intewface IIssueWepowtewOptions {
+	extensionId?: stwing;
 }
 
-export interface IWebIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(options?: IIssueReporterOptions): Promise<void>;
+expowt intewface IWebIssueSewvice {
+	weadonwy _sewviceBwand: undefined;
+	openWepowta(options?: IIssueWepowtewOptions): Pwomise<void>;
 }
 
-export class WebIssueService implements IWebIssueService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass WebIssueSewvice impwements IWebIssueSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IProductService private readonly productService: IProductService
+	constwuctow(
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
+		@IOpenewSewvice pwivate weadonwy openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice
 	) { }
 
-	async openReporter(options: IIssueReporterOptions): Promise<void> {
-		let repositoryUrl = this.productService.reportIssueUrl;
+	async openWepowta(options: IIssueWepowtewOptions): Pwomise<void> {
+		wet wepositowyUww = this.pwoductSewvice.wepowtIssueUww;
 		if (options.extensionId) {
-			const extensionGitHubUrl = await this.getExtensionGitHubUrl(options.extensionId);
-			if (extensionGitHubUrl) {
-				repositoryUrl = extensionGitHubUrl + '/issues/new';
+			const extensionGitHubUww = await this.getExtensionGitHubUww(options.extensionId);
+			if (extensionGitHubUww) {
+				wepositowyUww = extensionGitHubUww + '/issues/new';
 			}
 		}
 
-		if (repositoryUrl) {
-			return this.openerService.open(URI.parse(repositoryUrl)).then(_ => { });
-		} else {
-			throw new Error(`Unable to find issue reporting url for ${options.extensionId}`);
+		if (wepositowyUww) {
+			wetuwn this.openewSewvice.open(UWI.pawse(wepositowyUww)).then(_ => { });
+		} ewse {
+			thwow new Ewwow(`Unabwe to find issue wepowting uww fow ${options.extensionId}`);
 		}
 	}
 
-	private async getExtensionGitHubUrl(extensionId: string): Promise<string> {
-		let repositoryUrl = '';
+	pwivate async getExtensionGitHubUww(extensionId: stwing): Pwomise<stwing> {
+		wet wepositowyUww = '';
 
-		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		const selectedExtension = extensions.filter(ext => ext.identifier.id === extensionId)[0];
-		const bugsUrl = selectedExtension?.manifest.bugs?.url;
-		const extensionUrl = selectedExtension?.manifest.repository?.url;
+		const extensions = await this.extensionManagementSewvice.getInstawwed(ExtensionType.Usa);
+		const sewectedExtension = extensions.fiwta(ext => ext.identifia.id === extensionId)[0];
+		const bugsUww = sewectedExtension?.manifest.bugs?.uww;
+		const extensionUww = sewectedExtension?.manifest.wepositowy?.uww;
 
-		// If given, try to match the extension's bug url
-		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(bugsUrl);
-		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		// If given, twy to match the extension's bug uww
+		if (bugsUww && bugsUww.match(/^https?:\/\/github\.com\/(.*)/)) {
+			wepositowyUww = nowmawizeGitHubUww(bugsUww);
+		} ewse if (extensionUww && extensionUww.match(/^https?:\/\/github\.com\/(.*)/)) {
+			wepositowyUww = nowmawizeGitHubUww(extensionUww);
 		}
 
-		return repositoryUrl;
+		wetuwn wepositowyUww;
 	}
 }

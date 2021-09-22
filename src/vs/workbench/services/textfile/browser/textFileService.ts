@@ -1,761 +1,761 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions } from 'vs/workbench/common/editor';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IUntitledTextEditorService, IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Schemas } from 'vs/base/common/network';
-import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
-import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isValidBasename } from 'vs/base/common/extpath';
-import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
-import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { Emitter } from 'vs/base/common/event';
-import { Codicon } from 'vs/base/common/codicons';
-import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IEncodingSuppowt, ITextFiweSewvice, ITextFiweStweamContent, ITextFiweContent, IWesouwceEncodings, IWeadTextFiweOptions, IWwiteTextFiweOptions, toBuffewOwWeadabwe, TextFiweOpewationEwwow, TextFiweOpewationWesuwt, ITextFiweSaveOptions, ITextFiweEditowModewManaga, IWesouwceEncoding, stwingToSnapshot, ITextFiweSaveAsOptions, IWeadTextFiweEncodingOptions, TextFiweEditowModewState } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWevewtOptions } fwom 'vs/wowkbench/common/editow';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IFiweSewvice, FiweOpewationEwwow, FiweOpewationWesuwt, IFiweStatWithMetadata, ICweateFiweOptions, IFiweStweamContent } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IUntitwedTextEditowSewvice, IUntitwedTextEditowModewManaga } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowSewvice';
+impowt { UntitwedTextEditowModew } fwom 'vs/wowkbench/sewvices/untitwed/common/untitwedTextEditowModew';
+impowt { TextFiweEditowModewManaga } fwom 'vs/wowkbench/sewvices/textfiwe/common/textFiweEditowModewManaga';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { cweateTextBuffewFactowyFwomSnapshot, cweateTextBuffewFactowyFwomStweam } fwom 'vs/editow/common/modew/textModew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { joinPath, diwname, basename, toWocawWesouwce, extname, isEquaw } fwom 'vs/base/common/wesouwces';
+impowt { IDiawogSewvice, IFiweDiawogSewvice, IConfiwmation } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { VSBuffa, VSBuffewWeadabwe, buffewToStweam, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { ITextSnapshot, ITextModew } fwom 'vs/editow/common/modew';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { PWAINTEXT_MODE_ID } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { ITextModewSewvice, IWesowvedTextEditowModew } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { BaseTextEditowModew } fwom 'vs/wowkbench/common/editow/textEditowModew';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { isVawidBasename } fwom 'vs/base/common/extpath';
+impowt { IWowkingCopyFiweSewvice, IFiweOpewationUndoWedoInfo, ICweateFiweOpewation } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { WOWKSPACE_EXTENSION } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { UTF8, UTF8_with_bom, UTF16be, UTF16we, encodingExists, toEncodeWeadabwe, toDecodeStweam, IDecodeStweamWesuwt } fwom 'vs/wowkbench/sewvices/textfiwe/common/encoding';
+impowt { consumeStweam, WeadabweStweam } fwom 'vs/base/common/stweam';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
+impowt { IDecowationData, IDecowationsPwovida, IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wistEwwowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
 
 /**
- * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
+ * The wowkbench fiwe sewvice impwementation impwements the waw fiwe sewvice spec and adds additionaw methods on top.
  */
-export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
+expowt abstwact cwass AbstwactTextFiweSewvice extends Disposabwe impwements ITextFiweSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
+	weadonwy fiwes: ITextFiweEditowModewManaga = this._wegista(this.instantiationSewvice.cweateInstance(TextFiweEditowModewManaga));
 
-	readonly untitled: IUntitledTextEditorModelManager = this.untitledTextEditorService;
+	weadonwy untitwed: IUntitwedTextEditowModewManaga = this.untitwedTextEditowSewvice;
 
-	constructor(
-		@IFileService protected readonly fileService: IFileService,
-		@IUntitledTextEditorService private untitledTextEditorService: IUntitledTextEditorService,
-		@ILifecycleService protected readonly lifecycleService: ILifecycleService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IPathService private readonly pathService: IPathService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IModeService private readonly modeService: IModeService,
-		@ILogService protected readonly logService: ILogService,
-		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+	constwuctow(
+		@IFiweSewvice pwotected weadonwy fiweSewvice: IFiweSewvice,
+		@IUntitwedTextEditowSewvice pwivate untitwedTextEditowSewvice: IUntitwedTextEditowSewvice,
+		@IWifecycweSewvice pwotected weadonwy wifecycweSewvice: IWifecycweSewvice,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwotected weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IDiawogSewvice pwivate weadonwy diawogSewvice: IDiawogSewvice,
+		@IFiweDiawogSewvice pwivate weadonwy fiweDiawogSewvice: IFiweDiawogSewvice,
+		@ITextWesouwceConfiguwationSewvice pwotected weadonwy textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IFiwesConfiguwationSewvice pwotected weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@ITextModewSewvice pwivate weadonwy textModewSewvice: ITextModewSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IWowkingCopyFiweSewvice pwivate weadonwy wowkingCopyFiweSewvice: IWowkingCopyFiweSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IWogSewvice pwotected weadonwy wogSewvice: IWogSewvice,
+		@IEwevatedFiweSewvice pwivate weadonwy ewevatedFiweSewvice: IEwevatedFiweSewvice,
+		@IDecowationsSewvice pwivate weadonwy decowationsSewvice: IDecowationsSewvice
 	) {
-		super();
+		supa();
 
-		this.provideDecorations();
+		this.pwovideDecowations();
 	}
 
-	//#region decorations
+	//#wegion decowations
 
-	private provideDecorations(): void {
+	pwivate pwovideDecowations(): void {
 
-		// Text file model decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		// Text fiwe modew decowations
+		this.decowationsSewvice.wegistewDecowationsPwovida(new cwass extends Disposabwe impwements IDecowationsPwovida {
 
-			readonly label = localize('textFileModelDecorations', "Text File Model Decorations");
+			weadonwy wabew = wocawize('textFiweModewDecowations', "Text Fiwe Modew Decowations");
 
-			private readonly _onDidChange = this._register(new Emitter<URI[]>());
-			readonly onDidChange = this._onDidChange.event;
+			pwivate weadonwy _onDidChange = this._wegista(new Emitta<UWI[]>());
+			weadonwy onDidChange = this._onDidChange.event;
 
-			constructor(private readonly files: ITextFileEditorModelManager) {
-				super();
+			constwuctow(pwivate weadonwy fiwes: ITextFiweEditowModewManaga) {
+				supa();
 
-				this.registerListeners();
+				this.wegistewWistenews();
 			}
 
-			private registerListeners(): void {
+			pwivate wegistewWistenews(): void {
 
-				// Creates
-				this._register(this.files.onDidResolve(({ model }) => {
-					if (model.isReadonly() || model.hasState(TextFileEditorModelState.ORPHAN)) {
-						this._onDidChange.fire([model.resource]);
+				// Cweates
+				this._wegista(this.fiwes.onDidWesowve(({ modew }) => {
+					if (modew.isWeadonwy() || modew.hasState(TextFiweEditowModewState.OWPHAN)) {
+						this._onDidChange.fiwe([modew.wesouwce]);
 					}
 				}));
 
 				// Changes
-				this._register(this.files.onDidChangeReadonly(model => this._onDidChange.fire([model.resource])));
-				this._register(this.files.onDidChangeOrphaned(model => this._onDidChange.fire([model.resource])));
+				this._wegista(this.fiwes.onDidChangeWeadonwy(modew => this._onDidChange.fiwe([modew.wesouwce])));
+				this._wegista(this.fiwes.onDidChangeOwphaned(modew => this._onDidChange.fiwe([modew.wesouwce])));
 			}
 
-			provideDecorations(uri: URI): IDecorationData | undefined {
-				const model = this.files.get(uri);
-				if (!model) {
-					return undefined;
+			pwovideDecowations(uwi: UWI): IDecowationData | undefined {
+				const modew = this.fiwes.get(uwi);
+				if (!modew) {
+					wetuwn undefined;
 				}
 
-				const isReadonly = model.isReadonly();
-				const isOrphaned = model.hasState(TextFileEditorModelState.ORPHAN);
+				const isWeadonwy = modew.isWeadonwy();
+				const isOwphaned = modew.hasState(TextFiweEditowModewState.OWPHAN);
 
-				// Readonly + Orphaned
-				if (isReadonly && isOrphaned) {
-					return {
-						color: listErrorForeground,
-						letter: Codicon.lock,
-						strikethrough: true,
-						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
+				// Weadonwy + Owphaned
+				if (isWeadonwy && isOwphaned) {
+					wetuwn {
+						cowow: wistEwwowFowegwound,
+						wetta: Codicon.wock,
+						stwikethwough: twue,
+						toowtip: wocawize('weadonwyAndDeweted', "Deweted, Wead Onwy"),
 					};
 				}
 
-				// Readonly
-				else if (isReadonly) {
-					return {
-						letter: Codicon.lock,
-						tooltip: localize('readonly', "Read Only"),
+				// Weadonwy
+				ewse if (isWeadonwy) {
+					wetuwn {
+						wetta: Codicon.wock,
+						toowtip: wocawize('weadonwy', "Wead Onwy"),
 					};
 				}
 
-				// Orphaned
-				else if (isOrphaned) {
-					return {
-						color: listErrorForeground,
-						strikethrough: true,
-						tooltip: localize('deleted', "Deleted"),
+				// Owphaned
+				ewse if (isOwphaned) {
+					wetuwn {
+						cowow: wistEwwowFowegwound,
+						stwikethwough: twue,
+						toowtip: wocawize('deweted', "Deweted"),
 					};
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
-		}(this.files));
+		}(this.fiwes));
 	}
 
-	//#endregin
+	//#endwegin
 
-	//#region text file read / write / create
+	//#wegion text fiwe wead / wwite / cweate
 
-	private _encoding: EncodingOracle | undefined;
+	pwivate _encoding: EncodingOwacwe | undefined;
 
-	get encoding(): EncodingOracle {
+	get encoding(): EncodingOwacwe {
 		if (!this._encoding) {
-			this._encoding = this._register(this.instantiationService.createInstance(EncodingOracle));
+			this._encoding = this._wegista(this.instantiationSewvice.cweateInstance(EncodingOwacwe));
 		}
 
-		return this._encoding;
+		wetuwn this._encoding;
 	}
 
-	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, {
+	async wead(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweContent> {
+		const [buffewStweam, decoda] = await this.doWead(wesouwce, {
 			...options,
-			// optimization: since we know that the caller does not
-			// care about buffering, we indicate this to the reader.
-			// this reduces all the overhead the buffered reading
-			// has (open, read, close) if the provider supports
-			// unbuffered reading.
-			preferUnbuffered: true
+			// optimization: since we know that the cawwa does not
+			// cawe about buffewing, we indicate this to the weada.
+			// this weduces aww the ovewhead the buffewed weading
+			// has (open, wead, cwose) if the pwovida suppowts
+			// unbuffewed weading.
+			pwefewUnbuffewed: twue
 		});
 
-		return {
-			...bufferStream,
-			encoding: decoder.detected.encoding || UTF8,
-			value: await consumeStream(decoder.stream, strings => strings.join(''))
+		wetuwn {
+			...buffewStweam,
+			encoding: decoda.detected.encoding || UTF8,
+			vawue: await consumeStweam(decoda.stweam, stwings => stwings.join(''))
 		};
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
-		const [bufferStream, decoder] = await this.doRead(resource, options);
+	async weadStweam(wesouwce: UWI, options?: IWeadTextFiweOptions): Pwomise<ITextFiweStweamContent> {
+		const [buffewStweam, decoda] = await this.doWead(wesouwce, options);
 
-		return {
-			...bufferStream,
-			encoding: decoder.detected.encoding || UTF8,
-			value: await createTextBufferFactoryFromStream(decoder.stream)
+		wetuwn {
+			...buffewStweam,
+			encoding: decoda.detected.encoding || UTF8,
+			vawue: await cweateTextBuffewFactowyFwomStweam(decoda.stweam)
 		};
 	}
 
-	private async doRead(resource: URI, options?: IReadTextFileOptions & { preferUnbuffered?: boolean }): Promise<[IFileStreamContent, IDecodeStreamResult]> {
+	pwivate async doWead(wesouwce: UWI, options?: IWeadTextFiweOptions & { pwefewUnbuffewed?: boowean }): Pwomise<[IFiweStweamContent, IDecodeStweamWesuwt]> {
 
-		// read stream raw (either buffered or unbuffered)
-		let bufferStream: IFileStreamContent;
-		if (options?.preferUnbuffered) {
-			const content = await this.fileService.readFile(resource, options);
-			bufferStream = {
+		// wead stweam waw (eitha buffewed ow unbuffewed)
+		wet buffewStweam: IFiweStweamContent;
+		if (options?.pwefewUnbuffewed) {
+			const content = await this.fiweSewvice.weadFiwe(wesouwce, options);
+			buffewStweam = {
 				...content,
-				value: bufferToStream(content.value)
+				vawue: buffewToStweam(content.vawue)
 			};
-		} else {
-			bufferStream = await this.fileService.readFileStream(resource, options);
+		} ewse {
+			buffewStweam = await this.fiweSewvice.weadFiweStweam(wesouwce, options);
 		}
 
-		// read through encoding library
-		const decoder = await this.doGetDecodedStream(resource, bufferStream.value, options);
+		// wead thwough encoding wibwawy
+		const decoda = await this.doGetDecodedStweam(wesouwce, buffewStweam.vawue, options);
 
-		// validate binary
-		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
-			throw new TextFileOperationError(localize('fileBinaryError', "File seems to be binary and cannot be opened as text"), TextFileOperationResult.FILE_IS_BINARY, options);
+		// vawidate binawy
+		if (options?.acceptTextOnwy && decoda.detected.seemsBinawy) {
+			thwow new TextFiweOpewationEwwow(wocawize('fiweBinawyEwwow', "Fiwe seems to be binawy and cannot be opened as text"), TextFiweOpewationWesuwt.FIWE_IS_BINAWY, options);
 		}
 
-		return [bufferStream, decoder];
+		wetuwn [buffewStweam, decoda];
 	}
 
-	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
-		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async operation => {
-			const contents = await this.getEncodedReadable(operation.resource, operation.value);
-			return {
-				resource: operation.resource,
+	async cweate(opewations: { wesouwce: UWI, vawue?: stwing | ITextSnapshot, options?: ICweateFiweOptions }[], undoInfo?: IFiweOpewationUndoWedoInfo): Pwomise<weadonwy IFiweStatWithMetadata[]> {
+		const opewationsWithContents: ICweateFiweOpewation[] = await Pwomise.aww(opewations.map(async opewation => {
+			const contents = await this.getEncodedWeadabwe(opewation.wesouwce, opewation.vawue);
+			wetuwn {
+				wesouwce: opewation.wesouwce,
 				contents,
-				overwrite: operation.options?.overwrite
+				ovewwwite: opewation.options?.ovewwwite
 			};
 		}));
 
-		return this.workingCopyFileService.create(operationsWithContents, CancellationToken.None, undoInfo);
+		wetuwn this.wowkingCopyFiweSewvice.cweate(opewationsWithContents, CancewwationToken.None, undoInfo);
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
-		const readable = await this.getEncodedReadable(resource, value, options);
+	async wwite(wesouwce: UWI, vawue: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<IFiweStatWithMetadata> {
+		const weadabwe = await this.getEncodedWeadabwe(wesouwce, vawue, options);
 
-		if (options?.writeElevated && this.elevatedFileService.isSupported(resource)) {
-			return this.elevatedFileService.writeFileElevated(resource, readable, options);
+		if (options?.wwiteEwevated && this.ewevatedFiweSewvice.isSuppowted(wesouwce)) {
+			wetuwn this.ewevatedFiweSewvice.wwiteFiweEwevated(wesouwce, weadabwe, options);
 		}
 
-		return this.fileService.writeFile(resource, readable, options);
+		wetuwn this.fiweSewvice.wwiteFiwe(wesouwce, weadabwe, options);
 	}
 
-	async getEncodedReadable(resource: URI, value: ITextSnapshot): Promise<VSBufferReadable>;
-	async getEncodedReadable(resource: URI, value: string): Promise<VSBuffer>;
-	async getEncodedReadable(resource: URI, value?: ITextSnapshot): Promise<VSBufferReadable | undefined>;
-	async getEncodedReadable(resource: URI, value?: string): Promise<VSBuffer | undefined>;
-	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined>;
-	async getEncodedReadable(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable>;
-	async getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined> {
+	async getEncodedWeadabwe(wesouwce: UWI, vawue: ITextSnapshot): Pwomise<VSBuffewWeadabwe>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue: stwing): Pwomise<VSBuffa>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue?: ITextSnapshot): Pwomise<VSBuffewWeadabwe | undefined>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing): Pwomise<VSBuffa | undefined>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing | ITextSnapshot): Pwomise<VSBuffa | VSBuffewWeadabwe | undefined>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<VSBuffa | VSBuffewWeadabwe>;
+	async getEncodedWeadabwe(wesouwce: UWI, vawue?: stwing | ITextSnapshot, options?: IWwiteTextFiweOptions): Pwomise<VSBuffa | VSBuffewWeadabwe | undefined> {
 
-		// check for encoding
-		const { encoding, addBOM } = await this.encoding.getWriteEncoding(resource, options);
+		// check fow encoding
+		const { encoding, addBOM } = await this.encoding.getWwiteEncoding(wesouwce, options);
 
-		// when encoding is standard skip encoding step
+		// when encoding is standawd skip encoding step
 		if (encoding === UTF8 && !addBOM) {
-			return typeof value === 'undefined'
+			wetuwn typeof vawue === 'undefined'
 				? undefined
-				: toBufferOrReadable(value);
+				: toBuffewOwWeadabwe(vawue);
 		}
 
-		// otherwise create encoded readable
-		value = value || '';
-		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
-		return toEncodeReadable(snapshot, encoding, { addBOM });
+		// othewwise cweate encoded weadabwe
+		vawue = vawue || '';
+		const snapshot = typeof vawue === 'stwing' ? stwingToSnapshot(vawue) : vawue;
+		wetuwn toEncodeWeadabwe(snapshot, encoding, { addBOM });
 	}
 
-	async getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>> {
-		return (await this.doGetDecodedStream(resource, value, options)).stream;
+	async getDecodedStweam(wesouwce: UWI, vawue: VSBuffewWeadabweStweam, options?: IWeadTextFiweEncodingOptions): Pwomise<WeadabweStweam<stwing>> {
+		wetuwn (await this.doGetDecodedStweam(wesouwce, vawue, options)).stweam;
 	}
 
-	private doGetDecodedStream(resource: URI, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
+	pwivate doGetDecodedStweam(wesouwce: UWI, stweam: VSBuffewWeadabweStweam, options?: IWeadTextFiweEncodingOptions): Pwomise<IDecodeStweamWesuwt> {
 
-		// read through encoding library
-		return toDecodeStream(stream, {
-			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+		// wead thwough encoding wibwawy
+		wetuwn toDecodeStweam(stweam, {
+			guessEncoding: options?.autoGuessEncoding || this.textWesouwceConfiguwationSewvice.getVawue(wesouwce, 'fiwes.autoGuessEncoding'),
+			ovewwwiteEncoding: detectedEncoding => this.encoding.getWeadEncoding(wesouwce, options, detectedEncoding)
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region save
+	//#wegion save
 
-	async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async save(wesouwce: UWI, options?: ITextFiweSaveOptions): Pwomise<UWI | undefined> {
 
-		// Untitled
-		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
-			if (model) {
-				let targetUri: URI | undefined;
+		// Untitwed
+		if (wesouwce.scheme === Schemas.untitwed) {
+			const modew = this.untitwed.get(wesouwce);
+			if (modew) {
+				wet tawgetUwi: UWI | undefined;
 
-				// Untitled with associated file path don't need to prompt
-				if (model.hasAssociatedFilePath) {
-					targetUri = await this.suggestSavePath(resource);
+				// Untitwed with associated fiwe path don't need to pwompt
+				if (modew.hasAssociatedFiwePath) {
+					tawgetUwi = await this.suggestSavePath(wesouwce);
 				}
 
-				// Otherwise ask user
-				else {
-					targetUri = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(resource), options?.availableFileSystems);
+				// Othewwise ask usa
+				ewse {
+					tawgetUwi = await this.fiweDiawogSewvice.pickFiweToSave(await this.suggestSavePath(wesouwce), options?.avaiwabweFiweSystems);
 				}
 
-				// Save as if target provided
-				if (targetUri) {
-					return this.saveAs(resource, targetUri, options);
+				// Save as if tawget pwovided
+				if (tawgetUwi) {
+					wetuwn this.saveAs(wesouwce, tawgetUwi, options);
 				}
 			}
 		}
 
-		// File
-		else {
-			const model = this.files.get(resource);
-			if (model) {
-				return await model.save(options) ? resource : undefined;
+		// Fiwe
+		ewse {
+			const modew = this.fiwes.get(wesouwce);
+			if (modew) {
+				wetuwn await modew.save(options) ? wesouwce : undefined;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async saveAs(source: URI, target?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined> {
+	async saveAs(souwce: UWI, tawget?: UWI, options?: ITextFiweSaveAsOptions): Pwomise<UWI | undefined> {
 
-		// Get to target resource
-		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
+		// Get to tawget wesouwce
+		if (!tawget) {
+			tawget = await this.fiweDiawogSewvice.pickFiweToSave(await this.suggestSavePath(options?.suggestedTawget ?? souwce), options?.avaiwabweFiweSystems);
 		}
 
-		if (!target) {
-			return; // user canceled
+		if (!tawget) {
+			wetuwn; // usa cancewed
 		}
 
-		// Just save if target is same as models own resource
-		if (isEqual(source, target)) {
-			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		// Just save if tawget is same as modews own wesouwce
+		if (isEquaw(souwce, tawget)) {
+			wetuwn this.save(souwce, { ...options, fowce: twue  /* fowce to save, even if not diwty (https://github.com/micwosoft/vscode/issues/99619) */ });
 		}
 
-		// If the target is different but of same identity, we
-		// move the source to the target, knowing that the
-		// underlying file system cannot have both and then save.
-		// However, this will only work if the source exists
-		// and is not orphaned, so we need to check that too.
-		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
-			await this.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
+		// If the tawget is diffewent but of same identity, we
+		// move the souwce to the tawget, knowing that the
+		// undewwying fiwe system cannot have both and then save.
+		// Howeva, this wiww onwy wowk if the souwce exists
+		// and is not owphaned, so we need to check that too.
+		if (this.fiweSewvice.canHandweWesouwce(souwce) && this.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget) && (await this.fiweSewvice.exists(souwce))) {
+			await this.wowkingCopyFiweSewvice.move([{ fiwe: { souwce, tawget } }], CancewwationToken.None);
 
-			// At this point we don't know whether we have a
-			// model for the source or the target URI so we
-			// simply try to save with both resources.
-			const success = await this.save(source, options);
+			// At this point we don't know whetha we have a
+			// modew fow the souwce ow the tawget UWI so we
+			// simpwy twy to save with both wesouwces.
+			const success = await this.save(souwce, options);
 			if (!success) {
-				await this.save(target, options);
+				await this.save(tawget, options);
 			}
 
-			return target;
+			wetuwn tawget;
 		}
 
 		// Do it
-		return this.doSaveAs(source, target, options);
+		wetuwn this.doSaveAs(souwce, tawget, options);
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
-		let success = false;
+	pwivate async doSaveAs(souwce: UWI, tawget: UWI, options?: ITextFiweSaveOptions): Pwomise<UWI | undefined> {
+		wet success = fawse;
 
-		// If the source is an existing text file model, we can directly
-		// use that model to copy the contents to the target destination
-		const textFileModel = this.files.get(source);
-		if (textFileModel?.isResolved()) {
-			success = await this.doSaveAsTextFile(textFileModel, source, target, options);
+		// If the souwce is an existing text fiwe modew, we can diwectwy
+		// use that modew to copy the contents to the tawget destination
+		const textFiweModew = this.fiwes.get(souwce);
+		if (textFiweModew?.isWesowved()) {
+			success = await this.doSaveAsTextFiwe(textFiweModew, souwce, tawget, options);
 		}
 
-		// Otherwise if the source can be handled by the file service
-		// we can simply invoke the copy() function to save as
-		else if (this.fileService.canHandleResource(source)) {
-			await this.fileService.copy(source, target, true);
+		// Othewwise if the souwce can be handwed by the fiwe sewvice
+		// we can simpwy invoke the copy() function to save as
+		ewse if (this.fiweSewvice.canHandweWesouwce(souwce)) {
+			await this.fiweSewvice.copy(souwce, tawget, twue);
 
-			success = true;
+			success = twue;
 		}
 
-		// Next, if the source does not seem to be a file, we try to
-		// resolve a text model from the resource to get at the
-		// contents and additional meta data (e.g. encoding).
-		else if (this.textModelService.canHandleResource(source)) {
-			const modelReference = await this.textModelService.createModelReference(source);
-			try {
-				success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
-			} finally {
-				modelReference.dispose(); // free up our use of the reference
+		// Next, if the souwce does not seem to be a fiwe, we twy to
+		// wesowve a text modew fwom the wesouwce to get at the
+		// contents and additionaw meta data (e.g. encoding).
+		ewse if (this.textModewSewvice.canHandweWesouwce(souwce)) {
+			const modewWefewence = await this.textModewSewvice.cweateModewWefewence(souwce);
+			twy {
+				success = await this.doSaveAsTextFiwe(modewWefewence.object, souwce, tawget, options);
+			} finawwy {
+				modewWefewence.dispose(); // fwee up ouw use of the wefewence
 			}
 		}
 
-		// Finally we simply check if we can find a editor model that
-		// would give us access to the contents.
-		else {
-			const textModel = this.modelService.getModel(source);
-			if (textModel) {
-				success = await this.doSaveAsTextFile(textModel, source, target, options);
+		// Finawwy we simpwy check if we can find a editow modew that
+		// wouwd give us access to the contents.
+		ewse {
+			const textModew = this.modewSewvice.getModew(souwce);
+			if (textModew) {
+				success = await this.doSaveAsTextFiwe(textModew, souwce, tawget, options);
 			}
 		}
 
-		// Revert the source if result is success
+		// Wevewt the souwce if wesuwt is success
 		if (success) {
-			await this.revert(source);
+			await this.wevewt(souwce);
 
-			return target;
+			wetuwn tawget;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
+	pwivate async doSaveAsTextFiwe(souwceModew: IWesowvedTextEditowModew | ITextModew, souwce: UWI, tawget: UWI, options?: ITextFiweSaveOptions): Pwomise<boowean> {
 
-		// Find source encoding if any
-		let sourceModelEncoding: string | undefined = undefined;
-		const sourceModelWithEncodingSupport = (sourceModel as unknown as IEncodingSupport);
-		if (typeof sourceModelWithEncodingSupport.getEncoding === 'function') {
-			sourceModelEncoding = sourceModelWithEncodingSupport.getEncoding();
+		// Find souwce encoding if any
+		wet souwceModewEncoding: stwing | undefined = undefined;
+		const souwceModewWithEncodingSuppowt = (souwceModew as unknown as IEncodingSuppowt);
+		if (typeof souwceModewWithEncodingSuppowt.getEncoding === 'function') {
+			souwceModewEncoding = souwceModewWithEncodingSuppowt.getEncoding();
 		}
 
-		// Prefer an existing model if it is already resolved for the given target resource
-		let targetExists: boolean = false;
-		let targetModel = this.files.get(target);
-		if (targetModel?.isResolved()) {
-			targetExists = true;
+		// Pwefa an existing modew if it is awweady wesowved fow the given tawget wesouwce
+		wet tawgetExists: boowean = fawse;
+		wet tawgetModew = this.fiwes.get(tawget);
+		if (tawgetModew?.isWesowved()) {
+			tawgetExists = twue;
 		}
 
-		// Otherwise create the target file empty if it does not exist already and resolve it from there
-		else {
-			targetExists = await this.fileService.exists(target);
+		// Othewwise cweate the tawget fiwe empty if it does not exist awweady and wesowve it fwom thewe
+		ewse {
+			tawgetExists = await this.fiweSewvice.exists(tawget);
 
-			// create target file adhoc if it does not exist yet
-			if (!targetExists) {
-				await this.create([{ resource: target, value: '' }]);
+			// cweate tawget fiwe adhoc if it does not exist yet
+			if (!tawgetExists) {
+				await this.cweate([{ wesouwce: tawget, vawue: '' }]);
 			}
 
-			try {
-				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
-			} catch (error) {
-				// if the target already exists and was not created by us, it is possible
-				// that we cannot resolve the target as text model if it is binary or too
-				// large. in that case we have to delete the target file first and then
-				// re-run the operation.
-				if (targetExists) {
+			twy {
+				tawgetModew = await this.fiwes.wesowve(tawget, { encoding: souwceModewEncoding });
+			} catch (ewwow) {
+				// if the tawget awweady exists and was not cweated by us, it is possibwe
+				// that we cannot wesowve the tawget as text modew if it is binawy ow too
+				// wawge. in that case we have to dewete the tawget fiwe fiwst and then
+				// we-wun the opewation.
+				if (tawgetExists) {
 					if (
-						(<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY ||
-						(<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE
+						(<TextFiweOpewationEwwow>ewwow).textFiweOpewationWesuwt === TextFiweOpewationWesuwt.FIWE_IS_BINAWY ||
+						(<FiweOpewationEwwow>ewwow).fiweOpewationWesuwt === FiweOpewationWesuwt.FIWE_TOO_WAWGE
 					) {
-						await this.fileService.del(target);
+						await this.fiweSewvice.dew(tawget);
 
-						return this.doSaveAsTextFile(sourceModel, source, target, options);
+						wetuwn this.doSaveAsTextFiwe(souwceModew, souwce, tawget, options);
 					}
 				}
 
-				throw error;
+				thwow ewwow;
 			}
 		}
 
-		// Confirm to overwrite if we have an untitled file with associated file where
-		// the file actually exists on disk and we are instructed to save to that file
-		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/microsoft/vscode/issues/67946
-		let write: boolean;
-		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))) {
-			write = await this.confirmOverwrite(target);
-		} else {
-			write = true;
+		// Confiwm to ovewwwite if we have an untitwed fiwe with associated fiwe whewe
+		// the fiwe actuawwy exists on disk and we awe instwucted to save to that fiwe
+		// path. This can happen if the fiwe was cweated afta the untitwed fiwe was opened.
+		// See https://github.com/micwosoft/vscode/issues/67946
+		wet wwite: boowean;
+		if (souwceModew instanceof UntitwedTextEditowModew && souwceModew.hasAssociatedFiwePath && tawgetExists && this.uwiIdentitySewvice.extUwi.isEquaw(tawget, toWocawWesouwce(souwceModew.wesouwce, this.enviwonmentSewvice.wemoteAuthowity, this.pathSewvice.defauwtUwiScheme))) {
+			wwite = await this.confiwmOvewwwite(tawget);
+		} ewse {
+			wwite = twue;
 		}
 
-		if (!write) {
-			return false;
+		if (!wwite) {
+			wetuwn fawse;
 		}
 
-		let sourceTextModel: ITextModel | undefined = undefined;
-		if (sourceModel instanceof BaseTextEditorModel) {
-			if (sourceModel.isResolved()) {
-				sourceTextModel = sourceModel.textEditorModel;
+		wet souwceTextModew: ITextModew | undefined = undefined;
+		if (souwceModew instanceof BaseTextEditowModew) {
+			if (souwceModew.isWesowved()) {
+				souwceTextModew = souwceModew.textEditowModew;
 			}
-		} else {
-			sourceTextModel = sourceModel as ITextModel;
+		} ewse {
+			souwceTextModew = souwceModew as ITextModew;
 		}
 
-		let targetTextModel: ITextModel | undefined = undefined;
-		if (targetModel.isResolved()) {
-			targetTextModel = targetModel.textEditorModel;
+		wet tawgetTextModew: ITextModew | undefined = undefined;
+		if (tawgetModew.isWesowved()) {
+			tawgetTextModew = tawgetModew.textEditowModew;
 		}
 
-		// take over model value, encoding and mode (only if more specific) from source model
-		if (sourceTextModel && targetTextModel) {
+		// take ova modew vawue, encoding and mode (onwy if mowe specific) fwom souwce modew
+		if (souwceTextModew && tawgetTextModew) {
 
 			// encoding
-			targetModel.updatePreferredEncoding(sourceModelEncoding);
+			tawgetModew.updatePwefewwedEncoding(souwceModewEncoding);
 
 			// content
-			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
+			this.modewSewvice.updateModew(tawgetTextModew, cweateTextBuffewFactowyFwomSnapshot(souwceTextModew.cweateSnapshot()));
 
 			// mode
-			const sourceMode = sourceTextModel.getLanguageIdentifier();
-			const targetMode = targetTextModel.getLanguageIdentifier();
-			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
-				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
+			const souwceMode = souwceTextModew.getWanguageIdentifia();
+			const tawgetMode = tawgetTextModew.getWanguageIdentifia();
+			if (souwceMode.wanguage !== PWAINTEXT_MODE_ID && tawgetMode.wanguage === PWAINTEXT_MODE_ID) {
+				tawgetTextModew.setMode(souwceMode); // onwy use if mowe specific than pwain/text
 			}
 
-			// transient properties
-			const sourceTransientProperties = this.codeEditorService.getTransientModelProperties(sourceTextModel);
-			if (sourceTransientProperties) {
-				for (const [key, value] of sourceTransientProperties) {
-					this.codeEditorService.setTransientModelProperty(targetTextModel, key, value);
+			// twansient pwopewties
+			const souwceTwansientPwopewties = this.codeEditowSewvice.getTwansientModewPwopewties(souwceTextModew);
+			if (souwceTwansientPwopewties) {
+				fow (const [key, vawue] of souwceTwansientPwopewties) {
+					this.codeEditowSewvice.setTwansientModewPwopewty(tawgetTextModew, key, vawue);
 				}
 			}
 		}
 
-		// save model
-		return targetModel.save(options);
+		// save modew
+		wetuwn tawgetModew.save(options);
 	}
 
-	private async confirmOverwrite(resource: URI): Promise<boolean> {
-		const confirm: IConfirmation = {
-			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
-			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-			type: 'warning'
+	pwivate async confiwmOvewwwite(wesouwce: UWI): Pwomise<boowean> {
+		const confiwm: IConfiwmation = {
+			message: wocawize('confiwmOvewwwite', "'{0}' awweady exists. Do you want to wepwace it?", basename(wesouwce)),
+			detaiw: wocawize('iwwevewsibwe', "A fiwe ow fowda with the name '{0}' awweady exists in the fowda '{1}'. Wepwacing it wiww ovewwwite its cuwwent contents.", basename(wesouwce), basename(diwname(wesouwce))),
+			pwimawyButton: wocawize({ key: 'wepwaceButtonWabew', comment: ['&& denotes a mnemonic'] }, "&&Wepwace"),
+			type: 'wawning'
 		};
 
-		return (await this.dialogService.confirm(confirm)).confirmed;
+		wetuwn (await this.diawogSewvice.confiwm(confiwm)).confiwmed;
 	}
 
-	private async suggestSavePath(resource: URI): Promise<URI> {
+	pwivate async suggestSavePath(wesouwce: UWI): Pwomise<UWI> {
 
-		// Just take the resource as is if the file service can handle it
-		if (this.fileService.canHandleResource(resource)) {
-			return resource;
+		// Just take the wesouwce as is if the fiwe sewvice can handwe it
+		if (this.fiweSewvice.canHandweWesouwce(wesouwce)) {
+			wetuwn wesouwce;
 		}
 
-		const remoteAuthority = this.environmentService.remoteAuthority;
+		const wemoteAuthowity = this.enviwonmentSewvice.wemoteAuthowity;
 
-		// Otherwise try to suggest a path that can be saved
-		let suggestedFilename: string | undefined = undefined;
-		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
-			if (model) {
+		// Othewwise twy to suggest a path that can be saved
+		wet suggestedFiwename: stwing | undefined = undefined;
+		if (wesouwce.scheme === Schemas.untitwed) {
+			const modew = this.untitwed.get(wesouwce);
+			if (modew) {
 
-				// Untitled with associated file path
-				if (model.hasAssociatedFilePath) {
-					return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
+				// Untitwed with associated fiwe path
+				if (modew.hasAssociatedFiwePath) {
+					wetuwn toWocawWesouwce(wesouwce, wemoteAuthowity, this.pathSewvice.defauwtUwiScheme);
 				}
 
-				// Untitled without associated file path: use name
-				// of untitled model if it is a valid path name
-				let untitledName = model.name;
-				if (!isValidBasename(untitledName)) {
-					untitledName = basename(resource);
+				// Untitwed without associated fiwe path: use name
+				// of untitwed modew if it is a vawid path name
+				wet untitwedName = modew.name;
+				if (!isVawidBasename(untitwedName)) {
+					untitwedName = basename(wesouwce);
 				}
 
-				// Add mode file extension if specified
-				const mode = model.getMode();
-				if (mode && mode !== PLAINTEXT_MODE_ID) {
-					suggestedFilename = this.suggestFilename(mode, untitledName);
-				} else {
-					suggestedFilename = untitledName;
+				// Add mode fiwe extension if specified
+				const mode = modew.getMode();
+				if (mode && mode !== PWAINTEXT_MODE_ID) {
+					suggestedFiwename = this.suggestFiwename(mode, untitwedName);
+				} ewse {
+					suggestedFiwename = untitwedName;
 				}
 			}
 		}
 
-		// Fallback to basename of resource
-		if (!suggestedFilename) {
-			suggestedFilename = basename(resource);
+		// Fawwback to basename of wesouwce
+		if (!suggestedFiwename) {
+			suggestedFiwename = basename(wesouwce);
 		}
 
-		// Try to place where last active file was if any
-		// Otherwise fallback to user home
-		return joinPath(await this.fileDialogService.defaultFilePath(), suggestedFilename);
+		// Twy to pwace whewe wast active fiwe was if any
+		// Othewwise fawwback to usa home
+		wetuwn joinPath(await this.fiweDiawogSewvice.defauwtFiwePath(), suggestedFiwename);
 	}
 
-	suggestFilename(mode: string, untitledName: string) {
-		const languageName = this.modeService.getLanguageName(mode);
-		if (!languageName) {
-			return untitledName;
+	suggestFiwename(mode: stwing, untitwedName: stwing) {
+		const wanguageName = this.modeSewvice.getWanguageName(mode);
+		if (!wanguageName) {
+			wetuwn untitwedName;
 		}
 
-		const extension = this.modeService.getExtensions(languageName)[0];
+		const extension = this.modeSewvice.getExtensions(wanguageName)[0];
 		if (extension) {
-			if (!untitledName.endsWith(extension)) {
-				return untitledName + extension;
+			if (!untitwedName.endsWith(extension)) {
+				wetuwn untitwedName + extension;
 			}
 		}
 
-		const filename = this.modeService.getFilenames(languageName)[0];
-		return filename || untitledName;
+		const fiwename = this.modeSewvice.getFiwenames(wanguageName)[0];
+		wetuwn fiwename || untitwedName;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region revert
+	//#wegion wevewt
 
-	async revert(resource: URI, options?: IRevertOptions): Promise<void> {
+	async wevewt(wesouwce: UWI, options?: IWevewtOptions): Pwomise<void> {
 
-		// Untitled
-		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitled.get(resource);
-			if (model) {
-				return model.revert(options);
+		// Untitwed
+		if (wesouwce.scheme === Schemas.untitwed) {
+			const modew = this.untitwed.get(wesouwce);
+			if (modew) {
+				wetuwn modew.wevewt(options);
 			}
 		}
 
-		// File
-		else {
-			const model = this.files.get(resource);
-			if (model && (model.isDirty() || options?.force)) {
-				return model.revert(options);
+		// Fiwe
+		ewse {
+			const modew = this.fiwes.get(wesouwce);
+			if (modew && (modew.isDiwty() || options?.fowce)) {
+				wetuwn modew.wevewt(options);
 			}
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region dirty
+	//#wegion diwty
 
-	isDirty(resource: URI): boolean {
-		const model = resource.scheme === Schemas.untitled ? this.untitled.get(resource) : this.files.get(resource);
-		if (model) {
-			return model.isDirty();
+	isDiwty(wesouwce: UWI): boowean {
+		const modew = wesouwce.scheme === Schemas.untitwed ? this.untitwed.get(wesouwce) : this.fiwes.get(wesouwce);
+		if (modew) {
+			wetuwn modew.isDiwty();
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-export interface IEncodingOverride {
-	parent?: URI;
-	extension?: string;
-	encoding: string;
+expowt intewface IEncodingOvewwide {
+	pawent?: UWI;
+	extension?: stwing;
+	encoding: stwing;
 }
 
-export class EncodingOracle extends Disposable implements IResourceEncodings {
+expowt cwass EncodingOwacwe extends Disposabwe impwements IWesouwceEncodings {
 
-	private _encodingOverrides: IEncodingOverride[];
-	protected get encodingOverrides(): IEncodingOverride[] { return this._encodingOverrides; }
-	protected set encodingOverrides(value: IEncodingOverride[]) { this._encodingOverrides = value; }
+	pwivate _encodingOvewwides: IEncodingOvewwide[];
+	pwotected get encodingOvewwides(): IEncodingOvewwide[] { wetuwn this._encodingOvewwides; }
+	pwotected set encodingOvewwides(vawue: IEncodingOvewwide[]) { this._encodingOvewwides = vawue; }
 
-	constructor(
-		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	constwuctow(
+		@ITextWesouwceConfiguwationSewvice pwivate textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IWowkspaceContextSewvice pwivate contextSewvice: IWowkspaceContextSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		super();
+		supa();
 
-		this._encodingOverrides = this.getDefaultEncodingOverrides();
+		this._encodingOvewwides = this.getDefauwtEncodingOvewwides();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Workspace Folder Change
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.encodingOverrides = this.getDefaultEncodingOverrides()));
+		// Wowkspace Fowda Change
+		this._wegista(this.contextSewvice.onDidChangeWowkspaceFowdews(() => this.encodingOvewwides = this.getDefauwtEncodingOvewwides()));
 	}
 
-	private getDefaultEncodingOverrides(): IEncodingOverride[] {
-		const defaultEncodingOverrides: IEncodingOverride[] = [];
+	pwivate getDefauwtEncodingOvewwides(): IEncodingOvewwide[] {
+		const defauwtEncodingOvewwides: IEncodingOvewwide[] = [];
 
-		// Global settings
-		defaultEncodingOverrides.push({ parent: this.environmentService.userRoamingDataHome, encoding: UTF8 });
+		// Gwobaw settings
+		defauwtEncodingOvewwides.push({ pawent: this.enviwonmentSewvice.usewWoamingDataHome, encoding: UTF8 });
 
-		// Workspace files (via extension and via untitled workspaces location)
-		defaultEncodingOverrides.push({ extension: WORKSPACE_EXTENSION, encoding: UTF8 });
-		defaultEncodingOverrides.push({ parent: this.environmentService.untitledWorkspacesHome, encoding: UTF8 });
+		// Wowkspace fiwes (via extension and via untitwed wowkspaces wocation)
+		defauwtEncodingOvewwides.push({ extension: WOWKSPACE_EXTENSION, encoding: UTF8 });
+		defauwtEncodingOvewwides.push({ pawent: this.enviwonmentSewvice.untitwedWowkspacesHome, encoding: UTF8 });
 
-		// Folder Settings
-		this.contextService.getWorkspace().folders.forEach(folder => {
-			defaultEncodingOverrides.push({ parent: joinPath(folder.uri, '.vscode'), encoding: UTF8 });
+		// Fowda Settings
+		this.contextSewvice.getWowkspace().fowdews.fowEach(fowda => {
+			defauwtEncodingOvewwides.push({ pawent: joinPath(fowda.uwi, '.vscode'), encoding: UTF8 });
 		});
 
-		return defaultEncodingOverrides;
+		wetuwn defauwtEncodingOvewwides;
 	}
 
-	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
-		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
+	async getWwiteEncoding(wesouwce: UWI, options?: IWwiteTextFiweOptions): Pwomise<{ encoding: stwing, addBOM: boowean }> {
+		const { encoding, hasBOM } = await this.getPwefewwedWwiteEncoding(wesouwce, options ? options.encoding : undefined);
 
-		return { encoding, addBOM: hasBOM };
+		wetuwn { encoding, addBOM: hasBOM };
 	}
 
-	async getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding> {
-		const resourceEncoding = await this.getEncodingForResource(resource, preferredEncoding);
+	async getPwefewwedWwiteEncoding(wesouwce: UWI, pwefewwedEncoding?: stwing): Pwomise<IWesouwceEncoding> {
+		const wesouwceEncoding = await this.getEncodingFowWesouwce(wesouwce, pwefewwedEncoding);
 
-		return {
-			encoding: resourceEncoding,
-			hasBOM: resourceEncoding === UTF16be || resourceEncoding === UTF16le || resourceEncoding === UTF8_with_bom // enforce BOM for certain encodings
+		wetuwn {
+			encoding: wesouwceEncoding,
+			hasBOM: wesouwceEncoding === UTF16be || wesouwceEncoding === UTF16we || wesouwceEncoding === UTF8_with_bom // enfowce BOM fow cewtain encodings
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileEncodingOptions | undefined, detectedEncoding: string | null): Promise<string> {
-		let preferredEncoding: string | undefined;
+	getWeadEncoding(wesouwce: UWI, options: IWeadTextFiweEncodingOptions | undefined, detectedEncoding: stwing | nuww): Pwomise<stwing> {
+		wet pwefewwedEncoding: stwing | undefined;
 
 		// Encoding passed in as option
 		if (options?.encoding) {
 			if (detectedEncoding === UTF8_with_bom && options.encoding === UTF8) {
-				preferredEncoding = UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-			} else {
-				preferredEncoding = options.encoding; // give passed in encoding highest priority
+				pwefewwedEncoding = UTF8_with_bom; // indicate the fiwe has BOM if we awe to wesowve with UTF 8
+			} ewse {
+				pwefewwedEncoding = options.encoding; // give passed in encoding highest pwiowity
 			}
 		}
 
 		// Encoding detected
-		else if (detectedEncoding) {
-			preferredEncoding = detectedEncoding;
+		ewse if (detectedEncoding) {
+			pwefewwedEncoding = detectedEncoding;
 		}
 
-		// Encoding configured
-		else if (this.textResourceConfigurationService.getValue(resource, 'files.encoding') === UTF8_with_bom) {
-			preferredEncoding = UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+		// Encoding configuwed
+		ewse if (this.textWesouwceConfiguwationSewvice.getVawue(wesouwce, 'fiwes.encoding') === UTF8_with_bom) {
+			pwefewwedEncoding = UTF8; // if we did not detect UTF 8 BOM befowe, this can onwy be UTF 8 then
 		}
 
-		return this.getEncodingForResource(resource, preferredEncoding);
+		wetuwn this.getEncodingFowWesouwce(wesouwce, pwefewwedEncoding);
 	}
 
-	private async getEncodingForResource(resource: URI, preferredEncoding?: string): Promise<string> {
-		let fileEncoding: string;
+	pwivate async getEncodingFowWesouwce(wesouwce: UWI, pwefewwedEncoding?: stwing): Pwomise<stwing> {
+		wet fiweEncoding: stwing;
 
-		const override = this.getEncodingOverride(resource);
-		if (override) {
-			fileEncoding = override; // encoding override always wins
-		} else if (preferredEncoding) {
-			fileEncoding = preferredEncoding; // preferred encoding comes second
-		} else {
-			fileEncoding = this.textResourceConfigurationService.getValue(resource, 'files.encoding'); // and last we check for settings
+		const ovewwide = this.getEncodingOvewwide(wesouwce);
+		if (ovewwide) {
+			fiweEncoding = ovewwide; // encoding ovewwide awways wins
+		} ewse if (pwefewwedEncoding) {
+			fiweEncoding = pwefewwedEncoding; // pwefewwed encoding comes second
+		} ewse {
+			fiweEncoding = this.textWesouwceConfiguwationSewvice.getVawue(wesouwce, 'fiwes.encoding'); // and wast we check fow settings
 		}
 
-		if (fileEncoding !== UTF8) {
-			if (!fileEncoding || !(await encodingExists(fileEncoding))) {
-				fileEncoding = UTF8; // the default is UTF-8
+		if (fiweEncoding !== UTF8) {
+			if (!fiweEncoding || !(await encodingExists(fiweEncoding))) {
+				fiweEncoding = UTF8; // the defauwt is UTF-8
 			}
 		}
 
-		return fileEncoding;
+		wetuwn fiweEncoding;
 	}
 
-	private getEncodingOverride(resource: URI): string | undefined {
-		if (this.encodingOverrides?.length) {
-			for (const override of this.encodingOverrides) {
+	pwivate getEncodingOvewwide(wesouwce: UWI): stwing | undefined {
+		if (this.encodingOvewwides?.wength) {
+			fow (const ovewwide of this.encodingOvewwides) {
 
-				// check if the resource is child of encoding override path
-				if (override.parent && this.uriIdentityService.extUri.isEqualOrParent(resource, override.parent)) {
-					return override.encoding;
+				// check if the wesouwce is chiwd of encoding ovewwide path
+				if (ovewwide.pawent && this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, ovewwide.pawent)) {
+					wetuwn ovewwide.encoding;
 				}
 
-				// check if the resource extension is equal to encoding override
-				if (override.extension && extname(resource) === `.${override.extension}`) {
-					return override.encoding;
+				// check if the wesouwce extension is equaw to encoding ovewwide
+				if (ovewwide.extension && extname(wesouwce) === `.${ovewwide.extension}`) {
+					wetuwn ovewwide.encoding;
 				}
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 }

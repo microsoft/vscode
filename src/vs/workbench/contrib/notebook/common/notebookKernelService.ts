@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export interface ISelectedNotebooksChangeEvent {
-	notebook: URI;
-	oldKernel: string | undefined;
-	newKernel: string | undefined;
+expowt intewface ISewectedNotebooksChangeEvent {
+	notebook: UWI;
+	owdKewnew: stwing | undefined;
+	newKewnew: stwing | undefined;
 }
 
-export interface INotebookKernelMatchResult {
-	readonly selected: INotebookKernel | undefined;
-	readonly suggested: INotebookKernel | undefined;
-	readonly all: INotebookKernel[];
+expowt intewface INotebookKewnewMatchWesuwt {
+	weadonwy sewected: INotebookKewnew | undefined;
+	weadonwy suggested: INotebookKewnew | undefined;
+	weadonwy aww: INotebookKewnew[];
 }
 
 
-export interface INotebookKernelChangeEvent {
-	label?: true;
-	description?: true;
-	detail?: true;
-	supportedLanguages?: true;
-	hasExecutionOrder?: true;
+expowt intewface INotebookKewnewChangeEvent {
+	wabew?: twue;
+	descwiption?: twue;
+	detaiw?: twue;
+	suppowtedWanguages?: twue;
+	hasExecutionOwda?: twue;
 }
 
-export interface INotebookKernel {
+expowt intewface INotebookKewnew {
 
-	readonly id: string;
-	readonly viewType: string;
-	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
-	readonly extension: ExtensionIdentifier;
+	weadonwy id: stwing;
+	weadonwy viewType: stwing;
+	weadonwy onDidChange: Event<Weadonwy<INotebookKewnewChangeEvent>>;
+	weadonwy extension: ExtensionIdentifia;
 
-	readonly localResourceRoot: URI;
-	readonly preloadUris: URI[];
-	readonly preloadProvides: string[];
+	weadonwy wocawWesouwceWoot: UWI;
+	weadonwy pwewoadUwis: UWI[];
+	weadonwy pwewoadPwovides: stwing[];
 
-	label: string;
-	description?: string;
-	detail?: string;
-	supportedLanguages: string[];
-	implementsInterrupt?: boolean;
-	implementsExecutionOrder?: boolean;
+	wabew: stwing;
+	descwiption?: stwing;
+	detaiw?: stwing;
+	suppowtedWanguages: stwing[];
+	impwementsIntewwupt?: boowean;
+	impwementsExecutionOwda?: boowean;
 
-	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+	executeNotebookCewwsWequest(uwi: UWI, cewwHandwes: numba[]): Pwomise<void>;
+	cancewNotebookCewwExecution(uwi: UWI, cewwHandwes: numba[]): Pwomise<void>;
 }
 
-export interface INotebookTextModelLike { uri: URI; viewType: string; }
+expowt intewface INotebookTextModewWike { uwi: UWI; viewType: stwing; }
 
-export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
+expowt const INotebookKewnewSewvice = cweateDecowatow<INotebookKewnewSewvice>('INotebookKewnewSewvice');
 
-export interface INotebookKernelService {
-	_serviceBrand: undefined;
+expowt intewface INotebookKewnewSewvice {
+	_sewviceBwand: undefined;
 
-	readonly onDidAddKernel: Event<INotebookKernel>;
-	readonly onDidRemoveKernel: Event<INotebookKernel>;
-	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
-	readonly onDidChangeNotebookAffinity: Event<void>
+	weadonwy onDidAddKewnew: Event<INotebookKewnew>;
+	weadonwy onDidWemoveKewnew: Event<INotebookKewnew>;
+	weadonwy onDidChangeSewectedNotebooks: Event<ISewectedNotebooksChangeEvent>;
+	weadonwy onDidChangeNotebookAffinity: Event<void>
 
-	registerKernel(kernel: INotebookKernel): IDisposable;
+	wegistewKewnew(kewnew: INotebookKewnew): IDisposabwe;
 
-	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
+	getMatchingKewnew(notebook: INotebookTextModewWike): INotebookKewnewMatchWesuwt;
 
 	/**
-	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
-	 * but a kernel can be bound to many notebooks (depending on its configuration)
+	 * Bind a notebook document to a kewnew. A notebook is onwy bound to one kewnew
+	 * but a kewnew can be bound to many notebooks (depending on its configuwation)
 	 */
-	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
+	sewectKewnewFowNotebook(kewnew: INotebookKewnew, notebook: INotebookTextModewWike): void;
 
 	/**
-	 * Bind a notebook type to a kernel.
-	 * @param viewType
-	 * @param kernel
+	 * Bind a notebook type to a kewnew.
+	 * @pawam viewType
+	 * @pawam kewnew
 	 */
-	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
+	sewectKewnewFowNotebookType(kewnew: INotebookKewnew, viewType: stwing): void;
 
 	/**
-	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
+	 * Set a pewfewence of a kewnew fow a cewtain notebook. Higha vawues win, `undefined` wemoves the pwefewence
 	 */
-	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
+	updateKewnewNotebookAffinity(kewnew: INotebookKewnew, notebook: UWI, pwefewence: numba | undefined): void;
 
 }

@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export enum EnvironmentVariableMutatorType {
-	Replace = 1,
+expowt enum EnviwonmentVawiabweMutatowType {
+	Wepwace = 1,
 	Append = 2,
-	Prepend = 3
+	Pwepend = 3
 }
-export interface IEnvironmentVariableMutator {
-	readonly value: string;
-	readonly type: EnvironmentVariableMutatorType;
+expowt intewface IEnviwonmentVawiabweMutatow {
+	weadonwy vawue: stwing;
+	weadonwy type: EnviwonmentVawiabweMutatowType;
 }
-/** [variable, mutator] */
-export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
+/** [vawiabwe, mutatow] */
+expowt type ISewiawizabweEnviwonmentVawiabweCowwection = [stwing, IEnviwonmentVawiabweMutatow][];

@@ -1,28 +1,28 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { URI } from 'vs/base/common/uri';
-import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
+impowt { VSBuffa, VSBuffewWeadabwe, VSBuffewWeadabweStweam } fwom 'vs/base/common/buffa';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweStatWithMetadata, IWwiteFiweOptions } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IEwevatedFiweSewvice } fwom 'vs/wowkbench/sewvices/fiwes/common/ewevatedFiweSewvice';
 
-export class BrowserElevatedFileService implements IElevatedFileService {
+expowt cwass BwowsewEwevatedFiweSewvice impwements IEwevatedFiweSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
-	isSupported(resource: URI): boolean {
-		// Saving elevated is currently not supported in web for as
-		// long as we have no generic support from the file service
-		// (https://github.com/microsoft/vscode/issues/48659)
-		return false;
+	isSuppowted(wesouwce: UWI): boowean {
+		// Saving ewevated is cuwwentwy not suppowted in web fow as
+		// wong as we have no genewic suppowt fwom the fiwe sewvice
+		// (https://github.com/micwosoft/vscode/issues/48659)
+		wetuwn fawse;
 	}
 
-	async writeFileElevated(resource: URI, value: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
-		throw new Error('Unsupported');
+	async wwiteFiweEwevated(wesouwce: UWI, vawue: VSBuffa | VSBuffewWeadabwe | VSBuffewWeadabweStweam, options?: IWwiteFiweOptions): Pwomise<IFiweStatWithMetadata> {
+		thwow new Ewwow('Unsuppowted');
 	}
 }
 
-registerSingleton(IElevatedFileService, BrowserElevatedFileService);
+wegistewSingweton(IEwevatedFiweSewvice, BwowsewEwevatedFiweSewvice);

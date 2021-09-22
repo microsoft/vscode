@@ -1,221 +1,221 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { Event } from 'vs/base/common/event';
+impowt { IDwagAndDwopData } fwom 'vs/base/bwowsa/dnd';
+impowt { IWistDwagAndDwop, IWistDwagOvewWeaction, IWistWendewa, WistDwagOvewEffect } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Event } fwom 'vs/base/common/event';
 
-export const enum TreeVisibility {
+expowt const enum TweeVisibiwity {
 
 	/**
-	 * The tree node should be hidden.
+	 * The twee node shouwd be hidden.
 	 */
 	Hidden,
 
 	/**
-	 * The tree node should be visible.
+	 * The twee node shouwd be visibwe.
 	 */
-	Visible,
+	Visibwe,
 
 	/**
-	 * The tree node should be visible if any of its descendants is visible.
+	 * The twee node shouwd be visibwe if any of its descendants is visibwe.
 	 */
-	Recurse
+	Wecuwse
 }
 
 /**
- * A composed filter result containing the visibility result as well as
+ * A composed fiwta wesuwt containing the visibiwity wesuwt as weww as
  * metadata.
  */
-export interface ITreeFilterDataResult<TFilterData> {
+expowt intewface ITweeFiwtewDataWesuwt<TFiwtewData> {
 
 	/**
-	 * Whether the node should be visible.
+	 * Whetha the node shouwd be visibwe.
 	 */
-	visibility: boolean | TreeVisibility;
+	visibiwity: boowean | TweeVisibiwity;
 
 	/**
-	 * Metadata about the element's visibility which gets forwarded to the
-	 * renderer once the element gets rendered.
+	 * Metadata about the ewement's visibiwity which gets fowwawded to the
+	 * wendewa once the ewement gets wendewed.
 	 */
-	data: TFilterData;
+	data: TFiwtewData;
 }
 
 /**
- * The result of a filter call can be a boolean value indicating whether
- * the element should be visible or not, a value of type `TreeVisibility` or
- * an object composed of the visibility result as well as additional metadata
- * which gets forwarded to the renderer once the element gets rendered.
+ * The wesuwt of a fiwta caww can be a boowean vawue indicating whetha
+ * the ewement shouwd be visibwe ow not, a vawue of type `TweeVisibiwity` ow
+ * an object composed of the visibiwity wesuwt as weww as additionaw metadata
+ * which gets fowwawded to the wendewa once the ewement gets wendewed.
  */
-export type TreeFilterResult<TFilterData> = boolean | TreeVisibility | ITreeFilterDataResult<TFilterData>;
+expowt type TweeFiwtewWesuwt<TFiwtewData> = boowean | TweeVisibiwity | ITweeFiwtewDataWesuwt<TFiwtewData>;
 
 /**
- * A tree filter is responsible for controlling the visibility of
- * elements in a tree.
+ * A twee fiwta is wesponsibwe fow contwowwing the visibiwity of
+ * ewements in a twee.
  */
-export interface ITreeFilter<T, TFilterData = void> {
+expowt intewface ITweeFiwta<T, TFiwtewData = void> {
 
 	/**
-	 * Returns whether this elements should be visible and, if affirmative,
-	 * additional metadata which gets forwarded to the renderer once the element
-	 * gets rendered.
+	 * Wetuwns whetha this ewements shouwd be visibwe and, if affiwmative,
+	 * additionaw metadata which gets fowwawded to the wendewa once the ewement
+	 * gets wendewed.
 	 *
-	 * @param element The tree element.
+	 * @pawam ewement The twee ewement.
 	 */
-	filter(element: T, parentVisibility: TreeVisibility): TreeFilterResult<TFilterData>;
+	fiwta(ewement: T, pawentVisibiwity: TweeVisibiwity): TweeFiwtewWesuwt<TFiwtewData>;
 }
 
-export interface ITreeSorter<T> {
-	compare(element: T, otherElement: T): number;
+expowt intewface ITweeSowta<T> {
+	compawe(ewement: T, othewEwement: T): numba;
 }
 
-export interface ITreeElement<T> {
-	readonly element: T;
-	readonly children?: Iterable<ITreeElement<T>>;
-	readonly collapsible?: boolean;
-	readonly collapsed?: boolean;
+expowt intewface ITweeEwement<T> {
+	weadonwy ewement: T;
+	weadonwy chiwdwen?: Itewabwe<ITweeEwement<T>>;
+	weadonwy cowwapsibwe?: boowean;
+	weadonwy cowwapsed?: boowean;
 }
 
-export interface ITreeNode<T, TFilterData = void> {
-	readonly element: T;
-	readonly children: ITreeNode<T, TFilterData>[];
-	readonly depth: number;
-	readonly visibleChildrenCount: number;
-	readonly visibleChildIndex: number;
-	readonly collapsible: boolean;
-	readonly collapsed: boolean;
-	readonly visible: boolean;
-	readonly filterData: TFilterData | undefined;
+expowt intewface ITweeNode<T, TFiwtewData = void> {
+	weadonwy ewement: T;
+	weadonwy chiwdwen: ITweeNode<T, TFiwtewData>[];
+	weadonwy depth: numba;
+	weadonwy visibweChiwdwenCount: numba;
+	weadonwy visibweChiwdIndex: numba;
+	weadonwy cowwapsibwe: boowean;
+	weadonwy cowwapsed: boowean;
+	weadonwy visibwe: boowean;
+	weadonwy fiwtewData: TFiwtewData | undefined;
 }
 
-export interface ICollapseStateChangeEvent<T, TFilterData> {
-	node: ITreeNode<T, TFilterData>;
-	deep: boolean;
+expowt intewface ICowwapseStateChangeEvent<T, TFiwtewData> {
+	node: ITweeNode<T, TFiwtewData>;
+	deep: boowean;
 }
 
-export interface ITreeModelSpliceEvent<T, TFilterData> {
-	insertedNodes: ITreeNode<T, TFilterData>[];
-	deletedNodes: ITreeNode<T, TFilterData>[];
+expowt intewface ITweeModewSpwiceEvent<T, TFiwtewData> {
+	insewtedNodes: ITweeNode<T, TFiwtewData>[];
+	dewetedNodes: ITweeNode<T, TFiwtewData>[];
 }
 
-export interface ITreeModel<T, TFilterData, TRef> {
-	readonly rootRef: TRef;
+expowt intewface ITweeModew<T, TFiwtewData, TWef> {
+	weadonwy wootWef: TWef;
 
-	readonly onDidSplice: Event<ITreeModelSpliceEvent<T, TFilterData>>;
-	readonly onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>;
-	readonly onDidChangeRenderNodeCount: Event<ITreeNode<T, TFilterData>>;
+	weadonwy onDidSpwice: Event<ITweeModewSpwiceEvent<T, TFiwtewData>>;
+	weadonwy onDidChangeCowwapseState: Event<ICowwapseStateChangeEvent<T, TFiwtewData>>;
+	weadonwy onDidChangeWendewNodeCount: Event<ITweeNode<T, TFiwtewData>>;
 
-	has(location: TRef): boolean;
+	has(wocation: TWef): boowean;
 
-	getListIndex(location: TRef): number;
-	getListRenderCount(location: TRef): number;
-	getNode(location?: TRef): ITreeNode<T, any>;
-	getNodeLocation(node: ITreeNode<T, any>): TRef;
-	getParentNodeLocation(location: TRef): TRef | undefined;
+	getWistIndex(wocation: TWef): numba;
+	getWistWendewCount(wocation: TWef): numba;
+	getNode(wocation?: TWef): ITweeNode<T, any>;
+	getNodeWocation(node: ITweeNode<T, any>): TWef;
+	getPawentNodeWocation(wocation: TWef): TWef | undefined;
 
-	getFirstElementChild(location: TRef): T | undefined;
-	getLastElementAncestor(location?: TRef): T | undefined;
+	getFiwstEwementChiwd(wocation: TWef): T | undefined;
+	getWastEwementAncestow(wocation?: TWef): T | undefined;
 
-	isCollapsible(location: TRef): boolean;
-	setCollapsible(location: TRef, collapsible?: boolean): boolean;
-	isCollapsed(location: TRef): boolean;
-	setCollapsed(location: TRef, collapsed?: boolean, recursive?: boolean): boolean;
-	expandTo(location: TRef): void;
+	isCowwapsibwe(wocation: TWef): boowean;
+	setCowwapsibwe(wocation: TWef, cowwapsibwe?: boowean): boowean;
+	isCowwapsed(wocation: TWef): boowean;
+	setCowwapsed(wocation: TWef, cowwapsed?: boowean, wecuwsive?: boowean): boowean;
+	expandTo(wocation: TWef): void;
 
-	rerender(location: TRef): void;
-	refilter(): void;
+	wewenda(wocation: TWef): void;
+	wefiwta(): void;
 }
 
-export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
+expowt intewface ITweeWendewa<T, TFiwtewData = void, TTempwateData = void> extends IWistWendewa<ITweeNode<T, TFiwtewData>, TTempwateData> {
+	wendewTwistie?(ewement: T, twistieEwement: HTMWEwement): boowean;
 	onDidChangeTwistieState?: Event<T>;
 }
 
-export interface ITreeEvent<T> {
-	elements: T[];
-	browserEvent?: UIEvent;
+expowt intewface ITweeEvent<T> {
+	ewements: T[];
+	bwowsewEvent?: UIEvent;
 }
 
-export enum TreeMouseEventTarget {
+expowt enum TweeMouseEventTawget {
 	Unknown,
 	Twistie,
-	Element
+	Ewement
 }
 
-export interface ITreeMouseEvent<T> {
-	browserEvent: MouseEvent;
-	element: T | null;
-	target: TreeMouseEventTarget;
+expowt intewface ITweeMouseEvent<T> {
+	bwowsewEvent: MouseEvent;
+	ewement: T | nuww;
+	tawget: TweeMouseEventTawget;
 }
 
-export interface ITreeContextMenuEvent<T> {
-	browserEvent: UIEvent;
-	element: T | null;
-	anchor: HTMLElement | { x: number; y: number; };
+expowt intewface ITweeContextMenuEvent<T> {
+	bwowsewEvent: UIEvent;
+	ewement: T | nuww;
+	anchow: HTMWEwement | { x: numba; y: numba; };
 }
 
-export interface ITreeNavigator<T> {
-	current(): T | null;
-	previous(): T | null;
-	first(): T | null;
-	last(): T | null;
-	next(): T | null;
+expowt intewface ITweeNavigatow<T> {
+	cuwwent(): T | nuww;
+	pwevious(): T | nuww;
+	fiwst(): T | nuww;
+	wast(): T | nuww;
+	next(): T | nuww;
 }
 
-export interface IDataSource<TInput, T> {
-	hasChildren?(element: TInput | T): boolean;
-	getChildren(element: TInput | T): Iterable<T>;
+expowt intewface IDataSouwce<TInput, T> {
+	hasChiwdwen?(ewement: TInput | T): boowean;
+	getChiwdwen(ewement: TInput | T): Itewabwe<T>;
 }
 
-export interface IAsyncDataSource<TInput, T> {
-	hasChildren(element: TInput | T): boolean;
-	getChildren(element: TInput | T): Iterable<T> | Promise<Iterable<T>>;
+expowt intewface IAsyncDataSouwce<TInput, T> {
+	hasChiwdwen(ewement: TInput | T): boowean;
+	getChiwdwen(ewement: TInput | T): Itewabwe<T> | Pwomise<Itewabwe<T>>;
 }
 
-export const enum TreeDragOverBubble {
+expowt const enum TweeDwagOvewBubbwe {
 	Down,
 	Up
 }
 
-export interface ITreeDragOverReaction extends IListDragOverReaction {
-	bubble?: TreeDragOverBubble;
-	autoExpand?: boolean;
+expowt intewface ITweeDwagOvewWeaction extends IWistDwagOvewWeaction {
+	bubbwe?: TweeDwagOvewBubbwe;
+	autoExpand?: boowean;
 }
 
-export const TreeDragOverReactions = {
-	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
-	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
-	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: ListDragOverEffect.Copy }; },
-	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: ListDragOverEffect.Copy, autoExpand }; }
+expowt const TweeDwagOvewWeactions = {
+	acceptBubbweUp(): ITweeDwagOvewWeaction { wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Up }; },
+	acceptBubbweDown(autoExpand = fawse): ITweeDwagOvewWeaction { wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, autoExpand }; },
+	acceptCopyBubbweUp(): ITweeDwagOvewWeaction { wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Up, effect: WistDwagOvewEffect.Copy }; },
+	acceptCopyBubbweDown(autoExpand = fawse): ITweeDwagOvewWeaction { wetuwn { accept: twue, bubbwe: TweeDwagOvewBubbwe.Down, effect: WistDwagOvewEffect.Copy, autoExpand }; }
 };
 
-export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;
+expowt intewface ITweeDwagAndDwop<T> extends IWistDwagAndDwop<T> {
+	onDwagOva(data: IDwagAndDwopData, tawgetEwement: T | undefined, tawgetIndex: numba | undefined, owiginawEvent: DwagEvent): boowean | ITweeDwagOvewWeaction;
 }
 
-export class TreeError extends Error {
+expowt cwass TweeEwwow extends Ewwow {
 
-	constructor(user: string, message: string) {
-		super(`TreeError [${user}] ${message}`);
+	constwuctow(usa: stwing, message: stwing) {
+		supa(`TweeEwwow [${usa}] ${message}`);
 	}
 }
 
-export class WeakMapper<K extends object, V> {
+expowt cwass WeakMappa<K extends object, V> {
 
-	constructor(private fn: (k: K) => V) { }
+	constwuctow(pwivate fn: (k: K) => V) { }
 
-	private _map = new WeakMap<K, V>();
+	pwivate _map = new WeakMap<K, V>();
 
 	map(key: K): V {
-		let result = this._map.get(key);
+		wet wesuwt = this._map.get(key);
 
-		if (!result) {
-			result = this.fn(key);
-			this._map.set(key, result);
+		if (!wesuwt) {
+			wesuwt = this.fn(key);
+			this._map.set(key, wesuwt);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }

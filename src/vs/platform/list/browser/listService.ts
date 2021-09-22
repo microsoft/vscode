@@ -1,1319 +1,1319 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet } from 'vs/base/browser/dom';
-import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
-import { DefaultStyleController, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List } from 'vs/base/browser/ui/list/listWidget';
-import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { ITableOptions, ITableOptionsUpdate, Table } from 'vs/base/browser/ui/table/tableWidget';
-import { IAbstractTreeOptions, IAbstractTreeOptionsUpdate, IKeyboardNavigationEventFilter, RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { DataTree, IDataTreeOptions } from 'vs/base/browser/ui/tree/dataTree';
-import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, IDataSource, ITreeEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { attachListStyler, computeStyles, defaultListStyles, IColorMapping } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+impowt { cweateStyweSheet } fwom 'vs/base/bwowsa/dom';
+impowt { IWistMouseEvent, IWistWendewa, IWistTouchEvent, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IPagedWistOptions, IPagedWendewa, PagedWist } fwom 'vs/base/bwowsa/ui/wist/wistPaging';
+impowt { DefauwtStyweContwowwa, IWistAccessibiwityPwovida, IWistOptions, IWistOptionsUpdate, IMuwtipweSewectionContwowwa, isSewectionWangeChangeEvent, isSewectionSingweChangeEvent, Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { ITabweCowumn, ITabweWendewa, ITabweViwtuawDewegate } fwom 'vs/base/bwowsa/ui/tabwe/tabwe';
+impowt { ITabweOptions, ITabweOptionsUpdate, Tabwe } fwom 'vs/base/bwowsa/ui/tabwe/tabweWidget';
+impowt { IAbstwactTweeOptions, IAbstwactTweeOptionsUpdate, IKeyboawdNavigationEventFiwta, WendewIndentGuides } fwom 'vs/base/bwowsa/ui/twee/abstwactTwee';
+impowt { AsyncDataTwee, CompwessibweAsyncDataTwee, IAsyncDataTweeOptions, IAsyncDataTweeOptionsUpdate, ICompwessibweAsyncDataTweeOptions, ICompwessibweAsyncDataTweeOptionsUpdate, ITweeCompwessionDewegate } fwom 'vs/base/bwowsa/ui/twee/asyncDataTwee';
+impowt { DataTwee, IDataTweeOptions } fwom 'vs/base/bwowsa/ui/twee/dataTwee';
+impowt { CompwessibweObjectTwee, ICompwessibweObjectTweeOptions, ICompwessibweObjectTweeOptionsUpdate, ICompwessibweTweeWendewa, IObjectTweeOptions, ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { IAsyncDataSouwce, IDataSouwce, ITweeEvent, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { combinedDisposabwe, Disposabwe, DisposabweStowe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ContextKeyExpw, IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { InputFocusedContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkeys';
+impowt { IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { attachWistStywa, computeStywes, defauwtWistStywes, ICowowMapping } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any> | Table<any>;
-export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any> | WorkbenchTable<any>;
+expowt type WistWidget = Wist<any> | PagedWist<any> | ObjectTwee<any, any> | DataTwee<any, any, any> | AsyncDataTwee<any, any, any> | Tabwe<any>;
+expowt type WowkbenchWistWidget = WowkbenchWist<any> | WowkbenchPagedWist<any> | WowkbenchObjectTwee<any, any> | WowkbenchCompwessibweObjectTwee<any, any> | WowkbenchDataTwee<any, any, any> | WowkbenchAsyncDataTwee<any, any, any> | WowkbenchCompwessibweAsyncDataTwee<any, any, any> | WowkbenchTabwe<any>;
 
-export const IListService = createDecorator<IListService>('listService');
+expowt const IWistSewvice = cweateDecowatow<IWistSewvice>('wistSewvice');
 
-export interface IListService {
+expowt intewface IWistSewvice {
 
-	readonly _serviceBrand: undefined;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Returns the currently focused list widget if any.
+	 * Wetuwns the cuwwentwy focused wist widget if any.
 	 */
-	readonly lastFocusedList: WorkbenchListWidget | undefined;
+	weadonwy wastFocusedWist: WowkbenchWistWidget | undefined;
 }
 
-interface IRegisteredList {
-	widget: WorkbenchListWidget;
-	extraContextKeys?: (IContextKey<boolean>)[];
+intewface IWegistewedWist {
+	widget: WowkbenchWistWidget;
+	extwaContextKeys?: (IContextKey<boowean>)[];
 }
 
-export class ListService implements IListService {
+expowt cwass WistSewvice impwements IWistSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private disposables = new DisposableStore();
-	private lists: IRegisteredList[] = [];
-	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
-	private _hasCreatedStyleController: boolean = false;
+	pwivate disposabwes = new DisposabweStowe();
+	pwivate wists: IWegistewedWist[] = [];
+	pwivate _wastFocusedWidget: WowkbenchWistWidget | undefined = undefined;
+	pwivate _hasCweatedStyweContwowwa: boowean = fawse;
 
-	get lastFocusedList(): WorkbenchListWidget | undefined {
-		return this._lastFocusedWidget;
+	get wastFocusedWist(): WowkbenchWistWidget | undefined {
+		wetuwn this._wastFocusedWidget;
 	}
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) {
+	constwuctow(@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice) {
 	}
 
-	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
-		if (!this._hasCreatedStyleController) {
-			this._hasCreatedStyleController = true;
-			// create a shared default tree style sheet for performance reasons
-			const styleController = new DefaultStyleController(createStyleSheet(), '');
-			this.disposables.add(attachListStyler(styleController, this._themeService));
+	wegista(widget: WowkbenchWistWidget, extwaContextKeys?: (IContextKey<boowean>)[]): IDisposabwe {
+		if (!this._hasCweatedStyweContwowwa) {
+			this._hasCweatedStyweContwowwa = twue;
+			// cweate a shawed defauwt twee stywe sheet fow pewfowmance weasons
+			const styweContwowwa = new DefauwtStyweContwowwa(cweateStyweSheet(), '');
+			this.disposabwes.add(attachWistStywa(styweContwowwa, this._themeSewvice));
 		}
 
-		if (this.lists.some(l => l.widget === widget)) {
-			throw new Error('Cannot register the same widget multiple times');
+		if (this.wists.some(w => w.widget === widget)) {
+			thwow new Ewwow('Cannot wegista the same widget muwtipwe times');
 		}
 
-		// Keep in our lists list
-		const registeredList: IRegisteredList = { widget, extraContextKeys };
-		this.lists.push(registeredList);
+		// Keep in ouw wists wist
+		const wegistewedWist: IWegistewedWist = { widget, extwaContextKeys };
+		this.wists.push(wegistewedWist);
 
-		// Check for currently being focused
-		if (widget.getHTMLElement() === document.activeElement) {
-			this._lastFocusedWidget = widget;
+		// Check fow cuwwentwy being focused
+		if (widget.getHTMWEwement() === document.activeEwement) {
+			this._wastFocusedWidget = widget;
 		}
 
-		return combinedDisposable(
-			widget.onDidFocus(() => this._lastFocusedWidget = widget),
-			toDisposable(() => this.lists.splice(this.lists.indexOf(registeredList), 1)),
+		wetuwn combinedDisposabwe(
+			widget.onDidFocus(() => this._wastFocusedWidget = widget),
+			toDisposabwe(() => this.wists.spwice(this.wists.indexOf(wegistewedWist), 1)),
 			widget.onDidDispose(() => {
-				this.lists = this.lists.filter(l => l !== registeredList);
-				if (this._lastFocusedWidget === widget) {
-					this._lastFocusedWidget = undefined;
+				this.wists = this.wists.fiwta(w => w !== wegistewedWist);
+				if (this._wastFocusedWidget === widget) {
+					this._wastFocusedWidget = undefined;
 				}
 			})
 		);
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
-export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
-export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
-export const WorkbenchListHasSelectionOrFocus = new RawContextKey<boolean>('listHasSelectionOrFocus', false);
-export const WorkbenchListDoubleSelection = new RawContextKey<boolean>('listDoubleSelection', false);
-export const WorkbenchListMultiSelection = new RawContextKey<boolean>('listMultiSelection', false);
-export const WorkbenchListSelectionNavigation = new RawContextKey<boolean>('listSelectionNavigation', false);
-export const WorkbenchListAutomaticKeyboardNavigationKey = 'listAutomaticKeyboardNavigation';
+const WawWowkbenchWistFocusContextKey = new WawContextKey<boowean>('wistFocus', twue);
+expowt const WowkbenchWistSuppowtsMuwtiSewectContextKey = new WawContextKey<boowean>('wistSuppowtsMuwtisewect', twue);
+expowt const WowkbenchWistFocusContextKey = ContextKeyExpw.and(WawWowkbenchWistFocusContextKey, ContextKeyExpw.not(InputFocusedContextKey));
+expowt const WowkbenchWistHasSewectionOwFocus = new WawContextKey<boowean>('wistHasSewectionOwFocus', fawse);
+expowt const WowkbenchWistDoubweSewection = new WawContextKey<boowean>('wistDoubweSewection', fawse);
+expowt const WowkbenchWistMuwtiSewection = new WawContextKey<boowean>('wistMuwtiSewection', fawse);
+expowt const WowkbenchWistSewectionNavigation = new WawContextKey<boowean>('wistSewectionNavigation', fawse);
+expowt const WowkbenchWistAutomaticKeyboawdNavigationKey = 'wistAutomaticKeyboawdNavigation';
 
-function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
-	const result = contextKeyService.createScoped(widget.getHTMLElement());
-	RawWorkbenchListFocusContextKey.bindTo(result);
-	return result;
+function cweateScopedContextKeySewvice(contextKeySewvice: IContextKeySewvice, widget: WistWidget): IContextKeySewvice {
+	const wesuwt = contextKeySewvice.cweateScoped(widget.getHTMWEwement());
+	WawWowkbenchWistFocusContextKey.bindTo(wesuwt);
+	wetuwn wesuwt;
 }
 
-const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
-const openModeSettingKey = 'workbench.list.openMode';
-const horizontalScrollingKey = 'workbench.list.horizontalScrolling';
-const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
-const automaticKeyboardNavigationSettingKey = 'workbench.list.automaticKeyboardNavigation';
-const treeIndentKey = 'workbench.tree.indent';
-const treeRenderIndentGuidesKey = 'workbench.tree.renderIndentGuides';
-const listSmoothScrolling = 'workbench.list.smoothScrolling';
-const mouseWheelScrollSensitivityKey = 'workbench.list.mouseWheelScrollSensitivity';
-const fastScrollSensitivityKey = 'workbench.list.fastScrollSensitivity';
-const treeExpandMode = 'workbench.tree.expandMode';
+const muwtiSewectModifiewSettingKey = 'wowkbench.wist.muwtiSewectModifia';
+const openModeSettingKey = 'wowkbench.wist.openMode';
+const howizontawScwowwingKey = 'wowkbench.wist.howizontawScwowwing';
+const keyboawdNavigationSettingKey = 'wowkbench.wist.keyboawdNavigation';
+const automaticKeyboawdNavigationSettingKey = 'wowkbench.wist.automaticKeyboawdNavigation';
+const tweeIndentKey = 'wowkbench.twee.indent';
+const tweeWendewIndentGuidesKey = 'wowkbench.twee.wendewIndentGuides';
+const wistSmoothScwowwing = 'wowkbench.wist.smoothScwowwing';
+const mouseWheewScwowwSensitivityKey = 'wowkbench.wist.mouseWheewScwowwSensitivity';
+const fastScwowwSensitivityKey = 'wowkbench.wist.fastScwowwSensitivity';
+const tweeExpandMode = 'wowkbench.twee.expandMode';
 
-function useAltAsMultipleSelectionModifier(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue(multiSelectModifierSettingKey) === 'alt';
+function useAwtAsMuwtipweSewectionModifia(configuwationSewvice: IConfiguwationSewvice): boowean {
+	wetuwn configuwationSewvice.getVawue(muwtiSewectModifiewSettingKey) === 'awt';
 }
 
-class MultipleSelectionController<T> extends Disposable implements IMultipleSelectionController<T> {
-	private useAltAsMultipleSelectionModifier: boolean;
+cwass MuwtipweSewectionContwowwa<T> extends Disposabwe impwements IMuwtipweSewectionContwowwa<T> {
+	pwivate useAwtAsMuwtipweSewectionModifia: boowean;
 
-	constructor(private configurationService: IConfigurationService) {
-		super();
+	constwuctow(pwivate configuwationSewvice: IConfiguwationSewvice) {
+		supa();
 
-		this.useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this.useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this.useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(this.configurationService);
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(muwtiSewectModifiewSettingKey)) {
+				this.useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(this.configuwationSewvice);
 			}
 		}));
 	}
 
-	isSelectionSingleChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean {
-		if (this.useAltAsMultipleSelectionModifier) {
-			return event.browserEvent.altKey;
+	isSewectionSingweChangeEvent(event: IWistMouseEvent<T> | IWistTouchEvent<T>): boowean {
+		if (this.useAwtAsMuwtipweSewectionModifia) {
+			wetuwn event.bwowsewEvent.awtKey;
 		}
 
-		return isSelectionSingleChangeEvent(event);
+		wetuwn isSewectionSingweChangeEvent(event);
 	}
 
-	isSelectionRangeChangeEvent(event: IListMouseEvent<T> | IListTouchEvent<T>): boolean {
-		return isSelectionRangeChangeEvent(event);
+	isSewectionWangeChangeEvent(event: IWistMouseEvent<T> | IWistTouchEvent<T>): boowean {
+		wetuwn isSewectionWangeChangeEvent(event);
 	}
 }
 
-function toWorkbenchListOptions<T>(options: IListOptions<T>, configurationService: IConfigurationService, keybindingService: IKeybindingService): [IListOptions<T>, IDisposable] {
-	const disposables = new DisposableStore();
-	const result: IListOptions<T> = {
+function toWowkbenchWistOptions<T>(options: IWistOptions<T>, configuwationSewvice: IConfiguwationSewvice, keybindingSewvice: IKeybindingSewvice): [IWistOptions<T>, IDisposabwe] {
+	const disposabwes = new DisposabweStowe();
+	const wesuwt: IWistOptions<T> = {
 		...options,
-		keyboardNavigationDelegate: { mightProducePrintableCharacter(e) { return keybindingService.mightProducePrintableCharacter(e); } },
-		smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
-		mouseWheelScrollSensitivity: configurationService.getValue<number>(mouseWheelScrollSensitivityKey),
-		fastScrollSensitivity: configurationService.getValue<number>(fastScrollSensitivityKey),
-		multipleSelectionController: options.multipleSelectionController ?? disposables.add(new MultipleSelectionController(configurationService))
+		keyboawdNavigationDewegate: { mightPwoducePwintabweChawacta(e) { wetuwn keybindingSewvice.mightPwoducePwintabweChawacta(e); } },
+		smoothScwowwing: Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing)),
+		mouseWheewScwowwSensitivity: configuwationSewvice.getVawue<numba>(mouseWheewScwowwSensitivityKey),
+		fastScwowwSensitivity: configuwationSewvice.getVawue<numba>(fastScwowwSensitivityKey),
+		muwtipweSewectionContwowwa: options.muwtipweSewectionContwowwa ?? disposabwes.add(new MuwtipweSewectionContwowwa(configuwationSewvice))
 	};
 
-	return [result, disposables];
+	wetuwn [wesuwt, disposabwes];
 }
 
-export interface IWorkbenchListOptionsUpdate extends IListOptionsUpdate {
-	readonly overrideStyles?: IColorMapping;
+expowt intewface IWowkbenchWistOptionsUpdate extends IWistOptionsUpdate {
+	weadonwy ovewwideStywes?: ICowowMapping;
 }
 
-export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IListOptions<T> {
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchWistOptions<T> extends IWowkbenchWistOptionsUpdate, IWesouwceNavigatowOptions, IWistOptions<T> {
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchList<T> extends List<T> {
+expowt cwass WowkbenchWist<T> extends Wist<T> {
 
-	readonly contextKeyService: IContextKeyService;
-	private readonly themeService: IThemeService;
-	private listSupportsMultiSelect: IContextKey<boolean>;
-	private listHasSelectionOrFocus: IContextKey<boolean>;
-	private listDoubleSelection: IContextKey<boolean>;
-	private listMultiSelection: IContextKey<boolean>;
-	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
-	private _useAltAsMultipleSelectionModifier: boolean;
-	private navigator: ListResourceNavigator<T>;
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
+	weadonwy contextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy themeSewvice: IThemeSewvice;
+	pwivate wistSuppowtsMuwtiSewect: IContextKey<boowean>;
+	pwivate wistHasSewectionOwFocus: IContextKey<boowean>;
+	pwivate wistDoubweSewection: IContextKey<boowean>;
+	pwivate wistMuwtiSewection: IContextKey<boowean>;
+	pwivate howizontawScwowwing: boowean | undefined;
+	pwivate _stywa: IDisposabwe | undefined;
+	pwivate _useAwtAsMuwtipweSewectionModifia: boowean;
+	pwivate navigatow: WistWesouwceNavigatow<T>;
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.navigatow.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: IListRenderer<T, any>[],
-		options: IWorkbenchListOptions<T>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: IWistWendewa<T, any>[],
+		options: IWowkbenchWistOptions<T>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+		const howizontawScwowwing = typeof options.howizontawScwowwing !== 'undefined' ? options.howizontawScwowwing : Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+		const [wowkbenchWistOptions, wowkbenchWistOptionsDisposabwe] = toWowkbenchWistOptions(options, configuwationSewvice, keybindingSewvice);
 
-		super(user, container, delegate, renderers,
+		supa(usa, containa, dewegate, wendewews,
 			{
-				keyboardSupport: false,
-				...computeStyles(themeService.getColorTheme(), defaultListStyles),
-				...workbenchListOptions,
-				horizontalScrolling
+				keyboawdSuppowt: fawse,
+				...computeStywes(themeSewvice.getCowowTheme(), defauwtWistStywes),
+				...wowkbenchWistOptions,
+				howizontawScwowwing
 			}
 		);
 
-		this.disposables.add(workbenchListOptionsDisposable);
+		this.disposabwes.add(wowkbenchWistOptionsDisposabwe);
 
-		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.themeService = themeService;
+		this.contextKeySewvice = cweateScopedContextKeySewvice(contextKeySewvice, this);
+		this.themeSewvice = themeSewvice;
 
-		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
+		this.wistSuppowtsMuwtiSewect = WowkbenchWistSuppowtsMuwtiSewectContextKey.bindTo(this.contextKeySewvice);
+		this.wistSuppowtsMuwtiSewect.set(options.muwtipweSewectionSuppowt !== fawse);
 
-		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
-		listSelectionNavigation.set(Boolean(options.selectionNavigation));
+		const wistSewectionNavigation = WowkbenchWistSewectionNavigation.bindTo(this.contextKeySewvice);
+		wistSewectionNavigation.set(Boowean(options.sewectionNavigation));
 
-		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
-		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
-		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
-		this.horizontalScrolling = options.horizontalScrolling;
+		this.wistHasSewectionOwFocus = WowkbenchWistHasSewectionOwFocus.bindTo(this.contextKeySewvice);
+		this.wistDoubweSewection = WowkbenchWistDoubweSewection.bindTo(this.contextKeySewvice);
+		this.wistMuwtiSewection = WowkbenchWistMuwtiSewection.bindTo(this.contextKeySewvice);
+		this.howizontawScwowwing = options.howizontawScwowwing;
 
-		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 
-		this.disposables.add(this.contextKeyService);
-		this.disposables.add((listService as ListService).register(this));
+		this.disposabwes.add(this.contextKeySewvice);
+		this.disposabwes.add((wistSewvice as WistSewvice).wegista(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		this.disposables.add(this.onDidChangeSelection(() => {
-			const selection = this.getSelection();
+		this.disposabwes.add(this.onDidChangeSewection(() => {
+			const sewection = this.getSewection();
 			const focus = this.getFocus();
 
-			this.contextKeyService.bufferChangeEvents(() => {
-				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-				this.listMultiSelection.set(selection.length > 1);
-				this.listDoubleSelection.set(selection.length === 2);
+			this.contextKeySewvice.buffewChangeEvents(() => {
+				this.wistHasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
+				this.wistMuwtiSewection.set(sewection.wength > 1);
+				this.wistDoubweSewection.set(sewection.wength === 2);
 			});
 		}));
-		this.disposables.add(this.onDidChangeFocus(() => {
-			const selection = this.getSelection();
+		this.disposabwes.add(this.onDidChangeFocus(() => {
+			const sewection = this.getSewection();
 			const focus = this.getFocus();
 
-			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			this.wistHasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
 		}));
-		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this.disposabwes.add(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(muwtiSewectModifiewSettingKey)) {
+				this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 			}
 
-			let options: IListOptionsUpdate = {};
+			wet options: IWistOptionsUpdate = {};
 
-			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
-				options = { ...options, horizontalScrolling };
+			if (e.affectsConfiguwation(howizontawScwowwingKey) && this.howizontawScwowwing === undefined) {
+				const howizontawScwowwing = Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+				options = { ...options, howizontawScwowwing };
 			}
-			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
-				options = { ...options, smoothScrolling };
+			if (e.affectsConfiguwation(wistSmoothScwowwing)) {
+				const smoothScwowwing = Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing));
+				options = { ...options, smoothScwowwing };
 			}
-			if (e.affectsConfiguration(mouseWheelScrollSensitivityKey)) {
-				const mouseWheelScrollSensitivity = configurationService.getValue<number>(mouseWheelScrollSensitivityKey);
-				options = { ...options, mouseWheelScrollSensitivity };
+			if (e.affectsConfiguwation(mouseWheewScwowwSensitivityKey)) {
+				const mouseWheewScwowwSensitivity = configuwationSewvice.getVawue<numba>(mouseWheewScwowwSensitivityKey);
+				options = { ...options, mouseWheewScwowwSensitivity };
 			}
-			if (e.affectsConfiguration(fastScrollSensitivityKey)) {
-				const fastScrollSensitivity = configurationService.getValue<number>(fastScrollSensitivityKey);
-				options = { ...options, fastScrollSensitivity };
+			if (e.affectsConfiguwation(fastScwowwSensitivityKey)) {
+				const fastScwowwSensitivity = configuwationSewvice.getVawue<numba>(fastScwowwSensitivityKey);
+				options = { ...options, fastScwowwSensitivity };
 			}
-			if (Object.keys(options).length > 0) {
+			if (Object.keys(options).wength > 0) {
 				this.updateOptions(options);
 			}
 		}));
 
-		this.navigator = new ListResourceNavigator(this, { configurationService, ...options });
-		this.disposables.add(this.navigator);
+		this.navigatow = new WistWesouwceNavigatow(this, { configuwationSewvice, ...options });
+		this.disposabwes.add(this.navigatow);
 	}
 
-	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchWistOptionsUpdate): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		if (options.multipleSelectionSupport !== undefined) {
-			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		if (options.muwtipweSewectionSuppowt !== undefined) {
+			this.wistSuppowtsMuwtiSewect.set(!!options.muwtipweSewectionSuppowt);
 		}
 	}
 
-	private updateStyles(styles: IColorMapping): void {
-		this._styler?.dispose();
-		this._styler = attachListStyler(this, this.themeService, styles);
+	pwivate updateStywes(stywes: ICowowMapping): void {
+		this._stywa?.dispose();
+		this._stywa = attachWistStywa(this, this.themeSewvice, stywes);
 	}
 
-	get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
+	get useAwtAsMuwtipweSewectionModifia(): boowean {
+		wetuwn this._useAwtAsMuwtipweSewectionModifia;
 	}
 
-	override dispose(): void {
-		this._styler?.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._stywa?.dispose();
+		supa.dispose();
 	}
 }
 
-export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpdate, IResourceNavigatorOptions, IPagedListOptions<T> {
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchPagedWistOptions<T> extends IWowkbenchWistOptionsUpdate, IWesouwceNavigatowOptions, IPagedWistOptions<T> {
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchPagedList<T> extends PagedList<T> {
+expowt cwass WowkbenchPagedWist<T> extends PagedWist<T> {
 
-	readonly contextKeyService: IContextKeyService;
-	private readonly themeService: IThemeService;
-	private readonly disposables: DisposableStore;
-	private listSupportsMultiSelect: IContextKey<boolean>;
-	private _useAltAsMultipleSelectionModifier: boolean;
-	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
-	private navigator: ListResourceNavigator<T>;
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
+	weadonwy contextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy themeSewvice: IThemeSewvice;
+	pwivate weadonwy disposabwes: DisposabweStowe;
+	pwivate wistSuppowtsMuwtiSewect: IContextKey<boowean>;
+	pwivate _useAwtAsMuwtipweSewectionModifia: boowean;
+	pwivate howizontawScwowwing: boowean | undefined;
+	pwivate _stywa: IDisposabwe | undefined;
+	pwivate navigatow: WistWesouwceNavigatow<T>;
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.navigatow.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<number>,
-		renderers: IPagedRenderer<T, any>[],
-		options: IWorkbenchPagedListOptions<T>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<numba>,
+		wendewews: IPagedWendewa<T, any>[],
+		options: IWowkbenchPagedWistOptions<T>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
-		super(user, container, delegate, renderers,
+		const howizontawScwowwing = typeof options.howizontawScwowwing !== 'undefined' ? options.howizontawScwowwing : Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+		const [wowkbenchWistOptions, wowkbenchWistOptionsDisposabwe] = toWowkbenchWistOptions(options, configuwationSewvice, keybindingSewvice);
+		supa(usa, containa, dewegate, wendewews,
 			{
-				keyboardSupport: false,
-				...computeStyles(themeService.getColorTheme(), defaultListStyles),
-				...workbenchListOptions,
-				horizontalScrolling
+				keyboawdSuppowt: fawse,
+				...computeStywes(themeSewvice.getCowowTheme(), defauwtWistStywes),
+				...wowkbenchWistOptions,
+				howizontawScwowwing
 			}
 		);
 
-		this.disposables = new DisposableStore();
-		this.disposables.add(workbenchListOptionsDisposable);
+		this.disposabwes = new DisposabweStowe();
+		this.disposabwes.add(wowkbenchWistOptionsDisposabwe);
 
-		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.themeService = themeService;
+		this.contextKeySewvice = cweateScopedContextKeySewvice(contextKeySewvice, this);
+		this.themeSewvice = themeSewvice;
 
-		this.horizontalScrolling = options.horizontalScrolling;
+		this.howizontawScwowwing = options.howizontawScwowwing;
 
-		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
+		this.wistSuppowtsMuwtiSewect = WowkbenchWistSuppowtsMuwtiSewectContextKey.bindTo(this.contextKeySewvice);
+		this.wistSuppowtsMuwtiSewect.set(options.muwtipweSewectionSuppowt !== fawse);
 
-		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
-		listSelectionNavigation.set(Boolean(options.selectionNavigation));
+		const wistSewectionNavigation = WowkbenchWistSewectionNavigation.bindTo(this.contextKeySewvice);
+		wistSewectionNavigation.set(Boowean(options.sewectionNavigation));
 
-		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 
-		this.disposables.add(this.contextKeyService);
-		this.disposables.add((listService as ListService).register(this));
+		this.disposabwes.add(this.contextKeySewvice);
+		this.disposabwes.add((wistSewvice as WistSewvice).wegista(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		if (options.overrideStyles) {
-			this.disposables.add(attachListStyler(this, themeService, options.overrideStyles));
+		if (options.ovewwideStywes) {
+			this.disposabwes.add(attachWistStywa(this, themeSewvice, options.ovewwideStywes));
 		}
 
-		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this.disposabwes.add(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(muwtiSewectModifiewSettingKey)) {
+				this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 			}
 
-			let options: IListOptionsUpdate = {};
+			wet options: IWistOptionsUpdate = {};
 
-			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
-				options = { ...options, horizontalScrolling };
+			if (e.affectsConfiguwation(howizontawScwowwingKey) && this.howizontawScwowwing === undefined) {
+				const howizontawScwowwing = Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+				options = { ...options, howizontawScwowwing };
 			}
-			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
-				options = { ...options, smoothScrolling };
+			if (e.affectsConfiguwation(wistSmoothScwowwing)) {
+				const smoothScwowwing = Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing));
+				options = { ...options, smoothScwowwing };
 			}
-			if (e.affectsConfiguration(mouseWheelScrollSensitivityKey)) {
-				const mouseWheelScrollSensitivity = configurationService.getValue<number>(mouseWheelScrollSensitivityKey);
-				options = { ...options, mouseWheelScrollSensitivity };
+			if (e.affectsConfiguwation(mouseWheewScwowwSensitivityKey)) {
+				const mouseWheewScwowwSensitivity = configuwationSewvice.getVawue<numba>(mouseWheewScwowwSensitivityKey);
+				options = { ...options, mouseWheewScwowwSensitivity };
 			}
-			if (e.affectsConfiguration(fastScrollSensitivityKey)) {
-				const fastScrollSensitivity = configurationService.getValue<number>(fastScrollSensitivityKey);
-				options = { ...options, fastScrollSensitivity };
+			if (e.affectsConfiguwation(fastScwowwSensitivityKey)) {
+				const fastScwowwSensitivity = configuwationSewvice.getVawue<numba>(fastScwowwSensitivityKey);
+				options = { ...options, fastScwowwSensitivity };
 			}
-			if (Object.keys(options).length > 0) {
+			if (Object.keys(options).wength > 0) {
 				this.updateOptions(options);
 			}
 		}));
 
-		this.navigator = new ListResourceNavigator(this, { configurationService, ...options });
-		this.disposables.add(this.navigator);
+		this.navigatow = new WistWesouwceNavigatow(this, { configuwationSewvice, ...options });
+		this.disposabwes.add(this.navigatow);
 	}
 
-	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchWistOptionsUpdate): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		if (options.multipleSelectionSupport !== undefined) {
-			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		if (options.muwtipweSewectionSuppowt !== undefined) {
+			this.wistSuppowtsMuwtiSewect.set(!!options.muwtipweSewectionSuppowt);
 		}
 	}
 
-	private updateStyles(styles: IColorMapping): void {
-		this._styler?.dispose();
-		this._styler = attachListStyler(this, this.themeService, styles);
+	pwivate updateStywes(stywes: ICowowMapping): void {
+		this._stywa?.dispose();
+		this._stywa = attachWistStywa(this, this.themeSewvice, stywes);
 	}
 
-	get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
+	get useAwtAsMuwtipweSewectionModifia(): boowean {
+		wetuwn this._useAwtAsMuwtipweSewectionModifia;
 	}
 
-	override dispose(): void {
-		this._styler?.dispose();
-		this.disposables.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._stywa?.dispose();
+		this.disposabwes.dispose();
+		supa.dispose();
 	}
 }
 
-export interface IWorkbenchTableOptionsUpdate extends ITableOptionsUpdate {
-	readonly overrideStyles?: IColorMapping;
+expowt intewface IWowkbenchTabweOptionsUpdate extends ITabweOptionsUpdate {
+	weadonwy ovewwideStywes?: ICowowMapping;
 }
 
-export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate, IResourceNavigatorOptions, ITableOptions<T> {
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchTabweOptions<T> extends IWowkbenchTabweOptionsUpdate, IWesouwceNavigatowOptions, ITabweOptions<T> {
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchTable<TRow> extends Table<TRow> {
+expowt cwass WowkbenchTabwe<TWow> extends Tabwe<TWow> {
 
-	readonly contextKeyService: IContextKeyService;
-	private readonly themeService: IThemeService;
-	private listSupportsMultiSelect: IContextKey<boolean>;
-	private listHasSelectionOrFocus: IContextKey<boolean>;
-	private listDoubleSelection: IContextKey<boolean>;
-	private listMultiSelection: IContextKey<boolean>;
-	private horizontalScrolling: boolean | undefined;
-	private _styler: IDisposable | undefined;
-	private _useAltAsMultipleSelectionModifier: boolean;
-	private readonly disposables: DisposableStore;
-	private navigator: TableResourceNavigator<TRow>;
-	get onDidOpen(): Event<IOpenEvent<TRow | undefined>> { return this.navigator.onDidOpen; }
+	weadonwy contextKeySewvice: IContextKeySewvice;
+	pwivate weadonwy themeSewvice: IThemeSewvice;
+	pwivate wistSuppowtsMuwtiSewect: IContextKey<boowean>;
+	pwivate wistHasSewectionOwFocus: IContextKey<boowean>;
+	pwivate wistDoubweSewection: IContextKey<boowean>;
+	pwivate wistMuwtiSewection: IContextKey<boowean>;
+	pwivate howizontawScwowwing: boowean | undefined;
+	pwivate _stywa: IDisposabwe | undefined;
+	pwivate _useAwtAsMuwtipweSewectionModifia: boowean;
+	pwivate weadonwy disposabwes: DisposabweStowe;
+	pwivate navigatow: TabweWesouwceNavigatow<TWow>;
+	get onDidOpen(): Event<IOpenEvent<TWow | undefined>> { wetuwn this.navigatow.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: ITableVirtualDelegate<TRow>,
-		columns: ITableColumn<TRow, any>[],
-		renderers: ITableRenderer<TRow, any>[],
-		options: IWorkbenchTableOptions<TRow>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: ITabweViwtuawDewegate<TWow>,
+		cowumns: ITabweCowumn<TWow, any>[],
+		wendewews: ITabweWendewa<TWow, any>[],
+		options: IWowkbenchTabweOptions<TWow>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice
 	) {
-		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
+		const howizontawScwowwing = typeof options.howizontawScwowwing !== 'undefined' ? options.howizontawScwowwing : Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+		const [wowkbenchWistOptions, wowkbenchWistOptionsDisposabwe] = toWowkbenchWistOptions(options, configuwationSewvice, keybindingSewvice);
 
-		super(user, container, delegate, columns, renderers,
+		supa(usa, containa, dewegate, cowumns, wendewews,
 			{
-				keyboardSupport: false,
-				...computeStyles(themeService.getColorTheme(), defaultListStyles),
-				...workbenchListOptions,
-				horizontalScrolling
+				keyboawdSuppowt: fawse,
+				...computeStywes(themeSewvice.getCowowTheme(), defauwtWistStywes),
+				...wowkbenchWistOptions,
+				howizontawScwowwing
 			}
 		);
 
-		this.disposables = new DisposableStore();
-		this.disposables.add(workbenchListOptionsDisposable);
+		this.disposabwes = new DisposabweStowe();
+		this.disposabwes.add(wowkbenchWistOptionsDisposabwe);
 
-		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.themeService = themeService;
+		this.contextKeySewvice = cweateScopedContextKeySewvice(contextKeySewvice, this);
+		this.themeSewvice = themeSewvice;
 
-		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
+		this.wistSuppowtsMuwtiSewect = WowkbenchWistSuppowtsMuwtiSewectContextKey.bindTo(this.contextKeySewvice);
+		this.wistSuppowtsMuwtiSewect.set(options.muwtipweSewectionSuppowt !== fawse);
 
-		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
-		listSelectionNavigation.set(Boolean(options.selectionNavigation));
+		const wistSewectionNavigation = WowkbenchWistSewectionNavigation.bindTo(this.contextKeySewvice);
+		wistSewectionNavigation.set(Boowean(options.sewectionNavigation));
 
-		this.listHasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
-		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
-		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
-		this.horizontalScrolling = options.horizontalScrolling;
+		this.wistHasSewectionOwFocus = WowkbenchWistHasSewectionOwFocus.bindTo(this.contextKeySewvice);
+		this.wistDoubweSewection = WowkbenchWistDoubweSewection.bindTo(this.contextKeySewvice);
+		this.wistMuwtiSewection = WowkbenchWistMuwtiSewection.bindTo(this.contextKeySewvice);
+		this.howizontawScwowwing = options.howizontawScwowwing;
 
-		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 
-		this.disposables.add(this.contextKeyService);
-		this.disposables.add((listService as ListService).register(this));
+		this.disposabwes.add(this.contextKeySewvice);
+		this.disposabwes.add((wistSewvice as WistSewvice).wegista(this));
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		this.disposables.add(this.onDidChangeSelection(() => {
-			const selection = this.getSelection();
+		this.disposabwes.add(this.onDidChangeSewection(() => {
+			const sewection = this.getSewection();
 			const focus = this.getFocus();
 
-			this.contextKeyService.bufferChangeEvents(() => {
-				this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-				this.listMultiSelection.set(selection.length > 1);
-				this.listDoubleSelection.set(selection.length === 2);
+			this.contextKeySewvice.buffewChangeEvents(() => {
+				this.wistHasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
+				this.wistMuwtiSewection.set(sewection.wength > 1);
+				this.wistDoubweSewection.set(sewection.wength === 2);
 			});
 		}));
-		this.disposables.add(this.onDidChangeFocus(() => {
-			const selection = this.getSelection();
+		this.disposabwes.add(this.onDidChangeFocus(() => {
+			const sewection = this.getSewection();
 			const focus = this.getFocus();
 
-			this.listHasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+			this.wistHasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
 		}));
-		this.disposables.add(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-				this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this.disposabwes.add(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation(muwtiSewectModifiewSettingKey)) {
+				this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 			}
 
-			let options: IListOptionsUpdate = {};
+			wet options: IWistOptionsUpdate = {};
 
-			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
-				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
-				options = { ...options, horizontalScrolling };
+			if (e.affectsConfiguwation(howizontawScwowwingKey) && this.howizontawScwowwing === undefined) {
+				const howizontawScwowwing = Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+				options = { ...options, howizontawScwowwing };
 			}
-			if (e.affectsConfiguration(listSmoothScrolling)) {
-				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
-				options = { ...options, smoothScrolling };
+			if (e.affectsConfiguwation(wistSmoothScwowwing)) {
+				const smoothScwowwing = Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing));
+				options = { ...options, smoothScwowwing };
 			}
-			if (e.affectsConfiguration(mouseWheelScrollSensitivityKey)) {
-				const mouseWheelScrollSensitivity = configurationService.getValue<number>(mouseWheelScrollSensitivityKey);
-				options = { ...options, mouseWheelScrollSensitivity };
+			if (e.affectsConfiguwation(mouseWheewScwowwSensitivityKey)) {
+				const mouseWheewScwowwSensitivity = configuwationSewvice.getVawue<numba>(mouseWheewScwowwSensitivityKey);
+				options = { ...options, mouseWheewScwowwSensitivity };
 			}
-			if (e.affectsConfiguration(fastScrollSensitivityKey)) {
-				const fastScrollSensitivity = configurationService.getValue<number>(fastScrollSensitivityKey);
-				options = { ...options, fastScrollSensitivity };
+			if (e.affectsConfiguwation(fastScwowwSensitivityKey)) {
+				const fastScwowwSensitivity = configuwationSewvice.getVawue<numba>(fastScwowwSensitivityKey);
+				options = { ...options, fastScwowwSensitivity };
 			}
-			if (Object.keys(options).length > 0) {
+			if (Object.keys(options).wength > 0) {
 				this.updateOptions(options);
 			}
 		}));
 
-		this.navigator = new TableResourceNavigator(this, { configurationService, ...options });
-		this.disposables.add(this.navigator);
+		this.navigatow = new TabweWesouwceNavigatow(this, { configuwationSewvice, ...options });
+		this.disposabwes.add(this.navigatow);
 	}
 
-	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchTabweOptionsUpdate): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.updateStyles(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.updateStywes(options.ovewwideStywes);
 		}
 
-		if (options.multipleSelectionSupport !== undefined) {
-			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+		if (options.muwtipweSewectionSuppowt !== undefined) {
+			this.wistSuppowtsMuwtiSewect.set(!!options.muwtipweSewectionSuppowt);
 		}
 	}
 
-	private updateStyles(styles: IColorMapping): void {
-		this._styler?.dispose();
-		this._styler = attachListStyler(this, this.themeService, styles);
+	pwivate updateStywes(stywes: ICowowMapping): void {
+		this._stywa?.dispose();
+		this._stywa = attachWistStywa(this, this.themeSewvice, stywes);
 	}
 
-	get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
+	get useAwtAsMuwtipweSewectionModifia(): boowean {
+		wetuwn this._useAwtAsMuwtipweSewectionModifia;
 	}
 
-	override dispose(): void {
-		this._styler?.dispose();
-		this.disposables.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._stywa?.dispose();
+		this.disposabwes.dispose();
+		supa.dispose();
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
+expowt intewface IOpenWesouwceOptions {
+	editowOptions: IEditowOptions;
+	sideBySide: boowean;
+	ewement: any;
+	paywoad: any;
 }
 
-export interface IOpenEvent<T> {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: T;
-	browserEvent?: UIEvent;
+expowt intewface IOpenEvent<T> {
+	editowOptions: IEditowOptions;
+	sideBySide: boowean;
+	ewement: T;
+	bwowsewEvent?: UIEvent;
 }
 
-export interface IResourceNavigatorOptions {
-	readonly configurationService?: IConfigurationService;
-	readonly openOnSingleClick?: boolean;
+expowt intewface IWesouwceNavigatowOptions {
+	weadonwy configuwationSewvice?: IConfiguwationSewvice;
+	weadonwy openOnSingweCwick?: boowean;
 }
 
-export interface SelectionKeyboardEvent extends KeyboardEvent {
-	preserveFocus?: boolean;
-	pinned?: boolean;
-	__forceEvent?: boolean;
+expowt intewface SewectionKeyboawdEvent extends KeyboawdEvent {
+	pwesewveFocus?: boowean;
+	pinned?: boowean;
+	__fowceEvent?: boowean;
 }
 
-export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: boolean, pinned?: boolean): SelectionKeyboardEvent {
-	const e = new KeyboardEvent(typeArg);
-	(<SelectionKeyboardEvent>e).preserveFocus = preserveFocus;
-	(<SelectionKeyboardEvent>e).pinned = pinned;
-	(<SelectionKeyboardEvent>e).__forceEvent = true;
+expowt function getSewectionKeyboawdEvent(typeAwg = 'keydown', pwesewveFocus?: boowean, pinned?: boowean): SewectionKeyboawdEvent {
+	const e = new KeyboawdEvent(typeAwg);
+	(<SewectionKeyboawdEvent>e).pwesewveFocus = pwesewveFocus;
+	(<SewectionKeyboawdEvent>e).pinned = pinned;
+	(<SewectionKeyboawdEvent>e).__fowceEvent = twue;
 
-	return e;
+	wetuwn e;
 }
 
-abstract class ResourceNavigator<T> extends Disposable {
+abstwact cwass WesouwceNavigatow<T> extends Disposabwe {
 
-	private openOnSingleClick: boolean;
+	pwivate openOnSingweCwick: boowean;
 
-	private readonly _onDidOpen = this._register(new Emitter<IOpenEvent<T | undefined>>());
-	readonly onDidOpen: Event<IOpenEvent<T | undefined>> = this._onDidOpen.event;
+	pwivate weadonwy _onDidOpen = this._wegista(new Emitta<IOpenEvent<T | undefined>>());
+	weadonwy onDidOpen: Event<IOpenEvent<T | undefined>> = this._onDidOpen.event;
 
-	constructor(
-		protected readonly widget: ListWidget,
-		options?: IResourceNavigatorOptions
+	constwuctow(
+		pwotected weadonwy widget: WistWidget,
+		options?: IWesouwceNavigatowOptions
 	) {
-		super();
+		supa();
 
-		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
-		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
-		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
+		this._wegista(Event.fiwta(this.widget.onDidChangeSewection, e => e.bwowsewEvent instanceof KeyboawdEvent)(e => this.onSewectionFwomKeyboawd(e)));
+		this._wegista(this.widget.onPointa((e: { bwowsewEvent: MouseEvent, ewement: T | undefined }) => this.onPointa(e.ewement, e.bwowsewEvent)));
+		this._wegista(this.widget.onMouseDbwCwick((e: { bwowsewEvent: MouseEvent, ewement: T | undefined }) => this.onMouseDbwCwick(e.ewement, e.bwowsewEvent)));
 
-		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
-			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
-			this._register(options?.configurationService.onDidChangeConfiguration(() => {
-				this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
+		if (typeof options?.openOnSingweCwick !== 'boowean' && options?.configuwationSewvice) {
+			this.openOnSingweCwick = options?.configuwationSewvice!.getVawue(openModeSettingKey) !== 'doubweCwick';
+			this._wegista(options?.configuwationSewvice.onDidChangeConfiguwation(() => {
+				this.openOnSingweCwick = options?.configuwationSewvice!.getVawue(openModeSettingKey) !== 'doubweCwick';
 			}));
-		} else {
-			this.openOnSingleClick = options?.openOnSingleClick ?? true;
+		} ewse {
+			this.openOnSingweCwick = options?.openOnSingweCwick ?? twue;
 		}
 	}
 
-	private onSelectionFromKeyboard(event: ITreeEvent<any>): void {
-		if (event.elements.length !== 1) {
-			return;
+	pwivate onSewectionFwomKeyboawd(event: ITweeEvent<any>): void {
+		if (event.ewements.wength !== 1) {
+			wetuwn;
 		}
 
-		const selectionKeyboardEvent = event.browserEvent as SelectionKeyboardEvent;
-		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus! : true;
-		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned! : !preserveFocus;
-		const sideBySide = false;
+		const sewectionKeyboawdEvent = event.bwowsewEvent as SewectionKeyboawdEvent;
+		const pwesewveFocus = typeof sewectionKeyboawdEvent.pwesewveFocus === 'boowean' ? sewectionKeyboawdEvent.pwesewveFocus! : twue;
+		const pinned = typeof sewectionKeyboawdEvent.pinned === 'boowean' ? sewectionKeyboawdEvent.pinned! : !pwesewveFocus;
+		const sideBySide = fawse;
 
-		this._open(this.getSelectedElement(), preserveFocus, pinned, sideBySide, event.browserEvent);
+		this._open(this.getSewectedEwement(), pwesewveFocus, pinned, sideBySide, event.bwowsewEvent);
 	}
 
-	private onPointer(element: T | undefined, browserEvent: MouseEvent): void {
-		if (!this.openOnSingleClick) {
-			return;
+	pwivate onPointa(ewement: T | undefined, bwowsewEvent: MouseEvent): void {
+		if (!this.openOnSingweCwick) {
+			wetuwn;
 		}
 
-		const isDoubleClick = browserEvent.detail === 2;
+		const isDoubweCwick = bwowsewEvent.detaiw === 2;
 
-		if (isDoubleClick) {
-			return;
+		if (isDoubweCwick) {
+			wetuwn;
 		}
 
-		const isMiddleClick = browserEvent.button === 1;
-		const preserveFocus = true;
-		const pinned = isMiddleClick;
-		const sideBySide = browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey;
+		const isMiddweCwick = bwowsewEvent.button === 1;
+		const pwesewveFocus = twue;
+		const pinned = isMiddweCwick;
+		const sideBySide = bwowsewEvent.ctwwKey || bwowsewEvent.metaKey || bwowsewEvent.awtKey;
 
-		this._open(element, preserveFocus, pinned, sideBySide, browserEvent);
+		this._open(ewement, pwesewveFocus, pinned, sideBySide, bwowsewEvent);
 	}
 
-	private onMouseDblClick(element: T | undefined, browserEvent?: MouseEvent): void {
-		if (!browserEvent) {
-			return;
+	pwivate onMouseDbwCwick(ewement: T | undefined, bwowsewEvent?: MouseEvent): void {
+		if (!bwowsewEvent) {
+			wetuwn;
 		}
 
-		// copied from AbstractTree
-		const target = browserEvent.target as HTMLElement;
-		const onTwistie = target.classList.contains('monaco-tl-twistie')
-			|| (target.classList.contains('monaco-icon-label') && target.classList.contains('folder-icon') && browserEvent.offsetX < 16);
+		// copied fwom AbstwactTwee
+		const tawget = bwowsewEvent.tawget as HTMWEwement;
+		const onTwistie = tawget.cwassWist.contains('monaco-tw-twistie')
+			|| (tawget.cwassWist.contains('monaco-icon-wabew') && tawget.cwassWist.contains('fowda-icon') && bwowsewEvent.offsetX < 16);
 
 		if (onTwistie) {
-			return;
+			wetuwn;
 		}
 
-		const preserveFocus = false;
-		const pinned = true;
-		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
+		const pwesewveFocus = fawse;
+		const pinned = twue;
+		const sideBySide = (bwowsewEvent.ctwwKey || bwowsewEvent.metaKey || bwowsewEvent.awtKey);
 
-		this._open(element, preserveFocus, pinned, sideBySide, browserEvent);
+		this._open(ewement, pwesewveFocus, pinned, sideBySide, bwowsewEvent);
 	}
 
-	private _open(element: T | undefined, preserveFocus: boolean, pinned: boolean, sideBySide: boolean, browserEvent?: UIEvent): void {
-		if (!element) {
-			return;
+	pwivate _open(ewement: T | undefined, pwesewveFocus: boowean, pinned: boowean, sideBySide: boowean, bwowsewEvent?: UIEvent): void {
+		if (!ewement) {
+			wetuwn;
 		}
 
-		this._onDidOpen.fire({
-			editorOptions: {
-				preserveFocus,
+		this._onDidOpen.fiwe({
+			editowOptions: {
+				pwesewveFocus,
 				pinned,
-				revealIfVisible: true
+				weveawIfVisibwe: twue
 			},
 			sideBySide,
-			element,
-			browserEvent
+			ewement,
+			bwowsewEvent
 		});
 	}
 
-	abstract getSelectedElement(): T | undefined;
+	abstwact getSewectedEwement(): T | undefined;
 }
 
-class ListResourceNavigator<T> extends ResourceNavigator<T> {
+cwass WistWesouwceNavigatow<T> extends WesouwceNavigatow<T> {
 
-	protected override readonly widget: List<T> | PagedList<T>;
+	pwotected ovewwide weadonwy widget: Wist<T> | PagedWist<T>;
 
-	constructor(
-		widget: List<T> | PagedList<T>,
-		options: IResourceNavigatorOptions
+	constwuctow(
+		widget: Wist<T> | PagedWist<T>,
+		options: IWesouwceNavigatowOptions
 	) {
-		super(widget, options);
+		supa(widget, options);
 		this.widget = widget;
 	}
 
-	getSelectedElement(): T | undefined {
-		return this.widget.getSelectedElements()[0];
+	getSewectedEwement(): T | undefined {
+		wetuwn this.widget.getSewectedEwements()[0];
 	}
 }
 
-class TableResourceNavigator<TRow> extends ResourceNavigator<TRow> {
+cwass TabweWesouwceNavigatow<TWow> extends WesouwceNavigatow<TWow> {
 
-	protected override readonly widget!: Table<TRow>;
+	pwotected ovewwide weadonwy widget!: Tabwe<TWow>;
 
-	constructor(
-		widget: Table<TRow>,
-		options: IResourceNavigatorOptions
+	constwuctow(
+		widget: Tabwe<TWow>,
+		options: IWesouwceNavigatowOptions
 	) {
-		super(widget, options);
+		supa(widget, options);
 	}
 
-	getSelectedElement(): TRow | undefined {
-		return this.widget.getSelectedElements()[0];
+	getSewectedEwement(): TWow | undefined {
+		wetuwn this.widget.getSewectedEwements()[0];
 	}
 }
 
-class TreeResourceNavigator<T, TFilterData> extends ResourceNavigator<T> {
+cwass TweeWesouwceNavigatow<T, TFiwtewData> extends WesouwceNavigatow<T> {
 
-	protected override readonly widget!: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>;
+	pwotected ovewwide weadonwy widget!: ObjectTwee<T, TFiwtewData> | CompwessibweObjectTwee<T, TFiwtewData> | DataTwee<any, T, TFiwtewData> | AsyncDataTwee<any, T, TFiwtewData> | CompwessibweAsyncDataTwee<any, T, TFiwtewData>;
 
-	constructor(
-		widget: ObjectTree<T, TFilterData> | CompressibleObjectTree<T, TFilterData> | DataTree<any, T, TFilterData> | AsyncDataTree<any, T, TFilterData> | CompressibleAsyncDataTree<any, T, TFilterData>,
-		options: IResourceNavigatorOptions
+	constwuctow(
+		widget: ObjectTwee<T, TFiwtewData> | CompwessibweObjectTwee<T, TFiwtewData> | DataTwee<any, T, TFiwtewData> | AsyncDataTwee<any, T, TFiwtewData> | CompwessibweAsyncDataTwee<any, T, TFiwtewData>,
+		options: IWesouwceNavigatowOptions
 	) {
-		super(widget, options);
+		supa(widget, options);
 	}
 
-	getSelectedElement(): T | undefined {
-		return this.widget.getSelection()[0] ?? undefined;
+	getSewectedEwement(): T | undefined {
+		wetuwn this.widget.getSewection()[0] ?? undefined;
 	}
 }
 
-function createKeyboardNavigationEventFilter(container: HTMLElement, keybindingService: IKeybindingService): IKeyboardNavigationEventFilter {
-	let inChord = false;
+function cweateKeyboawdNavigationEventFiwta(containa: HTMWEwement, keybindingSewvice: IKeybindingSewvice): IKeyboawdNavigationEventFiwta {
+	wet inChowd = fawse;
 
-	return event => {
-		if (inChord) {
-			inChord = false;
-			return false;
+	wetuwn event => {
+		if (inChowd) {
+			inChowd = fawse;
+			wetuwn fawse;
 		}
 
-		const result = keybindingService.softDispatch(event, container);
+		const wesuwt = keybindingSewvice.softDispatch(event, containa);
 
-		if (result && result.enterChord) {
-			inChord = true;
-			return false;
+		if (wesuwt && wesuwt.entewChowd) {
+			inChowd = twue;
+			wetuwn fawse;
 		}
 
-		inChord = false;
-		return true;
+		inChowd = fawse;
+		wetuwn twue;
 	};
 }
 
-export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-	readonly overrideStyles?: IColorMapping;
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchObjectTweeOptions<T, TFiwtewData> extends IObjectTweeOptions<T, TFiwtewData>, IWesouwceNavigatowOptions {
+	weadonwy accessibiwityPwovida: IWistAccessibiwityPwovida<T>;
+	weadonwy ovewwideStywes?: ICowowMapping;
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> {
+expowt cwass WowkbenchObjectTwee<T extends NonNuwwabwe<any>, TFiwtewData = void> extends ObjectTwee<T, TFiwtewData> {
 
-	private internals: WorkbenchTreeInternals<any, T, TFilterData>;
-	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
-	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.internals.onDidOpen; }
+	pwivate intewnaws: WowkbenchTweeIntewnaws<any, T, TFiwtewData>;
+	get contextKeySewvice(): IContextKeySewvice { wetuwn this.intewnaws.contextKeySewvice; }
+	get useAwtAsMuwtipweSewectionModifia(): boowean { wetuwn this.intewnaws.useAwtAsMuwtipweSewectionModifia; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.intewnaws.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		options: IWorkbenchObjectTreeOptions<T, TFilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		options: IWowkbenchObjectTweeOptions<T, TFiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchObjectTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
-		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.add(disposable);
-		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.add(this.internals);
+		const { options: tweeOptions, getAutomaticKeyboawdNavigation, disposabwe } = wowkbenchTweeDataPweambwe<T, TFiwtewData, IWowkbenchObjectTweeOptions<T, TFiwtewData>>(containa, options, contextKeySewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
+		supa(usa, containa, dewegate, wendewews, tweeOptions);
+		this.disposabwes.add(disposabwe);
+		this.intewnaws = new WowkbenchTweeIntewnaws(this, options, getAutomaticKeyboawdNavigation, options.ovewwideStywes, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, accessibiwitySewvice);
+		this.disposabwes.add(this.intewnaws);
 	}
 
-	override updateOptions(options: IAbstractTreeOptionsUpdate): void {
-		super.updateOptions(options);
-		this.internals.updateOptions(options);
+	ovewwide updateOptions(options: IAbstwactTweeOptionsUpdate): void {
+		supa.updateOptions(options);
+		this.intewnaws.updateOptions(options);
 	}
 }
 
-export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompressibleObjectTreeOptionsUpdate {
-	readonly overrideStyles?: IColorMapping;
+expowt intewface IWowkbenchCompwessibweObjectTweeOptionsUpdate extends ICompwessibweObjectTweeOptionsUpdate {
+	weadonwy ovewwideStywes?: ICowowMapping;
 }
 
-export interface IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> extends IWorkbenchCompressibleObjectTreeOptionsUpdate, ICompressibleObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchCompwessibweObjectTweeOptions<T, TFiwtewData> extends IWowkbenchCompwessibweObjectTweeOptionsUpdate, ICompwessibweObjectTweeOptions<T, TFiwtewData>, IWesouwceNavigatowOptions {
+	weadonwy accessibiwityPwovida: IWistAccessibiwityPwovida<T>;
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends CompressibleObjectTree<T, TFilterData> {
+expowt cwass WowkbenchCompwessibweObjectTwee<T extends NonNuwwabwe<any>, TFiwtewData = void> extends CompwessibweObjectTwee<T, TFiwtewData> {
 
-	private internals: WorkbenchTreeInternals<any, T, TFilterData>;
-	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
-	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.internals.onDidOpen; }
+	pwivate intewnaws: WowkbenchTweeIntewnaws<any, T, TFiwtewData>;
+	get contextKeySewvice(): IContextKeySewvice { wetuwn this.intewnaws.contextKeySewvice; }
+	get useAwtAsMuwtipweSewectionModifia(): boowean { wetuwn this.intewnaws.useAwtAsMuwtipweSewectionModifia; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.intewnaws.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
-		options: IWorkbenchCompressibleObjectTreeOptions<T, TFilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ICompwessibweTweeWendewa<T, TFiwtewData, any>[],
+		options: IWowkbenchCompwessibweObjectTweeOptions<T, TFiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchCompressibleObjectTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
-		super(user, container, delegate, renderers, treeOptions);
-		this.disposables.add(disposable);
-		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.add(this.internals);
+		const { options: tweeOptions, getAutomaticKeyboawdNavigation, disposabwe } = wowkbenchTweeDataPweambwe<T, TFiwtewData, IWowkbenchCompwessibweObjectTweeOptions<T, TFiwtewData>>(containa, options, contextKeySewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
+		supa(usa, containa, dewegate, wendewews, tweeOptions);
+		this.disposabwes.add(disposabwe);
+		this.intewnaws = new WowkbenchTweeIntewnaws(this, options, getAutomaticKeyboawdNavigation, options.ovewwideStywes, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, accessibiwitySewvice);
+		this.disposabwes.add(this.intewnaws);
 	}
 
-	override updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchCompwessibweObjectTweeOptionsUpdate = {}): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.internals.updateStyleOverrides(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.intewnaws.updateStyweOvewwides(options.ovewwideStywes);
 		}
 
-		this.internals.updateOptions(options);
+		this.intewnaws.updateOptions(options);
 	}
 }
 
-export interface IWorkbenchDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate {
-	readonly overrideStyles?: IColorMapping;
+expowt intewface IWowkbenchDataTweeOptionsUpdate extends IAbstwactTweeOptionsUpdate {
+	weadonwy ovewwideStywes?: ICowowMapping;
 }
 
-export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate, IDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchDataTweeOptions<T, TFiwtewData> extends IWowkbenchDataTweeOptionsUpdate, IDataTweeOptions<T, TFiwtewData>, IWesouwceNavigatowOptions {
+	weadonwy accessibiwityPwovida: IWistAccessibiwityPwovida<T>;
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<TInput, T, TFilterData> {
+expowt cwass WowkbenchDataTwee<TInput, T, TFiwtewData = void> extends DataTwee<TInput, T, TFiwtewData> {
 
-	private internals: WorkbenchTreeInternals<TInput, T, TFilterData>;
-	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
-	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.internals.onDidOpen; }
+	pwivate intewnaws: WowkbenchTweeIntewnaws<TInput, T, TFiwtewData>;
+	get contextKeySewvice(): IContextKeySewvice { wetuwn this.intewnaws.contextKeySewvice; }
+	get useAwtAsMuwtipweSewectionModifia(): boowean { wetuwn this.intewnaws.useAwtAsMuwtipweSewectionModifia; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.intewnaws.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		dataSource: IDataSource<TInput, T>,
-		options: IWorkbenchDataTreeOptions<T, TFilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		dataSouwce: IDataSouwce<TInput, T>,
+		options: IWowkbenchDataTweeOptions<T, TFiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
-		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.add(disposable);
-		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.add(this.internals);
+		const { options: tweeOptions, getAutomaticKeyboawdNavigation, disposabwe } = wowkbenchTweeDataPweambwe<T, TFiwtewData, IWowkbenchDataTweeOptions<T, TFiwtewData>>(containa, options, contextKeySewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
+		supa(usa, containa, dewegate, wendewews, dataSouwce, tweeOptions);
+		this.disposabwes.add(disposabwe);
+		this.intewnaws = new WowkbenchTweeIntewnaws(this, options, getAutomaticKeyboawdNavigation, options.ovewwideStywes, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, accessibiwitySewvice);
+		this.disposabwes.add(this.intewnaws);
 	}
 
-	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchDataTweeOptionsUpdate = {}): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.internals.updateStyleOverrides(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.intewnaws.updateStyweOvewwides(options.ovewwideStywes);
 		}
 
-		this.internals.updateOptions(options);
+		this.intewnaws.updateOptions(options);
 	}
 }
 
-export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
-	readonly overrideStyles?: IColorMapping;
+expowt intewface IWowkbenchAsyncDataTweeOptionsUpdate extends IAsyncDataTweeOptionsUpdate {
+	weadonwy ovewwideStywes?: ICowowMapping;
 }
 
-export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate, IAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchAsyncDataTweeOptions<T, TFiwtewData> extends IWowkbenchAsyncDataTweeOptionsUpdate, IAsyncDataTweeOptions<T, TFiwtewData>, IWesouwceNavigatowOptions {
+	weadonwy accessibiwityPwovida: IWistAccessibiwityPwovida<T>;
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends AsyncDataTree<TInput, T, TFilterData> {
+expowt cwass WowkbenchAsyncDataTwee<TInput, T, TFiwtewData = void> extends AsyncDataTwee<TInput, T, TFiwtewData> {
 
-	private internals: WorkbenchTreeInternals<TInput, T, TFilterData>;
-	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
-	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.internals.onDidOpen; }
+	pwivate intewnaws: WowkbenchTweeIntewnaws<TInput, T, TFiwtewData>;
+	get contextKeySewvice(): IContextKeySewvice { wetuwn this.intewnaws.contextKeySewvice; }
+	get useAwtAsMuwtipweSewectionModifia(): boowean { wetuwn this.intewnaws.useAwtAsMuwtipweSewectionModifia; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.intewnaws.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
-		renderers: ITreeRenderer<T, TFilterData, any>[],
-		dataSource: IAsyncDataSource<TInput, T>,
-		options: IWorkbenchAsyncDataTreeOptions<T, TFilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<T>,
+		wendewews: ITweeWendewa<T, TFiwtewData, any>[],
+		dataSouwce: IAsyncDataSouwce<TInput, T>,
+		options: IWowkbenchAsyncDataTweeOptions<T, TFiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchAsyncDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
-		super(user, container, delegate, renderers, dataSource, treeOptions);
-		this.disposables.add(disposable);
-		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.add(this.internals);
+		const { options: tweeOptions, getAutomaticKeyboawdNavigation, disposabwe } = wowkbenchTweeDataPweambwe<T, TFiwtewData, IWowkbenchAsyncDataTweeOptions<T, TFiwtewData>>(containa, options, contextKeySewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
+		supa(usa, containa, dewegate, wendewews, dataSouwce, tweeOptions);
+		this.disposabwes.add(disposabwe);
+		this.intewnaws = new WowkbenchTweeIntewnaws(this, options, getAutomaticKeyboawdNavigation, options.ovewwideStywes, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, accessibiwitySewvice);
+		this.disposabwes.add(this.intewnaws);
 	}
 
-	override updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
-		super.updateOptions(options);
+	ovewwide updateOptions(options: IWowkbenchAsyncDataTweeOptionsUpdate = {}): void {
+		supa.updateOptions(options);
 
-		if (options.overrideStyles) {
-			this.internals.updateStyleOverrides(options.overrideStyles);
+		if (options.ovewwideStywes) {
+			this.intewnaws.updateStyweOvewwides(options.ovewwideStywes);
 		}
 
-		this.internals.updateOptions(options);
+		this.intewnaws.updateOptions(options);
 	}
 }
 
-export interface IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData> extends ICompressibleAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
-	readonly overrideStyles?: IColorMapping;
-	readonly selectionNavigation?: boolean;
+expowt intewface IWowkbenchCompwessibweAsyncDataTweeOptions<T, TFiwtewData> extends ICompwessibweAsyncDataTweeOptions<T, TFiwtewData>, IWesouwceNavigatowOptions {
+	weadonwy accessibiwityPwovida: IWistAccessibiwityPwovida<T>;
+	weadonwy ovewwideStywes?: ICowowMapping;
+	weadonwy sewectionNavigation?: boowean;
 }
 
-export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> extends CompressibleAsyncDataTree<TInput, T, TFilterData> {
+expowt cwass WowkbenchCompwessibweAsyncDataTwee<TInput, T, TFiwtewData = void> extends CompwessibweAsyncDataTwee<TInput, T, TFiwtewData> {
 
-	private internals: WorkbenchTreeInternals<TInput, T, TFilterData>;
-	get contextKeyService(): IContextKeyService { return this.internals.contextKeyService; }
-	get useAltAsMultipleSelectionModifier(): boolean { return this.internals.useAltAsMultipleSelectionModifier; }
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.internals.onDidOpen; }
+	pwivate intewnaws: WowkbenchTweeIntewnaws<TInput, T, TFiwtewData>;
+	get contextKeySewvice(): IContextKeySewvice { wetuwn this.intewnaws.contextKeySewvice; }
+	get useAwtAsMuwtipweSewectionModifia(): boowean { wetuwn this.intewnaws.useAwtAsMuwtipweSewectionModifia; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.intewnaws.onDidOpen; }
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<T>,
-		compressionDelegate: ITreeCompressionDelegate<T>,
-		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
-		dataSource: IAsyncDataSource<TInput, T>,
-		options: IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		viwtuawDewegate: IWistViwtuawDewegate<T>,
+		compwessionDewegate: ITweeCompwessionDewegate<T>,
+		wendewews: ICompwessibweTweeWendewa<T, TFiwtewData, any>[],
+		dataSouwce: IAsyncDataSouwce<TInput, T>,
+		options: IWowkbenchCompwessibweAsyncDataTweeOptions<T, TFiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		const { options: treeOptions, getAutomaticKeyboardNavigation, disposable } = workbenchTreeDataPreamble<T, TFilterData, IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData>>(container, options, contextKeyService, configurationService, keybindingService, accessibilityService);
-		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
-		this.disposables.add(disposable);
-		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
-		this.disposables.add(this.internals);
+		const { options: tweeOptions, getAutomaticKeyboawdNavigation, disposabwe } = wowkbenchTweeDataPweambwe<T, TFiwtewData, IWowkbenchCompwessibweAsyncDataTweeOptions<T, TFiwtewData>>(containa, options, contextKeySewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
+		supa(usa, containa, viwtuawDewegate, compwessionDewegate, wendewews, dataSouwce, tweeOptions);
+		this.disposabwes.add(disposabwe);
+		this.intewnaws = new WowkbenchTweeIntewnaws(this, options, getAutomaticKeyboawdNavigation, options.ovewwideStywes, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, accessibiwitySewvice);
+		this.disposabwes.add(this.intewnaws);
 	}
 
-	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate): void {
-		super.updateOptions(options);
-		this.internals.updateOptions(options);
+	ovewwide updateOptions(options: ICompwessibweAsyncDataTweeOptionsUpdate): void {
+		supa.updateOptions(options);
+		this.intewnaws.updateOptions(options);
 	}
 }
 
-function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTreeOptions<T, TFilterData> | IAsyncDataTreeOptions<T, TFilterData>>(
-	container: HTMLElement,
+function wowkbenchTweeDataPweambwe<T, TFiwtewData, TOptions extends IAbstwactTweeOptions<T, TFiwtewData> | IAsyncDataTweeOptions<T, TFiwtewData>>(
+	containa: HTMWEwement,
 	options: TOptions,
-	contextKeyService: IContextKeyService,
-	configurationService: IConfigurationService,
-	keybindingService: IKeybindingService,
-	accessibilityService: IAccessibilityService,
-): { options: TOptions, getAutomaticKeyboardNavigation: () => boolean | undefined, disposable: IDisposable } {
-	const getAutomaticKeyboardNavigation = () => {
-		// give priority to the context key value to disable this completely
-		let automaticKeyboardNavigation = Boolean(contextKeyService.getContextKeyValue(WorkbenchListAutomaticKeyboardNavigationKey));
+	contextKeySewvice: IContextKeySewvice,
+	configuwationSewvice: IConfiguwationSewvice,
+	keybindingSewvice: IKeybindingSewvice,
+	accessibiwitySewvice: IAccessibiwitySewvice,
+): { options: TOptions, getAutomaticKeyboawdNavigation: () => boowean | undefined, disposabwe: IDisposabwe } {
+	const getAutomaticKeyboawdNavigation = () => {
+		// give pwiowity to the context key vawue to disabwe this compwetewy
+		wet automaticKeyboawdNavigation = Boowean(contextKeySewvice.getContextKeyVawue(WowkbenchWistAutomaticKeyboawdNavigationKey));
 
-		if (automaticKeyboardNavigation) {
-			automaticKeyboardNavigation = Boolean(configurationService.getValue(automaticKeyboardNavigationSettingKey));
+		if (automaticKeyboawdNavigation) {
+			automaticKeyboawdNavigation = Boowean(configuwationSewvice.getVawue(automaticKeyboawdNavigationSettingKey));
 		}
 
-		return automaticKeyboardNavigation;
+		wetuwn automaticKeyboawdNavigation;
 	};
 
-	const accessibilityOn = accessibilityService.isScreenReaderOptimized();
-	const keyboardNavigation = options.simpleKeyboardNavigation || accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
-	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
-	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
-	const additionalScrollHeight = options.additionalScrollHeight;
+	const accessibiwityOn = accessibiwitySewvice.isScweenWeadewOptimized();
+	const keyboawdNavigation = options.simpweKeyboawdNavigation || accessibiwityOn ? 'simpwe' : configuwationSewvice.getVawue<stwing>(keyboawdNavigationSettingKey);
+	const howizontawScwowwing = options.howizontawScwowwing !== undefined ? options.howizontawScwowwing : Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+	const [wowkbenchWistOptions, disposabwe] = toWowkbenchWistOptions(options, configuwationSewvice, keybindingSewvice);
+	const additionawScwowwHeight = options.additionawScwowwHeight;
 
-	return {
-		getAutomaticKeyboardNavigation,
-		disposable,
+	wetuwn {
+		getAutomaticKeyboawdNavigation,
+		disposabwe,
 		options: {
-			// ...options, // TODO@Joao why is this not splatted here?
-			keyboardSupport: false,
-			...workbenchListOptions,
-			indent: typeof configurationService.getValue(treeIndentKey) === 'number' ? configurationService.getValue(treeIndentKey) : undefined,
-			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
-			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
-			automaticKeyboardNavigation: getAutomaticKeyboardNavigation(),
-			simpleKeyboardNavigation: keyboardNavigation === 'simple',
-			filterOnType: keyboardNavigation === 'filter',
-			horizontalScrolling,
-			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
-			additionalScrollHeight,
-			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
-			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick')
+			// ...options, // TODO@Joao why is this not spwatted hewe?
+			keyboawdSuppowt: fawse,
+			...wowkbenchWistOptions,
+			indent: typeof configuwationSewvice.getVawue(tweeIndentKey) === 'numba' ? configuwationSewvice.getVawue(tweeIndentKey) : undefined,
+			wendewIndentGuides: configuwationSewvice.getVawue<WendewIndentGuides>(tweeWendewIndentGuidesKey),
+			smoothScwowwing: Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing)),
+			automaticKeyboawdNavigation: getAutomaticKeyboawdNavigation(),
+			simpweKeyboawdNavigation: keyboawdNavigation === 'simpwe',
+			fiwtewOnType: keyboawdNavigation === 'fiwta',
+			howizontawScwowwing,
+			keyboawdNavigationEventFiwta: cweateKeyboawdNavigationEventFiwta(containa, keybindingSewvice),
+			additionawScwowwHeight,
+			hideTwistiesOfChiwdwessEwements: options.hideTwistiesOfChiwdwessEwements,
+			expandOnwyOnTwistieCwick: options.expandOnwyOnTwistieCwick ?? (configuwationSewvice.getVawue<'singweCwick' | 'doubweCwick'>(tweeExpandMode) === 'doubweCwick')
 		} as TOptions
 	};
 }
 
-interface IWorkbenchTreeInternalsOptionsUpdate {
-	readonly multipleSelectionSupport?: boolean;
+intewface IWowkbenchTweeIntewnawsOptionsUpdate {
+	weadonwy muwtipweSewectionSuppowt?: boowean;
 }
 
-class WorkbenchTreeInternals<TInput, T, TFilterData> {
+cwass WowkbenchTweeIntewnaws<TInput, T, TFiwtewData> {
 
-	readonly contextKeyService: IContextKeyService;
-	private listSupportsMultiSelect: IContextKey<boolean>;
-	private hasSelectionOrFocus: IContextKey<boolean>;
-	private hasDoubleSelection: IContextKey<boolean>;
-	private hasMultiSelection: IContextKey<boolean>;
-	private _useAltAsMultipleSelectionModifier: boolean;
-	private disposables: IDisposable[] = [];
-	private styler: IDisposable | undefined;
-	private navigator: TreeResourceNavigator<T, TFilterData>;
+	weadonwy contextKeySewvice: IContextKeySewvice;
+	pwivate wistSuppowtsMuwtiSewect: IContextKey<boowean>;
+	pwivate hasSewectionOwFocus: IContextKey<boowean>;
+	pwivate hasDoubweSewection: IContextKey<boowean>;
+	pwivate hasMuwtiSewection: IContextKey<boowean>;
+	pwivate _useAwtAsMuwtipweSewectionModifia: boowean;
+	pwivate disposabwes: IDisposabwe[] = [];
+	pwivate stywa: IDisposabwe | undefined;
+	pwivate navigatow: TweeWesouwceNavigatow<T, TFiwtewData>;
 
-	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
+	get onDidOpen(): Event<IOpenEvent<T | undefined>> { wetuwn this.navigatow.onDidOpen; }
 
-	constructor(
-		private tree: WorkbenchObjectTree<T, TFilterData> | WorkbenchCompressibleObjectTree<T, TFilterData> | WorkbenchDataTree<TInput, T, TFilterData> | WorkbenchAsyncDataTree<TInput, T, TFilterData> | WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData>,
-		options: IWorkbenchObjectTreeOptions<T, TFilterData> | IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> | IWorkbenchDataTreeOptions<T, TFilterData> | IWorkbenchAsyncDataTreeOptions<T, TFilterData> | IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData>,
-		getAutomaticKeyboardNavigation: () => boolean | undefined,
-		overrideStyles: IColorMapping | undefined,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService private themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
+	constwuctow(
+		pwivate twee: WowkbenchObjectTwee<T, TFiwtewData> | WowkbenchCompwessibweObjectTwee<T, TFiwtewData> | WowkbenchDataTwee<TInput, T, TFiwtewData> | WowkbenchAsyncDataTwee<TInput, T, TFiwtewData> | WowkbenchCompwessibweAsyncDataTwee<TInput, T, TFiwtewData>,
+		options: IWowkbenchObjectTweeOptions<T, TFiwtewData> | IWowkbenchCompwessibweObjectTweeOptions<T, TFiwtewData> | IWowkbenchDataTweeOptions<T, TFiwtewData> | IWowkbenchAsyncDataTweeOptions<T, TFiwtewData> | IWowkbenchCompwessibweAsyncDataTweeOptions<T, TFiwtewData>,
+		getAutomaticKeyboawdNavigation: () => boowean | undefined,
+		ovewwideStywes: ICowowMapping | undefined,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice pwivate themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
 	) {
-		this.contextKeyService = createScopedContextKeyService(contextKeyService, tree);
+		this.contextKeySewvice = cweateScopedContextKeySewvice(contextKeySewvice, twee);
 
-		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
-		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
+		this.wistSuppowtsMuwtiSewect = WowkbenchWistSuppowtsMuwtiSewectContextKey.bindTo(this.contextKeySewvice);
+		this.wistSuppowtsMuwtiSewect.set(options.muwtipweSewectionSuppowt !== fawse);
 
-		const listSelectionNavigation = WorkbenchListSelectionNavigation.bindTo(this.contextKeyService);
-		listSelectionNavigation.set(Boolean(options.selectionNavigation));
+		const wistSewectionNavigation = WowkbenchWistSewectionNavigation.bindTo(this.contextKeySewvice);
+		wistSewectionNavigation.set(Boowean(options.sewectionNavigation));
 
-		this.hasSelectionOrFocus = WorkbenchListHasSelectionOrFocus.bindTo(this.contextKeyService);
-		this.hasDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
-		this.hasMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
+		this.hasSewectionOwFocus = WowkbenchWistHasSewectionOwFocus.bindTo(this.contextKeySewvice);
+		this.hasDoubweSewection = WowkbenchWistDoubweSewection.bindTo(this.contextKeySewvice);
+		this.hasMuwtiSewection = WowkbenchWistMuwtiSewection.bindTo(this.contextKeySewvice);
 
-		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+		this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 
-		const interestingContextKeys = new Set();
-		interestingContextKeys.add(WorkbenchListAutomaticKeyboardNavigationKey);
-		const updateKeyboardNavigation = () => {
-			const accessibilityOn = accessibilityService.isScreenReaderOptimized();
-			const keyboardNavigation = accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
-			tree.updateOptions({
-				simpleKeyboardNavigation: keyboardNavigation === 'simple',
-				filterOnType: keyboardNavigation === 'filter'
+		const intewestingContextKeys = new Set();
+		intewestingContextKeys.add(WowkbenchWistAutomaticKeyboawdNavigationKey);
+		const updateKeyboawdNavigation = () => {
+			const accessibiwityOn = accessibiwitySewvice.isScweenWeadewOptimized();
+			const keyboawdNavigation = accessibiwityOn ? 'simpwe' : configuwationSewvice.getVawue<stwing>(keyboawdNavigationSettingKey);
+			twee.updateOptions({
+				simpweKeyboawdNavigation: keyboawdNavigation === 'simpwe',
+				fiwtewOnType: keyboawdNavigation === 'fiwta'
 			});
 		};
 
-		this.updateStyleOverrides(overrideStyles);
+		this.updateStyweOvewwides(ovewwideStywes);
 
-		this.disposables.push(
-			this.contextKeyService,
-			(listService as ListService).register(tree),
-			tree.onDidChangeSelection(() => {
-				const selection = tree.getSelection();
-				const focus = tree.getFocus();
+		this.disposabwes.push(
+			this.contextKeySewvice,
+			(wistSewvice as WistSewvice).wegista(twee),
+			twee.onDidChangeSewection(() => {
+				const sewection = twee.getSewection();
+				const focus = twee.getFocus();
 
-				this.contextKeyService.bufferChangeEvents(() => {
-					this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
-					this.hasMultiSelection.set(selection.length > 1);
-					this.hasDoubleSelection.set(selection.length === 2);
+				this.contextKeySewvice.buffewChangeEvents(() => {
+					this.hasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
+					this.hasMuwtiSewection.set(sewection.wength > 1);
+					this.hasDoubweSewection.set(sewection.wength === 2);
 				});
 			}),
-			tree.onDidChangeFocus(() => {
-				const selection = tree.getSelection();
-				const focus = tree.getFocus();
+			twee.onDidChangeFocus(() => {
+				const sewection = twee.getSewection();
+				const focus = twee.getFocus();
 
-				this.hasSelectionOrFocus.set(selection.length > 0 || focus.length > 0);
+				this.hasSewectionOwFocus.set(sewection.wength > 0 || focus.wength > 0);
 			}),
-			configurationService.onDidChangeConfiguration(e => {
-				let newOptions: IAbstractTreeOptionsUpdate = {};
-				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
-					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
+			configuwationSewvice.onDidChangeConfiguwation(e => {
+				wet newOptions: IAbstwactTweeOptionsUpdate = {};
+				if (e.affectsConfiguwation(muwtiSewectModifiewSettingKey)) {
+					this._useAwtAsMuwtipweSewectionModifia = useAwtAsMuwtipweSewectionModifia(configuwationSewvice);
 				}
-				if (e.affectsConfiguration(treeIndentKey)) {
-					const indent = configurationService.getValue<number>(treeIndentKey);
+				if (e.affectsConfiguwation(tweeIndentKey)) {
+					const indent = configuwationSewvice.getVawue<numba>(tweeIndentKey);
 					newOptions = { ...newOptions, indent };
 				}
-				if (e.affectsConfiguration(treeRenderIndentGuidesKey)) {
-					const renderIndentGuides = configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
-					newOptions = { ...newOptions, renderIndentGuides };
+				if (e.affectsConfiguwation(tweeWendewIndentGuidesKey)) {
+					const wendewIndentGuides = configuwationSewvice.getVawue<WendewIndentGuides>(tweeWendewIndentGuidesKey);
+					newOptions = { ...newOptions, wendewIndentGuides };
 				}
-				if (e.affectsConfiguration(listSmoothScrolling)) {
-					const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
-					newOptions = { ...newOptions, smoothScrolling };
+				if (e.affectsConfiguwation(wistSmoothScwowwing)) {
+					const smoothScwowwing = Boowean(configuwationSewvice.getVawue(wistSmoothScwowwing));
+					newOptions = { ...newOptions, smoothScwowwing };
 				}
-				if (e.affectsConfiguration(keyboardNavigationSettingKey)) {
-					updateKeyboardNavigation();
+				if (e.affectsConfiguwation(keyboawdNavigationSettingKey)) {
+					updateKeyboawdNavigation();
 				}
-				if (e.affectsConfiguration(automaticKeyboardNavigationSettingKey)) {
-					newOptions = { ...newOptions, automaticKeyboardNavigation: getAutomaticKeyboardNavigation() };
+				if (e.affectsConfiguwation(automaticKeyboawdNavigationSettingKey)) {
+					newOptions = { ...newOptions, automaticKeyboawdNavigation: getAutomaticKeyboawdNavigation() };
 				}
-				if (e.affectsConfiguration(horizontalScrollingKey) && options.horizontalScrolling === undefined) {
-					const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
-					newOptions = { ...newOptions, horizontalScrolling };
+				if (e.affectsConfiguwation(howizontawScwowwingKey) && options.howizontawScwowwing === undefined) {
+					const howizontawScwowwing = Boowean(configuwationSewvice.getVawue(howizontawScwowwingKey));
+					newOptions = { ...newOptions, howizontawScwowwing };
 				}
-				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
-					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
+				if (e.affectsConfiguwation(tweeExpandMode) && options.expandOnwyOnTwistieCwick === undefined) {
+					newOptions = { ...newOptions, expandOnwyOnTwistieCwick: configuwationSewvice.getVawue<'singweCwick' | 'doubweCwick'>(tweeExpandMode) === 'doubweCwick' };
 				}
-				if (e.affectsConfiguration(mouseWheelScrollSensitivityKey)) {
-					const mouseWheelScrollSensitivity = configurationService.getValue<number>(mouseWheelScrollSensitivityKey);
-					newOptions = { ...newOptions, mouseWheelScrollSensitivity };
+				if (e.affectsConfiguwation(mouseWheewScwowwSensitivityKey)) {
+					const mouseWheewScwowwSensitivity = configuwationSewvice.getVawue<numba>(mouseWheewScwowwSensitivityKey);
+					newOptions = { ...newOptions, mouseWheewScwowwSensitivity };
 				}
-				if (e.affectsConfiguration(fastScrollSensitivityKey)) {
-					const fastScrollSensitivity = configurationService.getValue<number>(fastScrollSensitivityKey);
-					newOptions = { ...newOptions, fastScrollSensitivity };
+				if (e.affectsConfiguwation(fastScwowwSensitivityKey)) {
+					const fastScwowwSensitivity = configuwationSewvice.getVawue<numba>(fastScwowwSensitivityKey);
+					newOptions = { ...newOptions, fastScwowwSensitivity };
 				}
-				if (Object.keys(newOptions).length > 0) {
-					tree.updateOptions(newOptions);
-				}
-			}),
-			this.contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(interestingContextKeys)) {
-					tree.updateOptions({ automaticKeyboardNavigation: getAutomaticKeyboardNavigation() });
+				if (Object.keys(newOptions).wength > 0) {
+					twee.updateOptions(newOptions);
 				}
 			}),
-			accessibilityService.onDidChangeScreenReaderOptimized(() => updateKeyboardNavigation())
+			this.contextKeySewvice.onDidChangeContext(e => {
+				if (e.affectsSome(intewestingContextKeys)) {
+					twee.updateOptions({ automaticKeyboawdNavigation: getAutomaticKeyboawdNavigation() });
+				}
+			}),
+			accessibiwitySewvice.onDidChangeScweenWeadewOptimized(() => updateKeyboawdNavigation())
 		);
 
-		this.navigator = new TreeResourceNavigator(tree, { configurationService, ...options });
-		this.disposables.push(this.navigator);
+		this.navigatow = new TweeWesouwceNavigatow(twee, { configuwationSewvice, ...options });
+		this.disposabwes.push(this.navigatow);
 	}
 
-	get useAltAsMultipleSelectionModifier(): boolean {
-		return this._useAltAsMultipleSelectionModifier;
+	get useAwtAsMuwtipweSewectionModifia(): boowean {
+		wetuwn this._useAwtAsMuwtipweSewectionModifia;
 	}
 
-	updateOptions(options: IWorkbenchTreeInternalsOptionsUpdate): void {
-		if (options.multipleSelectionSupport !== undefined) {
-			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
+	updateOptions(options: IWowkbenchTweeIntewnawsOptionsUpdate): void {
+		if (options.muwtipweSewectionSuppowt !== undefined) {
+			this.wistSuppowtsMuwtiSewect.set(!!options.muwtipweSewectionSuppowt);
 		}
 	}
 
-	updateStyleOverrides(overrideStyles?: IColorMapping): void {
-		dispose(this.styler);
-		this.styler = overrideStyles ? attachListStyler(this.tree, this.themeService, overrideStyles) : Disposable.None;
+	updateStyweOvewwides(ovewwideStywes?: ICowowMapping): void {
+		dispose(this.stywa);
+		this.stywa = ovewwideStywes ? attachWistStywa(this.twee, this.themeSewvice, ovewwideStywes) : Disposabwe.None;
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		dispose(this.styler);
-		this.styler = undefined;
+		this.disposabwes = dispose(this.disposabwes);
+		dispose(this.stywa);
+		this.stywa = undefined;
 	}
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
 
-configurationRegistry.registerConfiguration({
-	id: 'workbench',
-	order: 7,
-	title: localize('workbenchConfigurationTitle', "Workbench"),
+configuwationWegistwy.wegistewConfiguwation({
+	id: 'wowkbench',
+	owda: 7,
+	titwe: wocawize('wowkbenchConfiguwationTitwe', "Wowkbench"),
 	type: 'object',
-	properties: {
-		[multiSelectModifierSettingKey]: {
-			type: 'string',
-			enum: ['ctrlCmd', 'alt'],
-			enumDescriptions: [
-				localize('multiSelectModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
-				localize('multiSelectModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
+	pwopewties: {
+		[muwtiSewectModifiewSettingKey]: {
+			type: 'stwing',
+			enum: ['ctwwCmd', 'awt'],
+			enumDescwiptions: [
+				wocawize('muwtiSewectModifia.ctwwCmd', "Maps to `Contwow` on Windows and Winux and to `Command` on macOS."),
+				wocawize('muwtiSewectModifia.awt', "Maps to `Awt` on Windows and Winux and to `Option` on macOS.")
 			],
-			default: 'ctrlCmd',
-			description: localize({
-				key: 'multiSelectModifier',
+			defauwt: 'ctwwCmd',
+			descwiption: wocawize({
+				key: 'muwtiSewectModifia',
 				comment: [
-					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
-					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
+					'- `ctwwCmd` wefews to a vawue the setting can take and shouwd not be wocawized.',
+					'- `Contwow` and `Command` wefa to the modifia keys Ctww ow Cmd on the keyboawd and can be wocawized.'
 				]
-			}, "The modifier to be used to add an item in trees and lists to a multi-selection with the mouse (for example in the explorer, open editors and scm view). The 'Open to Side' mouse gestures - if supported - will adapt such that they do not conflict with the multiselect modifier.")
+			}, "The modifia to be used to add an item in twees and wists to a muwti-sewection with the mouse (fow exampwe in the expwowa, open editows and scm view). The 'Open to Side' mouse gestuwes - if suppowted - wiww adapt such that they do not confwict with the muwtisewect modifia.")
 		},
 		[openModeSettingKey]: {
-			type: 'string',
-			enum: ['singleClick', 'doubleClick'],
-			default: 'singleClick',
-			description: localize({
-				key: 'openModeModifier',
-				comment: ['`singleClick` and `doubleClick` refers to a value the setting can take and should not be localized.']
-			}, "Controls how to open items in trees and lists using the mouse (if supported). Note that some trees and lists might choose to ignore this setting if it is not applicable.")
+			type: 'stwing',
+			enum: ['singweCwick', 'doubweCwick'],
+			defauwt: 'singweCwick',
+			descwiption: wocawize({
+				key: 'openModeModifia',
+				comment: ['`singweCwick` and `doubweCwick` wefews to a vawue the setting can take and shouwd not be wocawized.']
+			}, "Contwows how to open items in twees and wists using the mouse (if suppowted). Note that some twees and wists might choose to ignowe this setting if it is not appwicabwe.")
 		},
-		[horizontalScrollingKey]: {
-			type: 'boolean',
-			default: false,
-			description: localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench. Warning: turning on this setting has a performance implication.")
+		[howizontawScwowwingKey]: {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: wocawize('howizontawScwowwing setting', "Contwows whetha wists and twees suppowt howizontaw scwowwing in the wowkbench. Wawning: tuwning on this setting has a pewfowmance impwication.")
 		},
-		[treeIndentKey]: {
-			type: 'number',
-			default: 8,
+		[tweeIndentKey]: {
+			type: 'numba',
+			defauwt: 8,
 			minimum: 0,
 			maximum: 40,
-			description: localize('tree indent setting', "Controls tree indentation in pixels.")
+			descwiption: wocawize('twee indent setting', "Contwows twee indentation in pixews.")
 		},
-		[treeRenderIndentGuidesKey]: {
-			type: 'string',
-			enum: ['none', 'onHover', 'always'],
-			default: 'onHover',
-			description: localize('render tree indent guides', "Controls whether the tree should render indent guides.")
+		[tweeWendewIndentGuidesKey]: {
+			type: 'stwing',
+			enum: ['none', 'onHova', 'awways'],
+			defauwt: 'onHova',
+			descwiption: wocawize('wenda twee indent guides', "Contwows whetha the twee shouwd wenda indent guides.")
 		},
-		[listSmoothScrolling]: {
-			type: 'boolean',
-			default: false,
-			description: localize('list smoothScrolling setting', "Controls whether lists and trees have smooth scrolling."),
+		[wistSmoothScwowwing]: {
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: wocawize('wist smoothScwowwing setting', "Contwows whetha wists and twees have smooth scwowwing."),
 		},
-		[mouseWheelScrollSensitivityKey]: {
-			type: 'number',
-			default: 1,
-			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the deltaX and deltaY of mouse wheel scroll events.")
+		[mouseWheewScwowwSensitivityKey]: {
+			type: 'numba',
+			defauwt: 1,
+			descwiption: wocawize('Mouse Wheew Scwoww Sensitivity', "A muwtipwia to be used on the dewtaX and dewtaY of mouse wheew scwoww events.")
 		},
-		[fastScrollSensitivityKey]: {
-			type: 'number',
-			default: 5,
-			description: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing Alt.")
+		[fastScwowwSensitivityKey]: {
+			type: 'numba',
+			defauwt: 5,
+			descwiption: wocawize('Fast Scwoww Sensitivity', "Scwowwing speed muwtipwia when pwessing Awt.")
 		},
-		[keyboardNavigationSettingKey]: {
-			type: 'string',
-			enum: ['simple', 'highlight', 'filter'],
-			enumDescriptions: [
-				localize('keyboardNavigationSettingKey.simple', "Simple keyboard navigation focuses elements which match the keyboard input. Matching is done only on prefixes."),
-				localize('keyboardNavigationSettingKey.highlight', "Highlight keyboard navigation highlights elements which match the keyboard input. Further up and down navigation will traverse only the highlighted elements."),
-				localize('keyboardNavigationSettingKey.filter', "Filter keyboard navigation will filter out and hide all the elements which do not match the keyboard input.")
+		[keyboawdNavigationSettingKey]: {
+			type: 'stwing',
+			enum: ['simpwe', 'highwight', 'fiwta'],
+			enumDescwiptions: [
+				wocawize('keyboawdNavigationSettingKey.simpwe', "Simpwe keyboawd navigation focuses ewements which match the keyboawd input. Matching is done onwy on pwefixes."),
+				wocawize('keyboawdNavigationSettingKey.highwight', "Highwight keyboawd navigation highwights ewements which match the keyboawd input. Fuwtha up and down navigation wiww twavewse onwy the highwighted ewements."),
+				wocawize('keyboawdNavigationSettingKey.fiwta', "Fiwta keyboawd navigation wiww fiwta out and hide aww the ewements which do not match the keyboawd input.")
 			],
-			default: 'highlight',
-			description: localize('keyboardNavigationSettingKey', "Controls the keyboard navigation style for lists and trees in the workbench. Can be simple, highlight and filter.")
+			defauwt: 'highwight',
+			descwiption: wocawize('keyboawdNavigationSettingKey', "Contwows the keyboawd navigation stywe fow wists and twees in the wowkbench. Can be simpwe, highwight and fiwta.")
 		},
-		[automaticKeyboardNavigationSettingKey]: {
-			type: 'boolean',
-			default: true,
-			markdownDescription: localize('automatic keyboard navigation setting', "Controls whether keyboard navigation in lists and trees is automatically triggered simply by typing. If set to `false`, keyboard navigation is only triggered when executing the `list.toggleKeyboardNavigation` command, for which you can assign a keyboard shortcut.")
+		[automaticKeyboawdNavigationSettingKey]: {
+			type: 'boowean',
+			defauwt: twue,
+			mawkdownDescwiption: wocawize('automatic keyboawd navigation setting', "Contwows whetha keyboawd navigation in wists and twees is automaticawwy twiggewed simpwy by typing. If set to `fawse`, keyboawd navigation is onwy twiggewed when executing the `wist.toggweKeyboawdNavigation` command, fow which you can assign a keyboawd showtcut.")
 		},
-		[treeExpandMode]: {
-			type: 'string',
-			enum: ['singleClick', 'doubleClick'],
-			default: 'singleClick',
-			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		[tweeExpandMode]: {
+			type: 'stwing',
+			enum: ['singweCwick', 'doubweCwick'],
+			defauwt: 'singweCwick',
+			descwiption: wocawize('expand mode', "Contwows how twee fowdews awe expanded when cwicking the fowda names. Note that some twees and wists might choose to ignowe this setting if it is not appwicabwe."),
 		}
 	}
 });

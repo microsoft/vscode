@@ -1,265 +1,265 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import type * as Proto from '../protocol';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as errorCodes from '../utils/errorCodes';
-import * as fixNames from '../utils/fixNames';
-import * as typeConverters from '../utils/typeConverters';
-import { DiagnosticsManager } from './diagnostics';
-import FileConfigurationManager from './fileConfigurationManager';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt type * as Pwoto fwom '../pwotocow';
+impowt { CwientCapabiwity, ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt API fwom '../utiws/api';
+impowt { conditionawWegistwation, wequiweMinVewsion, wequiweSomeCapabiwity } fwom '../utiws/dependentWegistwation';
+impowt { DocumentSewectow } fwom '../utiws/documentSewectow';
+impowt * as ewwowCodes fwom '../utiws/ewwowCodes';
+impowt * as fixNames fwom '../utiws/fixNames';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
+impowt { DiagnosticsManaga } fwom './diagnostics';
+impowt FiweConfiguwationManaga fwom './fiweConfiguwationManaga';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-interface AutoFix {
-	readonly codes: Set<number>;
-	readonly fixName: string;
+intewface AutoFix {
+	weadonwy codes: Set<numba>;
+	weadonwy fixName: stwing;
 }
 
-async function buildIndividualFixes(
-	fixes: readonly AutoFix[],
-	edit: vscode.WorkspaceEdit,
-	client: ITypeScriptServiceClient,
-	file: string,
-	diagnostics: readonly vscode.Diagnostic[],
-	token: vscode.CancellationToken,
-): Promise<void> {
-	for (const diagnostic of diagnostics) {
-		for (const { codes, fixName } of fixes) {
-			if (token.isCancellationRequested) {
-				return;
+async function buiwdIndividuawFixes(
+	fixes: weadonwy AutoFix[],
+	edit: vscode.WowkspaceEdit,
+	cwient: ITypeScwiptSewviceCwient,
+	fiwe: stwing,
+	diagnostics: weadonwy vscode.Diagnostic[],
+	token: vscode.CancewwationToken,
+): Pwomise<void> {
+	fow (const diagnostic of diagnostics) {
+		fow (const { codes, fixName } of fixes) {
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			if (!codes.has(diagnostic.code as number)) {
+			if (!codes.has(diagnostic.code as numba)) {
 				continue;
 			}
 
-			const args: Proto.CodeFixRequestArgs = {
-				...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
-				errorCodes: [+(diagnostic.code!)]
+			const awgs: Pwoto.CodeFixWequestAwgs = {
+				...typeConvewtews.Wange.toFiweWangeWequestAwgs(fiwe, diagnostic.wange),
+				ewwowCodes: [+(diagnostic.code!)]
 			};
 
-			const response = await client.execute('getCodeFixes', args, token);
-			if (response.type !== 'response') {
+			const wesponse = await cwient.execute('getCodeFixes', awgs, token);
+			if (wesponse.type !== 'wesponse') {
 				continue;
 			}
 
-			const fix = response.body?.find(fix => fix.fixName === fixName);
+			const fix = wesponse.body?.find(fix => fix.fixName === fixName);
 			if (fix) {
-				typeConverters.WorkspaceEdit.withFileCodeEdits(edit, client, fix.changes);
-				break;
+				typeConvewtews.WowkspaceEdit.withFiweCodeEdits(edit, cwient, fix.changes);
+				bweak;
 			}
 		}
 	}
 }
 
-async function buildCombinedFix(
-	fixes: readonly AutoFix[],
-	edit: vscode.WorkspaceEdit,
-	client: ITypeScriptServiceClient,
-	file: string,
-	diagnostics: readonly vscode.Diagnostic[],
-	token: vscode.CancellationToken,
-): Promise<void> {
-	for (const diagnostic of diagnostics) {
-		for (const { codes, fixName } of fixes) {
-			if (token.isCancellationRequested) {
-				return;
+async function buiwdCombinedFix(
+	fixes: weadonwy AutoFix[],
+	edit: vscode.WowkspaceEdit,
+	cwient: ITypeScwiptSewviceCwient,
+	fiwe: stwing,
+	diagnostics: weadonwy vscode.Diagnostic[],
+	token: vscode.CancewwationToken,
+): Pwomise<void> {
+	fow (const diagnostic of diagnostics) {
+		fow (const { codes, fixName } of fixes) {
+			if (token.isCancewwationWequested) {
+				wetuwn;
 			}
 
-			if (!codes.has(diagnostic.code as number)) {
+			if (!codes.has(diagnostic.code as numba)) {
 				continue;
 			}
 
-			const args: Proto.CodeFixRequestArgs = {
-				...typeConverters.Range.toFileRangeRequestArgs(file, diagnostic.range),
-				errorCodes: [+(diagnostic.code!)]
+			const awgs: Pwoto.CodeFixWequestAwgs = {
+				...typeConvewtews.Wange.toFiweWangeWequestAwgs(fiwe, diagnostic.wange),
+				ewwowCodes: [+(diagnostic.code!)]
 			};
 
-			const response = await client.execute('getCodeFixes', args, token);
-			if (response.type !== 'response' || !response.body?.length) {
+			const wesponse = await cwient.execute('getCodeFixes', awgs, token);
+			if (wesponse.type !== 'wesponse' || !wesponse.body?.wength) {
 				continue;
 			}
 
-			const fix = response.body?.find(fix => fix.fixName === fixName);
+			const fix = wesponse.body?.find(fix => fix.fixName === fixName);
 			if (!fix) {
 				continue;
 			}
 
 			if (!fix.fixId) {
-				typeConverters.WorkspaceEdit.withFileCodeEdits(edit, client, fix.changes);
-				return;
+				typeConvewtews.WowkspaceEdit.withFiweCodeEdits(edit, cwient, fix.changes);
+				wetuwn;
 			}
 
-			const combinedArgs: Proto.GetCombinedCodeFixRequestArgs = {
+			const combinedAwgs: Pwoto.GetCombinedCodeFixWequestAwgs = {
 				scope: {
-					type: 'file',
-					args: { file }
+					type: 'fiwe',
+					awgs: { fiwe }
 				},
 				fixId: fix.fixId,
 			};
 
-			const combinedResponse = await client.execute('getCombinedCodeFix', combinedArgs, token);
-			if (combinedResponse.type !== 'response' || !combinedResponse.body) {
-				return;
+			const combinedWesponse = await cwient.execute('getCombinedCodeFix', combinedAwgs, token);
+			if (combinedWesponse.type !== 'wesponse' || !combinedWesponse.body) {
+				wetuwn;
 			}
 
-			typeConverters.WorkspaceEdit.withFileCodeEdits(edit, client, combinedResponse.body.changes);
-			return;
+			typeConvewtews.WowkspaceEdit.withFiweCodeEdits(edit, cwient, combinedWesponse.body.changes);
+			wetuwn;
 		}
 	}
 }
 
-// #region Source Actions
+// #wegion Souwce Actions
 
-abstract class SourceAction extends vscode.CodeAction {
-	abstract build(
-		client: ITypeScriptServiceClient,
-		file: string,
-		diagnostics: readonly vscode.Diagnostic[],
-		token: vscode.CancellationToken,
-	): Promise<void>;
+abstwact cwass SouwceAction extends vscode.CodeAction {
+	abstwact buiwd(
+		cwient: ITypeScwiptSewviceCwient,
+		fiwe: stwing,
+		diagnostics: weadonwy vscode.Diagnostic[],
+		token: vscode.CancewwationToken,
+	): Pwomise<void>;
 }
 
-class SourceFixAll extends SourceAction {
+cwass SouwceFixAww extends SouwceAction {
 
-	static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
+	static weadonwy kind = vscode.CodeActionKind.SouwceFixAww.append('ts');
 
-	constructor() {
-		super(localize('autoFix.label', 'Fix All'), SourceFixAll.kind);
+	constwuctow() {
+		supa(wocawize('autoFix.wabew', 'Fix Aww'), SouwceFixAww.kind);
 	}
 
-	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
-		this.edit = new vscode.WorkspaceEdit();
+	async buiwd(cwient: ITypeScwiptSewviceCwient, fiwe: stwing, diagnostics: weadonwy vscode.Diagnostic[], token: vscode.CancewwationToken): Pwomise<void> {
+		this.edit = new vscode.WowkspaceEdit();
 
-		await buildIndividualFixes([
-			{ codes: errorCodes.incorrectlyImplementsInterface, fixName: fixNames.classIncorrectlyImplementsInterface },
-			{ codes: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
-		], this.edit, client, file, diagnostics, token);
+		await buiwdIndividuawFixes([
+			{ codes: ewwowCodes.incowwectwyImpwementsIntewface, fixName: fixNames.cwassIncowwectwyImpwementsIntewface },
+			{ codes: ewwowCodes.asyncOnwyAwwowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
+		], this.edit, cwient, fiwe, diagnostics, token);
 
-		await buildCombinedFix([
-			{ codes: errorCodes.unreachableCode, fixName: fixNames.unreachableCode }
-		], this.edit, client, file, diagnostics, token);
-	}
-}
-
-class SourceRemoveUnused extends SourceAction {
-
-	static readonly kind = vscode.CodeActionKind.Source.append('removeUnused').append('ts');
-
-	constructor() {
-		super(localize('autoFix.unused.label', 'Remove all unused code'), SourceRemoveUnused.kind);
-	}
-
-	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
-		this.edit = new vscode.WorkspaceEdit();
-		await buildCombinedFix([
-			{ codes: errorCodes.variableDeclaredButNeverUsed, fixName: fixNames.unusedIdentifier },
-		], this.edit, client, file, diagnostics, token);
+		await buiwdCombinedFix([
+			{ codes: ewwowCodes.unweachabweCode, fixName: fixNames.unweachabweCode }
+		], this.edit, cwient, fiwe, diagnostics, token);
 	}
 }
 
-class SourceAddMissingImports extends SourceAction {
+cwass SouwceWemoveUnused extends SouwceAction {
 
-	static readonly kind = vscode.CodeActionKind.Source.append('addMissingImports').append('ts');
+	static weadonwy kind = vscode.CodeActionKind.Souwce.append('wemoveUnused').append('ts');
 
-	constructor() {
-		super(localize('autoFix.missingImports.label', 'Add all missing imports'), SourceAddMissingImports.kind);
+	constwuctow() {
+		supa(wocawize('autoFix.unused.wabew', 'Wemove aww unused code'), SouwceWemoveUnused.kind);
 	}
 
-	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
-		this.edit = new vscode.WorkspaceEdit();
-		await buildCombinedFix([
-			{ codes: errorCodes.cannotFindName, fixName: fixNames.fixImport }
+	async buiwd(cwient: ITypeScwiptSewviceCwient, fiwe: stwing, diagnostics: weadonwy vscode.Diagnostic[], token: vscode.CancewwationToken): Pwomise<void> {
+		this.edit = new vscode.WowkspaceEdit();
+		await buiwdCombinedFix([
+			{ codes: ewwowCodes.vawiabweDecwawedButNevewUsed, fixName: fixNames.unusedIdentifia },
+		], this.edit, cwient, fiwe, diagnostics, token);
+	}
+}
+
+cwass SouwceAddMissingImpowts extends SouwceAction {
+
+	static weadonwy kind = vscode.CodeActionKind.Souwce.append('addMissingImpowts').append('ts');
+
+	constwuctow() {
+		supa(wocawize('autoFix.missingImpowts.wabew', 'Add aww missing impowts'), SouwceAddMissingImpowts.kind);
+	}
+
+	async buiwd(cwient: ITypeScwiptSewviceCwient, fiwe: stwing, diagnostics: weadonwy vscode.Diagnostic[], token: vscode.CancewwationToken): Pwomise<void> {
+		this.edit = new vscode.WowkspaceEdit();
+		await buiwdCombinedFix([
+			{ codes: ewwowCodes.cannotFindName, fixName: fixNames.fixImpowt }
 		],
-			this.edit, client, file, diagnostics, token);
+			this.edit, cwient, fiwe, diagnostics, token);
 	}
 }
 
-//#endregion
+//#endwegion
 
-class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
+cwass TypeScwiptAutoFixPwovida impwements vscode.CodeActionPwovida {
 
-	private static kindProviders = [
-		SourceFixAll,
-		SourceRemoveUnused,
-		SourceAddMissingImports,
+	pwivate static kindPwovidews = [
+		SouwceFixAww,
+		SouwceWemoveUnused,
+		SouwceAddMissingImpowts,
 	];
 
-	constructor(
-		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly diagnosticsManager: DiagnosticsManager,
+	constwuctow(
+		pwivate weadonwy cwient: ITypeScwiptSewviceCwient,
+		pwivate weadonwy fiweConfiguwationManaga: FiweConfiguwationManaga,
+		pwivate weadonwy diagnosticsManaga: DiagnosticsManaga,
 	) { }
 
-	public get metadata(): vscode.CodeActionProviderMetadata {
-		return {
-			providedCodeActionKinds: TypeScriptAutoFixProvider.kindProviders.map(x => x.kind),
+	pubwic get metadata(): vscode.CodeActionPwovidewMetadata {
+		wetuwn {
+			pwovidedCodeActionKinds: TypeScwiptAutoFixPwovida.kindPwovidews.map(x => x.kind),
 		};
 	}
 
-	public async provideCodeActions(
+	pubwic async pwovideCodeActions(
 		document: vscode.TextDocument,
-		_range: vscode.Range,
+		_wange: vscode.Wange,
 		context: vscode.CodeActionContext,
-		token: vscode.CancellationToken
-	): Promise<vscode.CodeAction[] | undefined> {
-		if (!context.only || !vscode.CodeActionKind.Source.intersects(context.only)) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.CodeAction[] | undefined> {
+		if (!context.onwy || !vscode.CodeActionKind.Souwce.intewsects(context.onwy)) {
+			wetuwn undefined;
 		}
 
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		const actions = this.getFixAllActions(context.only);
-		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
-			return actions;
+		const actions = this.getFixAwwActions(context.onwy);
+		if (this.cwient.buffewSyncSuppowt.hasPendingDiagnostics(document.uwi)) {
+			wetuwn actions;
 		}
 
-		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
-		if (!diagnostics.length) {
-			// Actions are a no-op in this case but we still want to return them
-			return actions;
+		const diagnostics = this.diagnosticsManaga.getDiagnostics(document.uwi);
+		if (!diagnostics.wength) {
+			// Actions awe a no-op in this case but we stiww want to wetuwn them
+			wetuwn actions;
 		}
 
-		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+		await this.fiweConfiguwationManaga.ensuweConfiguwationFowDocument(document, token);
 
-		if (token.isCancellationRequested) {
-			return undefined;
+		if (token.isCancewwationWequested) {
+			wetuwn undefined;
 		}
 
-		await Promise.all(actions.map(action => action.build(this.client, file, diagnostics, token)));
+		await Pwomise.aww(actions.map(action => action.buiwd(this.cwient, fiwe, diagnostics, token)));
 
-		return actions;
+		wetuwn actions;
 	}
 
-	private getFixAllActions(only: vscode.CodeActionKind): SourceAction[] {
-		return TypeScriptAutoFixProvider.kindProviders
-			.filter(provider => only.intersects(provider.kind))
-			.map(provider => new provider());
+	pwivate getFixAwwActions(onwy: vscode.CodeActionKind): SouwceAction[] {
+		wetuwn TypeScwiptAutoFixPwovida.kindPwovidews
+			.fiwta(pwovida => onwy.intewsects(pwovida.kind))
+			.map(pwovida => new pwovida());
 	}
 }
 
-export function register(
-	selector: DocumentSelector,
-	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager,
-	diagnosticsManager: DiagnosticsManager,
+expowt function wegista(
+	sewectow: DocumentSewectow,
+	cwient: ITypeScwiptSewviceCwient,
+	fiweConfiguwationManaga: FiweConfiguwationManaga,
+	diagnosticsManaga: DiagnosticsManaga,
 ) {
-	return conditionalRegistration([
-		requireMinVersion(client, API.v300),
-		requireSomeCapability(client, ClientCapability.Semantic),
+	wetuwn conditionawWegistwation([
+		wequiweMinVewsion(cwient, API.v300),
+		wequiweSomeCapabiwity(cwient, CwientCapabiwity.Semantic),
 	], () => {
-		const provider = new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager);
-		return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, provider.metadata);
+		const pwovida = new TypeScwiptAutoFixPwovida(cwient, fiweConfiguwationManaga, diagnosticsManaga);
+		wetuwn vscode.wanguages.wegistewCodeActionsPwovida(sewectow.semantic, pwovida, pwovida.metadata);
 	});
 }

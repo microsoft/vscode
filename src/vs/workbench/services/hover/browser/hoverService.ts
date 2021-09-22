@@ -1,161 +1,161 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/hover';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
-import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+impowt 'vs/css!./media/hova';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { editowHovewBackgwound, editowHovewBowda, textWinkFowegwound, editowHovewFowegwound, editowHovewStatusBawBackgwound, textCodeBwockBackgwound, widgetShadow, textWinkActiveFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IHovewSewvice, IHovewOptions, IHovewWidget } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hova';
+impowt { IContextMenuSewvice, IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { HovewWidget } fwom 'vs/wowkbench/sewvices/hova/bwowsa/hovewWidget';
+impowt { IContextViewPwovida, IDewegate } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { addDisposabweWistena, EventType } fwom 'vs/base/bwowsa/dom';
 
-export class HoverService implements IHoverService {
-	declare readonly _serviceBrand: undefined;
+expowt cwass HovewSewvice impwements IHovewSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _currentHoverOptions: IHoverOptions | undefined;
+	pwivate _cuwwentHovewOptions: IHovewOptions | undefined;
 
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IContextMenuService contextMenuService: IContextMenuService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy _instantiationSewvice: IInstantiationSewvice,
+		@IContextViewSewvice pwivate weadonwy _contextViewSewvice: IContextViewSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice
 	) {
-		contextMenuService.onDidShowContextMenu(() => this.hideHover());
+		contextMenuSewvice.onDidShowContextMenu(() => this.hideHova());
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined {
-		if (this._currentHoverOptions === options) {
-			return undefined;
+	showHova(options: IHovewOptions, focus?: boowean): IHovewWidget | undefined {
+		if (this._cuwwentHovewOptions === options) {
+			wetuwn undefined;
 		}
-		this._currentHoverOptions = options;
+		this._cuwwentHovewOptions = options;
 
-		const hoverDisposables = new DisposableStore();
-		const hover = this._instantiationService.createInstance(HoverWidget, options);
-		hover.onDispose(() => {
-			this._currentHoverOptions = undefined;
-			hoverDisposables.dispose();
+		const hovewDisposabwes = new DisposabweStowe();
+		const hova = this._instantiationSewvice.cweateInstance(HovewWidget, options);
+		hova.onDispose(() => {
+			this._cuwwentHovewOptions = undefined;
+			hovewDisposabwes.dispose();
 		});
-		const provider = this._contextViewService as IContextViewProvider;
-		provider.showContextView(new HoverContextViewDelegate(hover, focus));
-		hover.onRequestLayout(() => provider.layout());
-		if ('targetElements' in options.target) {
-			for (const element of options.target.targetElements) {
-				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
+		const pwovida = this._contextViewSewvice as IContextViewPwovida;
+		pwovida.showContextView(new HovewContextViewDewegate(hova, focus));
+		hova.onWequestWayout(() => pwovida.wayout());
+		if ('tawgetEwements' in options.tawget) {
+			fow (const ewement of options.tawget.tawgetEwements) {
+				hovewDisposabwes.add(addDisposabweWistena(ewement, EventType.CWICK, () => this.hideHova()));
 			}
-		} else {
-			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
+		} ewse {
+			hovewDisposabwes.add(addDisposabweWistena(options.tawget, EventType.CWICK, () => this.hideHova()));
 		}
-		const focusedElement = <HTMLElement | null>document.activeElement;
-		if (focusedElement) {
-			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, () => this.hideHover()));
-		}
-
-		if ('IntersectionObserver' in window) {
-			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });
-			const firstTargetElement = 'targetElements' in options.target ? options.target.targetElements[0] : options.target;
-			observer.observe(firstTargetElement);
-			hoverDisposables.add(toDisposable(() => observer.disconnect()));
+		const focusedEwement = <HTMWEwement | nuww>document.activeEwement;
+		if (focusedEwement) {
+			hovewDisposabwes.add(addDisposabweWistena(focusedEwement, EventType.KEY_DOWN, () => this.hideHova()));
 		}
 
-		return hover;
+		if ('IntewsectionObsewva' in window) {
+			const obsewva = new IntewsectionObsewva(e => this._intewsectionChange(e, hova), { thweshowd: 0 });
+			const fiwstTawgetEwement = 'tawgetEwements' in options.tawget ? options.tawget.tawgetEwements[0] : options.tawget;
+			obsewva.obsewve(fiwstTawgetEwement);
+			hovewDisposabwes.add(toDisposabwe(() => obsewva.disconnect()));
+		}
+
+		wetuwn hova;
 	}
 
-	hideHover(): void {
-		if (!this._currentHoverOptions) {
-			return;
+	hideHova(): void {
+		if (!this._cuwwentHovewOptions) {
+			wetuwn;
 		}
-		this._currentHoverOptions = undefined;
-		this._contextViewService.hideContextView();
+		this._cuwwentHovewOptions = undefined;
+		this._contextViewSewvice.hideContextView();
 	}
 
-	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
-		const entry = entries[entries.length - 1];
-		if (!entry.isIntersecting) {
-			hover.dispose();
+	pwivate _intewsectionChange(entwies: IntewsectionObsewvewEntwy[], hova: IDisposabwe): void {
+		const entwy = entwies[entwies.wength - 1];
+		if (!entwy.isIntewsecting) {
+			hova.dispose();
 		}
 	}
 }
 
-class HoverContextViewDelegate implements IDelegate {
+cwass HovewContextViewDewegate impwements IDewegate {
 
-	get anchorPosition() {
-		return this._hover.anchor;
+	get anchowPosition() {
+		wetuwn this._hova.anchow;
 	}
 
-	constructor(
-		private readonly _hover: HoverWidget,
-		private readonly _focus: boolean = false
+	constwuctow(
+		pwivate weadonwy _hova: HovewWidget,
+		pwivate weadonwy _focus: boowean = fawse
 	) {
 	}
 
-	render(container: HTMLElement) {
-		this._hover.render(container);
+	wenda(containa: HTMWEwement) {
+		this._hova.wenda(containa);
 		if (this._focus) {
-			this._hover.focus();
+			this._hova.focus();
 		}
-		return this._hover;
+		wetuwn this._hova;
 	}
 
-	getAnchor() {
-		return {
-			x: this._hover.x,
-			y: this._hover.y
+	getAnchow() {
+		wetuwn {
+			x: this._hova.x,
+			y: this._hova.y
 		};
 	}
 
-	layout() {
-		this._hover.layout();
+	wayout() {
+		this._hova.wayout();
 	}
 }
 
-registerSingleton(IHoverService, HoverService, true);
+wegistewSingweton(IHovewSewvice, HovewSewvice, twue);
 
-registerThemingParticipant((theme, collector) => {
-	const hoverBackground = theme.getColor(editorHoverBackground);
-	if (hoverBackground) {
-		collector.addRule(`.monaco-workbench .workbench-hover { background-color: ${hoverBackground}; }`);
-		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { background-color: ${hoverBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const hovewBackgwound = theme.getCowow(editowHovewBackgwound);
+	if (hovewBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova { backgwound-cowow: ${hovewBackgwound}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova-pointa:afta { backgwound-cowow: ${hovewBackgwound}; }`);
 	}
-	const hoverBorder = theme.getColor(editorHoverBorder);
-	if (hoverBorder) {
-		collector.addRule(`.monaco-workbench .workbench-hover { border: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.monaco-workbench .workbench-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-workbench .workbench-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.monaco-workbench .workbench-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
+	const hovewBowda = theme.getCowow(editowHovewBowda);
+	if (hovewBowda) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova { bowda: 1px sowid ${hovewBowda}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova .hova-wow:not(:fiwst-chiwd):not(:empty) { bowda-top: 1px sowid ${hovewBowda.twanspawent(0.5)}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova hw { bowda-top: 1px sowid ${hovewBowda.twanspawent(0.5)}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova hw { bowda-bottom: 0px sowid ${hovewBowda.twanspawent(0.5)}; }`);
 
-		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { border-right: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.monaco-workbench .workbench-hover-pointer:after { border-bottom: 1px solid ${hoverBorder}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova-pointa:afta { bowda-wight: 1px sowid ${hovewBowda}; }`);
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova-pointa:afta { bowda-bottom: 1px sowid ${hovewBowda}; }`);
 	}
-	const link = theme.getColor(textLinkForeground);
-	if (link) {
-		collector.addRule(`.monaco-workbench .workbench-hover a { color: ${link}; }`);
+	const wink = theme.getCowow(textWinkFowegwound);
+	if (wink) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova a { cowow: ${wink}; }`);
 	}
-	const linkHover = theme.getColor(textLinkActiveForeground);
-	if (linkHover) {
-		collector.addRule(`.monaco-workbench .workbench-hover a:hover { color: ${linkHover}; }`);
+	const winkHova = theme.getCowow(textWinkActiveFowegwound);
+	if (winkHova) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova a:hova { cowow: ${winkHova}; }`);
 	}
-	const hoverForeground = theme.getColor(editorHoverForeground);
-	if (hoverForeground) {
-		collector.addRule(`.monaco-workbench .workbench-hover { color: ${hoverForeground}; }`);
+	const hovewFowegwound = theme.getCowow(editowHovewFowegwound);
+	if (hovewFowegwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova { cowow: ${hovewFowegwound}; }`);
 	}
-	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
-	if (actionsBackground) {
-		collector.addRule(`.monaco-workbench .workbench-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
+	const actionsBackgwound = theme.getCowow(editowHovewStatusBawBackgwound);
+	if (actionsBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova .hova-wow .actions { backgwound-cowow: ${actionsBackgwound}; }`);
 	}
-	const codeBackground = theme.getColor(textCodeBlockBackground);
-	if (codeBackground) {
-		collector.addRule(`.monaco-workbench .workbench-hover code { background-color: ${codeBackground}; }`);
+	const codeBackgwound = theme.getCowow(textCodeBwockBackgwound);
+	if (codeBackgwound) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova code { backgwound-cowow: ${codeBackgwound}; }`);
 	}
 });
 
-registerThemingParticipant((theme, collector) => {
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .workbench-hover { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-wowkbench .wowkbench-hova { box-shadow: 0 2px 8px ${widgetShadowCowow}; }`);
 	}
 });

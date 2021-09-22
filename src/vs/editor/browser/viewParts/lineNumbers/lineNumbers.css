@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .line-numbers {
-	font-variant-numeric: tabular-nums;
-	position: absolute;
-	text-align: right;
-	display: inline-block;
-	vertical-align: middle;
-	box-sizing: border-box;
-	cursor: default;
+.monaco-editow .mawgin-view-ovewways .wine-numbews {
+	font-vawiant-numewic: tabuwaw-nums;
+	position: absowute;
+	text-awign: wight;
+	dispway: inwine-bwock;
+	vewticaw-awign: middwe;
+	box-sizing: bowda-box;
+	cuwsow: defauwt;
 	height: 100%;
 }
 
-.monaco-editor .relative-current-line-number {
-	text-align: left;
-	display: inline-block;
+.monaco-editow .wewative-cuwwent-wine-numba {
+	text-awign: weft;
+	dispway: inwine-bwock;
 	width: 100%;
 }
 
-.monaco-editor .margin-view-overlays .line-numbers.lh-odd {
-	margin-top: 1px;
+.monaco-editow .mawgin-view-ovewways .wine-numbews.wh-odd {
+	mawgin-top: 1px;
 }

@@ -1,277 +1,277 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestInMemoryFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StoredFileWorkingCopy, IStoredFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { Schemas } from 'vs/base/common/network';
-import { IFileWorkingCopyManager, FileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
-import { UntitledFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wowkbenchInstantiationSewvice, TestSewviceAccessow, TestInMemowyFiweSystemPwovida } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { StowedFiweWowkingCopy, IStowedFiweWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/stowedFiweWowkingCopy';
+impowt { buffewToStweam, VSBuffa } fwom 'vs/base/common/buffa';
+impowt { TestStowedFiweWowkingCopyModew, TestStowedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/bwowsa/stowedFiweWowkingCopy.test';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { IFiweWowkingCopyManaga, FiweWowkingCopyManaga } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/fiweWowkingCopyManaga';
+impowt { TestUntitwedFiweWowkingCopyModew, TestUntitwedFiweWowkingCopyModewFactowy } fwom 'vs/wowkbench/sewvices/wowkingCopy/test/bwowsa/untitwedFiweWowkingCopy.test';
+impowt { UntitwedFiweWowkingCopy } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/untitwedFiweWowkingCopy';
 
-suite('FileWorkingCopyManager', () => {
+suite('FiweWowkingCopyManaga', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
-	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
+	wet managa: IFiweWowkingCopyManaga<TestStowedFiweWowkingCopyModew, TestUntitwedFiweWowkingCopyModew>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 
-		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
-		accessor.fileService.registerProvider(Schemas.vscodeRemote, new TestInMemoryFileSystemProvider());
+		accessow.fiweSewvice.wegistewPwovida(Schemas.fiwe, new TestInMemowyFiweSystemPwovida());
+		accessow.fiweSewvice.wegistewPwovida(Schemas.vscodeWemote, new TestInMemowyFiweSystemPwovida());
 
-		manager = new FileWorkingCopyManager(
-			'testFileWorkingCopyType',
-			new TestStoredFileWorkingCopyModelFactory(),
-			new TestUntitledFileWorkingCopyModelFactory(),
-			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
-			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
-			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
-			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService, accessor.decorationsService
+		managa = new FiweWowkingCopyManaga(
+			'testFiweWowkingCopyType',
+			new TestStowedFiweWowkingCopyModewFactowy(),
+			new TestUntitwedFiweWowkingCopyModewFactowy(),
+			accessow.fiweSewvice, accessow.wifecycweSewvice, accessow.wabewSewvice, accessow.wogSewvice,
+			accessow.wowkingCopyFiweSewvice, accessow.wowkingCopyBackupSewvice, accessow.uwiIdentitySewvice, accessow.fiweDiawogSewvice,
+			accessow.fiwesConfiguwationSewvice, accessow.wowkingCopySewvice, accessow.notificationSewvice,
+			accessow.wowkingCopyEditowSewvice, accessow.editowSewvice, accessow.ewevatedFiweSewvice, accessow.pathSewvice,
+			accessow.enviwonmentSewvice, accessow.diawogSewvice, accessow.decowationsSewvice
 		);
 	});
 
-	teardown(() => {
-		manager.dispose();
+	teawdown(() => {
+		managa.dispose();
 	});
 
-	test('onDidCreate, get, workingCopies', async () => {
-		let createCounter = 0;
-		manager.onDidCreate(e => {
-			createCounter++;
+	test('onDidCweate, get, wowkingCopies', async () => {
+		wet cweateCounta = 0;
+		managa.onDidCweate(e => {
+			cweateCounta++;
 		});
 
-		const fileUri = URI.file('/test.html');
+		const fiweUwi = UWI.fiwe('/test.htmw');
 
-		assert.strictEqual(manager.workingCopies.length, 0);
-		assert.strictEqual(manager.get(fileUri), undefined);
+		assewt.stwictEquaw(managa.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.get(fiweUwi), undefined);
 
-		const fileWorkingCopy = await manager.resolve(fileUri);
-		const untitledFileWorkingCopy = await manager.resolve();
+		const fiweWowkingCopy = await managa.wesowve(fiweUwi);
+		const untitwedFiweWowkingCopy = await managa.wesowve();
 
-		assert.strictEqual(manager.workingCopies.length, 2);
-		assert.strictEqual(createCounter, 2);
-		assert.strictEqual(manager.get(fileWorkingCopy.resource), fileWorkingCopy);
-		assert.strictEqual(manager.get(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
+		assewt.stwictEquaw(managa.wowkingCopies.wength, 2);
+		assewt.stwictEquaw(cweateCounta, 2);
+		assewt.stwictEquaw(managa.get(fiweWowkingCopy.wesouwce), fiweWowkingCopy);
+		assewt.stwictEquaw(managa.get(untitwedFiweWowkingCopy.wesouwce), untitwedFiweWowkingCopy);
 
-		const sameFileWorkingCopy = await manager.resolve(fileUri);
-		const sameUntitledFileWorkingCopy = await manager.resolve({ untitledResource: untitledFileWorkingCopy.resource });
-		assert.strictEqual(sameFileWorkingCopy, fileWorkingCopy);
-		assert.strictEqual(sameUntitledFileWorkingCopy, untitledFileWorkingCopy);
-		assert.strictEqual(manager.workingCopies.length, 2);
-		assert.strictEqual(createCounter, 2);
+		const sameFiweWowkingCopy = await managa.wesowve(fiweUwi);
+		const sameUntitwedFiweWowkingCopy = await managa.wesowve({ untitwedWesouwce: untitwedFiweWowkingCopy.wesouwce });
+		assewt.stwictEquaw(sameFiweWowkingCopy, fiweWowkingCopy);
+		assewt.stwictEquaw(sameUntitwedFiweWowkingCopy, untitwedFiweWowkingCopy);
+		assewt.stwictEquaw(managa.wowkingCopies.wength, 2);
+		assewt.stwictEquaw(cweateCounta, 2);
 
-		fileWorkingCopy.dispose();
-		untitledFileWorkingCopy.dispose();
+		fiweWowkingCopy.dispose();
+		untitwedFiweWowkingCopy.dispose();
 	});
 
-	test('resolve', async () => {
-		const fileWorkingCopy = await manager.resolve(URI.file('/test.html'));
-		assert.ok(fileWorkingCopy instanceof StoredFileWorkingCopy);
-		assert.strictEqual(await manager.stored.resolve(fileWorkingCopy.resource), fileWorkingCopy);
+	test('wesowve', async () => {
+		const fiweWowkingCopy = await managa.wesowve(UWI.fiwe('/test.htmw'));
+		assewt.ok(fiweWowkingCopy instanceof StowedFiweWowkingCopy);
+		assewt.stwictEquaw(await managa.stowed.wesowve(fiweWowkingCopy.wesouwce), fiweWowkingCopy);
 
-		const untitledFileWorkingCopy = await manager.resolve();
-		assert.ok(untitledFileWorkingCopy instanceof UntitledFileWorkingCopy);
-		assert.strictEqual(await manager.untitled.resolve({ untitledResource: untitledFileWorkingCopy.resource }), untitledFileWorkingCopy);
-		assert.strictEqual(await manager.resolve(untitledFileWorkingCopy.resource), untitledFileWorkingCopy);
+		const untitwedFiweWowkingCopy = await managa.wesowve();
+		assewt.ok(untitwedFiweWowkingCopy instanceof UntitwedFiweWowkingCopy);
+		assewt.stwictEquaw(await managa.untitwed.wesowve({ untitwedWesouwce: untitwedFiweWowkingCopy.wesouwce }), untitwedFiweWowkingCopy);
+		assewt.stwictEquaw(await managa.wesowve(untitwedFiweWowkingCopy.wesouwce), untitwedFiweWowkingCopy);
 
-		fileWorkingCopy.dispose();
-		untitledFileWorkingCopy.dispose();
+		fiweWowkingCopy.dispose();
+		untitwedFiweWowkingCopy.dispose();
 	});
 
-	test('destroy', async () => {
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
+	test('destwoy', async () => {
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
 
-		await manager.resolve(URI.file('/test.html'));
-		await manager.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello Untitled')) } });
+		await managa.wesowve(UWI.fiwe('/test.htmw'));
+		await managa.wesowve({ contents: { vawue: buffewToStweam(VSBuffa.fwomStwing('Hewwo Untitwed')) } });
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
-		assert.strictEqual(manager.stored.workingCopies.length, 1);
-		assert.strictEqual(manager.untitled.workingCopies.length, 1);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 2);
+		assewt.stwictEquaw(managa.stowed.wowkingCopies.wength, 1);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 1);
 
-		await manager.destroy();
+		await managa.destwoy();
 
-		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
-		assert.strictEqual(manager.stored.workingCopies.length, 0);
-		assert.strictEqual(manager.untitled.workingCopies.length, 0);
+		assewt.stwictEquaw(accessow.wowkingCopySewvice.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.stowed.wowkingCopies.wength, 0);
+		assewt.stwictEquaw(managa.untitwed.wowkingCopies.wength, 0);
 	});
 
-	test('saveAs - file (same target, unresolved source, unresolved target)', () => {
-		const source = URI.file('/path/source.txt');
+	test('saveAs - fiwe (same tawget, unwesowved souwce, unwesowved tawget)', () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
 
-		return testSaveAsFile(source, source, false, false);
+		wetuwn testSaveAsFiwe(souwce, souwce, fawse, fawse);
 	});
 
-	test('saveAs - file (same target, different case, unresolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
+	test('saveAs - fiwe (same tawget, diffewent case, unwesowved souwce, unwesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/SOUWCE.txt');
 
-		return testSaveAsFile(source, target, false, false);
+		wetuwn testSaveAsFiwe(souwce, tawget, fawse, fawse);
 	});
 
-	test('saveAs - file (different target, unresolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
+	test('saveAs - fiwe (diffewent tawget, unwesowved souwce, unwesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/tawget.txt');
 
-		return testSaveAsFile(source, target, false, false);
+		wetuwn testSaveAsFiwe(souwce, tawget, fawse, fawse);
 	});
 
-	test('saveAs - file (same target, resolved source, unresolved target)', () => {
-		const source = URI.file('/path/source.txt');
+	test('saveAs - fiwe (same tawget, wesowved souwce, unwesowved tawget)', () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
 
-		return testSaveAsFile(source, source, true, false);
+		wetuwn testSaveAsFiwe(souwce, souwce, twue, fawse);
 	});
 
-	test('saveAs - file (same target, different case, resolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
+	test('saveAs - fiwe (same tawget, diffewent case, wesowved souwce, unwesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/SOUWCE.txt');
 
-		return testSaveAsFile(source, target, true, false);
+		wetuwn testSaveAsFiwe(souwce, tawget, twue, fawse);
 	});
 
-	test('saveAs - file (different target, resolved source, unresolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
+	test('saveAs - fiwe (diffewent tawget, wesowved souwce, unwesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/tawget.txt');
 
-		return testSaveAsFile(source, target, true, false);
+		wetuwn testSaveAsFiwe(souwce, tawget, twue, fawse);
 	});
 
-	test('saveAs - file (same target, unresolved source, resolved target)', () => {
-		const source = URI.file('/path/source.txt');
+	test('saveAs - fiwe (same tawget, unwesowved souwce, wesowved tawget)', () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
 
-		return testSaveAsFile(source, source, false, true);
+		wetuwn testSaveAsFiwe(souwce, souwce, fawse, twue);
 	});
 
-	test('saveAs - file (same target, different case, unresolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/SOURCE.txt');
+	test('saveAs - fiwe (same tawget, diffewent case, unwesowved souwce, wesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/SOUWCE.txt');
 
-		return testSaveAsFile(source, target, false, true);
+		wetuwn testSaveAsFiwe(souwce, tawget, fawse, twue);
 	});
 
-	test('saveAs - file (different target, unresolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
+	test('saveAs - fiwe (diffewent tawget, unwesowved souwce, wesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/tawget.txt');
 
-		return testSaveAsFile(source, target, false, true);
+		wetuwn testSaveAsFiwe(souwce, tawget, fawse, twue);
 	});
 
-	test('saveAs - file (same target, resolved source, resolved target)', () => {
-		const source = URI.file('/path/source.txt');
+	test('saveAs - fiwe (same tawget, wesowved souwce, wesowved tawget)', () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
 
-		return testSaveAsFile(source, source, true, true);
+		wetuwn testSaveAsFiwe(souwce, souwce, twue, twue);
 	});
 
-	test('saveAs - file (different target, resolved source, resolved target)', async () => {
-		const source = URI.file('/path/source.txt');
-		const target = URI.file('/path/target.txt');
+	test('saveAs - fiwe (diffewent tawget, wesowved souwce, wesowved tawget)', async () => {
+		const souwce = UWI.fiwe('/path/souwce.txt');
+		const tawget = UWI.fiwe('/path/tawget.txt');
 
-		return testSaveAsFile(source, target, true, true);
+		wetuwn testSaveAsFiwe(souwce, tawget, twue, twue);
 	});
 
-	async function testSaveAsFile(source: URI, target: URI, resolveSource: boolean, resolveTarget: boolean) {
-		let sourceWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
-		if (resolveSource) {
-			sourceWorkingCopy = await manager.resolve(source);
-			sourceWorkingCopy.model?.updateContents('hello world');
-			assert.ok(sourceWorkingCopy.isDirty());
+	async function testSaveAsFiwe(souwce: UWI, tawget: UWI, wesowveSouwce: boowean, wesowveTawget: boowean) {
+		wet souwceWowkingCopy: IStowedFiweWowkingCopy<TestStowedFiweWowkingCopyModew> | undefined = undefined;
+		if (wesowveSouwce) {
+			souwceWowkingCopy = await managa.wesowve(souwce);
+			souwceWowkingCopy.modew?.updateContents('hewwo wowwd');
+			assewt.ok(souwceWowkingCopy.isDiwty());
 		}
 
-		let targetWorkingCopy: IStoredFileWorkingCopy<TestStoredFileWorkingCopyModel> | undefined = undefined;
-		if (resolveTarget) {
-			targetWorkingCopy = await manager.resolve(target);
-			targetWorkingCopy.model?.updateContents('hello world');
-			assert.ok(targetWorkingCopy.isDirty());
+		wet tawgetWowkingCopy: IStowedFiweWowkingCopy<TestStowedFiweWowkingCopyModew> | undefined = undefined;
+		if (wesowveTawget) {
+			tawgetWowkingCopy = await managa.wesowve(tawget);
+			tawgetWowkingCopy.modew?.updateContents('hewwo wowwd');
+			assewt.ok(tawgetWowkingCopy.isDiwty());
 		}
 
-		const result = await manager.saveAs(source, target);
-		if (accessor.uriIdentityService.extUri.isEqual(source, target) && resolveSource) {
-			// if the uris are considered equal (different case on macOS/Windows)
-			// and the source is to be resolved, the resulting working copy resource
-			// will be the source resource because we consider file working copies
+		const wesuwt = await managa.saveAs(souwce, tawget);
+		if (accessow.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget) && wesowveSouwce) {
+			// if the uwis awe considewed equaw (diffewent case on macOS/Windows)
+			// and the souwce is to be wesowved, the wesuwting wowking copy wesouwce
+			// wiww be the souwce wesouwce because we consida fiwe wowking copies
 			// the same in that case
-			assert.strictEqual(source.toString(), result?.resource.toString());
-		} else {
-			if (resolveSource || resolveTarget) {
-				assert.strictEqual(target.toString(), result?.resource.toString());
-			} else {
-				if (accessor.uriIdentityService.extUri.isEqual(source, target)) {
-					assert.strictEqual(undefined, result);
-				} else {
-					assert.strictEqual(target.toString(), result?.resource.toString());
+			assewt.stwictEquaw(souwce.toStwing(), wesuwt?.wesouwce.toStwing());
+		} ewse {
+			if (wesowveSouwce || wesowveTawget) {
+				assewt.stwictEquaw(tawget.toStwing(), wesuwt?.wesouwce.toStwing());
+			} ewse {
+				if (accessow.uwiIdentitySewvice.extUwi.isEquaw(souwce, tawget)) {
+					assewt.stwictEquaw(undefined, wesuwt);
+				} ewse {
+					assewt.stwictEquaw(tawget.toStwing(), wesuwt?.wesouwce.toStwing());
 				}
 			}
 		}
 
-		if (resolveSource) {
-			assert.strictEqual(sourceWorkingCopy?.isDirty(), false);
+		if (wesowveSouwce) {
+			assewt.stwictEquaw(souwceWowkingCopy?.isDiwty(), fawse);
 		}
 
-		if (resolveTarget) {
-			assert.strictEqual(targetWorkingCopy?.isDirty(), false);
+		if (wesowveTawget) {
+			assewt.stwictEquaw(tawgetWowkingCopy?.isDiwty(), fawse);
 		}
 	}
 
-	test('saveAs - untitled (without associated resource)', async () => {
-		const workingCopy = await manager.resolve();
-		workingCopy.model?.updateContents('Simple Save As');
+	test('saveAs - untitwed (without associated wesouwce)', async () => {
+		const wowkingCopy = await managa.wesowve();
+		wowkingCopy.modew?.updateContents('Simpwe Save As');
 
-		const target = URI.file('simple/file.txt');
-		accessor.fileDialogService.setPickFileToSave(target);
+		const tawget = UWI.fiwe('simpwe/fiwe.txt');
+		accessow.fiweDiawogSewvice.setPickFiweToSave(tawget);
 
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result?.resource.toString(), target.toString());
+		const wesuwt = await managa.saveAs(wowkingCopy.wesouwce, undefined);
+		assewt.stwictEquaw(wesuwt?.wesouwce.toStwing(), tawget.toStwing());
 
-		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
+		assewt.stwictEquaw((wesuwt?.modew as TestStowedFiweWowkingCopyModew).contents, 'Simpwe Save As');
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('saveAs - untitled (with associated resource)', async () => {
-		const workingCopy = await manager.resolve({ associatedResource: { path: '/some/associated.txt' } });
-		workingCopy.model?.updateContents('Simple Save As with associated resource');
+	test('saveAs - untitwed (with associated wesouwce)', async () => {
+		const wowkingCopy = await managa.wesowve({ associatedWesouwce: { path: '/some/associated.txt' } });
+		wowkingCopy.modew?.updateContents('Simpwe Save As with associated wesouwce');
 
-		const target = URI.from({ scheme: Schemas.vscodeRemote, path: '/some/associated.txt' });
+		const tawget = UWI.fwom({ scheme: Schemas.vscodeWemote, path: '/some/associated.txt' });
 
-		accessor.fileService.notExistsSet.set(target, true);
+		accessow.fiweSewvice.notExistsSet.set(tawget, twue);
 
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result?.resource.toString(), target.toString());
+		const wesuwt = await managa.saveAs(wowkingCopy.wesouwce, undefined);
+		assewt.stwictEquaw(wesuwt?.wesouwce.toStwing(), tawget.toStwing());
 
-		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As with associated resource');
+		assewt.stwictEquaw((wesuwt?.modew as TestStowedFiweWowkingCopyModew).contents, 'Simpwe Save As with associated wesouwce');
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 
-	test('saveAs - untitled (target exists and is resolved)', async () => {
-		const workingCopy = await manager.resolve();
-		workingCopy.model?.updateContents('Simple Save As');
+	test('saveAs - untitwed (tawget exists and is wesowved)', async () => {
+		const wowkingCopy = await managa.wesowve();
+		wowkingCopy.modew?.updateContents('Simpwe Save As');
 
-		const target = URI.file('simple/file.txt');
-		const targetFileWorkingCopy = await manager.resolve(target);
-		accessor.fileDialogService.setPickFileToSave(target);
+		const tawget = UWI.fiwe('simpwe/fiwe.txt');
+		const tawgetFiweWowkingCopy = await managa.wesowve(tawget);
+		accessow.fiweDiawogSewvice.setPickFiweToSave(tawget);
 
-		const result = await manager.saveAs(workingCopy.resource, undefined);
-		assert.strictEqual(result, targetFileWorkingCopy);
+		const wesuwt = await managa.saveAs(wowkingCopy.wesouwce, undefined);
+		assewt.stwictEquaw(wesuwt, tawgetFiweWowkingCopy);
 
-		assert.strictEqual((result?.model as TestStoredFileWorkingCopyModel).contents, 'Simple Save As');
+		assewt.stwictEquaw((wesuwt?.modew as TestStowedFiweWowkingCopyModew).contents, 'Simpwe Save As');
 
-		assert.strictEqual(manager.untitled.get(workingCopy.resource), undefined);
+		assewt.stwictEquaw(managa.untitwed.get(wowkingCopy.wesouwce), undefined);
 
-		workingCopy.dispose();
+		wowkingCopy.dispose();
 	});
 });

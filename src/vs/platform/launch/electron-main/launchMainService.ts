@@ -1,313 +1,313 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Event as IpcEvent, ipcMain } from 'electron';
-import { coalesce } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { whenDeleted } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IURLService } from 'vs/platform/url/common/url';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { app, BwowsewWindow, Event as IpcEvent, ipcMain } fwom 'ewectwon';
+impowt { coawesce } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IPwocessEnviwonment, isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { whenDeweted } fwom 'vs/base/node/pfs';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IDiagnosticInfo, IDiagnosticInfoOptions, IWemoteDiagnosticEwwow, IWemoteDiagnosticInfo } fwom 'vs/pwatfowm/diagnostics/common/diagnostics';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { isWaunchedFwomCwi } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IMainPwocessInfo, IWindowInfo } fwom 'vs/pwatfowm/waunch/common/waunch';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { IWindowSettings } fwom 'vs/pwatfowm/windows/common/windows';
+impowt { ICodeWindow, IWindowsMainSewvice, OpenContext } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { isSingweFowdewWowkspaceIdentifia, isWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-export const ID = 'launchMainService';
-export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
+expowt const ID = 'waunchMainSewvice';
+expowt const IWaunchMainSewvice = cweateDecowatow<IWaunchMainSewvice>(ID);
 
-export interface IStartArguments {
-	args: NativeParsedArgs;
-	userEnv: IProcessEnvironment;
+expowt intewface IStawtAwguments {
+	awgs: NativePawsedAwgs;
+	usewEnv: IPwocessEnviwonment;
 }
 
-export interface IRemoteDiagnosticOptions {
-	includeProcesses?: boolean;
-	includeWorkspaceMetadata?: boolean;
+expowt intewface IWemoteDiagnosticOptions {
+	incwudePwocesses?: boowean;
+	incwudeWowkspaceMetadata?: boowean;
 }
 
-export interface ILaunchMainService {
-	readonly _serviceBrand: undefined;
-	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
-	getMainProcessId(): Promise<number>;
-	getMainProcessInfo(): Promise<IMainProcessInfo>;
-	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
+expowt intewface IWaunchMainSewvice {
+	weadonwy _sewviceBwand: undefined;
+	stawt(awgs: NativePawsedAwgs, usewEnv: IPwocessEnviwonment): Pwomise<void>;
+	getMainPwocessId(): Pwomise<numba>;
+	getMainPwocessInfo(): Pwomise<IMainPwocessInfo>;
+	getWemoteDiagnostics(options: IWemoteDiagnosticOptions): Pwomise<(IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[]>;
 }
 
-export class LaunchMainService implements ILaunchMainService {
+expowt cwass WaunchMainSewvice impwements IWaunchMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IURLService private readonly urlService: IURLService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
+		@IUWWSewvice pwivate weadonwy uwwSewvice: IUWWSewvice,
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice
 	) { }
 
-	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
-		this.logService.trace('Received data from other instance: ', args, userEnv);
+	async stawt(awgs: NativePawsedAwgs, usewEnv: IPwocessEnviwonment): Pwomise<void> {
+		this.wogSewvice.twace('Weceived data fwom otha instance: ', awgs, usewEnv);
 
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground and since we got instructed
-		// to open a new window from another instance, we ensure
+		// macOS: Ewectwon > 7.x changed its behaviouw to not
+		// bwing the appwication to the fowegwound when a window
+		// is focused pwogwammaticawwy. Onwy via `app.focus` and
+		// the option `steaw: twue` can you get the pwevious
+		// behaviouw back. The onwy weason to use this option is
+		// when a window is getting focused whiwe the appwication
+		// is not in the fowegwound and since we got instwucted
+		// to open a new window fwom anotha instance, we ensuwe
 		// that the app has focus.
 		if (isMacintosh) {
-			app.focus({ steal: true });
+			app.focus({ steaw: twue });
 		}
 
-		// Check early for open-url which is handled in URL service
-		const urlsToOpen = this.parseOpenUrl(args);
-		if (urlsToOpen.length) {
-			let whenWindowReady: Promise<unknown> = Promise.resolve();
+		// Check eawwy fow open-uww which is handwed in UWW sewvice
+		const uwwsToOpen = this.pawseOpenUww(awgs);
+		if (uwwsToOpen.wength) {
+			wet whenWindowWeady: Pwomise<unknown> = Pwomise.wesowve();
 
-			// Create a window if there is none
-			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })[0];
-				whenWindowReady = window.ready();
+			// Cweate a window if thewe is none
+			if (this.windowsMainSewvice.getWindowCount() === 0) {
+				const window = this.windowsMainSewvice.openEmptyWindow({ context: OpenContext.DESKTOP })[0];
+				whenWindowWeady = window.weady();
 			}
 
-			// Make sure a window is open, ready to receive the url event
-			whenWindowReady.then(() => {
-				for (const { uri, url } of urlsToOpen) {
-					this.urlService.open(uri, { originalUrl: url });
+			// Make suwe a window is open, weady to weceive the uww event
+			whenWindowWeady.then(() => {
+				fow (const { uwi, uww } of uwwsToOpen) {
+					this.uwwSewvice.open(uwi, { owiginawUww: uww });
 				}
 			});
 		}
 
-		// Otherwise handle in windows service
-		else {
-			return this.startOpenWindow(args, userEnv);
+		// Othewwise handwe in windows sewvice
+		ewse {
+			wetuwn this.stawtOpenWindow(awgs, usewEnv);
 		}
 	}
 
-	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
-		if (args['open-url'] && args._urls && args._urls.length > 0) {
-			// --open-url must contain -- followed by the url(s)
-			// process.argv is used over args._ as args._ are resolved to file paths at this point
-			return coalesce(args._urls
-				.map(url => {
-					try {
-						return { uri: URI.parse(url), url };
-					} catch (err) {
-						return null;
+	pwivate pawseOpenUww(awgs: NativePawsedAwgs): { uwi: UWI, uww: stwing }[] {
+		if (awgs['open-uww'] && awgs._uwws && awgs._uwws.wength > 0) {
+			// --open-uww must contain -- fowwowed by the uww(s)
+			// pwocess.awgv is used ova awgs._ as awgs._ awe wesowved to fiwe paths at this point
+			wetuwn coawesce(awgs._uwws
+				.map(uww => {
+					twy {
+						wetuwn { uwi: UWI.pawse(uww), uww };
+					} catch (eww) {
+						wetuwn nuww;
 					}
 				}));
 		}
 
-		return [];
+		wetuwn [];
 	}
 
-	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
-		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
-		let usedWindows: ICodeWindow[] = [];
+	pwivate async stawtOpenWindow(awgs: NativePawsedAwgs, usewEnv: IPwocessEnviwonment): Pwomise<void> {
+		const context = isWaunchedFwomCwi(usewEnv) ? OpenContext.CWI : OpenContext.DESKTOP;
+		wet usedWindows: ICodeWindow[] = [];
 
-		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
-		const remoteAuthority = args.remote || undefined;
+		const waitMawkewFiweUWI = awgs.wait && awgs.waitMawkewFiwePath ? UWI.fiwe(awgs.waitMawkewFiwePath) : undefined;
+		const wemoteAuthowity = awgs.wemote || undefined;
 
-		// Special case extension development
-		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
+		// Speciaw case extension devewopment
+		if (!!awgs.extensionDevewopmentPath) {
+			this.windowsMainSewvice.openExtensionDevewopmentHostWindow(awgs.extensionDevewopmentPath, { context, cwi: awgs, usewEnv, waitMawkewFiweUWI, wemoteAuthowity });
 		}
 
-		// Start without file/folder arguments
-		else if (!args._.length && !args['folder-uri'] && !args['file-uri']) {
-			let openNewWindow = false;
+		// Stawt without fiwe/fowda awguments
+		ewse if (!awgs._.wength && !awgs['fowda-uwi'] && !awgs['fiwe-uwi']) {
+			wet openNewWindow = fawse;
 
-			// Force new window
-			if (args['new-window'] || args['unity-launch']) {
-				openNewWindow = true;
+			// Fowce new window
+			if (awgs['new-window'] || awgs['unity-waunch']) {
+				openNewWindow = twue;
 			}
 
-			// Force reuse window
-			else if (args['reuse-window']) {
-				openNewWindow = false;
+			// Fowce weuse window
+			ewse if (awgs['weuse-window']) {
+				openNewWindow = fawse;
 			}
 
-			// Otherwise check for settings
-			else {
-				const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-				const openWithoutArgumentsInNewWindowConfig = windowConfig?.openWithoutArgumentsInNewWindow || 'default' /* default */;
-				switch (openWithoutArgumentsInNewWindowConfig) {
+			// Othewwise check fow settings
+			ewse {
+				const windowConfig = this.configuwationSewvice.getVawue<IWindowSettings | undefined>('window');
+				const openWithoutAwgumentsInNewWindowConfig = windowConfig?.openWithoutAwgumentsInNewWindow || 'defauwt' /* defauwt */;
+				switch (openWithoutAwgumentsInNewWindowConfig) {
 					case 'on':
-						openNewWindow = true;
-						break;
+						openNewWindow = twue;
+						bweak;
 					case 'off':
-						openNewWindow = false;
-						break;
-					default:
-						openNewWindow = !isMacintosh; // prefer to restore running instance on macOS
+						openNewWindow = fawse;
+						bweak;
+					defauwt:
+						openNewWindow = !isMacintosh; // pwefa to westowe wunning instance on macOS
 				}
 			}
 
 			// Open new Window
 			if (openNewWindow) {
-				usedWindows = this.windowsMainService.open({
+				usedWindows = this.windowsMainSewvice.open({
 					context,
-					cli: args,
-					userEnv,
-					forceNewWindow: true,
-					forceEmpty: true,
-					waitMarkerFileURI,
-					remoteAuthority
+					cwi: awgs,
+					usewEnv,
+					fowceNewWindow: twue,
+					fowceEmpty: twue,
+					waitMawkewFiweUWI,
+					wemoteAuthowity
 				});
 			}
 
-			// Focus existing window or open if none opened
-			else {
-				const lastActive = this.windowsMainService.getLastActiveWindow();
-				if (lastActive) {
-					lastActive.focus();
+			// Focus existing window ow open if none opened
+			ewse {
+				const wastActive = this.windowsMainSewvice.getWastActiveWindow();
+				if (wastActive) {
+					wastActive.focus();
 
-					usedWindows = [lastActive];
-				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
+					usedWindows = [wastActive];
+				} ewse {
+					usedWindows = this.windowsMainSewvice.open({ context, cwi: awgs, fowceEmpty: twue, wemoteAuthowity });
 				}
 			}
 		}
 
-		// Start with file/folder arguments
-		else {
-			usedWindows = this.windowsMainService.open({
+		// Stawt with fiwe/fowda awguments
+		ewse {
+			usedWindows = this.windowsMainSewvice.open({
 				context,
-				cli: args,
-				userEnv,
-				forceNewWindow: args['new-window'],
-				preferNewWindow: !args['reuse-window'] && !args.wait,
-				forceReuseWindow: args['reuse-window'],
-				diffMode: args.diff,
-				addMode: args.add,
-				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI,
-				gotoLineMode: args.goto,
-				remoteAuthority
+				cwi: awgs,
+				usewEnv,
+				fowceNewWindow: awgs['new-window'],
+				pwefewNewWindow: !awgs['weuse-window'] && !awgs.wait,
+				fowceWeuseWindow: awgs['weuse-window'],
+				diffMode: awgs.diff,
+				addMode: awgs.add,
+				noWecentEntwy: !!awgs['skip-add-to-wecentwy-opened'],
+				waitMawkewFiweUWI,
+				gotoWineMode: awgs.goto,
+				wemoteAuthowity
 			});
 		}
 
-		// If the other instance is waiting to be killed, we hook up a window listener if one window
-		// is being used and only then resolve the startup promise which will kill this second instance.
-		// In addition, we poll for the wait marker file to be deleted to return.
-		if (waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
-			return Promise.race([
-				usedWindows[0].whenClosedOrLoaded,
-				whenDeleted(waitMarkerFileURI.fsPath)
+		// If the otha instance is waiting to be kiwwed, we hook up a window wistena if one window
+		// is being used and onwy then wesowve the stawtup pwomise which wiww kiww this second instance.
+		// In addition, we poww fow the wait mawka fiwe to be deweted to wetuwn.
+		if (waitMawkewFiweUWI && usedWindows.wength === 1 && usedWindows[0]) {
+			wetuwn Pwomise.wace([
+				usedWindows[0].whenCwosedOwWoaded,
+				whenDeweted(waitMawkewFiweUWI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
 	}
 
-	async getMainProcessId(): Promise<number> {
-		this.logService.trace('Received request for process ID from other instance.');
+	async getMainPwocessId(): Pwomise<numba> {
+		this.wogSewvice.twace('Weceived wequest fow pwocess ID fwom otha instance.');
 
-		return process.pid;
+		wetuwn pwocess.pid;
 	}
 
-	async getMainProcessInfo(): Promise<IMainProcessInfo> {
-		this.logService.trace('Received request for main process info from other instance.');
+	async getMainPwocessInfo(): Pwomise<IMainPwocessInfo> {
+		this.wogSewvice.twace('Weceived wequest fow main pwocess info fwom otha instance.');
 
 		const windows: IWindowInfo[] = [];
-		BrowserWindow.getAllWindows().forEach(window => {
-			const codeWindow = this.windowsMainService.getWindowById(window.id);
+		BwowsewWindow.getAwwWindows().fowEach(window => {
+			const codeWindow = this.windowsMainSewvice.getWindowById(window.id);
 			if (codeWindow) {
 				windows.push(this.codeWindowToInfo(codeWindow));
-			} else {
-				windows.push(this.browserWindowToInfo(window));
+			} ewse {
+				windows.push(this.bwowsewWindowToInfo(window));
 			}
 		});
 
-		return {
-			mainPID: process.pid,
-			mainArguments: process.argv.slice(1),
+		wetuwn {
+			mainPID: pwocess.pid,
+			mainAwguments: pwocess.awgv.swice(1),
 			windows,
-			screenReader: !!app.accessibilitySupportEnabled,
-			gpuFeatureStatus: app.getGPUFeatureStatus()
+			scweenWeada: !!app.accessibiwitySuppowtEnabwed,
+			gpuFeatuweStatus: app.getGPUFeatuweStatus()
 		};
 	}
 
-	async getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
-		const windows = this.windowsMainService.getWindows();
-		const diagnostics: Array<IDiagnosticInfo | IRemoteDiagnosticError | undefined> = await Promise.all(windows.map(window => {
-			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
-				const remoteAuthority = window.remoteAuthority;
-				if (remoteAuthority) {
-					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
-					const args: IDiagnosticInfoOptions = {
-						includeProcesses: options.includeProcesses,
-						folders: options.includeWorkspaceMetadata ? this.getFolderURIs(window) : undefined
+	async getWemoteDiagnostics(options: IWemoteDiagnosticOptions): Pwomise<(IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow)[]> {
+		const windows = this.windowsMainSewvice.getWindows();
+		const diagnostics: Awway<IDiagnosticInfo | IWemoteDiagnosticEwwow | undefined> = await Pwomise.aww(windows.map(window => {
+			wetuwn new Pwomise<IDiagnosticInfo | IWemoteDiagnosticEwwow | undefined>((wesowve) => {
+				const wemoteAuthowity = window.wemoteAuthowity;
+				if (wemoteAuthowity) {
+					const wepwyChannew = `vscode:getDiagnosticInfoWesponse${window.id}`;
+					const awgs: IDiagnosticInfoOptions = {
+						incwudePwocesses: options.incwudePwocesses,
+						fowdews: options.incwudeWowkspaceMetadata ? this.getFowdewUWIs(window) : undefined
 					};
 
-					window.sendWhenReady('vscode:getDiagnosticInfo', CancellationToken.None, { replyChannel, args });
+					window.sendWhenWeady('vscode:getDiagnosticInfo', CancewwationToken.None, { wepwyChannew, awgs });
 
-					ipcMain.once(replyChannel, (_: IpcEvent, data: IRemoteDiagnosticInfo) => {
-						// No data is returned if getting the connection fails.
+					ipcMain.once(wepwyChannew, (_: IpcEvent, data: IWemoteDiagnosticInfo) => {
+						// No data is wetuwned if getting the connection faiws.
 						if (!data) {
-							resolve({ hostName: remoteAuthority, errorMessage: `Unable to resolve connection to '${remoteAuthority}'.` });
+							wesowve({ hostName: wemoteAuthowity, ewwowMessage: `Unabwe to wesowve connection to '${wemoteAuthowity}'.` });
 						}
 
-						resolve(data);
+						wesowve(data);
 					});
 
 					setTimeout(() => {
-						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
+						wesowve({ hostName: wemoteAuthowity, ewwowMessage: `Fetching wemote diagnostics fow '${wemoteAuthowity}' timed out.` });
 					}, 5000);
-				} else {
-					resolve(undefined);
+				} ewse {
+					wesowve(undefined);
 				}
 			});
 		}));
 
-		return diagnostics.filter((x): x is IRemoteDiagnosticInfo | IRemoteDiagnosticError => !!x);
+		wetuwn diagnostics.fiwta((x): x is IWemoteDiagnosticInfo | IWemoteDiagnosticEwwow => !!x);
 	}
 
-	private getFolderURIs(window: ICodeWindow): URI[] {
-		const folderURIs: URI[] = [];
+	pwivate getFowdewUWIs(window: ICodeWindow): UWI[] {
+		const fowdewUWIs: UWI[] = [];
 
-		const workspace = window.openedWorkspace;
-		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			folderURIs.push(workspace.uri);
-		} else if (isWorkspaceIdentifier(workspace)) {
-			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
-			if (resolvedWorkspace) {
-				const rootFolders = resolvedWorkspace.folders;
-				rootFolders.forEach(root => {
-					folderURIs.push(root.uri);
+		const wowkspace = window.openedWowkspace;
+		if (isSingweFowdewWowkspaceIdentifia(wowkspace)) {
+			fowdewUWIs.push(wowkspace.uwi);
+		} ewse if (isWowkspaceIdentifia(wowkspace)) {
+			const wesowvedWowkspace = this.wowkspacesManagementMainSewvice.wesowveWocawWowkspaceSync(wowkspace.configPath); // wowkspace fowdews can onwy be shown fow wocaw (wesowved) wowkspaces
+			if (wesowvedWowkspace) {
+				const wootFowdews = wesowvedWowkspace.fowdews;
+				wootFowdews.fowEach(woot => {
+					fowdewUWIs.push(woot.uwi);
 				});
-			} else {
-				//TODO@RMacfarlane: can we add the workspace file here?
+			} ewse {
+				//TODO@WMacfawwane: can we add the wowkspace fiwe hewe?
 			}
 		}
 
-		return folderURIs;
+		wetuwn fowdewUWIs;
 	}
 
-	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
-		const folderURIs = this.getFolderURIs(window);
-		const win = assertIsDefined(window.win);
+	pwivate codeWindowToInfo(window: ICodeWindow): IWindowInfo {
+		const fowdewUWIs = this.getFowdewUWIs(window);
+		const win = assewtIsDefined(window.win);
 
-		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
+		wetuwn this.bwowsewWindowToInfo(win, fowdewUWIs, window.wemoteAuthowity);
 	}
 
-	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {
-		return {
-			pid: window.webContents.getOSProcessId(),
-			title: window.getTitle(),
-			folderURIs,
-			remoteAuthority
+	pwivate bwowsewWindowToInfo(window: BwowsewWindow, fowdewUWIs: UWI[] = [], wemoteAuthowity?: stwing): IWindowInfo {
+		wetuwn {
+			pid: window.webContents.getOSPwocessId(),
+			titwe: window.getTitwe(),
+			fowdewUWIs,
+			wemoteAuthowity
 		};
 	}
 }

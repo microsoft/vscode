@@ -1,432 +1,432 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { toSlashes } from 'vs/base/common/extpath';
-import { posix, win32 } from 'vs/base/common/path';
-import { isWindows } from 'vs/base/common/platform';
-import { addTrailingPathSeparator, basename, dirname, distinctParents, extUri, extUriIgnorePathCase, hasTrailingPathSeparator, isAbsolutePath, joinPath, normalizePath, relativePath, removeTrailingPathSeparator, resolvePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { toSwashes } fwom 'vs/base/common/extpath';
+impowt { posix, win32 } fwom 'vs/base/common/path';
+impowt { isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { addTwaiwingPathSepawatow, basename, diwname, distinctPawents, extUwi, extUwiIgnowePathCase, hasTwaiwingPathSepawatow, isAbsowutePath, joinPath, nowmawizePath, wewativePath, wemoveTwaiwingPathSepawatow, wesowvePath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 
-suite('Resources', () => {
+suite('Wesouwces', () => {
 
-	test('distinctParents', () => {
+	test('distinctPawents', () => {
 
 		// Basic
-		let resources = [
-			URI.file('/some/folderA/file.txt'),
-			URI.file('/some/folderB/file.txt'),
-			URI.file('/some/folderC/file.txt')
+		wet wesouwces = [
+			UWI.fiwe('/some/fowdewA/fiwe.txt'),
+			UWI.fiwe('/some/fowdewB/fiwe.txt'),
+			UWI.fiwe('/some/fowdewC/fiwe.txt')
 		];
 
-		let distinct = distinctParents(resources, r => r);
-		assert.strictEqual(distinct.length, 3);
-		assert.strictEqual(distinct[0].toString(), resources[0].toString());
-		assert.strictEqual(distinct[1].toString(), resources[1].toString());
-		assert.strictEqual(distinct[2].toString(), resources[2].toString());
+		wet distinct = distinctPawents(wesouwces, w => w);
+		assewt.stwictEquaw(distinct.wength, 3);
+		assewt.stwictEquaw(distinct[0].toStwing(), wesouwces[0].toStwing());
+		assewt.stwictEquaw(distinct[1].toStwing(), wesouwces[1].toStwing());
+		assewt.stwictEquaw(distinct[2].toStwing(), wesouwces[2].toStwing());
 
-		// Parent / Child
-		resources = [
-			URI.file('/some/folderA'),
-			URI.file('/some/folderA/file.txt'),
-			URI.file('/some/folderA/child/file.txt'),
-			URI.file('/some/folderA2/file.txt'),
-			URI.file('/some/file.txt')
+		// Pawent / Chiwd
+		wesouwces = [
+			UWI.fiwe('/some/fowdewA'),
+			UWI.fiwe('/some/fowdewA/fiwe.txt'),
+			UWI.fiwe('/some/fowdewA/chiwd/fiwe.txt'),
+			UWI.fiwe('/some/fowdewA2/fiwe.txt'),
+			UWI.fiwe('/some/fiwe.txt')
 		];
 
-		distinct = distinctParents(resources, r => r);
-		assert.strictEqual(distinct.length, 3);
-		assert.strictEqual(distinct[0].toString(), resources[0].toString());
-		assert.strictEqual(distinct[1].toString(), resources[3].toString());
-		assert.strictEqual(distinct[2].toString(), resources[4].toString());
+		distinct = distinctPawents(wesouwces, w => w);
+		assewt.stwictEquaw(distinct.wength, 3);
+		assewt.stwictEquaw(distinct[0].toStwing(), wesouwces[0].toStwing());
+		assewt.stwictEquaw(distinct[1].toStwing(), wesouwces[3].toStwing());
+		assewt.stwictEquaw(distinct[2].toStwing(), wesouwces[4].toStwing());
 	});
 
-	test('dirname', () => {
+	test('diwname', () => {
 		if (isWindows) {
-			assert.strictEqual(dirname(URI.file('c:\\some\\file\\test.txt')).toString(), 'file:///c%3A/some/file');
-			assert.strictEqual(dirname(URI.file('c:\\some\\file')).toString(), 'file:///c%3A/some');
-			assert.strictEqual(dirname(URI.file('c:\\some\\file\\')).toString(), 'file:///c%3A/some');
-			assert.strictEqual(dirname(URI.file('c:\\some')).toString(), 'file:///c%3A/');
-			assert.strictEqual(dirname(URI.file('C:\\some')).toString(), 'file:///c%3A/');
-			assert.strictEqual(dirname(URI.file('c:\\')).toString(), 'file:///c%3A/');
-		} else {
-			assert.strictEqual(dirname(URI.file('/some/file/test.txt')).toString(), 'file:///some/file');
-			assert.strictEqual(dirname(URI.file('/some/file/')).toString(), 'file:///some');
-			assert.strictEqual(dirname(URI.file('/some/file')).toString(), 'file:///some');
+			assewt.stwictEquaw(diwname(UWI.fiwe('c:\\some\\fiwe\\test.txt')).toStwing(), 'fiwe:///c%3A/some/fiwe');
+			assewt.stwictEquaw(diwname(UWI.fiwe('c:\\some\\fiwe')).toStwing(), 'fiwe:///c%3A/some');
+			assewt.stwictEquaw(diwname(UWI.fiwe('c:\\some\\fiwe\\')).toStwing(), 'fiwe:///c%3A/some');
+			assewt.stwictEquaw(diwname(UWI.fiwe('c:\\some')).toStwing(), 'fiwe:///c%3A/');
+			assewt.stwictEquaw(diwname(UWI.fiwe('C:\\some')).toStwing(), 'fiwe:///c%3A/');
+			assewt.stwictEquaw(diwname(UWI.fiwe('c:\\')).toStwing(), 'fiwe:///c%3A/');
+		} ewse {
+			assewt.stwictEquaw(diwname(UWI.fiwe('/some/fiwe/test.txt')).toStwing(), 'fiwe:///some/fiwe');
+			assewt.stwictEquaw(diwname(UWI.fiwe('/some/fiwe/')).toStwing(), 'fiwe:///some');
+			assewt.stwictEquaw(diwname(UWI.fiwe('/some/fiwe')).toStwing(), 'fiwe:///some');
 		}
-		assert.strictEqual(dirname(URI.parse('foo://a/some/file/test.txt')).toString(), 'foo://a/some/file');
-		assert.strictEqual(dirname(URI.parse('foo://a/some/file/')).toString(), 'foo://a/some');
-		assert.strictEqual(dirname(URI.parse('foo://a/some/file')).toString(), 'foo://a/some');
-		assert.strictEqual(dirname(URI.parse('foo://a/some')).toString(), 'foo://a/');
-		assert.strictEqual(dirname(URI.parse('foo://a/')).toString(), 'foo://a/');
-		assert.strictEqual(dirname(URI.parse('foo://a')).toString(), 'foo://a');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/some/fiwe/test.txt')).toStwing(), 'foo://a/some/fiwe');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/some/fiwe/')).toStwing(), 'foo://a/some');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/some/fiwe')).toStwing(), 'foo://a/some');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/some')).toStwing(), 'foo://a/');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/')).toStwing(), 'foo://a/');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a')).toStwing(), 'foo://a');
 
-		// does not explode (https://github.com/microsoft/vscode/issues/41987)
-		dirname(URI.from({ scheme: 'file', authority: '/users/someone/portal.h' }));
+		// does not expwode (https://github.com/micwosoft/vscode/issues/41987)
+		diwname(UWI.fwom({ scheme: 'fiwe', authowity: '/usews/someone/powtaw.h' }));
 
-		assert.strictEqual(dirname(URI.parse('foo://a/b/c?q')).toString(), 'foo://a/b?q');
+		assewt.stwictEquaw(diwname(UWI.pawse('foo://a/b/c?q')).toStwing(), 'foo://a/b?q');
 	});
 
 	test('basename', () => {
 		if (isWindows) {
-			assert.strictEqual(basename(URI.file('c:\\some\\file\\test.txt')), 'test.txt');
-			assert.strictEqual(basename(URI.file('c:\\some\\file')), 'file');
-			assert.strictEqual(basename(URI.file('c:\\some\\file\\')), 'file');
-			assert.strictEqual(basename(URI.file('C:\\some\\file\\')), 'file');
-		} else {
-			assert.strictEqual(basename(URI.file('/some/file/test.txt')), 'test.txt');
-			assert.strictEqual(basename(URI.file('/some/file/')), 'file');
-			assert.strictEqual(basename(URI.file('/some/file')), 'file');
-			assert.strictEqual(basename(URI.file('/some')), 'some');
+			assewt.stwictEquaw(basename(UWI.fiwe('c:\\some\\fiwe\\test.txt')), 'test.txt');
+			assewt.stwictEquaw(basename(UWI.fiwe('c:\\some\\fiwe')), 'fiwe');
+			assewt.stwictEquaw(basename(UWI.fiwe('c:\\some\\fiwe\\')), 'fiwe');
+			assewt.stwictEquaw(basename(UWI.fiwe('C:\\some\\fiwe\\')), 'fiwe');
+		} ewse {
+			assewt.stwictEquaw(basename(UWI.fiwe('/some/fiwe/test.txt')), 'test.txt');
+			assewt.stwictEquaw(basename(UWI.fiwe('/some/fiwe/')), 'fiwe');
+			assewt.stwictEquaw(basename(UWI.fiwe('/some/fiwe')), 'fiwe');
+			assewt.stwictEquaw(basename(UWI.fiwe('/some')), 'some');
 		}
-		assert.strictEqual(basename(URI.parse('foo://a/some/file/test.txt')), 'test.txt');
-		assert.strictEqual(basename(URI.parse('foo://a/some/file/')), 'file');
-		assert.strictEqual(basename(URI.parse('foo://a/some/file')), 'file');
-		assert.strictEqual(basename(URI.parse('foo://a/some')), 'some');
-		assert.strictEqual(basename(URI.parse('foo://a/')), '');
-		assert.strictEqual(basename(URI.parse('foo://a')), '');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a/some/fiwe/test.txt')), 'test.txt');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a/some/fiwe/')), 'fiwe');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a/some/fiwe')), 'fiwe');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a/some')), 'some');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a/')), '');
+		assewt.stwictEquaw(basename(UWI.pawse('foo://a')), '');
 	});
 
 	test('joinPath', () => {
 		if (isWindows) {
-			assert.strictEqual(joinPath(URI.file('c:\\foo\\bar'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\foo\\bar\\'), 'file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\foo\\bar\\'), '/file.js').toString(), 'file:///c%3A/foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\'), '/file.js').toString(), 'file:///c%3A/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\'), 'bar/file.js').toString(), 'file:///c%3A/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\foo'), './file.js').toString(), 'file:///c%3A/foo/file.js');
-			assert.strictEqual(joinPath(URI.file('c:\\foo'), '/./file.js').toString(), 'file:///c%3A/foo/file.js');
-			assert.strictEqual(joinPath(URI.file('C:\\foo'), '../file.js').toString(), 'file:///c%3A/file.js');
-			assert.strictEqual(joinPath(URI.file('C:\\foo\\.'), '../file.js').toString(), 'file:///c%3A/file.js');
-		} else {
-			assert.strictEqual(joinPath(URI.file('/foo/bar'), '/file.js').toString(), 'file:///foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('/foo/bar'), 'file.js').toString(), 'file:///foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('/foo/bar/'), '/file.js').toString(), 'file:///foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('/'), '/file.js').toString(), 'file:///file.js');
-			assert.strictEqual(joinPath(URI.file('/foo/bar'), './file.js').toString(), 'file:///foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('/foo/bar'), '/./file.js').toString(), 'file:///foo/bar/file.js');
-			assert.strictEqual(joinPath(URI.file('/foo/bar'), '../file.js').toString(), 'file:///foo/file.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\foo\\baw'), '/fiwe.js').toStwing(), 'fiwe:///c%3A/foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\foo\\baw\\'), 'fiwe.js').toStwing(), 'fiwe:///c%3A/foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\foo\\baw\\'), '/fiwe.js').toStwing(), 'fiwe:///c%3A/foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\'), '/fiwe.js').toStwing(), 'fiwe:///c%3A/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\'), 'baw/fiwe.js').toStwing(), 'fiwe:///c%3A/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\foo'), './fiwe.js').toStwing(), 'fiwe:///c%3A/foo/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('c:\\foo'), '/./fiwe.js').toStwing(), 'fiwe:///c%3A/foo/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('C:\\foo'), '../fiwe.js').toStwing(), 'fiwe:///c%3A/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('C:\\foo\\.'), '../fiwe.js').toStwing(), 'fiwe:///c%3A/fiwe.js');
+		} ewse {
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw'), '/fiwe.js').toStwing(), 'fiwe:///foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw'), 'fiwe.js').toStwing(), 'fiwe:///foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw/'), '/fiwe.js').toStwing(), 'fiwe:///foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/'), '/fiwe.js').toStwing(), 'fiwe:///fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw'), './fiwe.js').toStwing(), 'fiwe:///foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw'), '/./fiwe.js').toStwing(), 'fiwe:///foo/baw/fiwe.js');
+			assewt.stwictEquaw(joinPath(UWI.fiwe('/foo/baw'), '../fiwe.js').toStwing(), 'fiwe:///foo/fiwe.js');
 		}
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar')).toString(), 'foo://a/foo/bar');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar'), '/file.js').toString(), 'foo://a/foo/bar/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar'), 'file.js').toString(), 'foo://a/foo/bar/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar/'), '/file.js').toString(), 'foo://a/foo/bar/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/'), '/file.js').toString(), 'foo://a/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar/'), './file.js').toString(), 'foo://a/foo/bar/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar/'), '/./file.js').toString(), 'foo://a/foo/bar/file.js');
-		assert.strictEqual(joinPath(URI.parse('foo://a/foo/bar/'), '../file.js').toString(), 'foo://a/foo/file.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw')).toStwing(), 'foo://a/foo/baw');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw'), '/fiwe.js').toStwing(), 'foo://a/foo/baw/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw'), 'fiwe.js').toStwing(), 'foo://a/foo/baw/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw/'), '/fiwe.js').toStwing(), 'foo://a/foo/baw/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/'), '/fiwe.js').toStwing(), 'foo://a/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw/'), './fiwe.js').toStwing(), 'foo://a/foo/baw/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw/'), '/./fiwe.js').toStwing(), 'foo://a/foo/baw/fiwe.js');
+		assewt.stwictEquaw(joinPath(UWI.pawse('foo://a/foo/baw/'), '../fiwe.js').toStwing(), 'foo://a/foo/fiwe.js');
 
-		assert.strictEqual(
-			joinPath(URI.from({ scheme: 'myScheme', authority: 'authority', path: '/path', query: 'query', fragment: 'fragment' }), '/file.js').toString(),
-			'myScheme://authority/path/file.js?query#fragment');
+		assewt.stwictEquaw(
+			joinPath(UWI.fwom({ scheme: 'myScheme', authowity: 'authowity', path: '/path', quewy: 'quewy', fwagment: 'fwagment' }), '/fiwe.js').toStwing(),
+			'myScheme://authowity/path/fiwe.js?quewy#fwagment');
 	});
 
-	test('normalizePath', () => {
+	test('nowmawizePath', () => {
 		if (isWindows) {
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\.\\bar')).toString(), 'file:///c%3A/foo/bar');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\.')).toString(), 'file:///c%3A/foo');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\.\\')).toString(), 'file:///c%3A/foo/');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\..')).toString(), 'file:///c%3A/');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.strictEqual(normalizePath(URI.file('c:\\foo\\foo\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.strictEqual(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\..\\bar')).toString(), 'file:///c%3A/bar');
-			assert.strictEqual(normalizePath(URI.file('C:\\foo\\foo\\.\\..\\some\\..\\bar')).toString(), 'file:///c%3A/foo/bar');
-		} else {
-			assert.strictEqual(normalizePath(URI.file('/foo/./bar')).toString(), 'file:///foo/bar');
-			assert.strictEqual(normalizePath(URI.file('/foo/.')).toString(), 'file:///foo');
-			assert.strictEqual(normalizePath(URI.file('/foo/./')).toString(), 'file:///foo/');
-			assert.strictEqual(normalizePath(URI.file('/foo/..')).toString(), 'file:///');
-			assert.strictEqual(normalizePath(URI.file('/foo/../bar')).toString(), 'file:///bar');
-			assert.strictEqual(normalizePath(URI.file('/foo/../../bar')).toString(), 'file:///bar');
-			assert.strictEqual(normalizePath(URI.file('/foo/foo/../../bar')).toString(), 'file:///bar');
-			assert.strictEqual(normalizePath(URI.file('/foo/foo/./../../bar')).toString(), 'file:///bar');
-			assert.strictEqual(normalizePath(URI.file('/foo/foo/./../some/../bar')).toString(), 'file:///foo/bar');
-			assert.strictEqual(normalizePath(URI.file('/f')).toString(), 'file:///f');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\.\\baw')).toStwing(), 'fiwe:///c%3A/foo/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\.')).toStwing(), 'fiwe:///c%3A/foo');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\.\\')).toStwing(), 'fiwe:///c%3A/foo/');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\..')).toStwing(), 'fiwe:///c%3A/');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\..\\baw')).toStwing(), 'fiwe:///c%3A/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\..\\..\\baw')).toStwing(), 'fiwe:///c%3A/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('c:\\foo\\foo\\..\\..\\baw')).toStwing(), 'fiwe:///c%3A/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('C:\\foo\\foo\\.\\..\\..\\baw')).toStwing(), 'fiwe:///c%3A/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('C:\\foo\\foo\\.\\..\\some\\..\\baw')).toStwing(), 'fiwe:///c%3A/foo/baw');
+		} ewse {
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/./baw')).toStwing(), 'fiwe:///foo/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/.')).toStwing(), 'fiwe:///foo');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/./')).toStwing(), 'fiwe:///foo/');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/..')).toStwing(), 'fiwe:///');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/../baw')).toStwing(), 'fiwe:///baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/../../baw')).toStwing(), 'fiwe:///baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/foo/../../baw')).toStwing(), 'fiwe:///baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/foo/./../../baw')).toStwing(), 'fiwe:///baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/foo/foo/./../some/../baw')).toStwing(), 'fiwe:///foo/baw');
+			assewt.stwictEquaw(nowmawizePath(UWI.fiwe('/f')).toStwing(), 'fiwe:///f');
 		}
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/./bar')).toString(), 'foo://a/foo/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/.')).toString(), 'foo://a/foo');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/./')).toString(), 'foo://a/foo/');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/..')).toString(), 'foo://a/');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/../bar')).toString(), 'foo://a/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/../../bar')).toString(), 'foo://a/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/foo/../../bar')).toString(), 'foo://a/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/foo/./../../bar')).toString(), 'foo://a/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/foo/./../some/../bar')).toString(), 'foo://a/foo/bar');
-		assert.strictEqual(normalizePath(URI.parse('foo://a')).toString(), 'foo://a');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/')).toString(), 'foo://a/');
-		assert.strictEqual(normalizePath(URI.parse('foo://a/foo/./bar?q=1')).toString(), URI.parse('foo://a/foo/bar?q%3D1').toString());
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/./baw')).toStwing(), 'foo://a/foo/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/.')).toStwing(), 'foo://a/foo');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/./')).toStwing(), 'foo://a/foo/');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/..')).toStwing(), 'foo://a/');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/../baw')).toStwing(), 'foo://a/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/../../baw')).toStwing(), 'foo://a/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/foo/../../baw')).toStwing(), 'foo://a/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/foo/./../../baw')).toStwing(), 'foo://a/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/foo/./../some/../baw')).toStwing(), 'foo://a/foo/baw');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a')).toStwing(), 'foo://a');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/')).toStwing(), 'foo://a/');
+		assewt.stwictEquaw(nowmawizePath(UWI.pawse('foo://a/foo/./baw?q=1')).toStwing(), UWI.pawse('foo://a/foo/baw?q%3D1').toStwing());
 	});
 
-	test('isAbsolute', () => {
+	test('isAbsowute', () => {
 		if (isWindows) {
-			assert.strictEqual(isAbsolutePath(URI.file('c:\\foo\\')), true);
-			assert.strictEqual(isAbsolutePath(URI.file('C:\\foo\\')), true);
-			assert.strictEqual(isAbsolutePath(URI.file('bar')), true); // URI normalizes all file URIs to be absolute
-		} else {
-			assert.strictEqual(isAbsolutePath(URI.file('/foo/bar')), true);
-			assert.strictEqual(isAbsolutePath(URI.file('bar')), true); // URI normalizes all file URIs to be absolute
+			assewt.stwictEquaw(isAbsowutePath(UWI.fiwe('c:\\foo\\')), twue);
+			assewt.stwictEquaw(isAbsowutePath(UWI.fiwe('C:\\foo\\')), twue);
+			assewt.stwictEquaw(isAbsowutePath(UWI.fiwe('baw')), twue); // UWI nowmawizes aww fiwe UWIs to be absowute
+		} ewse {
+			assewt.stwictEquaw(isAbsowutePath(UWI.fiwe('/foo/baw')), twue);
+			assewt.stwictEquaw(isAbsowutePath(UWI.fiwe('baw')), twue); // UWI nowmawizes aww fiwe UWIs to be absowute
 		}
-		assert.strictEqual(isAbsolutePath(URI.parse('foo:foo')), false);
-		assert.strictEqual(isAbsolutePath(URI.parse('foo://a/foo/.')), true);
+		assewt.stwictEquaw(isAbsowutePath(UWI.pawse('foo:foo')), fawse);
+		assewt.stwictEquaw(isAbsowutePath(UWI.pawse('foo://a/foo/.')), twue);
 	});
 
-	function assertTrailingSeparator(u1: URI, expected: boolean) {
-		assert.strictEqual(hasTrailingPathSeparator(u1), expected, u1.toString());
+	function assewtTwaiwingSepawatow(u1: UWI, expected: boowean) {
+		assewt.stwictEquaw(hasTwaiwingPathSepawatow(u1), expected, u1.toStwing());
 	}
 
-	function assertRemoveTrailingSeparator(u1: URI, expected: URI) {
-		assertEqualURI(removeTrailingPathSeparator(u1), expected, u1.toString());
+	function assewtWemoveTwaiwingSepawatow(u1: UWI, expected: UWI) {
+		assewtEquawUWI(wemoveTwaiwingPathSepawatow(u1), expected, u1.toStwing());
 	}
 
-	function assertAddTrailingSeparator(u1: URI, expected: URI) {
-		assertEqualURI(addTrailingPathSeparator(u1), expected, u1.toString());
+	function assewtAddTwaiwingSepawatow(u1: UWI, expected: UWI) {
+		assewtEquawUWI(addTwaiwingPathSepawatow(u1), expected, u1.toStwing());
 	}
 
-	test('trailingPathSeparator', () => {
-		assertTrailingSeparator(URI.parse('foo://a/foo'), false);
-		assertTrailingSeparator(URI.parse('foo://a/foo/'), true);
-		assertTrailingSeparator(URI.parse('foo://a/'), false);
-		assertTrailingSeparator(URI.parse('foo://a'), false);
+	test('twaiwingPathSepawatow', () => {
+		assewtTwaiwingSepawatow(UWI.pawse('foo://a/foo'), fawse);
+		assewtTwaiwingSepawatow(UWI.pawse('foo://a/foo/'), twue);
+		assewtTwaiwingSepawatow(UWI.pawse('foo://a/'), fawse);
+		assewtTwaiwingSepawatow(UWI.pawse('foo://a'), fawse);
 
-		assertRemoveTrailingSeparator(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'));
-		assertRemoveTrailingSeparator(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'));
-		assertRemoveTrailingSeparator(URI.parse('foo://a/'), URI.parse('foo://a/'));
-		assertRemoveTrailingSeparator(URI.parse('foo://a'), URI.parse('foo://a'));
+		assewtWemoveTwaiwingSepawatow(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo'));
+		assewtWemoveTwaiwingSepawatow(UWI.pawse('foo://a/foo/'), UWI.pawse('foo://a/foo'));
+		assewtWemoveTwaiwingSepawatow(UWI.pawse('foo://a/'), UWI.pawse('foo://a/'));
+		assewtWemoveTwaiwingSepawatow(UWI.pawse('foo://a'), UWI.pawse('foo://a'));
 
-		assertAddTrailingSeparator(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/'));
-		assertAddTrailingSeparator(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo/'));
-		assertAddTrailingSeparator(URI.parse('foo://a/'), URI.parse('foo://a/'));
-		assertAddTrailingSeparator(URI.parse('foo://a'), URI.parse('foo://a/'));
-
-		if (isWindows) {
-			assertTrailingSeparator(URI.file('c:\\a\\foo'), false);
-			assertTrailingSeparator(URI.file('c:\\a\\foo\\'), true);
-			assertTrailingSeparator(URI.file('c:\\'), false);
-			assertTrailingSeparator(URI.file('\\\\server\\share\\some\\'), true);
-			assertTrailingSeparator(URI.file('\\\\server\\share\\'), false);
-
-			assertRemoveTrailingSeparator(URI.file('c:\\a\\foo'), URI.file('c:\\a\\foo'));
-			assertRemoveTrailingSeparator(URI.file('c:\\a\\foo\\'), URI.file('c:\\a\\foo'));
-			assertRemoveTrailingSeparator(URI.file('c:\\'), URI.file('c:\\'));
-			assertRemoveTrailingSeparator(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share\\some'));
-			assertRemoveTrailingSeparator(URI.file('\\\\server\\share\\'), URI.file('\\\\server\\share\\'));
-
-			assertAddTrailingSeparator(URI.file('c:\\a\\foo'), URI.file('c:\\a\\foo\\'));
-			assertAddTrailingSeparator(URI.file('c:\\a\\foo\\'), URI.file('c:\\a\\foo\\'));
-			assertAddTrailingSeparator(URI.file('c:\\'), URI.file('c:\\'));
-			assertAddTrailingSeparator(URI.file('\\\\server\\share\\some'), URI.file('\\\\server\\share\\some\\'));
-			assertAddTrailingSeparator(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share\\some\\'));
-		} else {
-			assertTrailingSeparator(URI.file('/foo/bar'), false);
-			assertTrailingSeparator(URI.file('/foo/bar/'), true);
-			assertTrailingSeparator(URI.file('/'), false);
-
-			assertRemoveTrailingSeparator(URI.file('/foo/bar'), URI.file('/foo/bar'));
-			assertRemoveTrailingSeparator(URI.file('/foo/bar/'), URI.file('/foo/bar'));
-			assertRemoveTrailingSeparator(URI.file('/'), URI.file('/'));
-
-			assertAddTrailingSeparator(URI.file('/foo/bar'), URI.file('/foo/bar/'));
-			assertAddTrailingSeparator(URI.file('/foo/bar/'), URI.file('/foo/bar/'));
-			assertAddTrailingSeparator(URI.file('/'), URI.file('/'));
-		}
-	});
-
-	function assertEqualURI(actual: URI, expected: URI, message?: string, ignoreCase?: boolean) {
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
-		if (!util.isEqual(expected, actual)) {
-			assert.strictEqual(actual.toString(), expected.toString(), message);
-		}
-	}
-
-	function assertRelativePath(u1: URI, u2: URI, expectedPath: string | undefined, ignoreJoin?: boolean, ignoreCase?: boolean) {
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
-
-		assert.strictEqual(util.relativePath(u1, u2), expectedPath, `from ${u1.toString()} to ${u2.toString()}`);
-		if (expectedPath !== undefined && !ignoreJoin) {
-			assertEqualURI(removeTrailingPathSeparator(joinPath(u1, expectedPath)), removeTrailingPathSeparator(u2), 'joinPath on relativePath should be equal', ignoreCase);
-		}
-	}
-
-	test('relativePath', () => {
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar'), 'bar');
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/'), 'bar');
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/goo'), 'bar/goo');
-		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/foo/bar/goo'), 'foo/bar/goo');
-		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://a/foo/bar'), '../bar');
-		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..', true);
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/'), '');
-		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'), '');
-		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo/'), '');
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'), '');
-		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '', true);
-		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/'), '');
-		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '', true);
-		assertRelativePath(URI.parse('foo://a/foo?q'), URI.parse('foo://a/foo/bar#h'), 'bar', true);
-		assertRelativePath(URI.parse('foo://'), URI.parse('foo://a/b'), undefined);
-		assertRelativePath(URI.parse('foo://a2/b'), URI.parse('foo://a/b'), undefined);
-		assertRelativePath(URI.parse('goo://a/b'), URI.parse('foo://a/b'), undefined);
-
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://A/FOO/bar/goo'), 'bar/goo', false, true);
-		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://A/FOO/BAR/GOO'), 'BAR/GOO', false, true);
-		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://A/FOO/BAR/GOO'), '../BAR/GOO', false, true);
-		assertRelativePath(URI.parse('foo:///c:/a/foo'), URI.parse('foo:///C:/a/foo/xoo/'), 'xoo', false, true);
+		assewtAddTwaiwingSepawatow(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo/'));
+		assewtAddTwaiwingSepawatow(UWI.pawse('foo://a/foo/'), UWI.pawse('foo://a/foo/'));
+		assewtAddTwaiwingSepawatow(UWI.pawse('foo://a/'), UWI.pawse('foo://a/'));
+		assewtAddTwaiwingSepawatow(UWI.pawse('foo://a'), UWI.pawse('foo://a/'));
 
 		if (isWindows) {
-			assertRelativePath(URI.file('c:\\foo\\bar'), URI.file('c:\\foo\\bar'), '');
-			assertRelativePath(URI.file('c:\\foo\\bar\\huu'), URI.file('c:\\foo\\bar'), '..');
-			assertRelativePath(URI.file('c:\\foo\\bar\\a1\\a2'), URI.file('c:\\foo\\bar'), '../..');
-			assertRelativePath(URI.file('c:\\foo\\bar\\'), URI.file('c:\\foo\\bar\\a1\\a2'), 'a1/a2');
-			assertRelativePath(URI.file('c:\\foo\\bar\\'), URI.file('c:\\foo\\bar\\a1\\a2\\'), 'a1/a2');
-			assertRelativePath(URI.file('c:\\'), URI.file('c:\\foo\\bar'), 'foo/bar');
-			assertRelativePath(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share\\some\\path'), 'path');
-			assertRelativePath(URI.file('\\\\server\\share\\some\\'), URI.file('\\\\server\\share2\\some\\path'), '../../share2/some/path', true); // ignore joinPath assert: path.join is not root aware
-		} else {
-			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar'), 'bar');
-			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar/'), 'bar');
-			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/bar/goo'), 'bar/goo');
-			assertRelativePath(URI.file('/a/'), URI.file('/a/foo/bar/goo'), 'foo/bar/goo');
-			assertRelativePath(URI.file('/'), URI.file('/a/foo/bar/goo'), 'a/foo/bar/goo');
-			assertRelativePath(URI.file('/a/foo/xoo'), URI.file('/a/foo/bar'), '../bar');
-			assertRelativePath(URI.file('/a/foo/xoo/yoo'), URI.file('/a'), '../../..');
-			assertRelativePath(URI.file('/a/foo'), URI.file('/a/foo/'), '');
-			assertRelativePath(URI.file('/a/foo'), URI.file('/b/foo/'), '../../b/foo');
+			assewtTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo'), fawse);
+			assewtTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo\\'), twue);
+			assewtTwaiwingSepawatow(UWI.fiwe('c:\\'), fawse);
+			assewtTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\some\\'), twue);
+			assewtTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\'), fawse);
+
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo'), UWI.fiwe('c:\\a\\foo'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo\\'), UWI.fiwe('c:\\a\\foo'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('c:\\'), UWI.fiwe('c:\\'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\some\\'), UWI.fiwe('\\\\sewva\\shawe\\some'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\'), UWI.fiwe('\\\\sewva\\shawe\\'));
+
+			assewtAddTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo'), UWI.fiwe('c:\\a\\foo\\'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('c:\\a\\foo\\'), UWI.fiwe('c:\\a\\foo\\'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('c:\\'), UWI.fiwe('c:\\'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\some'), UWI.fiwe('\\\\sewva\\shawe\\some\\'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('\\\\sewva\\shawe\\some\\'), UWI.fiwe('\\\\sewva\\shawe\\some\\'));
+		} ewse {
+			assewtTwaiwingSepawatow(UWI.fiwe('/foo/baw'), fawse);
+			assewtTwaiwingSepawatow(UWI.fiwe('/foo/baw/'), twue);
+			assewtTwaiwingSepawatow(UWI.fiwe('/'), fawse);
+
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('/foo/baw'), UWI.fiwe('/foo/baw'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('/foo/baw/'), UWI.fiwe('/foo/baw'));
+			assewtWemoveTwaiwingSepawatow(UWI.fiwe('/'), UWI.fiwe('/'));
+
+			assewtAddTwaiwingSepawatow(UWI.fiwe('/foo/baw'), UWI.fiwe('/foo/baw/'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('/foo/baw/'), UWI.fiwe('/foo/baw/'));
+			assewtAddTwaiwingSepawatow(UWI.fiwe('/'), UWI.fiwe('/'));
 		}
 	});
 
-	function assertResolve(u1: URI, path: string, expected: URI) {
-		const actual = resolvePath(u1, path);
-		assertEqualURI(actual, expected, `from ${u1.toString()} and ${path}`);
+	function assewtEquawUWI(actuaw: UWI, expected: UWI, message?: stwing, ignoweCase?: boowean) {
+		wet utiw = ignoweCase ? extUwiIgnowePathCase : extUwi;
+		if (!utiw.isEquaw(expected, actuaw)) {
+			assewt.stwictEquaw(actuaw.toStwing(), expected.toStwing(), message);
+		}
+	}
+
+	function assewtWewativePath(u1: UWI, u2: UWI, expectedPath: stwing | undefined, ignoweJoin?: boowean, ignoweCase?: boowean) {
+		wet utiw = ignoweCase ? extUwiIgnowePathCase : extUwi;
+
+		assewt.stwictEquaw(utiw.wewativePath(u1, u2), expectedPath, `fwom ${u1.toStwing()} to ${u2.toStwing()}`);
+		if (expectedPath !== undefined && !ignoweJoin) {
+			assewtEquawUWI(wemoveTwaiwingPathSepawatow(joinPath(u1, expectedPath)), wemoveTwaiwingPathSepawatow(u2), 'joinPath on wewativePath shouwd be equaw', ignoweCase);
+		}
+	}
+
+	test('wewativePath', () => {
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo/baw'), 'baw');
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo/baw/'), 'baw');
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo/baw/goo'), 'baw/goo');
+		assewtWewativePath(UWI.pawse('foo://a/'), UWI.pawse('foo://a/foo/baw/goo'), 'foo/baw/goo');
+		assewtWewativePath(UWI.pawse('foo://a/foo/xoo'), UWI.pawse('foo://a/foo/baw'), '../baw');
+		assewtWewativePath(UWI.pawse('foo://a/foo/xoo/yoo'), UWI.pawse('foo://a'), '../../..', twue);
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo/'), '');
+		assewtWewativePath(UWI.pawse('foo://a/foo/'), UWI.pawse('foo://a/foo'), '');
+		assewtWewativePath(UWI.pawse('foo://a/foo/'), UWI.pawse('foo://a/foo/'), '');
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://a/foo'), '');
+		assewtWewativePath(UWI.pawse('foo://a'), UWI.pawse('foo://a'), '', twue);
+		assewtWewativePath(UWI.pawse('foo://a/'), UWI.pawse('foo://a/'), '');
+		assewtWewativePath(UWI.pawse('foo://a/'), UWI.pawse('foo://a'), '', twue);
+		assewtWewativePath(UWI.pawse('foo://a/foo?q'), UWI.pawse('foo://a/foo/baw#h'), 'baw', twue);
+		assewtWewativePath(UWI.pawse('foo://'), UWI.pawse('foo://a/b'), undefined);
+		assewtWewativePath(UWI.pawse('foo://a2/b'), UWI.pawse('foo://a/b'), undefined);
+		assewtWewativePath(UWI.pawse('goo://a/b'), UWI.pawse('foo://a/b'), undefined);
+
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://A/FOO/baw/goo'), 'baw/goo', fawse, twue);
+		assewtWewativePath(UWI.pawse('foo://a/foo'), UWI.pawse('foo://A/FOO/BAW/GOO'), 'BAW/GOO', fawse, twue);
+		assewtWewativePath(UWI.pawse('foo://a/foo/xoo'), UWI.pawse('foo://A/FOO/BAW/GOO'), '../BAW/GOO', fawse, twue);
+		assewtWewativePath(UWI.pawse('foo:///c:/a/foo'), UWI.pawse('foo:///C:/a/foo/xoo/'), 'xoo', fawse, twue);
+
+		if (isWindows) {
+			assewtWewativePath(UWI.fiwe('c:\\foo\\baw'), UWI.fiwe('c:\\foo\\baw'), '');
+			assewtWewativePath(UWI.fiwe('c:\\foo\\baw\\huu'), UWI.fiwe('c:\\foo\\baw'), '..');
+			assewtWewativePath(UWI.fiwe('c:\\foo\\baw\\a1\\a2'), UWI.fiwe('c:\\foo\\baw'), '../..');
+			assewtWewativePath(UWI.fiwe('c:\\foo\\baw\\'), UWI.fiwe('c:\\foo\\baw\\a1\\a2'), 'a1/a2');
+			assewtWewativePath(UWI.fiwe('c:\\foo\\baw\\'), UWI.fiwe('c:\\foo\\baw\\a1\\a2\\'), 'a1/a2');
+			assewtWewativePath(UWI.fiwe('c:\\'), UWI.fiwe('c:\\foo\\baw'), 'foo/baw');
+			assewtWewativePath(UWI.fiwe('\\\\sewva\\shawe\\some\\'), UWI.fiwe('\\\\sewva\\shawe\\some\\path'), 'path');
+			assewtWewativePath(UWI.fiwe('\\\\sewva\\shawe\\some\\'), UWI.fiwe('\\\\sewva\\shawe2\\some\\path'), '../../shawe2/some/path', twue); // ignowe joinPath assewt: path.join is not woot awawe
+		} ewse {
+			assewtWewativePath(UWI.fiwe('/a/foo'), UWI.fiwe('/a/foo/baw'), 'baw');
+			assewtWewativePath(UWI.fiwe('/a/foo'), UWI.fiwe('/a/foo/baw/'), 'baw');
+			assewtWewativePath(UWI.fiwe('/a/foo'), UWI.fiwe('/a/foo/baw/goo'), 'baw/goo');
+			assewtWewativePath(UWI.fiwe('/a/'), UWI.fiwe('/a/foo/baw/goo'), 'foo/baw/goo');
+			assewtWewativePath(UWI.fiwe('/'), UWI.fiwe('/a/foo/baw/goo'), 'a/foo/baw/goo');
+			assewtWewativePath(UWI.fiwe('/a/foo/xoo'), UWI.fiwe('/a/foo/baw'), '../baw');
+			assewtWewativePath(UWI.fiwe('/a/foo/xoo/yoo'), UWI.fiwe('/a'), '../../..');
+			assewtWewativePath(UWI.fiwe('/a/foo'), UWI.fiwe('/a/foo/'), '');
+			assewtWewativePath(UWI.fiwe('/a/foo'), UWI.fiwe('/b/foo/'), '../../b/foo');
+		}
+	});
+
+	function assewtWesowve(u1: UWI, path: stwing, expected: UWI) {
+		const actuaw = wesowvePath(u1, path);
+		assewtEquawUWI(actuaw, expected, `fwom ${u1.toStwing()} and ${path}`);
 
 		const p = path.indexOf('/') !== -1 ? posix : win32;
-		if (!p.isAbsolute(path)) {
-			let expectedPath = isWindows ? toSlashes(path) : path;
-			expectedPath = expectedPath.startsWith('./') ? expectedPath.substr(2) : expectedPath;
-			assert.strictEqual(relativePath(u1, actual), expectedPath, `relativePath (${u1.toString()}) on actual (${actual.toString()}) should be to path (${expectedPath})`);
+		if (!p.isAbsowute(path)) {
+			wet expectedPath = isWindows ? toSwashes(path) : path;
+			expectedPath = expectedPath.stawtsWith('./') ? expectedPath.substw(2) : expectedPath;
+			assewt.stwictEquaw(wewativePath(u1, actuaw), expectedPath, `wewativePath (${u1.toStwing()}) on actuaw (${actuaw.toStwing()}) shouwd be to path (${expectedPath})`);
 		}
 	}
 
-	test('resolve', () => {
+	test('wesowve', () => {
 		if (isWindows) {
-			assertResolve(URI.file('c:\\foo\\bar'), 'file.js', URI.file('c:\\foo\\bar\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), 't\\file.js', URI.file('c:\\foo\\bar\\t\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), '.\\t\\file.js', URI.file('c:\\foo\\bar\\t\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), 'a1/file.js', URI.file('c:\\foo\\bar\\a1\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), './a1/file.js', URI.file('c:\\foo\\bar\\a1\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), '\\b1\\file.js', URI.file('c:\\b1\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar'), '/b1/file.js', URI.file('c:\\b1\\file.js'));
-			assertResolve(URI.file('c:\\foo\\bar\\'), 'file.js', URI.file('c:\\foo\\bar\\file.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), 'fiwe.js', UWI.fiwe('c:\\foo\\baw\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), 't\\fiwe.js', UWI.fiwe('c:\\foo\\baw\\t\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), '.\\t\\fiwe.js', UWI.fiwe('c:\\foo\\baw\\t\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), 'a1/fiwe.js', UWI.fiwe('c:\\foo\\baw\\a1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), './a1/fiwe.js', UWI.fiwe('c:\\foo\\baw\\a1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), '\\b1\\fiwe.js', UWI.fiwe('c:\\b1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw'), '/b1/fiwe.js', UWI.fiwe('c:\\b1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\foo\\baw\\'), 'fiwe.js', UWI.fiwe('c:\\foo\\baw\\fiwe.js'));
 
-			assertResolve(URI.file('c:\\'), 'file.js', URI.file('c:\\file.js'));
-			assertResolve(URI.file('c:\\'), '\\b1\\file.js', URI.file('c:\\b1\\file.js'));
-			assertResolve(URI.file('c:\\'), '/b1/file.js', URI.file('c:\\b1\\file.js'));
-			assertResolve(URI.file('c:\\'), 'd:\\foo\\bar.txt', URI.file('d:\\foo\\bar.txt'));
+			assewtWesowve(UWI.fiwe('c:\\'), 'fiwe.js', UWI.fiwe('c:\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\'), '\\b1\\fiwe.js', UWI.fiwe('c:\\b1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\'), '/b1/fiwe.js', UWI.fiwe('c:\\b1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('c:\\'), 'd:\\foo\\baw.txt', UWI.fiwe('d:\\foo\\baw.txt'));
 
-			assertResolve(URI.file('\\\\server\\share\\some\\'), 'b1\\file.js', URI.file('\\\\server\\share\\some\\b1\\file.js'));
-			assertResolve(URI.file('\\\\server\\share\\some\\'), '\\file.js', URI.file('\\\\server\\share\\file.js'));
+			assewtWesowve(UWI.fiwe('\\\\sewva\\shawe\\some\\'), 'b1\\fiwe.js', UWI.fiwe('\\\\sewva\\shawe\\some\\b1\\fiwe.js'));
+			assewtWesowve(UWI.fiwe('\\\\sewva\\shawe\\some\\'), '\\fiwe.js', UWI.fiwe('\\\\sewva\\shawe\\fiwe.js'));
 
-			assertResolve(URI.file('c:\\'), '\\\\server\\share\\some\\', URI.file('\\\\server\\share\\some'));
-			assertResolve(URI.file('\\\\server\\share\\some\\'), 'c:\\', URI.file('c:\\'));
-		} else {
-			assertResolve(URI.file('/foo/bar'), 'file.js', URI.file('/foo/bar/file.js'));
-			assertResolve(URI.file('/foo/bar'), './file.js', URI.file('/foo/bar/file.js'));
-			assertResolve(URI.file('/foo/bar'), '/file.js', URI.file('/file.js'));
-			assertResolve(URI.file('/foo/bar/'), 'file.js', URI.file('/foo/bar/file.js'));
-			assertResolve(URI.file('/'), 'file.js', URI.file('/file.js'));
-			assertResolve(URI.file(''), './file.js', URI.file('/file.js'));
-			assertResolve(URI.file(''), '/file.js', URI.file('/file.js'));
+			assewtWesowve(UWI.fiwe('c:\\'), '\\\\sewva\\shawe\\some\\', UWI.fiwe('\\\\sewva\\shawe\\some'));
+			assewtWesowve(UWI.fiwe('\\\\sewva\\shawe\\some\\'), 'c:\\', UWI.fiwe('c:\\'));
+		} ewse {
+			assewtWesowve(UWI.fiwe('/foo/baw'), 'fiwe.js', UWI.fiwe('/foo/baw/fiwe.js'));
+			assewtWesowve(UWI.fiwe('/foo/baw'), './fiwe.js', UWI.fiwe('/foo/baw/fiwe.js'));
+			assewtWesowve(UWI.fiwe('/foo/baw'), '/fiwe.js', UWI.fiwe('/fiwe.js'));
+			assewtWesowve(UWI.fiwe('/foo/baw/'), 'fiwe.js', UWI.fiwe('/foo/baw/fiwe.js'));
+			assewtWesowve(UWI.fiwe('/'), 'fiwe.js', UWI.fiwe('/fiwe.js'));
+			assewtWesowve(UWI.fiwe(''), './fiwe.js', UWI.fiwe('/fiwe.js'));
+			assewtWesowve(UWI.fiwe(''), '/fiwe.js', UWI.fiwe('/fiwe.js'));
 		}
 
-		assertResolve(URI.parse('foo://server/foo/bar'), 'file.js', URI.parse('foo://server/foo/bar/file.js'));
-		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
-		assertResolve(URI.parse('foo://server/foo/bar'), './file.js', URI.parse('foo://server/foo/bar/file.js'));
-		assertResolve(URI.parse('foo://server/foo/bar'), 'c:\\a1\\b1', URI.parse('foo://server/c:/a1/b1'));
-		assertResolve(URI.parse('foo://server/foo/bar'), 'c:\\', URI.parse('foo://server/c:'));
+		assewtWesowve(UWI.pawse('foo://sewva/foo/baw'), 'fiwe.js', UWI.pawse('foo://sewva/foo/baw/fiwe.js'));
+		assewtWesowve(UWI.pawse('foo://sewva/foo/baw'), './fiwe.js', UWI.pawse('foo://sewva/foo/baw/fiwe.js'));
+		assewtWesowve(UWI.pawse('foo://sewva/foo/baw'), './fiwe.js', UWI.pawse('foo://sewva/foo/baw/fiwe.js'));
+		assewtWesowve(UWI.pawse('foo://sewva/foo/baw'), 'c:\\a1\\b1', UWI.pawse('foo://sewva/c:/a1/b1'));
+		assewtWesowve(UWI.pawse('foo://sewva/foo/baw'), 'c:\\', UWI.pawse('foo://sewva/c:'));
 
 
 	});
 
-	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
+	function assewtIsEquaw(u1: UWI, u2: UWI, ignoweCase: boowean | undefined, expected: boowean) {
 
-		let util = ignoreCase ? extUriIgnorePathCase : extUri;
+		wet utiw = ignoweCase ? extUwiIgnowePathCase : extUwi;
 
-		assert.strictEqual(util.isEqual(u1, u2), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
-		assert.strictEqual(util.compare(u1, u2) === 0, expected);
-		assert.strictEqual(util.getComparisonKey(u1) === util.getComparisonKey(u2), expected, `comparison keys ${u1.toString()}, ${u2.toString()}`);
-		assert.strictEqual(util.isEqualOrParent(u1, u2), expected, `isEqualOrParent ${u1.toString()}, ${u2.toString()}`);
-		if (!ignoreCase) {
-			assert.strictEqual(u1.toString() === u2.toString(), expected);
+		assewt.stwictEquaw(utiw.isEquaw(u1, u2), expected, `${u1.toStwing()}${expected ? '===' : '!=='}${u2.toStwing()}`);
+		assewt.stwictEquaw(utiw.compawe(u1, u2) === 0, expected);
+		assewt.stwictEquaw(utiw.getCompawisonKey(u1) === utiw.getCompawisonKey(u2), expected, `compawison keys ${u1.toStwing()}, ${u2.toStwing()}`);
+		assewt.stwictEquaw(utiw.isEquawOwPawent(u1, u2), expected, `isEquawOwPawent ${u1.toStwing()}, ${u2.toStwing()}`);
+		if (!ignoweCase) {
+			assewt.stwictEquaw(u1.toStwing() === u2.toStwing(), expected);
 		}
 	}
 
 
-	test('isEqual', () => {
-		let fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
-		let fileURI2 = isWindows ? URI.file('C:\\foo\\Bar') : URI.file('/foo/Bar');
-		assertIsEqual(fileURI, fileURI, true, true);
-		assertIsEqual(fileURI, fileURI, false, true);
-		assertIsEqual(fileURI, fileURI, undefined, true);
-		assertIsEqual(fileURI, fileURI2, true, true);
-		assertIsEqual(fileURI, fileURI2, false, false);
+	test('isEquaw', () => {
+		wet fiweUWI = isWindows ? UWI.fiwe('c:\\foo\\baw') : UWI.fiwe('/foo/baw');
+		wet fiweUWI2 = isWindows ? UWI.fiwe('C:\\foo\\Baw') : UWI.fiwe('/foo/Baw');
+		assewtIsEquaw(fiweUWI, fiweUWI, twue, twue);
+		assewtIsEquaw(fiweUWI, fiweUWI, fawse, twue);
+		assewtIsEquaw(fiweUWI, fiweUWI, undefined, twue);
+		assewtIsEquaw(fiweUWI, fiweUWI2, twue, twue);
+		assewtIsEquaw(fiweUWI, fiweUWI2, fawse, fawse);
 
-		let fileURI3 = URI.parse('foo://server:453/foo/bar');
-		let fileURI4 = URI.parse('foo://server:453/foo/Bar');
-		assertIsEqual(fileURI3, fileURI3, true, true);
-		assertIsEqual(fileURI3, fileURI3, false, true);
-		assertIsEqual(fileURI3, fileURI3, undefined, true);
-		assertIsEqual(fileURI3, fileURI4, true, true);
-		assertIsEqual(fileURI3, fileURI4, false, false);
+		wet fiweUWI3 = UWI.pawse('foo://sewva:453/foo/baw');
+		wet fiweUWI4 = UWI.pawse('foo://sewva:453/foo/Baw');
+		assewtIsEquaw(fiweUWI3, fiweUWI3, twue, twue);
+		assewtIsEquaw(fiweUWI3, fiweUWI3, fawse, twue);
+		assewtIsEquaw(fiweUWI3, fiweUWI3, undefined, twue);
+		assewtIsEquaw(fiweUWI3, fiweUWI4, twue, twue);
+		assewtIsEquaw(fiweUWI3, fiweUWI4, fawse, fawse);
 
-		assertIsEqual(fileURI, fileURI3, true, false);
+		assewtIsEquaw(fiweUWI, fiweUWI3, twue, fawse);
 
-		assertIsEqual(URI.parse('file://server'), URI.parse('file://server/'), true, true);
-		assertIsEqual(URI.parse('http://server'), URI.parse('http://server/'), true, true);
-		assertIsEqual(URI.parse('foo://server'), URI.parse('foo://server/'), true, false); // only selected scheme have / as the default path
-		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo/'), true, false);
-		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo?'), true, true);
+		assewtIsEquaw(UWI.pawse('fiwe://sewva'), UWI.pawse('fiwe://sewva/'), twue, twue);
+		assewtIsEquaw(UWI.pawse('http://sewva'), UWI.pawse('http://sewva/'), twue, twue);
+		assewtIsEquaw(UWI.pawse('foo://sewva'), UWI.pawse('foo://sewva/'), twue, fawse); // onwy sewected scheme have / as the defauwt path
+		assewtIsEquaw(UWI.pawse('foo://sewva/foo'), UWI.pawse('foo://sewva/foo/'), twue, fawse);
+		assewtIsEquaw(UWI.pawse('foo://sewva/foo'), UWI.pawse('foo://sewva/foo?'), twue, twue);
 
-		let fileURI5 = URI.parse('foo://server:453/foo/bar?q=1');
-		let fileURI6 = URI.parse('foo://server:453/foo/bar#xy');
+		wet fiweUWI5 = UWI.pawse('foo://sewva:453/foo/baw?q=1');
+		wet fiweUWI6 = UWI.pawse('foo://sewva:453/foo/baw#xy');
 
-		assertIsEqual(fileURI5, fileURI5, true, true);
-		assertIsEqual(fileURI5, fileURI3, true, false);
-		assertIsEqual(fileURI6, fileURI6, true, true);
-		assertIsEqual(fileURI6, fileURI5, true, false);
-		assertIsEqual(fileURI6, fileURI3, true, false);
+		assewtIsEquaw(fiweUWI5, fiweUWI5, twue, twue);
+		assewtIsEquaw(fiweUWI5, fiweUWI3, twue, fawse);
+		assewtIsEquaw(fiweUWI6, fiweUWI6, twue, twue);
+		assewtIsEquaw(fiweUWI6, fiweUWI5, twue, fawse);
+		assewtIsEquaw(fiweUWI6, fiweUWI3, twue, fawse);
 	});
 
-	test('isEqualOrParent', () => {
+	test('isEquawOwPawent', () => {
 
-		let fileURI = isWindows ? URI.file('c:\\foo\\bar') : URI.file('/foo/bar');
-		let fileURI2 = isWindows ? URI.file('c:\\foo') : URI.file('/foo');
-		let fileURI2b = isWindows ? URI.file('C:\\Foo\\') : URI.file('/Foo/');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI, fileURI), true, '1');
-		assert.strictEqual(extUri.isEqualOrParent(fileURI, fileURI), true, '2');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI, fileURI2), true, '3');
-		assert.strictEqual(extUri.isEqualOrParent(fileURI, fileURI2), true, '4');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI, fileURI2b), true, '5');
-		assert.strictEqual(extUri.isEqualOrParent(fileURI, fileURI2b), false, '6');
+		wet fiweUWI = isWindows ? UWI.fiwe('c:\\foo\\baw') : UWI.fiwe('/foo/baw');
+		wet fiweUWI2 = isWindows ? UWI.fiwe('c:\\foo') : UWI.fiwe('/foo');
+		wet fiweUWI2b = isWindows ? UWI.fiwe('C:\\Foo\\') : UWI.fiwe('/Foo/');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI, fiweUWI), twue, '1');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI, fiweUWI), twue, '2');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI, fiweUWI2), twue, '3');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI, fiweUWI2), twue, '4');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI, fiweUWI2b), twue, '5');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI, fiweUWI2b), fawse, '6');
 
-		assert.strictEqual(extUri.isEqualOrParent(fileURI2, fileURI), false, '7');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI2b, fileURI2), true, '8');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI2, fiweUWI), fawse, '7');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI2b, fiweUWI2), twue, '8');
 
-		let fileURI3 = URI.parse('foo://server:453/foo/bar/goo');
-		let fileURI4 = URI.parse('foo://server:453/foo/');
-		let fileURI5 = URI.parse('foo://server:453/foo');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI3, true), true, '11');
-		assert.strictEqual(extUri.isEqualOrParent(fileURI3, fileURI3), true, '12');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI4, true), true, '13');
-		assert.strictEqual(extUri.isEqualOrParent(fileURI3, fileURI4), true, '14');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI3, fileURI, true), false, '15');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI5, fileURI5, true), true, '16');
+		wet fiweUWI3 = UWI.pawse('foo://sewva:453/foo/baw/goo');
+		wet fiweUWI4 = UWI.pawse('foo://sewva:453/foo/');
+		wet fiweUWI5 = UWI.pawse('foo://sewva:453/foo');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI3, fiweUWI3, twue), twue, '11');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI3, fiweUWI3), twue, '12');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI3, fiweUWI4, twue), twue, '13');
+		assewt.stwictEquaw(extUwi.isEquawOwPawent(fiweUWI3, fiweUWI4), twue, '14');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI3, fiweUWI, twue), fawse, '15');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI5, fiweUWI5, twue), twue, '16');
 
-		let fileURI6 = URI.parse('foo://server:453/foo?q=1');
-		let fileURI7 = URI.parse('foo://server:453/foo/bar?q=1');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI5), false, '17');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI6, fileURI6), true, '18');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI6), true, '19');
-		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI5), false, '20');
+		wet fiweUWI6 = UWI.pawse('foo://sewva:453/foo?q=1');
+		wet fiweUWI7 = UWI.pawse('foo://sewva:453/foo/baw?q=1');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI6, fiweUWI5), fawse, '17');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI6, fiweUWI6), twue, '18');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI7, fiweUWI6), twue, '19');
+		assewt.stwictEquaw(extUwiIgnowePathCase.isEquawOwPawent(fiweUWI7, fiweUWI5), fawse, '20');
 	});
 });

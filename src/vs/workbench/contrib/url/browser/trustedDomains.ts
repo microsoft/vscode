@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IQuickInputSewvice, IQuickPickItem } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IAuthenticationSewvice } fwom 'vs/wowkbench/sewvices/authentication/bwowsa/authenticationSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
 
-const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
+const TWUSTED_DOMAINS_UWI = UWI.pawse('twustedDomains:/Twusted Domains');
 
-export const TRUSTED_DOMAINS_STORAGE_KEY = 'http.linkProtectionTrustedDomains';
-export const TRUSTED_DOMAINS_CONTENT_STORAGE_KEY = 'http.linkProtectionTrustedDomainsContent';
+expowt const TWUSTED_DOMAINS_STOWAGE_KEY = 'http.winkPwotectionTwustedDomains';
+expowt const TWUSTED_DOMAINS_CONTENT_STOWAGE_KEY = 'http.winkPwotectionTwustedDomainsContent';
 
-export const manageTrustedDomainSettingsCommand = {
-	id: 'workbench.action.manageTrustedDomain',
-	description: {
-		description: localize('trustedDomain.manageTrustedDomain', 'Manage Trusted Domains'),
-		args: []
+expowt const manageTwustedDomainSettingsCommand = {
+	id: 'wowkbench.action.manageTwustedDomain',
+	descwiption: {
+		descwiption: wocawize('twustedDomain.manageTwustedDomain', 'Manage Twusted Domains'),
+		awgs: []
 	},
-	handler: async (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: TRUSTED_DOMAINS_URI, mode: 'jsonc', options: { pinned: true } });
-		return;
+	handwa: async (accessow: SewvicesAccessow) => {
+		const editowSewvice = accessow.get(IEditowSewvice);
+		editowSewvice.openEditow({ wesouwce: TWUSTED_DOMAINS_UWI, mode: 'jsonc', options: { pinned: twue } });
+		wetuwn;
 	}
 };
 
-type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage'; } | { id: 'trust'; toTrust: string });
+type ConfiguweTwustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage'; } | { id: 'twust'; toTwust: stwing });
 
-type ConfigureTrustedDomainsChoiceClassification = {
-	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type ConfiguweTwustedDomainsChoiceCwassification = {
+	choice: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-export async function configureOpenerTrustedDomainsHandler(
-	trustedDomains: string[],
-	domainToConfigure: string,
-	resource: URI,
-	quickInputService: IQuickInputService,
-	storageService: IStorageService,
-	editorService: IEditorService,
-	telemetryService: ITelemetryService,
+expowt async function configuweOpenewTwustedDomainsHandwa(
+	twustedDomains: stwing[],
+	domainToConfiguwe: stwing,
+	wesouwce: UWI,
+	quickInputSewvice: IQuickInputSewvice,
+	stowageSewvice: IStowageSewvice,
+	editowSewvice: IEditowSewvice,
+	tewemetwySewvice: ITewemetwySewvice,
 ) {
-	const parsedDomainToConfigure = URI.parse(domainToConfigure);
-	const toplevelDomainSegements = parsedDomainToConfigure.authority.split('.');
-	const domainEnd = toplevelDomainSegements.slice(toplevelDomainSegements.length - 2).join('.');
-	const topLevelDomain = '*.' + domainEnd;
-	const options: ConfigureTrustedDomainsQuickPickItem[] = [];
+	const pawsedDomainToConfiguwe = UWI.pawse(domainToConfiguwe);
+	const topwevewDomainSegements = pawsedDomainToConfiguwe.authowity.spwit('.');
+	const domainEnd = topwevewDomainSegements.swice(topwevewDomainSegements.wength - 2).join('.');
+	const topWevewDomain = '*.' + domainEnd;
+	const options: ConfiguweTwustedDomainsQuickPickItem[] = [];
 
 	options.push({
 		type: 'item',
-		label: localize('trustedDomain.trustDomain', 'Trust {0}', domainToConfigure),
-		id: 'trust',
-		toTrust: domainToConfigure,
-		picked: true
+		wabew: wocawize('twustedDomain.twustDomain', 'Twust {0}', domainToConfiguwe),
+		id: 'twust',
+		toTwust: domainToConfiguwe,
+		picked: twue
 	});
 
 	const isIP =
-		toplevelDomainSegements.length === 4 &&
-		toplevelDomainSegements.every(segment =>
-			Number.isInteger(+segment) || Number.isInteger(+segment.split(':')[0]));
+		topwevewDomainSegements.wength === 4 &&
+		topwevewDomainSegements.evewy(segment =>
+			Numba.isIntega(+segment) || Numba.isIntega(+segment.spwit(':')[0]));
 
 	if (isIP) {
-		if (parsedDomainToConfigure.authority.includes(':')) {
-			const base = parsedDomainToConfigure.authority.split(':')[0];
+		if (pawsedDomainToConfiguwe.authowity.incwudes(':')) {
+			const base = pawsedDomainToConfiguwe.authowity.spwit(':')[0];
 			options.push({
 				type: 'item',
-				label: localize('trustedDomain.trustAllPorts', 'Trust {0} on all ports', base),
-				toTrust: base + ':*',
-				id: 'trust'
+				wabew: wocawize('twustedDomain.twustAwwPowts', 'Twust {0} on aww powts', base),
+				toTwust: base + ':*',
+				id: 'twust'
 			});
 		}
-	} else {
+	} ewse {
 		options.push({
 			type: 'item',
-			label: localize('trustedDomain.trustSubDomain', 'Trust {0} and all its subdomains', domainEnd),
-			toTrust: topLevelDomain,
-			id: 'trust'
+			wabew: wocawize('twustedDomain.twustSubDomain', 'Twust {0} and aww its subdomains', domainEnd),
+			toTwust: topWevewDomain,
+			id: 'twust'
 		});
 	}
 
 	options.push({
 		type: 'item',
-		label: localize('trustedDomain.trustAllDomains', 'Trust all domains (disables link protection)'),
-		toTrust: '*',
-		id: 'trust'
+		wabew: wocawize('twustedDomain.twustAwwDomains', 'Twust aww domains (disabwes wink pwotection)'),
+		toTwust: '*',
+		id: 'twust'
 	});
 	options.push({
 		type: 'item',
-		label: localize('trustedDomain.manageTrustedDomains', 'Manage Trusted Domains'),
+		wabew: wocawize('twustedDomain.manageTwustedDomains', 'Manage Twusted Domains'),
 		id: 'manage'
 	});
 
-	const pickedResult = await quickInputService.pick<ConfigureTrustedDomainsQuickPickItem>(
+	const pickedWesuwt = await quickInputSewvice.pick<ConfiguweTwustedDomainsQuickPickItem>(
 		options, { activeItem: options[0] }
 	);
 
-	if (pickedResult && pickedResult.id) {
-		telemetryService.publicLog2<{ choice: string }, ConfigureTrustedDomainsChoiceClassification>(
-			'trustedDomains.configureTrustedDomainsQuickPickChoice',
-			{ choice: pickedResult.id }
+	if (pickedWesuwt && pickedWesuwt.id) {
+		tewemetwySewvice.pubwicWog2<{ choice: stwing }, ConfiguweTwustedDomainsChoiceCwassification>(
+			'twustedDomains.configuweTwustedDomainsQuickPickChoice',
+			{ choice: pickedWesuwt.id }
 		);
 
-		switch (pickedResult.id) {
+		switch (pickedWesuwt.id) {
 			case 'manage':
-				await editorService.openEditor({
-					resource: TRUSTED_DOMAINS_URI.with({ fragment: resource.toString() }),
+				await editowSewvice.openEditow({
+					wesouwce: TWUSTED_DOMAINS_UWI.with({ fwagment: wesouwce.toStwing() }),
 					mode: 'jsonc',
-					options: { pinned: true }
+					options: { pinned: twue }
 				});
-				return trustedDomains;
-			case 'trust':
-				const itemToTrust = pickedResult.toTrust;
-				if (trustedDomains.indexOf(itemToTrust) === -1) {
-					storageService.remove(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, StorageScope.GLOBAL);
-					storageService.store(
-						TRUSTED_DOMAINS_STORAGE_KEY,
-						JSON.stringify([...trustedDomains, itemToTrust]),
-						StorageScope.GLOBAL,
-						StorageTarget.USER
+				wetuwn twustedDomains;
+			case 'twust':
+				const itemToTwust = pickedWesuwt.toTwust;
+				if (twustedDomains.indexOf(itemToTwust) === -1) {
+					stowageSewvice.wemove(TWUSTED_DOMAINS_CONTENT_STOWAGE_KEY, StowageScope.GWOBAW);
+					stowageSewvice.stowe(
+						TWUSTED_DOMAINS_STOWAGE_KEY,
+						JSON.stwingify([...twustedDomains, itemToTwust]),
+						StowageScope.GWOBAW,
+						StowageTawget.USa
 					);
 
-					return [...trustedDomains, itemToTrust];
+					wetuwn [...twustedDomains, itemToTwust];
 				}
 		}
 	}
 
-	return [];
+	wetuwn [];
 }
 
-// Exported for testing.
-export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
-	const domains = new Set<string>();
-	let match: RegExpExecArray | null;
+// Expowted fow testing.
+expowt function extwactGitHubWemotesFwomGitConfig(gitConfig: stwing): stwing[] {
+	const domains = new Set<stwing>();
+	wet match: WegExpExecAwway | nuww;
 
-	const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
-	while (match = RemoteMatcher.exec(gitConfig)) {
-		const repo = match[1].replace(/\.git$/, '');
-		if (repo) {
-			domains.add(`https://github.com/${repo}/`);
+	const WemoteMatcha = /^\s*uww\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
+	whiwe (match = WemoteMatcha.exec(gitConfig)) {
+		const wepo = match[1].wepwace(/\.git$/, '');
+		if (wepo) {
+			domains.add(`https://github.com/${wepo}/`);
 		}
 	}
-	return [...domains];
+	wetuwn [...domains];
 }
 
-async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
-	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
-	const domains = await Promise.race([
-		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
-		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-			try {
-				const path = workspaceUri.path;
-				const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-				const exists = await fileService.exists(uri);
+async function getWemotes(fiweSewvice: IFiweSewvice, textFiweSewvice: ITextFiweSewvice, contextSewvice: IWowkspaceContextSewvice): Pwomise<stwing[]> {
+	const wowkspaceUwis = contextSewvice.getWowkspace().fowdews.map(fowda => fowda.uwi);
+	const domains = await Pwomise.wace([
+		new Pwomise<stwing[][]>(wesowve => setTimeout(() => wesowve([]), 2000)),
+		Pwomise.aww<stwing[]>(wowkspaceUwis.map(async wowkspaceUwi => {
+			twy {
+				const path = wowkspaceUwi.path;
+				const uwi = wowkspaceUwi.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+				const exists = await fiweSewvice.exists(uwi);
 				if (!exists) {
-					return [];
+					wetuwn [];
 				}
-				const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-				return extractGitHubRemotesFromGitConfig(gitConfig);
+				const gitConfig = (await (textFiweSewvice.wead(uwi, { acceptTextOnwy: twue }).catch(() => ({ vawue: '' })))).vawue;
+				wetuwn extwactGitHubWemotesFwomGitConfig(gitConfig);
 			} catch {
-				return [];
+				wetuwn [];
 			}
 		}))]);
 
-	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
-	return [...set];
+	const set = domains.weduce((set, wist) => wist.weduce((set, item) => set.add(item), set), new Set<stwing>());
+	wetuwn [...set];
 }
 
-export interface IStaticTrustedDomains {
-	readonly defaultTrustedDomains: string[];
-	readonly trustedDomains: string[];
+expowt intewface IStaticTwustedDomains {
+	weadonwy defauwtTwustedDomains: stwing[];
+	weadonwy twustedDomains: stwing[];
 }
 
-export interface ITrustedDomains extends IStaticTrustedDomains {
-	readonly userDomains: string[];
-	readonly workspaceDomains: string[];
+expowt intewface ITwustedDomains extends IStaticTwustedDomains {
+	weadonwy usewDomains: stwing[];
+	weadonwy wowkspaceDomains: stwing[];
 }
 
-export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
-	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
-	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
-	return {
-		workspaceDomains,
-		userDomains,
-		defaultTrustedDomains,
-		trustedDomains,
+expowt async function weadTwustedDomains(accessow: SewvicesAccessow): Pwomise<ITwustedDomains> {
+	const { defauwtTwustedDomains, twustedDomains } = weadStaticTwustedDomains(accessow);
+	const [wowkspaceDomains, usewDomains] = await Pwomise.aww([weadWowkspaceTwustedDomains(accessow), weadAuthenticationTwustedDomains(accessow)]);
+	wetuwn {
+		wowkspaceDomains,
+		usewDomains,
+		defauwtTwustedDomains,
+		twustedDomains,
 	};
 }
 
-export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	return getRemotes(fileService, textFileService, workspaceContextService);
+expowt async function weadWowkspaceTwustedDomains(accessow: SewvicesAccessow): Pwomise<stwing[]> {
+	const fiweSewvice = accessow.get(IFiweSewvice);
+	const textFiweSewvice = accessow.get(ITextFiweSewvice);
+	const wowkspaceContextSewvice = accessow.get(IWowkspaceContextSewvice);
+	wetuwn getWemotes(fiweSewvice, textFiweSewvice, wowkspaceContextSewvice);
 }
 
-export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const authenticationService = accessor.get(IAuthenticationService);
-	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
+expowt async function weadAuthenticationTwustedDomains(accessow: SewvicesAccessow): Pwomise<stwing[]> {
+	const authenticationSewvice = accessow.get(IAuthenticationSewvice);
+	wetuwn authenticationSewvice.isAuthenticationPwovidewWegistewed('github') && ((await authenticationSewvice.getSessions('github')) ?? []).wength > 0
 		? [`https://github.com`]
 		: [];
 }
 
-export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {
-	const storageService = accessor.get(IStorageService);
-	const productService = accessor.get(IProductService);
-	const environmentService = accessor.get(IWorkbenchEnvironmentService);
+expowt function weadStaticTwustedDomains(accessow: SewvicesAccessow): IStaticTwustedDomains {
+	const stowageSewvice = accessow.get(IStowageSewvice);
+	const pwoductSewvice = accessow.get(IPwoductSewvice);
+	const enviwonmentSewvice = accessow.get(IWowkbenchEnviwonmentSewvice);
 
-	const defaultTrustedDomains = [
-		...productService.linkProtectionTrustedDomains ?? [],
-		...environmentService.options?.additionalTrustedDomains ?? []
+	const defauwtTwustedDomains = [
+		...pwoductSewvice.winkPwotectionTwustedDomains ?? [],
+		...enviwonmentSewvice.options?.additionawTwustedDomains ?? []
 	];
 
-	let trustedDomains: string[] = [];
-	try {
-		const trustedDomainsSrc = storageService.get(TRUSTED_DOMAINS_STORAGE_KEY, StorageScope.GLOBAL);
-		if (trustedDomainsSrc) {
-			trustedDomains = JSON.parse(trustedDomainsSrc);
+	wet twustedDomains: stwing[] = [];
+	twy {
+		const twustedDomainsSwc = stowageSewvice.get(TWUSTED_DOMAINS_STOWAGE_KEY, StowageScope.GWOBAW);
+		if (twustedDomainsSwc) {
+			twustedDomains = JSON.pawse(twustedDomainsSwc);
 		}
-	} catch (err) { }
+	} catch (eww) { }
 
-	return {
-		defaultTrustedDomains,
-		trustedDomains,
+	wetuwn {
+		defauwtTwustedDomains,
+		twustedDomains,
 	};
 }

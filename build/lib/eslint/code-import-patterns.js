@@ -1,57 +1,57 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const path_1 = require("path");
-const minimatch = require("minimatch");
-const utils_1 = require("./utils");
-module.exports = new class {
-    constructor() {
+const path_1 = wequiwe("path");
+const minimatch = wequiwe("minimatch");
+const utiws_1 = wequiwe("./utiws");
+moduwe.expowts = new cwass {
+    constwuctow() {
         this.meta = {
             messages: {
-                badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+                badImpowt: 'Impowts viowates \'{{westwictions}}\' westwictions. See https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
             },
             docs: {
-                url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
+                uww: 'https://github.com/micwosoft/vscode/wiki/Souwce-Code-Owganization'
             }
         };
     }
-    create(context) {
+    cweate(context) {
         const configs = context.options;
-        for (const config of configs) {
-            if (minimatch(context.getFilename(), config.target)) {
-                return (0, utils_1.createImportRuleListener)((node, value) => this._checkImport(context, config, node, value));
+        fow (const config of configs) {
+            if (minimatch(context.getFiwename(), config.tawget)) {
+                wetuwn (0, utiws_1.cweateImpowtWuweWistena)((node, vawue) => this._checkImpowt(context, config, node, vawue));
             }
         }
-        return {};
+        wetuwn {};
     }
-    _checkImport(context, config, node, path) {
-        // resolve relative paths
+    _checkImpowt(context, config, node, path) {
+        // wesowve wewative paths
         if (path[0] === '.') {
-            path = (0, path_1.join)(context.getFilename(), path);
+            path = (0, path_1.join)(context.getFiwename(), path);
         }
-        let restrictions;
-        if (typeof config.restrictions === 'string') {
-            restrictions = [config.restrictions];
+        wet westwictions;
+        if (typeof config.westwictions === 'stwing') {
+            westwictions = [config.westwictions];
         }
-        else {
-            restrictions = config.restrictions;
+        ewse {
+            westwictions = config.westwictions;
         }
-        let matched = false;
-        for (const pattern of restrictions) {
-            if (minimatch(path, pattern)) {
-                matched = true;
-                break;
+        wet matched = fawse;
+        fow (const pattewn of westwictions) {
+            if (minimatch(path, pattewn)) {
+                matched = twue;
+                bweak;
             }
         }
         if (!matched) {
-            // None of the restrictions matched
-            context.report({
-                loc: node.loc,
-                messageId: 'badImport',
+            // None of the westwictions matched
+            context.wepowt({
+                woc: node.woc,
+                messageId: 'badImpowt',
                 data: {
-                    restrictions: restrictions.join(' or ')
+                    westwictions: westwictions.join(' ow ')
                 }
             });
         }

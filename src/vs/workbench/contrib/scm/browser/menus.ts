@@ -1,126 +1,126 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus } from 'vs/workbench/contrib/scm/common/scm';
-import { equals } from 'vs/base/common/arrays';
-import { ISplice } from 'vs/base/common/sequence';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+impowt 'vs/css!./media/scm';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IDisposabwe, Disposabwe, DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IMenuSewvice, MenuId, IMenu } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { ISCMWesouwce, ISCMWesouwceGwoup, ISCMPwovida, ISCMWepositowy, ISCMSewvice, ISCMMenus, ISCMWepositowyMenus } fwom 'vs/wowkbench/contwib/scm/common/scm';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { ISpwice } fwom 'vs/base/common/sequence';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
 
-function actionEquals(a: IAction, b: IAction): boolean {
-	return a.id === b.id;
+function actionEquaws(a: IAction, b: IAction): boowean {
+	wetuwn a.id === b.id;
 }
 
-export class SCMTitleMenu implements IDisposable {
+expowt cwass SCMTitweMenu impwements IDisposabwe {
 
-	private _actions: IAction[] = [];
-	get actions(): IAction[] { return this._actions; }
+	pwivate _actions: IAction[] = [];
+	get actions(): IAction[] { wetuwn this._actions; }
 
-	private _secondaryActions: IAction[] = [];
-	get secondaryActions(): IAction[] { return this._secondaryActions; }
+	pwivate _secondawyActions: IAction[] = [];
+	get secondawyActions(): IAction[] { wetuwn this._secondawyActions; }
 
-	private readonly _onDidChangeTitle = new Emitter<void>();
-	readonly onDidChangeTitle = this._onDidChangeTitle.event;
+	pwivate weadonwy _onDidChangeTitwe = new Emitta<void>();
+	weadonwy onDidChangeTitwe = this._onDidChangeTitwe.event;
 
-	readonly menu: IMenu;
-	private listener: IDisposable = Disposable.None;
-	private disposables = new DisposableStore();
+	weadonwy menu: IMenu;
+	pwivate wistena: IDisposabwe = Disposabwe.None;
+	pwivate disposabwes = new DisposabweStowe();
 
-	constructor(
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+	constwuctow(
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice
 	) {
-		this.menu = menuService.createMenu(MenuId.SCMTitle, contextKeyService);
-		this.disposables.add(this.menu);
+		this.menu = menuSewvice.cweateMenu(MenuId.SCMTitwe, contextKeySewvice);
+		this.disposabwes.add(this.menu);
 
-		this.menu.onDidChange(this.updateTitleActions, this, this.disposables);
-		this.updateTitleActions();
+		this.menu.onDidChange(this.updateTitweActions, this, this.disposabwes);
+		this.updateTitweActions();
 	}
 
-	private updateTitleActions(): void {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const disposable = createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
+	pwivate updateTitweActions(): void {
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const disposabwe = cweateAndFiwwInActionBawActions(this.menu, { shouwdFowwawdAwgs: twue }, { pwimawy, secondawy });
 
-		if (equals(primary, this._actions, actionEquals) && equals(secondary, this._secondaryActions, actionEquals)) {
-			disposable.dispose();
-			return;
+		if (equaws(pwimawy, this._actions, actionEquaws) && equaws(secondawy, this._secondawyActions, actionEquaws)) {
+			disposabwe.dispose();
+			wetuwn;
 		}
 
-		this.listener.dispose();
-		this.listener = disposable;
-		this._actions = primary;
-		this._secondaryActions = secondary;
+		this.wistena.dispose();
+		this.wistena = disposabwe;
+		this._actions = pwimawy;
+		this._secondawyActions = secondawy;
 
-		this._onDidChangeTitle.fire();
+		this._onDidChangeTitwe.fiwe();
 	}
 
 	dispose(): void {
 		this.menu.dispose();
-		this.listener.dispose();
+		this.wistena.dispose();
 	}
 }
 
-interface IContextualResourceMenuItem {
-	readonly menu: IMenu;
+intewface IContextuawWesouwceMenuItem {
+	weadonwy menu: IMenu;
 	dispose(): void;
 }
 
-class SCMMenusItem implements IDisposable {
+cwass SCMMenusItem impwements IDisposabwe {
 
-	private _resourceGroupMenu: IMenu | undefined;
-	get resourceGroupMenu(): IMenu {
-		if (!this._resourceGroupMenu) {
-			this._resourceGroupMenu = this.menuService.createMenu(MenuId.SCMResourceGroupContext, this.contextKeyService);
+	pwivate _wesouwceGwoupMenu: IMenu | undefined;
+	get wesouwceGwoupMenu(): IMenu {
+		if (!this._wesouwceGwoupMenu) {
+			this._wesouwceGwoupMenu = this.menuSewvice.cweateMenu(MenuId.SCMWesouwceGwoupContext, this.contextKeySewvice);
 		}
 
-		return this._resourceGroupMenu;
+		wetuwn this._wesouwceGwoupMenu;
 	}
 
-	private _resourceFolderMenu: IMenu | undefined;
-	get resourceFolderMenu(): IMenu {
-		if (!this._resourceFolderMenu) {
-			this._resourceFolderMenu = this.menuService.createMenu(MenuId.SCMResourceFolderContext, this.contextKeyService);
+	pwivate _wesouwceFowdewMenu: IMenu | undefined;
+	get wesouwceFowdewMenu(): IMenu {
+		if (!this._wesouwceFowdewMenu) {
+			this._wesouwceFowdewMenu = this.menuSewvice.cweateMenu(MenuId.SCMWesouwceFowdewContext, this.contextKeySewvice);
 		}
 
-		return this._resourceFolderMenu;
+		wetuwn this._wesouwceFowdewMenu;
 	}
 
-	private genericResourceMenu: IMenu | undefined;
-	private contextualResourceMenus: Map<string /* contextValue */, IContextualResourceMenuItem> | undefined;
+	pwivate genewicWesouwceMenu: IMenu | undefined;
+	pwivate contextuawWesouwceMenus: Map<stwing /* contextVawue */, IContextuawWesouwceMenuItem> | undefined;
 
-	constructor(
-		private contextKeyService: IContextKeyService,
-		private menuService: IMenuService
+	constwuctow(
+		pwivate contextKeySewvice: IContextKeySewvice,
+		pwivate menuSewvice: IMenuSewvice
 	) { }
 
-	getResourceMenu(resource: ISCMResource): IMenu {
-		if (typeof resource.contextValue === 'undefined') {
-			if (!this.genericResourceMenu) {
-				this.genericResourceMenu = this.menuService.createMenu(MenuId.SCMResourceContext, this.contextKeyService);
+	getWesouwceMenu(wesouwce: ISCMWesouwce): IMenu {
+		if (typeof wesouwce.contextVawue === 'undefined') {
+			if (!this.genewicWesouwceMenu) {
+				this.genewicWesouwceMenu = this.menuSewvice.cweateMenu(MenuId.SCMWesouwceContext, this.contextKeySewvice);
 			}
 
-			return this.genericResourceMenu;
+			wetuwn this.genewicWesouwceMenu;
 		}
 
-		if (!this.contextualResourceMenus) {
-			this.contextualResourceMenus = new Map<string, IContextualResourceMenuItem>();
+		if (!this.contextuawWesouwceMenus) {
+			this.contextuawWesouwceMenus = new Map<stwing, IContextuawWesouwceMenuItem>();
 		}
 
-		let item = this.contextualResourceMenus.get(resource.contextValue);
+		wet item = this.contextuawWesouwceMenus.get(wesouwce.contextVawue);
 
 		if (!item) {
-			const contextKeyService = this.contextKeyService.createOverlay([['scmResourceState', resource.contextValue]]);
-			const menu = this.menuService.createMenu(MenuId.SCMResourceContext, contextKeyService);
+			const contextKeySewvice = this.contextKeySewvice.cweateOvewway([['scmWesouwceState', wesouwce.contextVawue]]);
+			const menu = this.menuSewvice.cweateMenu(MenuId.SCMWesouwceContext, contextKeySewvice);
 
 			item = {
 				menu, dispose() {
@@ -128,146 +128,146 @@ class SCMMenusItem implements IDisposable {
 				}
 			};
 
-			this.contextualResourceMenus.set(resource.contextValue, item);
+			this.contextuawWesouwceMenus.set(wesouwce.contextVawue, item);
 		}
 
-		return item.menu;
+		wetuwn item.menu;
 	}
 
 	dispose(): void {
-		this._resourceGroupMenu?.dispose();
-		this._resourceFolderMenu?.dispose();
-		this.genericResourceMenu?.dispose();
+		this._wesouwceGwoupMenu?.dispose();
+		this._wesouwceFowdewMenu?.dispose();
+		this.genewicWesouwceMenu?.dispose();
 
-		if (this.contextualResourceMenus) {
-			dispose(this.contextualResourceMenus.values());
-			this.contextualResourceMenus.clear();
-			this.contextualResourceMenus = undefined;
+		if (this.contextuawWesouwceMenus) {
+			dispose(this.contextuawWesouwceMenus.vawues());
+			this.contextuawWesouwceMenus.cweaw();
+			this.contextuawWesouwceMenus = undefined;
 		}
 	}
 }
 
-export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
+expowt cwass SCMWepositowyMenus impwements ISCMWepositowyMenus, IDisposabwe {
 
-	private contextKeyService: IContextKeyService;
+	pwivate contextKeySewvice: IContextKeySewvice;
 
-	readonly titleMenu: SCMTitleMenu;
-	private readonly resourceGroups: ISCMResourceGroup[] = [];
-	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
+	weadonwy titweMenu: SCMTitweMenu;
+	pwivate weadonwy wesouwceGwoups: ISCMWesouwceGwoup[] = [];
+	pwivate weadonwy wesouwceGwoupMenusItems = new Map<ISCMWesouwceGwoup, SCMMenusItem>();
 
-	private _repositoryMenu: IMenu | undefined;
-	get repositoryMenu(): IMenu {
-		if (!this._repositoryMenu) {
-			this._repositoryMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
-			this.disposables.add(this._repositoryMenu);
+	pwivate _wepositowyMenu: IMenu | undefined;
+	get wepositowyMenu(): IMenu {
+		if (!this._wepositowyMenu) {
+			this._wepositowyMenu = this.menuSewvice.cweateMenu(MenuId.SCMSouwceContwow, this.contextKeySewvice);
+			this.disposabwes.add(this._wepositowyMenu);
 		}
 
-		return this._repositoryMenu;
+		wetuwn this._wepositowyMenu;
 	}
 
-	private readonly disposables = new DisposableStore();
+	pwivate weadonwy disposabwes = new DisposabweStowe();
 
-	constructor(
-		provider: ISCMProvider,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService private readonly menuService: IMenuService
+	constwuctow(
+		pwovida: ISCMPwovida,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice
 	) {
-		this.contextKeyService = contextKeyService.createOverlay([
-			['scmProvider', provider.contextValue],
-			['scmProviderRootUri', provider.rootUri?.toString()],
-			['scmProviderHasRootUri', !!provider.rootUri],
+		this.contextKeySewvice = contextKeySewvice.cweateOvewway([
+			['scmPwovida', pwovida.contextVawue],
+			['scmPwovidewWootUwi', pwovida.wootUwi?.toStwing()],
+			['scmPwovidewHasWootUwi', !!pwovida.wootUwi],
 		]);
 
-		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		instantiationService = instantiationService.createChild(serviceCollection);
-		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
+		const sewviceCowwection = new SewviceCowwection([IContextKeySewvice, this.contextKeySewvice]);
+		instantiationSewvice = instantiationSewvice.cweateChiwd(sewviceCowwection);
+		this.titweMenu = instantiationSewvice.cweateInstance(SCMTitweMenu);
 
-		provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
-		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
+		pwovida.gwoups.onDidSpwice(this.onDidSpwiceGwoups, this, this.disposabwes);
+		this.onDidSpwiceGwoups({ stawt: 0, deweteCount: 0, toInsewt: pwovida.gwoups.ewements });
 	}
 
-	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
-		return this.getOrCreateResourceGroupMenusItem(group).resourceGroupMenu;
+	getWesouwceGwoupMenu(gwoup: ISCMWesouwceGwoup): IMenu {
+		wetuwn this.getOwCweateWesouwceGwoupMenusItem(gwoup).wesouwceGwoupMenu;
 	}
 
-	getResourceMenu(resource: ISCMResource): IMenu {
-		return this.getOrCreateResourceGroupMenusItem(resource.resourceGroup).getResourceMenu(resource);
+	getWesouwceMenu(wesouwce: ISCMWesouwce): IMenu {
+		wetuwn this.getOwCweateWesouwceGwoupMenusItem(wesouwce.wesouwceGwoup).getWesouwceMenu(wesouwce);
 	}
 
-	getResourceFolderMenu(group: ISCMResourceGroup): IMenu {
-		return this.getOrCreateResourceGroupMenusItem(group).resourceFolderMenu;
+	getWesouwceFowdewMenu(gwoup: ISCMWesouwceGwoup): IMenu {
+		wetuwn this.getOwCweateWesouwceGwoupMenusItem(gwoup).wesouwceFowdewMenu;
 	}
 
-	private getOrCreateResourceGroupMenusItem(group: ISCMResourceGroup): SCMMenusItem {
-		let result = this.resourceGroupMenusItems.get(group);
+	pwivate getOwCweateWesouwceGwoupMenusItem(gwoup: ISCMWesouwceGwoup): SCMMenusItem {
+		wet wesuwt = this.wesouwceGwoupMenusItems.get(gwoup);
 
-		if (!result) {
-			const contextKeyService = this.contextKeyService.createOverlay([
-				['scmResourceGroup', group.id],
+		if (!wesuwt) {
+			const contextKeySewvice = this.contextKeySewvice.cweateOvewway([
+				['scmWesouwceGwoup', gwoup.id],
 			]);
 
-			result = new SCMMenusItem(contextKeyService, this.menuService);
-			this.resourceGroupMenusItems.set(group, result);
+			wesuwt = new SCMMenusItem(contextKeySewvice, this.menuSewvice);
+			this.wesouwceGwoupMenusItems.set(gwoup, wesuwt);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
-		const deleted = this.resourceGroups.splice(start, deleteCount, ...toInsert);
+	pwivate onDidSpwiceGwoups({ stawt, deweteCount, toInsewt }: ISpwice<ISCMWesouwceGwoup>): void {
+		const deweted = this.wesouwceGwoups.spwice(stawt, deweteCount, ...toInsewt);
 
-		for (const group of deleted) {
-			const item = this.resourceGroupMenusItems.get(group);
+		fow (const gwoup of deweted) {
+			const item = this.wesouwceGwoupMenusItems.get(gwoup);
 			item?.dispose();
-			this.resourceGroupMenusItems.delete(group);
+			this.wesouwceGwoupMenusItems.dewete(gwoup);
 		}
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
-		this.resourceGroupMenusItems.forEach(item => item.dispose());
+		this.disposabwes.dispose();
+		this.wesouwceGwoupMenusItems.fowEach(item => item.dispose());
 	}
 }
 
-export class SCMMenus implements ISCMMenus, IDisposable {
+expowt cwass SCMMenus impwements ISCMMenus, IDisposabwe {
 
-	readonly titleMenu: SCMTitleMenu;
-	private readonly disposables = new DisposableStore();
-	private readonly menus = new Map<ISCMProvider, { menus: SCMRepositoryMenus, dispose: () => void }>();
+	weadonwy titweMenu: SCMTitweMenu;
+	pwivate weadonwy disposabwes = new DisposabweStowe();
+	pwivate weadonwy menus = new Map<ISCMPwovida, { menus: SCMWepositowyMenus, dispose: () => void }>();
 
-	constructor(
-		@ISCMService scmService: ISCMService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constwuctow(
+		@ISCMSewvice scmSewvice: ISCMSewvice,
+		@IInstantiationSewvice pwivate instantiationSewvice: IInstantiationSewvice
 	) {
-		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
-		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		this.titweMenu = instantiationSewvice.cweateInstance(SCMTitweMenu);
+		scmSewvice.onDidWemoveWepositowy(this.onDidWemoveWepositowy, this, this.disposabwes);
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
-		const menus = this.menus.get(repository.provider);
+	pwivate onDidWemoveWepositowy(wepositowy: ISCMWepositowy): void {
+		const menus = this.menus.get(wepositowy.pwovida);
 		menus?.dispose();
-		this.menus.delete(repository.provider);
+		this.menus.dewete(wepositowy.pwovida);
 	}
 
-	getRepositoryMenus(provider: ISCMProvider): SCMRepositoryMenus {
-		let result = this.menus.get(provider);
+	getWepositowyMenus(pwovida: ISCMPwovida): SCMWepositowyMenus {
+		wet wesuwt = this.menus.get(pwovida);
 
-		if (!result) {
-			const menus = this.instantiationService.createInstance(SCMRepositoryMenus, provider);
+		if (!wesuwt) {
+			const menus = this.instantiationSewvice.cweateInstance(SCMWepositowyMenus, pwovida);
 			const dispose = () => {
 				menus.dispose();
-				this.menus.delete(provider);
+				this.menus.dewete(pwovida);
 			};
 
-			result = { menus, dispose };
-			this.menus.set(provider, result);
+			wesuwt = { menus, dispose };
+			this.menus.set(pwovida, wesuwt);
 		}
 
-		return result.menus;
+		wetuwn wesuwt.menus;
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }

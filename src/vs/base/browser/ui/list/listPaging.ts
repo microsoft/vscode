@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { range } from 'vs/base/common/arrays';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IPagedModel } from 'vs/base/common/paging';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IThemable } from 'vs/base/common/styler';
-import 'vs/css!./list';
-import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
-import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List } from './listWidget';
+impowt { wange } fwom 'vs/base/common/awways';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPagedModew } fwom 'vs/base/common/paging';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { IThemabwe } fwom 'vs/base/common/stywa';
+impowt 'vs/css!./wist';
+impowt { IWistContextMenuEvent, IWistEvent, IWistMouseEvent, IWistWendewa, IWistViwtuawDewegate } fwom './wist';
+impowt { IWistAccessibiwityPwovida, IWistOptions, IWistOptionsUpdate, IWistStywes, Wist } fwom './wistWidget';
 
-export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
-	renderPlaceholder(index: number, templateData: TTemplateData): void;
+expowt intewface IPagedWendewa<TEwement, TTempwateData> extends IWistWendewa<TEwement, TTempwateData> {
+	wendewPwacehowda(index: numba, tempwateData: TTempwateData): void;
 }
 
-export interface ITemplateData<T> {
+expowt intewface ITempwateData<T> {
 	data?: T;
-	disposable?: IDisposable;
+	disposabwe?: IDisposabwe;
 }
 
-class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, ITemplateData<TTemplateData>> {
+cwass PagedWendewa<TEwement, TTempwateData> impwements IWistWendewa<numba, ITempwateData<TTempwateData>> {
 
-	get templateId(): string { return this.renderer.templateId; }
+	get tempwateId(): stwing { wetuwn this.wendewa.tempwateId; }
 
-	constructor(
-		private renderer: IPagedRenderer<TElement, TTemplateData>,
-		private modelProvider: () => IPagedModel<TElement>
+	constwuctow(
+		pwivate wendewa: IPagedWendewa<TEwement, TTempwateData>,
+		pwivate modewPwovida: () => IPagedModew<TEwement>
 	) { }
 
-	renderTemplate(container: HTMLElement): ITemplateData<TTemplateData> {
-		const data = this.renderer.renderTemplate(container);
-		return { data, disposable: Disposable.None };
+	wendewTempwate(containa: HTMWEwement): ITempwateData<TTempwateData> {
+		const data = this.wendewa.wendewTempwate(containa);
+		wetuwn { data, disposabwe: Disposabwe.None };
 	}
 
-	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
-		if (data.disposable) {
-			data.disposable.dispose();
+	wendewEwement(index: numba, _: numba, data: ITempwateData<TTempwateData>, height: numba | undefined): void {
+		if (data.disposabwe) {
+			data.disposabwe.dispose();
 		}
 
 		if (!data.data) {
-			return;
+			wetuwn;
 		}
 
-		const model = this.modelProvider();
+		const modew = this.modewPwovida();
 
-		if (model.isResolved(index)) {
-			return this.renderer.renderElement(model.get(index), index, data.data, height);
+		if (modew.isWesowved(index)) {
+			wetuwn this.wendewa.wendewEwement(modew.get(index), index, data.data, height);
 		}
 
-		const cts = new CancellationTokenSource();
-		const promise = model.resolve(index, cts.token);
-		data.disposable = { dispose: () => cts.cancel() };
+		const cts = new CancewwationTokenSouwce();
+		const pwomise = modew.wesowve(index, cts.token);
+		data.disposabwe = { dispose: () => cts.cancew() };
 
-		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, height));
+		this.wendewa.wendewPwacehowda(index, data.data);
+		pwomise.then(entwy => this.wendewa.wendewEwement(entwy, index, data.data!, height));
 	}
 
-	disposeTemplate(data: ITemplateData<TTemplateData>): void {
-		if (data.disposable) {
-			data.disposable.dispose();
-			data.disposable = undefined;
+	disposeTempwate(data: ITempwateData<TTempwateData>): void {
+		if (data.disposabwe) {
+			data.disposabwe.dispose();
+			data.disposabwe = undefined;
 		}
 		if (data.data) {
-			this.renderer.disposeTemplate(data.data);
+			this.wendewa.disposeTempwate(data.data);
 			data.data = undefined;
 		}
 	}
 }
 
-class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number> {
+cwass PagedAccessibiwityPwovida<T> impwements IWistAccessibiwityPwovida<numba> {
 
-	constructor(
-		private modelProvider: () => IPagedModel<T>,
-		private accessibilityProvider: IListAccessibilityProvider<T>
+	constwuctow(
+		pwivate modewPwovida: () => IPagedModew<T>,
+		pwivate accessibiwityPwovida: IWistAccessibiwityPwovida<T>
 	) { }
 
-	getWidgetAriaLabel(): string {
-		return this.accessibilityProvider.getWidgetAriaLabel();
+	getWidgetAwiaWabew(): stwing {
+		wetuwn this.accessibiwityPwovida.getWidgetAwiaWabew();
 	}
 
-	getAriaLabel(index: number): string | null {
-		const model = this.modelProvider();
+	getAwiaWabew(index: numba): stwing | nuww {
+		const modew = this.modewPwovida();
 
-		if (!model.isResolved(index)) {
-			return null;
+		if (!modew.isWesowved(index)) {
+			wetuwn nuww;
 		}
 
-		return this.accessibilityProvider.getAriaLabel(model.get(index));
+		wetuwn this.accessibiwityPwovida.getAwiaWabew(modew.get(index));
 	}
 }
 
-export interface IPagedListOptions<T> {
-	readonly enableKeyboardNavigation?: boolean;
-	readonly automaticKeyboardNavigation?: boolean;
-	readonly ariaLabel?: string;
-	readonly keyboardSupport?: boolean;
-	readonly multipleSelectionSupport?: boolean;
-	readonly accessibilityProvider?: IListAccessibilityProvider<T>;
+expowt intewface IPagedWistOptions<T> {
+	weadonwy enabweKeyboawdNavigation?: boowean;
+	weadonwy automaticKeyboawdNavigation?: boowean;
+	weadonwy awiaWabew?: stwing;
+	weadonwy keyboawdSuppowt?: boowean;
+	weadonwy muwtipweSewectionSuppowt?: boowean;
+	weadonwy accessibiwityPwovida?: IWistAccessibiwityPwovida<T>;
 
-	// list view options
-	readonly useShadows?: boolean;
-	readonly verticalScrollMode?: ScrollbarVisibility;
-	readonly setRowLineHeight?: boolean;
-	readonly setRowHeight?: boolean;
-	readonly supportDynamicHeights?: boolean;
-	readonly mouseSupport?: boolean;
-	readonly horizontalScrolling?: boolean;
-	readonly additionalScrollHeight?: number;
+	// wist view options
+	weadonwy useShadows?: boowean;
+	weadonwy vewticawScwowwMode?: ScwowwbawVisibiwity;
+	weadonwy setWowWineHeight?: boowean;
+	weadonwy setWowHeight?: boowean;
+	weadonwy suppowtDynamicHeights?: boowean;
+	weadonwy mouseSuppowt?: boowean;
+	weadonwy howizontawScwowwing?: boowean;
+	weadonwy additionawScwowwHeight?: numba;
 }
 
-function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: IPagedListOptions<T>): IListOptions<number> {
-	return {
+function fwomPagedWistOptions<T>(modewPwovida: () => IPagedModew<T>, options: IPagedWistOptions<T>): IWistOptions<numba> {
+	wetuwn {
 		...options,
-		accessibilityProvider: options.accessibilityProvider && new PagedAccessibilityProvider(modelProvider, options.accessibilityProvider)
+		accessibiwityPwovida: options.accessibiwityPwovida && new PagedAccessibiwityPwovida(modewPwovida, options.accessibiwityPwovida)
 	};
 }
 
-export class PagedList<T> implements IThemable, IDisposable {
+expowt cwass PagedWist<T> impwements IThemabwe, IDisposabwe {
 
-	private list: List<number>;
-	private _model!: IPagedModel<T>;
+	pwivate wist: Wist<numba>;
+	pwivate _modew!: IPagedModew<T>;
 
-	constructor(
-		user: string,
-		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<number>,
-		renderers: IPagedRenderer<T, any>[],
-		options: IPagedListOptions<T> = {}
+	constwuctow(
+		usa: stwing,
+		containa: HTMWEwement,
+		viwtuawDewegate: IWistViwtuawDewegate<numba>,
+		wendewews: IPagedWendewa<T, any>[],
+		options: IPagedWistOptions<T> = {}
 	) {
-		const modelProvider = () => this.model;
-		const pagedRenderers = renderers.map(r => new PagedRenderer<T, ITemplateData<T>>(r, modelProvider));
-		this.list = new List(user, container, virtualDelegate, pagedRenderers, fromPagedListOptions(modelProvider, options));
+		const modewPwovida = () => this.modew;
+		const pagedWendewews = wendewews.map(w => new PagedWendewa<T, ITempwateData<T>>(w, modewPwovida));
+		this.wist = new Wist(usa, containa, viwtuawDewegate, pagedWendewews, fwomPagedWistOptions(modewPwovida, options));
 	}
 
-	updateOptions(options: IListOptionsUpdate) {
-		this.list.updateOptions(options);
+	updateOptions(options: IWistOptionsUpdate) {
+		this.wist.updateOptions(options);
 	}
 
-	getHTMLElement(): HTMLElement {
-		return this.list.getHTMLElement();
+	getHTMWEwement(): HTMWEwement {
+		wetuwn this.wist.getHTMWEwement();
 	}
 
-	isDOMFocused(): boolean {
-		return this.list.getHTMLElement() === document.activeElement;
+	isDOMFocused(): boowean {
+		wetuwn this.wist.getHTMWEwement() === document.activeEwement;
 	}
 
 	domFocus(): void {
-		this.list.domFocus();
+		this.wist.domFocus();
 	}
 
 	get onDidFocus(): Event<void> {
-		return this.list.onDidFocus;
+		wetuwn this.wist.onDidFocus;
 	}
 
-	get onDidBlur(): Event<void> {
-		return this.list.onDidBlur;
+	get onDidBwuw(): Event<void> {
+		wetuwn this.wist.onDidBwuw;
 	}
 
-	get widget(): List<number> {
-		return this.list;
+	get widget(): Wist<numba> {
+		wetuwn this.wist;
 	}
 
 	get onDidDispose(): Event<void> {
-		return this.list.onDidDispose;
+		wetuwn this.wist.onDidDispose;
 	}
 
-	get onMouseClick(): Event<IListMouseEvent<T>> {
-		return Event.map(this.list.onMouseClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	get onMouseCwick(): Event<IWistMouseEvent<T>> {
+		wetuwn Event.map(this.wist.onMouseCwick, ({ ewement, index, bwowsewEvent }) => ({ ewement: ewement === undefined ? undefined : this._modew.get(ewement), index, bwowsewEvent }));
 	}
 
-	get onMouseDblClick(): Event<IListMouseEvent<T>> {
-		return Event.map(this.list.onMouseDblClick, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	get onMouseDbwCwick(): Event<IWistMouseEvent<T>> {
+		wetuwn Event.map(this.wist.onMouseDbwCwick, ({ ewement, index, bwowsewEvent }) => ({ ewement: ewement === undefined ? undefined : this._modew.get(ewement), index, bwowsewEvent }));
 	}
 
-	get onTap(): Event<IListMouseEvent<T>> {
-		return Event.map(this.list.onTap, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	get onTap(): Event<IWistMouseEvent<T>> {
+		wetuwn Event.map(this.wist.onTap, ({ ewement, index, bwowsewEvent }) => ({ ewement: ewement === undefined ? undefined : this._modew.get(ewement), index, bwowsewEvent }));
 	}
 
-	get onPointer(): Event<IListMouseEvent<T>> {
-		return Event.map(this.list.onPointer, ({ element, index, browserEvent }) => ({ element: element === undefined ? undefined : this._model.get(element), index, browserEvent }));
+	get onPointa(): Event<IWistMouseEvent<T>> {
+		wetuwn Event.map(this.wist.onPointa, ({ ewement, index, bwowsewEvent }) => ({ ewement: ewement === undefined ? undefined : this._modew.get(ewement), index, bwowsewEvent }));
 	}
 
-	get onDidChangeFocus(): Event<IListEvent<T>> {
-		return Event.map(this.list.onDidChangeFocus, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+	get onDidChangeFocus(): Event<IWistEvent<T>> {
+		wetuwn Event.map(this.wist.onDidChangeFocus, ({ ewements, indexes, bwowsewEvent }) => ({ ewements: ewements.map(e => this._modew.get(e)), indexes, bwowsewEvent }));
 	}
 
-	get onDidChangeSelection(): Event<IListEvent<T>> {
-		return Event.map(this.list.onDidChangeSelection, ({ elements, indexes, browserEvent }) => ({ elements: elements.map(e => this._model.get(e)), indexes, browserEvent }));
+	get onDidChangeSewection(): Event<IWistEvent<T>> {
+		wetuwn Event.map(this.wist.onDidChangeSewection, ({ ewements, indexes, bwowsewEvent }) => ({ ewements: ewements.map(e => this._modew.get(e)), indexes, bwowsewEvent }));
 	}
 
-	get onContextMenu(): Event<IListContextMenuEvent<T>> {
-		return Event.map(this.list.onContextMenu, ({ element, index, anchor, browserEvent }) => (typeof element === 'undefined' ? { element, index, anchor, browserEvent } : { element: this._model.get(element), index, anchor, browserEvent }));
+	get onContextMenu(): Event<IWistContextMenuEvent<T>> {
+		wetuwn Event.map(this.wist.onContextMenu, ({ ewement, index, anchow, bwowsewEvent }) => (typeof ewement === 'undefined' ? { ewement, index, anchow, bwowsewEvent } : { ewement: this._modew.get(ewement), index, anchow, bwowsewEvent }));
 	}
 
-	get model(): IPagedModel<T> {
-		return this._model;
+	get modew(): IPagedModew<T> {
+		wetuwn this._modew;
 	}
 
-	set model(model: IPagedModel<T>) {
-		this._model = model;
-		this.list.splice(0, this.list.length, range(model.length));
+	set modew(modew: IPagedModew<T>) {
+		this._modew = modew;
+		this.wist.spwice(0, this.wist.wength, wange(modew.wength));
 	}
 
-	get length(): number {
-		return this.list.length;
+	get wength(): numba {
+		wetuwn this.wist.wength;
 	}
 
-	get scrollTop(): number {
-		return this.list.scrollTop;
+	get scwowwTop(): numba {
+		wetuwn this.wist.scwowwTop;
 	}
 
-	set scrollTop(scrollTop: number) {
-		this.list.scrollTop = scrollTop;
+	set scwowwTop(scwowwTop: numba) {
+		this.wist.scwowwTop = scwowwTop;
 	}
 
-	get scrollLeft(): number {
-		return this.list.scrollLeft;
+	get scwowwWeft(): numba {
+		wetuwn this.wist.scwowwWeft;
 	}
 
-	set scrollLeft(scrollLeft: number) {
-		this.list.scrollLeft = scrollLeft;
+	set scwowwWeft(scwowwWeft: numba) {
+		this.wist.scwowwWeft = scwowwWeft;
 	}
 
-	setAnchor(index: number | undefined): void {
-		this.list.setAnchor(index);
+	setAnchow(index: numba | undefined): void {
+		this.wist.setAnchow(index);
 	}
 
-	getAnchor(): number | undefined {
-		return this.list.getAnchor();
+	getAnchow(): numba | undefined {
+		wetuwn this.wist.getAnchow();
 	}
 
-	setFocus(indexes: number[]): void {
-		this.list.setFocus(indexes);
+	setFocus(indexes: numba[]): void {
+		this.wist.setFocus(indexes);
 	}
 
-	focusNext(n?: number, loop?: boolean): void {
-		this.list.focusNext(n, loop);
+	focusNext(n?: numba, woop?: boowean): void {
+		this.wist.focusNext(n, woop);
 	}
 
-	focusPrevious(n?: number, loop?: boolean): void {
-		this.list.focusPrevious(n, loop);
+	focusPwevious(n?: numba, woop?: boowean): void {
+		this.wist.focusPwevious(n, woop);
 	}
 
-	focusNextPage(): Promise<void> {
-		return this.list.focusNextPage();
+	focusNextPage(): Pwomise<void> {
+		wetuwn this.wist.focusNextPage();
 	}
 
-	focusPreviousPage(): Promise<void> {
-		return this.list.focusPreviousPage();
+	focusPweviousPage(): Pwomise<void> {
+		wetuwn this.wist.focusPweviousPage();
 	}
 
-	focusLast(): void {
-		this.list.focusLast();
+	focusWast(): void {
+		this.wist.focusWast();
 	}
 
-	focusFirst(): void {
-		this.list.focusFirst();
+	focusFiwst(): void {
+		this.wist.focusFiwst();
 	}
 
-	getFocus(): number[] {
-		return this.list.getFocus();
+	getFocus(): numba[] {
+		wetuwn this.wist.getFocus();
 	}
 
-	setSelection(indexes: number[], browserEvent?: UIEvent): void {
-		this.list.setSelection(indexes, browserEvent);
+	setSewection(indexes: numba[], bwowsewEvent?: UIEvent): void {
+		this.wist.setSewection(indexes, bwowsewEvent);
 	}
 
-	getSelection(): number[] {
-		return this.list.getSelection();
+	getSewection(): numba[] {
+		wetuwn this.wist.getSewection();
 	}
 
-	getSelectedElements(): T[] {
-		return this.getSelection().map(i => this.model.get(i));
+	getSewectedEwements(): T[] {
+		wetuwn this.getSewection().map(i => this.modew.get(i));
 	}
 
-	layout(height?: number, width?: number): void {
-		this.list.layout(height, width);
+	wayout(height?: numba, width?: numba): void {
+		this.wist.wayout(height, width);
 	}
 
-	toggleKeyboardNavigation(): void {
-		this.list.toggleKeyboardNavigation();
+	toggweKeyboawdNavigation(): void {
+		this.wist.toggweKeyboawdNavigation();
 	}
 
-	reveal(index: number, relativeTop?: number): void {
-		this.list.reveal(index, relativeTop);
+	weveaw(index: numba, wewativeTop?: numba): void {
+		this.wist.weveaw(index, wewativeTop);
 	}
 
-	style(styles: IListStyles): void {
-		this.list.style(styles);
+	stywe(stywes: IWistStywes): void {
+		this.wist.stywe(stywes);
 	}
 
 	dispose(): void {
-		this.list.dispose();
+		this.wist.dispose();
 	}
 }

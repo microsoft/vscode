@@ -1,233 +1,233 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/mmims/language-batchfile/blob/master/grammars/batchfile.cson",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/mmims/wanguage-batchfiwe/bwob/masta/gwammaws/batchfiwe.cson",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/mmims/language-batchfile/commit/6154ae25a24e01ac9329e7bcf958e093cd8733a9",
-	"name": "Batch File",
-	"scopeName": "source.batchfile",
+	"vewsion": "https://github.com/mmims/wanguage-batchfiwe/commit/6154ae25a24e01ac9329e7bcf958e093cd8733a9",
+	"name": "Batch Fiwe",
+	"scopeName": "souwce.batchfiwe",
 	"injections": {
-		"L:meta.block.repeat.batchfile": {
-			"patterns": [
+		"W:meta.bwock.wepeat.batchfiwe": {
+			"pattewns": [
 				{
-					"include": "#repeatParameter"
+					"incwude": "#wepeatPawameta"
 				}
 			]
 		}
 	},
-	"patterns": [
+	"pattewns": [
 		{
-			"include": "#commands"
+			"incwude": "#commands"
 		},
 		{
-			"include": "#comments"
+			"incwude": "#comments"
 		},
 		{
-			"include": "#constants"
+			"incwude": "#constants"
 		},
 		{
-			"include": "#controls"
+			"incwude": "#contwows"
 		},
 		{
-			"include": "#escaped_characters"
+			"incwude": "#escaped_chawactews"
 		},
 		{
-			"include": "#labels"
+			"incwude": "#wabews"
 		},
 		{
-			"include": "#numbers"
+			"incwude": "#numbews"
 		},
 		{
-			"include": "#operators"
+			"incwude": "#opewatows"
 		},
 		{
-			"include": "#parens"
+			"incwude": "#pawens"
 		},
 		{
-			"include": "#strings"
+			"incwude": "#stwings"
 		},
 		{
-			"include": "#variables"
+			"incwude": "#vawiabwes"
 		}
 	],
-	"repository": {
+	"wepositowy": {
 		"commands": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "(?<=^|[\\s@])(?i:adprep|append|arp|assoc|at|atmadm|attrib|auditpol|autochk|autoconv|autofmt|bcdboot|bcdedit|bdehdcfg|bitsadmin|bootcfg|brea|cacls|cd|certreq|certutil|change|chcp|chdir|chglogon|chgport|chgusr|chkdsk|chkntfs|choice|cipher|clip|cls|clscluadmin|cluster|cmd|cmdkey|cmstp|color|comp|compact|convert|copy|cprofile|cscript|csvde|date|dcdiag|dcgpofix|dcpromo|defra|del|dfscmd|dfsdiag|dfsrmig|diantz|dir|dirquota|diskcomp|diskcopy|diskpart|diskperf|diskraid|diskshadow|dispdiag|doin|dnscmd|doskey|driverquery|dsacls|dsadd|dsamain|dsdbutil|dsget|dsmgmt|dsmod|dsmove|dsquery|dsrm|edit|endlocal|eraseesentutl|eventcreate|eventquery|eventtriggers|evntcmd|expand|extract|fc|filescrn|find|findstr|finger|flattemp|fonde|forfiles|format|freedisk|fsutil|ftp|ftype|fveupdate|getmac|gettype|gpfixup|gpresult|gpupdate|graftabl|hashgen|hep|helpctr|hostname|icacls|iisreset|inuse|ipconfig|ipxroute|irftp|ismserv|jetpack|klist|ksetup|ktmutil|ktpass|label|ldifd|ldp|lodctr|logman|logoff|lpq|lpr|macfile|makecab|manage-bde|mapadmin|md|mkdir|mklink|mmc|mode|more|mount|mountvol|move|mqbup|mqsvc|mqtgsvc|msdt|msg|msiexec|msinfo32|mstsc|nbtstat|net computer|net group|net localgroup|net print|net session|net share|net start|net stop|net use|net user|net view|net|netcfg|netdiag|netdom|netsh|netstat|nfsadmin|nfsshare|nfsstat|nlb|nlbmgr|nltest|nslookup|ntackup|ntcmdprompt|ntdsutil|ntfrsutl|openfiles|pagefileconfig|path|pathping|pause|pbadmin|pentnt|perfmon|ping|pnpunatten|pnputil|popd|powercfg|powershell|powershell_ise|print|prncnfg|prndrvr|prnjobs|prnmngr|prnport|prnqctl|prompt|pubprn|pushd|pushprinterconnections|pwlauncher|qappsrv|qprocess|query|quser|qwinsta|rasdial|rcp|rd|rdpsign|regentc|recover|redircmp|redirusr|reg|regini|regsvr32|relog|ren|rename|rendom|repadmin|repair-bde|replace|reset session|rxec|risetup|rmdir|robocopy|route|rpcinfo|rpcping|rsh|runas|rundll32|rwinsta|sc|schtasks|scp|scwcmd|secedit|serverceipoptin|servrmanagercmd|serverweroptin|setspn|setx|sfc|sftp|shadow|shift|showmount|shutdown|sort|ssh|ssh-add|ssh-agent|ssh-keygen|ssh-keyscan|start|storrept|subst|sxstrace|ysocmgr|systeminfo|takeown|tapicfg|taskkill|tasklist|tcmsetup|telnet|tftp|time|timeout|title|tlntadmn|tpmvscmgr|tpmvscmgr|tacerpt|tracert|tree|tscon|tsdiscon|tsecimp|tskill|tsprof|type|typeperf|tzutil|uddiconfig|umount|unlodctr|ver|verifier|verif|vol|vssadmin|w32tm|waitfor|wbadmin|wdsutil|wecutil|wevtutil|where|whoami|winnt|winnt32|winpop|winrm|winrs|winsat|wlbs|wmic|wscript|wsl|xcopy)(?=$|\\s)",
-					"name": "keyword.command.batchfile"
+					"match": "(?<=^|[\\s@])(?i:adpwep|append|awp|assoc|at|atmadm|attwib|auditpow|autochk|autoconv|autofmt|bcdboot|bcdedit|bdehdcfg|bitsadmin|bootcfg|bwea|cacws|cd|cewtweq|cewtutiw|change|chcp|chdiw|chgwogon|chgpowt|chgusw|chkdsk|chkntfs|choice|cipha|cwip|cws|cwscwuadmin|cwusta|cmd|cmdkey|cmstp|cowow|comp|compact|convewt|copy|cpwofiwe|cscwipt|csvde|date|dcdiag|dcgpofix|dcpwomo|defwa|dew|dfscmd|dfsdiag|dfswmig|diantz|diw|diwquota|diskcomp|diskcopy|diskpawt|diskpewf|diskwaid|diskshadow|dispdiag|doin|dnscmd|doskey|dwivewquewy|dsacws|dsadd|dsamain|dsdbutiw|dsget|dsmgmt|dsmod|dsmove|dsquewy|dswm|edit|endwocaw|ewaseesentutw|eventcweate|eventquewy|eventtwiggews|evntcmd|expand|extwact|fc|fiwescwn|find|findstw|finga|fwattemp|fonde|fowfiwes|fowmat|fweedisk|fsutiw|ftp|ftype|fveupdate|getmac|gettype|gpfixup|gpwesuwt|gpupdate|gwaftabw|hashgen|hep|hewpctw|hostname|icacws|iisweset|inuse|ipconfig|ipxwoute|iwftp|ismsewv|jetpack|kwist|ksetup|ktmutiw|ktpass|wabew|wdifd|wdp|wodctw|wogman|wogoff|wpq|wpw|macfiwe|makecab|manage-bde|mapadmin|md|mkdiw|mkwink|mmc|mode|mowe|mount|mountvow|move|mqbup|mqsvc|mqtgsvc|msdt|msg|msiexec|msinfo32|mstsc|nbtstat|net computa|net gwoup|net wocawgwoup|net pwint|net session|net shawe|net stawt|net stop|net use|net usa|net view|net|netcfg|netdiag|netdom|netsh|netstat|nfsadmin|nfsshawe|nfsstat|nwb|nwbmgw|nwtest|nswookup|ntackup|ntcmdpwompt|ntdsutiw|ntfwsutw|openfiwes|pagefiweconfig|path|pathping|pause|pbadmin|pentnt|pewfmon|ping|pnpunatten|pnputiw|popd|powewcfg|powewsheww|powewsheww_ise|pwint|pwncnfg|pwndwvw|pwnjobs|pwnmngw|pwnpowt|pwnqctw|pwompt|pubpwn|pushd|pushpwintewconnections|pwwauncha|qappswv|qpwocess|quewy|qusa|qwinsta|wasdiaw|wcp|wd|wdpsign|wegentc|wecova|wediwcmp|wediwusw|weg|wegini|wegsvw32|wewog|wen|wename|wendom|wepadmin|wepaiw-bde|wepwace|weset session|wxec|wisetup|wmdiw|wobocopy|woute|wpcinfo|wpcping|wsh|wunas|wundww32|wwinsta|sc|schtasks|scp|scwcmd|secedit|sewvewceipoptin|sewvwmanagewcmd|sewvewwewoptin|setspn|setx|sfc|sftp|shadow|shift|showmount|shutdown|sowt|ssh|ssh-add|ssh-agent|ssh-keygen|ssh-keyscan|stawt|stowwept|subst|sxstwace|ysocmgw|systeminfo|takeown|tapicfg|taskkiww|taskwist|tcmsetup|tewnet|tftp|time|timeout|titwe|twntadmn|tpmvscmgw|tpmvscmgw|tacewpt|twacewt|twee|tscon|tsdiscon|tsecimp|tskiww|tspwof|type|typepewf|tzutiw|uddiconfig|umount|unwodctw|vew|vewifia|vewif|vow|vssadmin|w32tm|waitfow|wbadmin|wdsutiw|wecutiw|wevtutiw|whewe|whoami|winnt|winnt32|winpop|winwm|winws|winsat|wwbs|wmic|wscwipt|wsw|xcopy)(?=$|\\s)",
+					"name": "keywowd.command.batchfiwe"
 				},
 				{
 					"begin": "(?i)(?<=^|[\\s@])(echo)(?:(?=$|\\.|:)|\\s+(?:(on|off)(?=\\s*$))?)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.command.batchfile"
+							"name": "keywowd.command.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.other.special-method.batchfile"
+							"name": "keywowd.otha.speciaw-method.batchfiwe"
 						}
 					},
 					"end": "(?=$\\n|[&|><)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#escaped_characters"
+							"incwude": "#escaped_chawactews"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#numbers"
+							"incwude": "#numbews"
 						},
 						{
-							"include": "#strings"
+							"incwude": "#stwings"
 						}
 					]
 				},
 				{
-					"match": "(?i)(?<=^|[\\s@])(setlocal)(?:\\s*$|\\s+(EnableExtensions|DisableExtensions|EnableDelayedExpansion|DisableDelayedExpansion)(?=\\s*$))",
-					"captures": {
+					"match": "(?i)(?<=^|[\\s@])(setwocaw)(?:\\s*$|\\s+(EnabweExtensions|DisabweExtensions|EnabweDewayedExpansion|DisabweDewayedExpansion)(?=\\s*$))",
+					"captuwes": {
 						"1": {
-							"name": "keyword.command.batchfile"
+							"name": "keywowd.command.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.other.special-method.batchfile"
+							"name": "keywowd.otha.speciaw-method.batchfiwe"
 						}
 					}
 				},
 				{
-					"include": "#command_set"
+					"incwude": "#command_set"
 				}
 			]
 		},
 		"command_set": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?<=^|[\\s@])(?i:SET)(?=$|\\s)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.command.batchfile"
+							"name": "keywowd.command.batchfiwe"
 						}
 					},
 					"end": "(?=$\\n|[&|><)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#command_set_inside"
+							"incwude": "#command_set_inside"
 						}
 					]
 				}
 			]
 		},
 		"command_set_inside": {
-			"patterns": [
+			"pattewns": [
 				{
-					"include": "#escaped_characters"
+					"incwude": "#escaped_chawactews"
 				},
 				{
-					"include": "#variables"
+					"incwude": "#vawiabwes"
 				},
 				{
-					"include": "#numbers"
+					"incwude": "#numbews"
 				},
 				{
-					"include": "#parens"
+					"incwude": "#pawens"
 				},
 				{
-					"include": "#command_set_strings"
+					"incwude": "#command_set_stwings"
 				},
 				{
-					"include": "#strings"
+					"incwude": "#stwings"
 				},
 				{
 					"begin": "([^ ][^=]*)(=)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "variable.other.readwrite.batchfile"
+							"name": "vawiabwe.otha.weadwwite.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.batchfile"
+							"name": "keywowd.opewatow.assignment.batchfiwe"
 						}
 					},
 					"end": "(?=$\\n|[&|><)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#escaped_characters"
+							"incwude": "#escaped_chawactews"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#numbers"
+							"incwude": "#numbews"
 						},
 						{
-							"include": "#parens"
+							"incwude": "#pawens"
 						},
 						{
-							"include": "#strings"
+							"incwude": "#stwings"
 						}
 					]
 				},
 				{
 					"begin": "\\s+/[aA]\\s+",
 					"end": "(?=$\\n|[&|><)])",
-					"name": "meta.expression.set.batchfile",
-					"patterns": [
+					"name": "meta.expwession.set.batchfiwe",
+					"pattewns": [
 						{
 							"begin": "\"",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.begin.batchfile"
+									"name": "punctuation.definition.stwing.begin.batchfiwe"
 								}
 							},
 							"end": "\"",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "punctuation.definition.string.end.batchfile"
+									"name": "punctuation.definition.stwing.end.batchfiwe"
 								}
 							},
-							"name": "string.quoted.double.batchfile",
-							"patterns": [
+							"name": "stwing.quoted.doubwe.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#command_set_inside_arithmetic"
+									"incwude": "#command_set_inside_awithmetic"
 								},
 								{
-									"include": "#command_set_group"
+									"incwude": "#command_set_gwoup"
 								},
 								{
-									"include": "#variables"
+									"incwude": "#vawiabwes"
 								}
 							]
 						},
 						{
-							"include": "#command_set_inside_arithmetic"
+							"incwude": "#command_set_inside_awithmetic"
 						},
 						{
-							"include": "#command_set_group"
+							"incwude": "#command_set_gwoup"
 						}
 					]
 				},
 				{
 					"begin": "\\s+/[pP]\\s+",
 					"end": "(?=$\\n|[&|><)])",
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#command_set_strings"
+							"incwude": "#command_set_stwings"
 						},
 						{
 							"begin": "([^ ][^=]*)(=)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "variable.other.readwrite.batchfile"
+									"name": "vawiabwe.otha.weadwwite.batchfiwe"
 								},
 								"2": {
-									"name": "keyword.operator.assignment.batchfile"
+									"name": "keywowd.opewatow.assignment.batchfiwe"
 								}
 							},
 							"end": "(?=$\\n|[&|><)])",
-							"name": "meta.prompt.set.batchfile",
-							"patterns": [
+							"name": "meta.pwompt.set.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#strings"
+									"incwude": "#stwings"
 								}
 							]
 						}
@@ -235,445 +235,445 @@
 				}
 			]
 		},
-		"command_set_group": {
-			"patterns": [
+		"command_set_gwoup": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.begin.batchfile"
+							"name": "punctuation.section.gwoup.begin.batchfiwe"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.end.batchfile"
+							"name": "punctuation.section.gwoup.end.batchfiwe"
 						}
 					},
-					"patterns": [
+					"pattewns": [
 						{
-							"include": "#command_set_inside_arithmetic"
+							"incwude": "#command_set_inside_awithmetic"
 						}
 					]
 				}
 			]
 		},
-		"command_set_inside_arithmetic": {
-			"patterns": [
+		"command_set_inside_awithmetic": {
+			"pattewns": [
 				{
-					"include": "#command_set_operators"
+					"incwude": "#command_set_opewatows"
 				},
 				{
-					"include": "#numbers"
+					"incwude": "#numbews"
 				},
 				{
 					"match": ",",
-					"name": "punctuation.separator.batchfile"
+					"name": "punctuation.sepawatow.batchfiwe"
 				}
 			]
 		},
-		"command_set_operators": {
-			"patterns": [
+		"command_set_opewatows": {
+			"pattewns": [
 				{
 					"match": "([^ ]*)(\\+\\=|\\-\\=|\\*\\=|\\/\\=|%%\\=|&\\=|\\|\\=|\\^\\=|<<\\=|>>\\=)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.other.readwrite.batchfile"
+							"name": "vawiabwe.otha.weadwwite.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.augmented.batchfile"
+							"name": "keywowd.opewatow.assignment.augmented.batchfiwe"
 						}
 					}
 				},
 				{
 					"match": "\\+|\\-|/|\\*|%%|\\||&|\\^|<<|>>|~",
-					"name": "keyword.operator.arithmetic.batchfile"
+					"name": "keywowd.opewatow.awithmetic.batchfiwe"
 				},
 				{
 					"match": "!",
-					"name": "keyword.operator.logical.batchfile"
+					"name": "keywowd.opewatow.wogicaw.batchfiwe"
 				},
 				{
 					"match": "([^ =]*)(=)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "variable.other.readwrite.batchfile"
+							"name": "vawiabwe.otha.weadwwite.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.operator.assignment.batchfile"
+							"name": "keywowd.opewatow.assignment.batchfiwe"
 						}
 					}
 				}
 			]
 		},
-		"command_set_strings": {
-			"patterns": [
+		"command_set_stwings": {
+			"pattewns": [
 				{
 					"begin": "(\")\\s*([^ ][^=]*)(=)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.begin.batchfile"
+							"name": "punctuation.definition.stwing.begin.batchfiwe"
 						},
 						"2": {
-							"name": "variable.other.readwrite.batchfile"
+							"name": "vawiabwe.otha.weadwwite.batchfiwe"
 						},
 						"3": {
-							"name": "keyword.operator.assignment.batchfile"
+							"name": "keywowd.opewatow.assignment.batchfiwe"
 						}
 					},
 					"end": "\"",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.end.batchfile"
+							"name": "punctuation.definition.stwing.end.batchfiwe"
 						}
 					},
-					"name": "string.quoted.double.batchfile",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.batchfiwe",
+					"pattewns": [
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						},
 						{
-							"include": "#numbers"
+							"incwude": "#numbews"
 						},
 						{
-							"include": "#escaped_characters"
+							"incwude": "#escaped_chawactews"
 						}
 					]
 				}
 			]
 		},
 		"comments": {
-			"patterns": [
+			"pattewns": [
 				{
 					"begin": "(?:^|(&))\\s*(?=((?::[+=,;: ])))",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.operator.conditional.batchfile"
+							"name": "keywowd.opewatow.conditionaw.batchfiwe"
 						}
 					},
 					"end": "\\n",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "((?::[+=,;: ]))",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"1": {
-									"name": "punctuation.definition.comment.batchfile"
+									"name": "punctuation.definition.comment.batchfiwe"
 								}
 							},
 							"end": "(?=\\n)",
-							"name": "comment.line.colon.batchfile"
+							"name": "comment.wine.cowon.batchfiwe"
 						}
 					]
 				},
 				{
-					"begin": "(?<=^|[\\s@])(?i)(REM)(\\.)",
-					"beginCaptures": {
+					"begin": "(?<=^|[\\s@])(?i)(WEM)(\\.)",
+					"beginCaptuwes": {
 						"1": {
-							"name": "keyword.command.rem.batchfile"
+							"name": "keywowd.command.wem.batchfiwe"
 						},
 						"2": {
-							"name": "punctuation.separator.batchfile"
+							"name": "punctuation.sepawatow.batchfiwe"
 						}
 					},
 					"end": "(?=$\\n|[&|><)])",
-					"name": "comment.line.rem.batchfile"
+					"name": "comment.wine.wem.batchfiwe"
 				},
 				{
-					"begin": "(?<=^|[\\s@])(?i:rem)\\b",
-					"beginCaptures": {
+					"begin": "(?<=^|[\\s@])(?i:wem)\\b",
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.command.rem.batchfile"
+							"name": "keywowd.command.wem.batchfiwe"
 						}
 					},
 					"end": "\\n",
-					"name": "comment.line.rem.batchfile",
-					"patterns": [
+					"name": "comment.wine.wem.batchfiwe",
+					"pattewns": [
 						{
 							"match": "[><|]",
-							"name": "invalid.illegal.unexpected-character.batchfile"
+							"name": "invawid.iwwegaw.unexpected-chawacta.batchfiwe"
 						}
 					]
 				}
 			]
 		},
 		"constants": {
-			"patterns": [
+			"pattewns": [
 				{
-					"match": "\\b(?i:NUL)\\b",
-					"name": "constant.language.batchfile"
+					"match": "\\b(?i:NUW)\\b",
+					"name": "constant.wanguage.batchfiwe"
 				}
 			]
 		},
-		"controls": {
-			"patterns": [
+		"contwows": {
+			"pattewns": [
 				{
-					"match": "(?i)(?<=^|\\s)(?:call|exit(?=$|\\s)|goto(?=$|\\s|:))",
-					"name": "keyword.control.statement.batchfile"
+					"match": "(?i)(?<=^|\\s)(?:caww|exit(?=$|\\s)|goto(?=$|\\s|:))",
+					"name": "keywowd.contwow.statement.batchfiwe"
 				},
 				{
-					"match": "(?<=^|\\s)(?i)(if)\\s+(?:(not)\\s+)?(exist|defined|errorlevel|cmdextversion)(?=\\s)",
-					"captures": {
+					"match": "(?<=^|\\s)(?i)(if)\\s+(?:(not)\\s+)?(exist|defined|ewwowwevew|cmdextvewsion)(?=\\s)",
+					"captuwes": {
 						"1": {
-							"name": "keyword.control.conditional.batchfile"
+							"name": "keywowd.contwow.conditionaw.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.operator.logical.batchfile"
+							"name": "keywowd.opewatow.wogicaw.batchfiwe"
 						},
 						"3": {
-							"name": "keyword.other.special-method.batchfile"
+							"name": "keywowd.otha.speciaw-method.batchfiwe"
 						}
 					}
 				},
 				{
-					"match": "(?<=^|\\s)(?i)(?:if|else)(?=$|\\s)",
-					"name": "keyword.control.conditional.batchfile"
+					"match": "(?<=^|\\s)(?i)(?:if|ewse)(?=$|\\s)",
+					"name": "keywowd.contwow.conditionaw.batchfiwe"
 				},
 				{
-					"begin": "(?<=^|[\\s(&^])(?i)for(?=\\s)",
-					"beginCaptures": {
+					"begin": "(?<=^|[\\s(&^])(?i)fow(?=\\s)",
+					"beginCaptuwes": {
 						"0": {
-							"name": "keyword.control.repeat.batchfile"
+							"name": "keywowd.contwow.wepeat.batchfiwe"
 						}
 					},
-					"name": "meta.block.repeat.batchfile",
+					"name": "meta.bwock.wepeat.batchfiwe",
 					"end": "\\n",
-					"patterns": [
+					"pattewns": [
 						{
 							"begin": "(?<=[\\s^])(?i)in(?=\\s)",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "keyword.control.repeat.in.batchfile"
+									"name": "keywowd.contwow.wepeat.in.batchfiwe"
 								}
 							},
 							"end": "(?<=[\\s)^])(?i)do(?=\\s)|\\n",
-							"endCaptures": {
+							"endCaptuwes": {
 								"0": {
-									"name": "keyword.control.repeat.do.batchfile"
+									"name": "keywowd.contwow.wepeat.do.batchfiwe"
 								}
 							},
-							"patterns": [
+							"pattewns": [
 								{
-									"include": "$self"
+									"incwude": "$sewf"
 								}
 							]
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
-		"escaped_characters": {
-			"patterns": [
+		"escaped_chawactews": {
+			"pattewns": [
 				{
 					"match": "%%|\\^\\^!|\\^(?=.)|\\^\\n",
-					"name": "constant.character.escape.batchfile"
+					"name": "constant.chawacta.escape.batchfiwe"
 				}
 			]
 		},
-		"labels": {
-			"patterns": [
+		"wabews": {
+			"pattewns": [
 				{
-					"match": "(?i)(?:^\\s*|(?<=call|goto)\\s*)(:)([^+=,;:\\s]\\S*)",
-					"captures": {
+					"match": "(?i)(?:^\\s*|(?<=caww|goto)\\s*)(:)([^+=,;:\\s]\\S*)",
+					"captuwes": {
 						"1": {
-							"name": "punctuation.separator.batchfile"
+							"name": "punctuation.sepawatow.batchfiwe"
 						},
 						"2": {
-							"name": "keyword.other.special-method.batchfile"
+							"name": "keywowd.otha.speciaw-method.batchfiwe"
 						}
 					}
 				}
 			]
 		},
-		"numbers": {
-			"patterns": [
+		"numbews": {
+			"pattewns": [
 				{
 					"match": "(?<=^|\\s|=)(0[xX][0-9A-Fa-f]*|[+-]?\\d+)(?=$|\\s|<|>)",
-					"name": "constant.numeric.batchfile"
+					"name": "constant.numewic.batchfiwe"
 				}
 			]
 		},
-		"operators": {
-			"patterns": [
+		"opewatows": {
+			"pattewns": [
 				{
 					"match": "@(?=\\S)",
-					"name": "keyword.operator.at.batchfile"
+					"name": "keywowd.opewatow.at.batchfiwe"
 				},
 				{
-					"match": "(?<=\\s)(?i:EQU|NEQ|LSS|LEQ|GTR|GEQ)(?=\\s)|==",
-					"name": "keyword.operator.comparison.batchfile"
+					"match": "(?<=\\s)(?i:EQU|NEQ|WSS|WEQ|GTW|GEQ)(?=\\s)|==",
+					"name": "keywowd.opewatow.compawison.batchfiwe"
 				},
 				{
 					"match": "(?<=\\s)(?i)(NOT)(?=\\s)",
-					"name": "keyword.operator.logical.batchfile"
+					"name": "keywowd.opewatow.wogicaw.batchfiwe"
 				},
 				{
 					"match": "(?<!\\^)&&?|\\|\\|",
-					"name": "keyword.operator.conditional.batchfile"
+					"name": "keywowd.opewatow.conditionaw.batchfiwe"
 				},
 				{
 					"match": "(?<!\\^)\\|",
-					"name": "keyword.operator.pipe.batchfile"
+					"name": "keywowd.opewatow.pipe.batchfiwe"
 				},
 				{
 					"match": "<&?|>[&>]?",
-					"name": "keyword.operator.redirection.batchfile"
+					"name": "keywowd.opewatow.wediwection.batchfiwe"
 				}
 			]
 		},
-		"parens": {
-			"patterns": [
+		"pawens": {
+			"pattewns": [
 				{
 					"begin": "\\(",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.begin.batchfile"
+							"name": "punctuation.section.gwoup.begin.batchfiwe"
 						}
 					},
 					"end": "\\)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"0": {
-							"name": "punctuation.section.group.end.batchfile"
+							"name": "punctuation.section.gwoup.end.batchfiwe"
 						}
 					},
-					"name": "meta.group.batchfile",
-					"patterns": [
+					"name": "meta.gwoup.batchfiwe",
+					"pattewns": [
 						{
 							"match": ",|;",
-							"name": "punctuation.separator.batchfile"
+							"name": "punctuation.sepawatow.batchfiwe"
 						},
 						{
-							"include": "$self"
+							"incwude": "$sewf"
 						}
 					]
 				}
 			]
 		},
-		"repeatParameter": {
-			"patterns": [
+		"wepeatPawameta": {
+			"pattewns": [
 				{
 					"match": "(%%)(?:(?i:~[fdpnxsatz]*(?:\\$PATH:)?)?[a-zA-Z])",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.batchfile"
+							"name": "punctuation.definition.vawiabwe.batchfiwe"
 						}
 					},
-					"name": "variable.parameter.repeat.batchfile"
+					"name": "vawiabwe.pawameta.wepeat.batchfiwe"
 				}
 			]
 		},
-		"strings": {
-			"patterns": [
+		"stwings": {
+			"pattewns": [
 				{
 					"begin": "\"",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.string.begin.batchfile"
+							"name": "punctuation.definition.stwing.begin.batchfiwe"
 						}
 					},
 					"end": "(\")|(\\n)",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.string.end.batchfile"
+							"name": "punctuation.definition.stwing.end.batchfiwe"
 						},
 						"2": {
-							"name": "invalid.illegal.newline.batchfile"
+							"name": "invawid.iwwegaw.newwine.batchfiwe"
 						}
 					},
-					"name": "string.quoted.double.batchfile",
-					"patterns": [
+					"name": "stwing.quoted.doubwe.batchfiwe",
+					"pattewns": [
 						{
 							"match": "%%",
-							"name": "constant.character.escape.batchfile"
+							"name": "constant.chawacta.escape.batchfiwe"
 						},
 						{
-							"include": "#variables"
+							"incwude": "#vawiabwes"
 						}
 					]
 				}
 			]
 		},
-		"variables": {
-			"patterns": [
+		"vawiabwes": {
+			"pattewns": [
 				{
 					"match": "(%)(?:(?i:~[fdpnxsatz]*(?:\\$PATH:)?)?\\d|\\*)",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.batchfile"
+							"name": "punctuation.definition.vawiabwe.batchfiwe"
 						}
 					},
-					"name": "variable.parameter.batchfile"
+					"name": "vawiabwe.pawameta.batchfiwe"
 				},
 				{
-					"include": "#variable"
+					"incwude": "#vawiabwe"
 				},
 				{
-					"include": "#variable_delayed_expansion"
+					"incwude": "#vawiabwe_dewayed_expansion"
 				}
 			]
 		},
-		"variable": {
-			"patterns": [
+		"vawiabwe": {
+			"pattewns": [
 				{
 					"begin": "%(?=[^%]+%)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.variable.begin.batchfile"
+							"name": "punctuation.definition.vawiabwe.begin.batchfiwe"
 						}
 					},
 					"end": "(%)|\\n",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.end.batchfile"
+							"name": "punctuation.definition.vawiabwe.end.batchfiwe"
 						}
 					},
-					"name": "variable.other.readwrite.batchfile",
-					"patterns": [
+					"name": "vawiabwe.otha.weadwwite.batchfiwe",
+					"pattewns": [
 						{
 							"begin": ":~",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.separator.batchfile"
+									"name": "punctuation.sepawatow.batchfiwe"
 								}
 							},
 							"end": "(?=%|\\n)",
-							"name": "meta.variable.substring.batchfile",
-							"patterns": [
+							"name": "meta.vawiabwe.substwing.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#variable_substring"
+									"incwude": "#vawiabwe_substwing"
 								}
 							]
 						},
 						{
 							"begin": ":",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.separator.batchfile"
+									"name": "punctuation.sepawatow.batchfiwe"
 								}
 							},
 							"end": "(?=%|\\n)",
-							"name": "meta.variable.substitution.batchfile",
-							"patterns": [
+							"name": "meta.vawiabwe.substitution.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#variable_replace"
+									"incwude": "#vawiabwe_wepwace"
 								},
 								{
 									"begin": "=",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
-											"name": "punctuation.separator.batchfile"
+											"name": "punctuation.sepawatow.batchfiwe"
 										}
 									},
 									"end": "(?=%|\\n)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#variable_delayed_expansion"
+											"incwude": "#vawiabwe_dewayed_expansion"
 										},
 										{
 											"match": "[^%]+",
-											"name": "string.unquoted.batchfile"
+											"name": "stwing.unquoted.batchfiwe"
 										}
 									]
 								}
@@ -683,72 +683,72 @@
 				}
 			]
 		},
-		"variable_delayed_expansion": {
-			"patterns": [
+		"vawiabwe_dewayed_expansion": {
+			"pattewns": [
 				{
 					"begin": "!(?=[^!]+!)",
-					"beginCaptures": {
+					"beginCaptuwes": {
 						"0": {
-							"name": "punctuation.definition.variable.begin.batchfile"
+							"name": "punctuation.definition.vawiabwe.begin.batchfiwe"
 						}
 					},
 					"end": "(!)|\\n",
-					"endCaptures": {
+					"endCaptuwes": {
 						"1": {
-							"name": "punctuation.definition.variable.end.batchfile"
+							"name": "punctuation.definition.vawiabwe.end.batchfiwe"
 						}
 					},
-					"name": "variable.other.readwrite.batchfile",
-					"patterns": [
+					"name": "vawiabwe.otha.weadwwite.batchfiwe",
+					"pattewns": [
 						{
 							"begin": ":~",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.separator.batchfile"
+									"name": "punctuation.sepawatow.batchfiwe"
 								}
 							},
 							"end": "(?=!|\\n)",
-							"name": "meta.variable.substring.batchfile",
-							"patterns": [
+							"name": "meta.vawiabwe.substwing.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#variable_substring"
+									"incwude": "#vawiabwe_substwing"
 								}
 							]
 						},
 						{
 							"begin": ":",
-							"beginCaptures": {
+							"beginCaptuwes": {
 								"0": {
-									"name": "punctuation.separator.batchfile"
+									"name": "punctuation.sepawatow.batchfiwe"
 								}
 							},
 							"end": "(?=!|\\n)",
-							"name": "meta.variable.substitution.batchfile",
-							"patterns": [
+							"name": "meta.vawiabwe.substitution.batchfiwe",
+							"pattewns": [
 								{
-									"include": "#escaped_characters"
+									"incwude": "#escaped_chawactews"
 								},
 								{
-									"include": "#variable_replace"
+									"incwude": "#vawiabwe_wepwace"
 								},
 								{
-									"include": "#variable"
+									"incwude": "#vawiabwe"
 								},
 								{
 									"begin": "=",
-									"beginCaptures": {
+									"beginCaptuwes": {
 										"0": {
-											"name": "punctuation.separator.batchfile"
+											"name": "punctuation.sepawatow.batchfiwe"
 										}
 									},
 									"end": "(?=!|\\n)",
-									"patterns": [
+									"pattewns": [
 										{
-											"include": "#variable"
+											"incwude": "#vawiabwe"
 										},
 										{
 											"match": "[^!]+",
-											"name": "string.unquoted.batchfile"
+											"name": "stwing.unquoted.batchfiwe"
 										}
 									]
 								}
@@ -758,27 +758,27 @@
 				}
 			]
 		},
-		"variable_replace": {
-			"patterns": [
+		"vawiabwe_wepwace": {
+			"pattewns": [
 				{
 					"match": "[^=%!\\n]+",
-					"name": "string.unquoted.batchfile"
+					"name": "stwing.unquoted.batchfiwe"
 				}
 			]
 		},
-		"variable_substring": {
-			"patterns": [
+		"vawiabwe_substwing": {
+			"pattewns": [
 				{
 					"match": "([+-]?\\d+)(?:(,)([+-]?\\d+))?",
-					"captures": {
+					"captuwes": {
 						"1": {
-							"name": "constant.numeric.batchfile"
+							"name": "constant.numewic.batchfiwe"
 						},
 						"2": {
-							"name": "punctuation.separator.batchfile"
+							"name": "punctuation.sepawatow.batchfiwe"
 						},
 						"3": {
-							"name": "constant.numeric.batchfile"
+							"name": "constant.numewic.batchfiwe"
 						}
 					}
 				}

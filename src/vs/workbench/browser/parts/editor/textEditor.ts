@@ -1,287 +1,287 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { distinct, deepClone } from 'vs/base/common/objects';
-import { Event } from 'vs/base/common/event';
-import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { Dimension } from 'vs/base/browser/dom';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
-import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
-import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { isEqual } from 'vs/base/common/resources';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { distinct, deepCwone } fwom 'vs/base/common/objects';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { isObject, assewtIsDefined, withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { Dimension } fwom 'vs/base/bwowsa/dom';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IEditowOpenContext, EditowInputCapabiwities } fwom 'vs/wowkbench/common/editow';
+impowt { appwyTextEditowOptions } fwom 'vs/wowkbench/common/editow/editowOptions';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { computeEditowAwiaWabew } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { AbstwactEditowWithViewState } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowWithViewState';
+impowt { IEditowViewState, IEditow, ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ITextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IEditowOptions as ICodeEditowOptions } fwom 'vs/editow/common/config/editowOptions';
+impowt { isCodeEditow, getCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IEditowGwoupsSewvice, IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { ITextEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { isEquaw } fwom 'vs/base/common/wesouwces';
 
-export interface IEditorConfiguration {
-	editor: object;
-	diffEditor: object;
+expowt intewface IEditowConfiguwation {
+	editow: object;
+	diffEditow: object;
 }
 
 /**
- * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
- * be subclassed and not instantiated.
+ * The base cwass of editows that wevewage the text editow fow the editing expewience. This cwass is onwy intended to
+ * be subcwassed and not instantiated.
  */
-export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> {
+expowt abstwact cwass BaseTextEditow<T extends IEditowViewState> extends AbstwactEditowWithViewState<T> {
 
-	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+	pwivate static weadonwy VIEW_STATE_PWEFEWENCE_KEY = 'textEditowViewState';
 
-	private editorControl: IEditor | undefined;
-	private editorContainer: HTMLElement | undefined;
-	private hasPendingConfigurationChange: boolean | undefined;
-	private lastAppliedEditorOptions?: ICodeEditorOptions;
+	pwivate editowContwow: IEditow | undefined;
+	pwivate editowContaina: HTMWEwement | undefined;
+	pwivate hasPendingConfiguwationChange: boowean | undefined;
+	pwivate wastAppwiedEditowOptions?: ICodeEditowOptions;
 
-	override get scopedContextKeyService(): IContextKeyService | undefined {
-		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
+	ovewwide get scopedContextKeySewvice(): IContextKeySewvice | undefined {
+		wetuwn isCodeEditow(this.editowContwow) ? this.editowContwow.invokeWithinContext(accessow => accessow.get(IContextKeySewvice)) : undefined;
 	}
 
-	constructor(
-		id: string,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	constwuctow(
+		id: stwing,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@ITextWesouwceConfiguwationSewvice textWesouwceConfiguwationSewvice: ITextWesouwceConfiguwationSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		super(id, BaseTextEditor.VIEW_STATE_PREFERENCE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		supa(id, BaseTextEditow.VIEW_STATE_PWEFEWENCE_KEY, tewemetwySewvice, instantiationSewvice, stowageSewvice, textWesouwceConfiguwationSewvice, themeSewvice, editowSewvice, editowGwoupSewvice);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
-			const resource = this.getActiveResource();
-			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
+		this._wegista(this.textWesouwceConfiguwationSewvice.onDidChangeConfiguwation(() => {
+			const wesouwce = this.getActiveWesouwce();
+			const vawue = wesouwce ? this.textWesouwceConfiguwationSewvice.getVawue<IEditowConfiguwation>(wesouwce) : undefined;
 
-			return this.handleConfigurationChangeEvent(value);
+			wetuwn this.handweConfiguwationChangeEvent(vawue);
 		}));
 
-		// ARIA: if a group is added or removed, update the editor's ARIA
-		// label so that it appears in the label for when there are > 1 groups
-		this._register(Event.any(this.editorGroupService.onDidAddGroup, this.editorGroupService.onDidRemoveGroup)(() => {
-			const ariaLabel = this.computeAriaLabel();
+		// AWIA: if a gwoup is added ow wemoved, update the editow's AWIA
+		// wabew so that it appeaws in the wabew fow when thewe awe > 1 gwoups
+		this._wegista(Event.any(this.editowGwoupSewvice.onDidAddGwoup, this.editowGwoupSewvice.onDidWemoveGwoup)(() => {
+			const awiaWabew = this.computeAwiaWabew();
 
-			this.editorContainer?.setAttribute('aria-label', ariaLabel);
-			this.editorControl?.updateOptions({ ariaLabel });
+			this.editowContaina?.setAttwibute('awia-wabew', awiaWabew);
+			this.editowContwow?.updateOptions({ awiaWabew });
 		}));
 	}
 
-	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
-		if (this.isVisible()) {
-			this.updateEditorConfiguration(configuration);
-		} else {
-			this.hasPendingConfigurationChange = true;
+	pwotected handweConfiguwationChangeEvent(configuwation?: IEditowConfiguwation): void {
+		if (this.isVisibwe()) {
+			this.updateEditowConfiguwation(configuwation);
+		} ewse {
+			this.hasPendingConfiguwationChange = twue;
 		}
 	}
 
-	private consumePendingConfigurationChangeEvent(): void {
-		if (this.hasPendingConfigurationChange) {
-			this.updateEditorConfiguration();
-			this.hasPendingConfigurationChange = false;
+	pwivate consumePendingConfiguwationChangeEvent(): void {
+		if (this.hasPendingConfiguwationChange) {
+			this.updateEditowConfiguwation();
+			this.hasPendingConfiguwationChange = fawse;
 		}
 	}
 
-	protected computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
+	pwotected computeConfiguwation(configuwation: IEditowConfiguwation): ICodeEditowOptions {
 
-		// Specific editor options always overwrite user configuration
-		const editorConfiguration: ICodeEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
-		Object.assign(editorConfiguration, this.getConfigurationOverrides());
+		// Specific editow options awways ovewwwite usa configuwation
+		const editowConfiguwation: ICodeEditowOptions = isObject(configuwation.editow) ? deepCwone(configuwation.editow) : Object.cweate(nuww);
+		Object.assign(editowConfiguwation, this.getConfiguwationOvewwides());
 
-		// ARIA label
-		editorConfiguration.ariaLabel = this.computeAriaLabel();
+		// AWIA wabew
+		editowConfiguwation.awiaWabew = this.computeAwiaWabew();
 
-		return editorConfiguration;
+		wetuwn editowConfiguwation;
 	}
 
-	private computeAriaLabel(): string {
-		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
+	pwivate computeAwiaWabew(): stwing {
+		wetuwn this._input ? computeEditowAwiaWabew(this._input, undefined, this.gwoup, this.editowGwoupSewvice.count) : wocawize('editow', "Editow");
 	}
 
-	protected getConfigurationOverrides(): ICodeEditorOptions {
-		return {
-			overviewRulerLanes: 3,
-			lineNumbersMinChars: 3,
-			fixedOverflowWidgets: true,
-			readOnly: this.input?.hasCapability(EditorInputCapabilities.Readonly),
-			// render problems even in readonly editors
-			// https://github.com/microsoft/vscode/issues/89057
-			renderValidationDecorations: 'on'
+	pwotected getConfiguwationOvewwides(): ICodeEditowOptions {
+		wetuwn {
+			ovewviewWuwewWanes: 3,
+			wineNumbewsMinChaws: 3,
+			fixedOvewfwowWidgets: twue,
+			weadOnwy: this.input?.hasCapabiwity(EditowInputCapabiwities.Weadonwy),
+			// wenda pwobwems even in weadonwy editows
+			// https://github.com/micwosoft/vscode/issues/89057
+			wendewVawidationDecowations: 'on'
 		};
 	}
 
-	protected createEditor(parent: HTMLElement): void {
+	pwotected cweateEditow(pawent: HTMWEwement): void {
 
-		// Editor for Text
-		this.editorContainer = parent;
-		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getActiveResource()))));
+		// Editow fow Text
+		this.editowContaina = pawent;
+		this.editowContwow = this._wegista(this.cweateEditowContwow(pawent, this.computeConfiguwation(this.textWesouwceConfiguwationSewvice.getVawue<IEditowConfiguwation>(this.getActiveWesouwce()))));
 
-		// Model & Language changes
-		const codeEditor = getCodeEditor(this.editorControl);
-		if (codeEditor) {
-			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
-			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
+		// Modew & Wanguage changes
+		const codeEditow = getCodeEditow(this.editowContwow);
+		if (codeEditow) {
+			this._wegista(codeEditow.onDidChangeModewWanguage(() => this.updateEditowConfiguwation()));
+			this._wegista(codeEditow.onDidChangeModew(() => this.updateEditowConfiguwation()));
 		}
 	}
 
 	/**
-	 * This method creates and returns the text editor control to be used. Subclasses can override to
-	 * provide their own editor control that should be used (e.g. a DiffEditor).
+	 * This method cweates and wetuwns the text editow contwow to be used. Subcwasses can ovewwide to
+	 * pwovide theiw own editow contwow that shouwd be used (e.g. a DiffEditow).
 	 *
-	 * The passed in configuration object should be passed to the editor control when creating it.
+	 * The passed in configuwation object shouwd be passed to the editow contwow when cweating it.
 	 */
-	protected createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
+	pwotected cweateEditowContwow(pawent: HTMWEwement, configuwation: ICodeEditowOptions): IEditow {
 
-		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
+		// Use a getta fow the instantiation sewvice since some subcwasses might use scoped instantiation sewvices
+		wetuwn this.instantiationSewvice.cweateInstance(CodeEditowWidget, pawent, configuwation, {});
 	}
 
-	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+	ovewwide async setInput(input: EditowInput, options: ITextEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		await supa.setInput(input, options, context, token);
 
-		// Update editor options after having set the input. We do this because there can be
-		// editor input specific options (e.g. an ARIA label depending on the input showing)
-		this.updateEditorConfiguration();
+		// Update editow options afta having set the input. We do this because thewe can be
+		// editow input specific options (e.g. an AWIA wabew depending on the input showing)
+		this.updateEditowConfiguwation();
 
-		// Update aria label on editor
-		const editorContainer = assertIsDefined(this.editorContainer);
-		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
+		// Update awia wabew on editow
+		const editowContaina = assewtIsDefined(this.editowContaina);
+		editowContaina.setAttwibute('awia-wabew', this.computeAwiaWabew());
 	}
 
-	override setOptions(options: ITextEditorOptions | undefined): void {
+	ovewwide setOptions(options: ITextEditowOptions | undefined): void {
 		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
+			appwyTextEditowOptions(options, assewtIsDefined(this.getContwow()), ScwowwType.Smooth);
 		}
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	pwotected ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
 
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
-		if (visible) {
-			this.consumePendingConfigurationChangeEvent();
-			editorControl.onVisible();
-		} else {
-			editorControl.onHide();
+		// Pass on to Editow
+		const editowContwow = assewtIsDefined(this.editowContwow);
+		if (visibwe) {
+			this.consumePendingConfiguwationChangeEvent();
+			editowContwow.onVisibwe();
+		} ewse {
+			editowContwow.onHide();
 		}
 
-		super.setEditorVisible(visible, group);
+		supa.setEditowVisibwe(visibwe, gwoup);
 	}
 
-	override focus(): void {
+	ovewwide focus(): void {
 
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
-		editorControl.focus();
+		// Pass on to Editow
+		const editowContwow = assewtIsDefined(this.editowContwow);
+		editowContwow.focus();
 	}
 
-	override hasFocus(): boolean {
-		if (this.editorControl?.hasTextFocus()) {
-			return true;
+	ovewwide hasFocus(): boowean {
+		if (this.editowContwow?.hasTextFocus()) {
+			wetuwn twue;
 		}
 
-		return super.hasFocus();
+		wetuwn supa.hasFocus();
 	}
 
-	layout(dimension: Dimension): void {
+	wayout(dimension: Dimension): void {
 
-		// Pass on to Editor
-		const editorControl = assertIsDefined(this.editorControl);
-		editorControl.layout(dimension);
+		// Pass on to Editow
+		const editowContwow = assewtIsDefined(this.editowContwow);
+		editowContwow.wayout(dimension);
 	}
 
-	override getControl(): IEditor | undefined {
-		return this.editorControl;
+	ovewwide getContwow(): IEditow | undefined {
+		wetuwn this.editowContwow;
 	}
 
-	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
-		return input.resource;
+	pwotected ovewwide toEditowViewStateWesouwce(input: EditowInput): UWI | undefined {
+		wetuwn input.wesouwce;
 	}
 
-	protected override computeEditorViewState(resource: URI): T | undefined {
-		const control = this.getControl();
-		if (!isCodeEditor(control)) {
-			return undefined;
+	pwotected ovewwide computeEditowViewState(wesouwce: UWI): T | undefined {
+		const contwow = this.getContwow();
+		if (!isCodeEditow(contwow)) {
+			wetuwn undefined;
 		}
 
-		const model = control.getModel();
-		if (!model) {
-			return undefined; // view state always needs a model
+		const modew = contwow.getModew();
+		if (!modew) {
+			wetuwn undefined; // view state awways needs a modew
 		}
 
-		const modelUri = model.uri;
-		if (!modelUri) {
-			return undefined; // model URI is needed to make sure we save the view state correctly
+		const modewUwi = modew.uwi;
+		if (!modewUwi) {
+			wetuwn undefined; // modew UWI is needed to make suwe we save the view state cowwectwy
 		}
 
-		if (!isEqual(modelUri, resource)) {
-			return undefined; // prevent saving view state for a model that is not the expected one
+		if (!isEquaw(modewUwi, wesouwce)) {
+			wetuwn undefined; // pwevent saving view state fow a modew that is not the expected one
 		}
 
-		return withNullAsUndefined(control.saveViewState() as unknown as T);
+		wetuwn withNuwwAsUndefined(contwow.saveViewState() as unknown as T);
 	}
 
-	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
-		if (!configuration) {
-			const resource = this.getActiveResource();
-			if (resource) {
-				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
+	pwivate updateEditowConfiguwation(configuwation?: IEditowConfiguwation): void {
+		if (!configuwation) {
+			const wesouwce = this.getActiveWesouwce();
+			if (wesouwce) {
+				configuwation = this.textWesouwceConfiguwationSewvice.getVawue<IEditowConfiguwation>(wesouwce);
 			}
 		}
 
-		if (!this.editorControl || !configuration) {
-			return;
+		if (!this.editowContwow || !configuwation) {
+			wetuwn;
 		}
 
-		const editorConfiguration = this.computeConfiguration(configuration);
+		const editowConfiguwation = this.computeConfiguwation(configuwation);
 
-		// Try to figure out the actual editor options that changed from the last time we updated the editor.
-		// We do this so that we are not overwriting some dynamic editor settings (e.g. word wrap) that might
-		// have been applied to the editor directly.
-		let editorSettingsToApply = editorConfiguration;
-		if (this.lastAppliedEditorOptions) {
-			editorSettingsToApply = distinct(this.lastAppliedEditorOptions, editorSettingsToApply);
+		// Twy to figuwe out the actuaw editow options that changed fwom the wast time we updated the editow.
+		// We do this so that we awe not ovewwwiting some dynamic editow settings (e.g. wowd wwap) that might
+		// have been appwied to the editow diwectwy.
+		wet editowSettingsToAppwy = editowConfiguwation;
+		if (this.wastAppwiedEditowOptions) {
+			editowSettingsToAppwy = distinct(this.wastAppwiedEditowOptions, editowSettingsToAppwy);
 		}
 
-		if (Object.keys(editorSettingsToApply).length > 0) {
-			this.lastAppliedEditorOptions = editorConfiguration;
-			this.editorControl.updateOptions(editorSettingsToApply);
+		if (Object.keys(editowSettingsToAppwy).wength > 0) {
+			this.wastAppwiedEditowOptions = editowConfiguwation;
+			this.editowContwow.updateOptions(editowSettingsToAppwy);
 		}
 	}
 
-	private getActiveResource(): URI | undefined {
-		const codeEditor = getCodeEditor(this.editorControl);
-		if (codeEditor) {
-			const model = codeEditor.getModel();
-			if (model) {
-				return model.uri;
+	pwivate getActiveWesouwce(): UWI | undefined {
+		const codeEditow = getCodeEditow(this.editowContwow);
+		if (codeEditow) {
+			const modew = codeEditow.getModew();
+			if (modew) {
+				wetuwn modew.uwi;
 			}
 		}
 
 		if (this.input) {
-			return this.input.resource;
+			wetuwn this.input.wesouwce;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	override dispose(): void {
-		this.lastAppliedEditorOptions = undefined;
+	ovewwide dispose(): void {
+		this.wastAppwiedEditowOptions = undefined;
 
-		super.dispose();
+		supa.dispose();
 	}
 }

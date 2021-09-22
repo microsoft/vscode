@@ -1,14 +1,14 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import * as webviewCommands from 'vs/workbench/contrib/webview/electron-sandbox/webviewCommands';
-import { ElectronWebviewService } from 'vs/workbench/contrib/webview/electron-sandbox/webviewService';
+impowt { wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWebviewSewvice } fwom 'vs/wowkbench/contwib/webview/bwowsa/webview';
+impowt * as webviewCommands fwom 'vs/wowkbench/contwib/webview/ewectwon-sandbox/webviewCommands';
+impowt { EwectwonWebviewSewvice } fwom 'vs/wowkbench/contwib/webview/ewectwon-sandbox/webviewSewvice';
 
-registerSingleton(IWebviewService, ElectronWebviewService, true);
+wegistewSingweton(IWebviewSewvice, EwectwonWebviewSewvice, twue);
 
-registerAction2(webviewCommands.OpenWebviewDeveloperToolsAction);
+wegistewAction2(webviewCommands.OpenWebviewDevewopewToowsAction);

@@ -1,52 +1,52 @@
 {
-	"name": "julia",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
+	"name": "juwia",
+	"dispwayName": "%dispwayName%",
+	"descwiption": "%descwiption%",
+	"vewsion": "1.0.0",
+	"pubwisha": "vscode",
+	"wicense": "MIT",
 	"engines": {
 		"vscode": "0.10.x"
 	},
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin JuliaEditorSupport/atom-language-julia grammars/julia_vscode.json ./syntaxes/julia.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin JuwiaEditowSuppowt/atom-wanguage-juwia gwammaws/juwia_vscode.json ./syntaxes/juwia.tmWanguage.json"
   },
-	"contributes": {
-		"languages": [
+	"contwibutes": {
+		"wanguages": [
 			{
-					"id": "julia",
-					"aliases": [
-							"Julia",
-							"julia"
+					"id": "juwia",
+					"awiases": [
+							"Juwia",
+							"juwia"
 					],
 					"extensions": [
-							".jl"
+							".jw"
 					],
-					"firstLine": "^#!\\s*/.*\\bjulia[0-9.-]*\\b",
-					"configuration": "./language-configuration.json"
+					"fiwstWine": "^#!\\s*/.*\\bjuwia[0-9.-]*\\b",
+					"configuwation": "./wanguage-configuwation.json"
 			},
 			{
-					"id": "juliamarkdown",
-					"aliases": [
-							"Julia Markdown",
-							"juliamarkdown"
+					"id": "juwiamawkdown",
+					"awiases": [
+							"Juwia Mawkdown",
+							"juwiamawkdown"
 					],
 					"extensions": [
 							".jmd"
 					]
 			}
 		],
-		"grammars": [
+		"gwammaws": [
 			{
-					"language": "julia",
-					"scopeName": "source.julia",
-					"path": "./syntaxes/julia.tmLanguage.json",
-					"embeddedLanguages": {
-							"meta.embedded.inline.cpp": "cpp",
-							"meta.embedded.inline.javascript": "javascript",
-							"meta.embedded.inline.python": "python",
-							"meta.embedded.inline.r": "r",
-							"meta.embedded.inline.sql": "sql"
+					"wanguage": "juwia",
+					"scopeName": "souwce.juwia",
+					"path": "./syntaxes/juwia.tmWanguage.json",
+					"embeddedWanguages": {
+							"meta.embedded.inwine.cpp": "cpp",
+							"meta.embedded.inwine.javascwipt": "javascwipt",
+							"meta.embedded.inwine.python": "python",
+							"meta.embedded.inwine.w": "w",
+							"meta.embedded.inwine.sqw": "sqw"
 					}
 			}
 		]

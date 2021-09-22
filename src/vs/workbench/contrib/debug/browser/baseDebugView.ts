@@ -1,235 +1,235 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IExpression, IDebugService, IExpressionContainer } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
-import { once } from 'vs/base/common/functional';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IExpwession, IDebugSewvice, IExpwessionContaina } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Expwession, Vawiabwe, ExpwessionContaina } fwom 'vs/wowkbench/contwib/debug/common/debugModew';
+impowt { IContextViewSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInputVawidationOptions, InputBox } fwom 'vs/base/bwowsa/ui/inputbox/inputBox';
+impowt { ITweeWendewa, ITweeNode } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { IDisposabwe, dispose, Disposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { attachInputBoxStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { HighwightedWabew, IHighwight } fwom 'vs/base/bwowsa/ui/highwightedwabew/highwightedWabew';
+impowt { FuzzyScowe, cweateMatches } fwom 'vs/base/common/fiwtews';
+impowt { WinkDetectow } fwom 'vs/wowkbench/contwib/debug/bwowsa/winkDetectow';
+impowt { WepwEvawuationWesuwt } fwom 'vs/wowkbench/contwib/debug/common/wepwModew';
+impowt { once } fwom 'vs/base/common/functionaw';
 
-export const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
-export const twistiePixels = 20;
-const booleanRegex = /^true|false$/i;
-const stringRegex = /^(['"]).*\1$/;
+expowt const MAX_VAWUE_WENDEW_WENGTH_IN_VIEWWET = 1024;
+expowt const twistiePixews = 20;
+const booweanWegex = /^twue|fawse$/i;
+const stwingWegex = /^(['"]).*\1$/;
 const $ = dom.$;
 
-export interface IRenderValueOptions {
-	showChanged?: boolean;
-	maxValueLength?: number;
-	showHover?: boolean;
-	colorize?: boolean;
-	linkDetector?: LinkDetector;
+expowt intewface IWendewVawueOptions {
+	showChanged?: boowean;
+	maxVawueWength?: numba;
+	showHova?: boowean;
+	cowowize?: boowean;
+	winkDetectow?: WinkDetectow;
 }
 
-export interface IVariableTemplateData {
-	expression: HTMLElement;
-	name: HTMLElement;
-	value: HTMLElement;
-	label: HighlightedLabel;
+expowt intewface IVawiabweTempwateData {
+	expwession: HTMWEwement;
+	name: HTMWEwement;
+	vawue: HTMWEwement;
+	wabew: HighwightedWabew;
 }
 
-export function renderViewTree(container: HTMLElement): HTMLElement {
-	const treeContainer = $('.');
-	treeContainer.classList.add('debug-view-content');
-	container.appendChild(treeContainer);
-	return treeContainer;
+expowt function wendewViewTwee(containa: HTMWEwement): HTMWEwement {
+	const tweeContaina = $('.');
+	tweeContaina.cwassWist.add('debug-view-content');
+	containa.appendChiwd(tweeContaina);
+	wetuwn tweeContaina;
 }
 
-export function renderExpressionValue(expressionOrValue: IExpressionContainer | string, container: HTMLElement, options: IRenderValueOptions): void {
-	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
+expowt function wendewExpwessionVawue(expwessionOwVawue: IExpwessionContaina | stwing, containa: HTMWEwement, options: IWendewVawueOptions): void {
+	wet vawue = typeof expwessionOwVawue === 'stwing' ? expwessionOwVawue : expwessionOwVawue.vawue;
 
-	// remove stale classes
-	container.className = 'value';
-	// when resolving expressions we represent errors from the server as a variable with name === null.
-	if (value === null || ((expressionOrValue instanceof Expression || expressionOrValue instanceof Variable || expressionOrValue instanceof ReplEvaluationResult) && !expressionOrValue.available)) {
-		container.classList.add('unavailable');
-		if (value !== Expression.DEFAULT_VALUE) {
-			container.classList.add('error');
+	// wemove stawe cwasses
+	containa.cwassName = 'vawue';
+	// when wesowving expwessions we wepwesent ewwows fwom the sewva as a vawiabwe with name === nuww.
+	if (vawue === nuww || ((expwessionOwVawue instanceof Expwession || expwessionOwVawue instanceof Vawiabwe || expwessionOwVawue instanceof WepwEvawuationWesuwt) && !expwessionOwVawue.avaiwabwe)) {
+		containa.cwassWist.add('unavaiwabwe');
+		if (vawue !== Expwession.DEFAUWT_VAWUE) {
+			containa.cwassWist.add('ewwow');
 		}
-	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
-		// value changed color has priority over other colors.
-		container.className = 'value changed';
-		expressionOrValue.valueChanged = false;
+	} ewse if ((expwessionOwVawue instanceof ExpwessionContaina) && options.showChanged && expwessionOwVawue.vawueChanged && vawue !== Expwession.DEFAUWT_VAWUE) {
+		// vawue changed cowow has pwiowity ova otha cowows.
+		containa.cwassName = 'vawue changed';
+		expwessionOwVawue.vawueChanged = fawse;
 	}
 
-	if (options.colorize && typeof expressionOrValue !== 'string') {
-		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			container.classList.add(expressionOrValue.type);
-		} else if (!isNaN(+value)) {
-			container.classList.add('number');
-		} else if (booleanRegex.test(value)) {
-			container.classList.add('boolean');
-		} else if (stringRegex.test(value)) {
-			container.classList.add('string');
+	if (options.cowowize && typeof expwessionOwVawue !== 'stwing') {
+		if (expwessionOwVawue.type === 'numba' || expwessionOwVawue.type === 'boowean' || expwessionOwVawue.type === 'stwing') {
+			containa.cwassWist.add(expwessionOwVawue.type);
+		} ewse if (!isNaN(+vawue)) {
+			containa.cwassWist.add('numba');
+		} ewse if (booweanWegex.test(vawue)) {
+			containa.cwassWist.add('boowean');
+		} ewse if (stwingWegex.test(vawue)) {
+			containa.cwassWist.add('stwing');
 		}
 	}
 
-	if (options.maxValueLength && value && value.length > options.maxValueLength) {
-		value = value.substr(0, options.maxValueLength) + '...';
+	if (options.maxVawueWength && vawue && vawue.wength > options.maxVawueWength) {
+		vawue = vawue.substw(0, options.maxVawueWength) + '...';
 	}
-	if (!value) {
-		value = '';
+	if (!vawue) {
+		vawue = '';
 	}
 
-	if (options.linkDetector) {
-		container.textContent = '';
-		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
-		container.appendChild(options.linkDetector.linkify(value, false, session ? session.root : undefined));
-	} else {
-		container.textContent = value;
+	if (options.winkDetectow) {
+		containa.textContent = '';
+		const session = (expwessionOwVawue instanceof ExpwessionContaina) ? expwessionOwVawue.getSession() : undefined;
+		containa.appendChiwd(options.winkDetectow.winkify(vawue, fawse, session ? session.woot : undefined));
+	} ewse {
+		containa.textContent = vawue;
 	}
-	if (options.showHover) {
-		container.title = value || '';
+	if (options.showHova) {
+		containa.titwe = vawue || '';
 	}
 }
 
-export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
-	if (variable.available) {
-		let text = variable.name;
-		if (variable.value && typeof variable.name === 'string') {
+expowt function wendewVawiabwe(vawiabwe: Vawiabwe, data: IVawiabweTempwateData, showChanged: boowean, highwights: IHighwight[], winkDetectow?: WinkDetectow): void {
+	if (vawiabwe.avaiwabwe) {
+		wet text = vawiabwe.name;
+		if (vawiabwe.vawue && typeof vawiabwe.name === 'stwing') {
 			text += ':';
 		}
-		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
-		data.name.classList.toggle('virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
-	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
-		data.label.set(':');
+		data.wabew.set(text, highwights, vawiabwe.type ? vawiabwe.type : vawiabwe.name);
+		data.name.cwassWist.toggwe('viwtuaw', !!vawiabwe.pwesentationHint && vawiabwe.pwesentationHint.kind === 'viwtuaw');
+	} ewse if (vawiabwe.vawue && typeof vawiabwe.name === 'stwing' && vawiabwe.name) {
+		data.wabew.set(':');
 	}
 
-	renderExpressionValue(variable, data.value, {
+	wendewExpwessionVawue(vawiabwe, data.vawue, {
 		showChanged,
-		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		showHover: true,
-		colorize: true,
-		linkDetector
+		maxVawueWength: MAX_VAWUE_WENDEW_WENGTH_IN_VIEWWET,
+		showHova: twue,
+		cowowize: twue,
+		winkDetectow
 	});
 }
 
-export interface IInputBoxOptions {
-	initialValue: string;
-	ariaLabel: string;
-	placeholder?: string;
-	validationOptions?: IInputValidationOptions;
-	onFinish: (value: string, success: boolean) => void;
+expowt intewface IInputBoxOptions {
+	initiawVawue: stwing;
+	awiaWabew: stwing;
+	pwacehowda?: stwing;
+	vawidationOptions?: IInputVawidationOptions;
+	onFinish: (vawue: stwing, success: boowean) => void;
 }
 
-export interface IExpressionTemplateData {
-	expression: HTMLElement;
-	name: HTMLSpanElement;
-	value: HTMLSpanElement;
-	inputBoxContainer: HTMLElement;
-	toDispose: IDisposable;
-	label: HighlightedLabel;
+expowt intewface IExpwessionTempwateData {
+	expwession: HTMWEwement;
+	name: HTMWSpanEwement;
+	vawue: HTMWSpanEwement;
+	inputBoxContaina: HTMWEwement;
+	toDispose: IDisposabwe;
+	wabew: HighwightedWabew;
 }
 
-export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpression, FuzzyScore, IExpressionTemplateData> {
+expowt abstwact cwass AbstwactExpwessionsWendewa impwements ITweeWendewa<IExpwession, FuzzyScowe, IExpwessionTempwateData> {
 
-	constructor(
-		@IDebugService protected debugService: IDebugService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService
+	constwuctow(
+		@IDebugSewvice pwotected debugSewvice: IDebugSewvice,
+		@IContextViewSewvice pwivate weadonwy contextViewSewvice: IContextViewSewvice,
+		@IThemeSewvice pwivate weadonwy themeSewvice: IThemeSewvice
 	) { }
 
-	abstract get templateId(): string;
+	abstwact get tempwateId(): stwing;
 
-	renderTemplate(container: HTMLElement): IExpressionTemplateData {
-		const expression = dom.append(container, $('.expression'));
-		const name = dom.append(expression, $('span.name'));
-		const value = dom.append(expression, $('span.value'));
-		const label = new HighlightedLabel(name, false);
+	wendewTempwate(containa: HTMWEwement): IExpwessionTempwateData {
+		const expwession = dom.append(containa, $('.expwession'));
+		const name = dom.append(expwession, $('span.name'));
+		const vawue = dom.append(expwession, $('span.vawue'));
+		const wabew = new HighwightedWabew(name, fawse);
 
-		const inputBoxContainer = dom.append(expression, $('.inputBoxContainer'));
+		const inputBoxContaina = dom.append(expwession, $('.inputBoxContaina'));
 
-		return { expression, name, value, label, inputBoxContainer, toDispose: Disposable.None };
+		wetuwn { expwession, name, vawue, wabew, inputBoxContaina, toDispose: Disposabwe.None };
 	}
 
-	renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+	wendewEwement(node: ITweeNode<IExpwession, FuzzyScowe>, index: numba, data: IExpwessionTempwateData): void {
 		data.toDispose.dispose();
-		data.toDispose = Disposable.None;
-		const { element } = node;
-		this.renderExpression(element, data, createMatches(node.filterData));
-		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
-		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
-			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
+		data.toDispose = Disposabwe.None;
+		const { ewement } = node;
+		this.wendewExpwession(ewement, data, cweateMatches(node.fiwtewData));
+		const sewectedExpwession = this.debugSewvice.getViewModew().getSewectedExpwession();
+		if (ewement === sewectedExpwession?.expwession || (ewement instanceof Vawiabwe && ewement.ewwowMessage)) {
+			const options = this.getInputBoxOptions(ewement, !!sewectedExpwession?.settingWatch);
 			if (options) {
-				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
-				return;
+				data.toDispose = this.wendewInputBox(data.name, data.vawue, data.inputBoxContaina, options);
+				wetuwn;
 			}
 		}
 	}
 
-	renderInputBox(nameElement: HTMLElement, valueElement: HTMLElement, inputBoxContainer: HTMLElement, options: IInputBoxOptions): IDisposable {
-		nameElement.style.display = 'none';
-		valueElement.style.display = 'none';
-		inputBoxContainer.style.display = 'initial';
+	wendewInputBox(nameEwement: HTMWEwement, vawueEwement: HTMWEwement, inputBoxContaina: HTMWEwement, options: IInputBoxOptions): IDisposabwe {
+		nameEwement.stywe.dispway = 'none';
+		vawueEwement.stywe.dispway = 'none';
+		inputBoxContaina.stywe.dispway = 'initiaw';
 
-		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
-		const styler = attachInputBoxStyler(inputBox, this.themeService);
+		const inputBox = new InputBox(inputBoxContaina, this.contextViewSewvice, options);
+		const stywa = attachInputBoxStywa(inputBox, this.themeSewvice);
 
-		inputBox.value = options.initialValue;
+		inputBox.vawue = options.initiawVawue;
 		inputBox.focus();
-		inputBox.select();
+		inputBox.sewect();
 
-		const done = once((success: boolean, finishEditing: boolean) => {
-			nameElement.style.display = 'initial';
-			valueElement.style.display = 'initial';
-			inputBoxContainer.style.display = 'none';
-			const value = inputBox.value;
+		const done = once((success: boowean, finishEditing: boowean) => {
+			nameEwement.stywe.dispway = 'initiaw';
+			vawueEwement.stywe.dispway = 'initiaw';
+			inputBoxContaina.stywe.dispway = 'none';
+			const vawue = inputBox.vawue;
 			dispose(toDispose);
 
 			if (finishEditing) {
-				this.debugService.getViewModel().setSelectedExpression(undefined, false);
-				options.onFinish(value, success);
+				this.debugSewvice.getViewModew().setSewectedExpwession(undefined, fawse);
+				options.onFinish(vawue, success);
 			}
 		});
 
 		const toDispose = [
 			inputBox,
-			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-				const isEscape = e.equals(KeyCode.Escape);
-				const isEnter = e.equals(KeyCode.Enter);
-				if (isEscape || isEnter) {
-					e.preventDefault();
-					e.stopPropagation();
-					done(isEnter, true);
+			dom.addStandawdDisposabweWistena(inputBox.inputEwement, dom.EventType.KEY_DOWN, (e: IKeyboawdEvent) => {
+				const isEscape = e.equaws(KeyCode.Escape);
+				const isEnta = e.equaws(KeyCode.Enta);
+				if (isEscape || isEnta) {
+					e.pweventDefauwt();
+					e.stopPwopagation();
+					done(isEnta, twue);
 				}
 			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.BLUR, () => {
-				done(true, true);
+			dom.addDisposabweWistena(inputBox.inputEwement, dom.EventType.BWUW, () => {
+				done(twue, twue);
 			}),
-			dom.addDisposableListener(inputBox.inputElement, dom.EventType.CLICK, e => {
-				// Do not expand / collapse selected elements
-				e.preventDefault();
-				e.stopPropagation();
+			dom.addDisposabweWistena(inputBox.inputEwement, dom.EventType.CWICK, e => {
+				// Do not expand / cowwapse sewected ewements
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}),
-			styler
+			stywa
 		];
 
-		return toDisposable(() => {
-			done(false, false);
+		wetuwn toDisposabwe(() => {
+			done(fawse, fawse);
 		});
 	}
 
-	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
-	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
+	pwotected abstwact wendewExpwession(expwession: IExpwession, data: IExpwessionTempwateData, highwights: IHighwight[]): void;
+	pwotected abstwact getInputBoxOptions(expwession: IExpwession, settingVawue: boowean): IInputBoxOptions | undefined;
 
-	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+	disposeEwement(node: ITweeNode<IExpwession, FuzzyScowe>, index: numba, tempwateData: IExpwessionTempwateData): void {
+		tempwateData.toDispose.dispose();
 	}
 
-	disposeTemplate(templateData: IExpressionTemplateData): void {
-		templateData.toDispose.dispose();
+	disposeTempwate(tempwateData: IExpwessionTempwateData): void {
+		tempwateData.toDispose.dispose();
 	}
 }

@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
-import { Emitter } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import * as nls from 'vs/nls';
-import { Extensions, IConfigurationNode, IConfigurationRegistry, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
+impowt { fwatten } fwom 'vs/base/common/awways';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { IJSONSchema, IJSONSchemaMap } fwom 'vs/base/common/jsonSchema';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { codeActionCommandId, wefactowCommandId, souwceActionCommandId } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt * as nws fwom 'vs/nws';
+impowt { Extensions, IConfiguwationNode, IConfiguwationWegistwy, ConfiguwationScope, IConfiguwationPwopewtySchema } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { CodeActionsExtensionPoint, ContwibutedCodeAction } fwom 'vs/wowkbench/contwib/codeActions/common/codeActionsExtensionPoint';
+impowt { IExtensionPoint } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { editowConfiguwationBaseNode } fwom 'vs/editow/common/config/commonEditowConfig';
 
-const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
-	'source.fixAll': {
-		type: 'boolean',
-		description: nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")
+const codeActionsOnSaveDefauwtPwopewties = Object.fweeze<IJSONSchemaMap>({
+	'souwce.fixAww': {
+		type: 'boowean',
+		descwiption: nws.wocawize('codeActionsOnSave.fixAww', "Contwows whetha auto fix action shouwd be wun on fiwe save.")
 	}
 });
 
-const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
+const codeActionsOnSaveSchema: IConfiguwationPwopewtySchema = {
 	oneOf: [
 		{
 			type: 'object',
-			properties: codeActionsOnSaveDefaultProperties,
-			additionalProperties: {
-				type: 'boolean'
+			pwopewties: codeActionsOnSaveDefauwtPwopewties,
+			additionawPwopewties: {
+				type: 'boowean'
 			},
 		},
 		{
-			type: 'array',
-			items: { type: 'string' }
+			type: 'awway',
+			items: { type: 'stwing' }
 		}
 	],
-	default: {},
-	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
-	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+	defauwt: {},
+	descwiption: nws.wocawize('codeActionsOnSave', "Code action kinds to be wun on save."),
+	scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
 };
 
-export const editorConfiguration = Object.freeze<IConfigurationNode>({
-	...editorConfigurationBaseNode,
-	properties: {
-		'editor.codeActionsOnSave': codeActionsOnSaveSchema
+expowt const editowConfiguwation = Object.fweeze<IConfiguwationNode>({
+	...editowConfiguwationBaseNode,
+	pwopewties: {
+		'editow.codeActionsOnSave': codeActionsOnSaveSchema
 	}
 });
 
-export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
+expowt cwass CodeActionsContwibution extends Disposabwe impwements IWowkbenchContwibution {
 
-	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
+	pwivate _contwibutedCodeActions: CodeActionsExtensionPoint[] = [];
 
-	private readonly _onDidChangeContributions = this._register(new Emitter<void>());
+	pwivate weadonwy _onDidChangeContwibutions = this._wegista(new Emitta<void>());
 
-	constructor(
+	constwuctow(
 		codeActionsExtensionPoint: IExtensionPoint<CodeActionsExtensionPoint[]>,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
 	) {
-		super();
+		supa();
 
-		codeActionsExtensionPoint.setHandler(extensionPoints => {
-			this._contributedCodeActions = flatten(extensionPoints.map(x => x.value));
-			this.updateConfigurationSchema(this._contributedCodeActions);
-			this._onDidChangeContributions.fire();
+		codeActionsExtensionPoint.setHandwa(extensionPoints => {
+			this._contwibutedCodeActions = fwatten(extensionPoints.map(x => x.vawue));
+			this.updateConfiguwationSchema(this._contwibutedCodeActions);
+			this._onDidChangeContwibutions.fiwe();
 		});
 
-		keybindingService.registerSchemaContribution({
+		keybindingSewvice.wegistewSchemaContwibution({
 			getSchemaAdditions: () => this.getSchemaAdditions(),
-			onDidChange: this._onDidChangeContributions.event,
+			onDidChange: this._onDidChangeContwibutions.event,
 		});
 	}
 
-	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
-		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
-		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
-			newProperties[sourceAction] = {
-				type: 'boolean',
-				description: nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title)
+	pwivate updateConfiguwationSchema(codeActionContwibutions: weadonwy CodeActionsExtensionPoint[]) {
+		const newPwopewties: IJSONSchemaMap = { ...codeActionsOnSaveDefauwtPwopewties };
+		fow (const [souwceAction, pwops] of this.getSouwceActions(codeActionContwibutions)) {
+			newPwopewties[souwceAction] = {
+				type: 'boowean',
+				descwiption: nws.wocawize('codeActionsOnSave.genewic', "Contwows whetha '{0}' actions shouwd be wun on fiwe save.", pwops.titwe)
 			};
 		}
-		codeActionsOnSaveSchema.properties = newProperties;
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-			.notifyConfigurationSchemaUpdated(editorConfiguration);
+		codeActionsOnSaveSchema.pwopewties = newPwopewties;
+		Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation)
+			.notifyConfiguwationSchemaUpdated(editowConfiguwation);
 	}
 
-	private getSourceActions(contributions: readonly CodeActionsExtensionPoint[]) {
-		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new CodeActionKind(value));
-		const sourceActions = new Map<string, { readonly title: string }>();
-		for (const contribution of contributions) {
-			for (const action of contribution.actions) {
+	pwivate getSouwceActions(contwibutions: weadonwy CodeActionsExtensionPoint[]) {
+		const defauwtKinds = Object.keys(codeActionsOnSaveDefauwtPwopewties).map(vawue => new CodeActionKind(vawue));
+		const souwceActions = new Map<stwing, { weadonwy titwe: stwing }>();
+		fow (const contwibution of contwibutions) {
+			fow (const action of contwibution.actions) {
 				const kind = new CodeActionKind(action.kind);
-				if (CodeActionKind.Source.contains(kind)
-					// Exclude any we already included by default
-					&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
+				if (CodeActionKind.Souwce.contains(kind)
+					// Excwude any we awweady incwuded by defauwt
+					&& !defauwtKinds.some(defauwtKind => defauwtKind.contains(kind))
 				) {
-					sourceActions.set(kind.value, action);
+					souwceActions.set(kind.vawue, action);
 				}
 			}
 		}
-		return sourceActions;
+		wetuwn souwceActions;
 	}
 
-	private getSchemaAdditions(): IJSONSchema[] {
-		const conditionalSchema = (command: string, actions: readonly ContributedCodeAction[]): IJSONSchema => {
-			return {
+	pwivate getSchemaAdditions(): IJSONSchema[] {
+		const conditionawSchema = (command: stwing, actions: weadonwy ContwibutedCodeAction[]): IJSONSchema => {
+			wetuwn {
 				if: {
-					properties: {
+					pwopewties: {
 						'command': { const: command }
 					}
 				},
 				then: {
-					properties: {
-						'args': {
-							required: ['kind'],
-							properties: {
+					pwopewties: {
+						'awgs': {
+							wequiwed: ['kind'],
+							pwopewties: {
 								'kind': {
 									anyOf: [
 										{
 											enum: actions.map(action => action.kind),
-											enumDescriptions: actions.map(action => action.description ?? action.title),
+											enumDescwiptions: actions.map(action => action.descwiption ?? action.titwe),
 										},
-										{ type: 'string' },
+										{ type: 'stwing' },
 									]
 								}
 							}
@@ -134,22 +134,22 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 			};
 		};
 
-		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
-			const allActions = flatten(this._contributedCodeActions.map(desc => desc.actions.slice()));
+		const getActions = (ofKind: CodeActionKind): ContwibutedCodeAction[] => {
+			const awwActions = fwatten(this._contwibutedCodeActions.map(desc => desc.actions.swice()));
 
-			const out = new Map<string, ContributedCodeAction>();
-			for (const action of allActions) {
+			const out = new Map<stwing, ContwibutedCodeAction>();
+			fow (const action of awwActions) {
 				if (!out.has(action.kind) && ofKind.contains(new CodeActionKind(action.kind))) {
 					out.set(action.kind, action);
 				}
 			}
-			return Array.from(out.values());
+			wetuwn Awway.fwom(out.vawues());
 		};
 
-		return [
-			conditionalSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
-			conditionalSchema(refactorCommandId, getActions(CodeActionKind.Refactor)),
-			conditionalSchema(sourceActionCommandId, getActions(CodeActionKind.Source)),
+		wetuwn [
+			conditionawSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
+			conditionawSchema(wefactowCommandId, getActions(CodeActionKind.Wefactow)),
+			conditionawSchema(souwceActionCommandId, getActions(CodeActionKind.Souwce)),
 		];
 	}
 }

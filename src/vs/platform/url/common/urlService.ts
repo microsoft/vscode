@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { first } from 'vs/base/common/async';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenURLOptions, IURLHandler, IURLService } from 'vs/platform/url/common/url';
+impowt { fiwst } fwom 'vs/base/common/async';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IOpenUWWOptions, IUWWHandwa, IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
 
-export abstract class AbstractURLService extends Disposable implements IURLService {
+expowt abstwact cwass AbstwactUWWSewvice extends Disposabwe impwements IUWWSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private handlers = new Set<IURLHandler>();
+	pwivate handwews = new Set<IUWWHandwa>();
 
-	abstract create(options?: Partial<UriComponents>): URI;
+	abstwact cweate(options?: Pawtiaw<UwiComponents>): UWI;
 
-	open(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		const handlers = [...this.handlers.values()];
-		return first(handlers.map(h => () => h.handleURL(uri, options)), undefined, false).then(val => val || false);
+	open(uwi: UWI, options?: IOpenUWWOptions): Pwomise<boowean> {
+		const handwews = [...this.handwews.vawues()];
+		wetuwn fiwst(handwews.map(h => () => h.handweUWW(uwi, options)), undefined, fawse).then(vaw => vaw || fawse);
 	}
 
-	registerHandler(handler: IURLHandler): IDisposable {
-		this.handlers.add(handler);
-		return toDisposable(() => this.handlers.delete(handler));
+	wegistewHandwa(handwa: IUWWHandwa): IDisposabwe {
+		this.handwews.add(handwa);
+		wetuwn toDisposabwe(() => this.handwews.dewete(handwa));
 	}
 }
 
-export class NativeURLService extends AbstractURLService {
+expowt cwass NativeUWWSewvice extends AbstwactUWWSewvice {
 
-	constructor(
-		@IProductService protected readonly productService: IProductService
+	constwuctow(
+		@IPwoductSewvice pwotected weadonwy pwoductSewvice: IPwoductSewvice
 	) {
-		super();
+		supa();
 	}
 
-	create(options?: Partial<UriComponents>): URI {
-		let { authority, path, query, fragment } = options ? options : { authority: undefined, path: undefined, query: undefined, fragment: undefined };
+	cweate(options?: Pawtiaw<UwiComponents>): UWI {
+		wet { authowity, path, quewy, fwagment } = options ? options : { authowity: undefined, path: undefined, quewy: undefined, fwagment: undefined };
 
-		if (authority && path && path.indexOf('/') !== 0) {
-			path = `/${path}`; // URI validation requires a path if there is an authority
+		if (authowity && path && path.indexOf('/') !== 0) {
+			path = `/${path}`; // UWI vawidation wequiwes a path if thewe is an authowity
 		}
 
-		return URI.from({ scheme: this.productService.urlProtocol, authority, path, query, fragment });
+		wetuwn UWI.fwom({ scheme: this.pwoductSewvice.uwwPwotocow, authowity, path, quewy, fwagment });
 	}
 }

@@ -1,370 +1,370 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { TextEditorLineNumbersStyle, Range } from 'vs/workbench/api/common/extHostTypes';
-import { TextEditorCursorStyle, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Lazy } from 'vs/base/common/lazy';
+impowt * as assewt fwom 'assewt';
+impowt { TextEditowWineNumbewsStywe, Wange } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { TextEditowCuwsowStywe, WendewWineNumbewsType } fwom 'vs/editow/common/config/editowOptions';
+impowt { MainThweadTextEditowsShape, IWesowvedTextEditowConfiguwation, ITextEditowConfiguwationUpdate } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtHostTextEditowOptions, ExtHostTextEditow } fwom 'vs/wowkbench/api/common/extHostTextEditow';
+impowt { ExtHostDocumentData } fwom 'vs/wowkbench/api/common/extHostDocumentData';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Wazy } fwom 'vs/base/common/wazy';
 
-suite('ExtHostTextEditor', () => {
+suite('ExtHostTextEditow', () => {
 
-	let editor: ExtHostTextEditor;
-	let doc = new ExtHostDocumentData(undefined!, URI.file(''), [
+	wet editow: ExtHostTextEditow;
+	wet doc = new ExtHostDocumentData(undefined!, UWI.fiwe(''), [
 		'aaaa bbbb+cccc abc'
-	], '\n', 1, 'text', false);
+	], '\n', 1, 'text', fawse);
 
 	setup(() => {
-		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
+		editow = new ExtHostTextEditow('fake', nuww!, new NuwwWogSewvice(), new Wazy(() => doc.document), [], { cuwsowStywe: 0, insewtSpaces: twue, wineNumbews: 1, tabSize: 4 }, [], 1);
 	});
 
-	test('disposed editor', () => {
+	test('disposed editow', () => {
 
-		assert.ok(editor.value.document);
-		editor._acceptViewColumn(3);
-		assert.strictEqual(3, editor.value.viewColumn);
+		assewt.ok(editow.vawue.document);
+		editow._acceptViewCowumn(3);
+		assewt.stwictEquaw(3, editow.vawue.viewCowumn);
 
-		editor.dispose();
+		editow.dispose();
 
-		assert.throws(() => editor._acceptViewColumn(2));
-		assert.strictEqual(3, editor.value.viewColumn);
+		assewt.thwows(() => editow._acceptViewCowumn(2));
+		assewt.stwictEquaw(3, editow.vawue.viewCowumn);
 
-		assert.ok(editor.value.document);
-		assert.throws(() => editor._acceptOptions(null!));
-		assert.throws(() => editor._acceptSelections([]));
+		assewt.ok(editow.vawue.document);
+		assewt.thwows(() => editow._acceptOptions(nuww!));
+		assewt.thwows(() => editow._acceptSewections([]));
 	});
 
-	test('API [bug]: registerTextEditorCommand clears redo stack even if no edits are made #55163', async function () {
-		let applyCount = 0;
-		let editor = new ExtHostTextEditor('edt1',
-			new class extends mock<MainThreadTextEditorsShape>() {
-				override $tryApplyEdits(): Promise<boolean> {
-					applyCount += 1;
-					return Promise.resolve(true);
+	test('API [bug]: wegistewTextEditowCommand cweaws wedo stack even if no edits awe made #55163', async function () {
+		wet appwyCount = 0;
+		wet editow = new ExtHostTextEditow('edt1',
+			new cwass extends mock<MainThweadTextEditowsShape>() {
+				ovewwide $twyAppwyEdits(): Pwomise<boowean> {
+					appwyCount += 1;
+					wetuwn Pwomise.wesowve(twue);
 				}
-			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4 }, [], 1);
+			}, new NuwwWogSewvice(), new Wazy(() => doc.document), [], { cuwsowStywe: 0, insewtSpaces: twue, wineNumbews: 1, tabSize: 4 }, [], 1);
 
-		await editor.value.edit(edit => { });
-		assert.strictEqual(applyCount, 0);
+		await editow.vawue.edit(edit => { });
+		assewt.stwictEquaw(appwyCount, 0);
 
-		await editor.value.edit(edit => { edit.setEndOfLine(1); });
-		assert.strictEqual(applyCount, 1);
+		await editow.vawue.edit(edit => { edit.setEndOfWine(1); });
+		assewt.stwictEquaw(appwyCount, 1);
 
-		await editor.value.edit(edit => { edit.delete(new Range(0, 0, 1, 1)); });
-		assert.strictEqual(applyCount, 2);
+		await editow.vawue.edit(edit => { edit.dewete(new Wange(0, 0, 1, 1)); });
+		assewt.stwictEquaw(appwyCount, 2);
 	});
 });
 
-suite('ExtHostTextEditorOptions', () => {
+suite('ExtHostTextEditowOptions', () => {
 
-	let opts: ExtHostTextEditorOptions;
-	let calls: ITextEditorConfigurationUpdate[] = [];
+	wet opts: ExtHostTextEditowOptions;
+	wet cawws: ITextEditowConfiguwationUpdate[] = [];
 
 	setup(() => {
-		calls = [];
-		let mockProxy: MainThreadTextEditorsShape = {
+		cawws = [];
+		wet mockPwoxy: MainThweadTextEditowsShape = {
 			dispose: undefined!,
-			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
-				assert.strictEqual(id, '1');
-				calls.push(options);
-				return Promise.resolve(undefined);
+			$twySetOptions: (id: stwing, options: ITextEditowConfiguwationUpdate) => {
+				assewt.stwictEquaw(id, '1');
+				cawws.push(options);
+				wetuwn Pwomise.wesowve(undefined);
 			},
-			$tryShowTextDocument: undefined!,
-			$registerTextEditorDecorationType: undefined!,
-			$removeTextEditorDecorationType: undefined!,
-			$tryShowEditor: undefined!,
-			$tryHideEditor: undefined!,
-			$trySetDecorations: undefined!,
-			$trySetDecorationsFast: undefined!,
-			$tryRevealRange: undefined!,
-			$trySetSelections: undefined!,
-			$tryApplyEdits: undefined!,
-			$tryInsertSnippet: undefined!,
-			$getDiffInformation: undefined!
+			$twyShowTextDocument: undefined!,
+			$wegistewTextEditowDecowationType: undefined!,
+			$wemoveTextEditowDecowationType: undefined!,
+			$twyShowEditow: undefined!,
+			$twyHideEditow: undefined!,
+			$twySetDecowations: undefined!,
+			$twySetDecowationsFast: undefined!,
+			$twyWeveawWange: undefined!,
+			$twySetSewections: undefined!,
+			$twyAppwyEdits: undefined!,
+			$twyInsewtSnippet: undefined!,
+			$getDiffInfowmation: undefined!
 		};
-		opts = new ExtHostTextEditorOptions(mockProxy, '1', {
+		opts = new ExtHostTextEditowOptions(mockPwoxy, '1', {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
-		}, new NullLogService());
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
+		}, new NuwwWogSewvice());
 	});
 
-	teardown(() => {
-		opts = null!;
-		calls = null!;
+	teawdown(() => {
+		opts = nuww!;
+		cawws = nuww!;
 	});
 
-	function assertState(opts: ExtHostTextEditorOptions, expected: IResolvedTextEditorConfiguration): void {
-		let actual = {
-			tabSize: opts.value.tabSize,
-			insertSpaces: opts.value.insertSpaces,
-			cursorStyle: opts.value.cursorStyle,
-			lineNumbers: opts.value.lineNumbers
+	function assewtState(opts: ExtHostTextEditowOptions, expected: IWesowvedTextEditowConfiguwation): void {
+		wet actuaw = {
+			tabSize: opts.vawue.tabSize,
+			insewtSpaces: opts.vawue.insewtSpaces,
+			cuwsowStywe: opts.vawue.cuwsowStywe,
+			wineNumbews: opts.vawue.wineNumbews
 		};
-		assert.deepStrictEqual(actual, expected);
+		assewt.deepStwictEquaw(actuaw, expected);
 	}
 
-	test('can set tabSize to the same value', () => {
-		opts.value.tabSize = 4;
-		assertState(opts, {
+	test('can set tabSize to the same vawue', () => {
+		opts.vawue.tabSize = 4;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can change tabSize to positive integer', () => {
-		opts.value.tabSize = 1;
-		assertState(opts, {
+	test('can change tabSize to positive intega', () => {
+		opts.vawue.tabSize = 1;
+		assewtState(opts, {
 			tabSize: 1,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 1 }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 1 }]);
 	});
 
-	test('can change tabSize to positive float', () => {
-		opts.value.tabSize = 2.3;
-		assertState(opts, {
+	test('can change tabSize to positive fwoat', () => {
+		opts.vawue.tabSize = 2.3;
+		assewtState(opts, {
 			tabSize: 2,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 2 }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 2 }]);
 	});
 
-	test('can change tabSize to a string number', () => {
-		opts.value.tabSize = '2';
-		assertState(opts, {
+	test('can change tabSize to a stwing numba', () => {
+		opts.vawue.tabSize = '2';
+		assewtState(opts, {
 			tabSize: 2,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 2 }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 2 }]);
 	});
 
-	test('tabSize can request indentation detection', () => {
-		opts.value.tabSize = 'auto';
-		assertState(opts, {
+	test('tabSize can wequest indentation detection', () => {
+		opts.vawue.tabSize = 'auto';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 'auto' }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 'auto' }]);
 	});
 
-	test('ignores invalid tabSize 1', () => {
-		opts.value.tabSize = null!;
-		assertState(opts, {
+	test('ignowes invawid tabSize 1', () => {
+		opts.vawue.tabSize = nuww!;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('ignores invalid tabSize 2', () => {
-		opts.value.tabSize = -5;
-		assertState(opts, {
+	test('ignowes invawid tabSize 2', () => {
+		opts.vawue.tabSize = -5;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('ignores invalid tabSize 3', () => {
-		opts.value.tabSize = 'hello';
-		assertState(opts, {
+	test('ignowes invawid tabSize 3', () => {
+		opts.vawue.tabSize = 'hewwo';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('ignores invalid tabSize 4', () => {
-		opts.value.tabSize = '-17';
-		assertState(opts, {
+	test('ignowes invawid tabSize 4', () => {
+		opts.vawue.tabSize = '-17';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can set insertSpaces to the same value', () => {
-		opts.value.insertSpaces = false;
-		assertState(opts, {
+	test('can set insewtSpaces to the same vawue', () => {
+		opts.vawue.insewtSpaces = fawse;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can set insertSpaces to boolean', () => {
-		opts.value.insertSpaces = true;
-		assertState(opts, {
+	test('can set insewtSpaces to boowean', () => {
+		opts.vawue.insewtSpaces = twue;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: true,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: twue,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ insertSpaces: true }]);
+		assewt.deepStwictEquaw(cawws, [{ insewtSpaces: twue }]);
 	});
 
-	test('can set insertSpaces to false string', () => {
-		opts.value.insertSpaces = 'false';
-		assertState(opts, {
+	test('can set insewtSpaces to fawse stwing', () => {
+		opts.vawue.insewtSpaces = 'fawse';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can set insertSpaces to truey', () => {
-		opts.value.insertSpaces = 'hello';
-		assertState(opts, {
+	test('can set insewtSpaces to twuey', () => {
+		opts.vawue.insewtSpaces = 'hewwo';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: true,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: twue,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ insertSpaces: true }]);
+		assewt.deepStwictEquaw(cawws, [{ insewtSpaces: twue }]);
 	});
 
-	test('insertSpaces can request indentation detection', () => {
-		opts.value.insertSpaces = 'auto';
-		assertState(opts, {
+	test('insewtSpaces can wequest indentation detection', () => {
+		opts.vawue.insewtSpaces = 'auto';
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ insertSpaces: 'auto' }]);
+		assewt.deepStwictEquaw(cawws, [{ insewtSpaces: 'auto' }]);
 	});
 
-	test('can set cursorStyle to same value', () => {
-		opts.value.cursorStyle = TextEditorCursorStyle.Line;
-		assertState(opts, {
+	test('can set cuwsowStywe to same vawue', () => {
+		opts.vawue.cuwsowStywe = TextEditowCuwsowStywe.Wine;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can change cursorStyle', () => {
-		opts.value.cursorStyle = TextEditorCursorStyle.Block;
-		assertState(opts, {
+	test('can change cuwsowStywe', () => {
+		opts.vawue.cuwsowStywe = TextEditowCuwsowStywe.Bwock;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Block,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Bwock,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block }]);
+		assewt.deepStwictEquaw(cawws, [{ cuwsowStywe: TextEditowCuwsowStywe.Bwock }]);
 	});
 
-	test('can set lineNumbers to same value', () => {
-		opts.value.lineNumbers = TextEditorLineNumbersStyle.On;
-		assertState(opts, {
+	test('can set wineNumbews to same vawue', () => {
+		opts.vawue.wineNumbews = TextEditowWineNumbewsStywe.On;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can change lineNumbers', () => {
-		opts.value.lineNumbers = TextEditorLineNumbersStyle.Off;
-		assertState(opts, {
+	test('can change wineNumbews', () => {
+		opts.vawue.wineNumbews = TextEditowWineNumbewsStywe.Off;
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.Off
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.Off
 		});
-		assert.deepStrictEqual(calls, [{ lineNumbers: RenderLineNumbersType.Off }]);
+		assewt.deepStwictEquaw(cawws, [{ wineNumbews: WendewWineNumbewsType.Off }]);
 	});
 
-	test('can do bulk updates 0', () => {
+	test('can do buwk updates 0', () => {
 		opts.assign({
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: TextEditorLineNumbersStyle.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: TextEditowWineNumbewsStywe.On
 		});
-		assertState(opts, {
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assewt.deepStwictEquaw(cawws, []);
 	});
 
-	test('can do bulk updates 1', () => {
+	test('can do buwk updates 1', () => {
 		opts.assign({
 			tabSize: 'auto',
-			insertSpaces: true
+			insewtSpaces: twue
 		});
-		assertState(opts, {
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: true,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: twue,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 'auto', insertSpaces: true }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 'auto', insewtSpaces: twue }]);
 	});
 
-	test('can do bulk updates 2', () => {
+	test('can do buwk updates 2', () => {
 		opts.assign({
 			tabSize: 3,
-			insertSpaces: 'auto'
+			insewtSpaces: 'auto'
 		});
-		assertState(opts, {
+		assewtState(opts, {
 			tabSize: 3,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Line,
-			lineNumbers: RenderLineNumbersType.On
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Wine,
+			wineNumbews: WendewWineNumbewsType.On
 		});
-		assert.deepStrictEqual(calls, [{ tabSize: 3, insertSpaces: 'auto' }]);
+		assewt.deepStwictEquaw(cawws, [{ tabSize: 3, insewtSpaces: 'auto' }]);
 	});
 
-	test('can do bulk updates 3', () => {
+	test('can do buwk updates 3', () => {
 		opts.assign({
-			cursorStyle: TextEditorCursorStyle.Block,
-			lineNumbers: TextEditorLineNumbersStyle.Relative
+			cuwsowStywe: TextEditowCuwsowStywe.Bwock,
+			wineNumbews: TextEditowWineNumbewsStywe.Wewative
 		});
-		assertState(opts, {
+		assewtState(opts, {
 			tabSize: 4,
-			insertSpaces: false,
-			cursorStyle: TextEditorCursorStyle.Block,
-			lineNumbers: RenderLineNumbersType.Relative
+			insewtSpaces: fawse,
+			cuwsowStywe: TextEditowCuwsowStywe.Bwock,
+			wineNumbews: WendewWineNumbewsType.Wewative
 		});
-		assert.deepStrictEqual(calls, [{ cursorStyle: TextEditorCursorStyle.Block, lineNumbers: RenderLineNumbersType.Relative }]);
+		assewt.deepStwictEquaw(cawws, [{ cuwsowStywe: TextEditowCuwsowStywe.Bwock, wineNumbews: WendewWineNumbewsType.Wewative }]);
 	});
 
 });

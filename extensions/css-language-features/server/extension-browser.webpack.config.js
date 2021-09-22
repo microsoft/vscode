@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const withBrowserDefaults = require('../../shared.webpack.config').browser;
-const path = require('path');
+const withBwowsewDefauwts = wequiwe('../../shawed.webpack.config').bwowsa;
+const path = wequiwe('path');
 
-module.exports = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/browser/cssServerMain.ts',
+moduwe.expowts = withBwowsewDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/bwowsa/cssSewvewMain.ts',
 	},
 	output: {
-		filename: 'cssServerMain.js',
-		path: path.join(__dirname, 'dist', 'browser'),
-		libraryTarget: 'var',
-		library: 'serverExportVar'
+		fiwename: 'cssSewvewMain.js',
+		path: path.join(__diwname, 'dist', 'bwowsa'),
+		wibwawyTawget: 'vaw',
+		wibwawy: 'sewvewExpowtVaw'
 	}
 });

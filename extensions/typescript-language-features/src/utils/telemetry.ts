@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
-import { memoize } from './memoize';
+impowt * as vscode fwom 'vscode';
+impowt VsCodeTewemetwyWepowta fwom 'vscode-extension-tewemetwy';
+impowt { memoize } fwom './memoize';
 
-interface PackageInfo {
-	readonly name: string;
-	readonly version: string;
-	readonly aiKey: string;
+intewface PackageInfo {
+	weadonwy name: stwing;
+	weadonwy vewsion: stwing;
+	weadonwy aiKey: stwing;
 }
 
-export interface TelemetryProperties {
-	readonly [prop: string]: string | number | boolean | undefined;
+expowt intewface TewemetwyPwopewties {
+	weadonwy [pwop: stwing]: stwing | numba | boowean | undefined;
 }
 
-export interface TelemetryReporter {
-	logTelemetry(eventName: string, properties?: TelemetryProperties): void;
+expowt intewface TewemetwyWepowta {
+	wogTewemetwy(eventName: stwing, pwopewties?: TewemetwyPwopewties): void;
 
 	dispose(): void;
 }
 
-export class VSCodeTelemetryReporter implements TelemetryReporter {
-	private _reporter: VsCodeTelemetryReporter | null = null;
+expowt cwass VSCodeTewemetwyWepowta impwements TewemetwyWepowta {
+	pwivate _wepowta: VsCodeTewemetwyWepowta | nuww = nuww;
 
-	constructor(
-		private readonly clientVersionDelegate: () => string
+	constwuctow(
+		pwivate weadonwy cwientVewsionDewegate: () => stwing
 	) { }
 
-	public logTelemetry(eventName: string, properties: { [prop: string]: string } = {}) {
-		const reporter = this.reporter;
-		if (!reporter) {
-			return;
+	pubwic wogTewemetwy(eventName: stwing, pwopewties: { [pwop: stwing]: stwing } = {}) {
+		const wepowta = this.wepowta;
+		if (!wepowta) {
+			wetuwn;
 		}
 
-		/* __GDPR__FRAGMENT__
-			"TypeScriptCommonProperties" : {
-				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		/* __GDPW__FWAGMENT__
+			"TypeScwiptCommonPwopewties" : {
+				"vewsion" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" }
 			}
 		*/
-		properties['version'] = this.clientVersionDelegate();
+		pwopewties['vewsion'] = this.cwientVewsionDewegate();
 
-		reporter.sendTelemetryEvent(eventName, properties);
+		wepowta.sendTewemetwyEvent(eventName, pwopewties);
 	}
 
-	public dispose() {
-		if (this._reporter) {
-			this._reporter.dispose();
-			this._reporter = null;
+	pubwic dispose() {
+		if (this._wepowta) {
+			this._wepowta.dispose();
+			this._wepowta = nuww;
 		}
 	}
 
 	@memoize
-	private get reporter(): VsCodeTelemetryReporter | null {
+	pwivate get wepowta(): VsCodeTewemetwyWepowta | nuww {
 		if (this.packageInfo && this.packageInfo.aiKey) {
-			this._reporter = new VsCodeTelemetryReporter(
+			this._wepowta = new VsCodeTewemetwyWepowta(
 				this.packageInfo.name,
-				this.packageInfo.version,
+				this.packageInfo.vewsion,
 				this.packageInfo.aiKey);
-			return this._reporter;
+			wetuwn this._wepowta;
 		}
-		return null;
+		wetuwn nuww;
 	}
 
 	@memoize
-	private get packageInfo(): PackageInfo | null {
-		const { packageJSON } = vscode.extensions.getExtension('vscode.typescript-language-features')!;
+	pwivate get packageInfo(): PackageInfo | nuww {
+		const { packageJSON } = vscode.extensions.getExtension('vscode.typescwipt-wanguage-featuwes')!;
 		if (packageJSON) {
-			return {
+			wetuwn {
 				name: packageJSON.name,
-				version: packageJSON.version,
+				vewsion: packageJSON.vewsion,
 				aiKey: packageJSON.aiKey
 			};
 		}
-		return null;
+		wetuwn nuww;
 	}
 }

@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
-import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
+impowt { Sewva } fwom 'vs/base/pawts/ipc/node/ipc.cp';
+impowt { AppInsightsAppenda } fwom 'vs/pwatfowm/tewemetwy/node/appInsightsAppenda';
+impowt { TewemetwyAppendewChannew } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyIpc';
 
-const appender = new AppInsightsAppender(process.argv[2], JSON.parse(process.argv[3]), process.argv[4]);
-process.once('exit', () => appender.flush());
+const appenda = new AppInsightsAppenda(pwocess.awgv[2], JSON.pawse(pwocess.awgv[3]), pwocess.awgv[4]);
+pwocess.once('exit', () => appenda.fwush());
 
-const channel = new TelemetryAppenderChannel(appender);
-const server = new Server('telemetry');
-server.registerChannel('telemetryAppender', channel);
+const channew = new TewemetwyAppendewChannew(appenda);
+const sewva = new Sewva('tewemetwy');
+sewva.wegistewChannew('tewemetwyAppenda', channew);

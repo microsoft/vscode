@@ -1,73 +1,73 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionIdWithVersion, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { MainThweadStowageShape, MainContext, IExtHostContext, ExtHostStowageShape, ExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IExtensionIdWithVewsion, IExtensionsStowageSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/extensionsStowageSync';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-@extHostNamedCustomer(MainContext.MainThreadStorage)
-export class MainThreadStorage implements MainThreadStorageShape {
+@extHostNamedCustoma(MainContext.MainThweadStowage)
+expowt cwass MainThweadStowage impwements MainThweadStowageShape {
 
-	private readonly _storageService: IStorageService;
-	private readonly _extensionsStorageSyncService: IExtensionsStorageSyncService;
-	private readonly _proxy: ExtHostStorageShape;
-	private readonly _storageListener: IDisposable;
-	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
+	pwivate weadonwy _stowageSewvice: IStowageSewvice;
+	pwivate weadonwy _extensionsStowageSyncSewvice: IExtensionsStowageSyncSewvice;
+	pwivate weadonwy _pwoxy: ExtHostStowageShape;
+	pwivate weadonwy _stowageWistena: IDisposabwe;
+	pwivate weadonwy _shawedStowageKeysToWatch: Map<stwing, boowean> = new Map<stwing, boowean>();
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@IStorageService storageService: IStorageService,
-		@IExtensionsStorageSyncService extensionsStorageSyncService: IExtensionsStorageSyncService,
-		@ILogService private readonly _logService: ILogService
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IExtensionsStowageSyncSewvice extensionsStowageSyncSewvice: IExtensionsStowageSyncSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		this._storageService = storageService;
-		this._extensionsStorageSyncService = extensionsStorageSyncService;
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
+		this._stowageSewvice = stowageSewvice;
+		this._extensionsStowageSyncSewvice = extensionsStowageSyncSewvice;
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostStowage);
 
-		this._storageListener = this._storageService.onDidChangeValue(e => {
-			const shared = e.scope === StorageScope.GLOBAL;
-			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
-				this._proxy.$acceptValue(shared, e.key, this._getValue(shared, e.key));
+		this._stowageWistena = this._stowageSewvice.onDidChangeVawue(e => {
+			const shawed = e.scope === StowageScope.GWOBAW;
+			if (shawed && this._shawedStowageKeysToWatch.has(e.key)) {
+				this._pwoxy.$acceptVawue(shawed, e.key, this._getVawue(shawed, e.key));
 			}
 		});
 	}
 
 	dispose(): void {
-		this._storageListener.dispose();
+		this._stowageWistena.dispose();
 	}
 
-	async $getValue<T>(shared: boolean, key: string): Promise<T | undefined> {
-		if (shared) {
-			this._sharedStorageKeysToWatch.set(key, true);
+	async $getVawue<T>(shawed: boowean, key: stwing): Pwomise<T | undefined> {
+		if (shawed) {
+			this._shawedStowageKeysToWatch.set(key, twue);
 		}
-		return this._getValue<T>(shared, key);
+		wetuwn this._getVawue<T>(shawed, key);
 	}
 
-	private _getValue<T>(shared: boolean, key: string): T | undefined {
-		const jsonValue = this._storageService.get(key, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
-		if (jsonValue) {
-			try {
-				return JSON.parse(jsonValue);
-			} catch (error) {
-				// Do not fail this call but log it for diagnostics
-				// https://github.com/microsoft/vscode/issues/132777
-				this._logService.error(`[mainThreadStorage] unexpected error parsing storage contents (key: ${key}, shared: ${shared}): ${error}`);
+	pwivate _getVawue<T>(shawed: boowean, key: stwing): T | undefined {
+		const jsonVawue = this._stowageSewvice.get(key, shawed ? StowageScope.GWOBAW : StowageScope.WOWKSPACE);
+		if (jsonVawue) {
+			twy {
+				wetuwn JSON.pawse(jsonVawue);
+			} catch (ewwow) {
+				// Do not faiw this caww but wog it fow diagnostics
+				// https://github.com/micwosoft/vscode/issues/132777
+				this._wogSewvice.ewwow(`[mainThweadStowage] unexpected ewwow pawsing stowage contents (key: ${key}, shawed: ${shawed}): ${ewwow}`);
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	async $setValue(shared: boolean, key: string, value: object): Promise<void> {
-		this._storageService.store(key, JSON.stringify(value), shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE /* Extension state is synced separately through extensions */);
+	async $setVawue(shawed: boowean, key: stwing, vawue: object): Pwomise<void> {
+		this._stowageSewvice.stowe(key, JSON.stwingify(vawue), shawed ? StowageScope.GWOBAW : StowageScope.WOWKSPACE, StowageTawget.MACHINE /* Extension state is synced sepawatewy thwough extensions */);
 	}
 
-	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
-		this._extensionsStorageSyncService.setKeysForSync(extension, keys);
+	$wegistewExtensionStowageKeysToSync(extension: IExtensionIdWithVewsion, keys: stwing[]): void {
+		this._extensionsStowageSyncSewvice.setKeysFowSync(extension, keys);
 	}
 }

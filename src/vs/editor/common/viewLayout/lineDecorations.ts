@@ -1,264 +1,264 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { InwineDecowation, InwineDecowationType } fwom 'vs/editow/common/viewModew/viewModew';
+impowt { WinePawtMetadata } fwom 'vs/editow/common/viewWayout/viewWineWendewa';
 
-export class LineDecoration {
-	_lineDecorationBrand: void = undefined;
+expowt cwass WineDecowation {
+	_wineDecowationBwand: void = undefined;
 
-	constructor(
-		public readonly startColumn: number,
-		public readonly endColumn: number,
-		public readonly className: string,
-		public readonly type: InlineDecorationType
+	constwuctow(
+		pubwic weadonwy stawtCowumn: numba,
+		pubwic weadonwy endCowumn: numba,
+		pubwic weadonwy cwassName: stwing,
+		pubwic weadonwy type: InwineDecowationType
 	) {
 	}
 
-	private static _equals(a: LineDecoration, b: LineDecoration): boolean {
-		return (
-			a.startColumn === b.startColumn
-			&& a.endColumn === b.endColumn
-			&& a.className === b.className
+	pwivate static _equaws(a: WineDecowation, b: WineDecowation): boowean {
+		wetuwn (
+			a.stawtCowumn === b.stawtCowumn
+			&& a.endCowumn === b.endCowumn
+			&& a.cwassName === b.cwassName
 			&& a.type === b.type
 		);
 	}
 
-	public static equalsArr(a: LineDecoration[], b: LineDecoration[]): boolean {
-		const aLen = a.length;
-		const bLen = b.length;
-		if (aLen !== bLen) {
-			return false;
+	pubwic static equawsAww(a: WineDecowation[], b: WineDecowation[]): boowean {
+		const aWen = a.wength;
+		const bWen = b.wength;
+		if (aWen !== bWen) {
+			wetuwn fawse;
 		}
-		for (let i = 0; i < aLen; i++) {
-			if (!LineDecoration._equals(a[i], b[i])) {
-				return false;
+		fow (wet i = 0; i < aWen; i++) {
+			if (!WineDecowation._equaws(a[i], b[i])) {
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	public static extractWrapped(arr: LineDecoration[], startOffset: number, endOffset: number): LineDecoration[] {
-		if (arr.length === 0) {
-			return arr;
+	pubwic static extwactWwapped(aww: WineDecowation[], stawtOffset: numba, endOffset: numba): WineDecowation[] {
+		if (aww.wength === 0) {
+			wetuwn aww;
 		}
-		const startColumn = startOffset + 1;
-		const endColumn = endOffset + 1;
-		const lineLength = endOffset - startOffset;
-		const r = [];
-		let rLength = 0;
-		for (const dec of arr) {
-			if (dec.endColumn <= startColumn || dec.startColumn >= endColumn) {
+		const stawtCowumn = stawtOffset + 1;
+		const endCowumn = endOffset + 1;
+		const wineWength = endOffset - stawtOffset;
+		const w = [];
+		wet wWength = 0;
+		fow (const dec of aww) {
+			if (dec.endCowumn <= stawtCowumn || dec.stawtCowumn >= endCowumn) {
 				continue;
 			}
-			r[rLength++] = new LineDecoration(Math.max(1, dec.startColumn - startColumn + 1), Math.min(lineLength + 1, dec.endColumn - startColumn + 1), dec.className, dec.type);
+			w[wWength++] = new WineDecowation(Math.max(1, dec.stawtCowumn - stawtCowumn + 1), Math.min(wineWength + 1, dec.endCowumn - stawtCowumn + 1), dec.cwassName, dec.type);
 		}
-		return r;
+		wetuwn w;
 	}
 
-	public static filter(lineDecorations: InlineDecoration[], lineNumber: number, minLineColumn: number, maxLineColumn: number): LineDecoration[] {
-		if (lineDecorations.length === 0) {
-			return [];
+	pubwic static fiwta(wineDecowations: InwineDecowation[], wineNumba: numba, minWineCowumn: numba, maxWineCowumn: numba): WineDecowation[] {
+		if (wineDecowations.wength === 0) {
+			wetuwn [];
 		}
 
-		let result: LineDecoration[] = [], resultLen = 0;
+		wet wesuwt: WineDecowation[] = [], wesuwtWen = 0;
 
-		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			const d = lineDecorations[i];
-			const range = d.range;
+		fow (wet i = 0, wen = wineDecowations.wength; i < wen; i++) {
+			const d = wineDecowations[i];
+			const wange = d.wange;
 
-			if (range.endLineNumber < lineNumber || range.startLineNumber > lineNumber) {
-				// Ignore decorations that sit outside this line
-				continue;
-			}
-
-			if (range.isEmpty() && (d.type === InlineDecorationType.Regular || d.type === InlineDecorationType.RegularAffectingLetterSpacing)) {
-				// Ignore empty range decorations
+			if (wange.endWineNumba < wineNumba || wange.stawtWineNumba > wineNumba) {
+				// Ignowe decowations that sit outside this wine
 				continue;
 			}
 
-			const startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
-			const endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
+			if (wange.isEmpty() && (d.type === InwineDecowationType.Weguwaw || d.type === InwineDecowationType.WeguwawAffectingWettewSpacing)) {
+				// Ignowe empty wange decowations
+				continue;
+			}
 
-			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
+			const stawtCowumn = (wange.stawtWineNumba === wineNumba ? wange.stawtCowumn : minWineCowumn);
+			const endCowumn = (wange.endWineNumba === wineNumba ? wange.endCowumn : maxWineCowumn);
+
+			wesuwt[wesuwtWen++] = new WineDecowation(stawtCowumn, endCowumn, d.inwineCwassName, d.type);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _typeCompare(a: InlineDecorationType, b: InlineDecorationType): number {
-		const ORDER = [2, 0, 1, 3];
-		return ORDER[a] - ORDER[b];
+	pwivate static _typeCompawe(a: InwineDecowationType, b: InwineDecowationType): numba {
+		const OWDa = [2, 0, 1, 3];
+		wetuwn OWDa[a] - OWDa[b];
 	}
 
-	public static compare(a: LineDecoration, b: LineDecoration): number {
-		if (a.startColumn !== b.startColumn) {
-			return a.startColumn - b.startColumn;
+	pubwic static compawe(a: WineDecowation, b: WineDecowation): numba {
+		if (a.stawtCowumn !== b.stawtCowumn) {
+			wetuwn a.stawtCowumn - b.stawtCowumn;
 		}
 
-		if (a.endColumn !== b.endColumn) {
-			return a.endColumn - b.endColumn;
+		if (a.endCowumn !== b.endCowumn) {
+			wetuwn a.endCowumn - b.endCowumn;
 		}
 
-		const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+		const typeCmp = WineDecowation._typeCompawe(a.type, b.type);
 		if (typeCmp !== 0) {
-			return typeCmp;
+			wetuwn typeCmp;
 		}
 
-		if (a.className !== b.className) {
-			return a.className < b.className ? -1 : 1;
+		if (a.cwassName !== b.cwassName) {
+			wetuwn a.cwassName < b.cwassName ? -1 : 1;
 		}
 
-		return 0;
+		wetuwn 0;
 	}
 }
 
-export class DecorationSegment {
-	startOffset: number;
-	endOffset: number;
-	className: string;
-	metadata: number;
+expowt cwass DecowationSegment {
+	stawtOffset: numba;
+	endOffset: numba;
+	cwassName: stwing;
+	metadata: numba;
 
-	constructor(startOffset: number, endOffset: number, className: string, metadata: number) {
-		this.startOffset = startOffset;
+	constwuctow(stawtOffset: numba, endOffset: numba, cwassName: stwing, metadata: numba) {
+		this.stawtOffset = stawtOffset;
 		this.endOffset = endOffset;
-		this.className = className;
+		this.cwassName = cwassName;
 		this.metadata = metadata;
 	}
 }
 
-class Stack {
-	public count: number;
-	private readonly stopOffsets: number[];
-	private readonly classNames: string[];
-	private readonly metadata: number[];
+cwass Stack {
+	pubwic count: numba;
+	pwivate weadonwy stopOffsets: numba[];
+	pwivate weadonwy cwassNames: stwing[];
+	pwivate weadonwy metadata: numba[];
 
-	constructor() {
+	constwuctow() {
 		this.stopOffsets = [];
-		this.classNames = [];
+		this.cwassNames = [];
 		this.metadata = [];
 		this.count = 0;
 	}
 
-	private static _metadata(metadata: number[]): number {
-		let result = 0;
-		for (let i = 0, len = metadata.length; i < len; i++) {
-			result |= metadata[i];
+	pwivate static _metadata(metadata: numba[]): numba {
+		wet wesuwt = 0;
+		fow (wet i = 0, wen = metadata.wength; i < wen; i++) {
+			wesuwt |= metadata[i];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public consumeLowerThan(maxStopOffset: number, nextStartOffset: number, result: DecorationSegment[]): number {
+	pubwic consumeWowewThan(maxStopOffset: numba, nextStawtOffset: numba, wesuwt: DecowationSegment[]): numba {
 
-		while (this.count > 0 && this.stopOffsets[0] < maxStopOffset) {
-			let i = 0;
+		whiwe (this.count > 0 && this.stopOffsets[0] < maxStopOffset) {
+			wet i = 0;
 
-			// Take all equal stopping offsets
-			while (i + 1 < this.count && this.stopOffsets[i] === this.stopOffsets[i + 1]) {
+			// Take aww equaw stopping offsets
+			whiwe (i + 1 < this.count && this.stopOffsets[i] === this.stopOffsets[i + 1]) {
 				i++;
 			}
 
-			// Basically we are consuming the first i + 1 elements of the stack
-			result.push(new DecorationSegment(nextStartOffset, this.stopOffsets[i], this.classNames.join(' '), Stack._metadata(this.metadata)));
-			nextStartOffset = this.stopOffsets[i] + 1;
+			// Basicawwy we awe consuming the fiwst i + 1 ewements of the stack
+			wesuwt.push(new DecowationSegment(nextStawtOffset, this.stopOffsets[i], this.cwassNames.join(' '), Stack._metadata(this.metadata)));
+			nextStawtOffset = this.stopOffsets[i] + 1;
 
 			// Consume them
-			this.stopOffsets.splice(0, i + 1);
-			this.classNames.splice(0, i + 1);
-			this.metadata.splice(0, i + 1);
+			this.stopOffsets.spwice(0, i + 1);
+			this.cwassNames.spwice(0, i + 1);
+			this.metadata.spwice(0, i + 1);
 			this.count -= (i + 1);
 		}
 
-		if (this.count > 0 && nextStartOffset < maxStopOffset) {
-			result.push(new DecorationSegment(nextStartOffset, maxStopOffset - 1, this.classNames.join(' '), Stack._metadata(this.metadata)));
-			nextStartOffset = maxStopOffset;
+		if (this.count > 0 && nextStawtOffset < maxStopOffset) {
+			wesuwt.push(new DecowationSegment(nextStawtOffset, maxStopOffset - 1, this.cwassNames.join(' '), Stack._metadata(this.metadata)));
+			nextStawtOffset = maxStopOffset;
 		}
 
-		return nextStartOffset;
+		wetuwn nextStawtOffset;
 	}
 
-	public insert(stopOffset: number, className: string, metadata: number): void {
+	pubwic insewt(stopOffset: numba, cwassName: stwing, metadata: numba): void {
 		if (this.count === 0 || this.stopOffsets[this.count - 1] <= stopOffset) {
-			// Insert at the end
+			// Insewt at the end
 			this.stopOffsets.push(stopOffset);
-			this.classNames.push(className);
+			this.cwassNames.push(cwassName);
 			this.metadata.push(metadata);
-		} else {
-			// Find the insertion position for `stopOffset`
-			for (let i = 0; i < this.count; i++) {
+		} ewse {
+			// Find the insewtion position fow `stopOffset`
+			fow (wet i = 0; i < this.count; i++) {
 				if (this.stopOffsets[i] >= stopOffset) {
-					this.stopOffsets.splice(i, 0, stopOffset);
-					this.classNames.splice(i, 0, className);
-					this.metadata.splice(i, 0, metadata);
-					break;
+					this.stopOffsets.spwice(i, 0, stopOffset);
+					this.cwassNames.spwice(i, 0, cwassName);
+					this.metadata.spwice(i, 0, metadata);
+					bweak;
 				}
 			}
 		}
 		this.count++;
-		return;
+		wetuwn;
 	}
 }
 
-export class LineDecorationsNormalizer {
+expowt cwass WineDecowationsNowmawiza {
 	/**
-	 * Normalize line decorations. Overlapping decorations will generate multiple segments
+	 * Nowmawize wine decowations. Ovewwapping decowations wiww genewate muwtipwe segments
 	 */
-	public static normalize(lineContent: string, lineDecorations: LineDecoration[]): DecorationSegment[] {
-		if (lineDecorations.length === 0) {
-			return [];
+	pubwic static nowmawize(wineContent: stwing, wineDecowations: WineDecowation[]): DecowationSegment[] {
+		if (wineDecowations.wength === 0) {
+			wetuwn [];
 		}
 
-		let result: DecorationSegment[] = [];
+		wet wesuwt: DecowationSegment[] = [];
 
 		const stack = new Stack();
-		let nextStartOffset = 0;
+		wet nextStawtOffset = 0;
 
-		for (let i = 0, len = lineDecorations.length; i < len; i++) {
-			const d = lineDecorations[i];
-			let startColumn = d.startColumn;
-			let endColumn = d.endColumn;
-			const className = d.className;
+		fow (wet i = 0, wen = wineDecowations.wength; i < wen; i++) {
+			const d = wineDecowations[i];
+			wet stawtCowumn = d.stawtCowumn;
+			wet endCowumn = d.endCowumn;
+			const cwassName = d.cwassName;
 			const metadata = (
-				d.type === InlineDecorationType.Before
-					? LinePartMetadata.PSEUDO_BEFORE
-					: d.type === InlineDecorationType.After
-						? LinePartMetadata.PSEUDO_AFTER
+				d.type === InwineDecowationType.Befowe
+					? WinePawtMetadata.PSEUDO_BEFOWE
+					: d.type === InwineDecowationType.Afta
+						? WinePawtMetadata.PSEUDO_AFTa
 						: 0
 			);
 
-			// If the position would end up in the middle of a high-low surrogate pair, we move it to before the pair
-			if (startColumn > 1) {
-				const charCodeBefore = lineContent.charCodeAt(startColumn - 2);
-				if (strings.isHighSurrogate(charCodeBefore)) {
-					startColumn--;
+			// If the position wouwd end up in the middwe of a high-wow suwwogate paiw, we move it to befowe the paiw
+			if (stawtCowumn > 1) {
+				const chawCodeBefowe = wineContent.chawCodeAt(stawtCowumn - 2);
+				if (stwings.isHighSuwwogate(chawCodeBefowe)) {
+					stawtCowumn--;
 				}
 			}
 
-			if (endColumn > 1) {
-				const charCodeBefore = lineContent.charCodeAt(endColumn - 2);
-				if (strings.isHighSurrogate(charCodeBefore)) {
-					endColumn--;
+			if (endCowumn > 1) {
+				const chawCodeBefowe = wineContent.chawCodeAt(endCowumn - 2);
+				if (stwings.isHighSuwwogate(chawCodeBefowe)) {
+					endCowumn--;
 				}
 			}
 
-			const currentStartOffset = startColumn - 1;
-			const currentEndOffset = endColumn - 2;
+			const cuwwentStawtOffset = stawtCowumn - 1;
+			const cuwwentEndOffset = endCowumn - 2;
 
-			nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
+			nextStawtOffset = stack.consumeWowewThan(cuwwentStawtOffset, nextStawtOffset, wesuwt);
 
 			if (stack.count === 0) {
-				nextStartOffset = currentStartOffset;
+				nextStawtOffset = cuwwentStawtOffset;
 			}
-			stack.insert(currentEndOffset, className, metadata);
+			stack.insewt(cuwwentEndOffset, cwassName, metadata);
 		}
 
-		stack.consumeLowerThan(Constants.MAX_SAFE_SMALL_INTEGER, nextStartOffset, result);
+		stack.consumeWowewThan(Constants.MAX_SAFE_SMAWW_INTEGa, nextStawtOffset, wesuwt);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
 }

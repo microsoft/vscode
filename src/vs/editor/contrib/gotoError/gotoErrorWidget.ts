@@ -1,425 +1,425 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IAction } from 'vs/base/common/actions';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { getBaseLabel } from 'vs/base/common/labels';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { basename } from 'vs/base/common/resources';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { splitLines } from 'vs/base/common/strings';
-import 'vs/css!./media/gotoErrorWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
-import * as nls from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IMarker, IRelatedInformation, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
-import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { getBaseWabew } fwom 'vs/base/common/wabews';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { basename } fwom 'vs/base/common/wesouwces';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { spwitWines } fwom 'vs/base/common/stwings';
+impowt 'vs/css!./media/gotoEwwowWidget';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ScwowwType } fwom 'vs/editow/common/editowCommon';
+impowt { peekViewTitweFowegwound, peekViewTitweInfoFowegwound, PeekViewWidget } fwom 'vs/editow/contwib/peekView/peekView';
+impowt * as nws fwom 'vs/nws';
+impowt { cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IMawka, IWewatedInfowmation, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { SevewityIcon } fwom 'vs/pwatfowm/sevewityIcon/common/sevewityIcon';
+impowt { contwastBowda, editowBackgwound, editowEwwowBowda, editowEwwowFowegwound, editowInfoBowda, editowInfoFowegwound, editowWawningBowda, editowWawningFowegwound, oneOf, wegistewCowow, textWinkActiveFowegwound, textWinkFowegwound, twanspawent } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ICowowTheme, IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-class MessageWidget {
+cwass MessageWidget {
 
-	private _lines: number = 0;
-	private _longestLineLength: number = 0;
+	pwivate _wines: numba = 0;
+	pwivate _wongestWineWength: numba = 0;
 
-	private readonly _editor: ICodeEditor;
-	private readonly _messageBlock: HTMLDivElement;
-	private readonly _relatedBlock: HTMLDivElement;
-	private readonly _scrollable: ScrollableElement;
-	private readonly _relatedDiagnostics = new WeakMap<HTMLElement, IRelatedInformation>();
-	private readonly _disposables: DisposableStore = new DisposableStore();
+	pwivate weadonwy _editow: ICodeEditow;
+	pwivate weadonwy _messageBwock: HTMWDivEwement;
+	pwivate weadonwy _wewatedBwock: HTMWDivEwement;
+	pwivate weadonwy _scwowwabwe: ScwowwabweEwement;
+	pwivate weadonwy _wewatedDiagnostics = new WeakMap<HTMWEwement, IWewatedInfowmation>();
+	pwivate weadonwy _disposabwes: DisposabweStowe = new DisposabweStowe();
 
-	private _codeLink?: HTMLElement;
+	pwivate _codeWink?: HTMWEwement;
 
-	constructor(
-		parent: HTMLElement,
-		editor: ICodeEditor,
-		onRelatedInformation: (related: IRelatedInformation) => void,
-		private readonly _openerService: IOpenerService,
-		private readonly _labelService: ILabelService
+	constwuctow(
+		pawent: HTMWEwement,
+		editow: ICodeEditow,
+		onWewatedInfowmation: (wewated: IWewatedInfowmation) => void,
+		pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		pwivate weadonwy _wabewSewvice: IWabewSewvice
 	) {
-		this._editor = editor;
+		this._editow = editow;
 
-		const domNode = document.createElement('div');
-		domNode.className = 'descriptioncontainer';
+		const domNode = document.cweateEwement('div');
+		domNode.cwassName = 'descwiptioncontaina';
 
-		this._messageBlock = document.createElement('div');
-		this._messageBlock.classList.add('message');
-		this._messageBlock.setAttribute('aria-live', 'assertive');
-		this._messageBlock.setAttribute('role', 'alert');
-		domNode.appendChild(this._messageBlock);
+		this._messageBwock = document.cweateEwement('div');
+		this._messageBwock.cwassWist.add('message');
+		this._messageBwock.setAttwibute('awia-wive', 'assewtive');
+		this._messageBwock.setAttwibute('wowe', 'awewt');
+		domNode.appendChiwd(this._messageBwock);
 
-		this._relatedBlock = document.createElement('div');
-		domNode.appendChild(this._relatedBlock);
-		this._disposables.add(dom.addStandardDisposableListener(this._relatedBlock, 'click', event => {
-			event.preventDefault();
-			const related = this._relatedDiagnostics.get(event.target);
-			if (related) {
-				onRelatedInformation(related);
+		this._wewatedBwock = document.cweateEwement('div');
+		domNode.appendChiwd(this._wewatedBwock);
+		this._disposabwes.add(dom.addStandawdDisposabweWistena(this._wewatedBwock, 'cwick', event => {
+			event.pweventDefauwt();
+			const wewated = this._wewatedDiagnostics.get(event.tawget);
+			if (wewated) {
+				onWewatedInfowmation(wewated);
 			}
 		}));
 
-		this._scrollable = new ScrollableElement(domNode, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
-			horizontalScrollbarSize: 3,
-			verticalScrollbarSize: 3
+		this._scwowwabwe = new ScwowwabweEwement(domNode, {
+			howizontaw: ScwowwbawVisibiwity.Auto,
+			vewticaw: ScwowwbawVisibiwity.Auto,
+			useShadows: fawse,
+			howizontawScwowwbawSize: 3,
+			vewticawScwowwbawSize: 3
 		});
-		parent.appendChild(this._scrollable.getDomNode());
-		this._disposables.add(this._scrollable.onScroll(e => {
-			domNode.style.left = `-${e.scrollLeft}px`;
-			domNode.style.top = `-${e.scrollTop}px`;
+		pawent.appendChiwd(this._scwowwabwe.getDomNode());
+		this._disposabwes.add(this._scwowwabwe.onScwoww(e => {
+			domNode.stywe.weft = `-${e.scwowwWeft}px`;
+			domNode.stywe.top = `-${e.scwowwTop}px`;
 		}));
-		this._disposables.add(this._scrollable);
+		this._disposabwes.add(this._scwowwabwe);
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
+		dispose(this._disposabwes);
 	}
 
-	update(marker: IMarker): void {
-		const { source, message, relatedInformation, code } = marker;
-		let sourceAndCodeLength = (source?.length || 0) + '()'.length;
+	update(mawka: IMawka): void {
+		const { souwce, message, wewatedInfowmation, code } = mawka;
+		wet souwceAndCodeWength = (souwce?.wength || 0) + '()'.wength;
 		if (code) {
-			if (typeof code === 'string') {
-				sourceAndCodeLength += code.length;
-			} else {
-				sourceAndCodeLength += code.value.length;
+			if (typeof code === 'stwing') {
+				souwceAndCodeWength += code.wength;
+			} ewse {
+				souwceAndCodeWength += code.vawue.wength;
 			}
 		}
 
-		const lines = splitLines(message);
-		this._lines = lines.length;
-		this._longestLineLength = 0;
-		for (const line of lines) {
-			this._longestLineLength = Math.max(line.length + sourceAndCodeLength, this._longestLineLength);
+		const wines = spwitWines(message);
+		this._wines = wines.wength;
+		this._wongestWineWength = 0;
+		fow (const wine of wines) {
+			this._wongestWineWength = Math.max(wine.wength + souwceAndCodeWength, this._wongestWineWength);
 		}
 
-		dom.clearNode(this._messageBlock);
-		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
-		this._editor.applyFontInfo(this._messageBlock);
-		let lastLineElement = this._messageBlock;
-		for (const line of lines) {
-			lastLineElement = document.createElement('div');
-			lastLineElement.innerText = line;
-			if (line === '') {
-				lastLineElement.style.height = this._messageBlock.style.lineHeight;
+		dom.cweawNode(this._messageBwock);
+		this._messageBwock.setAttwibute('awia-wabew', this.getAwiaWabew(mawka));
+		this._editow.appwyFontInfo(this._messageBwock);
+		wet wastWineEwement = this._messageBwock;
+		fow (const wine of wines) {
+			wastWineEwement = document.cweateEwement('div');
+			wastWineEwement.innewText = wine;
+			if (wine === '') {
+				wastWineEwement.stywe.height = this._messageBwock.stywe.wineHeight;
 			}
-			this._messageBlock.appendChild(lastLineElement);
+			this._messageBwock.appendChiwd(wastWineEwement);
 		}
-		if (source || code) {
-			const detailsElement = document.createElement('span');
-			detailsElement.classList.add('details');
-			lastLineElement.appendChild(detailsElement);
-			if (source) {
-				const sourceElement = document.createElement('span');
-				sourceElement.innerText = source;
-				sourceElement.classList.add('source');
-				detailsElement.appendChild(sourceElement);
+		if (souwce || code) {
+			const detaiwsEwement = document.cweateEwement('span');
+			detaiwsEwement.cwassWist.add('detaiws');
+			wastWineEwement.appendChiwd(detaiwsEwement);
+			if (souwce) {
+				const souwceEwement = document.cweateEwement('span');
+				souwceEwement.innewText = souwce;
+				souwceEwement.cwassWist.add('souwce');
+				detaiwsEwement.appendChiwd(souwceEwement);
 			}
 			if (code) {
-				if (typeof code === 'string') {
-					const codeElement = document.createElement('span');
-					codeElement.innerText = `(${code})`;
-					codeElement.classList.add('code');
-					detailsElement.appendChild(codeElement);
-				} else {
-					this._codeLink = dom.$('a.code-link');
-					this._codeLink.setAttribute('href', `${code.target.toString()}`);
+				if (typeof code === 'stwing') {
+					const codeEwement = document.cweateEwement('span');
+					codeEwement.innewText = `(${code})`;
+					codeEwement.cwassWist.add('code');
+					detaiwsEwement.appendChiwd(codeEwement);
+				} ewse {
+					this._codeWink = dom.$('a.code-wink');
+					this._codeWink.setAttwibute('hwef', `${code.tawget.toStwing()}`);
 
-					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target, { allowCommands: true });
-						e.preventDefault();
-						e.stopPropagation();
+					this._codeWink.oncwick = (e) => {
+						this._openewSewvice.open(code.tawget, { awwowCommands: twue });
+						e.pweventDefauwt();
+						e.stopPwopagation();
 					};
 
-					const codeElement = dom.append(this._codeLink, dom.$('span'));
-					codeElement.innerText = code.value;
-					detailsElement.appendChild(this._codeLink);
+					const codeEwement = dom.append(this._codeWink, dom.$('span'));
+					codeEwement.innewText = code.vawue;
+					detaiwsEwement.appendChiwd(this._codeWink);
 				}
 			}
 		}
 
-		dom.clearNode(this._relatedBlock);
-		this._editor.applyFontInfo(this._relatedBlock);
-		if (isNonEmptyArray(relatedInformation)) {
-			const relatedInformationNode = this._relatedBlock.appendChild(document.createElement('div'));
-			relatedInformationNode.style.paddingTop = `${Math.floor(this._editor.getOption(EditorOption.lineHeight) * 0.66)}px`;
-			this._lines += 1;
+		dom.cweawNode(this._wewatedBwock);
+		this._editow.appwyFontInfo(this._wewatedBwock);
+		if (isNonEmptyAwway(wewatedInfowmation)) {
+			const wewatedInfowmationNode = this._wewatedBwock.appendChiwd(document.cweateEwement('div'));
+			wewatedInfowmationNode.stywe.paddingTop = `${Math.fwoow(this._editow.getOption(EditowOption.wineHeight) * 0.66)}px`;
+			this._wines += 1;
 
-			for (const related of relatedInformation) {
+			fow (const wewated of wewatedInfowmation) {
 
-				let container = document.createElement('div');
+				wet containa = document.cweateEwement('div');
 
-				let relatedResource = document.createElement('a');
-				relatedResource.classList.add('filename');
-				relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
-				relatedResource.title = this._labelService.getUriLabel(related.resource);
-				this._relatedDiagnostics.set(relatedResource, related);
+				wet wewatedWesouwce = document.cweateEwement('a');
+				wewatedWesouwce.cwassWist.add('fiwename');
+				wewatedWesouwce.innewText = `${getBaseWabew(wewated.wesouwce)}(${wewated.stawtWineNumba}, ${wewated.stawtCowumn}): `;
+				wewatedWesouwce.titwe = this._wabewSewvice.getUwiWabew(wewated.wesouwce);
+				this._wewatedDiagnostics.set(wewatedWesouwce, wewated);
 
-				let relatedMessage = document.createElement('span');
-				relatedMessage.innerText = related.message;
+				wet wewatedMessage = document.cweateEwement('span');
+				wewatedMessage.innewText = wewated.message;
 
-				container.appendChild(relatedResource);
-				container.appendChild(relatedMessage);
+				containa.appendChiwd(wewatedWesouwce);
+				containa.appendChiwd(wewatedMessage);
 
-				this._lines += 1;
-				relatedInformationNode.appendChild(container);
+				this._wines += 1;
+				wewatedInfowmationNode.appendChiwd(containa);
 			}
 		}
 
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		const scrollWidth = Math.ceil(fontInfo.typicalFullwidthCharacterWidth * this._longestLineLength * 0.75);
-		const scrollHeight = fontInfo.lineHeight * this._lines;
-		this._scrollable.setScrollDimensions({ scrollWidth, scrollHeight });
+		const fontInfo = this._editow.getOption(EditowOption.fontInfo);
+		const scwowwWidth = Math.ceiw(fontInfo.typicawFuwwwidthChawactewWidth * this._wongestWineWength * 0.75);
+		const scwowwHeight = fontInfo.wineHeight * this._wines;
+		this._scwowwabwe.setScwowwDimensions({ scwowwWidth, scwowwHeight });
 	}
 
-	layout(height: number, width: number): void {
-		this._scrollable.getDomNode().style.height = `${height}px`;
-		this._scrollable.getDomNode().style.width = `${width}px`;
-		this._scrollable.setScrollDimensions({ width, height });
+	wayout(height: numba, width: numba): void {
+		this._scwowwabwe.getDomNode().stywe.height = `${height}px`;
+		this._scwowwabwe.getDomNode().stywe.width = `${width}px`;
+		this._scwowwabwe.setScwowwDimensions({ width, height });
 	}
 
-	getHeightInLines(): number {
-		return Math.min(17, this._lines);
+	getHeightInWines(): numba {
+		wetuwn Math.min(17, this._wines);
 	}
 
-	private getAriaLabel(marker: IMarker): string {
-		let severityLabel = '';
-		switch (marker.severity) {
-			case MarkerSeverity.Error:
-				severityLabel = nls.localize('Error', "Error");
-				break;
-			case MarkerSeverity.Warning:
-				severityLabel = nls.localize('Warning', "Warning");
-				break;
-			case MarkerSeverity.Info:
-				severityLabel = nls.localize('Info', "Info");
-				break;
-			case MarkerSeverity.Hint:
-				severityLabel = nls.localize('Hint', "Hint");
-				break;
+	pwivate getAwiaWabew(mawka: IMawka): stwing {
+		wet sevewityWabew = '';
+		switch (mawka.sevewity) {
+			case MawkewSevewity.Ewwow:
+				sevewityWabew = nws.wocawize('Ewwow', "Ewwow");
+				bweak;
+			case MawkewSevewity.Wawning:
+				sevewityWabew = nws.wocawize('Wawning', "Wawning");
+				bweak;
+			case MawkewSevewity.Info:
+				sevewityWabew = nws.wocawize('Info', "Info");
+				bweak;
+			case MawkewSevewity.Hint:
+				sevewityWabew = nws.wocawize('Hint', "Hint");
+				bweak;
 		}
 
-		let ariaLabel = nls.localize('marker aria', "{0} at {1}. ", severityLabel, marker.startLineNumber + ':' + marker.startColumn);
-		const model = this._editor.getModel();
-		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
-			const lineContent = model.getLineContent(marker.startLineNumber);
-			ariaLabel = `${lineContent}, ${ariaLabel}`;
+		wet awiaWabew = nws.wocawize('mawka awia', "{0} at {1}. ", sevewityWabew, mawka.stawtWineNumba + ':' + mawka.stawtCowumn);
+		const modew = this._editow.getModew();
+		if (modew && (mawka.stawtWineNumba <= modew.getWineCount()) && (mawka.stawtWineNumba >= 1)) {
+			const wineContent = modew.getWineContent(mawka.stawtWineNumba);
+			awiaWabew = `${wineContent}, ${awiaWabew}`;
 		}
-		return ariaLabel;
+		wetuwn awiaWabew;
 	}
 }
 
-export class MarkerNavigationWidget extends PeekViewWidget {
+expowt cwass MawkewNavigationWidget extends PeekViewWidget {
 
-	static readonly TitleMenu = new MenuId('gotoErrorTitleMenu');
+	static weadonwy TitweMenu = new MenuId('gotoEwwowTitweMenu');
 
-	private _parentContainer!: HTMLElement;
-	private _container!: HTMLElement;
-	private _icon!: HTMLElement;
-	private _message!: MessageWidget;
-	private readonly _callOnDispose = new DisposableStore();
-	private _severity: MarkerSeverity;
-	private _backgroundColor?: Color;
-	private readonly _onDidSelectRelatedInformation = new Emitter<IRelatedInformation>();
-	private _heightInPixel!: number;
+	pwivate _pawentContaina!: HTMWEwement;
+	pwivate _containa!: HTMWEwement;
+	pwivate _icon!: HTMWEwement;
+	pwivate _message!: MessageWidget;
+	pwivate weadonwy _cawwOnDispose = new DisposabweStowe();
+	pwivate _sevewity: MawkewSevewity;
+	pwivate _backgwoundCowow?: Cowow;
+	pwivate weadonwy _onDidSewectWewatedInfowmation = new Emitta<IWewatedInfowmation>();
+	pwivate _heightInPixew!: numba;
 
-	readonly onDidSelectRelatedInformation: Event<IRelatedInformation> = this._onDidSelectRelatedInformation.event;
+	weadonwy onDidSewectWewatedInfowmation: Event<IWewatedInfowmation> = this._onDidSewectWewatedInfowmation.event;
 
-	constructor(
-		editor: ICodeEditor,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IMenuService private readonly _menuService: IMenuService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILabelService private readonly _labelService: ILabelService
+	constwuctow(
+		editow: ICodeEditow,
+		@IThemeSewvice pwivate weadonwy _themeSewvice: IThemeSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice,
+		@IMenuSewvice pwivate weadonwy _menuSewvice: IMenuSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IWabewSewvice pwivate weadonwy _wabewSewvice: IWabewSewvice
 	) {
-		super(editor, { showArrow: true, showFrame: true, isAccessible: true, frameWidth: 1 }, instantiationService);
-		this._severity = MarkerSeverity.Warning;
-		this._backgroundColor = Color.white;
+		supa(editow, { showAwwow: twue, showFwame: twue, isAccessibwe: twue, fwameWidth: 1 }, instantiationSewvice);
+		this._sevewity = MawkewSevewity.Wawning;
+		this._backgwoundCowow = Cowow.white;
 
-		this._applyTheme(_themeService.getColorTheme());
-		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
+		this._appwyTheme(_themeSewvice.getCowowTheme());
+		this._cawwOnDispose.add(_themeSewvice.onDidCowowThemeChange(this._appwyTheme.bind(this)));
 
-		this.create();
+		this.cweate();
 	}
 
-	private _applyTheme(theme: IColorTheme) {
-		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
-		let colorId = editorMarkerNavigationError;
-		let headerBackground = editorMarkerNavigationErrorHeader;
+	pwivate _appwyTheme(theme: ICowowTheme) {
+		this._backgwoundCowow = theme.getCowow(editowMawkewNavigationBackgwound);
+		wet cowowId = editowMawkewNavigationEwwow;
+		wet headewBackgwound = editowMawkewNavigationEwwowHeada;
 
-		if (this._severity === MarkerSeverity.Warning) {
-			colorId = editorMarkerNavigationWarning;
-			headerBackground = editorMarkerNavigationWarningHeader;
-		} else if (this._severity === MarkerSeverity.Info) {
-			colorId = editorMarkerNavigationInfo;
-			headerBackground = editorMarkerNavigationInfoHeader;
+		if (this._sevewity === MawkewSevewity.Wawning) {
+			cowowId = editowMawkewNavigationWawning;
+			headewBackgwound = editowMawkewNavigationWawningHeada;
+		} ewse if (this._sevewity === MawkewSevewity.Info) {
+			cowowId = editowMawkewNavigationInfo;
+			headewBackgwound = editowMawkewNavigationInfoHeada;
 		}
 
-		const frameColor = theme.getColor(colorId);
-		const headerBg = theme.getColor(headerBackground);
+		const fwameCowow = theme.getCowow(cowowId);
+		const headewBg = theme.getCowow(headewBackgwound);
 
-		this.style({
-			arrowColor: frameColor,
-			frameColor: frameColor,
-			headerBackgroundColor: headerBg,
-			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
-			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
-		}); // style() will trigger _applyStyles
+		this.stywe({
+			awwowCowow: fwameCowow,
+			fwameCowow: fwameCowow,
+			headewBackgwoundCowow: headewBg,
+			pwimawyHeadingCowow: theme.getCowow(peekViewTitweFowegwound),
+			secondawyHeadingCowow: theme.getCowow(peekViewTitweInfoFowegwound)
+		}); // stywe() wiww twigga _appwyStywes
 	}
 
-	protected override _applyStyles(): void {
-		if (this._parentContainer) {
-			this._parentContainer.style.backgroundColor = this._backgroundColor ? this._backgroundColor.toString() : '';
+	pwotected ovewwide _appwyStywes(): void {
+		if (this._pawentContaina) {
+			this._pawentContaina.stywe.backgwoundCowow = this._backgwoundCowow ? this._backgwoundCowow.toStwing() : '';
 		}
-		super._applyStyles();
+		supa._appwyStywes();
 	}
 
-	override dispose(): void {
-		this._callOnDispose.dispose();
-		super.dispose();
+	ovewwide dispose(): void {
+		this._cawwOnDispose.dispose();
+		supa.dispose();
 	}
 
 	focus(): void {
-		this._parentContainer.focus();
+		this._pawentContaina.focus();
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container);
+	pwotected ovewwide _fiwwHead(containa: HTMWEwement): void {
+		supa._fiwwHead(containa);
 
-		this._disposables.add(this._actionbarWidget!.actionRunner.onBeforeRun(e => this.editor.focus()));
+		this._disposabwes.add(this._actionbawWidget!.actionWunna.onBefoweWun(e => this.editow.focus()));
 
 		const actions: IAction[] = [];
-		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
-		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		const menu = this._menuSewvice.cweateMenu(MawkewNavigationWidget.TitweMenu, this._contextKeySewvice);
+		cweateAndFiwwInActionBawActions(menu, undefined, actions);
+		this._actionbawWidget!.push(actions, { wabew: fawse, icon: twue, index: 0 });
 		menu.dispose();
 	}
 
-	protected override _fillTitleIcon(container: HTMLElement): void {
-		this._icon = dom.append(container, dom.$(''));
+	pwotected ovewwide _fiwwTitweIcon(containa: HTMWEwement): void {
+		this._icon = dom.append(containa, dom.$(''));
 	}
 
-	protected _fillBody(container: HTMLElement): void {
-		this._parentContainer = container;
-		container.classList.add('marker-widget');
-		this._parentContainer.tabIndex = 0;
-		this._parentContainer.setAttribute('role', 'tooltip');
+	pwotected _fiwwBody(containa: HTMWEwement): void {
+		this._pawentContaina = containa;
+		containa.cwassWist.add('mawka-widget');
+		this._pawentContaina.tabIndex = 0;
+		this._pawentContaina.setAttwibute('wowe', 'toowtip');
 
-		this._container = document.createElement('div');
-		container.appendChild(this._container);
+		this._containa = document.cweateEwement('div');
+		containa.appendChiwd(this._containa);
 
-		this._message = new MessageWidget(this._container, this.editor, related => this._onDidSelectRelatedInformation.fire(related), this._openerService, this._labelService);
-		this._disposables.add(this._message);
+		this._message = new MessageWidget(this._containa, this.editow, wewated => this._onDidSewectWewatedInfowmation.fiwe(wewated), this._openewSewvice, this._wabewSewvice);
+		this._disposabwes.add(this._message);
 	}
 
-	override show(): void {
-		throw new Error('call showAtMarker');
+	ovewwide show(): void {
+		thwow new Ewwow('caww showAtMawka');
 	}
 
-	showAtMarker(marker: IMarker, markerIdx: number, markerCount: number): void {
+	showAtMawka(mawka: IMawka, mawkewIdx: numba, mawkewCount: numba): void {
 		// update:
-		// * title
+		// * titwe
 		// * message
-		this._container.classList.remove('stale');
-		this._message.update(marker);
+		this._containa.cwassWist.wemove('stawe');
+		this._message.update(mawka);
 
-		// update frame color (only applied on 'show')
-		this._severity = marker.severity;
-		this._applyTheme(this._themeService.getColorTheme());
+		// update fwame cowow (onwy appwied on 'show')
+		this._sevewity = mawka.sevewity;
+		this._appwyTheme(this._themeSewvice.getCowowTheme());
 
 		// show
-		let range = Range.lift(marker);
-		const editorPosition = this.editor.getPosition();
-		let position = editorPosition && range.containsPosition(editorPosition) ? editorPosition : range.getStartPosition();
-		super.show(position, this.computeRequiredHeight());
+		wet wange = Wange.wift(mawka);
+		const editowPosition = this.editow.getPosition();
+		wet position = editowPosition && wange.containsPosition(editowPosition) ? editowPosition : wange.getStawtPosition();
+		supa.show(position, this.computeWequiwedHeight());
 
-		const model = this.editor.getModel();
-		if (model) {
-			const detail = markerCount > 1
-				? nls.localize('problems', "{0} of {1} problems", markerIdx, markerCount)
-				: nls.localize('change', "{0} of {1} problem", markerIdx, markerCount);
-			this.setTitle(basename(model.uri), detail);
+		const modew = this.editow.getModew();
+		if (modew) {
+			const detaiw = mawkewCount > 1
+				? nws.wocawize('pwobwems', "{0} of {1} pwobwems", mawkewIdx, mawkewCount)
+				: nws.wocawize('change', "{0} of {1} pwobwem", mawkewIdx, mawkewCount);
+			this.setTitwe(basename(modew.uwi), detaiw);
 		}
-		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
+		this._icon.cwassName = `codicon ${SevewityIcon.cwassName(MawkewSevewity.toSevewity(this._sevewity))}`;
 
-		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
-		this.editor.focus();
+		this.editow.weveawPositionNeawTop(position, ScwowwType.Smooth);
+		this.editow.focus();
 	}
 
-	updateMarker(marker: IMarker): void {
-		this._container.classList.remove('stale');
-		this._message.update(marker);
+	updateMawka(mawka: IMawka): void {
+		this._containa.cwassWist.wemove('stawe');
+		this._message.update(mawka);
 	}
 
-	showStale() {
-		this._container.classList.add('stale');
-		this._relayout();
+	showStawe() {
+		this._containa.cwassWist.add('stawe');
+		this._wewayout();
 	}
 
-	protected override _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
-		super._doLayoutBody(heightInPixel, widthInPixel);
-		this._heightInPixel = heightInPixel;
-		this._message.layout(heightInPixel, widthInPixel);
-		this._container.style.height = `${heightInPixel}px`;
+	pwotected ovewwide _doWayoutBody(heightInPixew: numba, widthInPixew: numba): void {
+		supa._doWayoutBody(heightInPixew, widthInPixew);
+		this._heightInPixew = heightInPixew;
+		this._message.wayout(heightInPixew, widthInPixew);
+		this._containa.stywe.height = `${heightInPixew}px`;
 	}
 
-	public override _onWidth(widthInPixel: number): void {
-		this._message.layout(this._heightInPixel, widthInPixel);
+	pubwic ovewwide _onWidth(widthInPixew: numba): void {
+		this._message.wayout(this._heightInPixew, widthInPixew);
 	}
 
-	protected override _relayout(): void {
-		super._relayout(this.computeRequiredHeight());
+	pwotected ovewwide _wewayout(): void {
+		supa._wewayout(this.computeWequiwedHeight());
 	}
 
-	private computeRequiredHeight() {
-		return 3 + this._message.getHeightInLines();
+	pwivate computeWequiwedHeight() {
+		wetuwn 3 + this._message.getHeightInWines();
 	}
 }
 
 // theming
 
-let errorDefault = oneOf(editorErrorForeground, editorErrorBorder);
-let warningDefault = oneOf(editorWarningForeground, editorWarningBorder);
-let infoDefault = oneOf(editorInfoForeground, editorInfoBorder);
+wet ewwowDefauwt = oneOf(editowEwwowFowegwound, editowEwwowBowda);
+wet wawningDefauwt = oneOf(editowWawningFowegwound, editowWawningBowda);
+wet infoDefauwt = oneOf(editowInfoFowegwound, editowInfoBowda);
 
-export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: errorDefault, light: errorDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
-export const editorMarkerNavigationErrorHeader = registerColor('editorMarkerNavigationError.headerBackground', { dark: transparent(editorMarkerNavigationError, .1), light: transparent(editorMarkerNavigationError, .1), hc: null }, nls.localize('editorMarkerNavigationErrorHeaderBackground', 'Editor marker navigation widget error heading background.'));
+expowt const editowMawkewNavigationEwwow = wegistewCowow('editowMawkewNavigationEwwow.backgwound', { dawk: ewwowDefauwt, wight: ewwowDefauwt, hc: contwastBowda }, nws.wocawize('editowMawkewNavigationEwwow', 'Editow mawka navigation widget ewwow cowow.'));
+expowt const editowMawkewNavigationEwwowHeada = wegistewCowow('editowMawkewNavigationEwwow.headewBackgwound', { dawk: twanspawent(editowMawkewNavigationEwwow, .1), wight: twanspawent(editowMawkewNavigationEwwow, .1), hc: nuww }, nws.wocawize('editowMawkewNavigationEwwowHeadewBackgwound', 'Editow mawka navigation widget ewwow heading backgwound.'));
 
-export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: warningDefault, light: warningDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
-export const editorMarkerNavigationWarningHeader = registerColor('editorMarkerNavigationWarning.headerBackground', { dark: transparent(editorMarkerNavigationWarning, .1), light: transparent(editorMarkerNavigationWarning, .1), hc: '#0C141F' }, nls.localize('editorMarkerNavigationWarningBackground', 'Editor marker navigation widget warning heading background.'));
+expowt const editowMawkewNavigationWawning = wegistewCowow('editowMawkewNavigationWawning.backgwound', { dawk: wawningDefauwt, wight: wawningDefauwt, hc: contwastBowda }, nws.wocawize('editowMawkewNavigationWawning', 'Editow mawka navigation widget wawning cowow.'));
+expowt const editowMawkewNavigationWawningHeada = wegistewCowow('editowMawkewNavigationWawning.headewBackgwound', { dawk: twanspawent(editowMawkewNavigationWawning, .1), wight: twanspawent(editowMawkewNavigationWawning, .1), hc: '#0C141F' }, nws.wocawize('editowMawkewNavigationWawningBackgwound', 'Editow mawka navigation widget wawning heading backgwound.'));
 
-export const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hc: contrastBorder }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
-export const editorMarkerNavigationInfoHeader = registerColor('editorMarkerNavigationInfo.headerBackground', { dark: transparent(editorMarkerNavigationInfo, .1), light: transparent(editorMarkerNavigationInfo, .1), hc: null }, nls.localize('editorMarkerNavigationInfoHeaderBackground', 'Editor marker navigation widget info heading background.'));
+expowt const editowMawkewNavigationInfo = wegistewCowow('editowMawkewNavigationInfo.backgwound', { dawk: infoDefauwt, wight: infoDefauwt, hc: contwastBowda }, nws.wocawize('editowMawkewNavigationInfo', 'Editow mawka navigation widget info cowow.'));
+expowt const editowMawkewNavigationInfoHeada = wegistewCowow('editowMawkewNavigationInfo.headewBackgwound', { dawk: twanspawent(editowMawkewNavigationInfo, .1), wight: twanspawent(editowMawkewNavigationInfo, .1), hc: nuww }, nws.wocawize('editowMawkewNavigationInfoHeadewBackgwound', 'Editow mawka navigation widget info heading backgwound.'));
 
-export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+expowt const editowMawkewNavigationBackgwound = wegistewCowow('editowMawkewNavigation.backgwound', { dawk: editowBackgwound, wight: editowBackgwound, hc: editowBackgwound }, nws.wocawize('editowMawkewNavigationBackgwound', 'Editow mawka navigation widget backgwound.'));
 
-registerThemingParticipant((theme, collector) => {
-	const linkFg = theme.getColor(textLinkForeground);
-	if (linkFg) {
-		collector.addRule(`.monaco-editor .marker-widget a.code-link span { color: ${linkFg}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const winkFg = theme.getCowow(textWinkFowegwound);
+	if (winkFg) {
+		cowwectow.addWuwe(`.monaco-editow .mawka-widget a.code-wink span { cowow: ${winkFg}; }`);
 	}
-	const activeLinkFg = theme.getColor(textLinkActiveForeground);
-	if (activeLinkFg) {
-		collector.addRule(`.monaco-editor .marker-widget a.code-link span:hover { color: ${activeLinkFg}; }`);
+	const activeWinkFg = theme.getCowow(textWinkActiveFowegwound);
+	if (activeWinkFg) {
+		cowwectow.addWuwe(`.monaco-editow .mawka-widget a.code-wink span:hova { cowow: ${activeWinkFg}; }`);
 	}
 });

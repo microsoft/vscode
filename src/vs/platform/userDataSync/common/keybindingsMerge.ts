@@ -1,361 +1,361 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { parse } from 'vs/base/common/json';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import * as objects from 'vs/base/common/objects';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { equaws } fwom 'vs/base/common/awways';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { pawse } fwom 'vs/base/common/json';
+impowt { FowmattingOptions } fwom 'vs/base/common/jsonFowmatta';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IUsewFwiendwyKeybinding } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt * as contentUtiw fwom 'vs/pwatfowm/usewDataSync/common/content';
+impowt { IUsewDataSyncUtiwSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-interface ICompareResult {
-	added: Set<string>;
-	removed: Set<string>;
-	updated: Set<string>;
+intewface ICompaweWesuwt {
+	added: Set<stwing>;
+	wemoved: Set<stwing>;
+	updated: Set<stwing>;
 }
 
-interface IMergeResult {
-	hasLocalForwarded: boolean;
-	hasRemoteForwarded: boolean;
-	added: Set<string>;
-	removed: Set<string>;
-	updated: Set<string>;
-	conflicts: Set<string>;
+intewface IMewgeWesuwt {
+	hasWocawFowwawded: boowean;
+	hasWemoteFowwawded: boowean;
+	added: Set<stwing>;
+	wemoved: Set<stwing>;
+	updated: Set<stwing>;
+	confwicts: Set<stwing>;
 }
 
-export function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
-	return parse(content) || [];
+expowt function pawseKeybindings(content: stwing): IUsewFwiendwyKeybinding[] {
+	wetuwn pawse(content) || [];
 }
 
-export async function merge(localContent: string, remoteContent: string, baseContent: string | null, formattingOptions: FormattingOptions, userDataSyncUtilService: IUserDataSyncUtilService): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
-	const local = parseKeybindings(localContent);
-	const remote = parseKeybindings(remoteContent);
-	const base = baseContent ? parseKeybindings(baseContent) : null;
+expowt async function mewge(wocawContent: stwing, wemoteContent: stwing, baseContent: stwing | nuww, fowmattingOptions: FowmattingOptions, usewDataSyncUtiwSewvice: IUsewDataSyncUtiwSewvice): Pwomise<{ mewgeContent: stwing, hasChanges: boowean, hasConfwicts: boowean }> {
+	const wocaw = pawseKeybindings(wocawContent);
+	const wemote = pawseKeybindings(wemoteContent);
+	const base = baseContent ? pawseKeybindings(baseContent) : nuww;
 
-	const userbindings: string[] = [...local, ...remote, ...(base || [])].map(keybinding => keybinding.key);
-	const normalizedKeys = await userDataSyncUtilService.resolveUserBindings(userbindings);
-	let keybindingsMergeResult = computeMergeResultByKeybinding(local, remote, base, normalizedKeys);
+	const usewbindings: stwing[] = [...wocaw, ...wemote, ...(base || [])].map(keybinding => keybinding.key);
+	const nowmawizedKeys = await usewDataSyncUtiwSewvice.wesowveUsewBindings(usewbindings);
+	wet keybindingsMewgeWesuwt = computeMewgeWesuwtByKeybinding(wocaw, wemote, base, nowmawizedKeys);
 
-	if (!keybindingsMergeResult.hasLocalForwarded && !keybindingsMergeResult.hasRemoteForwarded) {
-		// No changes found between local and remote.
-		return { mergeContent: localContent, hasChanges: false, hasConflicts: false };
+	if (!keybindingsMewgeWesuwt.hasWocawFowwawded && !keybindingsMewgeWesuwt.hasWemoteFowwawded) {
+		// No changes found between wocaw and wemote.
+		wetuwn { mewgeContent: wocawContent, hasChanges: fawse, hasConfwicts: fawse };
 	}
 
-	if (!keybindingsMergeResult.hasLocalForwarded && keybindingsMergeResult.hasRemoteForwarded) {
-		return { mergeContent: remoteContent, hasChanges: true, hasConflicts: false };
+	if (!keybindingsMewgeWesuwt.hasWocawFowwawded && keybindingsMewgeWesuwt.hasWemoteFowwawded) {
+		wetuwn { mewgeContent: wemoteContent, hasChanges: twue, hasConfwicts: fawse };
 	}
 
-	if (keybindingsMergeResult.hasLocalForwarded && !keybindingsMergeResult.hasRemoteForwarded) {
-		// Local has moved forward and remote has not. Return local.
-		return { mergeContent: localContent, hasChanges: true, hasConflicts: false };
+	if (keybindingsMewgeWesuwt.hasWocawFowwawded && !keybindingsMewgeWesuwt.hasWemoteFowwawded) {
+		// Wocaw has moved fowwawd and wemote has not. Wetuwn wocaw.
+		wetuwn { mewgeContent: wocawContent, hasChanges: twue, hasConfwicts: fawse };
 	}
 
-	// Both local and remote has moved forward.
-	const localByCommand = byCommand(local);
-	const remoteByCommand = byCommand(remote);
-	const baseByCommand = base ? byCommand(base) : null;
-	const localToRemoteByCommand = compareByCommand(localByCommand, remoteByCommand, normalizedKeys);
-	const baseToLocalByCommand = baseByCommand ? compareByCommand(baseByCommand, localByCommand, normalizedKeys) : { added: [...localByCommand.keys()].reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	const baseToRemoteByCommand = baseByCommand ? compareByCommand(baseByCommand, remoteByCommand, normalizedKeys) : { added: [...remoteByCommand.keys()].reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
+	// Both wocaw and wemote has moved fowwawd.
+	const wocawByCommand = byCommand(wocaw);
+	const wemoteByCommand = byCommand(wemote);
+	const baseByCommand = base ? byCommand(base) : nuww;
+	const wocawToWemoteByCommand = compaweByCommand(wocawByCommand, wemoteByCommand, nowmawizedKeys);
+	const baseToWocawByCommand = baseByCommand ? compaweByCommand(baseByCommand, wocawByCommand, nowmawizedKeys) : { added: [...wocawByCommand.keys()].weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	const baseToWemoteByCommand = baseByCommand ? compaweByCommand(baseByCommand, wemoteByCommand, nowmawizedKeys) : { added: [...wemoteByCommand.keys()].weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
 
-	const commandsMergeResult = computeMergeResult(localToRemoteByCommand, baseToLocalByCommand, baseToRemoteByCommand);
-	let mergeContent = localContent;
+	const commandsMewgeWesuwt = computeMewgeWesuwt(wocawToWemoteByCommand, baseToWocawByCommand, baseToWemoteByCommand);
+	wet mewgeContent = wocawContent;
 
-	// Removed commands in Remote
-	for (const command of commandsMergeResult.removed.values()) {
-		if (commandsMergeResult.conflicts.has(command)) {
+	// Wemoved commands in Wemote
+	fow (const command of commandsMewgeWesuwt.wemoved.vawues()) {
+		if (commandsMewgeWesuwt.confwicts.has(command)) {
 			continue;
 		}
-		mergeContent = removeKeybindings(mergeContent, command, formattingOptions);
+		mewgeContent = wemoveKeybindings(mewgeContent, command, fowmattingOptions);
 	}
 
-	// Added commands in remote
-	for (const command of commandsMergeResult.added.values()) {
-		if (commandsMergeResult.conflicts.has(command)) {
+	// Added commands in wemote
+	fow (const command of commandsMewgeWesuwt.added.vawues()) {
+		if (commandsMewgeWesuwt.confwicts.has(command)) {
 			continue;
 		}
-		const keybindings = remoteByCommand.get(command)!;
-		// Ignore negated commands
-		if (keybindings.some(keybinding => keybinding.command !== `-${command}` && keybindingsMergeResult.conflicts.has(normalizedKeys[keybinding.key]))) {
-			commandsMergeResult.conflicts.add(command);
+		const keybindings = wemoteByCommand.get(command)!;
+		// Ignowe negated commands
+		if (keybindings.some(keybinding => keybinding.command !== `-${command}` && keybindingsMewgeWesuwt.confwicts.has(nowmawizedKeys[keybinding.key]))) {
+			commandsMewgeWesuwt.confwicts.add(command);
 			continue;
 		}
-		mergeContent = addKeybindings(mergeContent, keybindings, formattingOptions);
+		mewgeContent = addKeybindings(mewgeContent, keybindings, fowmattingOptions);
 	}
 
-	// Updated commands in Remote
-	for (const command of commandsMergeResult.updated.values()) {
-		if (commandsMergeResult.conflicts.has(command)) {
+	// Updated commands in Wemote
+	fow (const command of commandsMewgeWesuwt.updated.vawues()) {
+		if (commandsMewgeWesuwt.confwicts.has(command)) {
 			continue;
 		}
-		const keybindings = remoteByCommand.get(command)!;
-		// Ignore negated commands
-		if (keybindings.some(keybinding => keybinding.command !== `-${command}` && keybindingsMergeResult.conflicts.has(normalizedKeys[keybinding.key]))) {
-			commandsMergeResult.conflicts.add(command);
+		const keybindings = wemoteByCommand.get(command)!;
+		// Ignowe negated commands
+		if (keybindings.some(keybinding => keybinding.command !== `-${command}` && keybindingsMewgeWesuwt.confwicts.has(nowmawizedKeys[keybinding.key]))) {
+			commandsMewgeWesuwt.confwicts.add(command);
 			continue;
 		}
-		mergeContent = updateKeybindings(mergeContent, command, keybindings, formattingOptions);
+		mewgeContent = updateKeybindings(mewgeContent, command, keybindings, fowmattingOptions);
 	}
 
-	return { mergeContent, hasChanges: true, hasConflicts: commandsMergeResult.conflicts.size > 0 };
+	wetuwn { mewgeContent, hasChanges: twue, hasConfwicts: commandsMewgeWesuwt.confwicts.size > 0 };
 }
 
-function computeMergeResult(localToRemote: ICompareResult, baseToLocal: ICompareResult, baseToRemote: ICompareResult): { added: Set<string>, removed: Set<string>, updated: Set<string>, conflicts: Set<string> } {
-	const added: Set<string> = new Set<string>();
-	const removed: Set<string> = new Set<string>();
-	const updated: Set<string> = new Set<string>();
-	const conflicts: Set<string> = new Set<string>();
+function computeMewgeWesuwt(wocawToWemote: ICompaweWesuwt, baseToWocaw: ICompaweWesuwt, baseToWemote: ICompaweWesuwt): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing>, confwicts: Set<stwing> } {
+	const added: Set<stwing> = new Set<stwing>();
+	const wemoved: Set<stwing> = new Set<stwing>();
+	const updated: Set<stwing> = new Set<stwing>();
+	const confwicts: Set<stwing> = new Set<stwing>();
 
-	// Removed keys in Local
-	for (const key of baseToLocal.removed.values()) {
-		// Got updated in remote
-		if (baseToRemote.updated.has(key)) {
-			conflicts.add(key);
+	// Wemoved keys in Wocaw
+	fow (const key of baseToWocaw.wemoved.vawues()) {
+		// Got updated in wemote
+		if (baseToWemote.updated.has(key)) {
+			confwicts.add(key);
 		}
 	}
 
-	// Removed keys in Remote
-	for (const key of baseToRemote.removed.values()) {
-		if (conflicts.has(key)) {
+	// Wemoved keys in Wemote
+	fow (const key of baseToWemote.wemoved.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			conflicts.add(key);
-		} else {
-			// remove the key
-			removed.add(key);
+		// Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			confwicts.add(key);
+		} ewse {
+			// wemove the key
+			wemoved.add(key);
 		}
 	}
 
-	// Added keys in Local
-	for (const key of baseToLocal.added.values()) {
-		if (conflicts.has(key)) {
+	// Added keys in Wocaw
+	fow (const key of baseToWocaw.added.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got added in remote
-		if (baseToRemote.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got added in wemote
+		if (baseToWemote.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
 		}
 	}
 
-	// Added keys in remote
-	for (const key of baseToRemote.added.values()) {
-		if (conflicts.has(key)) {
+	// Added keys in wemote
+	fow (const key of baseToWemote.added.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got added in local
-		if (baseToLocal.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got added in wocaw
+		if (baseToWocaw.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else {
+		} ewse {
 			added.add(key);
 		}
 	}
 
-	// Updated keys in Local
-	for (const key of baseToLocal.updated.values()) {
-		if (conflicts.has(key)) {
+	// Updated keys in Wocaw
+	fow (const key of baseToWocaw.updated.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got updated in remote
-		if (baseToRemote.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got updated in wemote
+		if (baseToWemote.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
 		}
 	}
 
-	// Updated keys in Remote
-	for (const key of baseToRemote.updated.values()) {
-		if (conflicts.has(key)) {
+	// Updated keys in Wemote
+	fow (const key of baseToWemote.updated.vawues()) {
+		if (confwicts.has(key)) {
 			continue;
 		}
-		// Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				conflicts.add(key);
+		// Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				confwicts.add(key);
 			}
-		} else {
+		} ewse {
 			// updated key
 			updated.add(key);
 		}
 	}
-	return { added, removed, updated, conflicts };
+	wetuwn { added, wemoved, updated, confwicts };
 }
 
-function computeMergeResultByKeybinding(local: IUserFriendlyKeybinding[], remote: IUserFriendlyKeybinding[], base: IUserFriendlyKeybinding[] | null, normalizedKeys: IStringDictionary<string>): IMergeResult {
-	const empty = new Set<string>();
-	const localByKeybinding = byKeybinding(local, normalizedKeys);
-	const remoteByKeybinding = byKeybinding(remote, normalizedKeys);
-	const baseByKeybinding = base ? byKeybinding(base, normalizedKeys) : null;
+function computeMewgeWesuwtByKeybinding(wocaw: IUsewFwiendwyKeybinding[], wemote: IUsewFwiendwyKeybinding[], base: IUsewFwiendwyKeybinding[] | nuww, nowmawizedKeys: IStwingDictionawy<stwing>): IMewgeWesuwt {
+	const empty = new Set<stwing>();
+	const wocawByKeybinding = byKeybinding(wocaw, nowmawizedKeys);
+	const wemoteByKeybinding = byKeybinding(wemote, nowmawizedKeys);
+	const baseByKeybinding = base ? byKeybinding(base, nowmawizedKeys) : nuww;
 
-	const localToRemoteByKeybinding = compareByKeybinding(localByKeybinding, remoteByKeybinding);
-	if (localToRemoteByKeybinding.added.size === 0 && localToRemoteByKeybinding.removed.size === 0 && localToRemoteByKeybinding.updated.size === 0) {
-		return { hasLocalForwarded: false, hasRemoteForwarded: false, added: empty, removed: empty, updated: empty, conflicts: empty };
+	const wocawToWemoteByKeybinding = compaweByKeybinding(wocawByKeybinding, wemoteByKeybinding);
+	if (wocawToWemoteByKeybinding.added.size === 0 && wocawToWemoteByKeybinding.wemoved.size === 0 && wocawToWemoteByKeybinding.updated.size === 0) {
+		wetuwn { hasWocawFowwawded: fawse, hasWemoteFowwawded: fawse, added: empty, wemoved: empty, updated: empty, confwicts: empty };
 	}
 
-	const baseToLocalByKeybinding = baseByKeybinding ? compareByKeybinding(baseByKeybinding, localByKeybinding) : { added: [...localByKeybinding.keys()].reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	if (baseToLocalByKeybinding.added.size === 0 && baseToLocalByKeybinding.removed.size === 0 && baseToLocalByKeybinding.updated.size === 0) {
-		// Remote has moved forward and local has not.
-		return { hasLocalForwarded: false, hasRemoteForwarded: true, added: empty, removed: empty, updated: empty, conflicts: empty };
+	const baseToWocawByKeybinding = baseByKeybinding ? compaweByKeybinding(baseByKeybinding, wocawByKeybinding) : { added: [...wocawByKeybinding.keys()].weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	if (baseToWocawByKeybinding.added.size === 0 && baseToWocawByKeybinding.wemoved.size === 0 && baseToWocawByKeybinding.updated.size === 0) {
+		// Wemote has moved fowwawd and wocaw has not.
+		wetuwn { hasWocawFowwawded: fawse, hasWemoteFowwawded: twue, added: empty, wemoved: empty, updated: empty, confwicts: empty };
 	}
 
-	const baseToRemoteByKeybinding = baseByKeybinding ? compareByKeybinding(baseByKeybinding, remoteByKeybinding) : { added: [...remoteByKeybinding.keys()].reduce((r, k) => { r.add(k); return r; }, new Set<string>()), removed: new Set<string>(), updated: new Set<string>() };
-	if (baseToRemoteByKeybinding.added.size === 0 && baseToRemoteByKeybinding.removed.size === 0 && baseToRemoteByKeybinding.updated.size === 0) {
-		return { hasLocalForwarded: true, hasRemoteForwarded: false, added: empty, removed: empty, updated: empty, conflicts: empty };
+	const baseToWemoteByKeybinding = baseByKeybinding ? compaweByKeybinding(baseByKeybinding, wemoteByKeybinding) : { added: [...wemoteByKeybinding.keys()].weduce((w, k) => { w.add(k); wetuwn w; }, new Set<stwing>()), wemoved: new Set<stwing>(), updated: new Set<stwing>() };
+	if (baseToWemoteByKeybinding.added.size === 0 && baseToWemoteByKeybinding.wemoved.size === 0 && baseToWemoteByKeybinding.updated.size === 0) {
+		wetuwn { hasWocawFowwawded: twue, hasWemoteFowwawded: fawse, added: empty, wemoved: empty, updated: empty, confwicts: empty };
 	}
 
-	const { added, removed, updated, conflicts } = computeMergeResult(localToRemoteByKeybinding, baseToLocalByKeybinding, baseToRemoteByKeybinding);
-	return { hasLocalForwarded: true, hasRemoteForwarded: true, added, removed, updated, conflicts };
+	const { added, wemoved, updated, confwicts } = computeMewgeWesuwt(wocawToWemoteByKeybinding, baseToWocawByKeybinding, baseToWemoteByKeybinding);
+	wetuwn { hasWocawFowwawded: twue, hasWemoteFowwawded: twue, added, wemoved, updated, confwicts };
 }
 
-function byKeybinding(keybindings: IUserFriendlyKeybinding[], keys: IStringDictionary<string>) {
-	const map: Map<string, IUserFriendlyKeybinding[]> = new Map<string, IUserFriendlyKeybinding[]>();
-	for (const keybinding of keybindings) {
+function byKeybinding(keybindings: IUsewFwiendwyKeybinding[], keys: IStwingDictionawy<stwing>) {
+	const map: Map<stwing, IUsewFwiendwyKeybinding[]> = new Map<stwing, IUsewFwiendwyKeybinding[]>();
+	fow (const keybinding of keybindings) {
 		const key = keys[keybinding.key];
-		let value = map.get(key);
-		if (!value) {
-			value = [];
-			map.set(key, value);
+		wet vawue = map.get(key);
+		if (!vawue) {
+			vawue = [];
+			map.set(key, vawue);
 		}
-		value.push(keybinding);
+		vawue.push(keybinding);
 
 	}
-	return map;
+	wetuwn map;
 }
 
-function byCommand(keybindings: IUserFriendlyKeybinding[]): Map<string, IUserFriendlyKeybinding[]> {
-	const map: Map<string, IUserFriendlyKeybinding[]> = new Map<string, IUserFriendlyKeybinding[]>();
-	for (const keybinding of keybindings) {
-		const command = keybinding.command[0] === '-' ? keybinding.command.substring(1) : keybinding.command;
-		let value = map.get(command);
-		if (!value) {
-			value = [];
-			map.set(command, value);
+function byCommand(keybindings: IUsewFwiendwyKeybinding[]): Map<stwing, IUsewFwiendwyKeybinding[]> {
+	const map: Map<stwing, IUsewFwiendwyKeybinding[]> = new Map<stwing, IUsewFwiendwyKeybinding[]>();
+	fow (const keybinding of keybindings) {
+		const command = keybinding.command[0] === '-' ? keybinding.command.substwing(1) : keybinding.command;
+		wet vawue = map.get(command);
+		if (!vawue) {
+			vawue = [];
+			map.set(command, vawue);
 		}
-		value.push(keybinding);
+		vawue.push(keybinding);
 	}
-	return map;
+	wetuwn map;
 }
 
 
-function compareByKeybinding(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>): ICompareResult {
-	const fromKeys = [...from.keys()];
+function compaweByKeybinding(fwom: Map<stwing, IUsewFwiendwyKeybinding[]>, to: Map<stwing, IUsewFwiendwyKeybinding[]>): ICompaweWesuwt {
+	const fwomKeys = [...fwom.keys()];
 	const toKeys = [...to.keys()];
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const value1: IUserFriendlyKeybinding[] = from.get(key)!.map(keybinding => ({ ...keybinding, ...{ key } }));
-		const value2: IUserFriendlyKeybinding[] = to.get(key)!.map(keybinding => ({ ...keybinding, ...{ key } }));
-		if (!equals(value1, value2, (a, b) => isSameKeybinding(a, b))) {
+		const vawue1: IUsewFwiendwyKeybinding[] = fwom.get(key)!.map(keybinding => ({ ...keybinding, ...{ key } }));
+		const vawue2: IUsewFwiendwyKeybinding[] = to.get(key)!.map(keybinding => ({ ...keybinding, ...{ key } }));
+		if (!equaws(vawue1, vawue2, (a, b) => isSameKeybinding(a, b))) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-function compareByCommand(from: Map<string, IUserFriendlyKeybinding[]>, to: Map<string, IUserFriendlyKeybinding[]>, normalizedKeys: IStringDictionary<string>): ICompareResult {
-	const fromKeys = [...from.keys()];
+function compaweByCommand(fwom: Map<stwing, IUsewFwiendwyKeybinding[]>, to: Map<stwing, IUsewFwiendwyKeybinding[]>, nowmawizedKeys: IStwingDictionawy<stwing>): ICompaweWesuwt {
+	const fwomKeys = [...fwom.keys()];
 	const toKeys = [...to.keys()];
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	for (const key of fromKeys) {
-		if (removed.has(key)) {
+	fow (const key of fwomKeys) {
+		if (wemoved.has(key)) {
 			continue;
 		}
-		const value1: IUserFriendlyKeybinding[] = from.get(key)!.map(keybinding => ({ ...keybinding, ...{ key: normalizedKeys[keybinding.key] } }));
-		const value2: IUserFriendlyKeybinding[] = to.get(key)!.map(keybinding => ({ ...keybinding, ...{ key: normalizedKeys[keybinding.key] } }));
-		if (!areSameKeybindingsWithSameCommand(value1, value2)) {
+		const vawue1: IUsewFwiendwyKeybinding[] = fwom.get(key)!.map(keybinding => ({ ...keybinding, ...{ key: nowmawizedKeys[keybinding.key] } }));
+		const vawue2: IUsewFwiendwyKeybinding[] = to.get(key)!.map(keybinding => ({ ...keybinding, ...{ key: nowmawizedKeys[keybinding.key] } }));
+		if (!aweSameKeybindingsWithSameCommand(vawue1, vawue2)) {
 			updated.add(key);
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-function areSameKeybindingsWithSameCommand(value1: IUserFriendlyKeybinding[], value2: IUserFriendlyKeybinding[]): boolean {
-	// Compare entries adding keybindings
-	if (!equals(value1.filter(({ command }) => command[0] !== '-'), value2.filter(({ command }) => command[0] !== '-'), (a, b) => isSameKeybinding(a, b))) {
-		return false;
+function aweSameKeybindingsWithSameCommand(vawue1: IUsewFwiendwyKeybinding[], vawue2: IUsewFwiendwyKeybinding[]): boowean {
+	// Compawe entwies adding keybindings
+	if (!equaws(vawue1.fiwta(({ command }) => command[0] !== '-'), vawue2.fiwta(({ command }) => command[0] !== '-'), (a, b) => isSameKeybinding(a, b))) {
+		wetuwn fawse;
 	}
-	// Compare entries removing keybindings
-	if (!equals(value1.filter(({ command }) => command[0] === '-'), value2.filter(({ command }) => command[0] === '-'), (a, b) => isSameKeybinding(a, b))) {
-		return false;
+	// Compawe entwies wemoving keybindings
+	if (!equaws(vawue1.fiwta(({ command }) => command[0] === '-'), vawue2.fiwta(({ command }) => command[0] === '-'), (a, b) => isSameKeybinding(a, b))) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-function isSameKeybinding(a: IUserFriendlyKeybinding, b: IUserFriendlyKeybinding): boolean {
+function isSameKeybinding(a: IUsewFwiendwyKeybinding, b: IUsewFwiendwyKeybinding): boowean {
 	if (a.command !== b.command) {
-		return false;
+		wetuwn fawse;
 	}
 	if (a.key !== b.key) {
-		return false;
+		wetuwn fawse;
 	}
-	const whenA = ContextKeyExpr.deserialize(a.when);
-	const whenB = ContextKeyExpr.deserialize(b.when);
+	const whenA = ContextKeyExpw.desewiawize(a.when);
+	const whenB = ContextKeyExpw.desewiawize(b.when);
 	if ((whenA && !whenB) || (!whenA && whenB)) {
-		return false;
+		wetuwn fawse;
 	}
-	if (whenA && whenB && !whenA.equals(whenB)) {
-		return false;
+	if (whenA && whenB && !whenA.equaws(whenB)) {
+		wetuwn fawse;
 	}
-	if (!objects.equals(a.args, b.args)) {
-		return false;
+	if (!objects.equaws(a.awgs, b.awgs)) {
+		wetuwn fawse;
 	}
-	return true;
+	wetuwn twue;
 }
 
-function addKeybindings(content: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
-	for (const keybinding of keybindings) {
-		content = contentUtil.edit(content, [-1], keybinding, formattingOptions);
+function addKeybindings(content: stwing, keybindings: IUsewFwiendwyKeybinding[], fowmattingOptions: FowmattingOptions): stwing {
+	fow (const keybinding of keybindings) {
+		content = contentUtiw.edit(content, [-1], keybinding, fowmattingOptions);
 	}
-	return content;
+	wetuwn content;
 }
 
-function removeKeybindings(content: string, command: string, formattingOptions: FormattingOptions): string {
-	const keybindings = parseKeybindings(content);
-	for (let index = keybindings.length - 1; index >= 0; index--) {
+function wemoveKeybindings(content: stwing, command: stwing, fowmattingOptions: FowmattingOptions): stwing {
+	const keybindings = pawseKeybindings(content);
+	fow (wet index = keybindings.wength - 1; index >= 0; index--) {
 		if (keybindings[index].command === command || keybindings[index].command === `-${command}`) {
-			content = contentUtil.edit(content, [index], undefined, formattingOptions);
+			content = contentUtiw.edit(content, [index], undefined, fowmattingOptions);
 		}
 	}
-	return content;
+	wetuwn content;
 }
 
-function updateKeybindings(content: string, command: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
-	const allKeybindings = parseKeybindings(content);
-	const location = allKeybindings.findIndex(keybinding => keybinding.command === command || keybinding.command === `-${command}`);
-	// Remove all entries with this command
-	for (let index = allKeybindings.length - 1; index >= 0; index--) {
-		if (allKeybindings[index].command === command || allKeybindings[index].command === `-${command}`) {
-			content = contentUtil.edit(content, [index], undefined, formattingOptions);
+function updateKeybindings(content: stwing, command: stwing, keybindings: IUsewFwiendwyKeybinding[], fowmattingOptions: FowmattingOptions): stwing {
+	const awwKeybindings = pawseKeybindings(content);
+	const wocation = awwKeybindings.findIndex(keybinding => keybinding.command === command || keybinding.command === `-${command}`);
+	// Wemove aww entwies with this command
+	fow (wet index = awwKeybindings.wength - 1; index >= 0; index--) {
+		if (awwKeybindings[index].command === command || awwKeybindings[index].command === `-${command}`) {
+			content = contentUtiw.edit(content, [index], undefined, fowmattingOptions);
 		}
 	}
-	// add all entries at the same location where the entry with this command was located.
-	for (let index = keybindings.length - 1; index >= 0; index--) {
-		content = contentUtil.edit(content, [location], keybindings[index], formattingOptions);
+	// add aww entwies at the same wocation whewe the entwy with this command was wocated.
+	fow (wet index = keybindings.wength - 1; index >= 0; index--) {
+		content = contentUtiw.edit(content, [wocation], keybindings[index], fowmattingOptions);
 	}
-	return content;
+	wetuwn content;
 }

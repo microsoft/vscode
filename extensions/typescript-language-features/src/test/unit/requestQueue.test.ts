@@ -1,121 +1,121 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import { RequestQueue, RequestQueueingType } from '../../tsServer/requestQueue';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt { WequestQueue, WequestQueueingType } fwom '../../tsSewva/wequestQueue';
 
-suite('RequestQueue', () => {
-	test('should be empty on creation', async () => {
-		const queue = new RequestQueue();
-		assert.strictEqual(queue.length, 0);
-		assert.strictEqual(queue.dequeue(), undefined);
+suite('WequestQueue', () => {
+	test('shouwd be empty on cweation', async () => {
+		const queue = new WequestQueue();
+		assewt.stwictEquaw(queue.wength, 0);
+		assewt.stwictEquaw(queue.dequeue(), undefined);
 	});
 
-	suite('RequestQueue.createRequest', () => {
-		test('should create items with increasing sequence numbers', async () => {
-			const queue = new RequestQueue();
+	suite('WequestQueue.cweateWequest', () => {
+		test('shouwd cweate items with incweasing sequence numbews', async () => {
+			const queue = new WequestQueue();
 
-			for (let i = 0; i < 100; ++i) {
+			fow (wet i = 0; i < 100; ++i) {
 				const command = `command-${i}`;
-				const request = queue.createRequest(command, i);
-				assert.strictEqual(request.seq, i);
-				assert.strictEqual(request.command, command);
-				assert.strictEqual(request.arguments, i);
+				const wequest = queue.cweateWequest(command, i);
+				assewt.stwictEquaw(wequest.seq, i);
+				assewt.stwictEquaw(wequest.command, command);
+				assewt.stwictEquaw(wequest.awguments, i);
 			}
 		});
 	});
 
-	test('should queue normal requests in first in first out order', async () => {
-		const queue = new RequestQueue();
-		assert.strictEqual(queue.length, 0);
+	test('shouwd queue nowmaw wequests in fiwst in fiwst out owda', async () => {
+		const queue = new WequestQueue();
+		assewt.stwictEquaw(queue.wength, 0);
 
-		const request1 = queue.createRequest('a', 1);
-		queue.enqueue({ request: request1, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
-		assert.strictEqual(queue.length, 1);
+		const wequest1 = queue.cweateWequest('a', 1);
+		queue.enqueue({ wequest: wequest1, expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Nowmaw });
+		assewt.stwictEquaw(queue.wength, 1);
 
-		const request2 = queue.createRequest('b', 2);
-		queue.enqueue({ request: request2, expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
-		assert.strictEqual(queue.length, 2);
+		const wequest2 = queue.cweateWequest('b', 2);
+		queue.enqueue({ wequest: wequest2, expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Nowmaw });
+		assewt.stwictEquaw(queue.wength, 2);
 
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 1);
-			assert.strictEqual(item!.request.command, 'a');
+			assewt.stwictEquaw(queue.wength, 1);
+			assewt.stwictEquaw(item!.wequest.command, 'a');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 0);
-			assert.strictEqual(item!.request.command, 'b');
+			assewt.stwictEquaw(queue.wength, 0);
+			assewt.stwictEquaw(item!.wequest.command, 'b');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(item, undefined);
-			assert.strictEqual(queue.length, 0);
+			assewt.stwictEquaw(item, undefined);
+			assewt.stwictEquaw(queue.wength, 0);
 		}
 	});
 
-	test('should put normal requests in front of low priority requests', async () => {
-		const queue = new RequestQueue();
-		assert.strictEqual(queue.length, 0);
+	test('shouwd put nowmaw wequests in fwont of wow pwiowity wequests', async () => {
+		const queue = new WequestQueue();
+		assewt.stwictEquaw(queue.wength, 0);
 
-		queue.enqueue({ request: queue.createRequest('low-1', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.enqueue({ request: queue.createRequest('low-2', 1), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.enqueue({ request: queue.createRequest('normal-1', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
-		queue.enqueue({ request: queue.createRequest('normal-2', 2), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ wequest: queue.cweateWequest('wow-1', 1), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.WowPwiowity });
+		queue.enqueue({ wequest: queue.cweateWequest('wow-2', 1), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.WowPwiowity });
+		queue.enqueue({ wequest: queue.cweateWequest('nowmaw-1', 2), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Nowmaw });
+		queue.enqueue({ wequest: queue.cweateWequest('nowmaw-2', 2), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Nowmaw });
 
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 3);
-			assert.strictEqual(item!.request.command, 'normal-1');
+			assewt.stwictEquaw(queue.wength, 3);
+			assewt.stwictEquaw(item!.wequest.command, 'nowmaw-1');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 2);
-			assert.strictEqual(item!.request.command, 'normal-2');
+			assewt.stwictEquaw(queue.wength, 2);
+			assewt.stwictEquaw(item!.wequest.command, 'nowmaw-2');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 1);
-			assert.strictEqual(item!.request.command, 'low-1');
+			assewt.stwictEquaw(queue.wength, 1);
+			assewt.stwictEquaw(item!.wequest.command, 'wow-1');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 0);
-			assert.strictEqual(item!.request.command, 'low-2');
+			assewt.stwictEquaw(queue.wength, 0);
+			assewt.stwictEquaw(item!.wequest.command, 'wow-2');
 		}
 	});
 
-	test('should not push fence requests front of low priority requests', async () => {
-		const queue = new RequestQueue();
-		assert.strictEqual(queue.length, 0);
+	test('shouwd not push fence wequests fwont of wow pwiowity wequests', async () => {
+		const queue = new WequestQueue();
+		assewt.stwictEquaw(queue.wength, 0);
 
-		queue.enqueue({ request: queue.createRequest('low-1', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.enqueue({ request: queue.createRequest('fence', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Fence });
-		queue.enqueue({ request: queue.createRequest('low-2', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.LowPriority });
-		queue.enqueue({ request: queue.createRequest('normal', 0), expectsResponse: true, isAsync: false, queueingType: RequestQueueingType.Normal });
+		queue.enqueue({ wequest: queue.cweateWequest('wow-1', 0), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.WowPwiowity });
+		queue.enqueue({ wequest: queue.cweateWequest('fence', 0), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Fence });
+		queue.enqueue({ wequest: queue.cweateWequest('wow-2', 0), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.WowPwiowity });
+		queue.enqueue({ wequest: queue.cweateWequest('nowmaw', 0), expectsWesponse: twue, isAsync: fawse, queueingType: WequestQueueingType.Nowmaw });
 
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 3);
-			assert.strictEqual(item!.request.command, 'low-1');
+			assewt.stwictEquaw(queue.wength, 3);
+			assewt.stwictEquaw(item!.wequest.command, 'wow-1');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 2);
-			assert.strictEqual(item!.request.command, 'fence');
+			assewt.stwictEquaw(queue.wength, 2);
+			assewt.stwictEquaw(item!.wequest.command, 'fence');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 1);
-			assert.strictEqual(item!.request.command, 'normal');
+			assewt.stwictEquaw(queue.wength, 1);
+			assewt.stwictEquaw(item!.wequest.command, 'nowmaw');
 		}
 		{
 			const item = queue.dequeue();
-			assert.strictEqual(queue.length, 0);
-			assert.strictEqual(item!.request.command, 'low-2');
+			assewt.stwictEquaw(queue.wength, 0);
+			assewt.stwictEquaw(item!.wequest.command, 'wow-2');
 		}
 	});
 });

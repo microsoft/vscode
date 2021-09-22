@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+impowt { AddFiwstPawametewToFunctions } fwom 'vs/base/common/types';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IBackupMainSewvice } fwom 'vs/pwatfowm/backup/ewectwon-main/backup';
+impowt { IWindowsMainSewvice } fwom 'vs/pwatfowm/windows/ewectwon-main/windows';
+impowt { IEntewWowkspaceWesuwt, IWecent, IWecentwyOpened, IWowkspaceFowdewCweationData, IWowkspaceIdentifia, IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IWowkspacesHistowyMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesHistowyMainSewvice';
+impowt { IWowkspacesManagementMainSewvice } fwom 'vs/pwatfowm/wowkspaces/ewectwon-main/wowkspacesManagementMainSewvice';
 
-export class WorkspacesMainService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
+expowt cwass WowkspacesMainSewvice impwements AddFiwstPawametewToFunctions<IWowkspacesSewvice, Pwomise<unknown> /* onwy methods, not events */, numba /* window ID */> {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
-		@IBackupMainService private readonly backupMainService: IBackupMainService
+	constwuctow(
+		@IWowkspacesManagementMainSewvice pwivate weadonwy wowkspacesManagementMainSewvice: IWowkspacesManagementMainSewvice,
+		@IWindowsMainSewvice pwivate weadonwy windowsMainSewvice: IWindowsMainSewvice,
+		@IWowkspacesHistowyMainSewvice pwivate weadonwy wowkspacesHistowyMainSewvice: IWowkspacesHistowyMainSewvice,
+		@IBackupMainSewvice pwivate weadonwy backupMainSewvice: IBackupMainSewvice
 	) {
 	}
 
-	//#region Workspace Management
+	//#wegion Wowkspace Management
 
-	async enterWorkspace(windowId: number, path: URI): Promise<IEnterWorkspaceResult | undefined> {
-		const window = this.windowsMainService.getWindowById(windowId);
+	async entewWowkspace(windowId: numba, path: UWI): Pwomise<IEntewWowkspaceWesuwt | undefined> {
+		const window = this.windowsMainSewvice.getWindowById(windowId);
 		if (window) {
-			return this.workspacesManagementMainService.enterWorkspace(window, this.windowsMainService.getWindows(), path);
+			wetuwn this.wowkspacesManagementMainSewvice.entewWowkspace(window, this.windowsMainSewvice.getWindows(), path);
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	createUntitledWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier> {
-		return this.workspacesManagementMainService.createUntitledWorkspace(folders, remoteAuthority);
+	cweateUntitwedWowkspace(windowId: numba, fowdews?: IWowkspaceFowdewCweationData[], wemoteAuthowity?: stwing): Pwomise<IWowkspaceIdentifia> {
+		wetuwn this.wowkspacesManagementMainSewvice.cweateUntitwedWowkspace(fowdews, wemoteAuthowity);
 	}
 
-	deleteUntitledWorkspace(windowId: number, workspace: IWorkspaceIdentifier): Promise<void> {
-		return this.workspacesManagementMainService.deleteUntitledWorkspace(workspace);
+	deweteUntitwedWowkspace(windowId: numba, wowkspace: IWowkspaceIdentifia): Pwomise<void> {
+		wetuwn this.wowkspacesManagementMainSewvice.deweteUntitwedWowkspace(wowkspace);
 	}
 
-	getWorkspaceIdentifier(windowId: number, workspacePath: URI): Promise<IWorkspaceIdentifier> {
-		return this.workspacesManagementMainService.getWorkspaceIdentifier(workspacePath);
+	getWowkspaceIdentifia(windowId: numba, wowkspacePath: UWI): Pwomise<IWowkspaceIdentifia> {
+		wetuwn this.wowkspacesManagementMainSewvice.getWowkspaceIdentifia(wowkspacePath);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Workspaces History
+	//#wegion Wowkspaces Histowy
 
-	readonly onDidChangeRecentlyOpened = this.workspacesHistoryMainService.onDidChangeRecentlyOpened;
+	weadonwy onDidChangeWecentwyOpened = this.wowkspacesHistowyMainSewvice.onDidChangeWecentwyOpened;
 
-	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		return this.workspacesHistoryMainService.getRecentlyOpened(this.windowsMainService.getWindowById(windowId));
+	async getWecentwyOpened(windowId: numba): Pwomise<IWecentwyOpened> {
+		wetuwn this.wowkspacesHistowyMainSewvice.getWecentwyOpened(this.windowsMainSewvice.getWindowById(windowId));
 	}
 
-	async addRecentlyOpened(windowId: number, recents: IRecent[]): Promise<void> {
-		return this.workspacesHistoryMainService.addRecentlyOpened(recents);
+	async addWecentwyOpened(windowId: numba, wecents: IWecent[]): Pwomise<void> {
+		wetuwn this.wowkspacesHistowyMainSewvice.addWecentwyOpened(wecents);
 	}
 
-	async removeRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
-		return this.workspacesHistoryMainService.removeRecentlyOpened(paths);
+	async wemoveWecentwyOpened(windowId: numba, paths: UWI[]): Pwomise<void> {
+		wetuwn this.wowkspacesHistowyMainSewvice.wemoveWecentwyOpened(paths);
 	}
 
-	async clearRecentlyOpened(windowId: number): Promise<void> {
-		return this.workspacesHistoryMainService.clearRecentlyOpened();
+	async cweawWecentwyOpened(windowId: numba): Pwomise<void> {
+		wetuwn this.wowkspacesHistowyMainSewvice.cweawWecentwyOpened();
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Dirty Workspaces
+	//#wegion Diwty Wowkspaces
 
-	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
-		return this.backupMainService.getDirtyWorkspaces();
+	async getDiwtyWowkspaces(): Pwomise<Awway<IWowkspaceIdentifia | UWI>> {
+		wetuwn this.backupMainSewvice.getDiwtyWowkspaces();
 	}
 
-	//#endregion
+	//#endwegion
 }

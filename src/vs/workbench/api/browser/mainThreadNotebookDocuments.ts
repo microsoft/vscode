@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { BoundModewWefewenceCowwection } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocuments';
+impowt { NotebookCewwTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookCewwTextModew';
+impowt { NotebookTextModew } fwom 'vs/wowkbench/contwib/notebook/common/modew/notebookTextModew';
+impowt { NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { INotebookEditowModewWesowvewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModewWesowvewSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThweadNotebookDocumentsShape, NotebookCewwDto, NotebookCewwsChangedEventDto, NotebookDataDto } fwom '../common/extHost.pwotocow';
+impowt { MainThweadNotebooksAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDocumentsAndEditows';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
+expowt cwass MainThweadNotebookDocuments impwements MainThweadNotebookDocumentsShape {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _proxy: ExtHostNotebookDocumentsShape;
-	private readonly _documentEventListenersMapping = new ResourceMap<DisposableStore>();
-	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
+	pwivate weadonwy _pwoxy: ExtHostNotebookDocumentsShape;
+	pwivate weadonwy _documentEventWistenewsMapping = new WesouwceMap<DisposabweStowe>();
+	pwivate weadonwy _modewWefewenceCowwection: BoundModewWefewenceCowwection;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		notebooksAndEditors: MainThreadNotebooksAndEditors,
-		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
-		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
+		notebooksAndEditows: MainThweadNotebooksAndEditows,
+		@INotebookEditowModewWesowvewSewvice pwivate weadonwy _notebookEditowModewWesowvewSewvice: INotebookEditowModewWesowvewSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy _uwiIdentitySewvice: IUwiIdentitySewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookDocuments);
-		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostNotebookDocuments);
+		this._modewWefewenceCowwection = new BoundModewWefewenceCowwection(this._uwiIdentitySewvice.extUwi);
 
-		notebooksAndEditors.onDidAddNotebooks(this._handleNotebooksAdded, this, this._disposables);
-		notebooksAndEditors.onDidRemoveNotebooks(this._handleNotebooksRemoved, this, this._disposables);
+		notebooksAndEditows.onDidAddNotebooks(this._handweNotebooksAdded, this, this._disposabwes);
+		notebooksAndEditows.onDidWemoveNotebooks(this._handweNotebooksWemoved, this, this._disposabwes);
 
-		// forward dirty and save events
-		this._disposables.add(this._notebookEditorModelResolverService.onDidChangeDirty(model => this._proxy.$acceptDirtyStateChanged(model.resource, model.isDirty())));
-		this._disposables.add(this._notebookEditorModelResolverService.onDidSaveNotebook(e => this._proxy.$acceptModelSaved(e)));
+		// fowwawd diwty and save events
+		this._disposabwes.add(this._notebookEditowModewWesowvewSewvice.onDidChangeDiwty(modew => this._pwoxy.$acceptDiwtyStateChanged(modew.wesouwce, modew.isDiwty())));
+		this._disposabwes.add(this._notebookEditowModewWesowvewSewvice.onDidSaveNotebook(e => this._pwoxy.$acceptModewSaved(e)));
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		this._modelReferenceCollection.dispose();
-		dispose(this._documentEventListenersMapping.values());
+		this._disposabwes.dispose();
+		this._modewWefewenceCowwection.dispose();
+		dispose(this._documentEventWistenewsMapping.vawues());
 	}
 
-	private _handleNotebooksAdded(notebooks: readonly NotebookTextModel[]): void {
+	pwivate _handweNotebooksAdded(notebooks: weadonwy NotebookTextModew[]): void {
 
-		for (const textModel of notebooks) {
-			const disposableStore = new DisposableStore();
-			disposableStore.add(textModel.onDidChangeContent(event => {
+		fow (const textModew of notebooks) {
+			const disposabweStowe = new DisposabweStowe();
+			disposabweStowe.add(textModew.onDidChangeContent(event => {
 
-				const eventDto: NotebookCellsChangedEventDto = {
-					versionId: event.versionId,
-					rawEvents: []
+				const eventDto: NotebookCewwsChangedEventDto = {
+					vewsionId: event.vewsionId,
+					wawEvents: []
 				};
 
-				for (const e of event.rawEvents) {
+				fow (const e of event.wawEvents) {
 
 					switch (e.kind) {
-						case NotebookCellsChangeType.ModelChange:
-							eventDto.rawEvents.push({
+						case NotebookCewwsChangeType.ModewChange:
+							eventDto.wawEvents.push({
 								kind: e.kind,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell as NotebookCellTextModel))] as [number, number, NotebookCellDto[]])
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(ceww => NotebookDto.toNotebookCewwDto(ceww as NotebookCewwTextModew))] as [numba, numba, NotebookCewwDto[]])
 							});
-							break;
-						case NotebookCellsChangeType.Move:
-							eventDto.rawEvents.push({
+							bweak;
+						case NotebookCewwsChangeType.Move:
+							eventDto.wawEvents.push({
 								kind: e.kind,
 								index: e.index,
-								length: e.length,
+								wength: e.wength,
 								newIdx: e.newIdx,
 							});
-							break;
-						case NotebookCellsChangeType.Output:
-							eventDto.rawEvents.push({
+							bweak;
+						case NotebookCewwsChangeType.Output:
+							eventDto.wawEvents.push({
 								kind: e.kind,
 								index: e.index,
 								outputs: e.outputs.map(NotebookDto.toNotebookOutputDto)
 							});
-							break;
-						case NotebookCellsChangeType.OutputItem:
-							eventDto.rawEvents.push({
+							bweak;
+						case NotebookCewwsChangeType.OutputItem:
+							eventDto.wawEvents.push({
 								kind: e.kind,
 								index: e.index,
 								outputId: e.outputId,
 								outputItems: e.outputItems.map(NotebookDto.toNotebookOutputItemDto),
 								append: e.append
 							});
-							break;
-						case NotebookCellsChangeType.ChangeLanguage:
-						case NotebookCellsChangeType.ChangeCellMetadata:
-						case NotebookCellsChangeType.ChangeCellInternalMetadata:
-							eventDto.rawEvents.push(e);
-							break;
+							bweak;
+						case NotebookCewwsChangeType.ChangeWanguage:
+						case NotebookCewwsChangeType.ChangeCewwMetadata:
+						case NotebookCewwsChangeType.ChangeCewwIntewnawMetadata:
+							eventDto.wawEvents.push(e);
+							bweak;
 					}
 				}
 
-				// using the model resolver service to know if the model is dirty or not.
-				// assuming this is the first listener it can mean that at first the model
-				// is marked as dirty and that another event is fired
-				this._proxy.$acceptModelChanged(
-					textModel.uri,
-					new SerializableObjectWithBuffers(eventDto),
-					this._notebookEditorModelResolverService.isDirty(textModel.uri)
+				// using the modew wesowva sewvice to know if the modew is diwty ow not.
+				// assuming this is the fiwst wistena it can mean that at fiwst the modew
+				// is mawked as diwty and that anotha event is fiwed
+				this._pwoxy.$acceptModewChanged(
+					textModew.uwi,
+					new SewiawizabweObjectWithBuffews(eventDto),
+					this._notebookEditowModewWesowvewSewvice.isDiwty(textModew.uwi)
 				);
 
-				const hasDocumentMetadataChangeEvent = event.rawEvents.find(e => e.kind === NotebookCellsChangeType.ChangeDocumentMetadata);
+				const hasDocumentMetadataChangeEvent = event.wawEvents.find(e => e.kind === NotebookCewwsChangeType.ChangeDocumentMetadata);
 				if (hasDocumentMetadataChangeEvent) {
-					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
+					this._pwoxy.$acceptDocumentPwopewtiesChanged(textModew.uwi, { metadata: textModew.metadata });
 				}
 			}));
 
-			this._documentEventListenersMapping.set(textModel.uri, disposableStore);
+			this._documentEventWistenewsMapping.set(textModew.uwi, disposabweStowe);
 		}
 	}
 
-	private _handleNotebooksRemoved(uris: URI[]): void {
-		for (const uri of uris) {
-			this._documentEventListenersMapping.get(uri)?.dispose();
-			this._documentEventListenersMapping.delete(uri);
+	pwivate _handweNotebooksWemoved(uwis: UWI[]): void {
+		fow (const uwi of uwis) {
+			this._documentEventWistenewsMapping.get(uwi)?.dispose();
+			this._documentEventWistenewsMapping.dewete(uwi);
 		}
 	}
 
 
-	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
-		const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: undefined }, options.viewType);
+	async $twyCweateNotebook(options: { viewType: stwing, content?: NotebookDataDto }): Pwomise<UwiComponents> {
+		const wef = await this._notebookEditowModewWesowvewSewvice.wesowve({ untitwedWesouwce: undefined }, options.viewType);
 
-		// untitled notebooks are disposed when they get saved. we should not hold a reference
-		// to such a disposed notebook and therefore dispose the reference as well
-		ref.object.notebook.onWillDispose(() => {
-			ref.dispose();
+		// untitwed notebooks awe disposed when they get saved. we shouwd not howd a wefewence
+		// to such a disposed notebook and thewefowe dispose the wefewence as weww
+		wef.object.notebook.onWiwwDispose(() => {
+			wef.dispose();
 		});
 
-		// untitled notebooks are dirty by default
-		this._proxy.$acceptDirtyStateChanged(ref.object.resource, true);
+		// untitwed notebooks awe diwty by defauwt
+		this._pwoxy.$acceptDiwtyStateChanged(wef.object.wesouwce, twue);
 
-		// apply content changes... slightly HACKY -> this triggers a change event
+		// appwy content changes... swightwy HACKY -> this twiggews a change event
 		if (options.content) {
-			const data = NotebookDto.fromNotebookDataDto(options.content);
-			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
+			const data = NotebookDto.fwomNotebookDataDto(options.content);
+			wef.object.notebook.weset(data.cewws, data.metadata, wef.object.notebook.twansientOptions);
 		}
-		return ref.object.resource;
+		wetuwn wef.object.wesouwce;
 	}
 
-	async $tryOpenNotebook(uriComponents: UriComponents): Promise<URI> {
-		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
-		this._modelReferenceCollection.add(uri, ref);
-		return uri;
+	async $twyOpenNotebook(uwiComponents: UwiComponents): Pwomise<UWI> {
+		const uwi = UWI.wevive(uwiComponents);
+		const wef = await this._notebookEditowModewWesowvewSewvice.wesowve(uwi, undefined);
+		this._modewWefewenceCowwection.add(uwi, wef);
+		wetuwn uwi;
 	}
 
-	async $trySaveNotebook(uriComponents: UriComponents) {
-		const uri = URI.revive(uriComponents);
+	async $twySaveNotebook(uwiComponents: UwiComponents) {
+		const uwi = UWI.wevive(uwiComponents);
 
-		const ref = await this._notebookEditorModelResolverService.resolve(uri);
-		const saveResult = await ref.object.save();
-		ref.dispose();
-		return saveResult;
+		const wef = await this._notebookEditowModewWesowvewSewvice.wesowve(uwi);
+		const saveWesuwt = await wef.object.save();
+		wef.dispose();
+		wetuwn saveWesuwt;
 	}
 }

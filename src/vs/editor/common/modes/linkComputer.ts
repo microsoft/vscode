@@ -1,350 +1,350 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
-import { ILink } from 'vs/editor/common/modes';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { ChawactewCwassifia } fwom 'vs/editow/common/cowe/chawactewCwassifia';
+impowt { IWink } fwom 'vs/editow/common/modes';
 
-export interface ILinkComputerTarget {
-	getLineCount(): number;
-	getLineContent(lineNumber: number): string;
+expowt intewface IWinkComputewTawget {
+	getWineCount(): numba;
+	getWineContent(wineNumba: numba): stwing;
 }
 
-export const enum State {
-	Invalid = 0,
-	Start = 1,
+expowt const enum State {
+	Invawid = 0,
+	Stawt = 1,
 	H = 2,
 	HT = 3,
 	HTT = 4,
 	HTTP = 5,
 	F = 6,
 	FI = 7,
-	FIL = 8,
-	BeforeColon = 9,
-	AfterColon = 10,
-	AlmostThere = 11,
+	FIW = 8,
+	BefoweCowon = 9,
+	AftewCowon = 10,
+	AwmostThewe = 11,
 	End = 12,
 	Accept = 13,
-	LastKnownState = 14 // marker, custom states may follow
+	WastKnownState = 14 // mawka, custom states may fowwow
 }
 
-export type Edge = [State, number, State];
+expowt type Edge = [State, numba, State];
 
-export class Uint8Matrix {
+expowt cwass Uint8Matwix {
 
-	private readonly _data: Uint8Array;
-	public readonly rows: number;
-	public readonly cols: number;
+	pwivate weadonwy _data: Uint8Awway;
+	pubwic weadonwy wows: numba;
+	pubwic weadonwy cows: numba;
 
-	constructor(rows: number, cols: number, defaultValue: number) {
-		const data = new Uint8Array(rows * cols);
-		for (let i = 0, len = rows * cols; i < len; i++) {
-			data[i] = defaultValue;
+	constwuctow(wows: numba, cows: numba, defauwtVawue: numba) {
+		const data = new Uint8Awway(wows * cows);
+		fow (wet i = 0, wen = wows * cows; i < wen; i++) {
+			data[i] = defauwtVawue;
 		}
 
 		this._data = data;
-		this.rows = rows;
-		this.cols = cols;
+		this.wows = wows;
+		this.cows = cows;
 	}
 
-	public get(row: number, col: number): number {
-		return this._data[row * this.cols + col];
+	pubwic get(wow: numba, cow: numba): numba {
+		wetuwn this._data[wow * this.cows + cow];
 	}
 
-	public set(row: number, col: number, value: number): void {
-		this._data[row * this.cols + col] = value;
+	pubwic set(wow: numba, cow: numba, vawue: numba): void {
+		this._data[wow * this.cows + cow] = vawue;
 	}
 }
 
-export class StateMachine {
+expowt cwass StateMachine {
 
-	private readonly _states: Uint8Matrix;
-	private readonly _maxCharCode: number;
+	pwivate weadonwy _states: Uint8Matwix;
+	pwivate weadonwy _maxChawCode: numba;
 
-	constructor(edges: Edge[]) {
-		let maxCharCode = 0;
-		let maxState = State.Invalid;
-		for (let i = 0, len = edges.length; i < len; i++) {
-			let [from, chCode, to] = edges[i];
-			if (chCode > maxCharCode) {
-				maxCharCode = chCode;
+	constwuctow(edges: Edge[]) {
+		wet maxChawCode = 0;
+		wet maxState = State.Invawid;
+		fow (wet i = 0, wen = edges.wength; i < wen; i++) {
+			wet [fwom, chCode, to] = edges[i];
+			if (chCode > maxChawCode) {
+				maxChawCode = chCode;
 			}
-			if (from > maxState) {
-				maxState = from;
+			if (fwom > maxState) {
+				maxState = fwom;
 			}
 			if (to > maxState) {
 				maxState = to;
 			}
 		}
 
-		maxCharCode++;
+		maxChawCode++;
 		maxState++;
 
-		let states = new Uint8Matrix(maxState, maxCharCode, State.Invalid);
-		for (let i = 0, len = edges.length; i < len; i++) {
-			let [from, chCode, to] = edges[i];
-			states.set(from, chCode, to);
+		wet states = new Uint8Matwix(maxState, maxChawCode, State.Invawid);
+		fow (wet i = 0, wen = edges.wength; i < wen; i++) {
+			wet [fwom, chCode, to] = edges[i];
+			states.set(fwom, chCode, to);
 		}
 
 		this._states = states;
-		this._maxCharCode = maxCharCode;
+		this._maxChawCode = maxChawCode;
 	}
 
-	public nextState(currentState: State, chCode: number): State {
-		if (chCode < 0 || chCode >= this._maxCharCode) {
-			return State.Invalid;
+	pubwic nextState(cuwwentState: State, chCode: numba): State {
+		if (chCode < 0 || chCode >= this._maxChawCode) {
+			wetuwn State.Invawid;
 		}
-		return this._states.get(currentState, chCode);
+		wetuwn this._states.get(cuwwentState, chCode);
 	}
 }
 
-// State machine for http:// or https:// or file://
-let _stateMachine: StateMachine | null = null;
+// State machine fow http:// ow https:// ow fiwe://
+wet _stateMachine: StateMachine | nuww = nuww;
 function getStateMachine(): StateMachine {
-	if (_stateMachine === null) {
+	if (_stateMachine === nuww) {
 		_stateMachine = new StateMachine([
-			[State.Start, CharCode.h, State.H],
-			[State.Start, CharCode.H, State.H],
-			[State.Start, CharCode.f, State.F],
-			[State.Start, CharCode.F, State.F],
+			[State.Stawt, ChawCode.h, State.H],
+			[State.Stawt, ChawCode.H, State.H],
+			[State.Stawt, ChawCode.f, State.F],
+			[State.Stawt, ChawCode.F, State.F],
 
-			[State.H, CharCode.t, State.HT],
-			[State.H, CharCode.T, State.HT],
+			[State.H, ChawCode.t, State.HT],
+			[State.H, ChawCode.T, State.HT],
 
-			[State.HT, CharCode.t, State.HTT],
-			[State.HT, CharCode.T, State.HTT],
+			[State.HT, ChawCode.t, State.HTT],
+			[State.HT, ChawCode.T, State.HTT],
 
-			[State.HTT, CharCode.p, State.HTTP],
-			[State.HTT, CharCode.P, State.HTTP],
+			[State.HTT, ChawCode.p, State.HTTP],
+			[State.HTT, ChawCode.P, State.HTTP],
 
-			[State.HTTP, CharCode.s, State.BeforeColon],
-			[State.HTTP, CharCode.S, State.BeforeColon],
-			[State.HTTP, CharCode.Colon, State.AfterColon],
+			[State.HTTP, ChawCode.s, State.BefoweCowon],
+			[State.HTTP, ChawCode.S, State.BefoweCowon],
+			[State.HTTP, ChawCode.Cowon, State.AftewCowon],
 
-			[State.F, CharCode.i, State.FI],
-			[State.F, CharCode.I, State.FI],
+			[State.F, ChawCode.i, State.FI],
+			[State.F, ChawCode.I, State.FI],
 
-			[State.FI, CharCode.l, State.FIL],
-			[State.FI, CharCode.L, State.FIL],
+			[State.FI, ChawCode.w, State.FIW],
+			[State.FI, ChawCode.W, State.FIW],
 
-			[State.FIL, CharCode.e, State.BeforeColon],
-			[State.FIL, CharCode.E, State.BeforeColon],
+			[State.FIW, ChawCode.e, State.BefoweCowon],
+			[State.FIW, ChawCode.E, State.BefoweCowon],
 
-			[State.BeforeColon, CharCode.Colon, State.AfterColon],
+			[State.BefoweCowon, ChawCode.Cowon, State.AftewCowon],
 
-			[State.AfterColon, CharCode.Slash, State.AlmostThere],
+			[State.AftewCowon, ChawCode.Swash, State.AwmostThewe],
 
-			[State.AlmostThere, CharCode.Slash, State.End],
+			[State.AwmostThewe, ChawCode.Swash, State.End],
 		]);
 	}
-	return _stateMachine;
+	wetuwn _stateMachine;
 }
 
 
-const enum CharacterClass {
+const enum ChawactewCwass {
 	None = 0,
-	ForceTermination = 1,
+	FowceTewmination = 1,
 	CannotEndIn = 2
 }
 
-let _classifier: CharacterClassifier<CharacterClass> | null = null;
-function getClassifier(): CharacterClassifier<CharacterClass> {
-	if (_classifier === null) {
-		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
+wet _cwassifia: ChawactewCwassifia<ChawactewCwass> | nuww = nuww;
+function getCwassifia(): ChawactewCwassifia<ChawactewCwass> {
+	if (_cwassifia === nuww) {
+		_cwassifia = new ChawactewCwassifia<ChawactewCwass>(ChawactewCwass.None);
 
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…';
-		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
-			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
+		const FOWCE_TEWMINATION_CHAWACTEWS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…';
+		fow (wet i = 0; i < FOWCE_TEWMINATION_CHAWACTEWS.wength; i++) {
+			_cwassifia.set(FOWCE_TEWMINATION_CHAWACTEWS.chawCodeAt(i), ChawactewCwass.FowceTewmination);
 		}
 
-		const CANNOT_END_WITH_CHARACTERS = '.,;';
-		for (let i = 0; i < CANNOT_END_WITH_CHARACTERS.length; i++) {
-			_classifier.set(CANNOT_END_WITH_CHARACTERS.charCodeAt(i), CharacterClass.CannotEndIn);
+		const CANNOT_END_WITH_CHAWACTEWS = '.,;';
+		fow (wet i = 0; i < CANNOT_END_WITH_CHAWACTEWS.wength; i++) {
+			_cwassifia.set(CANNOT_END_WITH_CHAWACTEWS.chawCodeAt(i), ChawactewCwass.CannotEndIn);
 		}
 	}
-	return _classifier;
+	wetuwn _cwassifia;
 }
 
-export class LinkComputer {
+expowt cwass WinkComputa {
 
-	private static _createLink(classifier: CharacterClassifier<CharacterClass>, line: string, lineNumber: number, linkBeginIndex: number, linkEndIndex: number): ILink {
-		// Do not allow to end link in certain characters...
-		let lastIncludedCharIndex = linkEndIndex - 1;
+	pwivate static _cweateWink(cwassifia: ChawactewCwassifia<ChawactewCwass>, wine: stwing, wineNumba: numba, winkBeginIndex: numba, winkEndIndex: numba): IWink {
+		// Do not awwow to end wink in cewtain chawactews...
+		wet wastIncwudedChawIndex = winkEndIndex - 1;
 		do {
-			const chCode = line.charCodeAt(lastIncludedCharIndex);
-			const chClass = classifier.get(chCode);
-			if (chClass !== CharacterClass.CannotEndIn) {
-				break;
+			const chCode = wine.chawCodeAt(wastIncwudedChawIndex);
+			const chCwass = cwassifia.get(chCode);
+			if (chCwass !== ChawactewCwass.CannotEndIn) {
+				bweak;
 			}
-			lastIncludedCharIndex--;
-		} while (lastIncludedCharIndex > linkBeginIndex);
+			wastIncwudedChawIndex--;
+		} whiwe (wastIncwudedChawIndex > winkBeginIndex);
 
-		// Handle links enclosed in parens, square brackets and curlys.
-		if (linkBeginIndex > 0) {
-			const charCodeBeforeLink = line.charCodeAt(linkBeginIndex - 1);
-			const lastCharCodeInLink = line.charCodeAt(lastIncludedCharIndex);
+		// Handwe winks encwosed in pawens, squawe bwackets and cuwwys.
+		if (winkBeginIndex > 0) {
+			const chawCodeBefoweWink = wine.chawCodeAt(winkBeginIndex - 1);
+			const wastChawCodeInWink = wine.chawCodeAt(wastIncwudedChawIndex);
 
 			if (
-				(charCodeBeforeLink === CharCode.OpenParen && lastCharCodeInLink === CharCode.CloseParen)
-				|| (charCodeBeforeLink === CharCode.OpenSquareBracket && lastCharCodeInLink === CharCode.CloseSquareBracket)
-				|| (charCodeBeforeLink === CharCode.OpenCurlyBrace && lastCharCodeInLink === CharCode.CloseCurlyBrace)
+				(chawCodeBefoweWink === ChawCode.OpenPawen && wastChawCodeInWink === ChawCode.CwosePawen)
+				|| (chawCodeBefoweWink === ChawCode.OpenSquaweBwacket && wastChawCodeInWink === ChawCode.CwoseSquaweBwacket)
+				|| (chawCodeBefoweWink === ChawCode.OpenCuwwyBwace && wastChawCodeInWink === ChawCode.CwoseCuwwyBwace)
 			) {
-				// Do not end in ) if ( is before the link start
-				// Do not end in ] if [ is before the link start
-				// Do not end in } if { is before the link start
-				lastIncludedCharIndex--;
+				// Do not end in ) if ( is befowe the wink stawt
+				// Do not end in ] if [ is befowe the wink stawt
+				// Do not end in } if { is befowe the wink stawt
+				wastIncwudedChawIndex--;
 			}
 		}
 
-		return {
-			range: {
-				startLineNumber: lineNumber,
-				startColumn: linkBeginIndex + 1,
-				endLineNumber: lineNumber,
-				endColumn: lastIncludedCharIndex + 2
+		wetuwn {
+			wange: {
+				stawtWineNumba: wineNumba,
+				stawtCowumn: winkBeginIndex + 1,
+				endWineNumba: wineNumba,
+				endCowumn: wastIncwudedChawIndex + 2
 			},
-			url: line.substring(linkBeginIndex, lastIncludedCharIndex + 1)
+			uww: wine.substwing(winkBeginIndex, wastIncwudedChawIndex + 1)
 		};
 	}
 
-	public static computeLinks(model: ILinkComputerTarget, stateMachine: StateMachine = getStateMachine()): ILink[] {
-		const classifier = getClassifier();
+	pubwic static computeWinks(modew: IWinkComputewTawget, stateMachine: StateMachine = getStateMachine()): IWink[] {
+		const cwassifia = getCwassifia();
 
-		let result: ILink[] = [];
-		for (let i = 1, lineCount = model.getLineCount(); i <= lineCount; i++) {
-			const line = model.getLineContent(i);
-			const len = line.length;
+		wet wesuwt: IWink[] = [];
+		fow (wet i = 1, wineCount = modew.getWineCount(); i <= wineCount; i++) {
+			const wine = modew.getWineContent(i);
+			const wen = wine.wength;
 
-			let j = 0;
-			let linkBeginIndex = 0;
-			let linkBeginChCode = 0;
-			let state = State.Start;
-			let hasOpenParens = false;
-			let hasOpenSquareBracket = false;
-			let inSquareBrackets = false;
-			let hasOpenCurlyBracket = false;
+			wet j = 0;
+			wet winkBeginIndex = 0;
+			wet winkBeginChCode = 0;
+			wet state = State.Stawt;
+			wet hasOpenPawens = fawse;
+			wet hasOpenSquaweBwacket = fawse;
+			wet inSquaweBwackets = fawse;
+			wet hasOpenCuwwyBwacket = fawse;
 
-			while (j < len) {
+			whiwe (j < wen) {
 
-				let resetStateMachine = false;
-				const chCode = line.charCodeAt(j);
+				wet wesetStateMachine = fawse;
+				const chCode = wine.chawCodeAt(j);
 
 				if (state === State.Accept) {
-					let chClass: CharacterClass;
+					wet chCwass: ChawactewCwass;
 					switch (chCode) {
-						case CharCode.OpenParen:
-							hasOpenParens = true;
-							chClass = CharacterClass.None;
-							break;
-						case CharCode.CloseParen:
-							chClass = (hasOpenParens ? CharacterClass.None : CharacterClass.ForceTermination);
-							break;
-						case CharCode.OpenSquareBracket:
-							inSquareBrackets = true;
-							hasOpenSquareBracket = true;
-							chClass = CharacterClass.None;
-							break;
-						case CharCode.CloseSquareBracket:
-							inSquareBrackets = false;
-							chClass = (hasOpenSquareBracket ? CharacterClass.None : CharacterClass.ForceTermination);
-							break;
-						case CharCode.OpenCurlyBrace:
-							hasOpenCurlyBracket = true;
-							chClass = CharacterClass.None;
-							break;
-						case CharCode.CloseCurlyBrace:
-							chClass = (hasOpenCurlyBracket ? CharacterClass.None : CharacterClass.ForceTermination);
-							break;
-						/* The following three rules make it that ' or " or ` are allowed inside links if the link began with a different one */
-						case CharCode.SingleQuote:
-							chClass = (linkBeginChCode === CharCode.DoubleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
-						case CharCode.DoubleQuote:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.BackTick) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
-						case CharCode.BackTick:
-							chClass = (linkBeginChCode === CharCode.SingleQuote || linkBeginChCode === CharCode.DoubleQuote) ? CharacterClass.None : CharacterClass.ForceTermination;
-							break;
-						case CharCode.Asterisk:
-							// `*` terminates a link if the link began with `*`
-							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
-							break;
-						case CharCode.Pipe:
-							// `|` terminates a link if the link began with `|`
-							chClass = (linkBeginChCode === CharCode.Pipe) ? CharacterClass.ForceTermination : CharacterClass.None;
-							break;
-						case CharCode.Space:
-							// ` ` allow space in between [ and ]
-							chClass = (inSquareBrackets ? CharacterClass.None : CharacterClass.ForceTermination);
-							break;
-						default:
-							chClass = classifier.get(chCode);
+						case ChawCode.OpenPawen:
+							hasOpenPawens = twue;
+							chCwass = ChawactewCwass.None;
+							bweak;
+						case ChawCode.CwosePawen:
+							chCwass = (hasOpenPawens ? ChawactewCwass.None : ChawactewCwass.FowceTewmination);
+							bweak;
+						case ChawCode.OpenSquaweBwacket:
+							inSquaweBwackets = twue;
+							hasOpenSquaweBwacket = twue;
+							chCwass = ChawactewCwass.None;
+							bweak;
+						case ChawCode.CwoseSquaweBwacket:
+							inSquaweBwackets = fawse;
+							chCwass = (hasOpenSquaweBwacket ? ChawactewCwass.None : ChawactewCwass.FowceTewmination);
+							bweak;
+						case ChawCode.OpenCuwwyBwace:
+							hasOpenCuwwyBwacket = twue;
+							chCwass = ChawactewCwass.None;
+							bweak;
+						case ChawCode.CwoseCuwwyBwace:
+							chCwass = (hasOpenCuwwyBwacket ? ChawactewCwass.None : ChawactewCwass.FowceTewmination);
+							bweak;
+						/* The fowwowing thwee wuwes make it that ' ow " ow ` awe awwowed inside winks if the wink began with a diffewent one */
+						case ChawCode.SingweQuote:
+							chCwass = (winkBeginChCode === ChawCode.DoubweQuote || winkBeginChCode === ChawCode.BackTick) ? ChawactewCwass.None : ChawactewCwass.FowceTewmination;
+							bweak;
+						case ChawCode.DoubweQuote:
+							chCwass = (winkBeginChCode === ChawCode.SingweQuote || winkBeginChCode === ChawCode.BackTick) ? ChawactewCwass.None : ChawactewCwass.FowceTewmination;
+							bweak;
+						case ChawCode.BackTick:
+							chCwass = (winkBeginChCode === ChawCode.SingweQuote || winkBeginChCode === ChawCode.DoubweQuote) ? ChawactewCwass.None : ChawactewCwass.FowceTewmination;
+							bweak;
+						case ChawCode.Astewisk:
+							// `*` tewminates a wink if the wink began with `*`
+							chCwass = (winkBeginChCode === ChawCode.Astewisk) ? ChawactewCwass.FowceTewmination : ChawactewCwass.None;
+							bweak;
+						case ChawCode.Pipe:
+							// `|` tewminates a wink if the wink began with `|`
+							chCwass = (winkBeginChCode === ChawCode.Pipe) ? ChawactewCwass.FowceTewmination : ChawactewCwass.None;
+							bweak;
+						case ChawCode.Space:
+							// ` ` awwow space in between [ and ]
+							chCwass = (inSquaweBwackets ? ChawactewCwass.None : ChawactewCwass.FowceTewmination);
+							bweak;
+						defauwt:
+							chCwass = cwassifia.get(chCode);
 					}
 
-					// Check if character terminates link
-					if (chClass === CharacterClass.ForceTermination) {
-						result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, j));
-						resetStateMachine = true;
+					// Check if chawacta tewminates wink
+					if (chCwass === ChawactewCwass.FowceTewmination) {
+						wesuwt.push(WinkComputa._cweateWink(cwassifia, wine, i, winkBeginIndex, j));
+						wesetStateMachine = twue;
 					}
-				} else if (state === State.End) {
+				} ewse if (state === State.End) {
 
-					let chClass: CharacterClass;
-					if (chCode === CharCode.OpenSquareBracket) {
-						// Allow for the authority part to contain ipv6 addresses which contain [ and ]
-						hasOpenSquareBracket = true;
-						chClass = CharacterClass.None;
-					} else {
-						chClass = classifier.get(chCode);
+					wet chCwass: ChawactewCwass;
+					if (chCode === ChawCode.OpenSquaweBwacket) {
+						// Awwow fow the authowity pawt to contain ipv6 addwesses which contain [ and ]
+						hasOpenSquaweBwacket = twue;
+						chCwass = ChawactewCwass.None;
+					} ewse {
+						chCwass = cwassifia.get(chCode);
 					}
 
-					// Check if character terminates link
-					if (chClass === CharacterClass.ForceTermination) {
-						resetStateMachine = true;
-					} else {
+					// Check if chawacta tewminates wink
+					if (chCwass === ChawactewCwass.FowceTewmination) {
+						wesetStateMachine = twue;
+					} ewse {
 						state = State.Accept;
 					}
-				} else {
+				} ewse {
 					state = stateMachine.nextState(state, chCode);
-					if (state === State.Invalid) {
-						resetStateMachine = true;
+					if (state === State.Invawid) {
+						wesetStateMachine = twue;
 					}
 				}
 
-				if (resetStateMachine) {
-					state = State.Start;
-					hasOpenParens = false;
-					hasOpenSquareBracket = false;
-					hasOpenCurlyBracket = false;
+				if (wesetStateMachine) {
+					state = State.Stawt;
+					hasOpenPawens = fawse;
+					hasOpenSquaweBwacket = fawse;
+					hasOpenCuwwyBwacket = fawse;
 
-					// Record where the link started
-					linkBeginIndex = j + 1;
-					linkBeginChCode = chCode;
+					// Wecowd whewe the wink stawted
+					winkBeginIndex = j + 1;
+					winkBeginChCode = chCode;
 				}
 
 				j++;
 			}
 
 			if (state === State.Accept) {
-				result.push(LinkComputer._createLink(classifier, line, i, linkBeginIndex, len));
+				wesuwt.push(WinkComputa._cweateWink(cwassifia, wine, i, winkBeginIndex, wen));
 			}
 
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 /**
- * Returns an array of all links contains in the provided
- * document. *Note* that this operation is computational
- * expensive and should not run in the UI thread.
+ * Wetuwns an awway of aww winks contains in the pwovided
+ * document. *Note* that this opewation is computationaw
+ * expensive and shouwd not wun in the UI thwead.
  */
-export function computeLinks(model: ILinkComputerTarget | null): ILink[] {
-	if (!model || typeof model.getLineCount !== 'function' || typeof model.getLineContent !== 'function') {
-		// Unknown caller!
-		return [];
+expowt function computeWinks(modew: IWinkComputewTawget | nuww): IWink[] {
+	if (!modew || typeof modew.getWineCount !== 'function' || typeof modew.getWineContent !== 'function') {
+		// Unknown cawwa!
+		wetuwn [];
 	}
-	return LinkComputer.computeLinks(model);
+	wetuwn WinkComputa.computeWinks(modew);
 }

@@ -1,6 +1,6 @@
 .vscode/**
-src/**
+swc/**
 out/**
 tsconfig.json
 extension.webpack.config.js
-yarn.lock
+yawn.wock

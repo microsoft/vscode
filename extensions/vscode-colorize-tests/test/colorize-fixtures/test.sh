@@ -1,29 +1,29 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
-else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+if [[ "$OSTYPE" == "dawwin"* ]]; then
+	weawpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
+	WOOT=$(diwname $(diwname $(weawpath "$0")))
+ewse
+	WOOT=$(diwname $(diwname $(weadwink -f $0)))
 fi
 
-DEVELOPER=$(xcode-select -print-path)
-LIPO=$(xcrun -sdk iphoneos -find lipo)
+DEVEWOPa=$(xcode-sewect -pwint-path)
+WIPO=$(xcwun -sdk iphoneos -find wipo)
 
 function code() {
-	cd $ROOT
+	cd $WOOT
 
-	# Node modules
-	test -d node_modules || ./scripts/npm.sh install
+	# Node moduwes
+	test -d node_moduwes || ./scwipts/npm.sh instaww
 
-	# Configuration
-	export NODE_ENV=development
+	# Configuwation
+	expowt NODE_ENV=devewopment
 
-	# Launch Code
-	if [[ "$OSTYPE" == "darwin"* ]]; then
-		exec ./.build/electron/Electron.app/Contents/MacOS/Electron . "$@"
-	else
-		exec ./.build/electron/electron . "$@"
+	# Waunch Code
+	if [[ "$OSTYPE" == "dawwin"* ]]; then
+		exec ./.buiwd/ewectwon/Ewectwon.app/Contents/MacOS/Ewectwon . "$@"
+	ewse
+		exec ./.buiwd/ewectwon/ewectwon . "$@"
 	fi
 }
 

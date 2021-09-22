@@ -1,89 +1,89 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import * as modes from 'vs/editor/common/modes';
+impowt { WineTokens } fwom 'vs/editow/common/cowe/wineTokens';
+impowt * as modes fwom 'vs/editow/common/modes';
 
-export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
-	let tokenCount = context.getCount();
-	let tokenIndex = context.findTokenIndexAtOffset(offset);
-	let desiredLanguageId = context.getLanguageId(tokenIndex);
+expowt function cweateScopedWineTokens(context: WineTokens, offset: numba): ScopedWineTokens {
+	wet tokenCount = context.getCount();
+	wet tokenIndex = context.findTokenIndexAtOffset(offset);
+	wet desiwedWanguageId = context.getWanguageId(tokenIndex);
 
-	let lastTokenIndex = tokenIndex;
-	while (lastTokenIndex + 1 < tokenCount && context.getLanguageId(lastTokenIndex + 1) === desiredLanguageId) {
-		lastTokenIndex++;
+	wet wastTokenIndex = tokenIndex;
+	whiwe (wastTokenIndex + 1 < tokenCount && context.getWanguageId(wastTokenIndex + 1) === desiwedWanguageId) {
+		wastTokenIndex++;
 	}
 
-	let firstTokenIndex = tokenIndex;
-	while (firstTokenIndex > 0 && context.getLanguageId(firstTokenIndex - 1) === desiredLanguageId) {
-		firstTokenIndex--;
+	wet fiwstTokenIndex = tokenIndex;
+	whiwe (fiwstTokenIndex > 0 && context.getWanguageId(fiwstTokenIndex - 1) === desiwedWanguageId) {
+		fiwstTokenIndex--;
 	}
 
-	return new ScopedLineTokens(
+	wetuwn new ScopedWineTokens(
 		context,
-		desiredLanguageId,
-		firstTokenIndex,
-		lastTokenIndex + 1,
-		context.getStartOffset(firstTokenIndex),
-		context.getEndOffset(lastTokenIndex)
+		desiwedWanguageId,
+		fiwstTokenIndex,
+		wastTokenIndex + 1,
+		context.getStawtOffset(fiwstTokenIndex),
+		context.getEndOffset(wastTokenIndex)
 	);
 }
 
-export class ScopedLineTokens {
-	_scopedLineTokensBrand: void = undefined;
+expowt cwass ScopedWineTokens {
+	_scopedWineTokensBwand: void = undefined;
 
-	public readonly languageId: modes.LanguageId;
-	private readonly _actual: LineTokens;
-	private readonly _firstTokenIndex: number;
-	private readonly _lastTokenIndex: number;
-	public readonly firstCharOffset: number;
-	private readonly _lastCharOffset: number;
+	pubwic weadonwy wanguageId: modes.WanguageId;
+	pwivate weadonwy _actuaw: WineTokens;
+	pwivate weadonwy _fiwstTokenIndex: numba;
+	pwivate weadonwy _wastTokenIndex: numba;
+	pubwic weadonwy fiwstChawOffset: numba;
+	pwivate weadonwy _wastChawOffset: numba;
 
-	constructor(
-		actual: LineTokens,
-		languageId: modes.LanguageId,
-		firstTokenIndex: number,
-		lastTokenIndex: number,
-		firstCharOffset: number,
-		lastCharOffset: number
+	constwuctow(
+		actuaw: WineTokens,
+		wanguageId: modes.WanguageId,
+		fiwstTokenIndex: numba,
+		wastTokenIndex: numba,
+		fiwstChawOffset: numba,
+		wastChawOffset: numba
 	) {
-		this._actual = actual;
-		this.languageId = languageId;
-		this._firstTokenIndex = firstTokenIndex;
-		this._lastTokenIndex = lastTokenIndex;
-		this.firstCharOffset = firstCharOffset;
-		this._lastCharOffset = lastCharOffset;
+		this._actuaw = actuaw;
+		this.wanguageId = wanguageId;
+		this._fiwstTokenIndex = fiwstTokenIndex;
+		this._wastTokenIndex = wastTokenIndex;
+		this.fiwstChawOffset = fiwstChawOffset;
+		this._wastChawOffset = wastChawOffset;
 	}
 
-	public getLineContent(): string {
-		const actualLineContent = this._actual.getLineContent();
-		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
+	pubwic getWineContent(): stwing {
+		const actuawWineContent = this._actuaw.getWineContent();
+		wetuwn actuawWineContent.substwing(this.fiwstChawOffset, this._wastChawOffset);
 	}
 
-	public getActualLineContentBefore(offset: number): string {
-		const actualLineContent = this._actual.getLineContent();
-		return actualLineContent.substring(0, this.firstCharOffset + offset);
+	pubwic getActuawWineContentBefowe(offset: numba): stwing {
+		const actuawWineContent = this._actuaw.getWineContent();
+		wetuwn actuawWineContent.substwing(0, this.fiwstChawOffset + offset);
 	}
 
-	public getTokenCount(): number {
-		return this._lastTokenIndex - this._firstTokenIndex;
+	pubwic getTokenCount(): numba {
+		wetuwn this._wastTokenIndex - this._fiwstTokenIndex;
 	}
 
-	public findTokenIndexAtOffset(offset: number): number {
-		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
+	pubwic findTokenIndexAtOffset(offset: numba): numba {
+		wetuwn this._actuaw.findTokenIndexAtOffset(offset + this.fiwstChawOffset) - this._fiwstTokenIndex;
 	}
 
-	public getStandardTokenType(tokenIndex: number): modes.StandardTokenType {
-		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
+	pubwic getStandawdTokenType(tokenIndex: numba): modes.StandawdTokenType {
+		wetuwn this._actuaw.getStandawdTokenType(tokenIndex + this._fiwstTokenIndex);
 	}
 }
 
-const enum IgnoreBracketsInTokens {
-	value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
+const enum IgnoweBwacketsInTokens {
+	vawue = modes.StandawdTokenType.Comment | modes.StandawdTokenType.Stwing | modes.StandawdTokenType.WegEx
 }
 
-export function ignoreBracketsInToken(standardTokenType: modes.StandardTokenType): boolean {
-	return (standardTokenType & IgnoreBracketsInTokens.value) !== 0;
+expowt function ignoweBwacketsInToken(standawdTokenType: modes.StandawdTokenType): boowean {
+	wetuwn (standawdTokenType & IgnoweBwacketsInTokens.vawue) !== 0;
 }

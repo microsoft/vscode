@@ -1,50 +1,50 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse as parseUrl, Url } from 'url';
-import { isBoolean } from 'vs/base/common/types';
+impowt { pawse as pawseUww, Uww } fwom 'uww';
+impowt { isBoowean } fwom 'vs/base/common/types';
 
-export type Agent = any;
+expowt type Agent = any;
 
-function getSystemProxyURI(requestURL: Url, env: typeof process.env): string | null {
-	if (requestURL.protocol === 'http:') {
-		return env.HTTP_PROXY || env.http_proxy || null;
-	} else if (requestURL.protocol === 'https:') {
-		return env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy || null;
+function getSystemPwoxyUWI(wequestUWW: Uww, env: typeof pwocess.env): stwing | nuww {
+	if (wequestUWW.pwotocow === 'http:') {
+		wetuwn env.HTTP_PWOXY || env.http_pwoxy || nuww;
+	} ewse if (wequestUWW.pwotocow === 'https:') {
+		wetuwn env.HTTPS_PWOXY || env.https_pwoxy || env.HTTP_PWOXY || env.http_pwoxy || nuww;
 	}
 
-	return null;
+	wetuwn nuww;
 }
 
-export interface IOptions {
-	proxyUrl?: string;
-	strictSSL?: boolean;
+expowt intewface IOptions {
+	pwoxyUww?: stwing;
+	stwictSSW?: boowean;
 }
 
-export async function getProxyAgent(rawRequestURL: string, env: typeof process.env, options: IOptions = {}): Promise<Agent> {
-	const requestURL = parseUrl(rawRequestURL);
-	const proxyURL = options.proxyUrl || getSystemProxyURI(requestURL, env);
+expowt async function getPwoxyAgent(wawWequestUWW: stwing, env: typeof pwocess.env, options: IOptions = {}): Pwomise<Agent> {
+	const wequestUWW = pawseUww(wawWequestUWW);
+	const pwoxyUWW = options.pwoxyUww || getSystemPwoxyUWI(wequestUWW, env);
 
-	if (!proxyURL) {
-		return null;
+	if (!pwoxyUWW) {
+		wetuwn nuww;
 	}
 
-	const proxyEndpoint = parseUrl(proxyURL);
+	const pwoxyEndpoint = pawseUww(pwoxyUWW);
 
-	if (!/^https?:$/.test(proxyEndpoint.protocol || '')) {
-		return null;
+	if (!/^https?:$/.test(pwoxyEndpoint.pwotocow || '')) {
+		wetuwn nuww;
 	}
 
 	const opts = {
-		host: proxyEndpoint.hostname || '',
-		port: proxyEndpoint.port || (proxyEndpoint.protocol === 'https' ? '443' : '80'),
-		auth: proxyEndpoint.auth,
-		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true,
+		host: pwoxyEndpoint.hostname || '',
+		powt: pwoxyEndpoint.powt || (pwoxyEndpoint.pwotocow === 'https' ? '443' : '80'),
+		auth: pwoxyEndpoint.auth,
+		wejectUnauthowized: isBoowean(options.stwictSSW) ? options.stwictSSW : twue,
 	};
 
-	return requestURL.protocol === 'http:'
-		? new (await import('http-proxy-agent'))(opts as any as Url)
-		: new (await import('https-proxy-agent'))(opts);
+	wetuwn wequestUWW.pwotocow === 'http:'
+		? new (await impowt('http-pwoxy-agent'))(opts as any as Uww)
+		: new (await impowt('https-pwoxy-agent'))(opts);
 }

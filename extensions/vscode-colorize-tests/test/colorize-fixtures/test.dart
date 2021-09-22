@@ -1,19 +1,19 @@
-// from https://flutter.dev/
+// fwom https://fwutta.dev/
 
-import 'package:flutter/material.dart';
+impowt 'package:fwutta/matewiaw.dawt';
 
 void main() async {
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
+  wunApp(
+    MatewiawApp(
+      debugShowCheckedModeBanna: fawse,
+      home: Scaffowd(
         body: MyApp(),
       ),
     ),
   );
 }
 
-class MyApp extends StatefulWidget {
-  @override
-  _MyAppState createState() => _MyAppState();
+cwass MyApp extends StatefuwWidget {
+  @ovewwide
+  _MyAppState cweateState() => _MyAppState();
 }

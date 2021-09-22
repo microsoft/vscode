@@ -1,200 +1,200 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { ILogService } from 'vs/platform/log/common/log';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { equals } from 'vs/base/common/objects';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+impowt { DisposabweStowe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { getNotebookEditowFwomEditowPane, INotebookEditow, INotebookEditowOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { ExtHostContext, ExtHostNotebookEditowsShape, ICewwEditOpewationDto, IExtHostContext, INotebookDocumentShowOptions, INotebookEditowViewCowumnInfo, MainThweadNotebookEditowsShape, NotebookEditowWeveawType } fwom '../common/extHost.pwotocow';
+impowt { MainThweadNotebooksAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDocumentsAndEditows';
+impowt { INotebookDecowationWendewOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { EditowActivation } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { cowumnToEditowGwoup, editowGwoupToCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { equaws } fwom 'vs/base/common/objects';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
 
-class MainThreadNotebook {
+cwass MainThweadNotebook {
 
-	constructor(
-		readonly editor: INotebookEditor,
-		readonly disposables: DisposableStore
+	constwuctow(
+		weadonwy editow: INotebookEditow,
+		weadonwy disposabwes: DisposabweStowe
 	) { }
 
 	dispose() {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape {
+expowt cwass MainThweadNotebookEditows impwements MainThweadNotebookEditowsShape {
 
-	private readonly _disposables = new DisposableStore();
+	pwivate weadonwy _disposabwes = new DisposabweStowe();
 
-	private readonly _proxy: ExtHostNotebookEditorsShape;
-	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
+	pwivate weadonwy _pwoxy: ExtHostNotebookEditowsShape;
+	pwivate weadonwy _mainThweadEditows = new Map<stwing, MainThweadNotebook>();
 
-	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
+	pwivate _cuwwentViewCowumnInfo?: INotebookEditowViewCowumnInfo;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		notebooksAndEditors: MainThreadNotebooksAndEditors,
-		@IEditorService private readonly _editorService: IEditorService,
-		@ILogService private readonly _logService: ILogService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		notebooksAndEditows: MainThweadNotebooksAndEditows,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@INotebookEditowSewvice pwivate weadonwy _notebookEditowSewvice: INotebookEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostNotebookEditows);
 
-		notebooksAndEditors.onDidAddEditors(this._handleEditorsAdded, this, this._disposables);
-		notebooksAndEditors.onDidRemoveEditors(this._handleEditorsRemoved, this, this._disposables);
+		notebooksAndEditows.onDidAddEditows(this._handweEditowsAdded, this, this._disposabwes);
+		notebooksAndEditows.onDidWemoveEditows(this._handweEditowsWemoved, this, this._disposabwes);
 
-		this._editorService.onDidActiveEditorChange(() => this._updateEditorViewColumns(), this, this._disposables);
-		this._editorGroupService.onDidRemoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
-		this._editorGroupService.onDidMoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
+		this._editowSewvice.onDidActiveEditowChange(() => this._updateEditowViewCowumns(), this, this._disposabwes);
+		this._editowGwoupSewvice.onDidWemoveGwoup(() => this._updateEditowViewCowumns(), this, this._disposabwes);
+		this._editowGwoupSewvice.onDidMoveGwoup(() => this._updateEditowViewCowumns(), this, this._disposabwes);
 	}
 
 	dispose(): void {
-		this._disposables.dispose();
-		dispose(this._mainThreadEditors.values());
+		this._disposabwes.dispose();
+		dispose(this._mainThweadEditows.vawues());
 	}
 
-	private _handleEditorsAdded(editors: readonly INotebookEditor[]): void {
+	pwivate _handweEditowsAdded(editows: weadonwy INotebookEditow[]): void {
 
-		for (const editor of editors) {
+		fow (const editow of editows) {
 
-			const editorDisposables = new DisposableStore();
-			editorDisposables.add(editor.onDidChangeVisibleRanges(() => {
-				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges } });
+			const editowDisposabwes = new DisposabweStowe();
+			editowDisposabwes.add(editow.onDidChangeVisibweWanges(() => {
+				this._pwoxy.$acceptEditowPwopewtiesChanged(editow.getId(), { visibweWanges: { wanges: editow.visibweWanges } });
 			}));
 
-			editorDisposables.add(editor.onDidChangeSelection(() => {
-				this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { selections: { selections: editor.getSelections() } });
+			editowDisposabwes.add(editow.onDidChangeSewection(() => {
+				this._pwoxy.$acceptEditowPwopewtiesChanged(editow.getId(), { sewections: { sewections: editow.getSewections() } });
 			}));
 
-			const wrapper = new MainThreadNotebook(editor, editorDisposables);
-			this._mainThreadEditors.set(editor.getId(), wrapper);
+			const wwappa = new MainThweadNotebook(editow, editowDisposabwes);
+			this._mainThweadEditows.set(editow.getId(), wwappa);
 		}
 	}
 
-	private _handleEditorsRemoved(editorIds: readonly string[]): void {
-		for (const id of editorIds) {
-			this._mainThreadEditors.get(id)?.dispose();
-			this._mainThreadEditors.delete(id);
+	pwivate _handweEditowsWemoved(editowIds: weadonwy stwing[]): void {
+		fow (const id of editowIds) {
+			this._mainThweadEditows.get(id)?.dispose();
+			this._mainThweadEditows.dewete(id);
 		}
 	}
 
-	private _updateEditorViewColumns(): void {
-		const result: INotebookEditorViewColumnInfo = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
-			const candidate = getNotebookEditorFromEditorPane(editorPane);
-			if (candidate && this._mainThreadEditors.has(candidate.getId())) {
-				result[candidate.getId()] = editorGroupToColumn(this._editorGroupService, editorPane.group);
+	pwivate _updateEditowViewCowumns(): void {
+		const wesuwt: INotebookEditowViewCowumnInfo = Object.cweate(nuww);
+		fow (wet editowPane of this._editowSewvice.visibweEditowPanes) {
+			const candidate = getNotebookEditowFwomEditowPane(editowPane);
+			if (candidate && this._mainThweadEditows.has(candidate.getId())) {
+				wesuwt[candidate.getId()] = editowGwoupToCowumn(this._editowGwoupSewvice, editowPane.gwoup);
 			}
 		}
-		if (!equals(result, this._currentViewColumnInfo)) {
-			this._currentViewColumnInfo = result;
-			this._proxy.$acceptEditorViewColumns(result);
+		if (!equaws(wesuwt, this._cuwwentViewCowumnInfo)) {
+			this._cuwwentViewCowumnInfo = wesuwt;
+			this._pwoxy.$acceptEditowViewCowumns(wesuwt);
 		}
 	}
 
-	async $tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean> {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (!wrapper) {
-			return false;
+	async $twyAppwyEdits(editowId: stwing, modewVewsionId: numba, cewwEdits: ICewwEditOpewationDto[]): Pwomise<boowean> {
+		const wwappa = this._mainThweadEditows.get(editowId);
+		if (!wwappa) {
+			wetuwn fawse;
 		}
-		const { editor } = wrapper;
-		if (!editor.textModel) {
-			this._logService.warn('Notebook editor has NO model', editorId);
-			return false;
+		const { editow } = wwappa;
+		if (!editow.textModew) {
+			this._wogSewvice.wawn('Notebook editow has NO modew', editowId);
+			wetuwn fawse;
 		}
-		if (editor.textModel.versionId !== modelVersionId) {
-			return false;
+		if (editow.textModew.vewsionId !== modewVewsionId) {
+			wetuwn fawse;
 		}
-		//todo@jrieken use proper selection logic!
-		return editor.textModel.applyEdits(cellEdits.map(NotebookDto.fromCellEditOperationDto), true, undefined, () => undefined, undefined);
+		//todo@jwieken use pwopa sewection wogic!
+		wetuwn editow.textModew.appwyEdits(cewwEdits.map(NotebookDto.fwomCewwEditOpewationDto), twue, undefined, () => undefined, undefined);
 	}
 
-	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
-		const editorOptions: INotebookEditorOptions = {
-			cellSelections: options.selections,
-			preserveFocus: options.preserveFocus,
+	async $twyShowNotebookDocument(wesouwce: UwiComponents, viewType: stwing, options: INotebookDocumentShowOptions): Pwomise<stwing> {
+		const editowOptions: INotebookEditowOptions = {
+			cewwSewections: options.sewections,
+			pwesewveFocus: options.pwesewveFocus,
 			pinned: options.pinned,
-			// selection: options.selection,
-			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
-			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: viewType
+			// sewection: options.sewection,
+			// pwesewve pwe 1.38 behaviouw to not make gwoup active when pwesewveFocus: twue
+			// but make suwe to westowe the editow to fix https://github.com/micwosoft/vscode/issues/79633
+			activation: options.pwesewveFocus ? EditowActivation.WESTOWE : undefined,
+			ovewwide: viewType
 		};
 
-		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, options.position));
-		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
+		const editowPane = await this._editowSewvice.openEditow({ wesouwce: UWI.wevive(wesouwce), options: editowOptions }, cowumnToEditowGwoup(this._editowGwoupSewvice, options.position));
+		const notebookEditow = getNotebookEditowFwomEditowPane(editowPane);
 
-		if (notebookEditor) {
-			return notebookEditor.getId();
-		} else {
-			throw new Error(`Notebook Editor creation failure for documenet ${resource}`);
+		if (notebookEditow) {
+			wetuwn notebookEditow.getId();
+		} ewse {
+			thwow new Ewwow(`Notebook Editow cweation faiwuwe fow documenet ${wesouwce}`);
 		}
 	}
 
-	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void> {
-		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (!editor) {
-			return;
+	async $twyWeveawWange(id: stwing, wange: ICewwWange, weveawType: NotebookEditowWeveawType): Pwomise<void> {
+		const editow = this._notebookEditowSewvice.getNotebookEditow(id);
+		if (!editow) {
+			wetuwn;
 		}
-		const notebookEditor = editor as INotebookEditor;
-		if (!notebookEditor.hasModel()) {
-			return;
-		}
-
-		if (range.start >= notebookEditor.getLength()) {
-			return;
+		const notebookEditow = editow as INotebookEditow;
+		if (!notebookEditow.hasModew()) {
+			wetuwn;
 		}
 
-		const cell = notebookEditor.cellAt(range.start);
-
-		switch (revealType) {
-			case NotebookEditorRevealType.Default:
-				return notebookEditor.revealCellRangeInView(range);
-			case NotebookEditorRevealType.InCenter:
-				return notebookEditor.revealInCenter(cell);
-			case NotebookEditorRevealType.InCenterIfOutsideViewport:
-				return notebookEditor.revealInCenterIfOutsideViewport(cell);
-			case NotebookEditorRevealType.AtTop:
-				return notebookEditor.revealInViewAtTop(cell);
+		if (wange.stawt >= notebookEditow.getWength()) {
+			wetuwn;
 		}
-	}
 
-	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void {
-		this._notebookEditorService.registerEditorDecorationType(key, options);
-	}
+		const ceww = notebookEditow.cewwAt(wange.stawt);
 
-	$removeNotebookEditorDecorationType(key: string): void {
-		this._notebookEditorService.removeEditorDecorationType(key);
-	}
-
-	$trySetDecorations(id: string, range: ICellRange, key: string): void {
-		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (editor) {
-			const notebookEditor = editor as INotebookEditor;
-			notebookEditor.setEditorDecorations(key, range);
+		switch (weveawType) {
+			case NotebookEditowWeveawType.Defauwt:
+				wetuwn notebookEditow.weveawCewwWangeInView(wange);
+			case NotebookEditowWeveawType.InCenta:
+				wetuwn notebookEditow.weveawInCenta(ceww);
+			case NotebookEditowWeveawType.InCentewIfOutsideViewpowt:
+				wetuwn notebookEditow.weveawInCentewIfOutsideViewpowt(ceww);
+			case NotebookEditowWeveawType.AtTop:
+				wetuwn notebookEditow.weveawInViewAtTop(ceww);
 		}
 	}
 
-	$trySetSelections(id: string, ranges: ICellRange[]): void {
-		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (!editor) {
-			return;
+	$wegistewNotebookEditowDecowationType(key: stwing, options: INotebookDecowationWendewOptions): void {
+		this._notebookEditowSewvice.wegistewEditowDecowationType(key, options);
+	}
+
+	$wemoveNotebookEditowDecowationType(key: stwing): void {
+		this._notebookEditowSewvice.wemoveEditowDecowationType(key);
+	}
+
+	$twySetDecowations(id: stwing, wange: ICewwWange, key: stwing): void {
+		const editow = this._notebookEditowSewvice.getNotebookEditow(id);
+		if (editow) {
+			const notebookEditow = editow as INotebookEditow;
+			notebookEditow.setEditowDecowations(key, wange);
+		}
+	}
+
+	$twySetSewections(id: stwing, wanges: ICewwWange[]): void {
+		const editow = this._notebookEditowSewvice.getNotebookEditow(id);
+		if (!editow) {
+			wetuwn;
 		}
 
-		editor.setSelections(ranges);
+		editow.setSewections(wanges);
 
-		if (ranges.length) {
-			editor.setFocus({ start: ranges[0].start, end: ranges[0].start + 1 });
+		if (wanges.wength) {
+			editow.setFocus({ stawt: wanges[0].stawt, end: wanges[0].stawt + 1 });
 		}
 	}
 }

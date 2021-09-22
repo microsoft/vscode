@@ -1,10 +1,10 @@
-build/**
-src/**
+buiwd/**
+swc/**
 test/**
-test-workspace/**
+test-wowkspace/**
 out/**
 tsconfig.json
 extension.webpack.config.js
-extension-browser.webpack.config.js
+extension-bwowsa.webpack.config.js
 cgmanifest.json
-yarn.lock
+yawn.wock

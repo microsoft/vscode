@@ -1,817 +1,817 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/openeditors';
-import * as nls from 'vs/nls';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import * as dom from 'vs/base/browser/dom';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Verbosity, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
-import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
-import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
-import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, IMenu, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { ResourcesDropHandler, fillEditorsDragData, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
-import { memoize } from 'vs/base/common/decorators';
-import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { isWeb } from 'vs/base/common/platform';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { compareFileNamesDefault } from 'vs/base/common/comparers';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+impowt 'vs/css!./media/openeditows';
+impowt * as nws fwom 'vs/nws';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { IAction, ActionWunna, WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification } fwom 'vs/base/common/actions';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IEditowGwoupsSewvice, IEditowGwoup, GwoupChangeKind, GwoupsOwda, GwoupOwientation } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IConfiguwationSewvice, IConfiguwationChangeEvent } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { Vewbosity, EditowWesouwceAccessow, SideBySideEditow, EditowInputCapabiwities, IEditowIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { SaveAwwInGwoupAction, CwoseGwoupAction } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweActions';
+impowt { OpenEditowsFocusedContext, ExpwowewFocusedContext, IFiwesConfiguwation, OpenEditow } fwom 'vs/wowkbench/contwib/fiwes/common/fiwes';
+impowt { CwoseAwwEditowsAction, CwoseEditowAction, UnpinEditowAction } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowActions';
+impowt { IContextKeySewvice, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { attachStywewCawwback } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { badgeBackgwound, badgeFowegwound, contwastBowda } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IWistViwtuawDewegate, IWistWendewa, IWistContextMenuEvent, IWistDwagAndDwop, IWistDwagOvewWeaction } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { WesouwceWabews, IWesouwceWabew } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { ActionBaw } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuId, IMenu, Action2, wegistewAction2, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { OpenEditowsDiwtyEditowContext, OpenEditowsGwoupContext, OpenEditowsWeadonwyEditowContext, SAVE_AWW_WABEW, SAVE_AWW_COMMAND_ID, NEW_UNTITWED_FIWE_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { WesouwceContextKey } fwom 'vs/wowkbench/common/wesouwces';
+impowt { WesouwcesDwopHandwa, fiwwEditowsDwagData, CodeDataTwansfews, containsDwagType } fwom 'vs/wowkbench/bwowsa/dnd';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IDwagAndDwopData, DataTwansfews } fwom 'vs/base/bwowsa/dnd';
+impowt { memoize } fwom 'vs/base/common/decowatows';
+impowt { EwementsDwagAndDwopData, NativeDwagAndDwopData } fwom 'vs/base/bwowsa/ui/wist/wistView';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWowkingCopy, WowkingCopyCapabiwities } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopy';
+impowt { AutoSaveMode, IFiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/spwitview/spwitview';
+impowt { IWistAccessibiwityPwovida } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { compaweFiweNamesDefauwt } fwom 'vs/base/common/compawews';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewPane {
+expowt cwass OpenEditowsView extends ViewPane {
 
-	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
-	static readonly ID = 'workbench.explorer.openEditorsView';
-	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
+	pwivate static weadonwy DEFAUWT_VISIBWE_OPEN_EDITOWS = 9;
+	static weadonwy ID = 'wowkbench.expwowa.openEditowsView';
+	static weadonwy NAME = nws.wocawize({ key: 'openEditows', comment: ['Open is an adjective'] }, "Open Editows");
 
-	private dirtyCountElement!: HTMLElement;
-	private listRefreshScheduler: RunOnceScheduler;
-	private structuralRefreshDelay: number;
-	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
-	private listLabels: ResourceLabels | undefined;
-	private contributedContextMenu!: IMenu;
-	private needsRefresh = false;
-	private elements: (OpenEditor | IEditorGroup)[] = [];
-	private sortOrder: 'editorOrder' | 'alphabetical';
-	private resourceContext!: ResourceContextKey;
-	private groupFocusedContext!: IContextKey<boolean>;
-	private dirtyEditorFocusedContext!: IContextKey<boolean>;
-	private readonlyEditorFocusedContext!: IContextKey<boolean>;
+	pwivate diwtyCountEwement!: HTMWEwement;
+	pwivate wistWefweshScheduwa: WunOnceScheduwa;
+	pwivate stwuctuwawWefweshDeway: numba;
+	pwivate wist!: WowkbenchWist<OpenEditow | IEditowGwoup>;
+	pwivate wistWabews: WesouwceWabews | undefined;
+	pwivate contwibutedContextMenu!: IMenu;
+	pwivate needsWefwesh = fawse;
+	pwivate ewements: (OpenEditow | IEditowGwoup)[] = [];
+	pwivate sowtOwda: 'editowOwda' | 'awphabeticaw';
+	pwivate wesouwceContext!: WesouwceContextKey;
+	pwivate gwoupFocusedContext!: IContextKey<boowean>;
+	pwivate diwtyEditowFocusedContext!: IContextKey<boowean>;
+	pwivate weadonwyEditowFocusedContext!: IContextKey<boowean>;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IOpenerService openerService: IOpenerService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IWowkingCopySewvice pwivate weadonwy wowkingCopySewvice: IWowkingCopySewvice,
+		@IFiwesConfiguwationSewvice pwivate weadonwy fiwesConfiguwationSewvice: IFiwesConfiguwationSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.structuralRefreshDelay = 0;
-		let labelChangeListeners: IDisposable[] = [];
-		this.listRefreshScheduler = new RunOnceScheduler(() => {
-			labelChangeListeners = dispose(labelChangeListeners);
-			const previousLength = this.list.length;
-			const elements = this.getElements();
-			this.list.splice(0, this.list.length, elements);
-			this.focusActiveEditor();
-			if (previousLength !== this.list.length) {
+		this.stwuctuwawWefweshDeway = 0;
+		wet wabewChangeWistenews: IDisposabwe[] = [];
+		this.wistWefweshScheduwa = new WunOnceScheduwa(() => {
+			wabewChangeWistenews = dispose(wabewChangeWistenews);
+			const pweviousWength = this.wist.wength;
+			const ewements = this.getEwements();
+			this.wist.spwice(0, this.wist.wength, ewements);
+			this.focusActiveEditow();
+			if (pweviousWength !== this.wist.wength) {
 				this.updateSize();
 			}
-			this.needsRefresh = false;
+			this.needsWefwesh = fawse;
 
-			if (this.sortOrder === 'alphabetical') {
-				// We need to resort the list if the editor label changed
-				elements.forEach(e => {
-					if (e instanceof OpenEditor) {
-						labelChangeListeners.push(e.editor.onDidChangeLabel(() => this.listRefreshScheduler.schedule()));
+			if (this.sowtOwda === 'awphabeticaw') {
+				// We need to wesowt the wist if the editow wabew changed
+				ewements.fowEach(e => {
+					if (e instanceof OpenEditow) {
+						wabewChangeWistenews.push(e.editow.onDidChangeWabew(() => this.wistWefweshScheduwa.scheduwe()));
 					}
 				});
 			}
-		}, this.structuralRefreshDelay);
-		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
+		}, this.stwuctuwawWefweshDeway);
+		this.sowtOwda = configuwationSewvice.getVawue('expwowa.openEditows.sowtOwda');
 
-		this.registerUpdateEvents();
+		this.wegistewUpdateEvents();
 
-		// Also handle configuration updates
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
+		// Awso handwe configuwation updates
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => this.onConfiguwationChange(e)));
 
-		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateDirtyIndicator(workingCopy)));
+		// Handwe diwty counta
+		this._wegista(this.wowkingCopySewvice.onDidChangeDiwty(wowkingCopy => this.updateDiwtyIndicatow(wowkingCopy)));
 	}
 
-	private registerUpdateEvents(): void {
-		const updateWholeList = () => {
-			if (!this.isBodyVisible() || !this.list) {
-				this.needsRefresh = true;
-				return;
+	pwivate wegistewUpdateEvents(): void {
+		const updateWhoweWist = () => {
+			if (!this.isBodyVisibwe() || !this.wist) {
+				this.needsWefwesh = twue;
+				wetuwn;
 			}
 
-			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
+			this.wistWefweshScheduwa.scheduwe(this.stwuctuwawWefweshDeway);
 		};
 
-		const groupDisposables = new Map<number, IDisposable>();
-		const addGroupListener = (group: IEditorGroup) => {
-			groupDisposables.set(group.id, group.onDidGroupChange(e => {
-				if (this.listRefreshScheduler.isScheduled()) {
-					return;
+		const gwoupDisposabwes = new Map<numba, IDisposabwe>();
+		const addGwoupWistena = (gwoup: IEditowGwoup) => {
+			gwoupDisposabwes.set(gwoup.id, gwoup.onDidGwoupChange(e => {
+				if (this.wistWefweshScheduwa.isScheduwed()) {
+					wetuwn;
 				}
-				if (!this.isBodyVisible() || !this.list) {
-					this.needsRefresh = true;
-					return;
+				if (!this.isBodyVisibwe() || !this.wist) {
+					this.needsWefwesh = twue;
+					wetuwn;
 				}
 
-				const index = this.getIndex(group, e.editor);
+				const index = this.getIndex(gwoup, e.editow);
 				switch (e.kind) {
-					case GroupChangeKind.GROUP_INDEX: {
+					case GwoupChangeKind.GWOUP_INDEX: {
 						if (index >= 0) {
-							this.list.splice(index, 1, [group]);
+							this.wist.spwice(index, 1, [gwoup]);
 						}
-						break;
+						bweak;
 					}
-					case GroupChangeKind.GROUP_ACTIVE:
-					case GroupChangeKind.EDITOR_ACTIVE: {
-						this.focusActiveEditor();
-						break;
+					case GwoupChangeKind.GWOUP_ACTIVE:
+					case GwoupChangeKind.EDITOW_ACTIVE: {
+						this.focusActiveEditow();
+						bweak;
 					}
-					case GroupChangeKind.EDITOR_DIRTY:
-					case GroupChangeKind.EDITOR_LABEL:
-					case GroupChangeKind.EDITOR_CAPABILITIES:
-					case GroupChangeKind.EDITOR_STICKY:
-					case GroupChangeKind.EDITOR_PIN: {
-						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
-						this.focusActiveEditor();
-						break;
+					case GwoupChangeKind.EDITOW_DIWTY:
+					case GwoupChangeKind.EDITOW_WABEW:
+					case GwoupChangeKind.EDITOW_CAPABIWITIES:
+					case GwoupChangeKind.EDITOW_STICKY:
+					case GwoupChangeKind.EDITOW_PIN: {
+						this.wist.spwice(index, 1, [new OpenEditow(e.editow!, gwoup)]);
+						this.focusActiveEditow();
+						bweak;
 					}
-					case GroupChangeKind.EDITOR_OPEN:
-					case GroupChangeKind.EDITOR_CLOSE:
-					case GroupChangeKind.EDITOR_MOVE: {
-						updateWholeList();
-						break;
+					case GwoupChangeKind.EDITOW_OPEN:
+					case GwoupChangeKind.EDITOW_CWOSE:
+					case GwoupChangeKind.EDITOW_MOVE: {
+						updateWhoweWist();
+						bweak;
 					}
 				}
 			}));
-			this._register(groupDisposables.get(group.id)!);
+			this._wegista(gwoupDisposabwes.get(gwoup.id)!);
 		};
 
-		this.editorGroupService.groups.forEach(g => addGroupListener(g));
-		this._register(this.editorGroupService.onDidAddGroup(group => {
-			addGroupListener(group);
-			updateWholeList();
+		this.editowGwoupSewvice.gwoups.fowEach(g => addGwoupWistena(g));
+		this._wegista(this.editowGwoupSewvice.onDidAddGwoup(gwoup => {
+			addGwoupWistena(gwoup);
+			updateWhoweWist();
 		}));
-		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
-		this._register(this.editorGroupService.onDidRemoveGroup(group => {
-			dispose(groupDisposables.get(group.id));
-			updateWholeList();
+		this._wegista(this.editowGwoupSewvice.onDidMoveGwoup(() => updateWhoweWist()));
+		this._wegista(this.editowGwoupSewvice.onDidWemoveGwoup(gwoup => {
+			dispose(gwoupDisposabwes.get(gwoup.id));
+			updateWhoweWist();
 		}));
 	}
 
-	protected override renderHeaderTitle(container: HTMLElement): void {
-		super.renderHeaderTitle(container, this.title);
+	pwotected ovewwide wendewHeadewTitwe(containa: HTMWEwement): void {
+		supa.wendewHeadewTitwe(containa, this.titwe);
 
-		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
+		const count = dom.append(containa, $('.count'));
+		this.diwtyCountEwement = dom.append(count, $('.diwty-count.monaco-count-badge.wong'));
 
-		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+		this._wegista((attachStywewCawwback(this.themeSewvice, { badgeBackgwound, badgeFowegwound, contwastBowda }, cowows => {
+			const backgwound = cowows.badgeBackgwound ? cowows.badgeBackgwound.toStwing() : '';
+			const fowegwound = cowows.badgeFowegwound ? cowows.badgeFowegwound.toStwing() : '';
+			const bowda = cowows.contwastBowda ? cowows.contwastBowda.toStwing() : '';
 
-			this.dirtyCountElement.style.backgroundColor = background;
-			this.dirtyCountElement.style.color = foreground;
+			this.diwtyCountEwement.stywe.backgwoundCowow = backgwound;
+			this.diwtyCountEwement.stywe.cowow = fowegwound;
 
-			this.dirtyCountElement.style.borderWidth = border ? '1px' : '';
-			this.dirtyCountElement.style.borderStyle = border ? 'solid' : '';
-			this.dirtyCountElement.style.borderColor = border;
+			this.diwtyCountEwement.stywe.bowdewWidth = bowda ? '1px' : '';
+			this.diwtyCountEwement.stywe.bowdewStywe = bowda ? 'sowid' : '';
+			this.diwtyCountEwement.stywe.bowdewCowow = bowda;
 		})));
 
-		this.updateDirtyIndicator();
+		this.updateDiwtyIndicatow();
 	}
 
-	override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
+	ovewwide wendewBody(containa: HTMWEwement): void {
+		supa.wendewBody(containa);
 
-		container.classList.add('open-editors');
-		container.classList.add('show-file-icons');
+		containa.cwassWist.add('open-editows');
+		containa.cwassWist.add('show-fiwe-icons');
 
-		const delegate = new OpenEditorsDelegate();
+		const dewegate = new OpenEditowsDewegate();
 
-		if (this.list) {
-			this.list.dispose();
+		if (this.wist) {
+			this.wist.dispose();
 		}
-		if (this.listLabels) {
-			this.listLabels.clear();
+		if (this.wistWabews) {
+			this.wistWabews.cweaw();
 		}
-		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
-			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
-			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
+		this.wistWabews = this.instantiationSewvice.cweateInstance(WesouwceWabews, { onDidChangeVisibiwity: this.onDidChangeBodyVisibiwity });
+		this.wist = this.instantiationSewvice.cweateInstance(WowkbenchWist, 'OpenEditows', containa, dewegate, [
+			new EditowGwoupWendewa(this.keybindingSewvice, this.instantiationSewvice),
+			new OpenEditowWendewa(this.wistWabews, this.instantiationSewvice, this.keybindingSewvice, this.configuwationSewvice)
 		], {
-			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
+			identityPwovida: { getId: (ewement: OpenEditow | IEditowGwoup) => ewement instanceof OpenEditow ? ewement.getId() : ewement.id.toStwing() },
+			dnd: new OpenEditowsDwagAndDwop(this.instantiationSewvice, this.editowGwoupSewvice),
+			ovewwideStywes: {
+				wistBackgwound: this.getBackgwoundCowow()
 			},
-			accessibilityProvider: new OpenEditorsAccessibilityProvider()
-		}) as WorkbenchList<OpenEditor | IEditorGroup>;
-		this._register(this.list);
-		this._register(this.listLabels);
+			accessibiwityPwovida: new OpenEditowsAccessibiwityPwovida()
+		}) as WowkbenchWist<OpenEditow | IEditowGwoup>;
+		this._wegista(this.wist);
+		this._wegista(this.wistWabews);
 
-		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
-		this._register(this.contributedContextMenu);
+		this.contwibutedContextMenu = this.menuSewvice.cweateMenu(MenuId.OpenEditowsContext, this.wist.contextKeySewvice);
+		this._wegista(this.contwibutedContextMenu);
 
 		this.updateSize();
 
 		// Bind context keys
-		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
-		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
+		OpenEditowsFocusedContext.bindTo(this.wist.contextKeySewvice);
+		ExpwowewFocusedContext.bindTo(this.wist.contextKeySewvice);
 
-		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
-		this._register(this.resourceContext);
-		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
-		this.dirtyEditorFocusedContext = OpenEditorsDirtyEditorContext.bindTo(this.contextKeyService);
-		this.readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
+		this.wesouwceContext = this.instantiationSewvice.cweateInstance(WesouwceContextKey);
+		this._wegista(this.wesouwceContext);
+		this.gwoupFocusedContext = OpenEditowsGwoupContext.bindTo(this.contextKeySewvice);
+		this.diwtyEditowFocusedContext = OpenEditowsDiwtyEditowContext.bindTo(this.contextKeySewvice);
+		this.weadonwyEditowFocusedContext = OpenEditowsWeadonwyEditowContext.bindTo(this.contextKeySewvice);
 
-		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onDidChangeFocus(e => {
-			this.resourceContext.reset();
-			this.groupFocusedContext.reset();
-			this.dirtyEditorFocusedContext.reset();
-			this.readonlyEditorFocusedContext.reset();
-			const element = e.elements.length ? e.elements[0] : undefined;
-			if (element instanceof OpenEditor) {
-				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
-				this.readonlyEditorFocusedContext.set(element.editor.hasCapability(EditorInputCapabilities.Readonly));
-				this.resourceContext.set(withUndefinedAsNull(resource));
-			} else if (!!element) {
-				this.groupFocusedContext.set(true);
+		this._wegista(this.wist.onContextMenu(e => this.onWistContextMenu(e)));
+		this.wist.onDidChangeFocus(e => {
+			this.wesouwceContext.weset();
+			this.gwoupFocusedContext.weset();
+			this.diwtyEditowFocusedContext.weset();
+			this.weadonwyEditowFocusedContext.weset();
+			const ewement = e.ewements.wength ? e.ewements[0] : undefined;
+			if (ewement instanceof OpenEditow) {
+				const wesouwce = ewement.getWesouwce();
+				this.diwtyEditowFocusedContext.set(ewement.editow.isDiwty() && !ewement.editow.isSaving());
+				this.weadonwyEditowFocusedContext.set(ewement.editow.hasCapabiwity(EditowInputCapabiwities.Weadonwy));
+				this.wesouwceContext.set(withUndefinedAsNuww(wesouwce));
+			} ewse if (!!ewement) {
+				this.gwoupFocusedContext.set(twue);
 			}
 		});
 
-		// Open when selecting via keyboard
-		this._register(this.list.onMouseMiddleClick(e => {
-			if (e && e.element instanceof OpenEditor) {
-				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
+		// Open when sewecting via keyboawd
+		this._wegista(this.wist.onMouseMiddweCwick(e => {
+			if (e && e.ewement instanceof OpenEditow) {
+				e.ewement.gwoup.cwoseEditow(e.ewement.editow, { pwesewveFocus: twue });
 			}
 		}));
-		this._register(this.list.onDidOpen(e => {
-			if (!e.element) {
-				return;
-			} else if (e.element instanceof OpenEditor) {
-				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
-					return; // middle click already handled above: closes the editor
+		this._wegista(this.wist.onDidOpen(e => {
+			if (!e.ewement) {
+				wetuwn;
+			} ewse if (e.ewement instanceof OpenEditow) {
+				if (e.bwowsewEvent instanceof MouseEvent && e.bwowsewEvent.button === 1) {
+					wetuwn; // middwe cwick awweady handwed above: cwoses the editow
 				}
 
-				this.openEditor(e.element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
-			} else {
-				this.editorGroupService.activateGroup(e.element);
+				this.openEditow(e.ewement, { pwesewveFocus: e.editowOptions.pwesewveFocus, pinned: e.editowOptions.pinned, sideBySide: e.sideBySide });
+			} ewse {
+				this.editowGwoupSewvice.activateGwoup(e.ewement);
 			}
 		}));
 
-		this.listRefreshScheduler.schedule(0);
+		this.wistWefweshScheduwa.scheduwe(0);
 
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.listRefreshScheduler.schedule(0);
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe && this.needsWefwesh) {
+				this.wistWefweshScheduwa.scheduwe(0);
 			}
 		}));
 
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
-		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+		const containewModew = this.viewDescwiptowSewvice.getViewContainewModew(this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!)!;
+		this._wegista(containewModew.onDidChangeAwwViewDescwiptows(() => {
 			this.updateSize();
 		}));
 	}
 
-	override focus(): void {
-		super.focus();
-		this.list.domFocus();
+	ovewwide focus(): void {
+		supa.focus();
+		this.wist.domFocus();
 	}
 
-	getList(): WorkbenchList<OpenEditor | IEditorGroup> {
-		return this.list;
+	getWist(): WowkbenchWist<OpenEditow | IEditowGwoup> {
+		wetuwn this.wist;
 	}
 
-	protected override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		if (this.list) {
-			this.list.layout(height, width);
+	pwotected ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		if (this.wist) {
+			this.wist.wayout(height, width);
 		}
 	}
 
-	private get showGroups(): boolean {
-		return this.editorGroupService.groups.length > 1;
+	pwivate get showGwoups(): boowean {
+		wetuwn this.editowGwoupSewvice.gwoups.wength > 1;
 	}
 
-	private getElements(): Array<IEditorGroup | OpenEditor> {
-		this.elements = [];
-		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(g => {
-			if (this.showGroups) {
-				this.elements.push(g);
+	pwivate getEwements(): Awway<IEditowGwoup | OpenEditow> {
+		this.ewements = [];
+		this.editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE).fowEach(g => {
+			if (this.showGwoups) {
+				this.ewements.push(g);
 			}
-			let editors = g.editors.map(ei => new OpenEditor(ei, g));
-			if (this.sortOrder === 'alphabetical') {
-				editors = editors.sort((first, second) => compareFileNamesDefault(first.editor.getName(), second.editor.getName()));
+			wet editows = g.editows.map(ei => new OpenEditow(ei, g));
+			if (this.sowtOwda === 'awphabeticaw') {
+				editows = editows.sowt((fiwst, second) => compaweFiweNamesDefauwt(fiwst.editow.getName(), second.editow.getName()));
 			}
-			this.elements.push(...editors);
+			this.ewements.push(...editows);
 		});
 
-		return this.elements;
+		wetuwn this.ewements;
 	}
 
-	private getIndex(group: IEditorGroup, editor: EditorInput | undefined | null): number {
-		if (!editor) {
-			return this.elements.findIndex(e => !(e instanceof OpenEditor) && e.id === group.id);
+	pwivate getIndex(gwoup: IEditowGwoup, editow: EditowInput | undefined | nuww): numba {
+		if (!editow) {
+			wetuwn this.ewements.findIndex(e => !(e instanceof OpenEditow) && e.id === gwoup.id);
 		}
 
-		return this.elements.findIndex(e => e instanceof OpenEditor && e.editor === editor && e.group.id === group.id);
+		wetuwn this.ewements.findIndex(e => e instanceof OpenEditow && e.editow === editow && e.gwoup.id === gwoup.id);
 	}
 
-	private openEditor(element: OpenEditor, options: { preserveFocus?: boolean; pinned?: boolean; sideBySide?: boolean; }): void {
-		if (element) {
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
+	pwivate openEditow(ewement: OpenEditow, options: { pwesewveFocus?: boowean; pinned?: boowean; sideBySide?: boowean; }): void {
+		if (ewement) {
+			this.tewemetwySewvice.pubwicWog2<WowkbenchActionExecutedEvent, WowkbenchActionExecutedCwassification>('wowkbenchActionExecuted', { id: 'wowkbench.fiwes.openFiwe', fwom: 'openEditows' });
 
-			const preserveActivateGroup = options.sideBySide && options.preserveFocus; // needed for https://github.com/microsoft/vscode/issues/42399
-			if (!preserveActivateGroup) {
-				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
+			const pwesewveActivateGwoup = options.sideBySide && options.pwesewveFocus; // needed fow https://github.com/micwosoft/vscode/issues/42399
+			if (!pwesewveActivateGwoup) {
+				this.editowGwoupSewvice.activateGwoup(ewement.gwoup); // needed fow https://github.com/micwosoft/vscode/issues/6672
 			}
-			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
-			targetGroup.openEditor(element.editor, options);
+			const tawgetGwoup = options.sideBySide ? this.editowGwoupSewvice.sideGwoup : this.editowGwoupSewvice.activeGwoup;
+			tawgetGwoup.openEditow(ewement.editow, options);
 		}
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
-		if (!e.element) {
-			return;
+	pwivate onWistContextMenu(e: IWistContextMenuEvent<OpenEditow | IEditowGwoup>): void {
+		if (!e.ewement) {
+			wetuwn;
 		}
 
-		const element = e.element;
+		const ewement = e.ewement;
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} }, actions);
+		const actionsDisposabwe = cweateAndFiwwInContextMenuActions(this.contwibutedContextMenu, { shouwdFowwawdAwgs: twue, awg: ewement instanceof OpenEditow ? EditowWesouwceAccessow.getOwiginawUwi(ewement.editow) : {} }, actions);
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor,
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow,
 			getActions: () => actions,
-			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.group.getIndexOfEditor(element.editor) } : { groupId: element.id },
-			onHide: () => dispose(actionsDisposable)
+			getActionsContext: () => ewement instanceof OpenEditow ? { gwoupId: ewement.gwoupId, editowIndex: ewement.gwoup.getIndexOfEditow(ewement.editow) } : { gwoupId: ewement.id },
+			onHide: () => dispose(actionsDisposabwe)
 		});
 	}
 
-	private focusActiveEditor(): void {
-		if (this.list.length && this.editorGroupService.activeGroup) {
-			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
+	pwivate focusActiveEditow(): void {
+		if (this.wist.wength && this.editowGwoupSewvice.activeGwoup) {
+			const index = this.getIndex(this.editowGwoupSewvice.activeGwoup, this.editowGwoupSewvice.activeGwoup.activeEditow);
 			if (index >= 0) {
-				try {
-					this.list.setFocus([index]);
-					this.list.setSelection([index]);
-					this.list.reveal(index);
+				twy {
+					this.wist.setFocus([index]);
+					this.wist.setSewection([index]);
+					this.wist.weveaw(index);
 				} catch (e) {
-					// noop list updated in the meantime
+					// noop wist updated in the meantime
 				}
-				return;
+				wetuwn;
 			}
 		}
 
-		this.list.setFocus([]);
-		this.list.setSelection([]);
+		this.wist.setFocus([]);
+		this.wist.setSewection([]);
 	}
 
-	private onConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('explorer.openEditors')) {
+	pwivate onConfiguwationChange(event: IConfiguwationChangeEvent): void {
+		if (event.affectsConfiguwation('expwowa.openEditows')) {
 			this.updateSize();
 		}
-		// Trigger a 'repaint' when decoration settings change or the sort order changed
-		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
-			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
-			this.listRefreshScheduler.schedule();
+		// Twigga a 'wepaint' when decowation settings change ow the sowt owda changed
+		if (event.affectsConfiguwation('expwowa.decowations') || event.affectsConfiguwation('expwowa.openEditows.sowtOwda')) {
+			this.sowtOwda = this.configuwationSewvice.getVawue('expwowa.openEditows.sowtOwda');
+			this.wistWefweshScheduwa.scheduwe();
 		}
 	}
 
-	private updateSize(): void {
+	pwivate updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? this.getMinExpandedBodySize() : 170;
-		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.getMaxExpandedBodySize() : Number.POSITIVE_INFINITY;
+		this.minimumBodySize = this.owientation === Owientation.VEWTICAW ? this.getMinExpandedBodySize() : 170;
+		this.maximumBodySize = this.owientation === Owientation.VEWTICAW ? this.getMaxExpandedBodySize() : Numba.POSITIVE_INFINITY;
 	}
 
-	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
-		if (workingCopy) {
-			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-				return; // do not indicate dirty of working copies that are auto saved after short delay
+	pwivate updateDiwtyIndicatow(wowkingCopy?: IWowkingCopy): void {
+		if (wowkingCopy) {
+			const gotDiwty = wowkingCopy.isDiwty();
+			if (gotDiwty && !(wowkingCopy.capabiwities & WowkingCopyCapabiwities.Untitwed) && this.fiwesConfiguwationSewvice.getAutoSaveMode() === AutoSaveMode.AFTEW_SHOWT_DEWAY) {
+				wetuwn; // do not indicate diwty of wowking copies that awe auto saved afta showt deway
 			}
 		}
 
-		let dirty = this.workingCopyService.dirtyCount;
-		if (dirty === 0) {
-			this.dirtyCountElement.classList.add('hidden');
-		} else {
-			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
-			this.dirtyCountElement.classList.remove('hidden');
+		wet diwty = this.wowkingCopySewvice.diwtyCount;
+		if (diwty === 0) {
+			this.diwtyCountEwement.cwassWist.add('hidden');
+		} ewse {
+			this.diwtyCountEwement.textContent = nws.wocawize('diwtyCounta', "{0} unsaved", diwty);
+			this.diwtyCountEwement.cwassWist.wemove('hidden');
 		}
 	}
 
-	private get elementCount(): number {
-		return this.editorGroupService.groups.map(g => g.count)
-			.reduce((first, second) => first + second, this.showGroups ? this.editorGroupService.groups.length : 0);
+	pwivate get ewementCount(): numba {
+		wetuwn this.editowGwoupSewvice.gwoups.map(g => g.count)
+			.weduce((fiwst, second) => fiwst + second, this.showGwoups ? this.editowGwoupSewvice.gwoups.wength : 0);
 	}
 
-	private getMaxExpandedBodySize(): number {
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
-		if (containerModel.visibleViewDescriptors.length <= 1) {
-			return Number.POSITIVE_INFINITY;
+	pwivate getMaxExpandedBodySize(): numba {
+		const containewModew = this.viewDescwiptowSewvice.getViewContainewModew(this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!)!;
+		if (containewModew.visibweViewDescwiptows.wength <= 1) {
+			wetuwn Numba.POSITIVE_INFINITY;
 		}
 
-		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		wetuwn this.ewementCount * OpenEditowsDewegate.ITEM_HEIGHT;
 	}
 
-	private getMinExpandedBodySize(): number {
-		let visibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.visible');
-		if (typeof visibleOpenEditors !== 'number') {
-			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
+	pwivate getMinExpandedBodySize(): numba {
+		wet visibweOpenEditows = this.configuwationSewvice.getVawue<numba>('expwowa.openEditows.visibwe');
+		if (typeof visibweOpenEditows !== 'numba') {
+			visibweOpenEditows = OpenEditowsView.DEFAUWT_VISIBWE_OPEN_EDITOWS;
 		}
 
-		return this.computeMinExpandedBodySize(visibleOpenEditors);
+		wetuwn this.computeMinExpandedBodySize(visibweOpenEditows);
 	}
 
-	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS): number {
-		const itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
-		return itemsToShow * OpenEditorsDelegate.ITEM_HEIGHT;
+	pwivate computeMinExpandedBodySize(visibweOpenEditows = OpenEditowsView.DEFAUWT_VISIBWE_OPEN_EDITOWS): numba {
+		const itemsToShow = Math.min(Math.max(visibweOpenEditows, 1), this.ewementCount);
+		wetuwn itemsToShow * OpenEditowsDewegate.ITEM_HEIGHT;
 	}
 
-	setStructuralRefreshDelay(delay: number): void {
-		this.structuralRefreshDelay = delay;
+	setStwuctuwawWefweshDeway(deway: numba): void {
+		this.stwuctuwawWefweshDeway = deway;
 	}
 
-	override getOptimalWidth(): number {
-		let parentNode = this.list.getHTMLElement();
-		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
+	ovewwide getOptimawWidth(): numba {
+		wet pawentNode = this.wist.getHTMWEwement();
+		wet chiwdNodes: HTMWEwement[] = [].swice.caww(pawentNode.quewySewectowAww('.open-editow > a'));
 
-		return dom.getLargestChildWidth(parentNode, childNodes);
+		wetuwn dom.getWawgestChiwdWidth(pawentNode, chiwdNodes);
 	}
 }
 
-interface IOpenEditorTemplateData {
-	container: HTMLElement;
-	root: IResourceLabel;
-	actionBar: ActionBar;
-	actionRunner: OpenEditorActionRunner;
+intewface IOpenEditowTempwateData {
+	containa: HTMWEwement;
+	woot: IWesouwceWabew;
+	actionBaw: ActionBaw;
+	actionWunna: OpenEditowActionWunna;
 }
 
-interface IEditorGroupTemplateData {
-	root: HTMLElement;
-	name: HTMLSpanElement;
-	actionBar: ActionBar;
-	editorGroup: IEditorGroup;
+intewface IEditowGwoupTempwateData {
+	woot: HTMWEwement;
+	name: HTMWSpanEwement;
+	actionBaw: ActionBaw;
+	editowGwoup: IEditowGwoup;
 }
 
-class OpenEditorActionRunner extends ActionRunner {
-	public editor: OpenEditor | undefined;
+cwass OpenEditowActionWunna extends ActionWunna {
+	pubwic editow: OpenEditow | undefined;
 
-	override async run(action: IAction): Promise<void> {
-		if (!this.editor) {
-			return;
+	ovewwide async wun(action: IAction): Pwomise<void> {
+		if (!this.editow) {
+			wetuwn;
 		}
 
-		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.group.getIndexOfEditor(this.editor.editor) });
+		wetuwn supa.wun(action, { gwoupId: this.editow.gwoupId, editowIndex: this.editow.gwoup.getIndexOfEditow(this.editow.editow) });
 	}
 }
 
-class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
+cwass OpenEditowsDewegate impwements IWistViwtuawDewegate<OpenEditow | IEditowGwoup> {
 
-	public static readonly ITEM_HEIGHT = 22;
+	pubwic static weadonwy ITEM_HEIGHT = 22;
 
-	getHeight(_element: OpenEditor | IEditorGroup): number {
-		return OpenEditorsDelegate.ITEM_HEIGHT;
+	getHeight(_ewement: OpenEditow | IEditowGwoup): numba {
+		wetuwn OpenEditowsDewegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: OpenEditor | IEditorGroup): string {
-		if (element instanceof OpenEditor) {
-			return OpenEditorRenderer.ID;
+	getTempwateId(ewement: OpenEditow | IEditowGwoup): stwing {
+		if (ewement instanceof OpenEditow) {
+			wetuwn OpenEditowWendewa.ID;
 		}
 
-		return EditorGroupRenderer.ID;
+		wetuwn EditowGwoupWendewa.ID;
 	}
 }
 
-class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTemplateData> {
-	static readonly ID = 'editorgroup';
+cwass EditowGwoupWendewa impwements IWistWendewa<IEditowGwoup, IEditowGwoupTempwateData> {
+	static weadonwy ID = 'editowgwoup';
 
-	constructor(
-		private keybindingService: IKeybindingService,
-		private instantiationService: IInstantiationService,
+	constwuctow(
+		pwivate keybindingSewvice: IKeybindingSewvice,
+		pwivate instantiationSewvice: IInstantiationSewvice,
 	) {
 		// noop
 	}
 
-	get templateId() {
-		return EditorGroupRenderer.ID;
+	get tempwateId() {
+		wetuwn EditowGwoupWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IEditorGroupTemplateData {
-		const editorGroupTemplate: IEditorGroupTemplateData = Object.create(null);
-		editorGroupTemplate.root = dom.append(container, $('.editor-group'));
-		editorGroupTemplate.name = dom.append(editorGroupTemplate.root, $('span.name'));
-		editorGroupTemplate.actionBar = new ActionBar(container);
+	wendewTempwate(containa: HTMWEwement): IEditowGwoupTempwateData {
+		const editowGwoupTempwate: IEditowGwoupTempwateData = Object.cweate(nuww);
+		editowGwoupTempwate.woot = dom.append(containa, $('.editow-gwoup'));
+		editowGwoupTempwate.name = dom.append(editowGwoupTempwate.woot, $('span.name'));
+		editowGwoupTempwate.actionBaw = new ActionBaw(containa);
 
-		const saveAllInGroupAction = this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, SaveAllInGroupAction.LABEL);
-		const saveAllInGroupKey = this.keybindingService.lookupKeybinding(saveAllInGroupAction.id);
-		editorGroupTemplate.actionBar.push(saveAllInGroupAction, { icon: true, label: false, keybinding: saveAllInGroupKey ? saveAllInGroupKey.getLabel() : undefined });
+		const saveAwwInGwoupAction = this.instantiationSewvice.cweateInstance(SaveAwwInGwoupAction, SaveAwwInGwoupAction.ID, SaveAwwInGwoupAction.WABEW);
+		const saveAwwInGwoupKey = this.keybindingSewvice.wookupKeybinding(saveAwwInGwoupAction.id);
+		editowGwoupTempwate.actionBaw.push(saveAwwInGwoupAction, { icon: twue, wabew: fawse, keybinding: saveAwwInGwoupKey ? saveAwwInGwoupKey.getWabew() : undefined });
 
-		const closeGroupAction = this.instantiationService.createInstance(CloseGroupAction, CloseGroupAction.ID, CloseGroupAction.LABEL);
-		const closeGroupActionKey = this.keybindingService.lookupKeybinding(closeGroupAction.id);
-		editorGroupTemplate.actionBar.push(closeGroupAction, { icon: true, label: false, keybinding: closeGroupActionKey ? closeGroupActionKey.getLabel() : undefined });
+		const cwoseGwoupAction = this.instantiationSewvice.cweateInstance(CwoseGwoupAction, CwoseGwoupAction.ID, CwoseGwoupAction.WABEW);
+		const cwoseGwoupActionKey = this.keybindingSewvice.wookupKeybinding(cwoseGwoupAction.id);
+		editowGwoupTempwate.actionBaw.push(cwoseGwoupAction, { icon: twue, wabew: fawse, keybinding: cwoseGwoupActionKey ? cwoseGwoupActionKey.getWabew() : undefined });
 
-		return editorGroupTemplate;
+		wetuwn editowGwoupTempwate;
 	}
 
-	renderElement(editorGroup: IEditorGroup, _index: number, templateData: IEditorGroupTemplateData): void {
-		templateData.editorGroup = editorGroup;
-		templateData.name.textContent = editorGroup.label;
-		templateData.actionBar.context = { groupId: editorGroup.id };
+	wendewEwement(editowGwoup: IEditowGwoup, _index: numba, tempwateData: IEditowGwoupTempwateData): void {
+		tempwateData.editowGwoup = editowGwoup;
+		tempwateData.name.textContent = editowGwoup.wabew;
+		tempwateData.actionBaw.context = { gwoupId: editowGwoup.id };
 	}
 
-	disposeTemplate(templateData: IEditorGroupTemplateData): void {
-		templateData.actionBar.dispose();
+	disposeTempwate(tempwateData: IEditowGwoupTempwateData): void {
+		tempwateData.actionBaw.dispose();
 	}
 }
 
-class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
-	static readonly ID = 'openeditor';
+cwass OpenEditowWendewa impwements IWistWendewa<OpenEditow, IOpenEditowTempwateData> {
+	static weadonwy ID = 'openeditow';
 
-	private readonly closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-	private readonly unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
+	pwivate weadonwy cwoseEditowAction = this.instantiationSewvice.cweateInstance(CwoseEditowAction, CwoseEditowAction.ID, CwoseEditowAction.WABEW);
+	pwivate weadonwy unpinEditowAction = this.instantiationSewvice.cweateInstance(UnpinEditowAction, UnpinEditowAction.ID, UnpinEditowAction.WABEW);
 
-	constructor(
-		private labels: ResourceLabels,
-		private instantiationService: IInstantiationService,
-		private keybindingService: IKeybindingService,
-		private configurationService: IConfigurationService
+	constwuctow(
+		pwivate wabews: WesouwceWabews,
+		pwivate instantiationSewvice: IInstantiationSewvice,
+		pwivate keybindingSewvice: IKeybindingSewvice,
+		pwivate configuwationSewvice: IConfiguwationSewvice
 	) {
 		// noop
 	}
 
-	get templateId() {
-		return OpenEditorRenderer.ID;
+	get tempwateId() {
+		wetuwn OpenEditowWendewa.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IOpenEditorTemplateData {
-		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
-		editorTemplate.container = container;
-		editorTemplate.actionRunner = new OpenEditorActionRunner();
-		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner });
-		editorTemplate.root = this.labels.create(container);
+	wendewTempwate(containa: HTMWEwement): IOpenEditowTempwateData {
+		const editowTempwate: IOpenEditowTempwateData = Object.cweate(nuww);
+		editowTempwate.containa = containa;
+		editowTempwate.actionWunna = new OpenEditowActionWunna();
+		editowTempwate.actionBaw = new ActionBaw(containa, { actionWunna: editowTempwate.actionWunna });
+		editowTempwate.woot = this.wabews.cweate(containa);
 
-		return editorTemplate;
+		wetuwn editowTempwate;
 	}
 
-	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
-		const editor = openedEditor.editor;
-		templateData.actionRunner.editor = openedEditor;
-		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
-		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
-		templateData.root.setResource({
-			resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
-			name: editor.getName(),
-			description: editor.getDescription(Verbosity.MEDIUM)
+	wendewEwement(openedEditow: OpenEditow, _index: numba, tempwateData: IOpenEditowTempwateData): void {
+		const editow = openedEditow.editow;
+		tempwateData.actionWunna.editow = openedEditow;
+		tempwateData.containa.cwassWist.toggwe('diwty', editow.isDiwty() && !editow.isSaving());
+		tempwateData.containa.cwassWist.toggwe('sticky', openedEditow.isSticky());
+		tempwateData.woot.setWesouwce({
+			wesouwce: EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.BOTH }),
+			name: editow.getName(),
+			descwiption: editow.getDescwiption(Vewbosity.MEDIUM)
 		}, {
-			italic: openedEditor.isPreview(),
-			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
-			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			title: editor.getTitle(Verbosity.LONG)
+			itawic: openedEditow.isPweview(),
+			extwaCwasses: ['open-editow'].concat(openedEditow.editow.getWabewExtwaCwasses()),
+			fiweDecowations: this.configuwationSewvice.getVawue<IFiwesConfiguwation>().expwowa.decowations,
+			titwe: editow.getTitwe(Vewbosity.WONG)
 		});
-		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
-		if (!templateData.actionBar.hasAction(editorAction)) {
-			if (!templateData.actionBar.isEmpty()) {
-				templateData.actionBar.clear();
+		const editowAction = openedEditow.isSticky() ? this.unpinEditowAction : this.cwoseEditowAction;
+		if (!tempwateData.actionBaw.hasAction(editowAction)) {
+			if (!tempwateData.actionBaw.isEmpty()) {
+				tempwateData.actionBaw.cweaw();
 			}
-			templateData.actionBar.push(editorAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(editorAction.id)?.getLabel() });
+			tempwateData.actionBaw.push(editowAction, { icon: twue, wabew: fawse, keybinding: this.keybindingSewvice.wookupKeybinding(editowAction.id)?.getWabew() });
 		}
 	}
 
-	disposeTemplate(templateData: IOpenEditorTemplateData): void {
-		templateData.actionBar.dispose();
-		templateData.root.dispose();
-		templateData.actionRunner.dispose();
+	disposeTempwate(tempwateData: IOpenEditowTempwateData): void {
+		tempwateData.actionBaw.dispose();
+		tempwateData.woot.dispose();
+		tempwateData.actionWunna.dispose();
 	}
 }
 
-class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGroup> {
+cwass OpenEditowsDwagAndDwop impwements IWistDwagAndDwop<OpenEditow | IEditowGwoup> {
 
-	constructor(
-		private instantiationService: IInstantiationService,
-		private editorGroupService: IEditorGroupsService
+	constwuctow(
+		pwivate instantiationSewvice: IInstantiationSewvice,
+		pwivate editowGwoupSewvice: IEditowGwoupsSewvice
 	) { }
 
-	@memoize private get dropHandler(): ResourcesDropHandler {
-		return this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
+	@memoize pwivate get dwopHandwa(): WesouwcesDwopHandwa {
+		wetuwn this.instantiationSewvice.cweateInstance(WesouwcesDwopHandwa, { awwowWowkspaceOpen: fawse });
 	}
 
-	getDragURI(element: OpenEditor | IEditorGroup): string | null {
-		if (element instanceof OpenEditor) {
-			const resource = element.getResource();
-			if (resource) {
-				return resource.toString();
+	getDwagUWI(ewement: OpenEditow | IEditowGwoup): stwing | nuww {
+		if (ewement instanceof OpenEditow) {
+			const wesouwce = ewement.getWesouwce();
+			if (wesouwce) {
+				wetuwn wesouwce.toStwing();
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	getDragLabel?(elements: (OpenEditor | IEditorGroup)[]): string {
-		if (elements.length > 1) {
-			return String(elements.length);
+	getDwagWabew?(ewements: (OpenEditow | IEditowGwoup)[]): stwing {
+		if (ewements.wength > 1) {
+			wetuwn Stwing(ewements.wength);
 		}
-		const element = elements[0];
+		const ewement = ewements[0];
 
-		return element instanceof OpenEditor ? element.editor.getName() : element.label;
+		wetuwn ewement instanceof OpenEditow ? ewement.editow.getName() : ewement.wabew;
 	}
 
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const items = (data as ElementsDragAndDropData<OpenEditor | IEditorGroup>).elements;
-		const editors: IEditorIdentifier[] = [];
+	onDwagStawt(data: IDwagAndDwopData, owiginawEvent: DwagEvent): void {
+		const items = (data as EwementsDwagAndDwopData<OpenEditow | IEditowGwoup>).ewements;
+		const editows: IEditowIdentifia[] = [];
 		if (items) {
-			for (const item of items) {
-				if (item instanceof OpenEditor) {
-					editors.push(item);
+			fow (const item of items) {
+				if (item instanceof OpenEditow) {
+					editows.push(item);
 				}
 			}
 		}
 
-		if (editors.length) {
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors, originalEvent);
+		if (editows.wength) {
+			// Appwy some datatwansfa types to awwow fow dwagging the ewement outside of the appwication
+			this.instantiationSewvice.invokeFunction(fiwwEditowsDwagData, editows, owiginawEvent);
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (data instanceof NativeDragAndDropData) {
+	onDwagOva(data: IDwagAndDwopData, _tawgetEwement: OpenEditow | IEditowGwoup, _tawgetIndex: numba, owiginawEvent: DwagEvent): boowean | IWistDwagOvewWeaction {
+		if (data instanceof NativeDwagAndDwopData) {
 			if (isWeb) {
-				return false; // dropping files into editor is unsupported on web
+				wetuwn fawse; // dwopping fiwes into editow is unsuppowted on web
 			}
 
-			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
+			wetuwn containsDwagType(owiginawEvent, DataTwansfews.FIWES, CodeDataTwansfews.FIWES);
 		}
 
-		return true;
+		wetuwn twue;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent): void {
-		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+	dwop(data: IDwagAndDwopData, tawgetEwement: OpenEditow | IEditowGwoup | undefined, _tawgetIndex: numba, owiginawEvent: DwagEvent): void {
+		const gwoup = tawgetEwement instanceof OpenEditow ? tawgetEwement.gwoup : tawgetEwement || this.editowGwoupSewvice.gwoups[this.editowGwoupSewvice.count - 1];
+		const index = tawgetEwement instanceof OpenEditow ? tawgetEwement.gwoup.getIndexOfEditow(tawgetEwement.editow) : 0;
 
-		if (data instanceof ElementsDragAndDropData) {
-			const elementsData = data.elements;
-			elementsData.forEach((oe: OpenEditor, offset) => {
-				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
+		if (data instanceof EwementsDwagAndDwopData) {
+			const ewementsData = data.ewements;
+			ewementsData.fowEach((oe: OpenEditow, offset) => {
+				oe.gwoup.moveEditow(oe.editow, gwoup, { index: index + offset, pwesewveFocus: twue });
 			});
-			this.editorGroupService.activateGroup(group);
-		} else {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
+			this.editowGwoupSewvice.activateGwoup(gwoup);
+		} ewse {
+			this.dwopHandwa.handweDwop(owiginawEvent, () => gwoup, () => gwoup.focus(), index);
 		}
 	}
 }
 
-class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+cwass OpenEditowsAccessibiwityPwovida impwements IWistAccessibiwityPwovida<OpenEditow | IEditowGwoup> {
 
-	getWidgetAriaLabel(): string {
-		return nls.localize('openEditors', "Open Editors");
+	getWidgetAwiaWabew(): stwing {
+		wetuwn nws.wocawize('openEditows', "Open Editows");
 	}
 
-	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
-		if (element instanceof OpenEditor) {
-			return `${element.editor.getName()}, ${element.editor.getDescription()}`;
+	getAwiaWabew(ewement: OpenEditow | IEditowGwoup): stwing | nuww {
+		if (ewement instanceof OpenEditow) {
+			wetuwn `${ewement.editow.getName()}, ${ewement.editow.getDescwiption()}`;
 		}
 
-		return element.ariaLabel;
+		wetuwn ewement.awiaWabew;
 	}
 }
 
-const toggleEditorGroupLayoutId = 'workbench.action.toggleEditorGroupLayout';
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.toggleEditorGroupLayout',
-			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
-			f1: true,
+const toggweEditowGwoupWayoutId = 'wowkbench.action.toggweEditowGwoupWayout';
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.toggweEditowGwoupWayout',
+			titwe: { vawue: nws.wocawize('fwipWayout', "Toggwe Vewticaw/Howizontaw Editow Wayout"), owiginaw: 'Toggwe Vewticaw/Howizontaw Editow Wayout' },
+			f1: twue,
 			keybinding: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 },
-				weight: KeybindingWeight.WorkbenchContrib
+				pwimawy: KeyMod.Shift | KeyMod.Awt | KeyCode.KEY_0,
+				mac: { pwimawy: KeyMod.CtwwCmd | KeyMod.Awt | KeyCode.KEY_0 },
+				weight: KeybindingWeight.WowkbenchContwib
 			},
-			icon: Codicon.editorLayout,
+			icon: Codicon.editowWayout,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
-				order: 10
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', OpenEditowsView.ID),
+				owda: 10
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const newOrientation = (editorGroupService.orientation === GroupOrientation.VERTICAL) ? GroupOrientation.HORIZONTAL : GroupOrientation.VERTICAL;
-		editorGroupService.setGroupOrientation(newOrientation);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const editowGwoupSewvice = accessow.get(IEditowGwoupsSewvice);
+		const newOwientation = (editowGwoupSewvice.owientation === GwoupOwientation.VEWTICAW) ? GwoupOwientation.HOWIZONTAW : GwoupOwientation.VEWTICAW;
+		editowGwoupSewvice.setGwoupOwientation(newOwientation);
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '4_flip',
+MenuWegistwy.appendMenuItem(MenuId.MenubawWayoutMenu, {
+	gwoup: '4_fwip',
 	command: {
-		id: toggleEditorGroupLayoutId,
-		title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		id: toggweEditowGwoupWayoutId,
+		titwe: nws.wocawize({ key: 'miToggweEditowWayout', comment: ['&& denotes a mnemonic'] }, "Fwip &&Wayout")
 	},
-	order: 1
+	owda: 1
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.files.saveAll',
-			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
-			f1: true,
-			icon: Codicon.saveAll,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'wowkbench.action.fiwes.saveAww',
+			titwe: { vawue: SAVE_AWW_WABEW, owiginaw: 'Save Aww' },
+			f1: twue,
+			icon: Codicon.saveAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
-				order: 20
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', OpenEditowsView.ID),
+				owda: 20
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand(SAVE_ALL_COMMAND_ID);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		await commandSewvice.executeCommand(SAVE_AWW_COMMAND_ID);
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'openEditors.closeAll',
-			title: CloseAllEditorsAction.LABEL,
-			f1: false,
-			icon: Codicon.closeAll,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'openEditows.cwoseAww',
+			titwe: CwoseAwwEditowsAction.WABEW,
+			f1: fawse,
+			icon: Codicon.cwoseAww,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
-				order: 30
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', OpenEditowsView.ID),
+				owda: 30
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		const closeAll = instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL);
-		await closeAll.run();
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const instantiationSewvice = accessow.get(IInstantiationSewvice);
+		const cwoseAww = instantiationSewvice.cweateInstance(CwoseAwwEditowsAction, CwoseAwwEditowsAction.ID, CwoseAwwEditowsAction.WABEW);
+		await cwoseAww.wun();
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled File"), original: 'New Untitled File' },
-			f1: false,
-			icon: Codicon.newFile,
+wegistewAction2(cwass extends Action2 {
+	constwuctow() {
+		supa({
+			id: 'openEditows.newUntitwedFiwe',
+			titwe: { vawue: nws.wocawize('newUntitwedFiwe', "New Untitwed Fiwe"), owiginaw: 'New Untitwed Fiwe' },
+			f1: fawse,
+			icon: Codicon.newFiwe,
 			menu: {
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				when: ContextKeyExpr.equals('view', OpenEditorsView.ID),
-				order: 5
+				id: MenuId.ViewTitwe,
+				gwoup: 'navigation',
+				when: ContextKeyExpw.equaws('view', OpenEditowsView.ID),
+				owda: 5
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		await commandSewvice.executeCommand(NEW_UNTITWED_FIWE_COMMAND_ID);
 	}
 });

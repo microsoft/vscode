@@ -1,259 +1,259 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IAction } from 'vs/base/common/actions';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./checkbox';
+impowt { IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { BaseActionViewItem, IActionViewItemOptions } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { Codicon, CSSIcon } fwom 'vs/base/common/codicons';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt 'vs/css!./checkbox';
 
-export interface ICheckboxOpts extends ICheckboxStyles {
-	readonly actionClassName?: string;
-	readonly icon?: CSSIcon;
-	readonly title: string;
-	readonly isChecked: boolean;
-	readonly notFocusable?: boolean;
+expowt intewface ICheckboxOpts extends ICheckboxStywes {
+	weadonwy actionCwassName?: stwing;
+	weadonwy icon?: CSSIcon;
+	weadonwy titwe: stwing;
+	weadonwy isChecked: boowean;
+	weadonwy notFocusabwe?: boowean;
 }
 
-export interface ICheckboxStyles {
-	inputActiveOptionBorder?: Color;
-	inputActiveOptionForeground?: Color;
-	inputActiveOptionBackground?: Color;
+expowt intewface ICheckboxStywes {
+	inputActiveOptionBowda?: Cowow;
+	inputActiveOptionFowegwound?: Cowow;
+	inputActiveOptionBackgwound?: Cowow;
 }
 
-export interface ISimpleCheckboxStyles {
-	checkboxBackground?: Color;
-	checkboxBorder?: Color;
-	checkboxForeground?: Color;
+expowt intewface ISimpweCheckboxStywes {
+	checkboxBackgwound?: Cowow;
+	checkboxBowda?: Cowow;
+	checkboxFowegwound?: Cowow;
 }
 
-const defaultOpts = {
-	inputActiveOptionBorder: Color.fromHex('#007ACC00'),
-	inputActiveOptionForeground: Color.fromHex('#FFFFFF'),
-	inputActiveOptionBackground: Color.fromHex('#0E639C50')
+const defauwtOpts = {
+	inputActiveOptionBowda: Cowow.fwomHex('#007ACC00'),
+	inputActiveOptionFowegwound: Cowow.fwomHex('#FFFFFF'),
+	inputActiveOptionBackgwound: Cowow.fwomHex('#0E639C50')
 };
 
-export class CheckboxActionViewItem extends BaseActionViewItem {
+expowt cwass CheckboxActionViewItem extends BaseActionViewItem {
 
-	protected readonly checkbox: Checkbox;
+	pwotected weadonwy checkbox: Checkbox;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
-		super(context, action, options);
-		this.checkbox = this._register(new Checkbox({
-			actionClassName: this._action.class,
+	constwuctow(context: any, action: IAction, options: IActionViewItemOptions | undefined) {
+		supa(context, action, options);
+		this.checkbox = this._wegista(new Checkbox({
+			actionCwassName: this._action.cwass,
 			isChecked: this._action.checked,
-			title: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.label} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.label,
-			notFocusable: true
+			titwe: (<IActionViewItemOptions>this.options).keybinding ? `${this._action.wabew} (${(<IActionViewItemOptions>this.options).keybinding})` : this._action.wabew,
+			notFocusabwe: twue
 		}));
-		this._register(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked));
+		this._wegista(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked));
 	}
 
-	override render(container: HTMLElement): void {
-		this.element = container;
-		this.element.appendChild(this.checkbox.domNode);
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.ewement = containa;
+		this.ewement.appendChiwd(this.checkbox.domNode);
 	}
 
-	override updateEnabled(): void {
+	ovewwide updateEnabwed(): void {
 		if (this.checkbox) {
-			if (this.isEnabled()) {
-				this.checkbox.enable();
-			} else {
-				this.checkbox.disable();
+			if (this.isEnabwed()) {
+				this.checkbox.enabwe();
+			} ewse {
+				this.checkbox.disabwe();
 			}
 		}
 	}
 
-	override updateChecked(): void {
+	ovewwide updateChecked(): void {
 		this.checkbox.checked = this._action.checked;
 	}
 
-	override focus(): void {
+	ovewwide focus(): void {
 		this.checkbox.domNode.tabIndex = 0;
 		this.checkbox.focus();
 	}
 
-	override blur(): void {
+	ovewwide bwuw(): void {
 		this.checkbox.domNode.tabIndex = -1;
-		this.checkbox.domNode.blur();
+		this.checkbox.domNode.bwuw();
 	}
 
-	override setFocusable(focusable: boolean): void {
-		this.checkbox.domNode.tabIndex = focusable ? 0 : -1;
+	ovewwide setFocusabwe(focusabwe: boowean): void {
+		this.checkbox.domNode.tabIndex = focusabwe ? 0 : -1;
 	}
 
 }
 
-export class Checkbox extends Widget {
+expowt cwass Checkbox extends Widget {
 
-	private readonly _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+	pwivate weadonwy _onChange = this._wegista(new Emitta<boowean>());
+	weadonwy onChange: Event<boowean /* via keyboawd */> = this._onChange.event;
 
-	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	pwivate weadonwy _onKeyDown = this._wegista(new Emitta<IKeyboawdEvent>());
+	weadonwy onKeyDown: Event<IKeyboawdEvent> = this._onKeyDown.event;
 
-	private readonly _opts: ICheckboxOpts;
-	readonly domNode: HTMLElement;
+	pwivate weadonwy _opts: ICheckboxOpts;
+	weadonwy domNode: HTMWEwement;
 
-	private _checked: boolean;
+	pwivate _checked: boowean;
 
-	constructor(opts: ICheckboxOpts) {
-		super();
+	constwuctow(opts: ICheckboxOpts) {
+		supa();
 
-		this._opts = { ...defaultOpts, ...opts };
+		this._opts = { ...defauwtOpts, ...opts };
 		this._checked = this._opts.isChecked;
 
-		const classes = ['monaco-custom-checkbox'];
+		const cwasses = ['monaco-custom-checkbox'];
 		if (this._opts.icon) {
-			classes.push(...CSSIcon.asClassNameArray(this._opts.icon));
+			cwasses.push(...CSSIcon.asCwassNameAwway(this._opts.icon));
 		}
-		if (this._opts.actionClassName) {
-			classes.push(...this._opts.actionClassName.split(' '));
+		if (this._opts.actionCwassName) {
+			cwasses.push(...this._opts.actionCwassName.spwit(' '));
 		}
 		if (this._checked) {
-			classes.push('checked');
+			cwasses.push('checked');
 		}
 
-		this.domNode = document.createElement('div');
-		this.domNode.title = this._opts.title;
-		this.domNode.classList.add(...classes);
-		if (!this._opts.notFocusable) {
+		this.domNode = document.cweateEwement('div');
+		this.domNode.titwe = this._opts.titwe;
+		this.domNode.cwassWist.add(...cwasses);
+		if (!this._opts.notFocusabwe) {
 			this.domNode.tabIndex = 0;
 		}
-		this.domNode.setAttribute('role', 'checkbox');
-		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.setAttribute('aria-label', this._opts.title);
+		this.domNode.setAttwibute('wowe', 'checkbox');
+		this.domNode.setAttwibute('awia-checked', Stwing(this._checked));
+		this.domNode.setAttwibute('awia-wabew', this._opts.titwe);
 
-		this.applyStyles();
+		this.appwyStywes();
 
-		this.onclick(this.domNode, (ev) => {
+		this.oncwick(this.domNode, (ev) => {
 			this.checked = !this._checked;
-			this._onChange.fire(false);
-			ev.preventDefault();
+			this._onChange.fiwe(fawse);
+			ev.pweventDefauwt();
 		});
 
-		this.ignoreGesture(this.domNode);
+		this.ignoweGestuwe(this.domNode);
 
-		this.onkeydown(this.domNode, (keyboardEvent) => {
-			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
+		this.onkeydown(this.domNode, (keyboawdEvent) => {
+			if (keyboawdEvent.keyCode === KeyCode.Space || keyboawdEvent.keyCode === KeyCode.Enta) {
 				this.checked = !this._checked;
-				this._onChange.fire(true);
-				keyboardEvent.preventDefault();
-				return;
+				this._onChange.fiwe(twue);
+				keyboawdEvent.pweventDefauwt();
+				wetuwn;
 			}
 
-			this._onKeyDown.fire(keyboardEvent);
+			this._onKeyDown.fiwe(keyboawdEvent);
 		});
 	}
 
-	get enabled(): boolean {
-		return this.domNode.getAttribute('aria-disabled') !== 'true';
+	get enabwed(): boowean {
+		wetuwn this.domNode.getAttwibute('awia-disabwed') !== 'twue';
 	}
 
 	focus(): void {
 		this.domNode.focus();
 	}
 
-	get checked(): boolean {
-		return this._checked;
+	get checked(): boowean {
+		wetuwn this._checked;
 	}
 
-	set checked(newIsChecked: boolean) {
+	set checked(newIsChecked: boowean) {
 		this._checked = newIsChecked;
 
-		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.classList.toggle('checked', this._checked);
+		this.domNode.setAttwibute('awia-checked', Stwing(this._checked));
+		this.domNode.cwassWist.toggwe('checked', this._checked);
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	width(): number {
-		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+	width(): numba {
+		wetuwn 2 /*mawgin weft*/ + 2 /*bowda*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	style(styles: ICheckboxStyles): void {
-		if (styles.inputActiveOptionBorder) {
-			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+	stywe(stywes: ICheckboxStywes): void {
+		if (stywes.inputActiveOptionBowda) {
+			this._opts.inputActiveOptionBowda = stywes.inputActiveOptionBowda;
 		}
-		if (styles.inputActiveOptionForeground) {
-			this._opts.inputActiveOptionForeground = styles.inputActiveOptionForeground;
+		if (stywes.inputActiveOptionFowegwound) {
+			this._opts.inputActiveOptionFowegwound = stywes.inputActiveOptionFowegwound;
 		}
-		if (styles.inputActiveOptionBackground) {
-			this._opts.inputActiveOptionBackground = styles.inputActiveOptionBackground;
+		if (stywes.inputActiveOptionBackgwound) {
+			this._opts.inputActiveOptionBackgwound = stywes.inputActiveOptionBackgwound;
 		}
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	protected applyStyles(): void {
+	pwotected appwyStywes(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
-			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
-			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
+			this.domNode.stywe.bowdewCowow = this._checked && this._opts.inputActiveOptionBowda ? this._opts.inputActiveOptionBowda.toStwing() : 'twanspawent';
+			this.domNode.stywe.cowow = this._checked && this._opts.inputActiveOptionFowegwound ? this._opts.inputActiveOptionFowegwound.toStwing() : 'inhewit';
+			this.domNode.stywe.backgwoundCowow = this._checked && this._opts.inputActiveOptionBackgwound ? this._opts.inputActiveOptionBackgwound.toStwing() : 'twanspawent';
 		}
 	}
 
-	enable(): void {
-		this.domNode.setAttribute('aria-disabled', String(false));
+	enabwe(): void {
+		this.domNode.setAttwibute('awia-disabwed', Stwing(fawse));
 	}
 
-	disable(): void {
-		this.domNode.setAttribute('aria-disabled', String(true));
+	disabwe(): void {
+		this.domNode.setAttwibute('awia-disabwed', Stwing(twue));
 	}
 
 }
 
-export class SimpleCheckbox extends Widget {
-	private checkbox: Checkbox;
-	private styles: ISimpleCheckboxStyles;
+expowt cwass SimpweCheckbox extends Widget {
+	pwivate checkbox: Checkbox;
+	pwivate stywes: ISimpweCheckboxStywes;
 
-	readonly domNode: HTMLElement;
+	weadonwy domNode: HTMWEwement;
 
-	constructor(private title: string, private isChecked: boolean) {
-		super();
+	constwuctow(pwivate titwe: stwing, pwivate isChecked: boowean) {
+		supa();
 
-		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-simple-checkbox' });
+		this.checkbox = new Checkbox({ titwe: this.titwe, isChecked: this.isChecked, icon: Codicon.check, actionCwassName: 'monaco-simpwe-checkbox' });
 
 		this.domNode = this.checkbox.domNode;
 
-		this.styles = {};
+		this.stywes = {};
 
 		this.checkbox.onChange(() => {
-			this.applyStyles();
+			this.appwyStywes();
 		});
 	}
 
-	get checked(): boolean {
-		return this.checkbox.checked;
+	get checked(): boowean {
+		wetuwn this.checkbox.checked;
 	}
 
-	set checked(newIsChecked: boolean) {
+	set checked(newIsChecked: boowean) {
 		this.checkbox.checked = newIsChecked;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
 	focus(): void {
 		this.domNode.focus();
 	}
 
-	hasFocus(): boolean {
-		return this.domNode === document.activeElement;
+	hasFocus(): boowean {
+		wetuwn this.domNode === document.activeEwement;
 	}
 
-	style(styles: ISimpleCheckboxStyles): void {
-		this.styles = styles;
+	stywe(stywes: ISimpweCheckboxStywes): void {
+		this.stywes = stywes;
 
-		this.applyStyles();
+		this.appwyStywes();
 	}
 
-	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : '';
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
+	pwotected appwyStywes(): void {
+		this.domNode.stywe.cowow = this.stywes.checkboxFowegwound ? this.stywes.checkboxFowegwound.toStwing() : '';
+		this.domNode.stywe.backgwoundCowow = this.stywes.checkboxBackgwound ? this.stywes.checkboxBackgwound.toStwing() : '';
+		this.domNode.stywe.bowdewCowow = this.stywes.checkboxBowda ? this.stywes.checkboxBowda.toStwing() : '';
 	}
 }

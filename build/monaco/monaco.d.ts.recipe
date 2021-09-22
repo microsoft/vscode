@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-declare let MonacoEnvironment: monaco.Environment | undefined;
+decwawe wet MonacoEnviwonment: monaco.Enviwonment | undefined;
 
-interface Window {
-	MonacoEnvironment?: monaco.Environment | undefined;
+intewface Window {
+	MonacoEnviwonment?: monaco.Enviwonment | undefined;
 }
 
-declare namespace monaco {
+decwawe namespace monaco {
 
-	export type Thenable<T> = PromiseLike<T>;
+	expowt type Thenabwe<T> = PwomiseWike<T>;
 
-	export interface Environment {
-		globalAPI?: boolean;
-		baseUrl?: string;
-		getWorker?(workerId: string, label: string): Worker;
-		getWorkerUrl?(workerId: string, label: string): string;
+	expowt intewface Enviwonment {
+		gwobawAPI?: boowean;
+		baseUww?: stwing;
+		getWowka?(wowkewId: stwing, wabew: stwing): Wowka;
+		getWowkewUww?(wowkewId: stwing, wabew: stwing): stwing;
 	}
 
-	export interface IDisposable {
+	expowt intewface IDisposabwe {
 		dispose(): void;
 	}
 
-	export interface IEvent<T> {
-		(listener: (e: T) => any, thisArg?: any): IDisposable;
+	expowt intewface IEvent<T> {
+		(wistena: (e: T) => any, thisAwg?: any): IDisposabwe;
 	}
 
 	/**
-	 * A helper that allows to emit and listen to typed events
+	 * A hewpa that awwows to emit and wisten to typed events
 	 */
-	export class Emitter<T> {
-		constructor();
-		readonly event: Event<T>;
-		fire(event: T): void;
+	expowt cwass Emitta<T> {
+		constwuctow();
+		weadonwy event: Event<T>;
+		fiwe(event: T): void;
 		dispose(): void;
 	}
 
-#include(vs/platform/markers/common/markers): MarkerTag, MarkerSeverity
-#include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
-#include(vs/base/common/uri): URI, UriComponents
-#include(vs/base/common/keyCodes): KeyCode
-#include(vs/editor/common/standalone/standaloneBase): KeyMod
-#include(vs/base/common/htmlContent): IMarkdownString
-#include(vs/base/browser/keyboardEvent): IKeyboardEvent
-#include(vs/base/browser/mouseEvent): IMouseEvent
-#include(vs/editor/common/editorCommon): IScrollEvent
-#include(vs/editor/common/core/position): IPosition, Position
-#include(vs/editor/common/core/range): IRange, Range
-#include(vs/editor/common/core/selection): ISelection, Selection, SelectionDirection
-#include(vs/editor/common/core/token): Token
+#incwude(vs/pwatfowm/mawkews/common/mawkews): MawkewTag, MawkewSevewity
+#incwude(vs/base/common/cancewwation): CancewwationTokenSouwce, CancewwationToken
+#incwude(vs/base/common/uwi): UWI, UwiComponents
+#incwude(vs/base/common/keyCodes): KeyCode
+#incwude(vs/editow/common/standawone/standawoneBase): KeyMod
+#incwude(vs/base/common/htmwContent): IMawkdownStwing
+#incwude(vs/base/bwowsa/keyboawdEvent): IKeyboawdEvent
+#incwude(vs/base/bwowsa/mouseEvent): IMouseEvent
+#incwude(vs/editow/common/editowCommon): IScwowwEvent
+#incwude(vs/editow/common/cowe/position): IPosition, Position
+#incwude(vs/editow/common/cowe/wange): IWange, Wange
+#incwude(vs/editow/common/cowe/sewection): ISewection, Sewection, SewectionDiwection
+#incwude(vs/editow/common/cowe/token): Token
 }
 
-declare namespace monaco.editor {
-#include(vs/editor/browser/widget/diffNavigator): IDiffNavigator
-#includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
-#include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
-#include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
-#include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
-#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IGlobalEditorOptions, IStandaloneEditorConstructionOptions, IStandaloneDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
-export interface ICommandHandler {
-	(...args: any[]): void;
+decwawe namespace monaco.editow {
+#incwude(vs/editow/bwowsa/widget/diffNavigatow): IDiffNavigatow
+#incwudeAww(vs/editow/standawone/bwowsa/standawoneEditow;modes.=>wanguages.;editowCommon.=>):
+#incwude(vs/editow/standawone/common/standawoneThemeSewvice): BuiwtinTheme, IStandawoneThemeData, ICowows
+#incwude(vs/editow/common/modes/suppowts/tokenization): ITokenThemeWuwe
+#incwude(vs/editow/common/sewvices/webWowka): MonacoWebWowka, IWebWowkewOptions
+#incwude(vs/editow/standawone/bwowsa/standawoneCodeEditow): IActionDescwiptow, IGwobawEditowOptions, IStandawoneEditowConstwuctionOptions, IStandawoneDiffEditowConstwuctionOptions, IStandawoneCodeEditow, IStandawoneDiffEditow
+expowt intewface ICommandHandwa {
+	(...awgs: any[]): void;
 }
-#include(vs/platform/contextkey/common/contextkey): IContextKey
-#include(vs/editor/standalone/browser/standaloneServices): IEditorOverrideServices
-#include(vs/platform/markers/common/markers): IMarker, IMarkerData, IRelatedInformation
-#include(vs/editor/standalone/browser/colorizer): IColorizerOptions, IColorizerElementOptions
-#include(vs/base/common/scrollable): ScrollbarVisibility
-#include(vs/platform/theme/common/themeService): ThemeColor
-#includeAll(vs/editor/common/model;LanguageIdentifier=>languages.LanguageIdentifier): IScrollEvent
-#includeAll(vs/editor/common/editorCommon;editorOptions.=>): IScrollEvent
-#includeAll(vs/editor/common/model/textModelEvents):
-#includeAll(vs/editor/common/controller/cursorEvents):
-#include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
-#includeAll(vs/editor/common/config/editorOptions):
-#includeAll(vs/editor/browser/editorBrowser;editorCommon.=>;editorOptions.=>):
-#include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
+#incwude(vs/pwatfowm/contextkey/common/contextkey): IContextKey
+#incwude(vs/editow/standawone/bwowsa/standawoneSewvices): IEditowOvewwideSewvices
+#incwude(vs/pwatfowm/mawkews/common/mawkews): IMawka, IMawkewData, IWewatedInfowmation
+#incwude(vs/editow/standawone/bwowsa/cowowiza): ICowowizewOptions, ICowowizewEwementOptions
+#incwude(vs/base/common/scwowwabwe): ScwowwbawVisibiwity
+#incwude(vs/pwatfowm/theme/common/themeSewvice): ThemeCowow
+#incwudeAww(vs/editow/common/modew;WanguageIdentifia=>wanguages.WanguageIdentifia): IScwowwEvent
+#incwudeAww(vs/editow/common/editowCommon;editowOptions.=>): IScwowwEvent
+#incwudeAww(vs/editow/common/modew/textModewEvents):
+#incwudeAww(vs/editow/common/contwowwa/cuwsowEvents):
+#incwude(vs/pwatfowm/accessibiwity/common/accessibiwity): AccessibiwitySuppowt
+#incwudeAww(vs/editow/common/config/editowOptions):
+#incwudeAww(vs/editow/bwowsa/editowBwowsa;editowCommon.=>;editowOptions.=>):
+#incwude(vs/editow/common/config/fontInfo): FontInfo, BaweFontInfo
 
-//compatibility:
-export type IReadOnlyModel = ITextModel;
-export type IModel = ITextModel;
-}
-
-declare namespace monaco.languages {
-
-#includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
-#includeAll(vs/editor/common/modes/languageConfiguration):
-#includeAll(vs/editor/common/modes;editorCommon.IRange=>IRange;editorCommon.IPosition=>IPosition;editorCommon.=>editor.;IMarkerData=>editor.IMarkerData;model.=>editor.):
-#include(vs/editor/common/services/modeService): ILanguageExtensionPoint
-#includeAll(vs/editor/standalone/common/monarch/monarchTypes):
-
+//compatibiwity:
+expowt type IWeadOnwyModew = ITextModew;
+expowt type IModew = ITextModew;
 }
 
-declare namespace monaco.worker {
+decwawe namespace monaco.wanguages {
 
-#include(vs/editor/common/model/mirrorTextModel): IMirrorTextModel
-#includeAll(vs/editor/common/services/editorSimpleWorker;):
+#incwudeAww(vs/editow/standawone/bwowsa/standawoneWanguages;modes.=>;editowCommon.=>editow.;modew.=>editow.;IMawkewData=>editow.IMawkewData):
+#incwudeAww(vs/editow/common/modes/wanguageConfiguwation):
+#incwudeAww(vs/editow/common/modes;editowCommon.IWange=>IWange;editowCommon.IPosition=>IPosition;editowCommon.=>editow.;IMawkewData=>editow.IMawkewData;modew.=>editow.):
+#incwude(vs/editow/common/sewvices/modeSewvice): IWanguageExtensionPoint
+#incwudeAww(vs/editow/standawone/common/monawch/monawchTypes):
+
+}
+
+decwawe namespace monaco.wowka {
+
+#incwude(vs/editow/common/modew/miwwowTextModew): IMiwwowTextModew
+#incwudeAww(vs/editow/common/sewvices/editowSimpweWowka;):
 
 }
 

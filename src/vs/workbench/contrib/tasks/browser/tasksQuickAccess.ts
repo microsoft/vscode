@@ -1,109 +1,109 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
-import { CustomTask, ContributedTask, ConfiguringTask } from 'vs/workbench/contrib/tasks/common/tasks';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isString } from 'vs/base/common/types';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPickSepawatow, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { IPickewQuickAccessItem, PickewQuickAccessPwovida, TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { matchesFuzzy } fwom 'vs/base/common/fiwtews';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { ITaskSewvice, Task } fwom 'vs/wowkbench/contwib/tasks/common/taskSewvice';
+impowt { CustomTask, ContwibutedTask, ConfiguwingTask } fwom 'vs/wowkbench/contwib/tasks/common/tasks';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { TaskQuickPick, TaskTwoWevewQuickPickEntwy } fwom 'vs/wowkbench/contwib/tasks/bwowsa/taskQuickPick';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
 
-export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
+expowt cwass TasksQuickAccessPwovida extends PickewQuickAccessPwovida<IPickewQuickAccessItem> {
 
-	static PREFIX = 'task ';
+	static PWEFIX = 'task ';
 
-	private activationPromise: Promise<void>;
+	pwivate activationPwomise: Pwomise<void>;
 
-	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@ITaskService private taskService: ITaskService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService,
-		@INotificationService private notificationService: INotificationService,
-		@IDialogService private dialogService: IDialogService
+	constwuctow(
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@ITaskSewvice pwivate taskSewvice: ITaskSewvice,
+		@IConfiguwationSewvice pwivate configuwationSewvice: IConfiguwationSewvice,
+		@IQuickInputSewvice pwivate quickInputSewvice: IQuickInputSewvice,
+		@INotificationSewvice pwivate notificationSewvice: INotificationSewvice,
+		@IDiawogSewvice pwivate diawogSewvice: IDiawogSewvice
 	) {
-		super(TasksQuickAccessProvider.PREFIX, {
-			noResultsPick: {
-				label: localize('noTaskResults', "No matching tasks")
+		supa(TasksQuickAccessPwovida.PWEFIX, {
+			noWesuwtsPick: {
+				wabew: wocawize('noTaskWesuwts', "No matching tasks")
 			}
 		});
 
-		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
+		this.activationPwomise = extensionSewvice.activateByEvent('onCommand:wowkbench.action.tasks.wunTask');
 	}
 
-	protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
-		// always await extensions
-		await this.activationPromise;
+	pwotected async _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<IPickewQuickAccessItem | IQuickPickSepawatow>> {
+		// awways await extensions
+		await this.activationPwomise;
 
-		if (token.isCancellationRequested) {
-			return [];
+		if (token.isCancewwationWequested) {
+			wetuwn [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
-		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
-		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		const taskQuickPick = new TaskQuickPick(this.taskSewvice, this.configuwationSewvice, this.quickInputSewvice, this.notificationSewvice, this.diawogSewvice);
+		const topWevewPicks = await taskQuickPick.getTopWevewEntwies();
+		const taskPicks: Awway<IPickewQuickAccessItem | IQuickPickSepawatow> = [];
 
-		for (const entry of topLevelPicks.entries) {
-			const highlights = matchesFuzzy(filter, entry.label!);
-			if (!highlights) {
+		fow (const entwy of topWevewPicks.entwies) {
+			const highwights = matchesFuzzy(fiwta, entwy.wabew!);
+			if (!highwights) {
 				continue;
 			}
 
-			if (entry.type === 'separator') {
-				taskPicks.push(entry);
+			if (entwy.type === 'sepawatow') {
+				taskPicks.push(entwy);
 			}
 
-			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
-			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
-			quickAccessEntry.highlights = { label: highlights };
-			quickAccessEntry.trigger = (index) => {
-				if ((index === 1) && (quickAccessEntry.buttons?.length === 2)) {
-					const key = (task && !isString(task)) ? task.getRecentlyUsedKey() : undefined;
+			const task: Task | ConfiguwingTask | stwing = (<TaskTwoWevewQuickPickEntwy>entwy).task!;
+			const quickAccessEntwy: IPickewQuickAccessItem = <TaskTwoWevewQuickPickEntwy>entwy;
+			quickAccessEntwy.highwights = { wabew: highwights };
+			quickAccessEntwy.twigga = (index) => {
+				if ((index === 1) && (quickAccessEntwy.buttons?.wength === 2)) {
+					const key = (task && !isStwing(task)) ? task.getWecentwyUsedKey() : undefined;
 					if (key) {
-						this.taskService.removeRecentlyUsedTask(key);
+						this.taskSewvice.wemoveWecentwyUsedTask(key);
 					}
-					return TriggerAction.REFRESH_PICKER;
-				} else {
-					if (ContributedTask.is(task)) {
-						this.taskService.customize(task, undefined, true);
-					} else if (CustomTask.is(task)) {
-						this.taskService.openConfig(task);
+					wetuwn TwiggewAction.WEFWESH_PICKa;
+				} ewse {
+					if (ContwibutedTask.is(task)) {
+						this.taskSewvice.customize(task, undefined, twue);
+					} ewse if (CustomTask.is(task)) {
+						this.taskSewvice.openConfig(task);
 					}
-					return TriggerAction.CLOSE_PICKER;
+					wetuwn TwiggewAction.CWOSE_PICKa;
 				}
 			};
-			quickAccessEntry.accept = async () => {
-				if (isString(task)) {
-					// switch to quick pick and show second level
-					const showResult = await taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
-					if (showResult) {
-						this.taskService.run(showResult, { attachProblemMatcher: true });
+			quickAccessEntwy.accept = async () => {
+				if (isStwing(task)) {
+					// switch to quick pick and show second wevew
+					const showWesuwt = await taskQuickPick.show(wocawize('TaskSewvice.pickWunTask', 'Sewect the task to wun'), undefined, task);
+					if (showWesuwt) {
+						this.taskSewvice.wun(showWesuwt, { attachPwobwemMatcha: twue });
 					}
-				} else {
-					this.taskService.run(await this.toTask(task), { attachProblemMatcher: true });
+				} ewse {
+					this.taskSewvice.wun(await this.toTask(task), { attachPwobwemMatcha: twue });
 				}
 			};
 
-			taskPicks.push(quickAccessEntry);
+			taskPicks.push(quickAccessEntwy);
 		}
-		return taskPicks;
+		wetuwn taskPicks;
 	}
 
-	private async toTask(task: Task | ConfiguringTask): Promise<Task | undefined> {
-		if (!ConfiguringTask.is(task)) {
-			return task;
+	pwivate async toTask(task: Task | ConfiguwingTask): Pwomise<Task | undefined> {
+		if (!ConfiguwingTask.is(task)) {
+			wetuwn task;
 		}
 
-		return this.taskService.tryResolveTask(task);
+		wetuwn this.taskSewvice.twyWesowveTask(task);
 	}
 }

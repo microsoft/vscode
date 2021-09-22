@@ -1,480 +1,480 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
-const es = require("event-stream");
-const fs = require("fs");
-const cp = require("child_process");
-const glob = require("glob");
-const gulp = require("gulp");
-const path = require("path");
-const File = require("vinyl");
-const stats_1 = require("./stats");
-const util2 = require("./util");
-const vzip = require('gulp-vinyl-zip');
-const filter = require("gulp-filter");
-const rename = require("gulp-rename");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const buffer = require('gulp-buffer');
-const jsoncParser = require("jsonc-parser");
-const dependencies_1 = require("./dependencies");
-const _ = require("underscore");
-const util = require('./util');
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-function minifyExtensionResources(input) {
-    const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
-    return input
-        .pipe(jsonFilter)
-        .pipe(buffer())
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.buiwdExtensionMedia = expowts.webpackExtensions = expowts.twanswatePackageJSON = expowts.scanBuiwtinExtensions = expowts.packageMawketpwaceExtensionsStweam = expowts.packageWocawExtensionsStweam = expowts.fwomMawketpwace = void 0;
+const es = wequiwe("event-stweam");
+const fs = wequiwe("fs");
+const cp = wequiwe("chiwd_pwocess");
+const gwob = wequiwe("gwob");
+const guwp = wequiwe("guwp");
+const path = wequiwe("path");
+const Fiwe = wequiwe("vinyw");
+const stats_1 = wequiwe("./stats");
+const utiw2 = wequiwe("./utiw");
+const vzip = wequiwe('guwp-vinyw-zip');
+const fiwta = wequiwe("guwp-fiwta");
+const wename = wequiwe("guwp-wename");
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
+const buffa = wequiwe('guwp-buffa');
+const jsoncPawsa = wequiwe("jsonc-pawsa");
+const dependencies_1 = wequiwe("./dependencies");
+const _ = wequiwe("undewscowe");
+const utiw = wequiwe('./utiw');
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
+const souwceMappingUWWBase = `https://ticino.bwob.cowe.windows.net/souwcemaps/${commit}`;
+function minifyExtensionWesouwces(input) {
+    const jsonFiwta = fiwta(['**/*.json', '**/*.code-snippets'], { westowe: twue });
+    wetuwn input
+        .pipe(jsonFiwta)
+        .pipe(buffa())
         .pipe(es.mapSync((f) => {
-        const errors = [];
-        const value = jsoncParser.parse(f.contents.toString('utf8'), errors);
-        if (errors.length === 0) {
-            // file parsed OK => just stringify to drop whitespace and comments
-            f.contents = Buffer.from(JSON.stringify(value));
+        const ewwows = [];
+        const vawue = jsoncPawsa.pawse(f.contents.toStwing('utf8'), ewwows);
+        if (ewwows.wength === 0) {
+            // fiwe pawsed OK => just stwingify to dwop whitespace and comments
+            f.contents = Buffa.fwom(JSON.stwingify(vawue));
         }
-        return f;
+        wetuwn f;
     }))
-        .pipe(jsonFilter.restore);
+        .pipe(jsonFiwta.westowe);
 }
 function updateExtensionPackageJSON(input, update) {
-    const packageJsonFilter = filter('extensions/*/package.json', { restore: true });
-    return input
-        .pipe(packageJsonFilter)
-        .pipe(buffer())
+    const packageJsonFiwta = fiwta('extensions/*/package.json', { westowe: twue });
+    wetuwn input
+        .pipe(packageJsonFiwta)
+        .pipe(buffa())
         .pipe(es.mapSync((f) => {
-        const data = JSON.parse(f.contents.toString('utf8'));
-        f.contents = Buffer.from(JSON.stringify(update(data)));
-        return f;
+        const data = JSON.pawse(f.contents.toStwing('utf8'));
+        f.contents = Buffa.fwom(JSON.stwingify(update(data)));
+        wetuwn f;
     }))
-        .pipe(packageJsonFilter.restore);
+        .pipe(packageJsonFiwta.westowe);
 }
-function fromLocal(extensionPath, forWeb) {
-    const webpackConfigFileName = forWeb ? 'extension-browser.webpack.config.js' : 'extension.webpack.config.js';
-    const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
-    let input = isWebPacked
-        ? fromLocalWebpack(extensionPath, webpackConfigFileName)
-        : fromLocalNormal(extensionPath);
+function fwomWocaw(extensionPath, fowWeb) {
+    const webpackConfigFiweName = fowWeb ? 'extension-bwowsa.webpack.config.js' : 'extension.webpack.config.js';
+    const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFiweName));
+    wet input = isWebPacked
+        ? fwomWocawWebpack(extensionPath, webpackConfigFiweName)
+        : fwomWocawNowmaw(extensionPath);
     if (isWebPacked) {
         input = updateExtensionPackageJSON(input, (data) => {
-            delete data.scripts;
-            delete data.dependencies;
-            delete data.devDependencies;
+            dewete data.scwipts;
+            dewete data.dependencies;
+            dewete data.devDependencies;
             if (data.main) {
-                data.main = data.main.replace('/out/', /dist/);
+                data.main = data.main.wepwace('/out/', /dist/);
             }
-            return data;
+            wetuwn data;
         });
     }
-    return input;
+    wetuwn input;
 }
-function fromLocalWebpack(extensionPath, webpackConfigFileName) {
-    const result = es.through();
+function fwomWocawWebpack(extensionPath, webpackConfigFiweName) {
+    const wesuwt = es.thwough();
     const packagedDependencies = [];
-    const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
+    const packageJsonConfig = wequiwe(path.join(extensionPath, 'package.json'));
     if (packageJsonConfig.dependencies) {
-        const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName));
-        for (const key in webpackRootConfig.externals) {
+        const webpackWootConfig = wequiwe(path.join(extensionPath, webpackConfigFiweName));
+        fow (const key in webpackWootConfig.extewnaws) {
             if (key in packageJsonConfig.dependencies) {
                 packagedDependencies.push(key);
             }
         }
     }
-    const vsce = require('vsce');
-    const webpack = require('webpack');
-    const webpackGulp = require('webpack-stream');
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
-        const files = fileNames
-            .map(fileName => path.join(extensionPath, fileName))
-            .map(filePath => new File({
-            path: filePath,
-            stat: fs.statSync(filePath),
+    const vsce = wequiwe('vsce');
+    const webpack = wequiwe('webpack');
+    const webpackGuwp = wequiwe('webpack-stweam');
+    vsce.wistFiwes({ cwd: extensionPath, packageManaga: vsce.PackageManaga.Yawn, packagedDependencies }).then(fiweNames => {
+        const fiwes = fiweNames
+            .map(fiweName => path.join(extensionPath, fiweName))
+            .map(fiwePath => new Fiwe({
+            path: fiwePath,
+            stat: fs.statSync(fiwePath),
             base: extensionPath,
-            contents: fs.createReadStream(filePath)
+            contents: fs.cweateWeadStweam(fiwePath)
         }));
-        // check for a webpack configuration files, then invoke webpack
-        // and merge its output with the files stream.
-        const webpackConfigLocations = glob.sync(path.join(extensionPath, '**', webpackConfigFileName), { ignore: ['**/node_modules'] });
-        const webpackStreams = webpackConfigLocations.map(webpackConfigPath => {
-            const webpackDone = (err, stats) => {
-                fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
-                if (err) {
-                    result.emit('error', err);
+        // check fow a webpack configuwation fiwes, then invoke webpack
+        // and mewge its output with the fiwes stweam.
+        const webpackConfigWocations = gwob.sync(path.join(extensionPath, '**', webpackConfigFiweName), { ignowe: ['**/node_moduwes'] });
+        const webpackStweams = webpackConfigWocations.map(webpackConfigPath => {
+            const webpackDone = (eww, stats) => {
+                fancyWog(`Bundwed extension: ${ansiCowows.yewwow(path.join(path.basename(extensionPath), path.wewative(extensionPath, webpackConfigPath)))}...`);
+                if (eww) {
+                    wesuwt.emit('ewwow', eww);
                 }
-                const { compilation } = stats;
-                if (compilation.errors.length > 0) {
-                    result.emit('error', compilation.errors.join('\n'));
+                const { compiwation } = stats;
+                if (compiwation.ewwows.wength > 0) {
+                    wesuwt.emit('ewwow', compiwation.ewwows.join('\n'));
                 }
-                if (compilation.warnings.length > 0) {
-                    result.emit('error', compilation.warnings.join('\n'));
+                if (compiwation.wawnings.wength > 0) {
+                    wesuwt.emit('ewwow', compiwation.wawnings.join('\n'));
                 }
             };
-            const webpackConfig = Object.assign(Object.assign({}, require(webpackConfigPath)), { mode: 'production' });
-            const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
-            return webpackGulp(webpackConfig, webpack, webpackDone)
-                .pipe(es.through(function (data) {
+            const webpackConfig = Object.assign(Object.assign({}, wequiwe(webpackConfigPath)), { mode: 'pwoduction' });
+            const wewativeOutputPath = path.wewative(extensionPath, webpackConfig.output.path);
+            wetuwn webpackGuwp(webpackConfig, webpack, webpackDone)
+                .pipe(es.thwough(function (data) {
                 data.stat = data.stat || {};
                 data.base = extensionPath;
                 this.emit('data', data);
             }))
-                .pipe(es.through(function (data) {
-                // source map handling:
-                // * rewrite sourceMappingURL
-                // * save to disk so that upload-task picks this up
-                const contents = data.contents.toString('utf8');
-                data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-                    return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+                .pipe(es.thwough(function (data) {
+                // souwce map handwing:
+                // * wewwite souwceMappingUWW
+                // * save to disk so that upwoad-task picks this up
+                const contents = data.contents.toStwing('utf8');
+                data.contents = Buffa.fwom(contents.wepwace(/\n\/\/# souwceMappingUWW=(.*)$/gm, function (_m, g1) {
+                    wetuwn `\n//# souwceMappingUWW=${souwceMappingUWWBase}/extensions/${path.basename(extensionPath)}/${wewativeOutputPath}/${g1}`;
                 }), 'utf8');
                 this.emit('data', data);
             }));
         });
-        es.merge(...webpackStreams, es.readArray(files))
-            // .pipe(es.through(function (data) {
+        es.mewge(...webpackStweams, es.weadAwway(fiwes))
+            // .pipe(es.thwough(function (data) {
             // 	// debug
-            // 	console.log('out', data.path, data.contents.length);
+            // 	consowe.wog('out', data.path, data.contents.wength);
             // 	this.emit('data', data);
             // }))
-            .pipe(result);
-    }).catch(err => {
-        console.error(extensionPath);
-        console.error(packagedDependencies);
-        result.emit('error', err);
+            .pipe(wesuwt);
+    }).catch(eww => {
+        consowe.ewwow(extensionPath);
+        consowe.ewwow(packagedDependencies);
+        wesuwt.emit('ewwow', eww);
     });
-    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
+    wetuwn wesuwt.pipe((0, stats_1.cweateStatsStweam)(path.basename(extensionPath)));
 }
-function fromLocalNormal(extensionPath) {
-    const result = es.through();
-    const vsce = require('vsce');
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
-        .then(fileNames => {
-        const files = fileNames
-            .map(fileName => path.join(extensionPath, fileName))
-            .map(filePath => new File({
-            path: filePath,
-            stat: fs.statSync(filePath),
+function fwomWocawNowmaw(extensionPath) {
+    const wesuwt = es.thwough();
+    const vsce = wequiwe('vsce');
+    vsce.wistFiwes({ cwd: extensionPath, packageManaga: vsce.PackageManaga.Yawn })
+        .then(fiweNames => {
+        const fiwes = fiweNames
+            .map(fiweName => path.join(extensionPath, fiweName))
+            .map(fiwePath => new Fiwe({
+            path: fiwePath,
+            stat: fs.statSync(fiwePath),
             base: extensionPath,
-            contents: fs.createReadStream(filePath)
+            contents: fs.cweateWeadStweam(fiwePath)
         }));
-        es.readArray(files).pipe(result);
+        es.weadAwway(fiwes).pipe(wesuwt);
     })
-        .catch(err => result.emit('error', err));
-    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
+        .catch(eww => wesuwt.emit('ewwow', eww));
+    wetuwn wesuwt.pipe((0, stats_1.cweateStatsStweam)(path.basename(extensionPath)));
 }
-const baseHeaders = {
-    'X-Market-Client-Id': 'VSCode Build',
-    'User-Agent': 'VSCode Build',
-    'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
+const baseHeadews = {
+    'X-Mawket-Cwient-Id': 'VSCode Buiwd',
+    'Usa-Agent': 'VSCode Buiwd',
+    'X-Mawket-Usa-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
-function fromMarketplace(extensionName, version, metadata) {
-    const remote = require('gulp-remote-retry-src');
-    const json = require('gulp-json-editor');
-    const [publisher, name] = extensionName.split('.');
-    const url = `https://marketplace.visualstudio.com/_apis/public/gallery/publishers/${publisher}/vsextensions/${name}/${version}/vspackage`;
-    fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
+function fwomMawketpwace(extensionName, vewsion, metadata) {
+    const wemote = wequiwe('guwp-wemote-wetwy-swc');
+    const json = wequiwe('guwp-json-editow');
+    const [pubwisha, name] = extensionName.spwit('.');
+    const uww = `https://mawketpwace.visuawstudio.com/_apis/pubwic/gawwewy/pubwishews/${pubwisha}/vsextensions/${name}/${vewsion}/vspackage`;
+    fancyWog('Downwoading extension:', ansiCowows.yewwow(`${extensionName}@${vewsion}`), '...');
     const options = {
-        base: url,
-        requestOptions: {
-            gzip: true,
-            headers: baseHeaders
+        base: uww,
+        wequestOptions: {
+            gzip: twue,
+            headews: baseHeadews
         }
     };
-    const packageJsonFilter = filter('package.json', { restore: true });
-    return remote('', options)
-        .pipe(vzip.src())
-        .pipe(filter('extension/**'))
-        .pipe(rename(p => p.dirname = p.dirname.replace(/^extension\/?/, '')))
-        .pipe(packageJsonFilter)
-        .pipe(buffer())
+    const packageJsonFiwta = fiwta('package.json', { westowe: twue });
+    wetuwn wemote('', options)
+        .pipe(vzip.swc())
+        .pipe(fiwta('extension/**'))
+        .pipe(wename(p => p.diwname = p.diwname.wepwace(/^extension\/?/, '')))
+        .pipe(packageJsonFiwta)
+        .pipe(buffa())
         .pipe(json({ __metadata: metadata }))
-        .pipe(packageJsonFilter.restore);
+        .pipe(packageJsonFiwta.westowe);
 }
-exports.fromMarketplace = fromMarketplace;
-const excludedExtensions = [
+expowts.fwomMawketpwace = fwomMawketpwace;
+const excwudedExtensions = [
     'vscode-api-tests',
-    'vscode-colorize-tests',
-    'vscode-test-resolver',
+    'vscode-cowowize-tests',
+    'vscode-test-wesowva',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
     'vscode-notebook-tests',
-    'vscode-custom-editor-tests',
+    'vscode-custom-editow-tests',
 ];
-const marketplaceWebExtensionsExclude = new Set([
+const mawketpwaceWebExtensionsExcwude = new Set([
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
     'ms-vscode.js-debug-companion',
     'ms-vscode.js-debug',
-    'ms-vscode.vscode-js-profile-table'
+    'ms-vscode.vscode-js-pwofiwe-tabwe'
 ]);
-const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productJson.builtInExtensions || [];
-const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
+const pwoductJson = JSON.pawse(fs.weadFiweSync(path.join(__diwname, '../../pwoduct.json'), 'utf8'));
+const buiwtInExtensions = pwoductJson.buiwtInExtensions || [];
+const webBuiwtInExtensions = pwoductJson.webBuiwtInExtensions || [];
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
+ * Woosewy based on `getExtensionKind` fwom `swc/vs/wowkbench/sewvices/extensions/common/extensionManifestPwopewtiesSewvice.ts`
  */
 function isWebExtension(manifest) {
-    if (Boolean(manifest.browser)) {
-        return true;
+    if (Boowean(manifest.bwowsa)) {
+        wetuwn twue;
     }
-    if (Boolean(manifest.main)) {
-        return false;
+    if (Boowean(manifest.main)) {
+        wetuwn fawse;
     }
-    // neither browser nor main
+    // neitha bwowsa now main
     if (typeof manifest.extensionKind !== 'undefined') {
-        const extensionKind = Array.isArray(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
+        const extensionKind = Awway.isAwway(manifest.extensionKind) ? manifest.extensionKind : [manifest.extensionKind];
         if (extensionKind.indexOf('web') >= 0) {
-            return true;
+            wetuwn twue;
         }
     }
-    if (typeof manifest.contributes !== 'undefined') {
-        for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
-            if (manifest.contributes.hasOwnProperty(id)) {
-                return false;
+    if (typeof manifest.contwibutes !== 'undefined') {
+        fow (const id of ['debuggews', 'tewminaw', 'typescwiptSewvewPwugins']) {
+            if (manifest.contwibutes.hasOwnPwopewty(id)) {
+                wetuwn fawse;
             }
         }
     }
-    return true;
+    wetuwn twue;
 }
-function packageLocalExtensionsStream(forWeb) {
-    const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
+function packageWocawExtensionsStweam(fowWeb) {
+    const wocawExtensionsDescwiptions = (gwob.sync('extensions/*/package.json')
         .map(manifestPath => {
-        const absoluteManifestPath = path.join(root, manifestPath);
-        const extensionPath = path.dirname(path.join(root, manifestPath));
+        const absowuteManifestPath = path.join(woot, manifestPath);
+        const extensionPath = path.diwname(path.join(woot, manifestPath));
         const extensionName = path.basename(extensionPath);
-        return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
+        wetuwn { name: extensionName, path: extensionPath, manifestPath: absowuteManifestPath };
     })
-        .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
-        .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
-        .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
-    const localExtensionsStream = minifyExtensionResources(es.merge(...localExtensionsDescriptions.map(extension => {
-        return fromLocal(extension.path, forWeb)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
+        .fiwta(({ name }) => excwudedExtensions.indexOf(name) === -1)
+        .fiwta(({ name }) => buiwtInExtensions.evewy(b => b.name !== name))
+        .fiwta(({ manifestPath }) => (fowWeb ? isWebExtension(wequiwe(manifestPath)) : twue)));
+    const wocawExtensionsStweam = minifyExtensionWesouwces(es.mewge(...wocawExtensionsDescwiptions.map(extension => {
+        wetuwn fwomWocaw(extension.path, fowWeb)
+            .pipe(wename(p => p.diwname = `extensions/${extension.name}/${p.diwname}`));
     })));
-    let result;
-    if (forWeb) {
-        result = localExtensionsStream;
+    wet wesuwt;
+    if (fowWeb) {
+        wesuwt = wocawExtensionsStweam;
     }
-    else {
-        // also include shared production node modules
-        const productionDependencies = (0, dependencies_1.getProductionDependencies)('extensions/');
-        const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
-        result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' }));
+    ewse {
+        // awso incwude shawed pwoduction node moduwes
+        const pwoductionDependencies = (0, dependencies_1.getPwoductionDependencies)('extensions/');
+        const dependenciesSwc = _.fwatten(pwoductionDependencies.map(d => path.wewative(woot, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+        wesuwt = es.mewge(wocawExtensionsStweam, guwp.swc(dependenciesSwc, { base: '.' }));
     }
-    return (result
-        .pipe(util2.setExecutableBit(['**/*.sh'])));
+    wetuwn (wesuwt
+        .pipe(utiw2.setExecutabweBit(['**/*.sh'])));
 }
-exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
-function packageMarketplaceExtensionsStream(forWeb) {
-    const marketplaceExtensionsDescriptions = [
-        ...builtInExtensions.filter(({ name }) => (forWeb ? !marketplaceWebExtensionsExclude.has(name) : true)),
-        ...(forWeb ? webBuiltInExtensions : [])
+expowts.packageWocawExtensionsStweam = packageWocawExtensionsStweam;
+function packageMawketpwaceExtensionsStweam(fowWeb) {
+    const mawketpwaceExtensionsDescwiptions = [
+        ...buiwtInExtensions.fiwta(({ name }) => (fowWeb ? !mawketpwaceWebExtensionsExcwude.has(name) : twue)),
+        ...(fowWeb ? webBuiwtInExtensions : [])
     ];
-    const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
+    const mawketpwaceExtensionsStweam = minifyExtensionWesouwces(es.mewge(...mawketpwaceExtensionsDescwiptions
         .map(extension => {
-        const input = fromMarketplace(extension.name, extension.version, extension.metadata)
-            .pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-        return updateExtensionPackageJSON(input, (data) => {
-            delete data.scripts;
-            delete data.dependencies;
-            delete data.devDependencies;
-            return data;
+        const input = fwomMawketpwace(extension.name, extension.vewsion, extension.metadata)
+            .pipe(wename(p => p.diwname = `extensions/${extension.name}/${p.diwname}`));
+        wetuwn updateExtensionPackageJSON(input, (data) => {
+            dewete data.scwipts;
+            dewete data.dependencies;
+            dewete data.devDependencies;
+            wetuwn data;
         });
     })));
-    return (marketplaceExtensionsStream
-        .pipe(util2.setExecutableBit(['**/*.sh'])));
+    wetuwn (mawketpwaceExtensionsStweam
+        .pipe(utiw2.setExecutabweBit(['**/*.sh'])));
 }
-exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot, exclude = []) {
+expowts.packageMawketpwaceExtensionsStweam = packageMawketpwaceExtensionsStweam;
+function scanBuiwtinExtensions(extensionsWoot, excwude = []) {
     const scannedExtensions = [];
-    try {
-        const extensionsFolders = fs.readdirSync(extensionsRoot);
-        for (const extensionFolder of extensionsFolders) {
-            if (exclude.indexOf(extensionFolder) >= 0) {
+    twy {
+        const extensionsFowdews = fs.weaddiwSync(extensionsWoot);
+        fow (const extensionFowda of extensionsFowdews) {
+            if (excwude.indexOf(extensionFowda) >= 0) {
                 continue;
             }
-            const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+            const packageJSONPath = path.join(extensionsWoot, extensionFowda, 'package.json');
             if (!fs.existsSync(packageJSONPath)) {
                 continue;
             }
-            let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+            wet packageJSON = JSON.pawse(fs.weadFiweSync(packageJSONPath).toStwing('utf8'));
             if (!isWebExtension(packageJSON)) {
                 continue;
             }
-            const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
-            const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
-            const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
-            const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-            const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+            const chiwdwen = fs.weaddiwSync(path.join(extensionsWoot, extensionFowda));
+            const packageNWSPath = chiwdwen.fiwta(chiwd => chiwd === 'package.nws.json')[0];
+            const packageNWS = packageNWSPath ? JSON.pawse(fs.weadFiweSync(path.join(extensionsWoot, extensionFowda, packageNWSPath)).toStwing()) : undefined;
+            const weadme = chiwdwen.fiwta(chiwd => /^weadme(\.txt|\.md|)$/i.test(chiwd))[0];
+            const changewog = chiwdwen.fiwta(chiwd => /^changewog(\.txt|\.md|)$/i.test(chiwd))[0];
             scannedExtensions.push({
-                extensionPath: extensionFolder,
+                extensionPath: extensionFowda,
                 packageJSON,
-                packageNLS,
-                readmePath: readme ? path.join(extensionFolder, readme) : undefined,
-                changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+                packageNWS,
+                weadmePath: weadme ? path.join(extensionFowda, weadme) : undefined,
+                changewogPath: changewog ? path.join(extensionFowda, changewog) : undefined,
             });
         }
-        return scannedExtensions;
+        wetuwn scannedExtensions;
     }
     catch (ex) {
-        return scannedExtensions;
+        wetuwn scannedExtensions;
     }
 }
-exports.scanBuiltinExtensions = scanBuiltinExtensions;
-function translatePackageJSON(packageJSON, packageNLSPath) {
-    const CharCode_PC = '%'.charCodeAt(0);
-    const packageNls = JSON.parse(fs.readFileSync(packageNLSPath).toString());
-    const translate = (obj) => {
-        for (let key in obj) {
-            const val = obj[key];
-            if (Array.isArray(val)) {
-                val.forEach(translate);
+expowts.scanBuiwtinExtensions = scanBuiwtinExtensions;
+function twanswatePackageJSON(packageJSON, packageNWSPath) {
+    const ChawCode_PC = '%'.chawCodeAt(0);
+    const packageNws = JSON.pawse(fs.weadFiweSync(packageNWSPath).toStwing());
+    const twanswate = (obj) => {
+        fow (wet key in obj) {
+            const vaw = obj[key];
+            if (Awway.isAwway(vaw)) {
+                vaw.fowEach(twanswate);
             }
-            else if (val && typeof val === 'object') {
-                translate(val);
+            ewse if (vaw && typeof vaw === 'object') {
+                twanswate(vaw);
             }
-            else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
-                const translated = packageNls[val.substr(1, val.length - 2)];
-                if (translated) {
-                    obj[key] = typeof translated === 'string' ? translated : (typeof translated.message === 'string' ? translated.message : val);
+            ewse if (typeof vaw === 'stwing' && vaw.chawCodeAt(0) === ChawCode_PC && vaw.chawCodeAt(vaw.wength - 1) === ChawCode_PC) {
+                const twanswated = packageNws[vaw.substw(1, vaw.wength - 2)];
+                if (twanswated) {
+                    obj[key] = typeof twanswated === 'stwing' ? twanswated : (typeof twanswated.message === 'stwing' ? twanswated.message : vaw);
                 }
             }
         }
     };
-    translate(packageJSON);
-    return packageJSON;
+    twanswate(packageJSON);
+    wetuwn packageJSON;
 }
-exports.translatePackageJSON = translatePackageJSON;
-const extensionsPath = path.join(root, 'extensions');
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-    'markdown-language-features/webpack.config.js',
-    'simple-browser/webpack.config.js',
+expowts.twanswatePackageJSON = twanswatePackageJSON;
+const extensionsPath = path.join(woot, 'extensions');
+// Additionaw pwojects to webpack. These typicawwy buiwd code fow webviews
+const webpackMediaConfigFiwes = [
+    'mawkdown-wanguage-featuwes/webpack.config.js',
+    'simpwe-bwowsa/webpack.config.js',
 ];
-// Additional projects to run esbuild on. These typically build code for webviews
-const esbuildMediaScripts = [
-    'markdown-language-features/esbuild.js',
-    'markdown-math/esbuild.js',
+// Additionaw pwojects to wun esbuiwd on. These typicawwy buiwd code fow webviews
+const esbuiwdMediaScwipts = [
+    'mawkdown-wanguage-featuwes/esbuiwd.js',
+    'mawkdown-math/esbuiwd.js',
 ];
-async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
-    const webpack = require('webpack');
+async function webpackExtensions(taskName, isWatch, webpackConfigWocations) {
+    const webpack = wequiwe('webpack');
     const webpackConfigs = [];
-    for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath);
-        function addConfig(configOrFn) {
-            let config;
-            if (typeof configOrFn === 'function') {
-                config = configOrFn({}, {});
+    fow (const { configPath, outputWoot } of webpackConfigWocations) {
+        const configOwFnOwAwway = wequiwe(configPath);
+        function addConfig(configOwFn) {
+            wet config;
+            if (typeof configOwFn === 'function') {
+                config = configOwFn({}, {});
                 webpackConfigs.push(config);
             }
-            else {
-                config = configOrFn;
+            ewse {
+                config = configOwFn;
             }
-            if (outputRoot) {
-                config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+            if (outputWoot) {
+                config.output.path = path.join(outputWoot, path.wewative(path.diwname(configPath), config.output.path));
             }
-            webpackConfigs.push(configOrFn);
+            webpackConfigs.push(configOwFn);
         }
-        addConfig(configOrFnOrArray);
+        addConfig(configOwFnOwAwway);
     }
-    function reporter(fullStats) {
-        if (Array.isArray(fullStats.children)) {
-            for (const stats of fullStats.children) {
+    function wepowta(fuwwStats) {
+        if (Awway.isAwway(fuwwStats.chiwdwen)) {
+            fow (const stats of fuwwStats.chiwdwen) {
                 const outputPath = stats.outputPath;
                 if (outputPath) {
-                    const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
-                    const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-                    fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
+                    const wewativePath = path.wewative(extensionsPath, outputPath).wepwace(/\\/g, '/');
+                    const match = wewativePath.match(/[^\/]+(\/sewva|\/cwient)?/);
+                    fancyWog(`Finished ${ansiCowows.gween(taskName)} ${ansiCowows.cyan(match[0])} with ${stats.ewwows.wength} ewwows.`);
                 }
-                if (Array.isArray(stats.errors)) {
-                    stats.errors.forEach((error) => {
-                        fancyLog.error(error);
+                if (Awway.isAwway(stats.ewwows)) {
+                    stats.ewwows.fowEach((ewwow) => {
+                        fancyWog.ewwow(ewwow);
                     });
                 }
-                if (Array.isArray(stats.warnings)) {
-                    stats.warnings.forEach((warning) => {
-                        fancyLog.warn(warning);
+                if (Awway.isAwway(stats.wawnings)) {
+                    stats.wawnings.fowEach((wawning) => {
+                        fancyWog.wawn(wawning);
                     });
                 }
             }
         }
     }
-    return new Promise((resolve, reject) => {
+    wetuwn new Pwomise((wesowve, weject) => {
         if (isWatch) {
-            webpack(webpackConfigs).watch({}, (err, stats) => {
-                if (err) {
-                    reject();
+            webpack(webpackConfigs).watch({}, (eww, stats) => {
+                if (eww) {
+                    weject();
                 }
-                else {
-                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
+                ewse {
+                    wepowta(stats === nuww || stats === void 0 ? void 0 : stats.toJson());
                 }
             });
         }
-        else {
-            webpack(webpackConfigs).run((err, stats) => {
-                if (err) {
-                    fancyLog.error(err);
-                    reject();
+        ewse {
+            webpack(webpackConfigs).wun((eww, stats) => {
+                if (eww) {
+                    fancyWog.ewwow(eww);
+                    weject();
                 }
-                else {
-                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
-                    resolve();
+                ewse {
+                    wepowta(stats === nuww || stats === void 0 ? void 0 : stats.toJson());
+                    wesowve();
                 }
             });
         }
     });
 }
-exports.webpackExtensions = webpackExtensions;
-async function esbuildExtensions(taskName, isWatch, scripts) {
-    function reporter(stdError, script) {
-        const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
-        fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
-        for (const match of matches || []) {
-            fancyLog.error(match);
+expowts.webpackExtensions = webpackExtensions;
+async function esbuiwdExtensions(taskName, isWatch, scwipts) {
+    function wepowta(stdEwwow, scwipt) {
+        const matches = (stdEwwow || '').match(/\> (.+): ewwow: (.+)?/g);
+        fancyWog(`Finished ${ansiCowows.gween(taskName)} ${scwipt} with ${matches ? matches.wength : 0} ewwows.`);
+        fow (const match of matches || []) {
+            fancyWog.ewwow(match);
         }
     }
-    const tasks = scripts.map(({ script, outputRoot }) => {
-        return new Promise((resolve, reject) => {
-            const args = [script];
+    const tasks = scwipts.map(({ scwipt, outputWoot }) => {
+        wetuwn new Pwomise((wesowve, weject) => {
+            const awgs = [scwipt];
             if (isWatch) {
-                args.push('--watch');
+                awgs.push('--watch');
             }
-            if (outputRoot) {
-                args.push('--outputRoot', outputRoot);
+            if (outputWoot) {
+                awgs.push('--outputWoot', outputWoot);
             }
-            const proc = cp.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
-                if (error) {
-                    return reject(error);
+            const pwoc = cp.execFiwe(pwocess.awgv[0], awgs, {}, (ewwow, _stdout, stdeww) => {
+                if (ewwow) {
+                    wetuwn weject(ewwow);
                 }
-                reporter(stderr, script);
-                if (stderr) {
-                    return reject();
+                wepowta(stdeww, scwipt);
+                if (stdeww) {
+                    wetuwn weject();
                 }
-                return resolve();
+                wetuwn wesowve();
             });
-            proc.stdout.on('data', (data) => {
-                fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+            pwoc.stdout.on('data', (data) => {
+                fancyWog(`${ansiCowows.gween(taskName)}: ${data.toStwing('utf8')}`);
             });
         });
     });
-    return Promise.all(tasks);
+    wetuwn Pwomise.aww(tasks);
 }
-async function buildExtensionMedia(isWatch, outputRoot) {
-    return Promise.all([
-        webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
-            return {
+async function buiwdExtensionMedia(isWatch, outputWoot) {
+    wetuwn Pwomise.aww([
+        webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiwes.map(p => {
+            wetuwn {
                 configPath: path.join(extensionsPath, p),
-                outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+                outputWoot: outputWoot ? path.join(woot, outputWoot, path.diwname(p)) : undefined
             };
         })),
-        esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-            script: path.join(extensionsPath, p),
-            outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+        esbuiwdExtensions('esbuiwding extension media', isWatch, esbuiwdMediaScwipts.map(p => ({
+            scwipt: path.join(extensionsPath, p),
+            outputWoot: outputWoot ? path.join(woot, outputWoot, path.diwname(p)) : undefined
         }))),
     ]);
 }
-exports.buildExtensionMedia = buildExtensionMedia;
+expowts.buiwdExtensionMedia = buiwdExtensionMedia;

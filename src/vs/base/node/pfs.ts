@@ -1,714 +1,714 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { promisify } from 'util';
-import { ResourceQueue } from 'vs/base/common/async';
-import { isEqualOrParent, isRootOrDriveLetter } from 'vs/base/common/extpath';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { join } from 'vs/base/common/path';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
+impowt * as fs fwom 'fs';
+impowt { tmpdiw } fwom 'os';
+impowt { pwomisify } fwom 'utiw';
+impowt { WesouwceQueue } fwom 'vs/base/common/async';
+impowt { isEquawOwPawent, isWootOwDwiveWetta } fwom 'vs/base/common/extpath';
+impowt { nowmawizeNFC } fwom 'vs/base/common/nowmawization';
+impowt { join } fwom 'vs/base/common/path';
+impowt { isWinux, isMacintosh, isWindows } fwom 'vs/base/common/pwatfowm';
+impowt { extUwiBiasedIgnowePathCase } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
 
-//#region rimraf
+//#wegion wimwaf
 
-export enum RimRafMode {
+expowt enum WimWafMode {
 
 	/**
-	 * Slow version that unlinks each file and folder.
+	 * Swow vewsion that unwinks each fiwe and fowda.
 	 */
-	UNLINK,
+	UNWINK,
 
 	/**
-	 * Fast version that first moves the file/folder
-	 * into a temp directory and then deletes that
-	 * without waiting for it.
+	 * Fast vewsion that fiwst moves the fiwe/fowda
+	 * into a temp diwectowy and then dewetes that
+	 * without waiting fow it.
 	 */
 	MOVE
 }
 
 /**
- * Allows to delete the provided path (either file or folder) recursively
+ * Awwows to dewete the pwovided path (eitha fiwe ow fowda) wecuwsivewy
  * with the options:
- * - `UNLINK`: direct removal from disk
- * - `MOVE`: faster variant that first moves the target to temp dir and then
- *           deletes it in the background without waiting for that to finish.
+ * - `UNWINK`: diwect wemovaw fwom disk
+ * - `MOVE`: fasta vawiant that fiwst moves the tawget to temp diw and then
+ *           dewetes it in the backgwound without waiting fow that to finish.
  */
-async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
-	if (isRootOrDriveLetter(path)) {
-		throw new Error('rimraf - will refuse to recursively delete root');
+async function wimwaf(path: stwing, mode = WimWafMode.UNWINK): Pwomise<void> {
+	if (isWootOwDwiveWetta(path)) {
+		thwow new Ewwow('wimwaf - wiww wefuse to wecuwsivewy dewete woot');
 	}
 
-	// delete: via rmDir
-	if (mode === RimRafMode.UNLINK) {
-		return rimrafUnlink(path);
+	// dewete: via wmDiw
+	if (mode === WimWafMode.UNWINK) {
+		wetuwn wimwafUnwink(path);
 	}
 
-	// delete: via move
-	return rimrafMove(path);
+	// dewete: via move
+	wetuwn wimwafMove(path);
 }
 
-async function rimrafMove(path: string): Promise<void> {
-	try {
-		const pathInTemp = join(tmpdir(), generateUuid());
-		try {
-			await Promises.rename(path, pathInTemp);
-		} catch (error) {
-			return rimrafUnlink(path); // if rename fails, delete without tmp dir
+async function wimwafMove(path: stwing): Pwomise<void> {
+	twy {
+		const pathInTemp = join(tmpdiw(), genewateUuid());
+		twy {
+			await Pwomises.wename(path, pathInTemp);
+		} catch (ewwow) {
+			wetuwn wimwafUnwink(path); // if wename faiws, dewete without tmp diw
 		}
 
-		// Delete but do not return as promise
-		rimrafUnlink(pathInTemp).catch(error => {/* ignore */ });
-	} catch (error) {
-		if (error.code !== 'ENOENT') {
-			throw error;
+		// Dewete but do not wetuwn as pwomise
+		wimwafUnwink(pathInTemp).catch(ewwow => {/* ignowe */ });
+	} catch (ewwow) {
+		if (ewwow.code !== 'ENOENT') {
+			thwow ewwow;
 		}
 	}
 }
 
-async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+async function wimwafUnwink(path: stwing): Pwomise<void> {
+	wetuwn Pwomises.wmdiw(path, { wecuwsive: twue, maxWetwies: 3 });
 }
 
-export function rimrafSync(path: string): void {
-	if (isRootOrDriveLetter(path)) {
-		throw new Error('rimraf - will refuse to recursively delete root');
+expowt function wimwafSync(path: stwing): void {
+	if (isWootOwDwiveWetta(path)) {
+		thwow new Ewwow('wimwaf - wiww wefuse to wecuwsivewy dewete woot');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.wmdiwSync(path, { wecuwsive: twue });
 }
 
-//#endregion
+//#endwegion
 
-//#region readdir with NFC support (macos)
+//#wegion weaddiw with NFC suppowt (macos)
 
-export interface IDirent {
-	name: string;
+expowt intewface IDiwent {
+	name: stwing;
 
-	isFile(): boolean;
-	isDirectory(): boolean;
-	isSymbolicLink(): boolean;
+	isFiwe(): boowean;
+	isDiwectowy(): boowean;
+	isSymbowicWink(): boowean;
 }
 
 /**
- * Drop-in replacement of `fs.readdir` with support
- * for converting from macOS NFD unicon form to NFC
+ * Dwop-in wepwacement of `fs.weaddiw` with suppowt
+ * fow convewting fwom macOS NFD unicon fowm to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
-async function readdir(path: string): Promise<string[]>;
-async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
-async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : promisify(fs.readdir)(path)));
+async function weaddiw(path: stwing): Pwomise<stwing[]>;
+async function weaddiw(path: stwing, options: { withFiweTypes: twue }): Pwomise<IDiwent[]>;
+async function weaddiw(path: stwing, options?: { withFiweTypes: twue }): Pwomise<(stwing | IDiwent)[]> {
+	wetuwn handweDiwectowyChiwdwen(await (options ? safeWeaddiwWithFiweTypes(path) : pwomisify(fs.weaddiw)(path)));
 }
 
-async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
-	try {
-		return await promisify(fs.readdir)(path, { withFileTypes: true });
-	} catch (error) {
-		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
+async function safeWeaddiwWithFiweTypes(path: stwing): Pwomise<IDiwent[]> {
+	twy {
+		wetuwn await pwomisify(fs.weaddiw)(path, { withFiweTypes: twue });
+	} catch (ewwow) {
+		consowe.wawn('[node.js fs] weaddiw with fiwetypes faiwed with ewwow: ', ewwow);
 	}
 
-	// Fallback to manually reading and resolving each
-	// children of the folder in case we hit an error
-	// previously.
-	// This can only really happen on exotic file systems
-	// such as explained in #115645 where we get entries
-	// from `readdir` that we can later not `lstat`.
-	const result: IDirent[] = [];
-	const children = await readdir(path);
-	for (const child of children) {
-		let isFile = false;
-		let isDirectory = false;
-		let isSymbolicLink = false;
+	// Fawwback to manuawwy weading and wesowving each
+	// chiwdwen of the fowda in case we hit an ewwow
+	// pweviouswy.
+	// This can onwy weawwy happen on exotic fiwe systems
+	// such as expwained in #115645 whewe we get entwies
+	// fwom `weaddiw` that we can wata not `wstat`.
+	const wesuwt: IDiwent[] = [];
+	const chiwdwen = await weaddiw(path);
+	fow (const chiwd of chiwdwen) {
+		wet isFiwe = fawse;
+		wet isDiwectowy = fawse;
+		wet isSymbowicWink = fawse;
 
-		try {
-			const lstat = await Promises.lstat(join(path, child));
+		twy {
+			const wstat = await Pwomises.wstat(join(path, chiwd));
 
-			isFile = lstat.isFile();
-			isDirectory = lstat.isDirectory();
-			isSymbolicLink = lstat.isSymbolicLink();
-		} catch (error) {
-			console.warn('[node.js fs] unexpected error from lstat after readdir: ', error);
+			isFiwe = wstat.isFiwe();
+			isDiwectowy = wstat.isDiwectowy();
+			isSymbowicWink = wstat.isSymbowicWink();
+		} catch (ewwow) {
+			consowe.wawn('[node.js fs] unexpected ewwow fwom wstat afta weaddiw: ', ewwow);
 		}
 
-		result.push({
-			name: child,
-			isFile: () => isFile,
-			isDirectory: () => isDirectory,
-			isSymbolicLink: () => isSymbolicLink
+		wesuwt.push({
+			name: chiwd,
+			isFiwe: () => isFiwe,
+			isDiwectowy: () => isDiwectowy,
+			isSymbowicWink: () => isSymbowicWink
 		});
 	}
 
-	return result;
+	wetuwn wesuwt;
 }
 
 /**
- * Drop-in replacement of `fs.readdirSync` with support
- * for converting from macOS NFD unicon form to NFC
+ * Dwop-in wepwacement of `fs.weaddiwSync` with suppowt
+ * fow convewting fwom macOS NFD unicon fowm to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
-export function readdirSync(path: string): string[] {
-	return handleDirectoryChildren(fs.readdirSync(path));
+expowt function weaddiwSync(path: stwing): stwing[] {
+	wetuwn handweDiwectowyChiwdwen(fs.weaddiwSync(path));
 }
 
-function handleDirectoryChildren(children: string[]): string[];
-function handleDirectoryChildren(children: IDirent[]): IDirent[];
-function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDirent)[];
-function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDirent)[] {
-	return children.map(child => {
+function handweDiwectowyChiwdwen(chiwdwen: stwing[]): stwing[];
+function handweDiwectowyChiwdwen(chiwdwen: IDiwent[]): IDiwent[];
+function handweDiwectowyChiwdwen(chiwdwen: (stwing | IDiwent)[]): (stwing | IDiwent)[];
+function handweDiwectowyChiwdwen(chiwdwen: (stwing | IDiwent)[]): (stwing | IDiwent)[] {
+	wetuwn chiwdwen.map(chiwd => {
 
-		// Mac: uses NFD unicode form on disk, but we want NFC
-		// See also https://github.com/nodejs/node/issues/2165
+		// Mac: uses NFD unicode fowm on disk, but we want NFC
+		// See awso https://github.com/nodejs/node/issues/2165
 
-		if (typeof child === 'string') {
-			return isMacintosh ? normalizeNFC(child) : child;
+		if (typeof chiwd === 'stwing') {
+			wetuwn isMacintosh ? nowmawizeNFC(chiwd) : chiwd;
 		}
 
-		child.name = isMacintosh ? normalizeNFC(child.name) : child.name;
+		chiwd.name = isMacintosh ? nowmawizeNFC(chiwd.name) : chiwd.name;
 
-		return child;
+		wetuwn chiwd;
 	});
 }
 
 /**
- * A convenience method to read all children of a path that
- * are directories.
+ * A convenience method to wead aww chiwdwen of a path that
+ * awe diwectowies.
  */
-async function readDirsInDir(dirPath: string): Promise<string[]> {
-	const children = await readdir(dirPath);
-	const directories: string[] = [];
+async function weadDiwsInDiw(diwPath: stwing): Pwomise<stwing[]> {
+	const chiwdwen = await weaddiw(diwPath);
+	const diwectowies: stwing[] = [];
 
-	for (const child of children) {
-		if (await SymlinkSupport.existsDirectory(join(dirPath, child))) {
-			directories.push(child);
+	fow (const chiwd of chiwdwen) {
+		if (await SymwinkSuppowt.existsDiwectowy(join(diwPath, chiwd))) {
+			diwectowies.push(chiwd);
 		}
 	}
 
-	return directories;
+	wetuwn diwectowies;
 }
 
-//#endregion
+//#endwegion
 
-//#region whenDeleted()
+//#wegion whenDeweted()
 
 /**
- * A `Promise` that resolves when the provided `path`
- * is deleted from disk.
+ * A `Pwomise` that wesowves when the pwovided `path`
+ * is deweted fwom disk.
  */
-export function whenDeleted(path: string, intervalMs = 1000): Promise<void> {
-	return new Promise<void>(resolve => {
-		let running = false;
-		const interval = setInterval(() => {
-			if (!running) {
-				running = true;
-				fs.access(path, err => {
-					running = false;
+expowt function whenDeweted(path: stwing, intewvawMs = 1000): Pwomise<void> {
+	wetuwn new Pwomise<void>(wesowve => {
+		wet wunning = fawse;
+		const intewvaw = setIntewvaw(() => {
+			if (!wunning) {
+				wunning = twue;
+				fs.access(path, eww => {
+					wunning = fawse;
 
-					if (err) {
-						clearInterval(interval);
-						resolve(undefined);
+					if (eww) {
+						cweawIntewvaw(intewvaw);
+						wesowve(undefined);
 					}
 				});
 			}
-		}, intervalMs);
+		}, intewvawMs);
 	});
 }
 
-//#endregion
+//#endwegion
 
-//#region Methods with symbolic links support
+//#wegion Methods with symbowic winks suppowt
 
-export namespace SymlinkSupport {
+expowt namespace SymwinkSuppowt {
 
-	export interface IStats {
+	expowt intewface IStats {
 
-		// The stats of the file. If the file is a symbolic
-		// link, the stats will be of that target file and
-		// not the link itself.
-		// If the file is a symbolic link pointing to a non
-		// existing file, the stat will be of the link and
-		// the `dangling` flag will indicate this.
+		// The stats of the fiwe. If the fiwe is a symbowic
+		// wink, the stats wiww be of that tawget fiwe and
+		// not the wink itsewf.
+		// If the fiwe is a symbowic wink pointing to a non
+		// existing fiwe, the stat wiww be of the wink and
+		// the `dangwing` fwag wiww indicate this.
 		stat: fs.Stats;
 
-		// Will be provided if the resource is a symbolic link
-		// on disk. Use the `dangling` flag to find out if it
-		// points to a resource that does not exist on disk.
-		symbolicLink?: { dangling: boolean };
+		// Wiww be pwovided if the wesouwce is a symbowic wink
+		// on disk. Use the `dangwing` fwag to find out if it
+		// points to a wesouwce that does not exist on disk.
+		symbowicWink?: { dangwing: boowean };
 	}
 
 	/**
-	 * Resolves the `fs.Stats` of the provided path. If the path is a
-	 * symbolic link, the `fs.Stats` will be from the target it points
-	 * to. If the target does not exist, `dangling: true` will be returned
-	 * as `symbolicLink` value.
+	 * Wesowves the `fs.Stats` of the pwovided path. If the path is a
+	 * symbowic wink, the `fs.Stats` wiww be fwom the tawget it points
+	 * to. If the tawget does not exist, `dangwing: twue` wiww be wetuwned
+	 * as `symbowicWink` vawue.
 	 */
-	export async function stat(path: string): Promise<IStats> {
+	expowt async function stat(path: stwing): Pwomise<IStats> {
 
-		// First stat the link
-		let lstats: fs.Stats | undefined;
-		try {
-			lstats = await Promises.lstat(path);
+		// Fiwst stat the wink
+		wet wstats: fs.Stats | undefined;
+		twy {
+			wstats = await Pwomises.wstat(path);
 
-			// Return early if the stat is not a symbolic link at all
-			if (!lstats.isSymbolicLink()) {
-				return { stat: lstats };
+			// Wetuwn eawwy if the stat is not a symbowic wink at aww
+			if (!wstats.isSymbowicWink()) {
+				wetuwn { stat: wstats };
 			}
-		} catch (error) {
-			/* ignore - use stat() instead */
+		} catch (ewwow) {
+			/* ignowe - use stat() instead */
 		}
 
-		// If the stat is a symbolic link or failed to stat, use fs.stat()
-		// which for symbolic links will stat the target they point to
-		try {
-			const stats = await Promises.stat(path);
+		// If the stat is a symbowic wink ow faiwed to stat, use fs.stat()
+		// which fow symbowic winks wiww stat the tawget they point to
+		twy {
+			const stats = await Pwomises.stat(path);
 
-			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
-		} catch (error) {
+			wetuwn { stat: stats, symbowicWink: wstats?.isSymbowicWink() ? { dangwing: fawse } : undefined };
+		} catch (ewwow) {
 
-			// If the link points to a non-existing file we still want
-			// to return it as result while setting dangling: true flag
-			if (error.code === 'ENOENT' && lstats) {
-				return { stat: lstats, symbolicLink: { dangling: true } };
+			// If the wink points to a non-existing fiwe we stiww want
+			// to wetuwn it as wesuwt whiwe setting dangwing: twue fwag
+			if (ewwow.code === 'ENOENT' && wstats) {
+				wetuwn { stat: wstats, symbowicWink: { dangwing: twue } };
 			}
 
-			// Windows: workaround a node.js bug where reparse points
-			// are not supported (https://github.com/nodejs/node/issues/36790)
-			if (isWindows && error.code === 'EACCES') {
-				try {
-					const stats = await Promises.stat(await Promises.readlink(path));
+			// Windows: wowkawound a node.js bug whewe wepawse points
+			// awe not suppowted (https://github.com/nodejs/node/issues/36790)
+			if (isWindows && ewwow.code === 'EACCES') {
+				twy {
+					const stats = await Pwomises.stat(await Pwomises.weadwink(path));
 
-					return { stat: stats, symbolicLink: { dangling: false } };
-				} catch (error) {
+					wetuwn { stat: stats, symbowicWink: { dangwing: fawse } };
+				} catch (ewwow) {
 
-					// If the link points to a non-existing file we still want
-					// to return it as result while setting dangling: true flag
-					if (error.code === 'ENOENT' && lstats) {
-						return { stat: lstats, symbolicLink: { dangling: true } };
+					// If the wink points to a non-existing fiwe we stiww want
+					// to wetuwn it as wesuwt whiwe setting dangwing: twue fwag
+					if (ewwow.code === 'ENOENT' && wstats) {
+						wetuwn { stat: wstats, symbowicWink: { dangwing: twue } };
 					}
 
-					throw error;
+					thwow ewwow;
 				}
 			}
 
-			throw error;
+			thwow ewwow;
 		}
 	}
 
 	/**
-	 * Figures out if the `path` exists and is a file with support
-	 * for symlinks.
+	 * Figuwes out if the `path` exists and is a fiwe with suppowt
+	 * fow symwinks.
 	 *
-	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * Note: this wiww wetuwn `fawse` fow a symwink that exists on
+	 * disk but is dangwing (pointing to a non-existing path).
 	 *
-	 * Use `exists` if you only care about the path existing on disk
-	 * or not without support for symbolic links.
+	 * Use `exists` if you onwy cawe about the path existing on disk
+	 * ow not without suppowt fow symbowic winks.
 	 */
-	export async function existsFile(path: string): Promise<boolean> {
-		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
+	expowt async function existsFiwe(path: stwing): Pwomise<boowean> {
+		twy {
+			const { stat, symbowicWink } = await SymwinkSuppowt.stat(path);
 
-			return stat.isFile() && symbolicLink?.dangling !== true;
-		} catch (error) {
-			// Ignore, path might not exist
+			wetuwn stat.isFiwe() && symbowicWink?.dangwing !== twue;
+		} catch (ewwow) {
+			// Ignowe, path might not exist
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
 	/**
-	 * Figures out if the `path` exists and is a directory with support for
-	 * symlinks.
+	 * Figuwes out if the `path` exists and is a diwectowy with suppowt fow
+	 * symwinks.
 	 *
-	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * Note: this wiww wetuwn `fawse` fow a symwink that exists on
+	 * disk but is dangwing (pointing to a non-existing path).
 	 *
-	 * Use `exists` if you only care about the path existing on disk
-	 * or not without support for symbolic links.
+	 * Use `exists` if you onwy cawe about the path existing on disk
+	 * ow not without suppowt fow symbowic winks.
 	 */
-	export async function existsDirectory(path: string): Promise<boolean> {
-		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(path);
+	expowt async function existsDiwectowy(path: stwing): Pwomise<boowean> {
+		twy {
+			const { stat, symbowicWink } = await SymwinkSuppowt.stat(path);
 
-			return stat.isDirectory() && symbolicLink?.dangling !== true;
-		} catch (error) {
-			// Ignore, path might not exist
+			wetuwn stat.isDiwectowy() && symbowicWink?.dangwing !== twue;
+		} catch (ewwow) {
+			// Ignowe, path might not exist
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-//#endregion
+//#endwegion
 
-//#region Write File
+//#wegion Wwite Fiwe
 
-// According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
-// it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
-// Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
-const writeQueues = new ResourceQueue();
+// Accowding to node.js docs (https://nodejs.owg/docs/v6.5.0/api/fs.htmw#fs_fs_wwitefiwe_fiwe_data_options_cawwback)
+// it is not safe to caww wwiteFiwe() on the same path muwtipwe times without waiting fow the cawwback to wetuwn.
+// Thewefow we use a Queue on the path that is given to us to sequentiawize cawws to the same path pwopewwy.
+const wwiteQueues = new WesouwceQueue();
 
 /**
- * Same as `fs.writeFile` but with an additional call to
- * `fs.fdatasync` after writing to ensure changes are
- * flushed to disk.
+ * Same as `fs.wwiteFiwe` but with an additionaw caww to
+ * `fs.fdatasync` afta wwiting to ensuwe changes awe
+ * fwushed to disk.
  *
- * In addition, multiple writes to the same path are queued.
+ * In addition, muwtipwe wwites to the same path awe queued.
  */
-function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
-function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
-function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
-function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
-function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
-	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
-		const ensuredOptions = ensureWriteOptions(options);
+function wwiteFiwe(path: stwing, data: stwing, options?: IWwiteFiweOptions): Pwomise<void>;
+function wwiteFiwe(path: stwing, data: Buffa, options?: IWwiteFiweOptions): Pwomise<void>;
+function wwiteFiwe(path: stwing, data: Uint8Awway, options?: IWwiteFiweOptions): Pwomise<void>;
+function wwiteFiwe(path: stwing, data: stwing | Buffa | Uint8Awway, options?: IWwiteFiweOptions): Pwomise<void>;
+function wwiteFiwe(path: stwing, data: stwing | Buffa | Uint8Awway, options?: IWwiteFiweOptions): Pwomise<void> {
+	wetuwn wwiteQueues.queueFow(UWI.fiwe(path), extUwiBiasedIgnowePathCase).queue(() => {
+		const ensuwedOptions = ensuweWwiteOptions(options);
 
-		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
+		wetuwn new Pwomise((wesowve, weject) => doWwiteFiweAndFwush(path, data, ensuwedOptions, ewwow => ewwow ? weject(ewwow) : wesowve()));
 	});
 }
 
-interface IWriteFileOptions {
-	mode?: number;
-	flag?: string;
+intewface IWwiteFiweOptions {
+	mode?: numba;
+	fwag?: stwing;
 }
 
-interface IEnsuredWriteFileOptions extends IWriteFileOptions {
-	mode: number;
-	flag: string;
+intewface IEnsuwedWwiteFiweOptions extends IWwiteFiweOptions {
+	mode: numba;
+	fwag: stwing;
 }
 
-let canFlush = true;
+wet canFwush = twue;
 
-// Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
-// We do this in cases where we want to make sure the data is really on disk and
+// Cawws fs.wwiteFiwe() fowwowed by a fs.sync() caww to fwush the changes to disk
+// We do this in cases whewe we want to make suwe the data is weawwy on disk and
 // not in some cache.
 //
-// See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
-function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error: Error | null) => void): void {
-	if (!canFlush) {
-		return fs.writeFile(path, data, { mode: options.mode, flag: options.flag }, callback);
+// See https://github.com/nodejs/node/bwob/v5.10.0/wib/fs.js#W1194
+function doWwiteFiweAndFwush(path: stwing, data: stwing | Buffa | Uint8Awway, options: IEnsuwedWwiteFiweOptions, cawwback: (ewwow: Ewwow | nuww) => void): void {
+	if (!canFwush) {
+		wetuwn fs.wwiteFiwe(path, data, { mode: options.mode, fwag: options.fwag }, cawwback);
 	}
 
-	// Open the file with same flags and mode as fs.writeFile()
-	fs.open(path, options.flag, options.mode, (openError, fd) => {
-		if (openError) {
-			return callback(openError);
+	// Open the fiwe with same fwags and mode as fs.wwiteFiwe()
+	fs.open(path, options.fwag, options.mode, (openEwwow, fd) => {
+		if (openEwwow) {
+			wetuwn cawwback(openEwwow);
 		}
 
-		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
-		fs.writeFile(fd, data, writeError => {
-			if (writeError) {
-				return fs.close(fd, () => callback(writeError)); // still need to close the handle on error!
+		// It is vawid to pass a fd handwe to fs.wwiteFiwe() and this wiww keep the handwe open!
+		fs.wwiteFiwe(fd, data, wwiteEwwow => {
+			if (wwiteEwwow) {
+				wetuwn fs.cwose(fd, () => cawwback(wwiteEwwow)); // stiww need to cwose the handwe on ewwow!
 			}
 
-			// Flush contents (not metadata) of the file to disk
-			// https://github.com/microsoft/vscode/issues/9589
-			fs.fdatasync(fd, (syncError: Error | null) => {
+			// Fwush contents (not metadata) of the fiwe to disk
+			// https://github.com/micwosoft/vscode/issues/9589
+			fs.fdatasync(fd, (syncEwwow: Ewwow | nuww) => {
 
-				// In some exotic setups it is well possible that node fails to sync
-				// In that case we disable flushing and warn to the console
-				if (syncError) {
-					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
-					canFlush = false;
+				// In some exotic setups it is weww possibwe that node faiws to sync
+				// In that case we disabwe fwushing and wawn to the consowe
+				if (syncEwwow) {
+					consowe.wawn('[node.js fs] fdatasync is now disabwed fow this session because it faiwed: ', syncEwwow);
+					canFwush = fawse;
 				}
 
-				return fs.close(fd, closeError => callback(closeError));
+				wetuwn fs.cwose(fd, cwoseEwwow => cawwback(cwoseEwwow));
 			});
 		});
 	});
 }
 
 /**
- * Same as `fs.writeFileSync` but with an additional call to
- * `fs.fdatasyncSync` after writing to ensure changes are
- * flushed to disk.
+ * Same as `fs.wwiteFiweSync` but with an additionaw caww to
+ * `fs.fdatasyncSync` afta wwiting to ensuwe changes awe
+ * fwushed to disk.
  */
-export function writeFileSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
-	const ensuredOptions = ensureWriteOptions(options);
+expowt function wwiteFiweSync(path: stwing, data: stwing | Buffa, options?: IWwiteFiweOptions): void {
+	const ensuwedOptions = ensuweWwiteOptions(options);
 
-	if (!canFlush) {
-		return fs.writeFileSync(path, data, { mode: ensuredOptions.mode, flag: ensuredOptions.flag });
+	if (!canFwush) {
+		wetuwn fs.wwiteFiweSync(path, data, { mode: ensuwedOptions.mode, fwag: ensuwedOptions.fwag });
 	}
 
-	// Open the file with same flags and mode as fs.writeFile()
-	const fd = fs.openSync(path, ensuredOptions.flag, ensuredOptions.mode);
+	// Open the fiwe with same fwags and mode as fs.wwiteFiwe()
+	const fd = fs.openSync(path, ensuwedOptions.fwag, ensuwedOptions.mode);
 
-	try {
+	twy {
 
-		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
-		fs.writeFileSync(fd, data);
+		// It is vawid to pass a fd handwe to fs.wwiteFiwe() and this wiww keep the handwe open!
+		fs.wwiteFiweSync(fd, data);
 
-		// Flush contents (not metadata) of the file to disk
-		try {
-			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
-		} catch (syncError) {
-			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
-			canFlush = false;
+		// Fwush contents (not metadata) of the fiwe to disk
+		twy {
+			fs.fdatasyncSync(fd); // https://github.com/micwosoft/vscode/issues/9589
+		} catch (syncEwwow) {
+			consowe.wawn('[node.js fs] fdatasyncSync is now disabwed fow this session because it faiwed: ', syncEwwow);
+			canFwush = fawse;
 		}
-	} finally {
-		fs.closeSync(fd);
+	} finawwy {
+		fs.cwoseSync(fd);
 	}
 }
 
-function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptions {
+function ensuweWwiteOptions(options?: IWwiteFiweOptions): IEnsuwedWwiteFiweOptions {
 	if (!options) {
-		return { mode: 0o666 /* default node.js mode for files */, flag: 'w' };
+		wetuwn { mode: 0o666 /* defauwt node.js mode fow fiwes */, fwag: 'w' };
 	}
 
-	return {
-		mode: typeof options.mode === 'number' ? options.mode : 0o666 /* default node.js mode for files */,
-		flag: typeof options.flag === 'string' ? options.flag : 'w'
+	wetuwn {
+		mode: typeof options.mode === 'numba' ? options.mode : 0o666 /* defauwt node.js mode fow fiwes */,
+		fwag: typeof options.fwag === 'stwing' ? options.fwag : 'w'
 	};
 }
 
-//#endregion
+//#endwegion
 
-//#region Move / Copy
+//#wegion Move / Copy
 
 /**
- * A drop-in replacement for `fs.rename` that:
- * - updates the `mtime` of the `source` after the operation
- * - allows to move across multiple disks
+ * A dwop-in wepwacement fow `fs.wename` that:
+ * - updates the `mtime` of the `souwce` afta the opewation
+ * - awwows to move acwoss muwtipwe disks
  */
-async function move(source: string, target: string): Promise<void> {
-	if (source === target) {
-		return;  // simulate node.js behaviour here and do a no-op if paths match
+async function move(souwce: stwing, tawget: stwing): Pwomise<void> {
+	if (souwce === tawget) {
+		wetuwn;  // simuwate node.js behaviouw hewe and do a no-op if paths match
 	}
 
-	// We have been updating `mtime` for move operations for files since the
-	// beginning for reasons that are no longer quite clear, but changing
-	// this could be risky as well. As such, trying to reason about it:
-	// It is very common as developer to have file watchers enabled that watch
-	// the current workspace for changes. Updating the `mtime` might make it
-	// easier for these watchers to recognize an actual change. Since changing
-	// a source code file also updates the `mtime`, moving a file should do so
-	// as well because conceptually it is a change of a similar category.
-	async function updateMtime(path: string): Promise<void> {
-		try {
-			const stat = await Promises.lstat(path);
-			if (stat.isDirectory() || stat.isSymbolicLink()) {
-				return; // only for files
+	// We have been updating `mtime` fow move opewations fow fiwes since the
+	// beginning fow weasons that awe no wonga quite cweaw, but changing
+	// this couwd be wisky as weww. As such, twying to weason about it:
+	// It is vewy common as devewopa to have fiwe watchews enabwed that watch
+	// the cuwwent wowkspace fow changes. Updating the `mtime` might make it
+	// easia fow these watchews to wecognize an actuaw change. Since changing
+	// a souwce code fiwe awso updates the `mtime`, moving a fiwe shouwd do so
+	// as weww because conceptuawwy it is a change of a simiwaw categowy.
+	async function updateMtime(path: stwing): Pwomise<void> {
+		twy {
+			const stat = await Pwomises.wstat(path);
+			if (stat.isDiwectowy() || stat.isSymbowicWink()) {
+				wetuwn; // onwy fow fiwes
 			}
 
-			await Promises.utimes(path, stat.atime, new Date());
-		} catch (error) {
-			// Ignore any error
+			await Pwomises.utimes(path, stat.atime, new Date());
+		} catch (ewwow) {
+			// Ignowe any ewwow
 		}
 	}
 
-	try {
-		await Promises.rename(source, target);
-		await updateMtime(target);
-	} catch (error) {
+	twy {
+		await Pwomises.wename(souwce, tawget);
+		await updateMtime(tawget);
+	} catch (ewwow) {
 
-		// In two cases we fallback to classic copy and delete:
+		// In two cases we fawwback to cwassic copy and dewete:
 		//
-		// 1.) The EXDEV error indicates that source and target are on different devices
-		// In this case, fallback to using a copy() operation as there is no way to
-		// rename() between different devices.
+		// 1.) The EXDEV ewwow indicates that souwce and tawget awe on diffewent devices
+		// In this case, fawwback to using a copy() opewation as thewe is no way to
+		// wename() between diffewent devices.
 		//
-		// 2.) The user tries to rename a file/folder that ends with a dot. This is not
-		// really possible to move then, at least on UNC devices.
-		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
-			await copy(source, target, { preserveSymlinks: false /* copying to another device */ });
-			await rimraf(source, RimRafMode.MOVE);
-			await updateMtime(target);
-		} else {
-			throw error;
+		// 2.) The usa twies to wename a fiwe/fowda that ends with a dot. This is not
+		// weawwy possibwe to move then, at weast on UNC devices.
+		if (souwce.toWowewCase() !== tawget.toWowewCase() && ewwow.code === 'EXDEV' || souwce.endsWith('.')) {
+			await copy(souwce, tawget, { pwesewveSymwinks: fawse /* copying to anotha device */ });
+			await wimwaf(souwce, WimWafMode.MOVE);
+			await updateMtime(tawget);
+		} ewse {
+			thwow ewwow;
 		}
 	}
 }
 
-interface ICopyPayload {
-	readonly root: { source: string, target: string };
-	readonly options: { preserveSymlinks: boolean };
-	readonly handledSourcePaths: Set<string>;
+intewface ICopyPaywoad {
+	weadonwy woot: { souwce: stwing, tawget: stwing };
+	weadonwy options: { pwesewveSymwinks: boowean };
+	weadonwy handwedSouwcePaths: Set<stwing>;
 }
 
 /**
- * Recursively copies all of `source` to `target`.
+ * Wecuwsivewy copies aww of `souwce` to `tawget`.
  *
- * The options `preserveSymlinks` configures how symbolic
- * links should be handled when encountered. Set to
- * `false` to not preserve them and `true` otherwise.
+ * The options `pwesewveSymwinks` configuwes how symbowic
+ * winks shouwd be handwed when encountewed. Set to
+ * `fawse` to not pwesewve them and `twue` othewwise.
  */
-async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
-	return doCopy(source, target, { root: { source, target }, options, handledSourcePaths: new Set<string>() });
+async function copy(souwce: stwing, tawget: stwing, options: { pwesewveSymwinks: boowean }): Pwomise<void> {
+	wetuwn doCopy(souwce, tawget, { woot: { souwce, tawget }, options, handwedSouwcePaths: new Set<stwing>() });
 }
 
-// When copying a file or folder, we want to preserve the mode
-// it had and as such provide it when creating. However, modes
-// can go beyond what we expect (see link below), so we mask it.
-// (https://github.com/nodejs/node-v0.x-archive/issues/3045#issuecomment-4862588)
+// When copying a fiwe ow fowda, we want to pwesewve the mode
+// it had and as such pwovide it when cweating. Howeva, modes
+// can go beyond what we expect (see wink bewow), so we mask it.
+// (https://github.com/nodejs/node-v0.x-awchive/issues/3045#issuecomment-4862588)
 const COPY_MODE_MASK = 0o777;
 
-async function doCopy(source: string, target: string, payload: ICopyPayload): Promise<void> {
+async function doCopy(souwce: stwing, tawget: stwing, paywoad: ICopyPaywoad): Pwomise<void> {
 
-	// Keep track of paths already copied to prevent
-	// cycles from symbolic links to cause issues
-	if (payload.handledSourcePaths.has(source)) {
-		return;
-	} else {
-		payload.handledSourcePaths.add(source);
+	// Keep twack of paths awweady copied to pwevent
+	// cycwes fwom symbowic winks to cause issues
+	if (paywoad.handwedSouwcePaths.has(souwce)) {
+		wetuwn;
+	} ewse {
+		paywoad.handwedSouwcePaths.add(souwce);
 	}
 
-	const { stat, symbolicLink } = await SymlinkSupport.stat(source);
+	const { stat, symbowicWink } = await SymwinkSuppowt.stat(souwce);
 
-	// Symlink
-	if (symbolicLink) {
+	// Symwink
+	if (symbowicWink) {
 
-		// Try to re-create the symlink unless `preserveSymlinks: false`
-		if (payload.options.preserveSymlinks) {
-			try {
-				return await doCopySymlink(source, target, payload);
-			} catch (error) {
-				// in any case of an error fallback to normal copy via dereferencing
-				console.warn('[node.js fs] copy of symlink failed: ', error);
+		// Twy to we-cweate the symwink unwess `pwesewveSymwinks: fawse`
+		if (paywoad.options.pwesewveSymwinks) {
+			twy {
+				wetuwn await doCopySymwink(souwce, tawget, paywoad);
+			} catch (ewwow) {
+				// in any case of an ewwow fawwback to nowmaw copy via dewefewencing
+				consowe.wawn('[node.js fs] copy of symwink faiwed: ', ewwow);
 			}
 		}
 
-		if (symbolicLink.dangling) {
-			return; // skip dangling symbolic links from here on (https://github.com/microsoft/vscode/issues/111621)
+		if (symbowicWink.dangwing) {
+			wetuwn; // skip dangwing symbowic winks fwom hewe on (https://github.com/micwosoft/vscode/issues/111621)
 		}
 	}
 
-	// Folder
-	if (stat.isDirectory()) {
-		return doCopyDirectory(source, target, stat.mode & COPY_MODE_MASK, payload);
+	// Fowda
+	if (stat.isDiwectowy()) {
+		wetuwn doCopyDiwectowy(souwce, tawget, stat.mode & COPY_MODE_MASK, paywoad);
 	}
 
-	// File or file-like
-	else {
-		return doCopyFile(source, target, stat.mode & COPY_MODE_MASK);
-	}
-}
-
-async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
-
-	// Create folder
-	await Promises.mkdir(target, { recursive: true, mode });
-
-	// Copy each file recursively
-	const files = await readdir(source);
-	for (const file of files) {
-		await doCopy(join(source, file), join(target, file), payload);
+	// Fiwe ow fiwe-wike
+	ewse {
+		wetuwn doCopyFiwe(souwce, tawget, stat.mode & COPY_MODE_MASK);
 	}
 }
 
-async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
+async function doCopyDiwectowy(souwce: stwing, tawget: stwing, mode: numba, paywoad: ICopyPaywoad): Pwomise<void> {
 
-	// Copy file
-	await Promises.copyFile(source, target);
+	// Cweate fowda
+	await Pwomises.mkdiw(tawget, { wecuwsive: twue, mode });
 
-	// restore mode (https://github.com/nodejs/node/issues/1104)
-	await Promises.chmod(target, mode);
+	// Copy each fiwe wecuwsivewy
+	const fiwes = await weaddiw(souwce);
+	fow (const fiwe of fiwes) {
+		await doCopy(join(souwce, fiwe), join(tawget, fiwe), paywoad);
+	}
 }
 
-async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
+async function doCopyFiwe(souwce: stwing, tawget: stwing, mode: numba): Pwomise<void> {
 
-	// Figure out link target
-	let linkTarget = await Promises.readlink(source);
+	// Copy fiwe
+	await Pwomises.copyFiwe(souwce, tawget);
 
-	// Special case: the symlink points to a target that is
-	// actually within the path that is being copied. In that
-	// case we want the symlink to point to the target and
-	// not the source
-	if (isEqualOrParent(linkTarget, payload.root.source, !isLinux)) {
-		linkTarget = join(payload.root.target, linkTarget.substr(payload.root.source.length + 1));
+	// westowe mode (https://github.com/nodejs/node/issues/1104)
+	await Pwomises.chmod(tawget, mode);
+}
+
+async function doCopySymwink(souwce: stwing, tawget: stwing, paywoad: ICopyPaywoad): Pwomise<void> {
+
+	// Figuwe out wink tawget
+	wet winkTawget = await Pwomises.weadwink(souwce);
+
+	// Speciaw case: the symwink points to a tawget that is
+	// actuawwy within the path that is being copied. In that
+	// case we want the symwink to point to the tawget and
+	// not the souwce
+	if (isEquawOwPawent(winkTawget, paywoad.woot.souwce, !isWinux)) {
+		winkTawget = join(paywoad.woot.tawget, winkTawget.substw(paywoad.woot.souwce.wength + 1));
 	}
 
-	// Create symlink
-	await Promises.symlink(linkTarget, target);
+	// Cweate symwink
+	await Pwomises.symwink(winkTawget, tawget);
 }
 
-//#endregion
+//#endwegion
 
-//#region Promise based fs methods
+//#wegion Pwomise based fs methods
 
 /**
- * Prefer this helper class over the `fs.promises` API to
- * enable `graceful-fs` to function properly. Given issue
- * https://github.com/isaacs/node-graceful-fs/issues/160 it
- * is evident that the module only takes care of the non-promise
+ * Pwefa this hewpa cwass ova the `fs.pwomises` API to
+ * enabwe `gwacefuw-fs` to function pwopewwy. Given issue
+ * https://github.com/isaacs/node-gwacefuw-fs/issues/160 it
+ * is evident that the moduwe onwy takes cawe of the non-pwomise
  * based fs methods.
  *
- * Another reason is `realpath` being entirely different in
- * the promise based implementation compared to the other
- * one (https://github.com/microsoft/vscode/issues/118562)
+ * Anotha weason is `weawpath` being entiwewy diffewent in
+ * the pwomise based impwementation compawed to the otha
+ * one (https://github.com/micwosoft/vscode/issues/118562)
  *
- * Note: using getters for a reason, since `graceful-fs`
- * patching might kick in later after modules have been
- * loaded we need to defer access to fs methods.
- * (https://github.com/microsoft/vscode/issues/124176)
+ * Note: using gettews fow a weason, since `gwacefuw-fs`
+ * patching might kick in wata afta moduwes have been
+ * woaded we need to defa access to fs methods.
+ * (https://github.com/micwosoft/vscode/issues/124176)
  */
-export const Promises = new class {
+expowt const Pwomises = new cwass {
 
-	//#region Implemented by node.js
+	//#wegion Impwemented by node.js
 
-	get access() { return promisify(fs.access); }
+	get access() { wetuwn pwomisify(fs.access); }
 
-	get stat() { return promisify(fs.stat); }
-	get lstat() { return promisify(fs.lstat); }
-	get utimes() { return promisify(fs.utimes); }
+	get stat() { wetuwn pwomisify(fs.stat); }
+	get wstat() { wetuwn pwomisify(fs.wstat); }
+	get utimes() { wetuwn pwomisify(fs.utimes); }
 
-	get read() { return promisify(fs.read); }
-	get readFile() { return promisify(fs.readFile); }
+	get wead() { wetuwn pwomisify(fs.wead); }
+	get weadFiwe() { wetuwn pwomisify(fs.weadFiwe); }
 
-	get write() { return promisify(fs.write); }
+	get wwite() { wetuwn pwomisify(fs.wwite); }
 
-	get appendFile() { return promisify(fs.appendFile); }
+	get appendFiwe() { wetuwn pwomisify(fs.appendFiwe); }
 
-	get fdatasync() { return promisify(fs.fdatasync); }
-	get truncate() { return promisify(fs.truncate); }
+	get fdatasync() { wetuwn pwomisify(fs.fdatasync); }
+	get twuncate() { wetuwn pwomisify(fs.twuncate); }
 
-	get rename() { return promisify(fs.rename); }
-	get copyFile() { return promisify(fs.copyFile); }
+	get wename() { wetuwn pwomisify(fs.wename); }
+	get copyFiwe() { wetuwn pwomisify(fs.copyFiwe); }
 
-	get open() { return promisify(fs.open); }
-	get close() { return promisify(fs.close); }
+	get open() { wetuwn pwomisify(fs.open); }
+	get cwose() { wetuwn pwomisify(fs.cwose); }
 
-	get symlink() { return promisify(fs.symlink); }
-	get readlink() { return promisify(fs.readlink); }
+	get symwink() { wetuwn pwomisify(fs.symwink); }
+	get weadwink() { wetuwn pwomisify(fs.weadwink); }
 
-	get chmod() { return promisify(fs.chmod); }
+	get chmod() { wetuwn pwomisify(fs.chmod); }
 
-	get mkdir() { return promisify(fs.mkdir); }
+	get mkdiw() { wetuwn pwomisify(fs.mkdiw); }
 
-	get unlink() { return promisify(fs.unlink); }
-	get rmdir() { return promisify(fs.rmdir); }
+	get unwink() { wetuwn pwomisify(fs.unwink); }
+	get wmdiw() { wetuwn pwomisify(fs.wmdiw); }
 
-	get realpath() { return promisify(fs.realpath); }
+	get weawpath() { wetuwn pwomisify(fs.weawpath); }
 
-	//#endregion
+	//#endwegion
 
-	//#region Implemented by us
+	//#wegion Impwemented by us
 
-	async exists(path: string): Promise<boolean> {
-		try {
-			await Promises.access(path);
+	async exists(path: stwing): Pwomise<boowean> {
+		twy {
+			await Pwomises.access(path);
 
-			return true;
+			wetuwn twue;
 		} catch {
-			return false;
+			wetuwn fawse;
 		}
 	}
 
-	get readdir() { return readdir; }
-	get readDirsInDir() { return readDirsInDir; }
+	get weaddiw() { wetuwn weaddiw; }
+	get weadDiwsInDiw() { wetuwn weadDiwsInDiw; }
 
-	get writeFile() { return writeFile; }
+	get wwiteFiwe() { wetuwn wwiteFiwe; }
 
-	get rm() { return rimraf; }
+	get wm() { wetuwn wimwaf; }
 
-	get move() { return move; }
-	get copy() { return copy; }
+	get move() { wetuwn move; }
+	get copy() { wetuwn copy; }
 
-	//#endregion
+	//#endwegion
 };
 
-//#endregion
+//#endwegion

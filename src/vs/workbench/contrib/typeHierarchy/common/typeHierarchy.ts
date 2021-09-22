@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { URI } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { assertType } from 'vs/base/common/types';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { SymbowKind, PwovidewWesuwt, SymbowTag } fwom 'vs/editow/common/modes';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { WanguageFeatuweWegistwy } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { onUnexpectedExtewnawEwwow } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe, WefCountedDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { assewtType } fwom 'vs/base/common/types';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
 
-export const enum TypeHierarchyDirection {
+expowt const enum TypeHiewawchyDiwection {
 	Subtypes = 'subtypes',
-	Supertypes = 'supertypes'
+	Supewtypes = 'supewtypes'
 }
 
-export interface TypeHierarchyItem {
-	_sessionId: string;
-	_itemId: string;
-	kind: SymbolKind;
-	name: string;
-	detail?: string;
-	uri: URI;
-	range: IRange;
-	selectionRange: IRange;
-	tags?: SymbolTag[]
+expowt intewface TypeHiewawchyItem {
+	_sessionId: stwing;
+	_itemId: stwing;
+	kind: SymbowKind;
+	name: stwing;
+	detaiw?: stwing;
+	uwi: UWI;
+	wange: IWange;
+	sewectionWange: IWange;
+	tags?: SymbowTag[]
 }
 
-export interface TypeHierarchySession {
-	roots: TypeHierarchyItem[];
+expowt intewface TypeHiewawchySession {
+	woots: TypeHiewawchyItem[];
 	dispose(): void;
 }
 
-export interface TypeHierarchyProvider {
-	prepareTypeHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<TypeHierarchySession>;
-	provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
-	provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+expowt intewface TypeHiewawchyPwovida {
+	pwepaweTypeHiewawchy(document: ITextModew, position: IPosition, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchySession>;
+	pwovideSupewtypes(item: TypeHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchyItem[]>;
+	pwovideSubtypes(item: TypeHiewawchyItem, token: CancewwationToken): PwovidewWesuwt<TypeHiewawchyItem[]>;
 }
 
-export const TypeHierarchyProviderRegistry = new LanguageFeatureRegistry<TypeHierarchyProvider>();
+expowt const TypeHiewawchyPwovidewWegistwy = new WanguageFeatuweWegistwy<TypeHiewawchyPwovida>();
 
 
 
-export class TypeHierarchyModel {
+expowt cwass TypeHiewawchyModew {
 
-	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<TypeHierarchyModel | undefined> {
-		const [provider] = TypeHierarchyProviderRegistry.ordered(model);
-		if (!provider) {
-			return undefined;
+	static async cweate(modew: ITextModew, position: IPosition, token: CancewwationToken): Pwomise<TypeHiewawchyModew | undefined> {
+		const [pwovida] = TypeHiewawchyPwovidewWegistwy.owdewed(modew);
+		if (!pwovida) {
+			wetuwn undefined;
 		}
-		const session = await provider.prepareTypeHierarchy(model, position, token);
+		const session = await pwovida.pwepaweTypeHiewawchy(modew, position, token);
 		if (!session) {
-			return undefined;
+			wetuwn undefined;
 		}
-		return new TypeHierarchyModel(session.roots.reduce((p, c) => p + c._sessionId, ''), provider, session.roots, new RefCountedDisposable(session));
+		wetuwn new TypeHiewawchyModew(session.woots.weduce((p, c) => p + c._sessionId, ''), pwovida, session.woots, new WefCountedDisposabwe(session));
 	}
 
-	readonly root: TypeHierarchyItem;
+	weadonwy woot: TypeHiewawchyItem;
 
-	private constructor(
-		readonly id: string,
-		readonly provider: TypeHierarchyProvider,
-		readonly roots: TypeHierarchyItem[],
-		readonly ref: RefCountedDisposable,
+	pwivate constwuctow(
+		weadonwy id: stwing,
+		weadonwy pwovida: TypeHiewawchyPwovida,
+		weadonwy woots: TypeHiewawchyItem[],
+		weadonwy wef: WefCountedDisposabwe,
 	) {
-		this.root = roots[0];
+		this.woot = woots[0];
 	}
 
 	dispose(): void {
-		this.ref.release();
+		this.wef.wewease();
 	}
 
-	fork(item: TypeHierarchyItem): TypeHierarchyModel {
+	fowk(item: TypeHiewawchyItem): TypeHiewawchyModew {
 		const that = this;
-		return new class extends TypeHierarchyModel {
-			constructor() {
-				super(that.id, that.provider, [item], that.ref.acquire());
+		wetuwn new cwass extends TypeHiewawchyModew {
+			constwuctow() {
+				supa(that.id, that.pwovida, [item], that.wef.acquiwe());
 			}
 		};
 	}
 
-	async provideSupertypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
-		try {
-			const result = await this.provider.provideSupertypes(item, token);
-			if (isNonEmptyArray(result)) {
-				return result;
+	async pwovideSupewtypes(item: TypeHiewawchyItem, token: CancewwationToken): Pwomise<TypeHiewawchyItem[]> {
+		twy {
+			const wesuwt = await this.pwovida.pwovideSupewtypes(item, token);
+			if (isNonEmptyAwway(wesuwt)) {
+				wetuwn wesuwt;
 			}
 		} catch (e) {
-			onUnexpectedExternalError(e);
+			onUnexpectedExtewnawEwwow(e);
 		}
-		return [];
+		wetuwn [];
 	}
 
-	async provideSubtypes(item: TypeHierarchyItem, token: CancellationToken): Promise<TypeHierarchyItem[]> {
-		try {
-			const result = await this.provider.provideSubtypes(item, token);
-			if (isNonEmptyArray(result)) {
-				return result;
+	async pwovideSubtypes(item: TypeHiewawchyItem, token: CancewwationToken): Pwomise<TypeHiewawchyItem[]> {
+		twy {
+			const wesuwt = await this.pwovida.pwovideSubtypes(item, token);
+			if (isNonEmptyAwway(wesuwt)) {
+				wetuwn wesuwt;
 			}
 		} catch (e) {
-			onUnexpectedExternalError(e);
+			onUnexpectedExtewnawEwwow(e);
 		}
-		return [];
+		wetuwn [];
 	}
 }
 
-// --- API command support
+// --- API command suppowt
 
-const _models = new Map<string, TypeHierarchyModel>();
+const _modews = new Map<stwing, TypeHiewawchyModew>();
 
-CommandsRegistry.registerCommand('_executePrepareTypeHierarchy', async (accessor, ...args) => {
-	const [resource, position] = args;
-	assertType(URI.isUri(resource));
-	assertType(Position.isIPosition(position));
+CommandsWegistwy.wegistewCommand('_executePwepaweTypeHiewawchy', async (accessow, ...awgs) => {
+	const [wesouwce, position] = awgs;
+	assewtType(UWI.isUwi(wesouwce));
+	assewtType(Position.isIPosition(position));
 
-	const modelService = accessor.get(IModelService);
-	let textModel = modelService.getModel(resource);
-	let textModelReference: IDisposable | undefined;
-	if (!textModel) {
-		const textModelService = accessor.get(ITextModelService);
-		const result = await textModelService.createModelReference(resource);
-		textModel = result.object.textEditorModel;
-		textModelReference = result;
+	const modewSewvice = accessow.get(IModewSewvice);
+	wet textModew = modewSewvice.getModew(wesouwce);
+	wet textModewWefewence: IDisposabwe | undefined;
+	if (!textModew) {
+		const textModewSewvice = accessow.get(ITextModewSewvice);
+		const wesuwt = await textModewSewvice.cweateModewWefewence(wesouwce);
+		textModew = wesuwt.object.textEditowModew;
+		textModewWefewence = wesuwt;
 	}
 
-	try {
-		const model = await TypeHierarchyModel.create(textModel, position, CancellationToken.None);
-		if (!model) {
-			return [];
+	twy {
+		const modew = await TypeHiewawchyModew.cweate(textModew, position, CancewwationToken.None);
+		if (!modew) {
+			wetuwn [];
 		}
 
-		_models.set(model.id, model);
-		_models.forEach((value, key, map) => {
+		_modews.set(modew.id, modew);
+		_modews.fowEach((vawue, key, map) => {
 			if (map.size > 10) {
-				value.dispose();
-				_models.delete(key);
+				vawue.dispose();
+				_modews.dewete(key);
 			}
 		});
-		return [model.root];
+		wetuwn [modew.woot];
 
-	} finally {
-		textModelReference?.dispose();
+	} finawwy {
+		textModewWefewence?.dispose();
 	}
 });
 
-function isTypeHierarchyItemDto(obj: any): obj is TypeHierarchyItem {
-	const item = obj as TypeHierarchyItem;
-	return typeof obj === 'object'
-		&& typeof item.name === 'string'
-		&& typeof item.kind === 'number'
-		&& URI.isUri(item.uri)
-		&& Range.isIRange(item.range)
-		&& Range.isIRange(item.selectionRange);
+function isTypeHiewawchyItemDto(obj: any): obj is TypeHiewawchyItem {
+	const item = obj as TypeHiewawchyItem;
+	wetuwn typeof obj === 'object'
+		&& typeof item.name === 'stwing'
+		&& typeof item.kind === 'numba'
+		&& UWI.isUwi(item.uwi)
+		&& Wange.isIWange(item.wange)
+		&& Wange.isIWange(item.sewectionWange);
 }
 
-CommandsRegistry.registerCommand('_executeProvideSupertypes', async (_accessor, ...args) => {
-	const [item] = args;
-	assertType(isTypeHierarchyItemDto(item));
+CommandsWegistwy.wegistewCommand('_executePwovideSupewtypes', async (_accessow, ...awgs) => {
+	const [item] = awgs;
+	assewtType(isTypeHiewawchyItemDto(item));
 
-	// find model
-	const model = _models.get(item._sessionId);
-	if (!model) {
-		return undefined;
+	// find modew
+	const modew = _modews.get(item._sessionId);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	return model.provideSupertypes(item, CancellationToken.None);
+	wetuwn modew.pwovideSupewtypes(item, CancewwationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeProvideSubtypes', async (_accessor, ...args) => {
-	const [item] = args;
-	assertType(isTypeHierarchyItemDto(item));
+CommandsWegistwy.wegistewCommand('_executePwovideSubtypes', async (_accessow, ...awgs) => {
+	const [item] = awgs;
+	assewtType(isTypeHiewawchyItemDto(item));
 
-	// find model
-	const model = _models.get(item._sessionId);
-	if (!model) {
-		return undefined;
+	// find modew
+	const modew = _modews.get(item._sessionId);
+	if (!modew) {
+		wetuwn undefined;
 	}
 
-	return model.provideSubtypes(item, CancellationToken.None);
+	wetuwn modew.pwovideSubtypes(item, CancewwationToken.None);
 });

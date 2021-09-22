@@ -1,1873 +1,1873 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+impowt { wocawize } fwom 'vs/nws';
 
-import * as Objects from 'vs/base/common/objects';
-import * as Strings from 'vs/base/common/strings';
-import * as Assert from 'vs/base/common/assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
-import { IStringDictionary } from 'vs/base/common/collections';
+impowt * as Objects fwom 'vs/base/common/objects';
+impowt * as Stwings fwom 'vs/base/common/stwings';
+impowt * as Assewt fwom 'vs/base/common/assewt';
+impowt { join, nowmawize } fwom 'vs/base/common/path';
+impowt * as Types fwom 'vs/base/common/types';
+impowt * as UUID fwom 'vs/base/common/uuid';
+impowt * as Pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { VawidationStatus, VawidationState, IPwobwemWepowta, Pawsa } fwom 'vs/base/common/pawsews';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
 
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+impowt { IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { ExtensionsWegistwy, ExtensionMessageCowwectow } fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { IFiweSewvice, IFiweStat } fwom 'vs/pwatfowm/fiwes/common/fiwes';
 
-export enum FileLocationKind {
-	Default,
-	Relative,
-	Absolute,
+expowt enum FiweWocationKind {
+	Defauwt,
+	Wewative,
+	Absowute,
 	AutoDetect
 }
 
-export module FileLocationKind {
-	export function fromString(value: string): FileLocationKind | undefined {
-		value = value.toLowerCase();
-		if (value === 'absolute') {
-			return FileLocationKind.Absolute;
-		} else if (value === 'relative') {
-			return FileLocationKind.Relative;
-		} else if (value === 'autodetect') {
-			return FileLocationKind.AutoDetect;
-		} else {
-			return undefined;
+expowt moduwe FiweWocationKind {
+	expowt function fwomStwing(vawue: stwing): FiweWocationKind | undefined {
+		vawue = vawue.toWowewCase();
+		if (vawue === 'absowute') {
+			wetuwn FiweWocationKind.Absowute;
+		} ewse if (vawue === 'wewative') {
+			wetuwn FiweWocationKind.Wewative;
+		} ewse if (vawue === 'autodetect') {
+			wetuwn FiweWocationKind.AutoDetect;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-export enum ProblemLocationKind {
-	File,
-	Location
+expowt enum PwobwemWocationKind {
+	Fiwe,
+	Wocation
 }
 
-export module ProblemLocationKind {
-	export function fromString(value: string): ProblemLocationKind | undefined {
-		value = value.toLowerCase();
-		if (value === 'file') {
-			return ProblemLocationKind.File;
-		} else if (value === 'location') {
-			return ProblemLocationKind.Location;
-		} else {
-			return undefined;
+expowt moduwe PwobwemWocationKind {
+	expowt function fwomStwing(vawue: stwing): PwobwemWocationKind | undefined {
+		vawue = vawue.toWowewCase();
+		if (vawue === 'fiwe') {
+			wetuwn PwobwemWocationKind.Fiwe;
+		} ewse if (vawue === 'wocation') {
+			wetuwn PwobwemWocationKind.Wocation;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-export interface ProblemPattern {
-	regexp: RegExp;
+expowt intewface PwobwemPattewn {
+	wegexp: WegExp;
 
-	kind?: ProblemLocationKind;
+	kind?: PwobwemWocationKind;
 
-	file?: number;
+	fiwe?: numba;
 
-	message?: number;
+	message?: numba;
 
-	location?: number;
+	wocation?: numba;
 
-	line?: number;
+	wine?: numba;
 
-	character?: number;
+	chawacta?: numba;
 
-	endLine?: number;
+	endWine?: numba;
 
-	endCharacter?: number;
+	endChawacta?: numba;
 
-	code?: number;
+	code?: numba;
 
-	severity?: number;
+	sevewity?: numba;
 
-	loop?: boolean;
+	woop?: boowean;
 }
 
-export interface NamedProblemPattern extends ProblemPattern {
-	name: string;
+expowt intewface NamedPwobwemPattewn extends PwobwemPattewn {
+	name: stwing;
 }
 
-export type MultiLineProblemPattern = ProblemPattern[];
+expowt type MuwtiWinePwobwemPattewn = PwobwemPattewn[];
 
-export interface WatchingPattern {
-	regexp: RegExp;
-	file?: number;
+expowt intewface WatchingPattewn {
+	wegexp: WegExp;
+	fiwe?: numba;
 }
 
-export interface WatchingMatcher {
-	activeOnStart: boolean;
-	beginsPattern: WatchingPattern;
-	endsPattern: WatchingPattern;
+expowt intewface WatchingMatcha {
+	activeOnStawt: boowean;
+	beginsPattewn: WatchingPattewn;
+	endsPattewn: WatchingPattewn;
 }
 
-export enum ApplyToKind {
-	allDocuments,
+expowt enum AppwyToKind {
+	awwDocuments,
 	openDocuments,
-	closedDocuments
+	cwosedDocuments
 }
 
-export module ApplyToKind {
-	export function fromString(value: string): ApplyToKind | undefined {
-		value = value.toLowerCase();
-		if (value === 'alldocuments') {
-			return ApplyToKind.allDocuments;
-		} else if (value === 'opendocuments') {
-			return ApplyToKind.openDocuments;
-		} else if (value === 'closeddocuments') {
-			return ApplyToKind.closedDocuments;
-		} else {
-			return undefined;
+expowt moduwe AppwyToKind {
+	expowt function fwomStwing(vawue: stwing): AppwyToKind | undefined {
+		vawue = vawue.toWowewCase();
+		if (vawue === 'awwdocuments') {
+			wetuwn AppwyToKind.awwDocuments;
+		} ewse if (vawue === 'opendocuments') {
+			wetuwn AppwyToKind.openDocuments;
+		} ewse if (vawue === 'cwoseddocuments') {
+			wetuwn AppwyToKind.cwosedDocuments;
+		} ewse {
+			wetuwn undefined;
 		}
 	}
 }
 
-export interface ProblemMatcher {
-	owner: string;
-	source?: string;
-	applyTo: ApplyToKind;
-	fileLocation: FileLocationKind;
-	filePrefix?: string;
-	pattern: ProblemPattern | ProblemPattern[];
-	severity?: Severity;
-	watching?: WatchingMatcher;
-	uriProvider?: (path: string) => URI;
+expowt intewface PwobwemMatcha {
+	owna: stwing;
+	souwce?: stwing;
+	appwyTo: AppwyToKind;
+	fiweWocation: FiweWocationKind;
+	fiwePwefix?: stwing;
+	pattewn: PwobwemPattewn | PwobwemPattewn[];
+	sevewity?: Sevewity;
+	watching?: WatchingMatcha;
+	uwiPwovida?: (path: stwing) => UWI;
 }
 
-export interface NamedProblemMatcher extends ProblemMatcher {
-	name: string;
-	label: string;
-	deprecated?: boolean;
+expowt intewface NamedPwobwemMatcha extends PwobwemMatcha {
+	name: stwing;
+	wabew: stwing;
+	depwecated?: boowean;
 }
 
-export interface NamedMultiLineProblemPattern {
-	name: string;
-	label: string;
-	patterns: MultiLineProblemPattern;
+expowt intewface NamedMuwtiWinePwobwemPattewn {
+	name: stwing;
+	wabew: stwing;
+	pattewns: MuwtiWinePwobwemPattewn;
 }
 
-export function isNamedProblemMatcher(value: ProblemMatcher | undefined): value is NamedProblemMatcher {
-	return value && Types.isString((<NamedProblemMatcher>value).name) ? true : false;
+expowt function isNamedPwobwemMatcha(vawue: PwobwemMatcha | undefined): vawue is NamedPwobwemMatcha {
+	wetuwn vawue && Types.isStwing((<NamedPwobwemMatcha>vawue).name) ? twue : fawse;
 }
 
-interface Location {
-	startLineNumber: number;
-	startCharacter: number;
-	endLineNumber: number;
-	endCharacter: number;
+intewface Wocation {
+	stawtWineNumba: numba;
+	stawtChawacta: numba;
+	endWineNumba: numba;
+	endChawacta: numba;
 }
 
-interface ProblemData {
-	kind?: ProblemLocationKind;
-	file?: string;
-	location?: string;
-	line?: string;
-	character?: string;
-	endLine?: string;
-	endCharacter?: string;
-	message?: string;
-	severity?: string;
-	code?: string;
+intewface PwobwemData {
+	kind?: PwobwemWocationKind;
+	fiwe?: stwing;
+	wocation?: stwing;
+	wine?: stwing;
+	chawacta?: stwing;
+	endWine?: stwing;
+	endChawacta?: stwing;
+	message?: stwing;
+	sevewity?: stwing;
+	code?: stwing;
 }
 
-export interface ProblemMatch {
-	resource: Promise<URI>;
-	marker: IMarkerData;
-	description: ProblemMatcher;
+expowt intewface PwobwemMatch {
+	wesouwce: Pwomise<UWI>;
+	mawka: IMawkewData;
+	descwiption: PwobwemMatcha;
 }
 
-export interface HandleResult {
-	match: ProblemMatch | null;
-	continue: boolean;
+expowt intewface HandweWesuwt {
+	match: PwobwemMatch | nuww;
+	continue: boowean;
 }
 
 
-export async function getResource(filename: string, matcher: ProblemMatcher, fileService?: IFileService): Promise<URI> {
-	let kind = matcher.fileLocation;
-	let fullPath: string | undefined;
-	if (kind === FileLocationKind.Absolute) {
-		fullPath = filename;
-	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
-		fullPath = join(matcher.filePrefix, filename);
-	} else if (kind === FileLocationKind.AutoDetect) {
-		const matcherClone = Objects.deepClone(matcher);
-		matcherClone.fileLocation = FileLocationKind.Relative;
-		if (fileService) {
-			const relative = await getResource(filename, matcherClone);
-			let stat: IFileStat | undefined = undefined;
-			try {
-				stat = await fileService.resolve(relative);
+expowt async function getWesouwce(fiwename: stwing, matcha: PwobwemMatcha, fiweSewvice?: IFiweSewvice): Pwomise<UWI> {
+	wet kind = matcha.fiweWocation;
+	wet fuwwPath: stwing | undefined;
+	if (kind === FiweWocationKind.Absowute) {
+		fuwwPath = fiwename;
+	} ewse if ((kind === FiweWocationKind.Wewative) && matcha.fiwePwefix) {
+		fuwwPath = join(matcha.fiwePwefix, fiwename);
+	} ewse if (kind === FiweWocationKind.AutoDetect) {
+		const matchewCwone = Objects.deepCwone(matcha);
+		matchewCwone.fiweWocation = FiweWocationKind.Wewative;
+		if (fiweSewvice) {
+			const wewative = await getWesouwce(fiwename, matchewCwone);
+			wet stat: IFiweStat | undefined = undefined;
+			twy {
+				stat = await fiweSewvice.wesowve(wewative);
 			} catch (ex) {
-				// Do nothing, we just need to catch file resolution errors.
+				// Do nothing, we just need to catch fiwe wesowution ewwows.
 			}
 			if (stat) {
-				return relative;
+				wetuwn wewative;
 			}
 		}
 
-		matcherClone.fileLocation = FileLocationKind.Absolute;
-		return getResource(filename, matcherClone);
+		matchewCwone.fiweWocation = FiweWocationKind.Absowute;
+		wetuwn getWesouwce(fiwename, matchewCwone);
 	}
-	if (fullPath === undefined) {
-		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
+	if (fuwwPath === undefined) {
+		thwow new Ewwow('FiweWocationKind is not actionabwe. Does the matcha have a fiwePwefix? This shouwd neva happen.');
 	}
-	fullPath = normalize(fullPath);
-	fullPath = fullPath.replace(/\\/g, '/');
-	if (fullPath[0] !== '/') {
-		fullPath = '/' + fullPath;
+	fuwwPath = nowmawize(fuwwPath);
+	fuwwPath = fuwwPath.wepwace(/\\/g, '/');
+	if (fuwwPath[0] !== '/') {
+		fuwwPath = '/' + fuwwPath;
 	}
-	if (matcher.uriProvider !== undefined) {
-		return matcher.uriProvider(fullPath);
-	} else {
-		return URI.file(fullPath);
-	}
-}
-
-export interface ILineMatcher {
-	matchLength: number;
-	next(line: string): ProblemMatch | null;
-	handle(lines: string[], start?: number): HandleResult;
-}
-
-export function createLineMatcher(matcher: ProblemMatcher, fileService?: IFileService): ILineMatcher {
-	let pattern = matcher.pattern;
-	if (Types.isArray(pattern)) {
-		return new MultiLineMatcher(matcher, fileService);
-	} else {
-		return new SingleLineMatcher(matcher, fileService);
+	if (matcha.uwiPwovida !== undefined) {
+		wetuwn matcha.uwiPwovida(fuwwPath);
+	} ewse {
+		wetuwn UWI.fiwe(fuwwPath);
 	}
 }
 
-const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r\n' : '\n';
+expowt intewface IWineMatcha {
+	matchWength: numba;
+	next(wine: stwing): PwobwemMatch | nuww;
+	handwe(wines: stwing[], stawt?: numba): HandweWesuwt;
+}
 
-abstract class AbstractLineMatcher implements ILineMatcher {
-	private matcher: ProblemMatcher;
-	private fileService?: IFileService;
+expowt function cweateWineMatcha(matcha: PwobwemMatcha, fiweSewvice?: IFiweSewvice): IWineMatcha {
+	wet pattewn = matcha.pattewn;
+	if (Types.isAwway(pattewn)) {
+		wetuwn new MuwtiWineMatcha(matcha, fiweSewvice);
+	} ewse {
+		wetuwn new SingweWineMatcha(matcha, fiweSewvice);
+	}
+}
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
-		this.matcher = matcher;
-		this.fileService = fileService;
+const endOfWine: stwing = Pwatfowm.OS === Pwatfowm.OpewatingSystem.Windows ? '\w\n' : '\n';
+
+abstwact cwass AbstwactWineMatcha impwements IWineMatcha {
+	pwivate matcha: PwobwemMatcha;
+	pwivate fiweSewvice?: IFiweSewvice;
+
+	constwuctow(matcha: PwobwemMatcha, fiweSewvice?: IFiweSewvice) {
+		this.matcha = matcha;
+		this.fiweSewvice = fiweSewvice;
 	}
 
-	public handle(lines: string[], start: number = 0): HandleResult {
-		return { match: null, continue: false };
+	pubwic handwe(wines: stwing[], stawt: numba = 0): HandweWesuwt {
+		wetuwn { match: nuww, continue: fawse };
 	}
 
-	public next(line: string): ProblemMatch | null {
-		return null;
+	pubwic next(wine: stwing): PwobwemMatch | nuww {
+		wetuwn nuww;
 	}
 
-	public abstract get matchLength(): number;
+	pubwic abstwact get matchWength(): numba;
 
-	protected fillProblemData(data: ProblemData | undefined, pattern: ProblemPattern, matches: RegExpExecArray): data is ProblemData {
+	pwotected fiwwPwobwemData(data: PwobwemData | undefined, pattewn: PwobwemPattewn, matches: WegExpExecAwway): data is PwobwemData {
 		if (data) {
-			this.fillProperty(data, 'file', pattern, matches, true);
-			this.appendProperty(data, 'message', pattern, matches, true);
-			this.fillProperty(data, 'code', pattern, matches, true);
-			this.fillProperty(data, 'severity', pattern, matches, true);
-			this.fillProperty(data, 'location', pattern, matches, true);
-			this.fillProperty(data, 'line', pattern, matches);
-			this.fillProperty(data, 'character', pattern, matches);
-			this.fillProperty(data, 'endLine', pattern, matches);
-			this.fillProperty(data, 'endCharacter', pattern, matches);
-			return true;
-		} else {
-			return false;
+			this.fiwwPwopewty(data, 'fiwe', pattewn, matches, twue);
+			this.appendPwopewty(data, 'message', pattewn, matches, twue);
+			this.fiwwPwopewty(data, 'code', pattewn, matches, twue);
+			this.fiwwPwopewty(data, 'sevewity', pattewn, matches, twue);
+			this.fiwwPwopewty(data, 'wocation', pattewn, matches, twue);
+			this.fiwwPwopewty(data, 'wine', pattewn, matches);
+			this.fiwwPwopewty(data, 'chawacta', pattewn, matches);
+			this.fiwwPwopewty(data, 'endWine', pattewn, matches);
+			this.fiwwPwopewty(data, 'endChawacta', pattewn, matches);
+			wetuwn twue;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	private appendProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
-		const patternProperty = pattern[property];
-		if (Types.isUndefined(data[property])) {
-			this.fillProperty(data, property, pattern, matches, trim);
+	pwivate appendPwopewty(data: PwobwemData, pwopewty: keyof PwobwemData, pattewn: PwobwemPattewn, matches: WegExpExecAwway, twim: boowean = fawse): void {
+		const pattewnPwopewty = pattewn[pwopewty];
+		if (Types.isUndefined(data[pwopewty])) {
+			this.fiwwPwopewty(data, pwopewty, pattewn, matches, twim);
 		}
-		else if (!Types.isUndefined(patternProperty) && patternProperty < matches.length) {
-			let value = matches[patternProperty];
-			if (trim) {
-				value = Strings.trim(value)!;
+		ewse if (!Types.isUndefined(pattewnPwopewty) && pattewnPwopewty < matches.wength) {
+			wet vawue = matches[pattewnPwopewty];
+			if (twim) {
+				vawue = Stwings.twim(vawue)!;
 			}
-			(data as any)[property] += endOfLine + value;
+			(data as any)[pwopewty] += endOfWine + vawue;
 		}
 	}
 
-	private fillProperty(data: ProblemData, property: keyof ProblemData, pattern: ProblemPattern, matches: RegExpExecArray, trim: boolean = false): void {
-		const patternAtProperty = pattern[property];
-		if (Types.isUndefined(data[property]) && !Types.isUndefined(patternAtProperty) && patternAtProperty < matches.length) {
-			let value = matches[patternAtProperty];
-			if (value !== undefined) {
-				if (trim) {
-					value = Strings.trim(value)!;
+	pwivate fiwwPwopewty(data: PwobwemData, pwopewty: keyof PwobwemData, pattewn: PwobwemPattewn, matches: WegExpExecAwway, twim: boowean = fawse): void {
+		const pattewnAtPwopewty = pattewn[pwopewty];
+		if (Types.isUndefined(data[pwopewty]) && !Types.isUndefined(pattewnAtPwopewty) && pattewnAtPwopewty < matches.wength) {
+			wet vawue = matches[pattewnAtPwopewty];
+			if (vawue !== undefined) {
+				if (twim) {
+					vawue = Stwings.twim(vawue)!;
 				}
-				(data as any)[property] = value;
+				(data as any)[pwopewty] = vawue;
 			}
 		}
 	}
 
-	protected getMarkerMatch(data: ProblemData): ProblemMatch | undefined {
-		try {
-			let location = this.getLocation(data);
-			if (data.file && location && data.message) {
-				let marker: IMarkerData = {
-					severity: this.getSeverity(data),
-					startLineNumber: location.startLineNumber,
-					startColumn: location.startCharacter,
-					endLineNumber: location.endLineNumber,
-					endColumn: location.endCharacter,
+	pwotected getMawkewMatch(data: PwobwemData): PwobwemMatch | undefined {
+		twy {
+			wet wocation = this.getWocation(data);
+			if (data.fiwe && wocation && data.message) {
+				wet mawka: IMawkewData = {
+					sevewity: this.getSevewity(data),
+					stawtWineNumba: wocation.stawtWineNumba,
+					stawtCowumn: wocation.stawtChawacta,
+					endWineNumba: wocation.endWineNumba,
+					endCowumn: wocation.endChawacta,
 					message: data.message
 				};
 				if (data.code !== undefined) {
-					marker.code = data.code;
+					mawka.code = data.code;
 				}
-				if (this.matcher.source !== undefined) {
-					marker.source = this.matcher.source;
+				if (this.matcha.souwce !== undefined) {
+					mawka.souwce = this.matcha.souwce;
 				}
-				return {
-					description: this.matcher,
-					resource: this.getResource(data.file),
-					marker: marker
+				wetuwn {
+					descwiption: this.matcha,
+					wesouwce: this.getWesouwce(data.fiwe),
+					mawka: mawka
 				};
 			}
-		} catch (err) {
-			console.error(`Failed to convert problem data into match: ${JSON.stringify(data)}`);
+		} catch (eww) {
+			consowe.ewwow(`Faiwed to convewt pwobwem data into match: ${JSON.stwingify(data)}`);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	protected getResource(filename: string): Promise<URI> {
-		return getResource(filename, this.matcher, this.fileService);
+	pwotected getWesouwce(fiwename: stwing): Pwomise<UWI> {
+		wetuwn getWesouwce(fiwename, this.matcha, this.fiweSewvice);
 	}
 
-	private getLocation(data: ProblemData): Location | null {
-		if (data.kind === ProblemLocationKind.File) {
-			return this.createLocation(0, 0, 0, 0);
+	pwivate getWocation(data: PwobwemData): Wocation | nuww {
+		if (data.kind === PwobwemWocationKind.Fiwe) {
+			wetuwn this.cweateWocation(0, 0, 0, 0);
 		}
-		if (data.location) {
-			return this.parseLocationInfo(data.location);
+		if (data.wocation) {
+			wetuwn this.pawseWocationInfo(data.wocation);
 		}
-		if (!data.line) {
-			return null;
+		if (!data.wine) {
+			wetuwn nuww;
 		}
-		let startLine = parseInt(data.line);
-		let startColumn = data.character ? parseInt(data.character) : undefined;
-		let endLine = data.endLine ? parseInt(data.endLine) : undefined;
-		let endColumn = data.endCharacter ? parseInt(data.endCharacter) : undefined;
-		return this.createLocation(startLine, startColumn, endLine, endColumn);
+		wet stawtWine = pawseInt(data.wine);
+		wet stawtCowumn = data.chawacta ? pawseInt(data.chawacta) : undefined;
+		wet endWine = data.endWine ? pawseInt(data.endWine) : undefined;
+		wet endCowumn = data.endChawacta ? pawseInt(data.endChawacta) : undefined;
+		wetuwn this.cweateWocation(stawtWine, stawtCowumn, endWine, endCowumn);
 	}
 
-	private parseLocationInfo(value: string): Location | null {
-		if (!value || !value.match(/(\d+|\d+,\d+|\d+,\d+,\d+,\d+)/)) {
-			return null;
+	pwivate pawseWocationInfo(vawue: stwing): Wocation | nuww {
+		if (!vawue || !vawue.match(/(\d+|\d+,\d+|\d+,\d+,\d+,\d+)/)) {
+			wetuwn nuww;
 		}
-		let parts = value.split(',');
-		let startLine = parseInt(parts[0]);
-		let startColumn = parts.length > 1 ? parseInt(parts[1]) : undefined;
-		if (parts.length > 3) {
-			return this.createLocation(startLine, startColumn, parseInt(parts[2]), parseInt(parts[3]));
-		} else {
-			return this.createLocation(startLine, startColumn, undefined, undefined);
+		wet pawts = vawue.spwit(',');
+		wet stawtWine = pawseInt(pawts[0]);
+		wet stawtCowumn = pawts.wength > 1 ? pawseInt(pawts[1]) : undefined;
+		if (pawts.wength > 3) {
+			wetuwn this.cweateWocation(stawtWine, stawtCowumn, pawseInt(pawts[2]), pawseInt(pawts[3]));
+		} ewse {
+			wetuwn this.cweateWocation(stawtWine, stawtCowumn, undefined, undefined);
 		}
 	}
 
-	private createLocation(startLine: number, startColumn: number | undefined, endLine: number | undefined, endColumn: number | undefined): Location {
-		if (startColumn !== undefined && endColumn !== undefined) {
-			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: endLine || startLine, endCharacter: endColumn };
+	pwivate cweateWocation(stawtWine: numba, stawtCowumn: numba | undefined, endWine: numba | undefined, endCowumn: numba | undefined): Wocation {
+		if (stawtCowumn !== undefined && endCowumn !== undefined) {
+			wetuwn { stawtWineNumba: stawtWine, stawtChawacta: stawtCowumn, endWineNumba: endWine || stawtWine, endChawacta: endCowumn };
 		}
-		if (startColumn !== undefined) {
-			return { startLineNumber: startLine, startCharacter: startColumn, endLineNumber: startLine, endCharacter: startColumn };
+		if (stawtCowumn !== undefined) {
+			wetuwn { stawtWineNumba: stawtWine, stawtChawacta: stawtCowumn, endWineNumba: stawtWine, endChawacta: stawtCowumn };
 		}
-		return { startLineNumber: startLine, startCharacter: 1, endLineNumber: startLine, endCharacter: 2 ** 31 - 1 }; // See https://github.com/microsoft/vscode/issues/80288#issuecomment-650636442 for discussion
+		wetuwn { stawtWineNumba: stawtWine, stawtChawacta: 1, endWineNumba: stawtWine, endChawacta: 2 ** 31 - 1 }; // See https://github.com/micwosoft/vscode/issues/80288#issuecomment-650636442 fow discussion
 	}
 
-	private getSeverity(data: ProblemData): MarkerSeverity {
-		let result: Severity | null = null;
-		if (data.severity) {
-			let value = data.severity;
-			if (value) {
-				result = Severity.fromValue(value);
-				if (result === Severity.Ignore) {
-					if (value === 'E') {
-						result = Severity.Error;
-					} else if (value === 'W') {
-						result = Severity.Warning;
-					} else if (value === 'I') {
-						result = Severity.Info;
-					} else if (Strings.equalsIgnoreCase(value, 'hint')) {
-						result = Severity.Info;
-					} else if (Strings.equalsIgnoreCase(value, 'note')) {
-						result = Severity.Info;
+	pwivate getSevewity(data: PwobwemData): MawkewSevewity {
+		wet wesuwt: Sevewity | nuww = nuww;
+		if (data.sevewity) {
+			wet vawue = data.sevewity;
+			if (vawue) {
+				wesuwt = Sevewity.fwomVawue(vawue);
+				if (wesuwt === Sevewity.Ignowe) {
+					if (vawue === 'E') {
+						wesuwt = Sevewity.Ewwow;
+					} ewse if (vawue === 'W') {
+						wesuwt = Sevewity.Wawning;
+					} ewse if (vawue === 'I') {
+						wesuwt = Sevewity.Info;
+					} ewse if (Stwings.equawsIgnoweCase(vawue, 'hint')) {
+						wesuwt = Sevewity.Info;
+					} ewse if (Stwings.equawsIgnoweCase(vawue, 'note')) {
+						wesuwt = Sevewity.Info;
 					}
 				}
 			}
 		}
-		if (result === null || result === Severity.Ignore) {
-			result = this.matcher.severity || Severity.Error;
+		if (wesuwt === nuww || wesuwt === Sevewity.Ignowe) {
+			wesuwt = this.matcha.sevewity || Sevewity.Ewwow;
 		}
-		return MarkerSeverity.fromSeverity(result);
+		wetuwn MawkewSevewity.fwomSevewity(wesuwt);
 	}
 }
 
-class SingleLineMatcher extends AbstractLineMatcher {
+cwass SingweWineMatcha extends AbstwactWineMatcha {
 
-	private pattern: ProblemPattern;
+	pwivate pattewn: PwobwemPattewn;
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
-		super(matcher, fileService);
-		this.pattern = <ProblemPattern>matcher.pattern;
+	constwuctow(matcha: PwobwemMatcha, fiweSewvice?: IFiweSewvice) {
+		supa(matcha, fiweSewvice);
+		this.pattewn = <PwobwemPattewn>matcha.pattewn;
 	}
 
-	public get matchLength(): number {
-		return 1;
+	pubwic get matchWength(): numba {
+		wetuwn 1;
 	}
 
-	public override handle(lines: string[], start: number = 0): HandleResult {
-		Assert.ok(lines.length - start === 1);
-		let data: ProblemData = Object.create(null);
-		if (this.pattern.kind !== undefined) {
-			data.kind = this.pattern.kind;
+	pubwic ovewwide handwe(wines: stwing[], stawt: numba = 0): HandweWesuwt {
+		Assewt.ok(wines.wength - stawt === 1);
+		wet data: PwobwemData = Object.cweate(nuww);
+		if (this.pattewn.kind !== undefined) {
+			data.kind = this.pattewn.kind;
 		}
-		let matches = this.pattern.regexp.exec(lines[start]);
+		wet matches = this.pattewn.wegexp.exec(wines[stawt]);
 		if (matches) {
-			this.fillProblemData(data, this.pattern, matches);
-			let match = this.getMarkerMatch(data);
+			this.fiwwPwobwemData(data, this.pattewn, matches);
+			wet match = this.getMawkewMatch(data);
 			if (match) {
-				return { match: match, continue: false };
+				wetuwn { match: match, continue: fawse };
 			}
 		}
-		return { match: null, continue: false };
+		wetuwn { match: nuww, continue: fawse };
 	}
 
-	public override next(line: string): ProblemMatch | null {
-		return null;
+	pubwic ovewwide next(wine: stwing): PwobwemMatch | nuww {
+		wetuwn nuww;
 	}
 }
 
-class MultiLineMatcher extends AbstractLineMatcher {
+cwass MuwtiWineMatcha extends AbstwactWineMatcha {
 
-	private patterns: ProblemPattern[];
-	private data: ProblemData | undefined;
+	pwivate pattewns: PwobwemPattewn[];
+	pwivate data: PwobwemData | undefined;
 
-	constructor(matcher: ProblemMatcher, fileService?: IFileService) {
-		super(matcher, fileService);
-		this.patterns = <ProblemPattern[]>matcher.pattern;
+	constwuctow(matcha: PwobwemMatcha, fiweSewvice?: IFiweSewvice) {
+		supa(matcha, fiweSewvice);
+		this.pattewns = <PwobwemPattewn[]>matcha.pattewn;
 	}
 
-	public get matchLength(): number {
-		return this.patterns.length;
+	pubwic get matchWength(): numba {
+		wetuwn this.pattewns.wength;
 	}
 
-	public override handle(lines: string[], start: number = 0): HandleResult {
-		Assert.ok(lines.length - start === this.patterns.length);
-		this.data = Object.create(null);
-		let data = this.data!;
-		data.kind = this.patterns[0].kind;
-		for (let i = 0; i < this.patterns.length; i++) {
-			let pattern = this.patterns[i];
-			let matches = pattern.regexp.exec(lines[i + start]);
+	pubwic ovewwide handwe(wines: stwing[], stawt: numba = 0): HandweWesuwt {
+		Assewt.ok(wines.wength - stawt === this.pattewns.wength);
+		this.data = Object.cweate(nuww);
+		wet data = this.data!;
+		data.kind = this.pattewns[0].kind;
+		fow (wet i = 0; i < this.pattewns.wength; i++) {
+			wet pattewn = this.pattewns[i];
+			wet matches = pattewn.wegexp.exec(wines[i + stawt]);
 			if (!matches) {
-				return { match: null, continue: false };
-			} else {
-				// Only the last pattern can loop
-				if (pattern.loop && i === this.patterns.length - 1) {
-					data = Objects.deepClone(data);
+				wetuwn { match: nuww, continue: fawse };
+			} ewse {
+				// Onwy the wast pattewn can woop
+				if (pattewn.woop && i === this.pattewns.wength - 1) {
+					data = Objects.deepCwone(data);
 				}
-				this.fillProblemData(data, pattern, matches);
+				this.fiwwPwobwemData(data, pattewn, matches);
 			}
 		}
-		let loop = !!this.patterns[this.patterns.length - 1].loop;
-		if (!loop) {
+		wet woop = !!this.pattewns[this.pattewns.wength - 1].woop;
+		if (!woop) {
 			this.data = undefined;
 		}
-		const markerMatch = data ? this.getMarkerMatch(data) : null;
-		return { match: markerMatch ? markerMatch : null, continue: loop };
+		const mawkewMatch = data ? this.getMawkewMatch(data) : nuww;
+		wetuwn { match: mawkewMatch ? mawkewMatch : nuww, continue: woop };
 	}
 
-	public override next(line: string): ProblemMatch | null {
-		let pattern = this.patterns[this.patterns.length - 1];
-		Assert.ok(pattern.loop === true && this.data !== null);
-		let matches = pattern.regexp.exec(line);
+	pubwic ovewwide next(wine: stwing): PwobwemMatch | nuww {
+		wet pattewn = this.pattewns[this.pattewns.wength - 1];
+		Assewt.ok(pattewn.woop === twue && this.data !== nuww);
+		wet matches = pattewn.wegexp.exec(wine);
 		if (!matches) {
 			this.data = undefined;
-			return null;
+			wetuwn nuww;
 		}
-		let data = Objects.deepClone(this.data);
-		let problemMatch: ProblemMatch | undefined;
-		if (this.fillProblemData(data, pattern, matches)) {
-			problemMatch = this.getMarkerMatch(data);
+		wet data = Objects.deepCwone(this.data);
+		wet pwobwemMatch: PwobwemMatch | undefined;
+		if (this.fiwwPwobwemData(data, pattewn, matches)) {
+			pwobwemMatch = this.getMawkewMatch(data);
 		}
-		return problemMatch ? problemMatch : null;
+		wetuwn pwobwemMatch ? pwobwemMatch : nuww;
 	}
 }
 
-export namespace Config {
+expowt namespace Config {
 
-	export interface ProblemPattern {
+	expowt intewface PwobwemPattewn {
 
 		/**
-		* The regular expression to find a problem in the console output of an
+		* The weguwaw expwession to find a pwobwem in the consowe output of an
 		* executed task.
 		*/
-		regexp?: string;
+		wegexp?: stwing;
 
 		/**
-		* Whether the pattern matches a whole file, or a location (file/line)
+		* Whetha the pattewn matches a whowe fiwe, ow a wocation (fiwe/wine)
 		*
-		* The default is to match for a location. Only valid on the
-		* first problem pattern in a multi line problem matcher.
+		* The defauwt is to match fow a wocation. Onwy vawid on the
+		* fiwst pwobwem pattewn in a muwti wine pwobwem matcha.
 		*/
-		kind?: string;
+		kind?: stwing;
 
 		/**
-		* The match group index of the filename.
+		* The match gwoup index of the fiwename.
 		* If omitted 1 is used.
 		*/
-		file?: number;
+		fiwe?: numba;
 
 		/**
-		* The match group index of the problem's location. Valid location
-		* patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
-		* If omitted the line and column properties are used.
+		* The match gwoup index of the pwobwem's wocation. Vawid wocation
+		* pattewns awe: (wine), (wine,cowumn) and (stawtWine,stawtCowumn,endWine,endCowumn).
+		* If omitted the wine and cowumn pwopewties awe used.
 		*/
-		location?: number;
+		wocation?: numba;
 
 		/**
-		* The match group index of the problem's line in the source file.
+		* The match gwoup index of the pwobwem's wine in the souwce fiwe.
 		*
-		* Defaults to 2.
+		* Defauwts to 2.
 		*/
-		line?: number;
+		wine?: numba;
 
 		/**
-		* The match group index of the problem's column in the source file.
+		* The match gwoup index of the pwobwem's cowumn in the souwce fiwe.
 		*
-		* Defaults to 3.
+		* Defauwts to 3.
 		*/
-		column?: number;
+		cowumn?: numba;
 
 		/**
-		* The match group index of the problem's end line in the source file.
+		* The match gwoup index of the pwobwem's end wine in the souwce fiwe.
 		*
-		* Defaults to undefined. No end line is captured.
+		* Defauwts to undefined. No end wine is captuwed.
 		*/
-		endLine?: number;
+		endWine?: numba;
 
 		/**
-		* The match group index of the problem's end column in the source file.
+		* The match gwoup index of the pwobwem's end cowumn in the souwce fiwe.
 		*
-		* Defaults to undefined. No end column is captured.
+		* Defauwts to undefined. No end cowumn is captuwed.
 		*/
-		endColumn?: number;
+		endCowumn?: numba;
 
 		/**
-		* The match group index of the problem's severity.
+		* The match gwoup index of the pwobwem's sevewity.
 		*
-		* Defaults to undefined. In this case the problem matcher's severity
+		* Defauwts to undefined. In this case the pwobwem matcha's sevewity
 		* is used.
 		*/
-		severity?: number;
+		sevewity?: numba;
 
 		/**
-		* The match group index of the problem's code.
+		* The match gwoup index of the pwobwem's code.
 		*
-		* Defaults to undefined. No code is captured.
+		* Defauwts to undefined. No code is captuwed.
 		*/
-		code?: number;
+		code?: numba;
 
 		/**
-		* The match group index of the message. If omitted it defaults
-		* to 4 if location is specified. Otherwise it defaults to 5.
+		* The match gwoup index of the message. If omitted it defauwts
+		* to 4 if wocation is specified. Othewwise it defauwts to 5.
 		*/
-		message?: number;
+		message?: numba;
 
 		/**
-		* Specifies if the last pattern in a multi line problem matcher should
-		* loop as long as it does match a line consequently. Only valid on the
-		* last problem pattern in a multi line problem matcher.
+		* Specifies if the wast pattewn in a muwti wine pwobwem matcha shouwd
+		* woop as wong as it does match a wine consequentwy. Onwy vawid on the
+		* wast pwobwem pattewn in a muwti wine pwobwem matcha.
 		*/
-		loop?: boolean;
+		woop?: boowean;
 	}
 
-	export interface CheckedProblemPattern extends ProblemPattern {
+	expowt intewface CheckedPwobwemPattewn extends PwobwemPattewn {
 		/**
-		* The regular expression to find a problem in the console output of an
+		* The weguwaw expwession to find a pwobwem in the consowe output of an
 		* executed task.
 		*/
-		regexp: string;
+		wegexp: stwing;
 	}
 
-	export namespace CheckedProblemPattern {
-		export function is(value: any): value is CheckedProblemPattern {
-			let candidate: ProblemPattern = value as ProblemPattern;
-			return candidate && Types.isString(candidate.regexp);
+	expowt namespace CheckedPwobwemPattewn {
+		expowt function is(vawue: any): vawue is CheckedPwobwemPattewn {
+			wet candidate: PwobwemPattewn = vawue as PwobwemPattewn;
+			wetuwn candidate && Types.isStwing(candidate.wegexp);
 		}
 	}
 
-	export interface NamedProblemPattern extends ProblemPattern {
+	expowt intewface NamedPwobwemPattewn extends PwobwemPattewn {
 		/**
-		 * The name of the problem pattern.
+		 * The name of the pwobwem pattewn.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * A human readable label
+		 * A human weadabwe wabew
 		 */
-		label?: string;
+		wabew?: stwing;
 	}
 
-	export namespace NamedProblemPattern {
-		export function is(value: any): value is NamedProblemPattern {
-			let candidate: NamedProblemPattern = value as NamedProblemPattern;
-			return candidate && Types.isString(candidate.name);
+	expowt namespace NamedPwobwemPattewn {
+		expowt function is(vawue: any): vawue is NamedPwobwemPattewn {
+			wet candidate: NamedPwobwemPattewn = vawue as NamedPwobwemPattewn;
+			wetuwn candidate && Types.isStwing(candidate.name);
 		}
 	}
 
-	export interface NamedCheckedProblemPattern extends NamedProblemPattern {
+	expowt intewface NamedCheckedPwobwemPattewn extends NamedPwobwemPattewn {
 		/**
-		* The regular expression to find a problem in the console output of an
+		* The weguwaw expwession to find a pwobwem in the consowe output of an
 		* executed task.
 		*/
-		regexp: string;
+		wegexp: stwing;
 	}
 
-	export namespace NamedCheckedProblemPattern {
-		export function is(value: any): value is NamedCheckedProblemPattern {
-			let candidate: NamedProblemPattern = value as NamedProblemPattern;
-			return candidate && NamedProblemPattern.is(candidate) && Types.isString(candidate.regexp);
+	expowt namespace NamedCheckedPwobwemPattewn {
+		expowt function is(vawue: any): vawue is NamedCheckedPwobwemPattewn {
+			wet candidate: NamedPwobwemPattewn = vawue as NamedPwobwemPattewn;
+			wetuwn candidate && NamedPwobwemPattewn.is(candidate) && Types.isStwing(candidate.wegexp);
 		}
 	}
 
-	export type MultiLineProblemPattern = ProblemPattern[];
+	expowt type MuwtiWinePwobwemPattewn = PwobwemPattewn[];
 
-	export namespace MultiLineProblemPattern {
-		export function is(value: any): value is MultiLineProblemPattern {
-			return value && Types.isArray(value);
+	expowt namespace MuwtiWinePwobwemPattewn {
+		expowt function is(vawue: any): vawue is MuwtiWinePwobwemPattewn {
+			wetuwn vawue && Types.isAwway(vawue);
 		}
 	}
 
-	export type MultiLineCheckedProblemPattern = CheckedProblemPattern[];
+	expowt type MuwtiWineCheckedPwobwemPattewn = CheckedPwobwemPattewn[];
 
-	export namespace MultiLineCheckedProblemPattern {
-		export function is(value: any): value is MultiLineCheckedProblemPattern {
-			if (!MultiLineProblemPattern.is(value)) {
-				return false;
+	expowt namespace MuwtiWineCheckedPwobwemPattewn {
+		expowt function is(vawue: any): vawue is MuwtiWineCheckedPwobwemPattewn {
+			if (!MuwtiWinePwobwemPattewn.is(vawue)) {
+				wetuwn fawse;
 			}
-			for (const element of value) {
-				if (!Config.CheckedProblemPattern.is(element)) {
-					return false;
+			fow (const ewement of vawue) {
+				if (!Config.CheckedPwobwemPattewn.is(ewement)) {
+					wetuwn fawse;
 				}
 			}
-			return true;
+			wetuwn twue;
 		}
 	}
 
-	export interface NamedMultiLineCheckedProblemPattern {
+	expowt intewface NamedMuwtiWineCheckedPwobwemPattewn {
 		/**
-		 * The name of the problem pattern.
+		 * The name of the pwobwem pattewn.
 		 */
-		name: string;
+		name: stwing;
 
 		/**
-		 * A human readable label
+		 * A human weadabwe wabew
 		 */
-		label?: string;
+		wabew?: stwing;
 
 		/**
-		 * The actual patterns
+		 * The actuaw pattewns
 		 */
-		patterns: MultiLineCheckedProblemPattern;
+		pattewns: MuwtiWineCheckedPwobwemPattewn;
 	}
 
-	export namespace NamedMultiLineCheckedProblemPattern {
-		export function is(value: any): value is NamedMultiLineCheckedProblemPattern {
-			let candidate = value as NamedMultiLineCheckedProblemPattern;
-			return candidate && Types.isString(candidate.name) && Types.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
+	expowt namespace NamedMuwtiWineCheckedPwobwemPattewn {
+		expowt function is(vawue: any): vawue is NamedMuwtiWineCheckedPwobwemPattewn {
+			wet candidate = vawue as NamedMuwtiWineCheckedPwobwemPattewn;
+			wetuwn candidate && Types.isStwing(candidate.name) && Types.isAwway(candidate.pattewns) && MuwtiWineCheckedPwobwemPattewn.is(candidate.pattewns);
 		}
 	}
 
-	export type NamedProblemPatterns = (Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern)[];
+	expowt type NamedPwobwemPattewns = (Config.NamedPwobwemPattewn | Config.NamedMuwtiWineCheckedPwobwemPattewn)[];
 
 	/**
-	* A watching pattern
+	* A watching pattewn
 	*/
-	export interface WatchingPattern {
+	expowt intewface WatchingPattewn {
 		/**
-		* The actual regular expression
+		* The actuaw weguwaw expwession
 		*/
-		regexp?: string;
+		wegexp?: stwing;
 
 		/**
-		* The match group index of the filename. If provided the expression
-		* is matched for that file only.
+		* The match gwoup index of the fiwename. If pwovided the expwession
+		* is matched fow that fiwe onwy.
 		*/
-		file?: number;
-	}
-
-	/**
-	* A description to track the start and end of a watching task.
-	*/
-	export interface BackgroundMonitor {
-
-		/**
-		* If set to true the watcher is in active mode when the task
-		* starts. This is equals of issuing a line that matches the
-		* beginsPattern.
-		*/
-		activeOnStart?: boolean;
-
-		/**
-		* If matched in the output the start of a watching task is signaled.
-		*/
-		beginsPattern?: string | WatchingPattern;
-
-		/**
-		* If matched in the output the end of a watching task is signaled.
-		*/
-		endsPattern?: string | WatchingPattern;
+		fiwe?: numba;
 	}
 
 	/**
-	* A description of a problem matcher that detects problems
-	* in build output.
+	* A descwiption to twack the stawt and end of a watching task.
 	*/
-	export interface ProblemMatcher {
+	expowt intewface BackgwoundMonitow {
 
 		/**
-		 * The name of a base problem matcher to use. If specified the
-		 * base problem matcher will be used as a template and properties
-		 * specified here will replace properties of the base problem
-		 * matcher
-		 */
-		base?: string;
-
-		/**
-		 * The owner of the produced VSCode problem. This is typically
-		 * the identifier of a VSCode language service if the problems are
-		 * to be merged with the one produced by the language service
-		 * or a generated internal id. Defaults to the generated internal id.
-		 */
-		owner?: string;
-
-		/**
-		 * A human-readable string describing the source of this problem.
-		 * E.g. 'typescript' or 'super lint'.
-		 */
-		source?: string;
-
-		/**
-		* Specifies to which kind of documents the problems found by this
-		* matcher are applied. Valid values are:
-		*
-		*   "allDocuments": problems found in all documents are applied.
-		*   "openDocuments": problems found in documents that are open
-		*   are applied.
-		*   "closedDocuments": problems found in closed documents are
-		*   applied.
+		* If set to twue the watcha is in active mode when the task
+		* stawts. This is equaws of issuing a wine that matches the
+		* beginsPattewn.
 		*/
-		applyTo?: string;
+		activeOnStawt?: boowean;
 
 		/**
-		* The severity of the VSCode problem produced by this problem matcher.
-		*
-		* Valid values are:
-		*   "error": to produce errors.
-		*   "warning": to produce warnings.
-		*   "info": to produce infos.
-		*
-		* The value is used if a pattern doesn't specify a severity match group.
-		* Defaults to "error" if omitted.
+		* If matched in the output the stawt of a watching task is signawed.
 		*/
-		severity?: string;
+		beginsPattewn?: stwing | WatchingPattewn;
 
 		/**
-		* Defines how filename reported in a problem pattern
-		* should be read. Valid values are:
-		*  - "absolute": the filename is always treated absolute.
-		*  - "relative": the filename is always treated relative to
-		*    the current working directory. This is the default.
-		*  - ["relative", "path value"]: the filename is always
-		*    treated relative to the given path value.
-		*  - "autodetect": the filename is treated relative to
-		*    the current workspace directory, and if the file
-		*    does not exist, it is treated as absolute.
-		*  - ["autodetect", "path value"]: the filename is treated
-		*    relative to the given path value, and if it does not
-		*    exist, it is treated as absolute.
+		* If matched in the output the end of a watching task is signawed.
 		*/
-		fileLocation?: string | string[];
-
-		/**
-		* The name of a predefined problem pattern, the inline definition
-		* of a problem pattern or an array of problem patterns to match
-		* problems spread over multiple lines.
-		*/
-		pattern?: string | ProblemPattern | ProblemPattern[];
-
-		/**
-		* A regular expression signaling that a watched tasks begins executing
-		* triggered through file watching.
-		*/
-		watchedTaskBeginsRegExp?: string;
-
-		/**
-		* A regular expression signaling that a watched tasks ends executing.
-		*/
-		watchedTaskEndsRegExp?: string;
-
-		/**
-		 * @deprecated Use background instead.
-		 */
-		watching?: BackgroundMonitor;
-		background?: BackgroundMonitor;
+		endsPattewn?: stwing | WatchingPattewn;
 	}
 
-	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
-
-	export interface NamedProblemMatcher extends ProblemMatcher {
-		/**
-		* This name can be used to refer to the
-		* problem matcher from within a task.
-		*/
-		name: string;
+	/**
+	* A descwiption of a pwobwem matcha that detects pwobwems
+	* in buiwd output.
+	*/
+	expowt intewface PwobwemMatcha {
 
 		/**
-		 * A human readable label.
+		 * The name of a base pwobwem matcha to use. If specified the
+		 * base pwobwem matcha wiww be used as a tempwate and pwopewties
+		 * specified hewe wiww wepwace pwopewties of the base pwobwem
+		 * matcha
 		 */
-		label?: string;
+		base?: stwing;
+
+		/**
+		 * The owna of the pwoduced VSCode pwobwem. This is typicawwy
+		 * the identifia of a VSCode wanguage sewvice if the pwobwems awe
+		 * to be mewged with the one pwoduced by the wanguage sewvice
+		 * ow a genewated intewnaw id. Defauwts to the genewated intewnaw id.
+		 */
+		owna?: stwing;
+
+		/**
+		 * A human-weadabwe stwing descwibing the souwce of this pwobwem.
+		 * E.g. 'typescwipt' ow 'supa wint'.
+		 */
+		souwce?: stwing;
+
+		/**
+		* Specifies to which kind of documents the pwobwems found by this
+		* matcha awe appwied. Vawid vawues awe:
+		*
+		*   "awwDocuments": pwobwems found in aww documents awe appwied.
+		*   "openDocuments": pwobwems found in documents that awe open
+		*   awe appwied.
+		*   "cwosedDocuments": pwobwems found in cwosed documents awe
+		*   appwied.
+		*/
+		appwyTo?: stwing;
+
+		/**
+		* The sevewity of the VSCode pwobwem pwoduced by this pwobwem matcha.
+		*
+		* Vawid vawues awe:
+		*   "ewwow": to pwoduce ewwows.
+		*   "wawning": to pwoduce wawnings.
+		*   "info": to pwoduce infos.
+		*
+		* The vawue is used if a pattewn doesn't specify a sevewity match gwoup.
+		* Defauwts to "ewwow" if omitted.
+		*/
+		sevewity?: stwing;
+
+		/**
+		* Defines how fiwename wepowted in a pwobwem pattewn
+		* shouwd be wead. Vawid vawues awe:
+		*  - "absowute": the fiwename is awways tweated absowute.
+		*  - "wewative": the fiwename is awways tweated wewative to
+		*    the cuwwent wowking diwectowy. This is the defauwt.
+		*  - ["wewative", "path vawue"]: the fiwename is awways
+		*    tweated wewative to the given path vawue.
+		*  - "autodetect": the fiwename is tweated wewative to
+		*    the cuwwent wowkspace diwectowy, and if the fiwe
+		*    does not exist, it is tweated as absowute.
+		*  - ["autodetect", "path vawue"]: the fiwename is tweated
+		*    wewative to the given path vawue, and if it does not
+		*    exist, it is tweated as absowute.
+		*/
+		fiweWocation?: stwing | stwing[];
+
+		/**
+		* The name of a pwedefined pwobwem pattewn, the inwine definition
+		* of a pwobwem pattewn ow an awway of pwobwem pattewns to match
+		* pwobwems spwead ova muwtipwe wines.
+		*/
+		pattewn?: stwing | PwobwemPattewn | PwobwemPattewn[];
+
+		/**
+		* A weguwaw expwession signawing that a watched tasks begins executing
+		* twiggewed thwough fiwe watching.
+		*/
+		watchedTaskBeginsWegExp?: stwing;
+
+		/**
+		* A weguwaw expwession signawing that a watched tasks ends executing.
+		*/
+		watchedTaskEndsWegExp?: stwing;
+
+		/**
+		 * @depwecated Use backgwound instead.
+		 */
+		watching?: BackgwoundMonitow;
+		backgwound?: BackgwoundMonitow;
 	}
 
-	export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProblemMatcher {
-		return Types.isString((<NamedProblemMatcher>value).name);
+	expowt type PwobwemMatchewType = stwing | PwobwemMatcha | Awway<stwing | PwobwemMatcha>;
+
+	expowt intewface NamedPwobwemMatcha extends PwobwemMatcha {
+		/**
+		* This name can be used to wefa to the
+		* pwobwem matcha fwom within a task.
+		*/
+		name: stwing;
+
+		/**
+		 * A human weadabwe wabew.
+		 */
+		wabew?: stwing;
+	}
+
+	expowt function isNamedPwobwemMatcha(vawue: PwobwemMatcha): vawue is NamedPwobwemMatcha {
+		wetuwn Types.isStwing((<NamedPwobwemMatcha>vawue).name);
 	}
 }
 
-export class ProblemPatternParser extends Parser {
+expowt cwass PwobwemPattewnPawsa extends Pawsa {
 
-	constructor(logger: IProblemReporter) {
-		super(logger);
+	constwuctow(wogga: IPwobwemWepowta) {
+		supa(wogga);
 	}
 
-	public parse(value: Config.ProblemPattern): ProblemPattern;
-	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern;
-	public parse(value: Config.NamedProblemPattern): NamedProblemPattern;
-	public parse(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern;
-	public parse(value: Config.ProblemPattern | Config.MultiLineProblemPattern | Config.NamedProblemPattern | Config.NamedMultiLineCheckedProblemPattern): any {
-		if (Config.NamedMultiLineCheckedProblemPattern.is(value)) {
-			return this.createNamedMultiLineProblemPattern(value);
-		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
-			return this.createMultiLineProblemPattern(value);
-		} else if (Config.NamedCheckedProblemPattern.is(value)) {
-			let result = this.createSingleProblemPattern(value) as NamedProblemPattern;
-			result.name = value.name;
-			return result;
-		} else if (Config.CheckedProblemPattern.is(value)) {
-			return this.createSingleProblemPattern(value);
-		} else {
-			this.error(localize('ProblemPatternParser.problemPattern.missingRegExp', 'The problem pattern is missing a regular expression.'));
-			return null;
+	pubwic pawse(vawue: Config.PwobwemPattewn): PwobwemPattewn;
+	pubwic pawse(vawue: Config.MuwtiWinePwobwemPattewn): MuwtiWinePwobwemPattewn;
+	pubwic pawse(vawue: Config.NamedPwobwemPattewn): NamedPwobwemPattewn;
+	pubwic pawse(vawue: Config.NamedMuwtiWineCheckedPwobwemPattewn): NamedMuwtiWinePwobwemPattewn;
+	pubwic pawse(vawue: Config.PwobwemPattewn | Config.MuwtiWinePwobwemPattewn | Config.NamedPwobwemPattewn | Config.NamedMuwtiWineCheckedPwobwemPattewn): any {
+		if (Config.NamedMuwtiWineCheckedPwobwemPattewn.is(vawue)) {
+			wetuwn this.cweateNamedMuwtiWinePwobwemPattewn(vawue);
+		} ewse if (Config.MuwtiWineCheckedPwobwemPattewn.is(vawue)) {
+			wetuwn this.cweateMuwtiWinePwobwemPattewn(vawue);
+		} ewse if (Config.NamedCheckedPwobwemPattewn.is(vawue)) {
+			wet wesuwt = this.cweateSingwePwobwemPattewn(vawue) as NamedPwobwemPattewn;
+			wesuwt.name = vawue.name;
+			wetuwn wesuwt;
+		} ewse if (Config.CheckedPwobwemPattewn.is(vawue)) {
+			wetuwn this.cweateSingwePwobwemPattewn(vawue);
+		} ewse {
+			this.ewwow(wocawize('PwobwemPattewnPawsa.pwobwemPattewn.missingWegExp', 'The pwobwem pattewn is missing a weguwaw expwession.'));
+			wetuwn nuww;
 		}
 	}
 
-	private createSingleProblemPattern(value: Config.CheckedProblemPattern): ProblemPattern | null {
-		let result = this.doCreateSingleProblemPattern(value, true);
-		if (result === undefined) {
-			return null;
-		} else if (result.kind === undefined) {
-			result.kind = ProblemLocationKind.Location;
+	pwivate cweateSingwePwobwemPattewn(vawue: Config.CheckedPwobwemPattewn): PwobwemPattewn | nuww {
+		wet wesuwt = this.doCweateSingwePwobwemPattewn(vawue, twue);
+		if (wesuwt === undefined) {
+			wetuwn nuww;
+		} ewse if (wesuwt.kind === undefined) {
+			wesuwt.kind = PwobwemWocationKind.Wocation;
 		}
-		return this.validateProblemPattern([result]) ? result : null;
+		wetuwn this.vawidatePwobwemPattewn([wesuwt]) ? wesuwt : nuww;
 	}
 
-	private createNamedMultiLineProblemPattern(value: Config.NamedMultiLineCheckedProblemPattern): NamedMultiLineProblemPattern | null {
-		const validPatterns = this.createMultiLineProblemPattern(value.patterns);
-		if (!validPatterns) {
-			return null;
+	pwivate cweateNamedMuwtiWinePwobwemPattewn(vawue: Config.NamedMuwtiWineCheckedPwobwemPattewn): NamedMuwtiWinePwobwemPattewn | nuww {
+		const vawidPattewns = this.cweateMuwtiWinePwobwemPattewn(vawue.pattewns);
+		if (!vawidPattewns) {
+			wetuwn nuww;
 		}
-		let result = {
-			name: value.name,
-			label: value.label ? value.label : value.name,
-			patterns: validPatterns
+		wet wesuwt = {
+			name: vawue.name,
+			wabew: vawue.wabew ? vawue.wabew : vawue.name,
+			pattewns: vawidPattewns
 		};
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private createMultiLineProblemPattern(values: Config.MultiLineCheckedProblemPattern): MultiLineProblemPattern | null {
-		let result: MultiLineProblemPattern = [];
-		for (let i = 0; i < values.length; i++) {
-			let pattern = this.doCreateSingleProblemPattern(values[i], false);
-			if (pattern === undefined) {
-				return null;
+	pwivate cweateMuwtiWinePwobwemPattewn(vawues: Config.MuwtiWineCheckedPwobwemPattewn): MuwtiWinePwobwemPattewn | nuww {
+		wet wesuwt: MuwtiWinePwobwemPattewn = [];
+		fow (wet i = 0; i < vawues.wength; i++) {
+			wet pattewn = this.doCweateSingwePwobwemPattewn(vawues[i], fawse);
+			if (pattewn === undefined) {
+				wetuwn nuww;
 			}
-			if (i < values.length - 1) {
-				if (!Types.isUndefined(pattern.loop) && pattern.loop) {
-					pattern.loop = false;
-					this.error(localize('ProblemPatternParser.loopProperty.notLast', 'The loop property is only supported on the last line matcher.'));
+			if (i < vawues.wength - 1) {
+				if (!Types.isUndefined(pattewn.woop) && pattewn.woop) {
+					pattewn.woop = fawse;
+					this.ewwow(wocawize('PwobwemPattewnPawsa.woopPwopewty.notWast', 'The woop pwopewty is onwy suppowted on the wast wine matcha.'));
 				}
 			}
-			result.push(pattern);
+			wesuwt.push(pattewn);
 		}
-		if (result[0].kind === undefined) {
-			result[0].kind = ProblemLocationKind.Location;
+		if (wesuwt[0].kind === undefined) {
+			wesuwt[0].kind = PwobwemWocationKind.Wocation;
 		}
-		return this.validateProblemPattern(result) ? result : null;
+		wetuwn this.vawidatePwobwemPattewn(wesuwt) ? wesuwt : nuww;
 	}
 
-	private doCreateSingleProblemPattern(value: Config.CheckedProblemPattern, setDefaults: boolean): ProblemPattern | undefined {
-		const regexp = this.createRegularExpression(value.regexp);
-		if (regexp === undefined) {
-			return undefined;
+	pwivate doCweateSingwePwobwemPattewn(vawue: Config.CheckedPwobwemPattewn, setDefauwts: boowean): PwobwemPattewn | undefined {
+		const wegexp = this.cweateWeguwawExpwession(vawue.wegexp);
+		if (wegexp === undefined) {
+			wetuwn undefined;
 		}
-		let result: ProblemPattern = { regexp };
-		if (value.kind) {
-			result.kind = ProblemLocationKind.fromString(value.kind);
+		wet wesuwt: PwobwemPattewn = { wegexp };
+		if (vawue.kind) {
+			wesuwt.kind = PwobwemWocationKind.fwomStwing(vawue.kind);
 		}
 
-		function copyProperty(result: ProblemPattern, source: Config.ProblemPattern, resultKey: keyof ProblemPattern, sourceKey: keyof Config.ProblemPattern) {
-			const value = source[sourceKey];
-			if (typeof value === 'number') {
-				(result as any)[resultKey] = value;
+		function copyPwopewty(wesuwt: PwobwemPattewn, souwce: Config.PwobwemPattewn, wesuwtKey: keyof PwobwemPattewn, souwceKey: keyof Config.PwobwemPattewn) {
+			const vawue = souwce[souwceKey];
+			if (typeof vawue === 'numba') {
+				(wesuwt as any)[wesuwtKey] = vawue;
 			}
 		}
-		copyProperty(result, value, 'file', 'file');
-		copyProperty(result, value, 'location', 'location');
-		copyProperty(result, value, 'line', 'line');
-		copyProperty(result, value, 'character', 'column');
-		copyProperty(result, value, 'endLine', 'endLine');
-		copyProperty(result, value, 'endCharacter', 'endColumn');
-		copyProperty(result, value, 'severity', 'severity');
-		copyProperty(result, value, 'code', 'code');
-		copyProperty(result, value, 'message', 'message');
-		if (value.loop === true || value.loop === false) {
-			result.loop = value.loop;
+		copyPwopewty(wesuwt, vawue, 'fiwe', 'fiwe');
+		copyPwopewty(wesuwt, vawue, 'wocation', 'wocation');
+		copyPwopewty(wesuwt, vawue, 'wine', 'wine');
+		copyPwopewty(wesuwt, vawue, 'chawacta', 'cowumn');
+		copyPwopewty(wesuwt, vawue, 'endWine', 'endWine');
+		copyPwopewty(wesuwt, vawue, 'endChawacta', 'endCowumn');
+		copyPwopewty(wesuwt, vawue, 'sevewity', 'sevewity');
+		copyPwopewty(wesuwt, vawue, 'code', 'code');
+		copyPwopewty(wesuwt, vawue, 'message', 'message');
+		if (vawue.woop === twue || vawue.woop === fawse) {
+			wesuwt.woop = vawue.woop;
 		}
-		if (setDefaults) {
-			if (result.location || result.kind === ProblemLocationKind.File) {
-				let defaultValue: Partial<ProblemPattern> = {
-					file: 1,
+		if (setDefauwts) {
+			if (wesuwt.wocation || wesuwt.kind === PwobwemWocationKind.Fiwe) {
+				wet defauwtVawue: Pawtiaw<PwobwemPattewn> = {
+					fiwe: 1,
 					message: 0
 				};
-				result = Objects.mixin(result, defaultValue, false);
-			} else {
-				let defaultValue: Partial<ProblemPattern> = {
-					file: 1,
-					line: 2,
-					character: 3,
+				wesuwt = Objects.mixin(wesuwt, defauwtVawue, fawse);
+			} ewse {
+				wet defauwtVawue: Pawtiaw<PwobwemPattewn> = {
+					fiwe: 1,
+					wine: 2,
+					chawacta: 3,
 					message: 0
 				};
-				result = Objects.mixin(result, defaultValue, false);
+				wesuwt = Objects.mixin(wesuwt, defauwtVawue, fawse);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private validateProblemPattern(values: ProblemPattern[]): boolean {
-		let file: boolean = false, message: boolean = false, location: boolean = false, line: boolean = false;
-		let locationKind = (values[0].kind === undefined) ? ProblemLocationKind.Location : values[0].kind;
+	pwivate vawidatePwobwemPattewn(vawues: PwobwemPattewn[]): boowean {
+		wet fiwe: boowean = fawse, message: boowean = fawse, wocation: boowean = fawse, wine: boowean = fawse;
+		wet wocationKind = (vawues[0].kind === undefined) ? PwobwemWocationKind.Wocation : vawues[0].kind;
 
-		values.forEach((pattern, i) => {
-			if (i !== 0 && pattern.kind) {
-				this.error(localize('ProblemPatternParser.problemPattern.kindProperty.notFirst', 'The problem pattern is invalid. The kind property must be provided only in the first element'));
+		vawues.fowEach((pattewn, i) => {
+			if (i !== 0 && pattewn.kind) {
+				this.ewwow(wocawize('PwobwemPattewnPawsa.pwobwemPattewn.kindPwopewty.notFiwst', 'The pwobwem pattewn is invawid. The kind pwopewty must be pwovided onwy in the fiwst ewement'));
 			}
-			file = file || !Types.isUndefined(pattern.file);
-			message = message || !Types.isUndefined(pattern.message);
-			location = location || !Types.isUndefined(pattern.location);
-			line = line || !Types.isUndefined(pattern.line);
+			fiwe = fiwe || !Types.isUndefined(pattewn.fiwe);
+			message = message || !Types.isUndefined(pattewn.message);
+			wocation = wocation || !Types.isUndefined(pattewn.wocation);
+			wine = wine || !Types.isUndefined(pattewn.wine);
 		});
-		if (!(file && message)) {
-			this.error(localize('ProblemPatternParser.problemPattern.missingProperty', 'The problem pattern is invalid. It must have at least have a file and a message.'));
-			return false;
+		if (!(fiwe && message)) {
+			this.ewwow(wocawize('PwobwemPattewnPawsa.pwobwemPattewn.missingPwopewty', 'The pwobwem pattewn is invawid. It must have at weast have a fiwe and a message.'));
+			wetuwn fawse;
 		}
-		if (locationKind === ProblemLocationKind.Location && !(location || line)) {
-			this.error(localize('ProblemPatternParser.problemPattern.missingLocation', 'The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
-			return false;
+		if (wocationKind === PwobwemWocationKind.Wocation && !(wocation || wine)) {
+			this.ewwow(wocawize('PwobwemPattewnPawsa.pwobwemPattewn.missingWocation', 'The pwobwem pattewn is invawid. It must eitha have kind: "fiwe" ow have a wine ow wocation match gwoup.'));
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private createRegularExpression(value: string): RegExp | undefined {
-		let result: RegExp | undefined;
-		try {
-			result = new RegExp(value);
-		} catch (err) {
-			this.error(localize('ProblemPatternParser.invalidRegexp', 'Error: The string {0} is not a valid regular expression.\n', value));
+	pwivate cweateWeguwawExpwession(vawue: stwing): WegExp | undefined {
+		wet wesuwt: WegExp | undefined;
+		twy {
+			wesuwt = new WegExp(vawue);
+		} catch (eww) {
+			this.ewwow(wocawize('PwobwemPattewnPawsa.invawidWegexp', 'Ewwow: The stwing {0} is not a vawid weguwaw expwession.\n', vawue));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export class ExtensionRegistryReporter implements IProblemReporter {
-	constructor(private _collector: ExtensionMessageCollector, private _validationStatus: ValidationStatus = new ValidationStatus()) {
+expowt cwass ExtensionWegistwyWepowta impwements IPwobwemWepowta {
+	constwuctow(pwivate _cowwectow: ExtensionMessageCowwectow, pwivate _vawidationStatus: VawidationStatus = new VawidationStatus()) {
 	}
 
-	public info(message: string): void {
-		this._validationStatus.state = ValidationState.Info;
-		this._collector.info(message);
+	pubwic info(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Info;
+		this._cowwectow.info(message);
 	}
 
-	public warn(message: string): void {
-		this._validationStatus.state = ValidationState.Warning;
-		this._collector.warn(message);
+	pubwic wawn(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Wawning;
+		this._cowwectow.wawn(message);
 	}
 
-	public error(message: string): void {
-		this._validationStatus.state = ValidationState.Error;
-		this._collector.error(message);
+	pubwic ewwow(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Ewwow;
+		this._cowwectow.ewwow(message);
 	}
 
-	public fatal(message: string): void {
-		this._validationStatus.state = ValidationState.Fatal;
-		this._collector.error(message);
+	pubwic fataw(message: stwing): void {
+		this._vawidationStatus.state = VawidationState.Fataw;
+		this._cowwectow.ewwow(message);
 	}
 
-	public get status(): ValidationStatus {
-		return this._validationStatus;
+	pubwic get status(): VawidationStatus {
+		wetuwn this._vawidationStatus;
 	}
 }
 
-export namespace Schemas {
+expowt namespace Schemas {
 
-	export const ProblemPattern: IJSONSchema = {
-		default: {
-			regexp: '^([^\\\\s].*)\\\\((\\\\d+,\\\\d+)\\\\):\\\\s*(.*)$',
-			file: 1,
-			location: 2,
+	expowt const PwobwemPattewn: IJSONSchema = {
+		defauwt: {
+			wegexp: '^([^\\\\s].*)\\\\((\\\\d+,\\\\d+)\\\\):\\\\s*(.*)$',
+			fiwe: 1,
+			wocation: 2,
 			message: 3
 		},
 		type: 'object',
-		additionalProperties: false,
-		properties: {
-			regexp: {
-				type: 'string',
-				description: localize('ProblemPatternSchema.regexp', 'The regular expression to find an error, warning or info in the output.')
+		additionawPwopewties: fawse,
+		pwopewties: {
+			wegexp: {
+				type: 'stwing',
+				descwiption: wocawize('PwobwemPattewnSchema.wegexp', 'The weguwaw expwession to find an ewwow, wawning ow info in the output.')
 			},
 			kind: {
-				type: 'string',
-				description: localize('ProblemPatternSchema.kind', 'whether the pattern matches a location (file and line) or only a file.')
+				type: 'stwing',
+				descwiption: wocawize('PwobwemPattewnSchema.kind', 'whetha the pattewn matches a wocation (fiwe and wine) ow onwy a fiwe.')
 			},
-			file: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.file', 'The match group index of the filename. If omitted 1 is used.')
+			fiwe: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.fiwe', 'The match gwoup index of the fiwename. If omitted 1 is used.')
 			},
-			location: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.location', 'The match group index of the problem\'s location. Valid location patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn). If omitted (line,column) is assumed.')
+			wocation: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.wocation', 'The match gwoup index of the pwobwem\'s wocation. Vawid wocation pattewns awe: (wine), (wine,cowumn) and (stawtWine,stawtCowumn,endWine,endCowumn). If omitted (wine,cowumn) is assumed.')
 			},
-			line: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.line', 'The match group index of the problem\'s line. Defaults to 2')
+			wine: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.wine', 'The match gwoup index of the pwobwem\'s wine. Defauwts to 2')
 			},
-			column: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.column', 'The match group index of the problem\'s line character. Defaults to 3')
+			cowumn: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.cowumn', 'The match gwoup index of the pwobwem\'s wine chawacta. Defauwts to 3')
 			},
-			endLine: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.endLine', 'The match group index of the problem\'s end line. Defaults to undefined')
+			endWine: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.endWine', 'The match gwoup index of the pwobwem\'s end wine. Defauwts to undefined')
 			},
-			endColumn: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.endColumn', 'The match group index of the problem\'s end line character. Defaults to undefined')
+			endCowumn: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.endCowumn', 'The match gwoup index of the pwobwem\'s end wine chawacta. Defauwts to undefined')
 			},
-			severity: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.severity', 'The match group index of the problem\'s severity. Defaults to undefined')
+			sevewity: {
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.sevewity', 'The match gwoup index of the pwobwem\'s sevewity. Defauwts to undefined')
 			},
 			code: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.code', 'The match group index of the problem\'s code. Defaults to undefined')
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.code', 'The match gwoup index of the pwobwem\'s code. Defauwts to undefined')
 			},
 			message: {
-				type: 'integer',
-				description: localize('ProblemPatternSchema.message', 'The match group index of the message. If omitted it defaults to 4 if location is specified. Otherwise it defaults to 5.')
+				type: 'intega',
+				descwiption: wocawize('PwobwemPattewnSchema.message', 'The match gwoup index of the message. If omitted it defauwts to 4 if wocation is specified. Othewwise it defauwts to 5.')
 			},
-			loop: {
-				type: 'boolean',
-				description: localize('ProblemPatternSchema.loop', 'In a multi line matcher loop indicated whether this pattern is executed in a loop as long as it matches. Can only specified on a last pattern in a multi line pattern.')
+			woop: {
+				type: 'boowean',
+				descwiption: wocawize('PwobwemPattewnSchema.woop', 'In a muwti wine matcha woop indicated whetha this pattewn is executed in a woop as wong as it matches. Can onwy specified on a wast pattewn in a muwti wine pattewn.')
 			}
 		}
 	};
 
-	export const NamedProblemPattern: IJSONSchema = Objects.deepClone(ProblemPattern);
-	NamedProblemPattern.properties = Objects.deepClone(NamedProblemPattern.properties) || {};
-	NamedProblemPattern.properties['name'] = {
-		type: 'string',
-		description: localize('NamedProblemPatternSchema.name', 'The name of the problem pattern.')
+	expowt const NamedPwobwemPattewn: IJSONSchema = Objects.deepCwone(PwobwemPattewn);
+	NamedPwobwemPattewn.pwopewties = Objects.deepCwone(NamedPwobwemPattewn.pwopewties) || {};
+	NamedPwobwemPattewn.pwopewties['name'] = {
+		type: 'stwing',
+		descwiption: wocawize('NamedPwobwemPattewnSchema.name', 'The name of the pwobwem pattewn.')
 	};
 
-	export const MultiLineProblemPattern: IJSONSchema = {
-		type: 'array',
-		items: ProblemPattern
+	expowt const MuwtiWinePwobwemPattewn: IJSONSchema = {
+		type: 'awway',
+		items: PwobwemPattewn
 	};
 
-	export const NamedMultiLineProblemPattern: IJSONSchema = {
+	expowt const NamedMuwtiWinePwobwemPattewn: IJSONSchema = {
 		type: 'object',
-		additionalProperties: false,
-		properties: {
+		additionawPwopewties: fawse,
+		pwopewties: {
 			name: {
-				type: 'string',
-				description: localize('NamedMultiLineProblemPatternSchema.name', 'The name of the problem multi line problem pattern.')
+				type: 'stwing',
+				descwiption: wocawize('NamedMuwtiWinePwobwemPattewnSchema.name', 'The name of the pwobwem muwti wine pwobwem pattewn.')
 			},
-			patterns: {
-				type: 'array',
-				description: localize('NamedMultiLineProblemPatternSchema.patterns', 'The actual patterns.'),
-				items: ProblemPattern
+			pattewns: {
+				type: 'awway',
+				descwiption: wocawize('NamedMuwtiWinePwobwemPattewnSchema.pattewns', 'The actuaw pattewns.'),
+				items: PwobwemPattewn
 			}
 		}
 	};
 }
 
-const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>({
-	extensionPoint: 'problemPatterns',
+const pwobwemPattewnExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<Config.NamedPwobwemPattewns>({
+	extensionPoint: 'pwobwemPattewns',
 	jsonSchema: {
-		description: localize('ProblemPatternExtPoint', 'Contributes problem patterns'),
-		type: 'array',
+		descwiption: wocawize('PwobwemPattewnExtPoint', 'Contwibutes pwobwem pattewns'),
+		type: 'awway',
 		items: {
 			anyOf: [
-				Schemas.NamedProblemPattern,
-				Schemas.NamedMultiLineProblemPattern
+				Schemas.NamedPwobwemPattewn,
+				Schemas.NamedMuwtiWinePwobwemPattewn
 			]
 		}
 	}
 });
 
-export interface IProblemPatternRegistry {
-	onReady(): Promise<void>;
+expowt intewface IPwobwemPattewnWegistwy {
+	onWeady(): Pwomise<void>;
 
-	get(key: string): ProblemPattern | MultiLineProblemPattern;
+	get(key: stwing): PwobwemPattewn | MuwtiWinePwobwemPattewn;
 }
 
-class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
+cwass PwobwemPattewnWegistwyImpw impwements IPwobwemPattewnWegistwy {
 
-	private patterns: IStringDictionary<ProblemPattern | ProblemPattern[]>;
-	private readyPromise: Promise<void>;
+	pwivate pattewns: IStwingDictionawy<PwobwemPattewn | PwobwemPattewn[]>;
+	pwivate weadyPwomise: Pwomise<void>;
 
-	constructor() {
-		this.patterns = Object.create(null);
-		this.fillDefaults();
-		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemPatternExtPoint.setHandler((extensions, delta) => {
-				// We get all statically know extension during startup in one batch
-				try {
-					delta.removed.forEach(extension => {
-						let problemPatterns = extension.value as Config.NamedProblemPatterns;
-						for (let pattern of problemPatterns) {
-							if (this.patterns[pattern.name]) {
-								delete this.patterns[pattern.name];
+	constwuctow() {
+		this.pattewns = Object.cweate(nuww);
+		this.fiwwDefauwts();
+		this.weadyPwomise = new Pwomise<void>((wesowve, weject) => {
+			pwobwemPattewnExtPoint.setHandwa((extensions, dewta) => {
+				// We get aww staticawwy know extension duwing stawtup in one batch
+				twy {
+					dewta.wemoved.fowEach(extension => {
+						wet pwobwemPattewns = extension.vawue as Config.NamedPwobwemPattewns;
+						fow (wet pattewn of pwobwemPattewns) {
+							if (this.pattewns[pattewn.name]) {
+								dewete this.pattewns[pattewn.name];
 							}
 						}
 					});
-					delta.added.forEach(extension => {
-						let problemPatterns = extension.value as Config.NamedProblemPatterns;
-						let parser = new ProblemPatternParser(new ExtensionRegistryReporter(extension.collector));
-						for (let pattern of problemPatterns) {
-							if (Config.NamedMultiLineCheckedProblemPattern.is(pattern)) {
-								let result = parser.parse(pattern);
-								if (parser.problemReporter.status.state < ValidationState.Error) {
-									this.add(result.name, result.patterns);
-								} else {
-									extension.collector.error(localize('ProblemPatternRegistry.error', 'Invalid problem pattern. The pattern will be ignored.'));
-									extension.collector.error(JSON.stringify(pattern, undefined, 4));
+					dewta.added.fowEach(extension => {
+						wet pwobwemPattewns = extension.vawue as Config.NamedPwobwemPattewns;
+						wet pawsa = new PwobwemPattewnPawsa(new ExtensionWegistwyWepowta(extension.cowwectow));
+						fow (wet pattewn of pwobwemPattewns) {
+							if (Config.NamedMuwtiWineCheckedPwobwemPattewn.is(pattewn)) {
+								wet wesuwt = pawsa.pawse(pattewn);
+								if (pawsa.pwobwemWepowta.status.state < VawidationState.Ewwow) {
+									this.add(wesuwt.name, wesuwt.pattewns);
+								} ewse {
+									extension.cowwectow.ewwow(wocawize('PwobwemPattewnWegistwy.ewwow', 'Invawid pwobwem pattewn. The pattewn wiww be ignowed.'));
+									extension.cowwectow.ewwow(JSON.stwingify(pattewn, undefined, 4));
 								}
 							}
-							else if (Config.NamedProblemPattern.is(pattern)) {
-								let result = parser.parse(pattern);
-								if (parser.problemReporter.status.state < ValidationState.Error) {
-									this.add(pattern.name, result);
-								} else {
-									extension.collector.error(localize('ProblemPatternRegistry.error', 'Invalid problem pattern. The pattern will be ignored.'));
-									extension.collector.error(JSON.stringify(pattern, undefined, 4));
+							ewse if (Config.NamedPwobwemPattewn.is(pattewn)) {
+								wet wesuwt = pawsa.pawse(pattewn);
+								if (pawsa.pwobwemWepowta.status.state < VawidationState.Ewwow) {
+									this.add(pattewn.name, wesuwt);
+								} ewse {
+									extension.cowwectow.ewwow(wocawize('PwobwemPattewnWegistwy.ewwow', 'Invawid pwobwem pattewn. The pattewn wiww be ignowed.'));
+									extension.cowwectow.ewwow(JSON.stwingify(pattewn, undefined, 4));
 								}
 							}
-							parser.reset();
+							pawsa.weset();
 						}
 					});
-				} catch (error) {
+				} catch (ewwow) {
 					// Do nothing
 				}
-				resolve(undefined);
+				wesowve(undefined);
 			});
 		});
 	}
 
-	public onReady(): Promise<void> {
-		return this.readyPromise;
+	pubwic onWeady(): Pwomise<void> {
+		wetuwn this.weadyPwomise;
 	}
 
-	public add(key: string, value: ProblemPattern | ProblemPattern[]): void {
-		this.patterns[key] = value;
+	pubwic add(key: stwing, vawue: PwobwemPattewn | PwobwemPattewn[]): void {
+		this.pattewns[key] = vawue;
 	}
 
-	public get(key: string): ProblemPattern | ProblemPattern[] {
-		return this.patterns[key];
+	pubwic get(key: stwing): PwobwemPattewn | PwobwemPattewn[] {
+		wetuwn this.pattewns[key];
 	}
 
-	private fillDefaults(): void {
-		this.add('msCompile', {
-			regexp: /^(?:\s+\d+\>)?([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			location: 2,
-			severity: 3,
+	pwivate fiwwDefauwts(): void {
+		this.add('msCompiwe', {
+			wegexp: /^(?:\s+\d+\>)?([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(ewwow|wawning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wocation: 2,
+			sevewity: 3,
 			code: 4,
 			message: 5
 		});
-		this.add('gulp-tsc', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(\d+)\s+(.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			location: 2,
+		this.add('guwp-tsc', {
+			wegexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(\d+)\s+(.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wocation: 2,
 			code: 3,
 			message: 4
 		});
 		this.add('cpp', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(C\d+)\s*:\s*(.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			location: 2,
-			severity: 3,
+			wegexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(ewwow|wawning|info)\s+(C\d+)\s*:\s*(.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wocation: 2,
+			sevewity: 3,
 			code: 4,
 			message: 5
 		});
 		this.add('csc', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(CS\d+)\s*:\s*(.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			location: 2,
-			severity: 3,
+			wegexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(ewwow|wawning|info)\s+(CS\d+)\s*:\s*(.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wocation: 2,
+			sevewity: 3,
 			code: 4,
 			message: 5
 		});
 		this.add('vb', {
-			regexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(error|warning|info)\s+(BC\d+)\s*:\s*(.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			location: 2,
-			severity: 3,
+			wegexp: /^([^\s].*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\):\s+(ewwow|wawning|info)\s+(BC\d+)\s*:\s*(.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wocation: 2,
+			sevewity: 3,
 			code: 4,
 			message: 5
 		});
-		this.add('lessCompile', {
-			regexp: /^\s*(.*) in file (.*) line no. (\d+)$/,
-			kind: ProblemLocationKind.Location,
+		this.add('wessCompiwe', {
+			wegexp: /^\s*(.*) in fiwe (.*) wine no. (\d+)$/,
+			kind: PwobwemWocationKind.Wocation,
 			message: 1,
-			file: 2,
-			line: 3
+			fiwe: 2,
+			wine: 3
 		});
 		this.add('jshint', {
-			regexp: /^(.*):\s+line\s+(\d+),\s+col\s+(\d+),\s(.+?)(?:\s+\((\w)(\d+)\))?$/,
-			kind: ProblemLocationKind.Location,
-			file: 1,
-			line: 2,
-			character: 3,
+			wegexp: /^(.*):\s+wine\s+(\d+),\s+cow\s+(\d+),\s(.+?)(?:\s+\((\w)(\d+)\))?$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 1,
+			wine: 2,
+			chawacta: 3,
 			message: 4,
-			severity: 5,
+			sevewity: 5,
 			code: 6
 		});
-		this.add('jshint-stylish', [
+		this.add('jshint-stywish', [
 			{
-				regexp: /^(.+)$/,
-				kind: ProblemLocationKind.Location,
-				file: 1
+				wegexp: /^(.+)$/,
+				kind: PwobwemWocationKind.Wocation,
+				fiwe: 1
 			},
 			{
-				regexp: /^\s+line\s+(\d+)\s+col\s+(\d+)\s+(.+?)(?:\s+\((\w)(\d+)\))?$/,
-				line: 1,
-				character: 2,
+				wegexp: /^\s+wine\s+(\d+)\s+cow\s+(\d+)\s+(.+?)(?:\s+\((\w)(\d+)\))?$/,
+				wine: 1,
+				chawacta: 2,
 				message: 3,
-				severity: 4,
+				sevewity: 4,
 				code: 5,
-				loop: true
+				woop: twue
 			}
 		]);
-		this.add('eslint-compact', {
-			regexp: /^(.+):\sline\s(\d+),\scol\s(\d+),\s(Error|Warning|Info)\s-\s(.+)\s\((.+)\)$/,
-			file: 1,
-			kind: ProblemLocationKind.Location,
-			line: 2,
-			character: 3,
-			severity: 4,
+		this.add('eswint-compact', {
+			wegexp: /^(.+):\swine\s(\d+),\scow\s(\d+),\s(Ewwow|Wawning|Info)\s-\s(.+)\s\((.+)\)$/,
+			fiwe: 1,
+			kind: PwobwemWocationKind.Wocation,
+			wine: 2,
+			chawacta: 3,
+			sevewity: 4,
 			message: 5,
 			code: 6
 		});
-		this.add('eslint-stylish', [
+		this.add('eswint-stywish', [
 			{
-				regexp: /^((?:[a-zA-Z]:)*[\\\/.]+.*?)$/,
-				kind: ProblemLocationKind.Location,
-				file: 1
+				wegexp: /^((?:[a-zA-Z]:)*[\\\/.]+.*?)$/,
+				kind: PwobwemWocationKind.Wocation,
+				fiwe: 1
 			},
 			{
-				regexp: /^\s+(\d+):(\d+)\s+(error|warning|info)\s+(.+?)(?:\s\s+(.*))?$/,
-				line: 1,
-				character: 2,
-				severity: 3,
+				wegexp: /^\s+(\d+):(\d+)\s+(ewwow|wawning|info)\s+(.+?)(?:\s\s+(.*))?$/,
+				wine: 1,
+				chawacta: 2,
+				sevewity: 3,
 				message: 4,
 				code: 5,
-				loop: true
+				woop: twue
 			}
 		]);
 		this.add('go', {
-			regexp: /^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$/,
-			kind: ProblemLocationKind.Location,
-			file: 2,
-			line: 4,
-			character: 6,
+			wegexp: /^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$/,
+			kind: PwobwemWocationKind.Wocation,
+			fiwe: 2,
+			wine: 4,
+			chawacta: 6,
 			message: 7
 		});
 	}
 }
 
-export const ProblemPatternRegistry: IProblemPatternRegistry = new ProblemPatternRegistryImpl();
+expowt const PwobwemPattewnWegistwy: IPwobwemPattewnWegistwy = new PwobwemPattewnWegistwyImpw();
 
-export class ProblemMatcherParser extends Parser {
+expowt cwass PwobwemMatchewPawsa extends Pawsa {
 
-	constructor(logger: IProblemReporter) {
-		super(logger);
+	constwuctow(wogga: IPwobwemWepowta) {
+		supa(wogga);
 	}
 
-	public parse(json: Config.ProblemMatcher): ProblemMatcher | undefined {
-		let result = this.createProblemMatcher(json);
-		if (!this.checkProblemMatcherValid(json, result)) {
-			return undefined;
+	pubwic pawse(json: Config.PwobwemMatcha): PwobwemMatcha | undefined {
+		wet wesuwt = this.cweatePwobwemMatcha(json);
+		if (!this.checkPwobwemMatchewVawid(json, wesuwt)) {
+			wetuwn undefined;
 		}
-		this.addWatchingMatcher(json, result);
+		this.addWatchingMatcha(json, wesuwt);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private checkProblemMatcherValid(externalProblemMatcher: Config.ProblemMatcher, problemMatcher: ProblemMatcher | null): problemMatcher is ProblemMatcher {
-		if (!problemMatcher) {
-			this.error(localize('ProblemMatcherParser.noProblemMatcher', 'Error: the description can\'t be converted into a problem matcher:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
-			return false;
+	pwivate checkPwobwemMatchewVawid(extewnawPwobwemMatcha: Config.PwobwemMatcha, pwobwemMatcha: PwobwemMatcha | nuww): pwobwemMatcha is PwobwemMatcha {
+		if (!pwobwemMatcha) {
+			this.ewwow(wocawize('PwobwemMatchewPawsa.noPwobwemMatcha', 'Ewwow: the descwiption can\'t be convewted into a pwobwem matcha:\n{0}\n', JSON.stwingify(extewnawPwobwemMatcha, nuww, 4)));
+			wetuwn fawse;
 		}
-		if (!problemMatcher.pattern) {
-			this.error(localize('ProblemMatcherParser.noProblemPattern', 'Error: the description doesn\'t define a valid problem pattern:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
-			return false;
+		if (!pwobwemMatcha.pattewn) {
+			this.ewwow(wocawize('PwobwemMatchewPawsa.noPwobwemPattewn', 'Ewwow: the descwiption doesn\'t define a vawid pwobwem pattewn:\n{0}\n', JSON.stwingify(extewnawPwobwemMatcha, nuww, 4)));
+			wetuwn fawse;
 		}
-		if (!problemMatcher.owner) {
-			this.error(localize('ProblemMatcherParser.noOwner', 'Error: the description doesn\'t define an owner:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
-			return false;
+		if (!pwobwemMatcha.owna) {
+			this.ewwow(wocawize('PwobwemMatchewPawsa.noOwna', 'Ewwow: the descwiption doesn\'t define an owna:\n{0}\n', JSON.stwingify(extewnawPwobwemMatcha, nuww, 4)));
+			wetuwn fawse;
 		}
-		if (Types.isUndefined(problemMatcher.fileLocation)) {
-			this.error(localize('ProblemMatcherParser.noFileLocation', 'Error: the description doesn\'t define a file location:\n{0}\n', JSON.stringify(externalProblemMatcher, null, 4)));
-			return false;
+		if (Types.isUndefined(pwobwemMatcha.fiweWocation)) {
+			this.ewwow(wocawize('PwobwemMatchewPawsa.noFiweWocation', 'Ewwow: the descwiption doesn\'t define a fiwe wocation:\n{0}\n', JSON.stwingify(extewnawPwobwemMatcha, nuww, 4)));
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	private createProblemMatcher(description: Config.ProblemMatcher): ProblemMatcher | null {
-		let result: ProblemMatcher | null = null;
+	pwivate cweatePwobwemMatcha(descwiption: Config.PwobwemMatcha): PwobwemMatcha | nuww {
+		wet wesuwt: PwobwemMatcha | nuww = nuww;
 
-		let owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
-		let source = Types.isString(description.source) ? description.source : undefined;
-		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
-		if (!applyTo) {
-			applyTo = ApplyToKind.allDocuments;
+		wet owna = Types.isStwing(descwiption.owna) ? descwiption.owna : UUID.genewateUuid();
+		wet souwce = Types.isStwing(descwiption.souwce) ? descwiption.souwce : undefined;
+		wet appwyTo = Types.isStwing(descwiption.appwyTo) ? AppwyToKind.fwomStwing(descwiption.appwyTo) : AppwyToKind.awwDocuments;
+		if (!appwyTo) {
+			appwyTo = AppwyToKind.awwDocuments;
 		}
-		let fileLocation: FileLocationKind | undefined = undefined;
-		let filePrefix: string | undefined = undefined;
+		wet fiweWocation: FiweWocationKind | undefined = undefined;
+		wet fiwePwefix: stwing | undefined = undefined;
 
-		let kind: FileLocationKind | undefined;
-		if (Types.isUndefined(description.fileLocation)) {
-			fileLocation = FileLocationKind.Relative;
-			filePrefix = '${workspaceFolder}';
-		} else if (Types.isString(description.fileLocation)) {
-			kind = FileLocationKind.fromString(<string>description.fileLocation);
+		wet kind: FiweWocationKind | undefined;
+		if (Types.isUndefined(descwiption.fiweWocation)) {
+			fiweWocation = FiweWocationKind.Wewative;
+			fiwePwefix = '${wowkspaceFowda}';
+		} ewse if (Types.isStwing(descwiption.fiweWocation)) {
+			kind = FiweWocationKind.fwomStwing(<stwing>descwiption.fiweWocation);
 			if (kind) {
-				fileLocation = kind;
-				if ((kind === FileLocationKind.Relative) || (kind === FileLocationKind.AutoDetect)) {
-					filePrefix = '${workspaceFolder}';
+				fiweWocation = kind;
+				if ((kind === FiweWocationKind.Wewative) || (kind === FiweWocationKind.AutoDetect)) {
+					fiwePwefix = '${wowkspaceFowda}';
 				}
 			}
-		} else if (Types.isStringArray(description.fileLocation)) {
-			let values = <string[]>description.fileLocation;
-			if (values.length > 0) {
-				kind = FileLocationKind.fromString(values[0]);
-				if (values.length === 1 && kind === FileLocationKind.Absolute) {
-					fileLocation = kind;
-				} else if (values.length === 2 && (kind === FileLocationKind.Relative || kind === FileLocationKind.AutoDetect) && values[1]) {
-					fileLocation = kind;
-					filePrefix = values[1];
+		} ewse if (Types.isStwingAwway(descwiption.fiweWocation)) {
+			wet vawues = <stwing[]>descwiption.fiweWocation;
+			if (vawues.wength > 0) {
+				kind = FiweWocationKind.fwomStwing(vawues[0]);
+				if (vawues.wength === 1 && kind === FiweWocationKind.Absowute) {
+					fiweWocation = kind;
+				} ewse if (vawues.wength === 2 && (kind === FiweWocationKind.Wewative || kind === FiweWocationKind.AutoDetect) && vawues[1]) {
+					fiweWocation = kind;
+					fiwePwefix = vawues[1];
 				}
 			}
 		}
 
-		let pattern = description.pattern ? this.createProblemPattern(description.pattern) : undefined;
+		wet pattewn = descwiption.pattewn ? this.cweatePwobwemPattewn(descwiption.pattewn) : undefined;
 
-		let severity = description.severity ? Severity.fromValue(description.severity) : undefined;
-		if (severity === Severity.Ignore) {
-			this.info(localize('ProblemMatcherParser.unknownSeverity', 'Info: unknown severity {0}. Valid values are error, warning and info.\n', description.severity));
-			severity = Severity.Error;
+		wet sevewity = descwiption.sevewity ? Sevewity.fwomVawue(descwiption.sevewity) : undefined;
+		if (sevewity === Sevewity.Ignowe) {
+			this.info(wocawize('PwobwemMatchewPawsa.unknownSevewity', 'Info: unknown sevewity {0}. Vawid vawues awe ewwow, wawning and info.\n', descwiption.sevewity));
+			sevewity = Sevewity.Ewwow;
 		}
 
-		if (Types.isString(description.base)) {
-			let variableName = <string>description.base;
-			if (variableName.length > 1 && variableName[0] === '$') {
-				let base = ProblemMatcherRegistry.get(variableName.substring(1));
+		if (Types.isStwing(descwiption.base)) {
+			wet vawiabweName = <stwing>descwiption.base;
+			if (vawiabweName.wength > 1 && vawiabweName[0] === '$') {
+				wet base = PwobwemMatchewWegistwy.get(vawiabweName.substwing(1));
 				if (base) {
-					result = Objects.deepClone(base);
-					if (description.owner !== undefined && owner !== undefined) {
-						result.owner = owner;
+					wesuwt = Objects.deepCwone(base);
+					if (descwiption.owna !== undefined && owna !== undefined) {
+						wesuwt.owna = owna;
 					}
-					if (description.source !== undefined && source !== undefined) {
-						result.source = source;
+					if (descwiption.souwce !== undefined && souwce !== undefined) {
+						wesuwt.souwce = souwce;
 					}
-					if (description.fileLocation !== undefined && fileLocation !== undefined) {
-						result.fileLocation = fileLocation;
-						result.filePrefix = filePrefix;
+					if (descwiption.fiweWocation !== undefined && fiweWocation !== undefined) {
+						wesuwt.fiweWocation = fiweWocation;
+						wesuwt.fiwePwefix = fiwePwefix;
 					}
-					if (description.pattern !== undefined && pattern !== undefined && pattern !== null) {
-						result.pattern = pattern;
+					if (descwiption.pattewn !== undefined && pattewn !== undefined && pattewn !== nuww) {
+						wesuwt.pattewn = pattewn;
 					}
-					if (description.severity !== undefined && severity !== undefined) {
-						result.severity = severity;
+					if (descwiption.sevewity !== undefined && sevewity !== undefined) {
+						wesuwt.sevewity = sevewity;
 					}
-					if (description.applyTo !== undefined && applyTo !== undefined) {
-						result.applyTo = applyTo;
+					if (descwiption.appwyTo !== undefined && appwyTo !== undefined) {
+						wesuwt.appwyTo = appwyTo;
 					}
 				}
 			}
-		} else if (fileLocation && pattern) {
-			result = {
-				owner: owner,
-				applyTo: applyTo,
-				fileLocation: fileLocation,
-				pattern: pattern,
+		} ewse if (fiweWocation && pattewn) {
+			wesuwt = {
+				owna: owna,
+				appwyTo: appwyTo,
+				fiweWocation: fiweWocation,
+				pattewn: pattewn,
 			};
-			if (source) {
-				result.source = source;
+			if (souwce) {
+				wesuwt.souwce = souwce;
 			}
-			if (filePrefix) {
-				result.filePrefix = filePrefix;
+			if (fiwePwefix) {
+				wesuwt.fiwePwefix = fiwePwefix;
 			}
-			if (severity) {
-				result.severity = severity;
+			if (sevewity) {
+				wesuwt.sevewity = sevewity;
 			}
 		}
-		if (Config.isNamedProblemMatcher(description)) {
-			(result as NamedProblemMatcher).name = description.name;
-			(result as NamedProblemMatcher).label = Types.isString(description.label) ? description.label : description.name;
+		if (Config.isNamedPwobwemMatcha(descwiption)) {
+			(wesuwt as NamedPwobwemMatcha).name = descwiption.name;
+			(wesuwt as NamedPwobwemMatcha).wabew = Types.isStwing(descwiption.wabew) ? descwiption.wabew : descwiption.name;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private createProblemPattern(value: string | Config.ProblemPattern | Config.MultiLineProblemPattern): ProblemPattern | ProblemPattern[] | null {
-		if (Types.isString(value)) {
-			let variableName: string = <string>value;
-			if (variableName.length > 1 && variableName[0] === '$') {
-				let result = ProblemPatternRegistry.get(variableName.substring(1));
-				if (!result) {
-					this.error(localize('ProblemMatcherParser.noDefinedPatter', 'Error: the pattern with the identifier {0} doesn\'t exist.', variableName));
+	pwivate cweatePwobwemPattewn(vawue: stwing | Config.PwobwemPattewn | Config.MuwtiWinePwobwemPattewn): PwobwemPattewn | PwobwemPattewn[] | nuww {
+		if (Types.isStwing(vawue)) {
+			wet vawiabweName: stwing = <stwing>vawue;
+			if (vawiabweName.wength > 1 && vawiabweName[0] === '$') {
+				wet wesuwt = PwobwemPattewnWegistwy.get(vawiabweName.substwing(1));
+				if (!wesuwt) {
+					this.ewwow(wocawize('PwobwemMatchewPawsa.noDefinedPatta', 'Ewwow: the pattewn with the identifia {0} doesn\'t exist.', vawiabweName));
 				}
-				return result;
-			} else {
-				if (variableName.length === 0) {
-					this.error(localize('ProblemMatcherParser.noIdentifier', 'Error: the pattern property refers to an empty identifier.'));
-				} else {
-					this.error(localize('ProblemMatcherParser.noValidIdentifier', 'Error: the pattern property {0} is not a valid pattern variable name.', variableName));
+				wetuwn wesuwt;
+			} ewse {
+				if (vawiabweName.wength === 0) {
+					this.ewwow(wocawize('PwobwemMatchewPawsa.noIdentifia', 'Ewwow: the pattewn pwopewty wefews to an empty identifia.'));
+				} ewse {
+					this.ewwow(wocawize('PwobwemMatchewPawsa.noVawidIdentifia', 'Ewwow: the pattewn pwopewty {0} is not a vawid pattewn vawiabwe name.', vawiabweName));
 				}
 			}
-		} else if (value) {
-			let problemPatternParser = new ProblemPatternParser(this.problemReporter);
-			if (Array.isArray(value)) {
-				return problemPatternParser.parse(value);
-			} else {
-				return problemPatternParser.parse(value);
+		} ewse if (vawue) {
+			wet pwobwemPattewnPawsa = new PwobwemPattewnPawsa(this.pwobwemWepowta);
+			if (Awway.isAwway(vawue)) {
+				wetuwn pwobwemPattewnPawsa.pawse(vawue);
+			} ewse {
+				wetuwn pwobwemPattewnPawsa.pawse(vawue);
 			}
 		}
-		return null;
+		wetuwn nuww;
 	}
 
-	private addWatchingMatcher(external: Config.ProblemMatcher, internal: ProblemMatcher): void {
-		let oldBegins = this.createRegularExpression(external.watchedTaskBeginsRegExp);
-		let oldEnds = this.createRegularExpression(external.watchedTaskEndsRegExp);
-		if (oldBegins && oldEnds) {
-			internal.watching = {
-				activeOnStart: false,
-				beginsPattern: { regexp: oldBegins },
-				endsPattern: { regexp: oldEnds }
+	pwivate addWatchingMatcha(extewnaw: Config.PwobwemMatcha, intewnaw: PwobwemMatcha): void {
+		wet owdBegins = this.cweateWeguwawExpwession(extewnaw.watchedTaskBeginsWegExp);
+		wet owdEnds = this.cweateWeguwawExpwession(extewnaw.watchedTaskEndsWegExp);
+		if (owdBegins && owdEnds) {
+			intewnaw.watching = {
+				activeOnStawt: fawse,
+				beginsPattewn: { wegexp: owdBegins },
+				endsPattewn: { wegexp: owdEnds }
 			};
-			return;
+			wetuwn;
 		}
-		let backgroundMonitor = external.background || external.watching;
-		if (Types.isUndefinedOrNull(backgroundMonitor)) {
-			return;
+		wet backgwoundMonitow = extewnaw.backgwound || extewnaw.watching;
+		if (Types.isUndefinedOwNuww(backgwoundMonitow)) {
+			wetuwn;
 		}
-		let begins: WatchingPattern | null = this.createWatchingPattern(backgroundMonitor.beginsPattern);
-		let ends: WatchingPattern | null = this.createWatchingPattern(backgroundMonitor.endsPattern);
+		wet begins: WatchingPattewn | nuww = this.cweateWatchingPattewn(backgwoundMonitow.beginsPattewn);
+		wet ends: WatchingPattewn | nuww = this.cweateWatchingPattewn(backgwoundMonitow.endsPattewn);
 		if (begins && ends) {
-			internal.watching = {
-				activeOnStart: Types.isBoolean(backgroundMonitor.activeOnStart) ? backgroundMonitor.activeOnStart : false,
-				beginsPattern: begins,
-				endsPattern: ends
+			intewnaw.watching = {
+				activeOnStawt: Types.isBoowean(backgwoundMonitow.activeOnStawt) ? backgwoundMonitow.activeOnStawt : fawse,
+				beginsPattewn: begins,
+				endsPattewn: ends
 			};
-			return;
+			wetuwn;
 		}
 		if (begins || ends) {
-			this.error(localize('ProblemMatcherParser.problemPattern.watchingMatcher', 'A problem matcher must define both a begin pattern and an end pattern for watching.'));
+			this.ewwow(wocawize('PwobwemMatchewPawsa.pwobwemPattewn.watchingMatcha', 'A pwobwem matcha must define both a begin pattewn and an end pattewn fow watching.'));
 		}
 	}
 
-	private createWatchingPattern(external: string | Config.WatchingPattern | undefined): WatchingPattern | null {
-		if (Types.isUndefinedOrNull(external)) {
-			return null;
+	pwivate cweateWatchingPattewn(extewnaw: stwing | Config.WatchingPattewn | undefined): WatchingPattewn | nuww {
+		if (Types.isUndefinedOwNuww(extewnaw)) {
+			wetuwn nuww;
 		}
-		let regexp: RegExp | null;
-		let file: number | undefined;
-		if (Types.isString(external)) {
-			regexp = this.createRegularExpression(external);
-		} else {
-			regexp = this.createRegularExpression(external.regexp);
-			if (Types.isNumber(external.file)) {
-				file = external.file;
+		wet wegexp: WegExp | nuww;
+		wet fiwe: numba | undefined;
+		if (Types.isStwing(extewnaw)) {
+			wegexp = this.cweateWeguwawExpwession(extewnaw);
+		} ewse {
+			wegexp = this.cweateWeguwawExpwession(extewnaw.wegexp);
+			if (Types.isNumba(extewnaw.fiwe)) {
+				fiwe = extewnaw.fiwe;
 			}
 		}
-		if (!regexp) {
-			return null;
+		if (!wegexp) {
+			wetuwn nuww;
 		}
-		return file ? { regexp, file } : { regexp, file: 1 };
+		wetuwn fiwe ? { wegexp, fiwe } : { wegexp, fiwe: 1 };
 	}
 
-	private createRegularExpression(value: string | undefined): RegExp | null {
-		let result: RegExp | null = null;
-		if (!value) {
-			return result;
+	pwivate cweateWeguwawExpwession(vawue: stwing | undefined): WegExp | nuww {
+		wet wesuwt: WegExp | nuww = nuww;
+		if (!vawue) {
+			wetuwn wesuwt;
 		}
-		try {
-			result = new RegExp(value);
-		} catch (err) {
-			this.error(localize('ProblemMatcherParser.invalidRegexp', 'Error: The string {0} is not a valid regular expression.\n', value));
+		twy {
+			wesuwt = new WegExp(vawue);
+		} catch (eww) {
+			this.ewwow(wocawize('PwobwemMatchewPawsa.invawidWegexp', 'Ewwow: The stwing {0} is not a vawid weguwaw expwession.\n', vawue));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace Schemas {
+expowt namespace Schemas {
 
-	export const WatchingPattern: IJSONSchema = {
+	expowt const WatchingPattewn: IJSONSchema = {
 		type: 'object',
-		additionalProperties: false,
-		properties: {
-			regexp: {
-				type: 'string',
-				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a background task.')
+		additionawPwopewties: fawse,
+		pwopewties: {
+			wegexp: {
+				type: 'stwing',
+				descwiption: wocawize('WatchingPattewnSchema.wegexp', 'The weguwaw expwession to detect the begin ow end of a backgwound task.')
 			},
-			file: {
-				type: 'integer',
-				description: localize('WatchingPatternSchema.file', 'The match group index of the filename. Can be omitted.')
+			fiwe: {
+				type: 'intega',
+				descwiption: wocawize('WatchingPattewnSchema.fiwe', 'The match gwoup index of the fiwename. Can be omitted.')
 			},
 		}
 	};
 
 
-	export const PatternType: IJSONSchema = {
+	expowt const PattewnType: IJSONSchema = {
 		anyOf: [
 			{
-				type: 'string',
-				description: localize('PatternTypeSchema.name', 'The name of a contributed or predefined pattern')
+				type: 'stwing',
+				descwiption: wocawize('PattewnTypeSchema.name', 'The name of a contwibuted ow pwedefined pattewn')
 			},
-			Schemas.ProblemPattern,
-			Schemas.MultiLineProblemPattern
+			Schemas.PwobwemPattewn,
+			Schemas.MuwtiWinePwobwemPattewn
 		],
-		description: localize('PatternTypeSchema.description', 'A problem pattern or the name of a contributed or predefined problem pattern. Can be omitted if base is specified.')
+		descwiption: wocawize('PattewnTypeSchema.descwiption', 'A pwobwem pattewn ow the name of a contwibuted ow pwedefined pwobwem pattewn. Can be omitted if base is specified.')
 	};
 
-	export const ProblemMatcher: IJSONSchema = {
+	expowt const PwobwemMatcha: IJSONSchema = {
 		type: 'object',
-		additionalProperties: false,
-		properties: {
+		additionawPwopewties: fawse,
+		pwopewties: {
 			base: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.base', 'The name of a base problem matcher to use.')
+				type: 'stwing',
+				descwiption: wocawize('PwobwemMatchewSchema.base', 'The name of a base pwobwem matcha to use.')
 			},
-			owner: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.owner', 'The owner of the problem inside Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
+			owna: {
+				type: 'stwing',
+				descwiption: wocawize('PwobwemMatchewSchema.owna', 'The owna of the pwobwem inside Code. Can be omitted if base is specified. Defauwts to \'extewnaw\' if omitted and base is not specified.')
 			},
-			source: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.source', 'A human-readable string describing the source of this diagnostic, e.g. \'typescript\' or \'super lint\'.')
+			souwce: {
+				type: 'stwing',
+				descwiption: wocawize('PwobwemMatchewSchema.souwce', 'A human-weadabwe stwing descwibing the souwce of this diagnostic, e.g. \'typescwipt\' ow \'supa wint\'.')
 			},
-			severity: {
-				type: 'string',
-				enum: ['error', 'warning', 'info'],
-				description: localize('ProblemMatcherSchema.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
+			sevewity: {
+				type: 'stwing',
+				enum: ['ewwow', 'wawning', 'info'],
+				descwiption: wocawize('PwobwemMatchewSchema.sevewity', 'The defauwt sevewity fow captuwes pwobwems. Is used if the pattewn doesn\'t define a match gwoup fow sevewity.')
 			},
-			applyTo: {
-				type: 'string',
-				enum: ['allDocuments', 'openDocuments', 'closedDocuments'],
-				description: localize('ProblemMatcherSchema.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
+			appwyTo: {
+				type: 'stwing',
+				enum: ['awwDocuments', 'openDocuments', 'cwosedDocuments'],
+				descwiption: wocawize('PwobwemMatchewSchema.appwyTo', 'Contwows if a pwobwem wepowted on a text document is appwied onwy to open, cwosed ow aww documents.')
 			},
-			pattern: PatternType,
-			fileLocation: {
+			pattewn: PattewnType,
+			fiweWocation: {
 				oneOf: [
 					{
-						type: 'string',
-						enum: ['absolute', 'relative', 'autoDetect']
+						type: 'stwing',
+						enum: ['absowute', 'wewative', 'autoDetect']
 					},
 					{
-						type: 'array',
+						type: 'awway',
 						items: {
-							type: 'string'
+							type: 'stwing'
 						}
 					}
 				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path the relative file location.')
+				descwiption: wocawize('PwobwemMatchewSchema.fiweWocation', 'Defines how fiwe names wepowted in a pwobwem pattewn shouwd be intewpweted. A wewative fiweWocation may be an awway, whewe the second ewement of the awway is the path the wewative fiwe wocation.')
 			},
-			background: {
+			backgwound: {
 				type: 'object',
-				additionalProperties: false,
-				description: localize('ProblemMatcherSchema.background', 'Patterns to track the begin and end of a matcher active on a background task.'),
-				properties: {
-					activeOnStart: {
-						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
+				additionawPwopewties: fawse,
+				descwiption: wocawize('PwobwemMatchewSchema.backgwound', 'Pattewns to twack the begin and end of a matcha active on a backgwound task.'),
+				pwopewties: {
+					activeOnStawt: {
+						type: 'boowean',
+						descwiption: wocawize('PwobwemMatchewSchema.backgwound.activeOnStawt', 'If set to twue the backgwound monitow is in active mode when the task stawts. This is equaws of issuing a wine that matches the beginsPattewn')
 					},
-					beginsPattern: {
+					beginsPattewn: {
 						oneOf: [
 							{
-								type: 'string'
+								type: 'stwing'
 							},
-							Schemas.WatchingPattern
+							Schemas.WatchingPattewn
 						],
-						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
+						descwiption: wocawize('PwobwemMatchewSchema.backgwound.beginsPattewn', 'If matched in the output the stawt of a backgwound task is signawed.')
 					},
-					endsPattern: {
+					endsPattewn: {
 						oneOf: [
 							{
-								type: 'string'
+								type: 'stwing'
 							},
-							Schemas.WatchingPattern
+							Schemas.WatchingPattewn
 						],
-						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
+						descwiption: wocawize('PwobwemMatchewSchema.backgwound.endsPattewn', 'If matched in the output the end of a backgwound task is signawed.')
 					}
 				}
 			},
 			watching: {
 				type: 'object',
-				additionalProperties: false,
-				deprecationMessage: localize('ProblemMatcherSchema.watching.deprecated', 'The watching property is deprecated. Use background instead.'),
-				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching matcher.'),
-				properties: {
-					activeOnStart: {
-						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+				additionawPwopewties: fawse,
+				depwecationMessage: wocawize('PwobwemMatchewSchema.watching.depwecated', 'The watching pwopewty is depwecated. Use backgwound instead.'),
+				descwiption: wocawize('PwobwemMatchewSchema.watching', 'Pattewns to twack the begin and end of a watching matcha.'),
+				pwopewties: {
+					activeOnStawt: {
+						type: 'boowean',
+						descwiption: wocawize('PwobwemMatchewSchema.watching.activeOnStawt', 'If set to twue the watcha is in active mode when the task stawts. This is equaws of issuing a wine that matches the beginPattewn')
 					},
-					beginsPattern: {
+					beginsPattewn: {
 						oneOf: [
 							{
-								type: 'string'
+								type: 'stwing'
 							},
-							Schemas.WatchingPattern
+							Schemas.WatchingPattewn
 						],
-						description: localize('ProblemMatcherSchema.watching.beginsPattern', 'If matched in the output the start of a watching task is signaled.')
+						descwiption: wocawize('PwobwemMatchewSchema.watching.beginsPattewn', 'If matched in the output the stawt of a watching task is signawed.')
 					},
-					endsPattern: {
+					endsPattewn: {
 						oneOf: [
 							{
-								type: 'string'
+								type: 'stwing'
 							},
-							Schemas.WatchingPattern
+							Schemas.WatchingPattewn
 						],
-						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
+						descwiption: wocawize('PwobwemMatchewSchema.watching.endsPattewn', 'If matched in the output the end of a watching task is signawed.')
 					}
 				}
 			}
 		}
 	};
 
-	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties) || {};
-	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
-		type: 'string',
-		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
-		description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
+	expowt const WegacyPwobwemMatcha: IJSONSchema = Objects.deepCwone(PwobwemMatcha);
+	WegacyPwobwemMatcha.pwopewties = Objects.deepCwone(WegacyPwobwemMatcha.pwopewties) || {};
+	WegacyPwobwemMatcha.pwopewties['watchedTaskBeginsWegExp'] = {
+		type: 'stwing',
+		depwecationMessage: wocawize('WegacyPwobwemMatchewSchema.watchedBegin.depwecated', 'This pwopewty is depwecated. Use the watching pwopewty instead.'),
+		descwiption: wocawize('WegacyPwobwemMatchewSchema.watchedBegin', 'A weguwaw expwession signawing that a watched tasks begins executing twiggewed thwough fiwe watching.')
 	};
-	LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
-		type: 'string',
-		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
-		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
+	WegacyPwobwemMatcha.pwopewties['watchedTaskEndsWegExp'] = {
+		type: 'stwing',
+		depwecationMessage: wocawize('WegacyPwobwemMatchewSchema.watchedEnd.depwecated', 'This pwopewty is depwecated. Use the watching pwopewty instead.'),
+		descwiption: wocawize('WegacyPwobwemMatchewSchema.watchedEnd', 'A weguwaw expwession signawing that a watched tasks ends executing.')
 	};
 
-	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties) || {};
-	NamedProblemMatcher.properties.name = {
-		type: 'string',
-		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
+	expowt const NamedPwobwemMatcha: IJSONSchema = Objects.deepCwone(PwobwemMatcha);
+	NamedPwobwemMatcha.pwopewties = Objects.deepCwone(NamedPwobwemMatcha.pwopewties) || {};
+	NamedPwobwemMatcha.pwopewties.name = {
+		type: 'stwing',
+		descwiption: wocawize('NamedPwobwemMatchewSchema.name', 'The name of the pwobwem matcha used to wefa to it.')
 	};
-	NamedProblemMatcher.properties.label = {
-		type: 'string',
-		description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
+	NamedPwobwemMatcha.pwopewties.wabew = {
+		type: 'stwing',
+		descwiption: wocawize('NamedPwobwemMatchewSchema.wabew', 'A human weadabwe wabew of the pwobwem matcha.')
 	};
 }
 
-const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemMatcher[]>({
-	extensionPoint: 'problemMatchers',
-	deps: [problemPatternExtPoint],
+const pwobwemMatchewsExtPoint = ExtensionsWegistwy.wegistewExtensionPoint<Config.NamedPwobwemMatcha[]>({
+	extensionPoint: 'pwobwemMatchews',
+	deps: [pwobwemPattewnExtPoint],
 	jsonSchema: {
-		description: localize('ProblemMatcherExtPoint', 'Contributes problem matchers'),
-		type: 'array',
-		items: Schemas.NamedProblemMatcher
+		descwiption: wocawize('PwobwemMatchewExtPoint', 'Contwibutes pwobwem matchews'),
+		type: 'awway',
+		items: Schemas.NamedPwobwemMatcha
 	}
 });
 
-export interface IProblemMatcherRegistry {
-	onReady(): Promise<void>;
-	get(name: string): NamedProblemMatcher;
-	keys(): string[];
-	readonly onMatcherChanged: Event<void>;
+expowt intewface IPwobwemMatchewWegistwy {
+	onWeady(): Pwomise<void>;
+	get(name: stwing): NamedPwobwemMatcha;
+	keys(): stwing[];
+	weadonwy onMatchewChanged: Event<void>;
 }
 
-class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
+cwass PwobwemMatchewWegistwyImpw impwements IPwobwemMatchewWegistwy {
 
-	private matchers: IStringDictionary<NamedProblemMatcher>;
-	private readyPromise: Promise<void>;
-	private readonly _onMatchersChanged: Emitter<void> = new Emitter<void>();
-	public readonly onMatcherChanged: Event<void> = this._onMatchersChanged.event;
+	pwivate matchews: IStwingDictionawy<NamedPwobwemMatcha>;
+	pwivate weadyPwomise: Pwomise<void>;
+	pwivate weadonwy _onMatchewsChanged: Emitta<void> = new Emitta<void>();
+	pubwic weadonwy onMatchewChanged: Event<void> = this._onMatchewsChanged.event;
 
 
-	constructor() {
-		this.matchers = Object.create(null);
-		this.fillDefaults();
-		this.readyPromise = new Promise<void>((resolve, reject) => {
-			problemMatchersExtPoint.setHandler((extensions, delta) => {
-				try {
-					delta.removed.forEach(extension => {
-						let problemMatchers = extension.value;
-						for (let matcher of problemMatchers) {
-							if (this.matchers[matcher.name]) {
-								delete this.matchers[matcher.name];
+	constwuctow() {
+		this.matchews = Object.cweate(nuww);
+		this.fiwwDefauwts();
+		this.weadyPwomise = new Pwomise<void>((wesowve, weject) => {
+			pwobwemMatchewsExtPoint.setHandwa((extensions, dewta) => {
+				twy {
+					dewta.wemoved.fowEach(extension => {
+						wet pwobwemMatchews = extension.vawue;
+						fow (wet matcha of pwobwemMatchews) {
+							if (this.matchews[matcha.name]) {
+								dewete this.matchews[matcha.name];
 							}
 						}
 					});
-					delta.added.forEach(extension => {
-						let problemMatchers = extension.value;
-						let parser = new ProblemMatcherParser(new ExtensionRegistryReporter(extension.collector));
-						for (let matcher of problemMatchers) {
-							let result = parser.parse(matcher);
-							if (result && isNamedProblemMatcher(result)) {
-								this.add(result);
+					dewta.added.fowEach(extension => {
+						wet pwobwemMatchews = extension.vawue;
+						wet pawsa = new PwobwemMatchewPawsa(new ExtensionWegistwyWepowta(extension.cowwectow));
+						fow (wet matcha of pwobwemMatchews) {
+							wet wesuwt = pawsa.pawse(matcha);
+							if (wesuwt && isNamedPwobwemMatcha(wesuwt)) {
+								this.add(wesuwt);
 							}
 						}
 					});
-					if ((delta.removed.length > 0) || (delta.added.length > 0)) {
-						this._onMatchersChanged.fire();
+					if ((dewta.wemoved.wength > 0) || (dewta.added.wength > 0)) {
+						this._onMatchewsChanged.fiwe();
 					}
-				} catch (error) {
+				} catch (ewwow) {
 				}
-				let matcher = this.get('tsc-watch');
-				if (matcher) {
-					(<any>matcher).tscWatch = true;
+				wet matcha = this.get('tsc-watch');
+				if (matcha) {
+					(<any>matcha).tscWatch = twue;
 				}
-				resolve(undefined);
+				wesowve(undefined);
 			});
 		});
 	}
 
-	public onReady(): Promise<void> {
-		ProblemPatternRegistry.onReady();
-		return this.readyPromise;
+	pubwic onWeady(): Pwomise<void> {
+		PwobwemPattewnWegistwy.onWeady();
+		wetuwn this.weadyPwomise;
 	}
 
-	public add(matcher: NamedProblemMatcher): void {
-		this.matchers[matcher.name] = matcher;
+	pubwic add(matcha: NamedPwobwemMatcha): void {
+		this.matchews[matcha.name] = matcha;
 	}
 
-	public get(name: string): NamedProblemMatcher {
-		return this.matchers[name];
+	pubwic get(name: stwing): NamedPwobwemMatcha {
+		wetuwn this.matchews[name];
 	}
 
-	public keys(): string[] {
-		return Object.keys(this.matchers);
+	pubwic keys(): stwing[] {
+		wetuwn Object.keys(this.matchews);
 	}
 
-	private fillDefaults(): void {
+	pwivate fiwwDefauwts(): void {
 		this.add({
-			name: 'msCompile',
-			label: localize('msCompile', 'Microsoft compiler problems'),
-			owner: 'msCompile',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			pattern: ProblemPatternRegistry.get('msCompile')
+			name: 'msCompiwe',
+			wabew: wocawize('msCompiwe', 'Micwosoft compiwa pwobwems'),
+			owna: 'msCompiwe',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			pattewn: PwobwemPattewnWegistwy.get('msCompiwe')
 		});
 
 		this.add({
-			name: 'lessCompile',
-			label: localize('lessCompile', 'Less problems'),
-			deprecated: true,
-			owner: 'lessCompile',
-			source: 'less',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			pattern: ProblemPatternRegistry.get('lessCompile'),
-			severity: Severity.Error
+			name: 'wessCompiwe',
+			wabew: wocawize('wessCompiwe', 'Wess pwobwems'),
+			depwecated: twue,
+			owna: 'wessCompiwe',
+			souwce: 'wess',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			pattewn: PwobwemPattewnWegistwy.get('wessCompiwe'),
+			sevewity: Sevewity.Ewwow
 		});
 
 		this.add({
-			name: 'gulp-tsc',
-			label: localize('gulp-tsc', 'Gulp TSC Problems'),
-			owner: 'typescript',
-			source: 'ts',
-			applyTo: ApplyToKind.closedDocuments,
-			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${workspaceFolder}',
-			pattern: ProblemPatternRegistry.get('gulp-tsc')
+			name: 'guwp-tsc',
+			wabew: wocawize('guwp-tsc', 'Guwp TSC Pwobwems'),
+			owna: 'typescwipt',
+			souwce: 'ts',
+			appwyTo: AppwyToKind.cwosedDocuments,
+			fiweWocation: FiweWocationKind.Wewative,
+			fiwePwefix: '${wowkspaceFowda}',
+			pattewn: PwobwemPattewnWegistwy.get('guwp-tsc')
 		});
 
 		this.add({
 			name: 'jshint',
-			label: localize('jshint', 'JSHint problems'),
-			owner: 'jshint',
-			source: 'jshint',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			pattern: ProblemPatternRegistry.get('jshint')
+			wabew: wocawize('jshint', 'JSHint pwobwems'),
+			owna: 'jshint',
+			souwce: 'jshint',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			pattewn: PwobwemPattewnWegistwy.get('jshint')
 		});
 
 		this.add({
-			name: 'jshint-stylish',
-			label: localize('jshint-stylish', 'JSHint stylish problems'),
-			owner: 'jshint',
-			source: 'jshint',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			pattern: ProblemPatternRegistry.get('jshint-stylish')
+			name: 'jshint-stywish',
+			wabew: wocawize('jshint-stywish', 'JSHint stywish pwobwems'),
+			owna: 'jshint',
+			souwce: 'jshint',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			pattewn: PwobwemPattewnWegistwy.get('jshint-stywish')
 		});
 
 		this.add({
-			name: 'eslint-compact',
-			label: localize('eslint-compact', 'ESLint compact problems'),
-			owner: 'eslint',
-			source: 'eslint',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			filePrefix: '${workspaceFolder}',
-			pattern: ProblemPatternRegistry.get('eslint-compact')
+			name: 'eswint-compact',
+			wabew: wocawize('eswint-compact', 'ESWint compact pwobwems'),
+			owna: 'eswint',
+			souwce: 'eswint',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			fiwePwefix: '${wowkspaceFowda}',
+			pattewn: PwobwemPattewnWegistwy.get('eswint-compact')
 		});
 
 		this.add({
-			name: 'eslint-stylish',
-			label: localize('eslint-stylish', 'ESLint stylish problems'),
-			owner: 'eslint',
-			source: 'eslint',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Absolute,
-			pattern: ProblemPatternRegistry.get('eslint-stylish')
+			name: 'eswint-stywish',
+			wabew: wocawize('eswint-stywish', 'ESWint stywish pwobwems'),
+			owna: 'eswint',
+			souwce: 'eswint',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Absowute,
+			pattewn: PwobwemPattewnWegistwy.get('eswint-stywish')
 		});
 
 		this.add({
 			name: 'go',
-			label: localize('go', 'Go problems'),
-			owner: 'go',
-			source: 'go',
-			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Relative,
-			filePrefix: '${workspaceFolder}',
-			pattern: ProblemPatternRegistry.get('go')
+			wabew: wocawize('go', 'Go pwobwems'),
+			owna: 'go',
+			souwce: 'go',
+			appwyTo: AppwyToKind.awwDocuments,
+			fiweWocation: FiweWocationKind.Wewative,
+			fiwePwefix: '${wowkspaceFowda}',
+			pattewn: PwobwemPattewnWegistwy.get('go')
 		});
 	}
 }
 
-export const ProblemMatcherRegistry: IProblemMatcherRegistry = new ProblemMatcherRegistryImpl();
+expowt const PwobwemMatchewWegistwy: IPwobwemMatchewWegistwy = new PwobwemMatchewWegistwyImpw();

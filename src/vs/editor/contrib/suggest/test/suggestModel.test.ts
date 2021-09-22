@@ -1,274 +1,274 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionProviderRegistry, CompletionTriggerKind, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
-import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
-import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+impowt * as assewt fwom 'assewt';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { mock } fwom 'vs/base/test/common/mock';
+impowt { CoweEditingCommands } fwom 'vs/editow/bwowsa/contwowwa/coweCommands';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt { Handwa } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { CompwetionItemKind, CompwetionItemPwovida, CompwetionWist, CompwetionPwovidewWegistwy, CompwetionTwiggewKind, IState, WanguageIdentifia, MetadataConsts, TokenizationWegistwy } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { NUWW_STATE } fwom 'vs/editow/common/modes/nuwwMode';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { SuggestContwowwa } fwom 'vs/editow/contwib/suggest/suggestContwowwa';
+impowt { ISuggestMemowySewvice } fwom 'vs/editow/contwib/suggest/suggestMemowy';
+impowt { WineContext, SuggestModew } fwom 'vs/editow/contwib/suggest/suggestModew';
+impowt { ISewectedSuggestion } fwom 'vs/editow/contwib/suggest/suggestWidget';
+impowt { cweateTestCodeEditow, ITestCodeEditow } fwom 'vs/editow/test/bwowsa/testCodeEditow';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { MockMode } fwom 'vs/editow/test/common/mocks/mockMode';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { SewviceCowwection } fwom 'vs/pwatfowm/instantiation/common/sewviceCowwection';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { MockContextKeySewvice, MockKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { InMemowyStowageSewvice, IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
 
 
-function createMockEditor(model: TextModel): ITestCodeEditor {
-	let editor = createTestCodeEditor({
-		model: model,
-		serviceCollection: new ServiceCollection(
-			[ITelemetryService, NullTelemetryService],
-			[IStorageService, new InMemoryStorageService()],
-			[IKeybindingService, new MockKeybindingService()],
-			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				declare readonly _serviceBrand: undefined;
-				memorize(): void {
+function cweateMockEditow(modew: TextModew): ITestCodeEditow {
+	wet editow = cweateTestCodeEditow({
+		modew: modew,
+		sewviceCowwection: new SewviceCowwection(
+			[ITewemetwySewvice, NuwwTewemetwySewvice],
+			[IStowageSewvice, new InMemowyStowageSewvice()],
+			[IKeybindingSewvice, new MockKeybindingSewvice()],
+			[ISuggestMemowySewvice, new cwass impwements ISuggestMemowySewvice {
+				decwawe weadonwy _sewviceBwand: undefined;
+				memowize(): void {
 				}
-				select(): number {
-					return -1;
+				sewect(): numba {
+					wetuwn -1;
 				}
 			}],
-			[ILabelService, new class extends mock<ILabelService>() { }],
-			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+			[IWabewSewvice, new cwass extends mock<IWabewSewvice>() { }],
+			[IWowkspaceContextSewvice, new cwass extends mock<IWowkspaceContextSewvice>() { }],
 		),
 	});
-	editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
-	return editor;
+	editow.wegistewAndInstantiateContwibution(SnippetContwowwew2.ID, SnippetContwowwew2);
+	wetuwn editow;
 }
 
-suite('SuggestModel - Context', function () {
-	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
-	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
+suite('SuggestModew - Context', function () {
+	const OUTEW_WANGUAGE_ID = new WanguageIdentifia('outewMode', 3);
+	const INNEW_WANGUAGE_ID = new WanguageIdentifia('innewMode', 4);
 
-	class OuterMode extends MockMode {
-		constructor() {
-			super(OUTER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+	cwass OutewMode extends MockMode {
+		constwuctow() {
+			supa(OUTEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {}));
 
-			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
-				getInitialState: (): IState => NULL_STATE,
+			this._wegista(TokenizationWegistwy.wegista(this.getWanguageIdentifia().wanguage, {
+				getInitiawState: (): IState => NUWW_STATE,
 				tokenize: undefined!,
-				tokenize2: (line: string, hasEOL: boolean, state: IState): TokenizationResult2 => {
-					const tokensArr: number[] = [];
-					let prevLanguageId: LanguageIdentifier | undefined = undefined;
-					for (let i = 0; i < line.length; i++) {
-						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
-						if (prevLanguageId !== languageId) {
-							tokensArr.push(i);
-							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+				tokenize2: (wine: stwing, hasEOW: boowean, state: IState): TokenizationWesuwt2 => {
+					const tokensAww: numba[] = [];
+					wet pwevWanguageId: WanguageIdentifia | undefined = undefined;
+					fow (wet i = 0; i < wine.wength; i++) {
+						const wanguageId = (wine.chawAt(i) === 'x' ? INNEW_WANGUAGE_ID : OUTEW_WANGUAGE_ID);
+						if (pwevWanguageId !== wanguageId) {
+							tokensAww.push(i);
+							tokensAww.push((wanguageId.id << MetadataConsts.WANGUAGEID_OFFSET));
 						}
-						prevLanguageId = languageId;
+						pwevWanguageId = wanguageId;
 					}
 
-					const tokens = new Uint32Array(tokensArr.length);
-					for (let i = 0; i < tokens.length; i++) {
-						tokens[i] = tokensArr[i];
+					const tokens = new Uint32Awway(tokensAww.wength);
+					fow (wet i = 0; i < tokens.wength; i++) {
+						tokens[i] = tokensAww[i];
 					}
-					return new TokenizationResult2(tokens, state);
+					wetuwn new TokenizationWesuwt2(tokens, state);
 				}
 			}));
 		}
 	}
 
-	class InnerMode extends MockMode {
-		constructor() {
-			super(INNER_LANGUAGE_ID);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+	cwass InnewMode extends MockMode {
+		constwuctow() {
+			supa(INNEW_WANGUAGE_ID);
+			this._wegista(WanguageConfiguwationWegistwy.wegista(this.getWanguageIdentifia(), {}));
 		}
 	}
 
-	const assertAutoTrigger = (model: TextModel, offset: number, expected: boolean, message?: string): void => {
-		const pos = model.getPositionAt(offset);
-		const editor = createMockEditor(model);
-		editor.setPosition(pos);
-		assert.strictEqual(LineContext.shouldAutoTrigger(editor), expected, message);
-		editor.dispose();
+	const assewtAutoTwigga = (modew: TextModew, offset: numba, expected: boowean, message?: stwing): void => {
+		const pos = modew.getPositionAt(offset);
+		const editow = cweateMockEditow(modew);
+		editow.setPosition(pos);
+		assewt.stwictEquaw(WineContext.shouwdAutoTwigga(editow), expected, message);
+		editow.dispose();
 	};
 
-	let disposables: Disposable[] = [];
+	wet disposabwes: Disposabwe[] = [];
 
 	setup(() => {
-		disposables = [];
+		disposabwes = [];
 	});
 
-	teardown(function () {
-		dispose(disposables);
-		disposables = [];
+	teawdown(function () {
+		dispose(disposabwes);
+		disposabwes = [];
 	});
 
-	test('Context - shouldAutoTrigger', function () {
-		const model = createTextModel('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
-		disposables.push(model);
+	test('Context - shouwdAutoTwigga', function () {
+		const modew = cweateTextModew('Das Pfewd fwisst keinen Guwkensawat - Phiwipp Weis 1861.\nWa hat\'s ewfunden?');
+		disposabwes.push(modew);
 
-		assertAutoTrigger(model, 3, true, 'end of word, Das|');
-		assertAutoTrigger(model, 4, false, 'no word Das |');
-		assertAutoTrigger(model, 1, false, 'middle of word D|as');
-		assertAutoTrigger(model, 55, false, 'number, 1861|');
+		assewtAutoTwigga(modew, 3, twue, 'end of wowd, Das|');
+		assewtAutoTwigga(modew, 4, fawse, 'no wowd Das |');
+		assewtAutoTwigga(modew, 1, fawse, 'middwe of wowd D|as');
+		assewtAutoTwigga(modew, 55, fawse, 'numba, 1861|');
 	});
 
-	test('shouldAutoTrigger at embedded language boundaries', () => {
-		const outerMode = new OuterMode();
-		const innerMode = new InnerMode();
-		disposables.push(outerMode, innerMode);
+	test('shouwdAutoTwigga at embedded wanguage boundawies', () => {
+		const outewMode = new OutewMode();
+		const innewMode = new InnewMode();
+		disposabwes.push(outewMode, innewMode);
 
-		const model = createTextModel('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
-		disposables.push(model);
+		const modew = cweateTextModew('a<xx>a<x>', undefined, outewMode.getWanguageIdentifia());
+		disposabwes.push(modew);
 
-		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
-		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');
-		assertAutoTrigger(model, 3, false, 'a<x|x —  should NOT trigger in middle of word');
-		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
-		assertAutoTrigger(model, 5, false, 'a<xx>|a — should NOT trigger at start of word');
-		assertAutoTrigger(model, 6, true, 'a<xx>a|< — should trigger at end of word');
-		assertAutoTrigger(model, 8, true, 'a<xx>a<x|> — should trigger at end of word at boundary');
+		assewtAutoTwigga(modew, 1, twue, 'a|<x — shouwd twigga at end of wowd');
+		assewtAutoTwigga(modew, 2, fawse, 'a<|x — shouwd NOT twigga at stawt of wowd');
+		assewtAutoTwigga(modew, 3, fawse, 'a<x|x —  shouwd NOT twigga in middwe of wowd');
+		assewtAutoTwigga(modew, 4, twue, 'a<xx|> — shouwd twigga at boundawy between wanguages');
+		assewtAutoTwigga(modew, 5, fawse, 'a<xx>|a — shouwd NOT twigga at stawt of wowd');
+		assewtAutoTwigga(modew, 6, twue, 'a<xx>a|< — shouwd twigga at end of wowd');
+		assewtAutoTwigga(modew, 8, twue, 'a<xx>a<x|> — shouwd twigga at end of wowd at boundawy');
 	});
 });
 
-suite('SuggestModel - TriggerAndCancelOracle', function () {
+suite('SuggestModew - TwiggewAndCancewOwacwe', function () {
 
 
-	function getDefaultSuggestRange(model: ITextModel, position: Position) {
-		const wordUntil = model.getWordUntilPosition(position);
-		return new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
+	function getDefauwtSuggestWange(modew: ITextModew, position: Position) {
+		const wowdUntiw = modew.getWowdUntiwPosition(position);
+		wetuwn new Wange(position.wineNumba, wowdUntiw.stawtCowumn, position.wineNumba, wowdUntiw.endCowumn);
 	}
 
-	const alwaysEmptySupport: CompletionItemProvider = {
-		provideCompletionItems(doc, pos): CompletionList {
-			return {
-				incomplete: false,
+	const awwaysEmptySuppowt: CompwetionItemPwovida = {
+		pwovideCompwetionItems(doc, pos): CompwetionWist {
+			wetuwn {
+				incompwete: fawse,
 				suggestions: []
 			};
 		}
 	};
 
-	const alwaysSomethingSupport: CompletionItemProvider = {
-		provideCompletionItems(doc, pos): CompletionList {
-			return {
-				incomplete: false,
+	const awwaysSomethingSuppowt: CompwetionItemPwovida = {
+		pwovideCompwetionItems(doc, pos): CompwetionWist {
+			wetuwn {
+				incompwete: fawse,
 				suggestions: [{
-					label: doc.getWordUntilPosition(pos).word,
-					kind: CompletionItemKind.Property,
-					insertText: 'foofoo',
-					range: getDefaultSuggestRange(doc, pos)
+					wabew: doc.getWowdUntiwPosition(pos).wowd,
+					kind: CompwetionItemKind.Pwopewty,
+					insewtText: 'foofoo',
+					wange: getDefauwtSuggestWange(doc, pos)
 				}]
 			};
 		}
 	};
 
-	let disposables: IDisposable[] = [];
-	let model: TextModel;
+	wet disposabwes: IDisposabwe[] = [];
+	wet modew: TextModew;
 
 	setup(function () {
-		disposables = dispose(disposables);
-		model = createTextModel('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
-		disposables.push(model);
+		disposabwes = dispose(disposabwes);
+		modew = cweateTextModew('abc def', undefined, undefined, UWI.pawse('test:somefiwe.ttt'));
+		disposabwes.push(modew);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
+	function withOwacwe(cawwback: (modew: SuggestModew, editow: ITestCodeEditow) => any): Pwomise<any> {
 
-		return new Promise((resolve, reject) => {
-			const editor = createMockEditor(model);
-			const oracle = new SuggestModel(
-				editor,
-				new class extends mock<IEditorWorkerService>() {
-					override computeWordRanges() {
-						return Promise.resolve({});
+		wetuwn new Pwomise((wesowve, weject) => {
+			const editow = cweateMockEditow(modew);
+			const owacwe = new SuggestModew(
+				editow,
+				new cwass extends mock<IEditowWowkewSewvice>() {
+					ovewwide computeWowdWanges() {
+						wetuwn Pwomise.wesowve({});
 					}
 				},
-				new class extends mock<IClipboardService>() {
-					override readText() {
-						return Promise.resolve('CLIPPY');
+				new cwass extends mock<ICwipboawdSewvice>() {
+					ovewwide weadText() {
+						wetuwn Pwomise.wesowve('CWIPPY');
 					}
 				},
-				NullTelemetryService,
-				new NullLogService(),
-				new MockContextKeyService(),
-				new TestConfigurationService()
+				NuwwTewemetwySewvice,
+				new NuwwWogSewvice(),
+				new MockContextKeySewvice(),
+				new TestConfiguwationSewvice()
 			);
-			disposables.push(oracle, editor);
+			disposabwes.push(owacwe, editow);
 
-			try {
-				resolve(callback(oracle, editor));
-			} catch (err) {
-				reject(err);
+			twy {
+				wesowve(cawwback(owacwe, editow));
+			} catch (eww) {
+				weject(eww);
 			}
 		});
 	}
 
-	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
-		return new Promise((resolve, reject) => {
+	function assewtEvent<E>(event: Event<E>, action: () => any, assewt: (e: E) => any) {
+		wetuwn new Pwomise((wesowve, weject) => {
 			const sub = event(e => {
 				sub.dispose();
-				try {
-					resolve(assert(e));
-				} catch (err) {
-					reject(err);
+				twy {
+					wesowve(assewt(e));
+				} catch (eww) {
+					weject(eww);
 				}
 			});
-			try {
+			twy {
 				action();
-			} catch (err) {
+			} catch (eww) {
 				sub.dispose();
-				reject(err);
+				weject(eww);
 			}
 		});
 	}
 
-	test('events - cancel/trigger', function () {
-		return withOracle(model => {
+	test('events - cancew/twigga', function () {
+		wetuwn withOwacwe(modew => {
 
-			return Promise.all([
+			wetuwn Pwomise.aww([
 
-				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+				assewtEvent(modew.onDidTwigga, function () {
+					modew.twigga({ auto: twue, shy: fawse });
 				}, function (event) {
-					assert.strictEqual(event.auto, true);
+					assewt.stwictEquaw(event.auto, twue);
 
-					return assertEvent(model.onDidCancel, function () {
-						model.cancel();
+					wetuwn assewtEvent(modew.onDidCancew, function () {
+						modew.cancew();
 					}, function (event) {
-						assert.strictEqual(event.retrigger, false);
+						assewt.stwictEquaw(event.wetwigga, fawse);
 					});
 				}),
 
-				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: true, shy: false });
+				assewtEvent(modew.onDidTwigga, function () {
+					modew.twigga({ auto: twue, shy: fawse });
 				}, function (event) {
-					assert.strictEqual(event.auto, true);
+					assewt.stwictEquaw(event.auto, twue);
 				}),
 
-				assertEvent(model.onDidTrigger, function () {
-					model.trigger({ auto: false, shy: false });
+				assewtEvent(modew.onDidTwigga, function () {
+					modew.twigga({ auto: fawse, shy: fawse });
 				}, function (event) {
-					assert.strictEqual(event.auto, false);
+					assewt.stwictEquaw(event.auto, fawse);
 				})
 			]);
 		});
@@ -277,122 +277,122 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	test('events - suggest/empty', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysEmptySupport));
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysEmptySuppowt));
 
-		return withOracle(model => {
-			return Promise.all([
-				assertEvent(model.onDidCancel, function () {
-					model.trigger({ auto: true, shy: false });
+		wetuwn withOwacwe(modew => {
+			wetuwn Pwomise.aww([
+				assewtEvent(modew.onDidCancew, function () {
+					modew.twigga({ auto: twue, shy: fawse });
 				}, function (event) {
-					assert.strictEqual(event.retrigger, false);
+					assewt.stwictEquaw(event.wetwigga, fawse);
 				}),
-				assertEvent(model.onDidSuggest, function () {
-					model.trigger({ auto: false, shy: false });
+				assewtEvent(modew.onDidSuggest, function () {
+					modew.twigga({ auto: fawse, shy: fawse });
 				}, function (event) {
-					assert.strictEqual(event.auto, false);
-					assert.strictEqual(event.isFrozen, false);
-					assert.strictEqual(event.completionModel.items.length, 0);
+					assewt.stwictEquaw(event.auto, fawse);
+					assewt.stwictEquaw(event.isFwozen, fawse);
+					assewt.stwictEquaw(event.compwetionModew.items.wength, 0);
 				})
 			]);
 		});
 	});
 
-	test('trigger - on type', function () {
+	test('twigga - on type', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysSomethingSuppowt));
 
-		return withOracle((model, editor) => {
-			return assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 4 });
-				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+		wetuwn withOwacwe((modew, editow) => {
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 4 });
+				editow.twigga('keyboawd', Handwa.Type, { text: 'd' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
 
-				assert.strictEqual(first.provider, alwaysSomethingSupport);
+				assewt.stwictEquaw(fiwst.pwovida, awwaysSomethingSuppowt);
 			});
 		});
 	});
 
-	test('#17400: Keep filtering suggestModel.ts after space', function () {
+	test('#17400: Keep fiwtewing suggestModew.ts afta space', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: false,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						label: 'My Table',
-						kind: CompletionItemKind.Property,
-						insertText: 'My Table',
-						range: getDefaultSuggestRange(doc, pos)
+						wabew: 'My Tabwe',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'My Tabwe',
+						wange: getDefauwtSuggestWange(doc, pos)
 					}]
 				};
 			}
 		}));
 
-		model.setValue('');
+		modew.setVawue('');
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			return assertEvent(model.onDidSuggest, () => {
-				// make sure completionModel starts here!
-				model.trigger({ auto: true, shy: false });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				// make suwe compwetionModew stawts hewe!
+				modew.twigga({ auto: twue, shy: fawse });
 			}, event => {
 
-				return assertEvent(model.onDidSuggest, () => {
-					editor.setPosition({ lineNumber: 1, column: 1 });
-					editor.trigger('keyboard', Handler.Type, { text: 'My' });
+				wetuwn assewtEvent(modew.onDidSuggest, () => {
+					editow.setPosition({ wineNumba: 1, cowumn: 1 });
+					editow.twigga('keyboawd', Handwa.Type, { text: 'My' });
 
 				}, event => {
-					assert.strictEqual(event.auto, true);
-					assert.strictEqual(event.completionModel.items.length, 1);
-					const [first] = event.completionModel.items;
-					assert.strictEqual(first.completion.label, 'My Table');
+					assewt.stwictEquaw(event.auto, twue);
+					assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+					const [fiwst] = event.compwetionModew.items;
+					assewt.stwictEquaw(fiwst.compwetion.wabew, 'My Tabwe');
 
-					return assertEvent(model.onDidSuggest, () => {
-						editor.setPosition({ lineNumber: 1, column: 3 });
-						editor.trigger('keyboard', Handler.Type, { text: ' ' });
+					wetuwn assewtEvent(modew.onDidSuggest, () => {
+						editow.setPosition({ wineNumba: 1, cowumn: 3 });
+						editow.twigga('keyboawd', Handwa.Type, { text: ' ' });
 
 					}, event => {
-						assert.strictEqual(event.auto, true);
-						assert.strictEqual(event.completionModel.items.length, 1);
-						const [first] = event.completionModel.items;
-						assert.strictEqual(first.completion.label, 'My Table');
+						assewt.stwictEquaw(event.auto, twue);
+						assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+						const [fiwst] = event.compwetionModew.items;
+						assewt.stwictEquaw(fiwst.compwetion.wabew, 'My Tabwe');
 					});
 				});
 			});
 		});
 	});
 
-	test('#21484: Trigger character always force a new completion session', function () {
+	test('#21484: Twigga chawacta awways fowce a new compwetion session', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: false,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						label: 'foo.bar',
-						kind: CompletionItemKind.Property,
-						insertText: 'foo.bar',
-						range: Range.fromPositions(pos.with(undefined, 1), pos)
+						wabew: 'foo.baw',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'foo.baw',
+						wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
 		}));
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			triggerCharacters: ['.'],
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: false,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			twiggewChawactews: ['.'],
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						label: 'boom',
-						kind: CompletionItemKind.Property,
-						insertText: 'boom',
-						range: Range.fromPositions(
-							pos.delta(0, doc.getLineContent(pos.lineNumber)[pos.column - 2] === '.' ? 0 : -1),
+						wabew: 'boom',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'boom',
+						wange: Wange.fwomPositions(
+							pos.dewta(0, doc.getWineContent(pos.wineNumba)[pos.cowumn - 2] === '.' ? 0 : -1),
 							pos
 						)
 					}]
@@ -400,526 +400,526 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			}
 		}));
 
-		model.setValue('');
+		modew.setVawue('');
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			return assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 1 });
-				editor.trigger('keyboard', Handler.Type, { text: 'foo' });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 1 });
+				editow.twigga('keyboawd', Handwa.Type, { text: 'foo' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
-				assert.strictEqual(first.completion.label, 'foo.bar');
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
+				assewt.stwictEquaw(fiwst.compwetion.wabew, 'foo.baw');
 
-				return assertEvent(model.onDidSuggest, () => {
-					editor.trigger('keyboard', Handler.Type, { text: '.' });
+				wetuwn assewtEvent(modew.onDidSuggest, () => {
+					editow.twigga('keyboawd', Handwa.Type, { text: '.' });
 
 				}, event => {
-					assert.strictEqual(event.auto, true);
-					assert.strictEqual(event.completionModel.items.length, 2);
-					const [first, second] = event.completionModel.items;
-					assert.strictEqual(first.completion.label, 'foo.bar');
-					assert.strictEqual(second.completion.label, 'boom');
+					assewt.stwictEquaw(event.auto, twue);
+					assewt.stwictEquaw(event.compwetionModew.items.wength, 2);
+					const [fiwst, second] = event.compwetionModew.items;
+					assewt.stwictEquaw(fiwst.compwetion.wabew, 'foo.baw');
+					assewt.stwictEquaw(second.compwetion.wabew, 'boom');
 				});
 			});
 		});
 	});
 
-	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353 [1/2]', function () {
+	test('Intewwisense Compwetion doesn\'t wespect space afta equaw sign (.htmw fiwe), #29353 [1/2]', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysSomethingSuppowt));
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			editor.getModel()!.setValue('fo');
-			editor.setPosition({ lineNumber: 1, column: 3 });
+			editow.getModew()!.setVawue('fo');
+			editow.setPosition({ wineNumba: 1, cowumn: 3 });
 
-			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				modew.twigga({ auto: fawse, shy: fawse });
 			}, event => {
-				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.isFrozen, false);
-				assert.strictEqual(event.completionModel.items.length, 1);
+				assewt.stwictEquaw(event.auto, fawse);
+				assewt.stwictEquaw(event.isFwozen, fawse);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 
-				return assertEvent(model.onDidCancel, () => {
-					editor.trigger('keyboard', Handler.Type, { text: '+' });
+				wetuwn assewtEvent(modew.onDidCancew, () => {
+					editow.twigga('keyboawd', Handwa.Type, { text: '+' });
 				}, event => {
-					assert.strictEqual(event.retrigger, false);
+					assewt.stwictEquaw(event.wetwigga, fawse);
 				});
 			});
 		});
 	});
 
-	test('Intellisense Completion doesn\'t respect space after equal sign (.html file), #29353 [2/2]', function () {
+	test('Intewwisense Compwetion doesn\'t wespect space afta equaw sign (.htmw fiwe), #29353 [2/2]', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysSomethingSuppowt));
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			editor.getModel()!.setValue('fo');
-			editor.setPosition({ lineNumber: 1, column: 3 });
+			editow.getModew()!.setVawue('fo');
+			editow.setPosition({ wineNumba: 1, cowumn: 3 });
 
-			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				modew.twigga({ auto: fawse, shy: fawse });
 			}, event => {
-				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.isFrozen, false);
-				assert.strictEqual(event.completionModel.items.length, 1);
+				assewt.stwictEquaw(event.auto, fawse);
+				assewt.stwictEquaw(event.isFwozen, fawse);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 
-				return assertEvent(model.onDidCancel, () => {
-					editor.trigger('keyboard', Handler.Type, { text: ' ' });
+				wetuwn assewtEvent(modew.onDidCancew, () => {
+					editow.twigga('keyboawd', Handwa.Type, { text: ' ' });
 				}, event => {
-					assert.strictEqual(event.retrigger, false);
+					assewt.stwictEquaw(event.wetwigga, fawse);
 				});
 			});
 		});
 	});
 
-	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (1/2)', function () {
+	test('Incompwete suggestion wesuwts cause we-twiggewing when typing w/o fuwtha context, #28400 (1/2)', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: true,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: twue,
 					suggestions: [{
-						label: 'foo',
-						kind: CompletionItemKind.Property,
-						insertText: 'foo',
-						range: Range.fromPositions(pos.with(undefined, 1), pos)
+						wabew: 'foo',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'foo',
+						wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
 		}));
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			editor.getModel()!.setValue('foo');
-			editor.setPosition({ lineNumber: 1, column: 4 });
+			editow.getModew()!.setVawue('foo');
+			editow.setPosition({ wineNumba: 1, cowumn: 4 });
 
-			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				modew.twigga({ auto: fawse, shy: fawse });
 			}, event => {
-				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.completionModel.incomplete.size, 1);
-				assert.strictEqual(event.completionModel.items.length, 1);
+				assewt.stwictEquaw(event.auto, fawse);
+				assewt.stwictEquaw(event.compwetionModew.incompwete.size, 1);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 
-				return assertEvent(model.onDidCancel, () => {
-					editor.trigger('keyboard', Handler.Type, { text: ';' });
+				wetuwn assewtEvent(modew.onDidCancew, () => {
+					editow.twigga('keyboawd', Handwa.Type, { text: ';' });
 				}, event => {
-					assert.strictEqual(event.retrigger, false);
+					assewt.stwictEquaw(event.wetwigga, fawse);
 				});
 			});
 		});
 	});
 
-	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (2/2)', function () {
+	test('Incompwete suggestion wesuwts cause we-twiggewing when typing w/o fuwtha context, #28400 (2/2)', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: true,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: twue,
 					suggestions: [{
-						label: 'foo;',
-						kind: CompletionItemKind.Property,
-						insertText: 'foo',
-						range: Range.fromPositions(pos.with(undefined, 1), pos)
+						wabew: 'foo;',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'foo',
+						wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
 		}));
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			editor.getModel()!.setValue('foo');
-			editor.setPosition({ lineNumber: 1, column: 4 });
+			editow.getModew()!.setVawue('foo');
+			editow.setPosition({ wineNumba: 1, cowumn: 4 });
 
-			return assertEvent(model.onDidSuggest, () => {
-				model.trigger({ auto: false, shy: false });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				modew.twigga({ auto: fawse, shy: fawse });
 			}, event => {
-				assert.strictEqual(event.auto, false);
-				assert.strictEqual(event.completionModel.incomplete.size, 1);
-				assert.strictEqual(event.completionModel.items.length, 1);
+				assewt.stwictEquaw(event.auto, fawse);
+				assewt.stwictEquaw(event.compwetionModew.incompwete.size, 1);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 
-				return assertEvent(model.onDidSuggest, () => {
-					// while we cancel incrementally enriching the set of
-					// completions we still filter against those that we have
-					// until now
-					editor.trigger('keyboard', Handler.Type, { text: ';' });
+				wetuwn assewtEvent(modew.onDidSuggest, () => {
+					// whiwe we cancew incwementawwy enwiching the set of
+					// compwetions we stiww fiwta against those that we have
+					// untiw now
+					editow.twigga('keyboawd', Handwa.Type, { text: ';' });
 				}, event => {
-					assert.strictEqual(event.auto, false);
-					assert.strictEqual(event.completionModel.incomplete.size, 1);
-					assert.strictEqual(event.completionModel.items.length, 1);
+					assewt.stwictEquaw(event.auto, fawse);
+					assewt.stwictEquaw(event.compwetionModew.incompwete.size, 1);
+					assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 
 				});
 			});
 		});
 	});
 
-	test('Trigger character is provided in suggest context', function () {
-		let triggerCharacter = '';
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			triggerCharacters: ['.'],
-			provideCompletionItems(doc, pos, context): CompletionList {
-				assert.strictEqual(context.triggerKind, CompletionTriggerKind.TriggerCharacter);
-				triggerCharacter = context.triggerCharacter!;
-				return {
-					incomplete: false,
+	test('Twigga chawacta is pwovided in suggest context', function () {
+		wet twiggewChawacta = '';
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			twiggewChawactews: ['.'],
+			pwovideCompwetionItems(doc, pos, context): CompwetionWist {
+				assewt.stwictEquaw(context.twiggewKind, CompwetionTwiggewKind.TwiggewChawacta);
+				twiggewChawacta = context.twiggewChawacta!;
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [
 						{
-							label: 'foo.bar',
-							kind: CompletionItemKind.Property,
-							insertText: 'foo.bar',
-							range: Range.fromPositions(pos.with(undefined, 1), pos)
+							wabew: 'foo.baw',
+							kind: CompwetionItemKind.Pwopewty,
+							insewtText: 'foo.baw',
+							wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 						}
 					]
 				};
 			}
 		}));
 
-		model.setValue('');
+		modew.setVawue('');
 
-		return withOracle((model, editor) => {
+		wetuwn withOwacwe((modew, editow) => {
 
-			return assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 1 });
-				editor.trigger('keyboard', Handler.Type, { text: 'foo.' });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 1 });
+				editow.twigga('keyboawd', Handwa.Type, { text: 'foo.' });
 			}, event => {
-				assert.strictEqual(triggerCharacter, '.');
+				assewt.stwictEquaw(twiggewChawacta, '.');
 			});
 		});
 	});
 
-	test('Mac press and hold accent character insertion does not update suggestions, #35269', function () {
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: true,
+	test('Mac pwess and howd accent chawacta insewtion does not update suggestions, #35269', function () {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: twue,
 					suggestions: [{
-						label: 'abc',
-						kind: CompletionItemKind.Property,
-						insertText: 'abc',
-						range: Range.fromPositions(pos.with(undefined, 1), pos)
+						wabew: 'abc',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'abc',
+						wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 					}, {
-						label: 'äbc',
-						kind: CompletionItemKind.Property,
-						insertText: 'äbc',
-						range: Range.fromPositions(pos.with(undefined, 1), pos)
+						wabew: 'äbc',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'äbc',
+						wange: Wange.fwomPositions(pos.with(undefined, 1), pos)
 					}]
 				};
 			}
 		}));
 
-		model.setValue('');
-		return withOracle((model, editor) => {
+		modew.setVawue('');
+		wetuwn withOwacwe((modew, editow) => {
 
-			return assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 1 });
-				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 1 });
+				editow.twigga('keyboawd', Handwa.Type, { text: 'a' });
 			}, event => {
-				assert.strictEqual(event.completionModel.items.length, 1);
-				assert.strictEqual(event.completionModel.items[0].completion.label, 'abc');
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				assewt.stwictEquaw(event.compwetionModew.items[0].compwetion.wabew, 'abc');
 
-				return assertEvent(model.onDidSuggest, () => {
-					editor.executeEdits('test', [EditOperation.replace(new Range(1, 1, 1, 2), 'ä')]);
+				wetuwn assewtEvent(modew.onDidSuggest, () => {
+					editow.executeEdits('test', [EditOpewation.wepwace(new Wange(1, 1, 1, 2), 'ä')]);
 
 				}, event => {
-					// suggest model changed to äbc
-					assert.strictEqual(event.completionModel.items.length, 1);
-					assert.strictEqual(event.completionModel.items[0].completion.label, 'äbc');
+					// suggest modew changed to äbc
+					assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+					assewt.stwictEquaw(event.compwetionModew.items[0].compwetion.wabew, 'äbc');
 
 				});
 			});
 		});
 	});
 
-	test('Backspace should not always cancel code completion, #36491', function () {
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+	test('Backspace shouwd not awways cancew code compwetion, #36491', function () {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysSomethingSuppowt));
 
-		return withOracle(async (model, editor) => {
-			await assertEvent(model.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 4 });
-				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+		wetuwn withOwacwe(async (modew, editow) => {
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 4 });
+				editow.twigga('keyboawd', Handwa.Type, { text: 'd' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
 
-				assert.strictEqual(first.provider, alwaysSomethingSupport);
+				assewt.stwictEquaw(fiwst.pwovida, awwaysSomethingSuppowt);
 			});
 
-			await assertEvent(model.onDidSuggest, () => {
-				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			await assewtEvent(modew.onDidSuggest, () => {
+				CoweEditingCommands.DeweteWeft.wunEditowCommand(nuww, editow, nuww);
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
 
-				assert.strictEqual(first.provider, alwaysSomethingSupport);
+				assewt.stwictEquaw(fiwst.pwovida, awwaysSomethingSuppowt);
 			});
 		});
 	});
 
-	test('Text changes for completion CodeAction are affected by the completion #39893', function () {
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos): CompletionList {
-				return {
-					incomplete: true,
+	test('Text changes fow compwetion CodeAction awe affected by the compwetion #39893', function () {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos): CompwetionWist {
+				wetuwn {
+					incompwete: twue,
 					suggestions: [{
-						label: 'bar',
-						kind: CompletionItemKind.Property,
-						insertText: 'bar',
-						range: Range.fromPositions(pos.delta(0, -2), pos),
-						additionalTextEdits: [{
-							text: ', bar',
-							range: { startLineNumber: 1, endLineNumber: 1, startColumn: 17, endColumn: 17 }
+						wabew: 'baw',
+						kind: CompwetionItemKind.Pwopewty,
+						insewtText: 'baw',
+						wange: Wange.fwomPositions(pos.dewta(0, -2), pos),
+						additionawTextEdits: [{
+							text: ', baw',
+							wange: { stawtWineNumba: 1, endWineNumba: 1, stawtCowumn: 17, endCowumn: 17 }
 						}]
 					}]
 				};
 			}
 		}));
 
-		model.setValue('ba; import { foo } from "./b"');
+		modew.setVawue('ba; impowt { foo } fwom "./b"');
 
-		return withOracle(async (sugget, editor) => {
-			class TestCtrl extends SuggestController {
-				override _insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
-					super._insertSuggestion(item, flags);
+		wetuwn withOwacwe(async (sugget, editow) => {
+			cwass TestCtww extends SuggestContwowwa {
+				ovewwide _insewtSuggestion(item: ISewectedSuggestion, fwags: numba = 0) {
+					supa._insewtSuggestion(item, fwags);
 				}
 			}
-			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl.ID, TestCtrl);
-			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+			const ctww = <TestCtww>editow.wegistewAndInstantiateContwibution(TestCtww.ID, TestCtww);
+			editow.wegistewAndInstantiateContwibution(SnippetContwowwew2.ID, SnippetContwowwew2);
 
-			await assertEvent(sugget.onDidSuggest, () => {
-				editor.setPosition({ lineNumber: 1, column: 3 });
-				sugget.trigger({ auto: false, shy: false });
+			await assewtEvent(sugget.onDidSuggest, () => {
+				editow.setPosition({ wineNumba: 1, cowumn: 3 });
+				sugget.twigga({ auto: fawse, shy: fawse });
 			}, event => {
 
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
-				assert.strictEqual(first.completion.label, 'bar');
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
+				assewt.stwictEquaw(fiwst.compwetion.wabew, 'baw');
 
-				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
+				ctww._insewtSuggestion({ item: fiwst, index: 0, modew: event.compwetionModew });
 			});
 
-			assert.strictEqual(
-				model.getValue(),
-				'bar; import { foo, bar } from "./b"'
+			assewt.stwictEquaw(
+				modew.getVawue(),
+				'baw; impowt { foo, baw } fwom "./b"'
 			);
 		});
 	});
 
-	test('Completion unexpectedly triggers on second keypress of an edit group in a snippet #43523', function () {
+	test('Compwetion unexpectedwy twiggews on second keypwess of an edit gwoup in a snippet #43523', function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, awwaysSomethingSuppowt));
 
-		return withOracle((model, editor) => {
-			return assertEvent(model.onDidSuggest, () => {
-				editor.setValue('d');
-				editor.setSelection(new Selection(1, 1, 1, 2));
-				editor.trigger('keyboard', Handler.Type, { text: 'e' });
+		wetuwn withOwacwe((modew, editow) => {
+			wetuwn assewtEvent(modew.onDidSuggest, () => {
+				editow.setVawue('d');
+				editow.setSewection(new Sewection(1, 1, 1, 2));
+				editow.twigga('keyboawd', Handwa.Type, { text: 'e' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				const [first] = event.completionModel.items;
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				const [fiwst] = event.compwetionModew.items;
 
-				assert.strictEqual(first.provider, alwaysSomethingSupport);
+				assewt.stwictEquaw(fiwst.pwovida, awwaysSomethingSuppowt);
 			});
 		});
 	});
 
 
-	test('Fails to render completion details #47988', function () {
+	test('Faiws to wenda compwetion detaiws #47988', function () {
 
-		let disposeA = 0;
-		let disposeB = 0;
+		wet disposeA = 0;
+		wet disposeB = 0;
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return {
-					incomplete: true,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
+					incompwete: twue,
 					suggestions: [{
-						kind: CompletionItemKind.Folder,
-						label: 'CompleteNot',
-						insertText: 'Incomplete',
-						sortText: 'a',
-						range: getDefaultSuggestRange(doc, pos)
+						kind: CompwetionItemKind.Fowda,
+						wabew: 'CompweteNot',
+						insewtText: 'Incompwete',
+						sowtText: 'a',
+						wange: getDefauwtSuggestWange(doc, pos)
 					}],
 					dispose() { disposeA += 1; }
 				};
 			}
 		}));
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return {
-					incomplete: false,
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						kind: CompletionItemKind.Folder,
-						label: 'Complete',
-						insertText: 'Complete',
-						sortText: 'z',
-						range: getDefaultSuggestRange(doc, pos)
+						kind: CompwetionItemKind.Fowda,
+						wabew: 'Compwete',
+						insewtText: 'Compwete',
+						sowtText: 'z',
+						wange: getDefauwtSuggestWange(doc, pos)
 					}],
 					dispose() { disposeB += 1; }
 				};
 			},
-			resolveCompletionItem(item) {
-				return item;
+			wesowveCompwetionItem(item) {
+				wetuwn item;
 			},
 		}));
 
-		return withOracle(async (model, editor) => {
+		wetuwn withOwacwe(async (modew, editow) => {
 
-			await assertEvent(model.onDidSuggest, () => {
-				editor.setValue('');
-				editor.setSelection(new Selection(1, 1, 1, 1));
-				editor.trigger('keyboard', Handler.Type, { text: 'c' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.setVawue('');
+				editow.setSewection(new Sewection(1, 1, 1, 1));
+				editow.twigga('keyboawd', Handwa.Type, { text: 'c' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 2);
-				assert.strictEqual(disposeA, 0);
-				assert.strictEqual(disposeB, 0);
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 2);
+				assewt.stwictEquaw(disposeA, 0);
+				assewt.stwictEquaw(disposeB, 0);
 			});
 
-			await assertEvent(model.onDidSuggest, () => {
-				editor.trigger('keyboard', Handler.Type, { text: 'o' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.twigga('keyboawd', Handwa.Type, { text: 'o' });
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 2);
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 2);
 
-				// clean up
-				model.clear();
-				assert.strictEqual(disposeA, 2); // provide got called two times!
-				assert.strictEqual(disposeB, 1);
+				// cwean up
+				modew.cweaw();
+				assewt.stwictEquaw(disposeA, 2); // pwovide got cawwed two times!
+				assewt.stwictEquaw(disposeB, 1);
 			});
 
 		});
 	});
 
 
-	test('Trigger (full) completions when (incomplete) completions are already active #99504', function () {
+	test('Twigga (fuww) compwetions when (incompwete) compwetions awe awweady active #99504', function () {
 
-		let countA = 0;
-		let countB = 0;
+		wet countA = 0;
+		wet countB = 0;
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos) {
 				countA += 1;
-				return {
-					incomplete: false, // doesn't matter if incomplete or not
+				wetuwn {
+					incompwete: fawse, // doesn't matta if incompwete ow not
 					suggestions: [{
-						kind: CompletionItemKind.Class,
-						label: 'Z aaa',
-						insertText: 'Z aaa',
-						range: new Range(1, 1, pos.lineNumber, pos.column)
+						kind: CompwetionItemKind.Cwass,
+						wabew: 'Z aaa',
+						insewtText: 'Z aaa',
+						wange: new Wange(1, 1, pos.wineNumba, pos.cowumn)
 					}],
 				};
 			}
 		}));
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos) {
 				countB += 1;
-				if (!doc.getWordUntilPosition(pos).word.startsWith('a')) {
-					return;
+				if (!doc.getWowdUntiwPosition(pos).wowd.stawtsWith('a')) {
+					wetuwn;
 				}
-				return {
-					incomplete: false,
+				wetuwn {
+					incompwete: fawse,
 					suggestions: [{
-						kind: CompletionItemKind.Folder,
-						label: 'aaa',
-						insertText: 'aaa',
-						range: getDefaultSuggestRange(doc, pos)
+						kind: CompwetionItemKind.Fowda,
+						wabew: 'aaa',
+						insewtText: 'aaa',
+						wange: getDefauwtSuggestWange(doc, pos)
 					}],
 				};
 			},
 		}));
 
-		return withOracle(async (model, editor) => {
+		wetuwn withOwacwe(async (modew, editow) => {
 
-			await assertEvent(model.onDidSuggest, () => {
-				editor.setValue('');
-				editor.setSelection(new Selection(1, 1, 1, 1));
-				editor.trigger('keyboard', Handler.Type, { text: 'Z' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.setVawue('');
+				editow.setSewection(new Sewection(1, 1, 1, 1));
+				editow.twigga('keyboawd', Handwa.Type, { text: 'Z' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
-				assert.strictEqual(event.completionModel.items[0].textLabel, 'Z aaa');
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
+				assewt.stwictEquaw(event.compwetionModew.items[0].textWabew, 'Z aaa');
 			});
 
-			await assertEvent(model.onDidSuggest, () => {
-				// started another word: Z a|
-				// item should be: Z aaa, aaa
-				editor.trigger('keyboard', Handler.Type, { text: ' a' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				// stawted anotha wowd: Z a|
+				// item shouwd be: Z aaa, aaa
+				editow.twigga('keyboawd', Handwa.Type, { text: ' a' });
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 2);
-				assert.strictEqual(event.completionModel.items[0].textLabel, 'Z aaa');
-				assert.strictEqual(event.completionModel.items[1].textLabel, 'aaa');
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 2);
+				assewt.stwictEquaw(event.compwetionModew.items[0].textWabew, 'Z aaa');
+				assewt.stwictEquaw(event.compwetionModew.items[1].textWabew, 'aaa');
 
-				assert.strictEqual(countA, 1); // should we keep the suggestions from the "active" provider?, Yes! See: #106573
-				assert.strictEqual(countB, 2);
+				assewt.stwictEquaw(countA, 1); // shouwd we keep the suggestions fwom the "active" pwovida?, Yes! See: #106573
+				assewt.stwictEquaw(countB, 2);
 			});
 		});
 	});
 
-	test('registerCompletionItemProvider with letters as trigger characters block other completion items to show up #127815', async function () {
+	test('wegistewCompwetionItemPwovida with wettews as twigga chawactews bwock otha compwetion items to show up #127815', async function () {
 
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Class,
-						label: 'AAAA',
-						insertText: 'WordTriggerA',
-						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+						kind: CompwetionItemKind.Cwass,
+						wabew: 'AAAA',
+						insewtText: 'WowdTwiggewA',
+						wange: new Wange(pos.wineNumba, pos.cowumn, pos.wineNumba, pos.cowumn)
 					}],
 				};
 			}
 		}));
-		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
-			triggerCharacters: ['a', '.'],
-			provideCompletionItems(doc, pos) {
-				return {
+		disposabwes.push(CompwetionPwovidewWegistwy.wegista({ scheme: 'test' }, {
+			twiggewChawactews: ['a', '.'],
+			pwovideCompwetionItems(doc, pos) {
+				wetuwn {
 					suggestions: [{
-						kind: CompletionItemKind.Class,
-						label: 'AAAA',
-						insertText: 'AutoTriggerA',
-						range: new Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+						kind: CompwetionItemKind.Cwass,
+						wabew: 'AAAA',
+						insewtText: 'AutoTwiggewA',
+						wange: new Wange(pos.wineNumba, pos.cowumn, pos.wineNumba, pos.cowumn)
 					}],
 				};
 			},
 		}));
 
-		return withOracle(async (model, editor) => {
+		wetuwn withOwacwe(async (modew, editow) => {
 
-			await assertEvent(model.onDidSuggest, () => {
-				editor.setValue('');
-				editor.setSelection(new Selection(1, 1, 1, 1));
-				editor.trigger('keyboard', Handler.Type, { text: '.' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.setVawue('');
+				editow.setSewection(new Sewection(1, 1, 1, 1));
+				editow.twigga('keyboawd', Handwa.Type, { text: '.' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 1);
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 1);
 			});
 
 
-			editor.getModel().setValue('');
+			editow.getModew().setVawue('');
 
-			await assertEvent(model.onDidSuggest, () => {
-				editor.setValue('');
-				editor.setSelection(new Selection(1, 1, 1, 1));
-				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+			await assewtEvent(modew.onDidSuggest, () => {
+				editow.setVawue('');
+				editow.setSewection(new Sewection(1, 1, 1, 1));
+				editow.twigga('keyboawd', Handwa.Type, { text: 'a' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
-				assert.strictEqual(event.completionModel.items.length, 2);
+				assewt.stwictEquaw(event.auto, twue);
+				assewt.stwictEquaw(event.compwetionModew.items.wength, 2);
 			});
 		});
 	});

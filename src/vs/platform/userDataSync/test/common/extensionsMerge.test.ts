@@ -1,650 +1,650 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { ISyncExtension, ISyncExtensionWithVersion } from 'vs/platform/userDataSync/common/userDataSync';
+impowt * as assewt fwom 'assewt';
+impowt { mewge } fwom 'vs/pwatfowm/usewDataSync/common/extensionsMewge';
+impowt { ISyncExtension, ISyncExtensionWithVewsion } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-suite('ExtensionsMerge', () => {
+suite('ExtensionsMewge', () => {
 
-	test('merge returns local extension if remote does not exist', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge wetuwns wocaw extension if wemote does not exist', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, null, null, [], []);
+		const actuaw = mewge(wocawExtensions, nuww, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, wocawExtensions);
 	});
 
-	test('merge returns local extension if remote does not exist with ignored extensions', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge wetuwns wocaw extension if wemote does not exist with ignowed extensions', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, null, null, [], ['a']);
+		const actuaw = mewge(wocawExtensions, nuww, nuww, [], ['a']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge returns local extension if remote does not exist with ignored extensions (ignore case)', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge wetuwns wocaw extension if wemote does not exist with ignowed extensions (ignowe case)', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, null, null, [], ['A']);
+		const actuaw = mewge(wocawExtensions, nuww, nuww, [], ['A']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge returns local extension if remote does not exist with skipped extensions', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge wetuwns wocaw extension if wemote does not exist with skipped extensions', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 		const skippedExtension: ISyncExtension[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, null, null, skippedExtension, []);
+		const actuaw = mewge(wocawExtensions, nuww, nuww, skippedExtension, []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge returns local extension if remote does not exist with skipped and ignored extensions', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge wetuwns wocaw extension if wemote does not exist with skipped and ignowed extensions', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 		const skippedExtension: ISyncExtension[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, null, null, skippedExtension, ['a']);
+		const actuaw = mewge(wocawExtensions, nuww, nuww, skippedExtension, ['a']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when there is no base', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+	test('mewge wocaw and wemote extensions when thewe is no base', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when there is no base and with ignored extensions', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+	test('mewge wocaw and wemote extensions when thewe is no base and with ignowed extensions', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], ['a']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], ['a']);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when remote is moved forwarded', () => {
+	test('mewge wocaw and wemote extensions when wemote is moved fowwawded', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'a', uuid: 'a' }, { id: 'd', uuid: 'd' }]);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.strictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'a', uuid: 'a' }, { id: 'd', uuid: 'd' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.stwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge local and remote extensions when remote is moved forwarded with disabled extension', () => {
+	test('mewge wocaw and wemote extensions when wemote is moved fowwawded with disabwed extension', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, disabled: true, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, disabwed: twue, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'a', uuid: 'a' }]);
-		assert.deepStrictEqual(actual.local.updated, [{ identifier: { id: 'd', uuid: 'd' }, disabled: true, installed: true, version: '1.0.0' }]);
-		assert.strictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'a', uuid: 'a' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, [{ identifia: { id: 'd', uuid: 'd' }, disabwed: twue, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.stwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge local and remote extensions when remote moved forwarded with ignored extensions', () => {
+	test('mewge wocaw and wemote extensions when wemote moved fowwawded with ignowed extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], ['a']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], ['a']);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'd', uuid: 'd' }]);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.strictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'd', uuid: 'd' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.stwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge local and remote extensions when remote is moved forwarded with skipped extensions', () => {
+	test('mewge wocaw and wemote extensions when wemote is moved fowwawded with skipped extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'd', uuid: 'd' }]);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.strictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' }, { identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'd', uuid: 'd' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.stwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge local and remote extensions when remote is moved forwarded with skipped and ignored extensions', () => {
+	test('mewge wocaw and wemote extensions when wemote is moved fowwawded with skipped and ignowed extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, ['b']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, ['b']);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'd', uuid: 'd' }]);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.strictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'd', uuid: 'd' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.stwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge local and remote extensions when local is moved forwarded', () => {
+	test('mewge wocaw and wemote extensions when wocaw is moved fowwawded', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, wocawExtensions);
 	});
 
-	test('merge local and remote extensions when local is moved forwarded with disabled extensions', () => {
+	test('mewge wocaw and wemote extensions when wocaw is moved fowwawded with disabwed extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, disabled: true, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, disabwed: twue, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, wocawExtensions);
 	});
 
-	test('merge local and remote extensions when local is moved forwarded with ignored settings', () => {
+	test('mewge wocaw and wemote extensions when wocaw is moved fowwawded with ignowed settings', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], ['b']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], ['b']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, [
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, [
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		]);
 	});
 
-	test('merge local and remote extensions when local is moved forwarded with skipped extensions', () => {
+	test('mewge wocaw and wemote extensions when wocaw is moved fowwawded with skipped extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when local is moved forwarded with skipped and ignored extensions', () => {
+	test('mewge wocaw and wemote extensions when wocaw is moved fowwawded with skipped and ignowed extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, ['c']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, ['c']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when both moved forwarded', () => {
+	test('mewge wocaw and wemote extensions when both moved fowwawded', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, [{ id: 'a', uuid: 'a' }]);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, [{ id: 'a', uuid: 'a' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when both moved forwarded with ignored extensions', () => {
+	test('mewge wocaw and wemote extensions when both moved fowwawded with ignowed extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], ['a', 'e']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, [], ['a', 'e']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when both moved forwarded with skipped extensions', () => {
+	test('mewge wocaw and wemote extensions when both moved fowwawded with skipped extensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge local and remote extensions when both moved forwarded with skipped and ignoredextensions', () => {
+	test('mewge wocaw and wemote extensions when both moved fowwawded with skipped and ignowedextensions', () => {
 		const baseExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue },
 		];
 		const skippedExtensions: ISyncExtension[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true },
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue },
 		];
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'e', uuid: 'e' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'e', uuid: 'e' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, baseExtensions, skippedExtensions, ['e']);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, baseExtensions, skippedExtensions, ['e']);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge when remote extension has no uuid and different extension id case', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+	test('mewge when wemote extension has no uuid and diffewent extension id case', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'A' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'A' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'A', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'A', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'c', uuid: 'c' }, instawwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, [{ identifier: { id: 'd', uuid: 'd' }, installed: true, version: '1.0.0' }]);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, [{ identifia: { id: 'd', uuid: 'd' }, instawwed: twue, vewsion: '1.0.0' }]);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge when remote extension is not an installed extension', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
+	test('mewge when wemote extension is not an instawwed extension', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge when remote extension is not an installed extension but is an installed extension locally', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
+	test('mewge when wemote extension is not an instawwed extension but is an instawwed extension wocawwy', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, localExtensions);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, wocawExtensions);
 	});
 
-	test('merge when an extension is not an installed extension remotely and does not exist locally', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
+	test('mewge when an extension is not an instawwed extension wemotewy and does not exist wocawwy', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
-			{ identifier: { id: 'b', uuid: 'b' }, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
+			{ identifia: { id: 'b', uuid: 'b' }, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, wemoteExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge when an extension is an installed extension remotely but not locally and updated locally', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, disabled: true, version: '1.0.0' },
+	test('mewge when an extension is an instawwed extension wemotewy but not wocawwy and updated wocawwy', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, disabwed: twue, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, disabled: true, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, disabwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, wemoteExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
-	test('merge when an extension is an installed extension remotely but not locally and updated remotely', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
+	test('mewge when an extension is an instawwed extension wemotewy but not wocawwy and updated wemotewy', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, installed: true, disabled: true, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, instawwed: twue, disabwed: twue, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, localExtensions, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, wocawExtensions, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, remoteExtensions);
-		assert.deepStrictEqual(actual.remote, null);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, wemoteExtensions);
+		assewt.deepStwictEquaw(actuaw.wemote, nuww);
 	});
 
-	test('merge not installed extensions', () => {
-		const localExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
+	test('mewge not instawwed extensions', () => {
+		const wocawExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
 		];
-		const remoteExtensions: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, version: '1.0.0' },
+		const wemoteExtensions: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, vewsion: '1.0.0' },
 		];
-		const expected: ISyncExtensionWithVersion[] = [
-			{ identifier: { id: 'b', uuid: 'b' }, version: '1.0.0' },
-			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0' },
+		const expected: ISyncExtensionWithVewsion[] = [
+			{ identifia: { id: 'b', uuid: 'b' }, vewsion: '1.0.0' },
+			{ identifia: { id: 'a', uuid: 'a' }, vewsion: '1.0.0' },
 		];
 
-		const actual = merge(localExtensions, remoteExtensions, null, [], []);
+		const actuaw = mewge(wocawExtensions, wemoteExtensions, nuww, [], []);
 
-		assert.deepStrictEqual(actual.local.added, []);
-		assert.deepStrictEqual(actual.local.removed, []);
-		assert.deepStrictEqual(actual.local.updated, []);
-		assert.deepStrictEqual(actual.remote?.all, expected);
+		assewt.deepStwictEquaw(actuaw.wocaw.added, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.wemoved, []);
+		assewt.deepStwictEquaw(actuaw.wocaw.updated, []);
+		assewt.deepStwictEquaw(actuaw.wemote?.aww, expected);
 	});
 
 });

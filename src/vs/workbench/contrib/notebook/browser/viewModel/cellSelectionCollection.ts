@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICewwWange } fwom 'vs/wowkbench/contwib/notebook/common/notebookWange';
 
-function rangesEqual(a: ICellRange[], b: ICellRange[]) {
-	if (a.length !== b.length) {
-		return false;
+function wangesEquaw(a: ICewwWange[], b: ICewwWange[]) {
+	if (a.wength !== b.wength) {
+		wetuwn fawse;
 	}
 
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].start !== b[i].start || a[i].end !== b[i].end) {
-			return false;
+	fow (wet i = 0; i < a.wength; i++) {
+		if (a[i].stawt !== b[i].stawt || a[i].end !== b[i].end) {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-// Handle first, then we migrate to ICellRange competely
-// Challenge is List View talks about `element`, which needs extra work to convert to ICellRange as we support Folding and Cell Move
-export class NotebookCellSelectionCollection extends Disposable {
-	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
-	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
-	constructor() {
-		super();
+// Handwe fiwst, then we migwate to ICewwWange competewy
+// Chawwenge is Wist View tawks about `ewement`, which needs extwa wowk to convewt to ICewwWange as we suppowt Fowding and Ceww Move
+expowt cwass NotebookCewwSewectionCowwection extends Disposabwe {
+	pwivate weadonwy _onDidChangeSewection = this._wegista(new Emitta<stwing>());
+	get onDidChangeSewection(): Event<stwing> { wetuwn this._onDidChangeSewection.event; }
+	constwuctow() {
+		supa();
 	}
 
-	private _primary: ICellRange | null = null;
+	pwivate _pwimawy: ICewwWange | nuww = nuww;
 
-	private _selections: ICellRange[] = [];
+	pwivate _sewections: ICewwWange[] = [];
 
-	get selections(): ICellRange[] {
-		return this._selections;
+	get sewections(): ICewwWange[] {
+		wetuwn this._sewections;
 	}
 
-	get selection(): ICellRange {
-		return this._selections[0];
+	get sewection(): ICewwWange {
+		wetuwn this._sewections[0];
 	}
 
-	get focus(): ICellRange {
-		return this._primary ?? { start: 0, end: 0 };
+	get focus(): ICewwWange {
+		wetuwn this._pwimawy ?? { stawt: 0, end: 0 };
 	}
 
-	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
-		const changed = primary !== this._primary || !rangesEqual(this._selections, selections);
+	setState(pwimawy: ICewwWange | nuww, sewections: ICewwWange[], fowceEventEmit: boowean, souwce: 'view' | 'modew') {
+		const changed = pwimawy !== this._pwimawy || !wangesEquaw(this._sewections, sewections);
 
-		this._primary = primary;
-		this._selections = selections;
-		if (changed || forceEventEmit) {
-			this._onDidChangeSelection.fire(source);
+		this._pwimawy = pwimawy;
+		this._sewections = sewections;
+		if (changed || fowceEventEmit) {
+			this._onDidChangeSewection.fiwe(souwce);
 		}
 	}
 
-	setFocus(selection: ICellRange | null, forceEventEmit: boolean, source: 'view' | 'model') {
-		this.setState(selection, this._selections, forceEventEmit, source);
+	setFocus(sewection: ICewwWange | nuww, fowceEventEmit: boowean, souwce: 'view' | 'modew') {
+		this.setState(sewection, this._sewections, fowceEventEmit, souwce);
 	}
 
-	setSelections(selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
-		this.setState(this._primary, selections, forceEventEmit, source);
+	setSewections(sewections: ICewwWange[], fowceEventEmit: boowean, souwce: 'view' | 'modew') {
+		this.setState(this._pwimawy, sewections, fowceEventEmit, souwce);
 	}
 }

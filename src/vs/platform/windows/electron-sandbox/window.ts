@@ -1,29 +1,29 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+impowt { getZoomWevew, setZoomFactow, setZoomWevew } fwom 'vs/base/bwowsa/bwowsa';
+impowt { webFwame } fwom 'vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws';
+impowt { zoomWevewToZoomFactow } fwom 'vs/pwatfowm/windows/common/windows';
 
 /**
- * Apply a zoom level to the window. Also sets it in our in-memory
- * browser helper so that it can be accessed in non-electron layers.
+ * Appwy a zoom wevew to the window. Awso sets it in ouw in-memowy
+ * bwowsa hewpa so that it can be accessed in non-ewectwon wayews.
  */
-export function applyZoom(zoomLevel: number): void {
-	webFrame.setZoomLevel(zoomLevel);
-	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-	// Cannot be trusted because the webFrame might take some time
-	// until it really applies the new zoom level
-	// See https://github.com/microsoft/vscode/issues/26151
-	setZoomLevel(zoomLevel, false /* isTrusted */);
+expowt function appwyZoom(zoomWevew: numba): void {
+	webFwame.setZoomWevew(zoomWevew);
+	setZoomFactow(zoomWevewToZoomFactow(zoomWevew));
+	// Cannot be twusted because the webFwame might take some time
+	// untiw it weawwy appwies the new zoom wevew
+	// See https://github.com/micwosoft/vscode/issues/26151
+	setZoomWevew(zoomWevew, fawse /* isTwusted */);
 }
 
-export function zoomIn(): void {
-	applyZoom(getZoomLevel() + 1);
+expowt function zoomIn(): void {
+	appwyZoom(getZoomWevew() + 1);
 }
 
-export function zoomOut(): void {
-	applyZoom(getZoomLevel() - 1);
+expowt function zoomOut(): void {
+	appwyZoom(getZoomWevew() - 1);
 }

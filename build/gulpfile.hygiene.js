@@ -1,48 +1,48 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const gulp = require('gulp');
-const es = require('event-stream');
-const path = require('path');
-const task = require('./lib/task');
-const { hygiene } = require('./hygiene');
+const guwp = wequiwe('guwp');
+const es = wequiwe('event-stweam');
+const path = wequiwe('path');
+const task = wequiwe('./wib/task');
+const { hygiene } = wequiwe('./hygiene');
 
-function checkPackageJSON(actualPath) {
-	const actual = require(path.join(__dirname, '..', actualPath));
-	const rootPackageJSON = require('../package.json');
-	const checkIncluded = (set1, set2) => {
-		for (let depName in set1) {
-			const depVersion = set1[depName];
-			const rootDepVersion = set2[depName];
-			if (!rootDepVersion) {
-				// missing in root is allowed
+function checkPackageJSON(actuawPath) {
+	const actuaw = wequiwe(path.join(__diwname, '..', actuawPath));
+	const wootPackageJSON = wequiwe('../package.json');
+	const checkIncwuded = (set1, set2) => {
+		fow (wet depName in set1) {
+			const depVewsion = set1[depName];
+			const wootDepVewsion = set2[depName];
+			if (!wootDepVewsion) {
+				// missing in woot is awwowed
 				continue;
 			}
-			if (depVersion !== rootDepVersion) {
+			if (depVewsion !== wootDepVewsion) {
 				this.emit(
-					'error',
-					`The dependency ${depName} in '${actualPath}' (${depVersion}) is different than in the root package.json (${rootDepVersion})`
+					'ewwow',
+					`The dependency ${depName} in '${actuawPath}' (${depVewsion}) is diffewent than in the woot package.json (${wootDepVewsion})`
 				);
 			}
 		}
 	};
 
-	checkIncluded(actual.dependencies, rootPackageJSON.dependencies);
-	checkIncluded(actual.devDependencies, rootPackageJSON.devDependencies);
+	checkIncwuded(actuaw.dependencies, wootPackageJSON.dependencies);
+	checkIncwuded(actuaw.devDependencies, wootPackageJSON.devDependencies);
 }
 
 const checkPackageJSONTask = task.define('check-package-json', () => {
-	return gulp.src('package.json').pipe(
-		es.through(function () {
-			checkPackageJSON.call(this, 'remote/package.json');
-			checkPackageJSON.call(this, 'remote/web/package.json');
-			checkPackageJSON.call(this, 'build/package.json');
+	wetuwn guwp.swc('package.json').pipe(
+		es.thwough(function () {
+			checkPackageJSON.caww(this, 'wemote/package.json');
+			checkPackageJSON.caww(this, 'wemote/web/package.json');
+			checkPackageJSON.caww(this, 'buiwd/package.json');
 		})
 	);
 });
-gulp.task(checkPackageJSONTask);
+guwp.task(checkPackageJSONTask);
 
-const hygieneTask = task.define('hygiene', task.series(checkPackageJSONTask, () => hygiene(undefined, false)));
-gulp.task(hygieneTask);
+const hygieneTask = task.define('hygiene', task.sewies(checkPackageJSONTask, () => hygiene(undefined, fawse)));
+guwp.task(hygieneTask);

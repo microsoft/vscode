@@ -1,353 +1,353 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./accessibility';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorContribution, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorWidgetBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+impowt 'vs/css!./accessibiwity';
+impowt * as nws fwom 'vs/nws';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { FastDomNode, cweateFastDomNode } fwom 'vs/base/bwowsa/fastDomNode';
+impowt { wendewFowmattedText } fwom 'vs/base/bwowsa/fowmattedTextWendewa';
+impowt { awewt } fwom 'vs/base/bwowsa/ui/awia/awia';
+impowt { Widget } fwom 'vs/base/bwowsa/ui/widget';
+impowt { KeyCode, KeyMod } fwom 'vs/base/common/keyCodes';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowCommand, wegistewEditowContwibution, wegistewEditowCommand } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowOptions, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ToggweTabFocusModeAction } fwom 'vs/editow/contwib/toggweTabFocusMode/toggweTabFocusMode';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { contwastBowda, editowWidgetBackgwound, widgetShadow, editowWidgetFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { AccessibiwitySuppowt } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { Action2, wegistewAction2 } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { NEW_UNTITWED_FIWE_COMMAND_ID } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/fiweCommands';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
 
-const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
+const CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE = new WawContextKey<boowean>('accessibiwityHewpWidgetVisibwe', fawse);
 
-export class AccessibilityHelpController extends Disposable implements IEditorContribution {
+expowt cwass AccessibiwityHewpContwowwa extends Disposabwe impwements IEditowContwibution {
 
-	public static readonly ID = 'editor.contrib.accessibilityHelpController';
+	pubwic static weadonwy ID = 'editow.contwib.accessibiwityHewpContwowwa';
 
-	public static get(editor: ICodeEditor): AccessibilityHelpController {
-		return editor.getContribution<AccessibilityHelpController>(AccessibilityHelpController.ID);
+	pubwic static get(editow: ICodeEditow): AccessibiwityHewpContwowwa {
+		wetuwn editow.getContwibution<AccessibiwityHewpContwowwa>(AccessibiwityHewpContwowwa.ID);
 	}
 
-	private _editor: ICodeEditor;
-	private _widget: AccessibilityHelpWidget;
+	pwivate _editow: ICodeEditow;
+	pwivate _widget: AccessibiwityHewpWidget;
 
-	constructor(
-		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+	constwuctow(
+		editow: ICodeEditow,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
-		this._widget = this._register(instantiationService.createInstance(AccessibilityHelpWidget, this._editor));
+		this._editow = editow;
+		this._widget = this._wegista(instantiationSewvice.cweateInstance(AccessibiwityHewpWidget, this._editow));
 	}
 
-	public show(): void {
+	pubwic show(): void {
 		this._widget.show();
 	}
 
-	public hide(): void {
+	pubwic hide(): void {
 		this._widget.hide();
 	}
 }
 
-class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
+cwass AccessibiwityHewpWidget extends Widget impwements IOvewwayWidget {
 
-	private static readonly ID = 'editor.contrib.accessibilityHelpWidget';
-	private static readonly WIDTH = 500;
-	private static readonly HEIGHT = 300;
+	pwivate static weadonwy ID = 'editow.contwib.accessibiwityHewpWidget';
+	pwivate static weadonwy WIDTH = 500;
+	pwivate static weadonwy HEIGHT = 300;
 
-	private _editor: ICodeEditor;
-	private _domNode: FastDomNode<HTMLElement>;
-	private _contentDomNode: FastDomNode<HTMLElement>;
-	private _isVisible: boolean;
-	private _isVisibleKey: IContextKey<boolean>;
+	pwivate _editow: ICodeEditow;
+	pwivate _domNode: FastDomNode<HTMWEwement>;
+	pwivate _contentDomNode: FastDomNode<HTMWEwement>;
+	pwivate _isVisibwe: boowean;
+	pwivate _isVisibweKey: IContextKey<boowean>;
 
-	constructor(
-		editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService
+	constwuctow(
+		editow: ICodeEditow,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IKeybindingSewvice pwivate weadonwy _keybindingSewvice: IKeybindingSewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
+		@IOpenewSewvice pwivate weadonwy _openewSewvice: IOpenewSewvice
 	) {
-		super();
+		supa();
 
-		this._editor = editor;
-		this._isVisibleKey = CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE.bindTo(this._contextKeyService);
+		this._editow = editow;
+		this._isVisibweKey = CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE.bindTo(this._contextKeySewvice);
 
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName('accessibilityHelpWidget');
-		this._domNode.setWidth(AccessibilityHelpWidget.WIDTH);
-		this._domNode.setHeight(AccessibilityHelpWidget.HEIGHT);
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._domNode.setCwassName('accessibiwityHewpWidget');
+		this._domNode.setWidth(AccessibiwityHewpWidget.WIDTH);
+		this._domNode.setHeight(AccessibiwityHewpWidget.HEIGHT);
+		this._domNode.setDispway('none');
+		this._domNode.setAttwibute('wowe', 'diawog');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 
-		this._contentDomNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode.setAttribute('role', 'document');
-		this._domNode.appendChild(this._contentDomNode);
+		this._contentDomNode = cweateFastDomNode(document.cweateEwement('div'));
+		this._contentDomNode.setAttwibute('wowe', 'document');
+		this._domNode.appendChiwd(this._contentDomNode);
 
-		this._isVisible = false;
+		this._isVisibwe = fawse;
 
-		this._register(this._editor.onDidLayoutChange(() => {
-			if (this._isVisible) {
-				this._layout();
+		this._wegista(this._editow.onDidWayoutChange(() => {
+			if (this._isVisibwe) {
+				this._wayout();
 			}
 		}));
 
-		// Intentionally not configurable!
-		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (!this._isVisible) {
-				return;
+		// Intentionawwy not configuwabwe!
+		this._wegista(dom.addStandawdDisposabweWistena(this._contentDomNode.domNode, 'keydown', (e) => {
+			if (!this._isVisibwe) {
+				wetuwn;
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
-				alert(nls.localize('emergencyConfOn', "Now changing the setting `editor.accessibilitySupport` to 'on'."));
+			if (e.equaws(KeyMod.CtwwCmd | KeyCode.KEY_E)) {
+				awewt(nws.wocawize('emewgencyConfOn', "Now changing the setting `editow.accessibiwitySuppowt` to 'on'."));
 
-				this._configurationService.updateValue('editor.accessibilitySupport', 'on');
+				this._configuwationSewvice.updateVawue('editow.accessibiwitySuppowt', 'on');
 
-				e.preventDefault();
-				e.stopPropagation();
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
-				alert(nls.localize('openingDocs', "Now opening the VS Code Accessibility documentation page."));
+			if (e.equaws(KeyMod.CtwwCmd | KeyCode.KEY_H)) {
+				awewt(nws.wocawize('openingDocs', "Now opening the VS Code Accessibiwity documentation page."));
 
-				this._openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=851010'));
+				this._openewSewvice.open(UWI.pawse('https://go.micwosoft.com/fwwink/?winkid=851010'));
 
-				e.preventDefault();
-				e.stopPropagation();
+				e.pweventDefauwt();
+				e.stopPwopagation();
 			}
 		}));
 
-		this.onblur(this._contentDomNode.domNode, () => {
+		this.onbwuw(this._contentDomNode.domNode, () => {
 			this.hide();
 		});
 
-		this._editor.addOverlayWidget(this);
+		this._editow.addOvewwayWidget(this);
 	}
 
-	public override dispose(): void {
-		this._editor.removeOverlayWidget(this);
-		super.dispose();
+	pubwic ovewwide dispose(): void {
+		this._editow.wemoveOvewwayWidget(this);
+		supa.dispose();
 	}
 
-	public getId(): string {
-		return AccessibilityHelpWidget.ID;
+	pubwic getId(): stwing {
+		wetuwn AccessibiwityHewpWidget.ID;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	pubwic getDomNode(): HTMWEwement {
+		wetuwn this._domNode.domNode;
 	}
 
-	public getPosition(): IOverlayWidgetPosition {
-		return {
-			preference: null
+	pubwic getPosition(): IOvewwayWidgetPosition {
+		wetuwn {
+			pwefewence: nuww
 		};
 	}
 
-	public show(): void {
-		if (this._isVisible) {
-			return;
+	pubwic show(): void {
+		if (this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = true;
-		this._isVisibleKey.set(true);
-		this._layout();
-		this._domNode.setDisplay('block');
-		this._domNode.setAttribute('aria-hidden', 'false');
+		this._isVisibwe = twue;
+		this._isVisibweKey.set(twue);
+		this._wayout();
+		this._domNode.setDispway('bwock');
+		this._domNode.setAttwibute('awia-hidden', 'fawse');
 		this._contentDomNode.domNode.tabIndex = 0;
-		this._buildContent();
+		this._buiwdContent();
 		this._contentDomNode.domNode.focus();
 	}
 
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		let kb = this._keybindingService.lookupKeybinding(commandId);
+	pwivate _descwiptionFowCommand(commandId: stwing, msg: stwing, noKbMsg: stwing): stwing {
+		wet kb = this._keybindingSewvice.wookupKeybinding(commandId);
 		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
+			wetuwn stwings.fowmat(msg, kb.getAwiaWabew());
 		}
-		return strings.format(noKbMsg, commandId);
+		wetuwn stwings.fowmat(noKbMsg, commandId);
 	}
 
-	private _buildContent() {
-		const options = this._editor.getOptions();
-		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
+	pwivate _buiwdContent() {
+		const options = this._editow.getOptions();
+		wet text = nws.wocawize('intwoMsg', "Thank you fow twying out VS Code's accessibiwity options.");
 
-		text += '\n\n' + nls.localize('status', "Status:");
+		text += '\n\n' + nws.wocawize('status', "Status:");
 
-		const configuredValue = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
-		const actualValue = options.get(EditorOption.accessibilitySupport);
+		const configuwedVawue = this._configuwationSewvice.getVawue<IEditowOptions>('editow').accessibiwitySuppowt;
+		const actuawVawue = options.get(EditowOption.accessibiwitySuppowt);
 
-		const emergencyTurnOnMessage = (
-			platform.isMacintosh
-				? nls.localize('changeConfigToOnMac', "To configure the editor to be permanently optimized for usage with a Screen Reader press Command+E now.")
-				: nls.localize('changeConfigToOnWinLinux', "To configure the editor to be permanently optimized for usage with a Screen Reader press Control+E now.")
+		const emewgencyTuwnOnMessage = (
+			pwatfowm.isMacintosh
+				? nws.wocawize('changeConfigToOnMac', "To configuwe the editow to be pewmanentwy optimized fow usage with a Scween Weada pwess Command+E now.")
+				: nws.wocawize('changeConfigToOnWinWinux', "To configuwe the editow to be pewmanentwy optimized fow usage with a Scween Weada pwess Contwow+E now.")
 		);
 
-		switch (configuredValue) {
+		switch (configuwedVawue) {
 			case 'auto':
-				switch (actualValue) {
-					case AccessibilitySupport.Unknown:
-						// Should never happen in VS Code
-						text += '\n\n - ' + nls.localize('auto_unknown', "The editor is configured to use platform APIs to detect when a Screen Reader is attached, but the current runtime does not support this.");
-						break;
-					case AccessibilitySupport.Enabled:
-						text += '\n\n - ' + nls.localize('auto_on', "The editor has automatically detected a Screen Reader is attached.");
-						break;
-					case AccessibilitySupport.Disabled:
-						text += '\n\n - ' + nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time.");
-						text += ' ' + emergencyTurnOnMessage;
-						break;
+				switch (actuawVawue) {
+					case AccessibiwitySuppowt.Unknown:
+						// Shouwd neva happen in VS Code
+						text += '\n\n - ' + nws.wocawize('auto_unknown', "The editow is configuwed to use pwatfowm APIs to detect when a Scween Weada is attached, but the cuwwent wuntime does not suppowt this.");
+						bweak;
+					case AccessibiwitySuppowt.Enabwed:
+						text += '\n\n - ' + nws.wocawize('auto_on', "The editow has automaticawwy detected a Scween Weada is attached.");
+						bweak;
+					case AccessibiwitySuppowt.Disabwed:
+						text += '\n\n - ' + nws.wocawize('auto_off', "The editow is configuwed to automaticawwy detect when a Scween Weada is attached, which is not the case at this time.");
+						text += ' ' + emewgencyTuwnOnMessage;
+						bweak;
 				}
-				break;
+				bweak;
 			case 'on':
-				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this by editing the setting `editor.accessibilitySupport`.");
-				break;
+				text += '\n\n - ' + nws.wocawize('configuwedOn', "The editow is configuwed to be pewmanentwy optimized fow usage with a Scween Weada - you can change this by editing the setting `editow.accessibiwitySuppowt`.");
+				bweak;
 			case 'off':
-				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.");
-				text += ' ' + emergencyTurnOnMessage;
-				break;
+				text += '\n\n - ' + nws.wocawize('configuwedOff', "The editow is configuwed to neva be optimized fow usage with a Scween Weada.");
+				text += ' ' + emewgencyTuwnOnMessage;
+				bweak;
 		}
 
-		const NLS_TAB_FOCUS_MODE_ON = nls.localize('tabFocusModeOnMsg', "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_ON_NO_KB = nls.localize('tabFocusModeOnMsgNoKb', "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-		const NLS_TAB_FOCUS_MODE_OFF = nls.localize('tabFocusModeOffMsg', "Pressing Tab in the current editor will insert the tab character. Toggle this behavior by pressing {0}.");
-		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
+		const NWS_TAB_FOCUS_MODE_ON = nws.wocawize('tabFocusModeOnMsg', "Pwessing Tab in the cuwwent editow wiww move focus to the next focusabwe ewement. Toggwe this behaviow by pwessing {0}.");
+		const NWS_TAB_FOCUS_MODE_ON_NO_KB = nws.wocawize('tabFocusModeOnMsgNoKb', "Pwessing Tab in the cuwwent editow wiww move focus to the next focusabwe ewement. The command {0} is cuwwentwy not twiggewabwe by a keybinding.");
+		const NWS_TAB_FOCUS_MODE_OFF = nws.wocawize('tabFocusModeOffMsg', "Pwessing Tab in the cuwwent editow wiww insewt the tab chawacta. Toggwe this behaviow by pwessing {0}.");
+		const NWS_TAB_FOCUS_MODE_OFF_NO_KB = nws.wocawize('tabFocusModeOffMsgNoKb', "Pwessing Tab in the cuwwent editow wiww insewt the tab chawacta. The command {0} is cuwwentwy not twiggewabwe by a keybinding.");
 
-		if (options.get(EditorOption.tabFocusMode)) {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
-		} else {
-			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
+		if (options.get(EditowOption.tabFocusMode)) {
+			text += '\n\n - ' + this._descwiptionFowCommand(ToggweTabFocusModeAction.ID, NWS_TAB_FOCUS_MODE_ON, NWS_TAB_FOCUS_MODE_ON_NO_KB);
+		} ewse {
+			text += '\n\n - ' + this._descwiptionFowCommand(ToggweTabFocusModeAction.ID, NWS_TAB_FOCUS_MODE_OFF, NWS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
 		const openDocMessage = (
-			platform.isMacintosh
-				? nls.localize('openDocMac', "Press Command+H now to open a browser window with more VS Code information related to Accessibility.")
-				: nls.localize('openDocWinLinux', "Press Control+H now to open a browser window with more VS Code information related to Accessibility.")
+			pwatfowm.isMacintosh
+				? nws.wocawize('openDocMac', "Pwess Command+H now to open a bwowsa window with mowe VS Code infowmation wewated to Accessibiwity.")
+				: nws.wocawize('openDocWinWinux', "Pwess Contwow+H now to open a bwowsa window with mowe VS Code infowmation wewated to Accessibiwity.")
 		);
 
 		text += '\n\n' + openDocMessage;
 
-		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
+		text += '\n\n' + nws.wocawize('outwoMsg', "You can dismiss this toowtip and wetuwn to the editow by pwessing Escape ow Shift+Escape.");
 
-		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
-		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
-		this._contentDomNode.domNode.setAttribute('aria-label', text);
+		this._contentDomNode.domNode.appendChiwd(wendewFowmattedText(text));
+		// Pew https://www.w3.owg/TW/wai-awia/wowes#document, Authows SHOUWD pwovide a titwe ow wabew fow documents
+		this._contentDomNode.domNode.setAttwibute('awia-wabew', text);
 	}
 
-	public hide(): void {
-		if (!this._isVisible) {
-			return;
+	pubwic hide(): void {
+		if (!this._isVisibwe) {
+			wetuwn;
 		}
-		this._isVisible = false;
-		this._isVisibleKey.reset();
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('aria-hidden', 'true');
+		this._isVisibwe = fawse;
+		this._isVisibweKey.weset();
+		this._domNode.setDispway('none');
+		this._domNode.setAttwibute('awia-hidden', 'twue');
 		this._contentDomNode.domNode.tabIndex = -1;
-		dom.clearNode(this._contentDomNode.domNode);
+		dom.cweawNode(this._contentDomNode.domNode);
 
-		this._editor.focus();
+		this._editow.focus();
 	}
 
-	private _layout(): void {
-		let editorLayout = this._editor.getLayoutInfo();
+	pwivate _wayout(): void {
+		wet editowWayout = this._editow.getWayoutInfo();
 
-		const width = Math.min(editorLayout.width - 40, AccessibilityHelpWidget.WIDTH);
-		const height = Math.min(editorLayout.height - 40, AccessibilityHelpWidget.HEIGHT);
+		const width = Math.min(editowWayout.width - 40, AccessibiwityHewpWidget.WIDTH);
+		const height = Math.min(editowWayout.height - 40, AccessibiwityHewpWidget.HEIGHT);
 
-		this._domNode.setTop(Math.round((editorLayout.height - height) / 2));
-		this._domNode.setLeft(Math.round((editorLayout.width - width) / 2));
+		this._domNode.setTop(Math.wound((editowWayout.height - height) / 2));
+		this._domNode.setWeft(Math.wound((editowWayout.width - width) / 2));
 		this._domNode.setWidth(width);
 		this._domNode.setHeight(height);
 	}
 }
 
-// Show Accessibility Help is a workench command so it can also be shown when there is no editor open #108850
-class ShowAccessibilityHelpAction extends Action2 {
+// Show Accessibiwity Hewp is a wowkench command so it can awso be shown when thewe is no editow open #108850
+cwass ShowAccessibiwityHewpAction extends Action2 {
 
-	constructor() {
-		super({
-			id: 'editor.action.showAccessibilityHelp',
-			title: { value: nls.localize('ShowAccessibilityHelpAction', "Show Accessibility Help"), original: 'Show Accessibility Help' },
-			f1: true,
+	constwuctow() {
+		supa({
+			id: 'editow.action.showAccessibiwityHewp',
+			titwe: { vawue: nws.wocawize('ShowAccessibiwityHewpAction', "Show Accessibiwity Hewp"), owiginaw: 'Show Accessibiwity Hewp' },
+			f1: twue,
 			keybinding: {
-				primary: KeyMod.Alt | KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib,
-				linux: {
-					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-					secondary: [KeyMod.Alt | KeyCode.F1]
+				pwimawy: KeyMod.Awt | KeyCode.F1,
+				weight: KeybindingWeight.EditowContwib,
+				winux: {
+					pwimawy: KeyMod.Awt | KeyMod.Shift | KeyCode.F1,
+					secondawy: [KeyMod.Awt | KeyCode.F1]
 				}
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		const editorService = accessor.get(ICodeEditorService);
-		let activeEditor = editorService.getActiveCodeEditor();
-		if (!activeEditor) {
-			await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
+	async wun(accessow: SewvicesAccessow): Pwomise<void> {
+		const commandSewvice = accessow.get(ICommandSewvice);
+		const editowSewvice = accessow.get(ICodeEditowSewvice);
+		wet activeEditow = editowSewvice.getActiveCodeEditow();
+		if (!activeEditow) {
+			await commandSewvice.executeCommand(NEW_UNTITWED_FIWE_COMMAND_ID);
 		}
-		activeEditor = editorService.getActiveCodeEditor();
+		activeEditow = editowSewvice.getActiveCodeEditow();
 
-		if (activeEditor) {
-			const controller = AccessibilityHelpController.get(activeEditor);
-			if (controller) {
-				controller.show();
+		if (activeEditow) {
+			const contwowwa = AccessibiwityHewpContwowwa.get(activeEditow);
+			if (contwowwa) {
+				contwowwa.show();
 			}
 		}
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
-registerAction2(ShowAccessibilityHelpAction);
+wegistewEditowContwibution(AccessibiwityHewpContwowwa.ID, AccessibiwityHewpContwowwa);
+wegistewAction2(ShowAccessibiwityHewpAction);
 
-const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
+const AccessibiwityHewpCommand = EditowCommand.bindToContwibution<AccessibiwityHewpContwowwa>(AccessibiwityHewpContwowwa.get);
 
-registerEditorCommand(new AccessibilityHelpCommand({
-	id: 'closeAccessibilityHelp',
-	precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
-	handler: x => x.hide(),
+wegistewEditowCommand(new AccessibiwityHewpCommand({
+	id: 'cwoseAccessibiwityHewp',
+	pwecondition: CONTEXT_ACCESSIBIWITY_WIDGET_VISIBWE,
+	handwa: x => x.hide(),
 	kbOpts: {
-		weight: KeybindingWeight.EditorContrib + 100,
-		kbExpr: EditorContextKeys.focus,
-		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
+		weight: KeybindingWeight.EditowContwib + 100,
+		kbExpw: EditowContextKeys.focus,
+		pwimawy: KeyCode.Escape, secondawy: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-registerThemingParticipant((theme, collector) => {
-	const widgetBackground = theme.getColor(editorWidgetBackground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	const widgetBackgwound = theme.getCowow(editowWidgetBackgwound);
+	if (widgetBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { backgwound-cowow: ${widgetBackgwound}; }`);
 	}
 
-	const widgetForeground = theme.getColor(editorWidgetForeground);
-	if (widgetBackground) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { color: ${widgetForeground}; }`);
+	const widgetFowegwound = theme.getCowow(editowWidgetFowegwound);
+	if (widgetBackgwound) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { cowow: ${widgetFowegwound}; }`);
 	}
 
-	const widgetShadowColor = theme.getColor(widgetShadow);
-	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+	const widgetShadowCowow = theme.getCowow(widgetShadow);
+	if (widgetShadowCowow) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { box-shadow: 0 2px 8px ${widgetShadowCowow}; }`);
 	}
 
-	const hcBorder = theme.getColor(contrastBorder);
-	if (hcBorder) {
-		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
+	const hcBowda = theme.getCowow(contwastBowda);
+	if (hcBowda) {
+		cowwectow.addWuwe(`.monaco-editow .accessibiwityHewpWidget { bowda: 2px sowid ${hcBowda}; }`);
 	}
 });

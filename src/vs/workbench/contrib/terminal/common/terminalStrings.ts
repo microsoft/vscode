@@ -1,60 +1,60 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+impowt { wocawize } fwom 'vs/nws';
 
 /**
- * Formats a message from the product to be written to the terminal.
+ * Fowmats a message fwom the pwoduct to be wwitten to the tewminaw.
  */
-export function formatMessageForTerminal(message: string, excludeLeadingNewLine: boolean = false): string {
-	// Wrap in bold and ensure it's on a new line
-	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
+expowt function fowmatMessageFowTewminaw(message: stwing, excwudeWeadingNewWine: boowean = fawse): stwing {
+	// Wwap in bowd and ensuwe it's on a new wine
+	wetuwn `${excwudeWeadingNewWine ? '' : '\w\n'}\x1b[1m${message}\x1b[0m\n\w`;
 }
 
 /**
- * An object holding strings shared by multiple parts of the terminal
+ * An object howding stwings shawed by muwtipwe pawts of the tewminaw
  */
-export const terminalStrings = {
-	terminal: localize('terminal', "Terminal"),
+expowt const tewminawStwings = {
+	tewminaw: wocawize('tewminaw', "Tewminaw"),
 	focus: {
-		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
-		original: 'Focus Terminal'
+		vawue: wocawize('wowkbench.action.tewminaw.focus', "Focus Tewminaw"),
+		owiginaw: 'Focus Tewminaw'
 	},
-	kill: {
-		value: localize('killTerminal', "Kill Terminal"),
-		original: 'Kill Terminal',
-		short: localize('killTerminal.short', "Kill"),
+	kiww: {
+		vawue: wocawize('kiwwTewminaw', "Kiww Tewminaw"),
+		owiginaw: 'Kiww Tewminaw',
+		showt: wocawize('kiwwTewminaw.showt', "Kiww"),
 	},
-	moveToEditor: {
-		value: localize('moveToEditor', "Move Terminal into Editor Area"),
-		original: 'Move Terminal into Editor Area',
-		short: localize('moveToEditorShort', "Move into Editor Area")
+	moveToEditow: {
+		vawue: wocawize('moveToEditow', "Move Tewminaw into Editow Awea"),
+		owiginaw: 'Move Tewminaw into Editow Awea',
+		showt: wocawize('moveToEditowShowt', "Move into Editow Awea")
 	},
-	moveToTerminalPanel: {
-		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
-		original: 'Move Terminal into Panel'
+	moveToTewminawPanew: {
+		vawue: wocawize('wowkbench.action.tewminaw.moveToTewminawPanew', "Move Tewminaw into Panew"),
+		owiginaw: 'Move Tewminaw into Panew'
 	},
 	changeIcon: {
-		value: localize('workbench.action.terminal.changeIcon', "Change Icon..."),
-		original: 'Change Icon...'
+		vawue: wocawize('wowkbench.action.tewminaw.changeIcon', "Change Icon..."),
+		owiginaw: 'Change Icon...'
 	},
-	changeColor: {
-		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
-		original: 'Change Color...'
+	changeCowow: {
+		vawue: wocawize('wowkbench.action.tewminaw.changeCowow', "Change Cowow..."),
+		owiginaw: 'Change Cowow...'
 	},
-	split: {
-		value: localize('splitTerminal', "Split Terminal"),
-		original: 'Split Terminal',
-		short: localize('splitTerminal.short', "Split"),
+	spwit: {
+		vawue: wocawize('spwitTewminaw', "Spwit Tewminaw"),
+		owiginaw: 'Spwit Tewminaw',
+		showt: wocawize('spwitTewminaw.showt', "Spwit"),
 	},
-	unsplit: {
-		value: localize('unsplitTerminal', "Unsplit Terminal"),
-		original: 'Unsplit Terminal'
+	unspwit: {
+		vawue: wocawize('unspwitTewminaw', "Unspwit Tewminaw"),
+		owiginaw: 'Unspwit Tewminaw'
 	},
-	rename: {
-		value: localize('workbench.action.terminal.rename', "Rename..."),
-		original: 'Rename...'
+	wename: {
+		vawue: wocawize('wowkbench.action.tewminaw.wename', "Wename..."),
+		owiginaw: 'Wename...'
 	}
 };

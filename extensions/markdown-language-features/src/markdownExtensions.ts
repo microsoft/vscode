@@ -1,163 +1,163 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as arrays from './util/arrays';
-import { Disposable } from './util/dispose';
+impowt * as vscode fwom 'vscode';
+impowt * as awways fwom './utiw/awways';
+impowt { Disposabwe } fwom './utiw/dispose';
 
-const resolveExtensionResource = (extension: vscode.Extension<any>, resourcePath: string): vscode.Uri => {
-	return vscode.Uri.joinPath(extension.extensionUri, resourcePath);
+const wesowveExtensionWesouwce = (extension: vscode.Extension<any>, wesouwcePath: stwing): vscode.Uwi => {
+	wetuwn vscode.Uwi.joinPath(extension.extensionUwi, wesouwcePath);
 };
 
-const resolveExtensionResources = (extension: vscode.Extension<any>, resourcePaths: unknown): vscode.Uri[] => {
-	const result: vscode.Uri[] = [];
-	if (Array.isArray(resourcePaths)) {
-		for (const resource of resourcePaths) {
-			try {
-				result.push(resolveExtensionResource(extension, resource));
+const wesowveExtensionWesouwces = (extension: vscode.Extension<any>, wesouwcePaths: unknown): vscode.Uwi[] => {
+	const wesuwt: vscode.Uwi[] = [];
+	if (Awway.isAwway(wesouwcePaths)) {
+		fow (const wesouwce of wesouwcePaths) {
+			twy {
+				wesuwt.push(wesowveExtensionWesouwce(extension, wesouwce));
 			} catch (e) {
 				// noop
 			}
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 };
 
-export interface MarkdownContributions {
-	readonly previewScripts: ReadonlyArray<vscode.Uri>;
-	readonly previewStyles: ReadonlyArray<vscode.Uri>;
-	readonly previewResourceRoots: ReadonlyArray<vscode.Uri>;
-	readonly markdownItPlugins: Map<string, Thenable<(md: any) => any>>;
+expowt intewface MawkdownContwibutions {
+	weadonwy pweviewScwipts: WeadonwyAwway<vscode.Uwi>;
+	weadonwy pweviewStywes: WeadonwyAwway<vscode.Uwi>;
+	weadonwy pweviewWesouwceWoots: WeadonwyAwway<vscode.Uwi>;
+	weadonwy mawkdownItPwugins: Map<stwing, Thenabwe<(md: any) => any>>;
 }
 
-export namespace MarkdownContributions {
-	export const Empty: MarkdownContributions = {
-		previewScripts: [],
-		previewStyles: [],
-		previewResourceRoots: [],
-		markdownItPlugins: new Map()
+expowt namespace MawkdownContwibutions {
+	expowt const Empty: MawkdownContwibutions = {
+		pweviewScwipts: [],
+		pweviewStywes: [],
+		pweviewWesouwceWoots: [],
+		mawkdownItPwugins: new Map()
 	};
 
-	export function merge(a: MarkdownContributions, b: MarkdownContributions): MarkdownContributions {
-		return {
-			previewScripts: [...a.previewScripts, ...b.previewScripts],
-			previewStyles: [...a.previewStyles, ...b.previewStyles],
-			previewResourceRoots: [...a.previewResourceRoots, ...b.previewResourceRoots],
-			markdownItPlugins: new Map([...a.markdownItPlugins.entries(), ...b.markdownItPlugins.entries()]),
+	expowt function mewge(a: MawkdownContwibutions, b: MawkdownContwibutions): MawkdownContwibutions {
+		wetuwn {
+			pweviewScwipts: [...a.pweviewScwipts, ...b.pweviewScwipts],
+			pweviewStywes: [...a.pweviewStywes, ...b.pweviewStywes],
+			pweviewWesouwceWoots: [...a.pweviewWesouwceWoots, ...b.pweviewWesouwceWoots],
+			mawkdownItPwugins: new Map([...a.mawkdownItPwugins.entwies(), ...b.mawkdownItPwugins.entwies()]),
 		};
 	}
 
-	function uriEqual(a: vscode.Uri, b: vscode.Uri): boolean {
-		return a.toString() === b.toString();
+	function uwiEquaw(a: vscode.Uwi, b: vscode.Uwi): boowean {
+		wetuwn a.toStwing() === b.toStwing();
 	}
 
-	export function equal(a: MarkdownContributions, b: MarkdownContributions): boolean {
-		return arrays.equals(a.previewScripts, b.previewScripts, uriEqual)
-			&& arrays.equals(a.previewStyles, b.previewStyles, uriEqual)
-			&& arrays.equals(a.previewResourceRoots, b.previewResourceRoots, uriEqual)
-			&& arrays.equals(Array.from(a.markdownItPlugins.keys()), Array.from(b.markdownItPlugins.keys()));
+	expowt function equaw(a: MawkdownContwibutions, b: MawkdownContwibutions): boowean {
+		wetuwn awways.equaws(a.pweviewScwipts, b.pweviewScwipts, uwiEquaw)
+			&& awways.equaws(a.pweviewStywes, b.pweviewStywes, uwiEquaw)
+			&& awways.equaws(a.pweviewWesouwceWoots, b.pweviewWesouwceWoots, uwiEquaw)
+			&& awways.equaws(Awway.fwom(a.mawkdownItPwugins.keys()), Awway.fwom(b.mawkdownItPwugins.keys()));
 	}
 
-	export function fromExtension(
+	expowt function fwomExtension(
 		extension: vscode.Extension<any>
-	): MarkdownContributions {
-		const contributions = extension.packageJSON && extension.packageJSON.contributes;
-		if (!contributions) {
-			return MarkdownContributions.Empty;
+	): MawkdownContwibutions {
+		const contwibutions = extension.packageJSON && extension.packageJSON.contwibutes;
+		if (!contwibutions) {
+			wetuwn MawkdownContwibutions.Empty;
 		}
 
-		const previewStyles = getContributedStyles(contributions, extension);
-		const previewScripts = getContributedScripts(contributions, extension);
-		const previewResourceRoots = previewStyles.length || previewScripts.length ? [extension.extensionUri] : [];
-		const markdownItPlugins = getContributedMarkdownItPlugins(contributions, extension);
+		const pweviewStywes = getContwibutedStywes(contwibutions, extension);
+		const pweviewScwipts = getContwibutedScwipts(contwibutions, extension);
+		const pweviewWesouwceWoots = pweviewStywes.wength || pweviewScwipts.wength ? [extension.extensionUwi] : [];
+		const mawkdownItPwugins = getContwibutedMawkdownItPwugins(contwibutions, extension);
 
-		return {
-			previewScripts,
-			previewStyles,
-			previewResourceRoots,
-			markdownItPlugins
+		wetuwn {
+			pweviewScwipts,
+			pweviewStywes,
+			pweviewWesouwceWoots,
+			mawkdownItPwugins
 		};
 	}
 
-	function getContributedMarkdownItPlugins(
-		contributes: any,
+	function getContwibutedMawkdownItPwugins(
+		contwibutes: any,
 		extension: vscode.Extension<any>
-	): Map<string, Thenable<(md: any) => any>> {
-		const map = new Map<string, Thenable<(md: any) => any>>();
-		if (contributes['markdown.markdownItPlugins']) {
+	): Map<stwing, Thenabwe<(md: any) => any>> {
+		const map = new Map<stwing, Thenabwe<(md: any) => any>>();
+		if (contwibutes['mawkdown.mawkdownItPwugins']) {
 			map.set(extension.id, extension.activate().then(() => {
-				if (extension.exports && extension.exports.extendMarkdownIt) {
-					return (md: any) => extension.exports.extendMarkdownIt(md);
+				if (extension.expowts && extension.expowts.extendMawkdownIt) {
+					wetuwn (md: any) => extension.expowts.extendMawkdownIt(md);
 				}
-				return (md: any) => md;
+				wetuwn (md: any) => md;
 			}));
 		}
-		return map;
+		wetuwn map;
 	}
 
-	function getContributedScripts(
-		contributes: any,
+	function getContwibutedScwipts(
+		contwibutes: any,
 		extension: vscode.Extension<any>
 	) {
-		return resolveExtensionResources(extension, contributes['markdown.previewScripts']);
+		wetuwn wesowveExtensionWesouwces(extension, contwibutes['mawkdown.pweviewScwipts']);
 	}
 
-	function getContributedStyles(
-		contributes: any,
+	function getContwibutedStywes(
+		contwibutes: any,
 		extension: vscode.Extension<any>
 	) {
-		return resolveExtensionResources(extension, contributes['markdown.previewStyles']);
+		wetuwn wesowveExtensionWesouwces(extension, contwibutes['mawkdown.pweviewStywes']);
 	}
 }
 
-export interface MarkdownContributionProvider {
-	readonly extensionUri: vscode.Uri;
+expowt intewface MawkdownContwibutionPwovida {
+	weadonwy extensionUwi: vscode.Uwi;
 
-	readonly contributions: MarkdownContributions;
-	readonly onContributionsChanged: vscode.Event<this>;
+	weadonwy contwibutions: MawkdownContwibutions;
+	weadonwy onContwibutionsChanged: vscode.Event<this>;
 
 	dispose(): void;
 }
 
-class VSCodeExtensionMarkdownContributionProvider extends Disposable implements MarkdownContributionProvider {
-	private _contributions?: MarkdownContributions;
+cwass VSCodeExtensionMawkdownContwibutionPwovida extends Disposabwe impwements MawkdownContwibutionPwovida {
+	pwivate _contwibutions?: MawkdownContwibutions;
 
-	public constructor(
-		private readonly _extensionContext: vscode.ExtensionContext,
+	pubwic constwuctow(
+		pwivate weadonwy _extensionContext: vscode.ExtensionContext,
 	) {
-		super();
+		supa();
 
 		vscode.extensions.onDidChange(() => {
-			const currentContributions = this.getCurrentContributions();
-			const existingContributions = this._contributions || MarkdownContributions.Empty;
-			if (!MarkdownContributions.equal(existingContributions, currentContributions)) {
-				this._contributions = currentContributions;
-				this._onContributionsChanged.fire(this);
+			const cuwwentContwibutions = this.getCuwwentContwibutions();
+			const existingContwibutions = this._contwibutions || MawkdownContwibutions.Empty;
+			if (!MawkdownContwibutions.equaw(existingContwibutions, cuwwentContwibutions)) {
+				this._contwibutions = cuwwentContwibutions;
+				this._onContwibutionsChanged.fiwe(this);
 			}
-		}, undefined, this._disposables);
+		}, undefined, this._disposabwes);
 	}
 
-	public get extensionUri() { return this._extensionContext.extensionUri; }
+	pubwic get extensionUwi() { wetuwn this._extensionContext.extensionUwi; }
 
-	private readonly _onContributionsChanged = this._register(new vscode.EventEmitter<this>());
-	public readonly onContributionsChanged = this._onContributionsChanged.event;
+	pwivate weadonwy _onContwibutionsChanged = this._wegista(new vscode.EventEmitta<this>());
+	pubwic weadonwy onContwibutionsChanged = this._onContwibutionsChanged.event;
 
-	public get contributions(): MarkdownContributions {
-		if (!this._contributions) {
-			this._contributions = this.getCurrentContributions();
+	pubwic get contwibutions(): MawkdownContwibutions {
+		if (!this._contwibutions) {
+			this._contwibutions = this.getCuwwentContwibutions();
 		}
-		return this._contributions;
+		wetuwn this._contwibutions;
 	}
 
-	private getCurrentContributions(): MarkdownContributions {
-		return vscode.extensions.all
-			.map(MarkdownContributions.fromExtension)
-			.reduce(MarkdownContributions.merge, MarkdownContributions.Empty);
+	pwivate getCuwwentContwibutions(): MawkdownContwibutions {
+		wetuwn vscode.extensions.aww
+			.map(MawkdownContwibutions.fwomExtension)
+			.weduce(MawkdownContwibutions.mewge, MawkdownContwibutions.Empty);
 	}
 }
 
-export function getMarkdownExtensionContributions(context: vscode.ExtensionContext): MarkdownContributionProvider {
-	return new VSCodeExtensionMarkdownContributionProvider(context);
+expowt function getMawkdownExtensionContwibutions(context: vscode.ExtensionContext): MawkdownContwibutionPwovida {
+	wetuwn new VSCodeExtensionMawkdownContwibutionPwovida(context);
 }

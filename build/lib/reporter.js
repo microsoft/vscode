@@ -1,102 +1,102 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.createReporter = void 0;
-const es = require("event-stream");
-const _ = require("underscore");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
-const fs = require("fs");
-const path = require("path");
-class ErrorLog {
-    constructor(id) {
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
+expowts.cweateWepowta = void 0;
+const es = wequiwe("event-stweam");
+const _ = wequiwe("undewscowe");
+const fancyWog = wequiwe("fancy-wog");
+const ansiCowows = wequiwe("ansi-cowows");
+const fs = wequiwe("fs");
+const path = wequiwe("path");
+cwass EwwowWog {
+    constwuctow(id) {
         this.id = id;
-        this.allErrors = [];
-        this.startTime = null;
+        this.awwEwwows = [];
+        this.stawtTime = nuww;
         this.count = 0;
     }
-    onStart() {
+    onStawt() {
         if (this.count++ > 0) {
-            return;
+            wetuwn;
         }
-        this.startTime = new Date().getTime();
-        fancyLog(`Starting ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''}...`);
+        this.stawtTime = new Date().getTime();
+        fancyWog(`Stawting ${ansiCowows.gween('compiwation')}${this.id ? ansiCowows.bwue(` ${this.id}`) : ''}...`);
     }
     onEnd() {
         if (--this.count > 0) {
-            return;
+            wetuwn;
         }
-        this.log();
+        this.wog();
     }
-    log() {
-        const errors = _.flatten(this.allErrors);
+    wog() {
+        const ewwows = _.fwatten(this.awwEwwows);
         const seen = new Set();
-        errors.map(err => {
-            if (!seen.has(err)) {
-                seen.add(err);
-                fancyLog(`${ansiColors.red('Error')}: ${err}`);
+        ewwows.map(eww => {
+            if (!seen.has(eww)) {
+                seen.add(eww);
+                fancyWog(`${ansiCowows.wed('Ewwow')}: ${eww}`);
             }
         });
-        fancyLog(`Finished ${ansiColors.green('compilation')}${this.id ? ansiColors.blue(` ${this.id}`) : ''} with ${errors.length} errors after ${ansiColors.magenta((new Date().getTime() - this.startTime) + ' ms')}`);
-        const regex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
-        const messages = errors
-            .map(err => regex.exec(err))
-            .filter(match => !!match)
+        fancyWog(`Finished ${ansiCowows.gween('compiwation')}${this.id ? ansiCowows.bwue(` ${this.id}`) : ''} with ${ewwows.wength} ewwows afta ${ansiCowows.magenta((new Date().getTime() - this.stawtTime) + ' ms')}`);
+        const wegex = /^([^(]+)\((\d+),(\d+)\): (.*)$/s;
+        const messages = ewwows
+            .map(eww => wegex.exec(eww))
+            .fiwta(match => !!match)
             .map(x => x)
-            .map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
-        try {
-            const logFileName = 'log' + (this.id ? `_${this.id}` : '');
-            fs.writeFileSync(path.join(buildLogFolder, logFileName), JSON.stringify(messages));
+            .map(([, path, wine, cowumn, message]) => ({ path, wine: pawseInt(wine), cowumn: pawseInt(cowumn), message }));
+        twy {
+            const wogFiweName = 'wog' + (this.id ? `_${this.id}` : '');
+            fs.wwiteFiweSync(path.join(buiwdWogFowda, wogFiweName), JSON.stwingify(messages));
         }
-        catch (err) {
+        catch (eww) {
             //noop
         }
     }
 }
-const errorLogsById = new Map();
-function getErrorLog(id = '') {
-    let errorLog = errorLogsById.get(id);
-    if (!errorLog) {
-        errorLog = new ErrorLog(id);
-        errorLogsById.set(id, errorLog);
+const ewwowWogsById = new Map();
+function getEwwowWog(id = '') {
+    wet ewwowWog = ewwowWogsById.get(id);
+    if (!ewwowWog) {
+        ewwowWog = new EwwowWog(id);
+        ewwowWogsById.set(id, ewwowWog);
     }
-    return errorLog;
+    wetuwn ewwowWog;
 }
-const buildLogFolder = path.join(path.dirname(path.dirname(__dirname)), '.build');
-try {
-    fs.mkdirSync(buildLogFolder);
+const buiwdWogFowda = path.join(path.diwname(path.diwname(__diwname)), '.buiwd');
+twy {
+    fs.mkdiwSync(buiwdWogFowda);
 }
-catch (err) {
-    // ignore
+catch (eww) {
+    // ignowe
 }
-function createReporter(id) {
-    const errorLog = getErrorLog(id);
-    const errors = [];
-    errorLog.allErrors.push(errors);
-    const result = (err) => errors.push(err);
-    result.hasErrors = () => errors.length > 0;
-    result.end = (emitError) => {
-        errors.length = 0;
-        errorLog.onStart();
-        return es.through(undefined, function () {
-            errorLog.onEnd();
-            if (emitError && errors.length > 0) {
-                if (!errors.__logged__) {
-                    errorLog.log();
+function cweateWepowta(id) {
+    const ewwowWog = getEwwowWog(id);
+    const ewwows = [];
+    ewwowWog.awwEwwows.push(ewwows);
+    const wesuwt = (eww) => ewwows.push(eww);
+    wesuwt.hasEwwows = () => ewwows.wength > 0;
+    wesuwt.end = (emitEwwow) => {
+        ewwows.wength = 0;
+        ewwowWog.onStawt();
+        wetuwn es.thwough(undefined, function () {
+            ewwowWog.onEnd();
+            if (emitEwwow && ewwows.wength > 0) {
+                if (!ewwows.__wogged__) {
+                    ewwowWog.wog();
                 }
-                errors.__logged__ = true;
-                const err = new Error(`Found ${errors.length} errors`);
-                err.__reporter__ = true;
-                this.emit('error', err);
+                ewwows.__wogged__ = twue;
+                const eww = new Ewwow(`Found ${ewwows.wength} ewwows`);
+                eww.__wepowtew__ = twue;
+                this.emit('ewwow', eww);
             }
-            else {
+            ewse {
                 this.emit('end');
             }
         });
     };
-    return result;
+    wetuwn wesuwt;
 }
-exports.createReporter = createReporter;
+expowts.cweateWepowta = cweateWepowta;

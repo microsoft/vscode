@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import * as nls from 'vs/nls';
-import { IDebuggerContribution, ICompound } from 'vs/workbench/contrib/debug/common/debug';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
+impowt * as extensionsWegistwy fwom 'vs/wowkbench/sewvices/extensions/common/extensionsWegistwy';
+impowt * as nws fwom 'vs/nws';
+impowt { IDebuggewContwibution, ICompound } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { waunchSchemaId } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
+impowt { inputsSchema } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowvewSchema';
 
-// debuggers extension point
-export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
-	extensionPoint: 'debuggers',
-	defaultExtensionKind: ['workspace'],
+// debuggews extension point
+expowt const debuggewsExtPoint = extensionsWegistwy.ExtensionsWegistwy.wegistewExtensionPoint<IDebuggewContwibution[]>({
+	extensionPoint: 'debuggews',
+	defauwtExtensionKind: ['wowkspace'],
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
-		type: 'array',
-		defaultSnippets: [{ body: [{ type: '' }] }],
+		descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews', 'Contwibutes debug adaptews.'),
+		type: 'awway',
+		defauwtSnippets: [{ body: [{ type: '' }] }],
 		items: {
-			additionalProperties: false,
+			additionawPwopewties: fawse,
 			type: 'object',
-			defaultSnippets: [{ body: { type: '', program: '', runtime: '' } }],
-			properties: {
+			defauwtSnippets: [{ body: { type: '', pwogwam: '', wuntime: '' } }],
+			pwopewties: {
 				type: {
-					description: nls.localize('vscode.extension.contributes.debuggers.type', "Unique identifier for this debug adapter."),
-					type: 'string'
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.type', "Unique identifia fow this debug adapta."),
+					type: 'stwing'
 				},
-				label: {
-					description: nls.localize('vscode.extension.contributes.debuggers.label', "Display name for this debug adapter."),
-					type: 'string'
+				wabew: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.wabew', "Dispway name fow this debug adapta."),
+					type: 'stwing'
 				},
-				program: {
-					description: nls.localize('vscode.extension.contributes.debuggers.program', "Path to the debug adapter program. Path is either absolute or relative to the extension folder."),
-					type: 'string'
+				pwogwam: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.pwogwam', "Path to the debug adapta pwogwam. Path is eitha absowute ow wewative to the extension fowda."),
+					type: 'stwing'
 				},
-				args: {
-					description: nls.localize('vscode.extension.contributes.debuggers.args', "Optional arguments to pass to the adapter."),
-					type: 'array'
+				awgs: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.awgs', "Optionaw awguments to pass to the adapta."),
+					type: 'awway'
 				},
-				runtime: {
-					description: nls.localize('vscode.extension.contributes.debuggers.runtime', "Optional runtime in case the program attribute is not an executable but requires a runtime."),
-					type: 'string'
+				wuntime: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.wuntime', "Optionaw wuntime in case the pwogwam attwibute is not an executabwe but wequiwes a wuntime."),
+					type: 'stwing'
 				},
-				runtimeArgs: {
-					description: nls.localize('vscode.extension.contributes.debuggers.runtimeArgs', "Optional runtime arguments."),
-					type: 'array'
+				wuntimeAwgs: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.wuntimeAwgs', "Optionaw wuntime awguments."),
+					type: 'awway'
 				},
-				variables: {
-					description: nls.localize('vscode.extension.contributes.debuggers.variables', "Mapping from interactive variables (e.g. ${action.pickProcess}) in `launch.json` to a command."),
+				vawiabwes: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.vawiabwes', "Mapping fwom intewactive vawiabwes (e.g. ${action.pickPwocess}) in `waunch.json` to a command."),
 					type: 'object'
 				},
-				initialConfigurations: {
-					description: nls.localize('vscode.extension.contributes.debuggers.initialConfigurations', "Configurations for generating the initial \'launch.json\'."),
-					type: ['array', 'string'],
+				initiawConfiguwations: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.initiawConfiguwations', "Configuwations fow genewating the initiaw \'waunch.json\'."),
+					type: ['awway', 'stwing'],
 				},
-				languages: {
-					description: nls.localize('vscode.extension.contributes.debuggers.languages', "List of languages for which the debug extension could be considered the \"default debugger\"."),
-					type: 'array'
+				wanguages: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.wanguages', "Wist of wanguages fow which the debug extension couwd be considewed the \"defauwt debugga\"."),
+					type: 'awway'
 				},
-				configurationSnippets: {
-					description: nls.localize('vscode.extension.contributes.debuggers.configurationSnippets', "Snippets for adding new configurations in \'launch.json\'."),
-					type: 'array'
+				configuwationSnippets: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.configuwationSnippets', "Snippets fow adding new configuwations in \'waunch.json\'."),
+					type: 'awway'
 				},
-				configurationAttributes: {
-					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
+				configuwationAttwibutes: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.configuwationAttwibutes', "JSON schema configuwations fow vawidating \'waunch.json\'."),
 					type: 'object'
 				},
 				when: {
-					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension defined context key as appropriate for this."),
-					type: 'string',
-					default: ''
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.when', "Condition which must be twue to enabwe this type of debugga. Consida using 'shewwExecutionSuppowted', 'viwtuawWowkspace', 'wesouwceScheme' ow an extension defined context key as appwopwiate fow this."),
+					type: 'stwing',
+					defauwt: ''
 				},
 				windows: {
-					description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.windows', "Windows specific settings."),
 					type: 'object',
-					properties: {
-						runtime: {
-							description: nls.localize('vscode.extension.contributes.debuggers.windows.runtime', "Runtime used for Windows."),
-							type: 'string'
+					pwopewties: {
+						wuntime: {
+							descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.windows.wuntime', "Wuntime used fow Windows."),
+							type: 'stwing'
 						}
 					}
 				},
 				osx: {
-					description: nls.localize('vscode.extension.contributes.debuggers.osx', "macOS specific settings."),
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.osx', "macOS specific settings."),
 					type: 'object',
-					properties: {
-						runtime: {
-							description: nls.localize('vscode.extension.contributes.debuggers.osx.runtime', "Runtime used for macOS."),
-							type: 'string'
+					pwopewties: {
+						wuntime: {
+							descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.osx.wuntime', "Wuntime used fow macOS."),
+							type: 'stwing'
 						}
 					}
 				},
-				linux: {
-					description: nls.localize('vscode.extension.contributes.debuggers.linux', "Linux specific settings."),
+				winux: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.winux', "Winux specific settings."),
 					type: 'object',
-					properties: {
-						runtime: {
-							description: nls.localize('vscode.extension.contributes.debuggers.linux.runtime', "Runtime used for Linux."),
-							type: 'string'
+					pwopewties: {
+						wuntime: {
+							descwiption: nws.wocawize('vscode.extension.contwibutes.debuggews.winux.wuntime', "Wuntime used fow Winux."),
+							type: 'stwing'
 						}
 					}
 				}
@@ -107,134 +107,134 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 	}
 });
 
-export interface IRawBreakpointContribution {
-	language: string;
+expowt intewface IWawBweakpointContwibution {
+	wanguage: stwing;
 }
 
-// breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>({
-	extensionPoint: 'breakpoints',
+// bweakpoints extension point #9037
+expowt const bweakpointsExtPoint = extensionsWegistwy.ExtensionsWegistwy.wegistewExtensionPoint<IWawBweakpointContwibution[]>({
+	extensionPoint: 'bweakpoints',
 	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
-		type: 'array',
-		defaultSnippets: [{ body: [{ language: '' }] }],
+		descwiption: nws.wocawize('vscode.extension.contwibutes.bweakpoints', 'Contwibutes bweakpoints.'),
+		type: 'awway',
+		defauwtSnippets: [{ body: [{ wanguage: '' }] }],
 		items: {
 			type: 'object',
-			additionalProperties: false,
-			defaultSnippets: [{ body: { language: '' } }],
-			properties: {
-				language: {
-					description: nls.localize('vscode.extension.contributes.breakpoints.language', "Allow breakpoints for this language."),
-					type: 'string'
+			additionawPwopewties: fawse,
+			defauwtSnippets: [{ body: { wanguage: '' } }],
+			pwopewties: {
+				wanguage: {
+					descwiption: nws.wocawize('vscode.extension.contwibutes.bweakpoints.wanguage', "Awwow bweakpoints fow this wanguage."),
+					type: 'stwing'
 				},
 			}
 		}
 	}
 });
 
-// debug general schema
+// debug genewaw schema
 
-export const presentationSchema: IJSONSchema = {
+expowt const pwesentationSchema: IJSONSchema = {
 	type: 'object',
-	description: nls.localize('presentation', "Presentation options on how to show this configuration in the debug configuration dropdown and the command palette."),
-	properties: {
+	descwiption: nws.wocawize('pwesentation', "Pwesentation options on how to show this configuwation in the debug configuwation dwopdown and the command pawette."),
+	pwopewties: {
 		hidden: {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('presentation.hidden', "Controls if this configuration should be shown in the configuration dropdown and the command palette.")
+			type: 'boowean',
+			defauwt: fawse,
+			descwiption: nws.wocawize('pwesentation.hidden', "Contwows if this configuwation shouwd be shown in the configuwation dwopdown and the command pawette.")
 		},
-		group: {
-			type: 'string',
-			default: '',
-			description: nls.localize('presentation.group', "Group that this configuration belongs to. Used for grouping and sorting in the configuration dropdown and the command palette.")
+		gwoup: {
+			type: 'stwing',
+			defauwt: '',
+			descwiption: nws.wocawize('pwesentation.gwoup', "Gwoup that this configuwation bewongs to. Used fow gwouping and sowting in the configuwation dwopdown and the command pawette.")
 		},
-		order: {
-			type: 'number',
-			default: 1,
-			description: nls.localize('presentation.order', "Order of this configuration within a group. Used for grouping and sorting in the configuration dropdown and the command palette.")
+		owda: {
+			type: 'numba',
+			defauwt: 1,
+			descwiption: nws.wocawize('pwesentation.owda', "Owda of this configuwation within a gwoup. Used fow gwouping and sowting in the configuwation dwopdown and the command pawette.")
 		}
 	},
-	default: {
-		hidden: false,
-		group: '',
-		order: 1
+	defauwt: {
+		hidden: fawse,
+		gwoup: '',
+		owda: 1
 	}
 };
-const defaultCompound: ICompound = { name: 'Compound', configurations: [] };
-export const launchSchema: IJSONSchema = {
-	id: launchSchemaId,
+const defauwtCompound: ICompound = { name: 'Compound', configuwations: [] };
+expowt const waunchSchema: IJSONSchema = {
+	id: waunchSchemaId,
 	type: 'object',
-	title: nls.localize('app.launch.json.title', "Launch"),
-	allowTrailingCommas: true,
-	allowComments: true,
-	required: [],
-	default: { version: '0.2.0', configurations: [], compounds: [] },
-	properties: {
-		version: {
-			type: 'string',
-			description: nls.localize('app.launch.json.version', "Version of this file format."),
-			default: '0.2.0'
+	titwe: nws.wocawize('app.waunch.json.titwe', "Waunch"),
+	awwowTwaiwingCommas: twue,
+	awwowComments: twue,
+	wequiwed: [],
+	defauwt: { vewsion: '0.2.0', configuwations: [], compounds: [] },
+	pwopewties: {
+		vewsion: {
+			type: 'stwing',
+			descwiption: nws.wocawize('app.waunch.json.vewsion', "Vewsion of this fiwe fowmat."),
+			defauwt: '0.2.0'
 		},
-		configurations: {
-			type: 'array',
-			description: nls.localize('app.launch.json.configurations', "List of configurations. Add new configurations or edit existing ones by using IntelliSense."),
+		configuwations: {
+			type: 'awway',
+			descwiption: nws.wocawize('app.waunch.json.configuwations', "Wist of configuwations. Add new configuwations ow edit existing ones by using IntewwiSense."),
 			items: {
-				defaultSnippets: [],
+				defauwtSnippets: [],
 				'type': 'object',
 				oneOf: []
 			}
 		},
 		compounds: {
-			type: 'array',
-			description: nls.localize('app.launch.json.compounds', "List of compounds. Each compound references multiple configurations which will get launched together."),
+			type: 'awway',
+			descwiption: nws.wocawize('app.waunch.json.compounds', "Wist of compounds. Each compound wefewences muwtipwe configuwations which wiww get waunched togetha."),
 			items: {
 				type: 'object',
-				required: ['name', 'configurations'],
-				properties: {
+				wequiwed: ['name', 'configuwations'],
+				pwopewties: {
 					name: {
-						type: 'string',
-						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+						type: 'stwing',
+						descwiption: nws.wocawize('app.waunch.json.compound.name', "Name of compound. Appeaws in the waunch configuwation dwop down menu.")
 					},
-					presentation: presentationSchema,
-					configurations: {
-						type: 'array',
-						default: [],
+					pwesentation: pwesentationSchema,
+					configuwations: {
+						type: 'awway',
+						defauwt: [],
 						items: {
 							oneOf: [{
 								enum: [],
-								description: nls.localize('useUniqueNames', "Please use unique configuration names.")
+								descwiption: nws.wocawize('useUniqueNames', "Pwease use unique configuwation names.")
 							}, {
 								type: 'object',
-								required: ['name'],
-								properties: {
+								wequiwed: ['name'],
+								pwopewties: {
 									name: {
 										enum: [],
-										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+										descwiption: nws.wocawize('app.waunch.json.compound.name', "Name of compound. Appeaws in the waunch configuwation dwop down menu.")
 									},
-									folder: {
+									fowda: {
 										enum: [],
-										description: nls.localize('app.launch.json.compound.folder', "Name of folder in which the compound is located.")
+										descwiption: nws.wocawize('app.waunch.json.compound.fowda', "Name of fowda in which the compound is wocated.")
 									}
 								}
 							}]
 						},
-						description: nls.localize('app.launch.json.compounds.configurations', "Names of configurations that will be started as part of this compound.")
+						descwiption: nws.wocawize('app.waunch.json.compounds.configuwations', "Names of configuwations that wiww be stawted as pawt of this compound.")
 					},
-					stopAll: {
-						type: 'boolean',
-						default: false,
-						description: nls.localize('app.launch.json.compound.stopAll', "Controls whether manually terminating one session will stop all of the compound sessions.")
+					stopAww: {
+						type: 'boowean',
+						defauwt: fawse,
+						descwiption: nws.wocawize('app.waunch.json.compound.stopAww', "Contwows whetha manuawwy tewminating one session wiww stop aww of the compound sessions.")
 					},
-					preLaunchTask: {
-						type: 'string',
-						default: '',
-						description: nls.localize('compoundPrelaunchTask', "Task to run before any of the compound configurations start.")
+					pweWaunchTask: {
+						type: 'stwing',
+						defauwt: '',
+						descwiption: nws.wocawize('compoundPwewaunchTask', "Task to wun befowe any of the compound configuwations stawt.")
 					}
 				},
-				default: defaultCompound
+				defauwt: defauwtCompound
 			},
-			default: [
-				defaultCompound
+			defauwt: [
+				defauwtCompound
 			]
 		},
 		inputs: inputsSchema.definitions!.inputs

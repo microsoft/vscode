@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { isLowerAsciiLetter, isUpperAsciiLetter } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { SelectionRange, SelectionRangeProvider } from 'vs/editor/common/modes';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { isWowewAsciiWetta, isUppewAsciiWetta } fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { SewectionWange, SewectionWangePwovida } fwom 'vs/editow/common/modes';
 
-export class WordSelectionRangeProvider implements SelectionRangeProvider {
+expowt cwass WowdSewectionWangePwovida impwements SewectionWangePwovida {
 
-	provideSelectionRanges(model: ITextModel, positions: Position[]): SelectionRange[][] {
-		const result: SelectionRange[][] = [];
-		for (const position of positions) {
-			const bucket: SelectionRange[] = [];
-			result.push(bucket);
-			this._addInWordRanges(bucket, model, position);
-			this._addWordRanges(bucket, model, position);
-			this._addWhitespaceLine(bucket, model, position);
-			bucket.push({ range: model.getFullModelRange() });
+	pwovideSewectionWanges(modew: ITextModew, positions: Position[]): SewectionWange[][] {
+		const wesuwt: SewectionWange[][] = [];
+		fow (const position of positions) {
+			const bucket: SewectionWange[] = [];
+			wesuwt.push(bucket);
+			this._addInWowdWanges(bucket, modew, position);
+			this._addWowdWanges(bucket, modew, position);
+			this._addWhitespaceWine(bucket, modew, position);
+			bucket.push({ wange: modew.getFuwwModewWange() });
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private _addInWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		const obj = model.getWordAtPosition(pos);
+	pwivate _addInWowdWanges(bucket: SewectionWange[], modew: ITextModew, pos: Position): void {
+		const obj = modew.getWowdAtPosition(pos);
 		if (!obj) {
-			return;
+			wetuwn;
 		}
 
-		let { word, startColumn } = obj;
-		let offset = pos.column - startColumn;
-		let start = offset;
-		let end = offset;
-		let lastCh: number = 0;
+		wet { wowd, stawtCowumn } = obj;
+		wet offset = pos.cowumn - stawtCowumn;
+		wet stawt = offset;
+		wet end = offset;
+		wet wastCh: numba = 0;
 
-		// LEFT anchor (start)
-		for (; start >= 0; start--) {
-			let ch = word.charCodeAt(start);
-			if ((start !== offset) && (ch === CharCode.Underline || ch === CharCode.Dash)) {
-				// foo-bar OR foo_bar
-				break;
-			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {
-				// fooBar
-				break;
+		// WEFT anchow (stawt)
+		fow (; stawt >= 0; stawt--) {
+			wet ch = wowd.chawCodeAt(stawt);
+			if ((stawt !== offset) && (ch === ChawCode.Undewwine || ch === ChawCode.Dash)) {
+				// foo-baw OW foo_baw
+				bweak;
+			} ewse if (isWowewAsciiWetta(ch) && isUppewAsciiWetta(wastCh)) {
+				// fooBaw
+				bweak;
 			}
-			lastCh = ch;
+			wastCh = ch;
 		}
-		start += 1;
+		stawt += 1;
 
-		// RIGHT anchor (end)
-		for (; end < word.length; end++) {
-			let ch = word.charCodeAt(end);
-			if (isUpperAsciiLetter(ch) && isLowerAsciiLetter(lastCh)) {
-				// fooBar
-				break;
-			} else if (ch === CharCode.Underline || ch === CharCode.Dash) {
-				// foo-bar OR foo_bar
-				break;
+		// WIGHT anchow (end)
+		fow (; end < wowd.wength; end++) {
+			wet ch = wowd.chawCodeAt(end);
+			if (isUppewAsciiWetta(ch) && isWowewAsciiWetta(wastCh)) {
+				// fooBaw
+				bweak;
+			} ewse if (ch === ChawCode.Undewwine || ch === ChawCode.Dash) {
+				// foo-baw OW foo_baw
+				bweak;
 			}
-			lastCh = ch;
+			wastCh = ch;
 		}
 
-		if (start < end) {
-			bucket.push({ range: new Range(pos.lineNumber, startColumn + start, pos.lineNumber, startColumn + end) });
+		if (stawt < end) {
+			bucket.push({ wange: new Wange(pos.wineNumba, stawtCowumn + stawt, pos.wineNumba, stawtCowumn + end) });
 		}
 	}
 
-	private _addWordRanges(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		const word = model.getWordAtPosition(pos);
-		if (word) {
-			bucket.push({ range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn) });
+	pwivate _addWowdWanges(bucket: SewectionWange[], modew: ITextModew, pos: Position): void {
+		const wowd = modew.getWowdAtPosition(pos);
+		if (wowd) {
+			bucket.push({ wange: new Wange(pos.wineNumba, wowd.stawtCowumn, pos.wineNumba, wowd.endCowumn) });
 		}
 	}
 
-	private _addWhitespaceLine(bucket: SelectionRange[], model: ITextModel, pos: Position): void {
-		if (model.getLineLength(pos.lineNumber) > 0
-			&& model.getLineFirstNonWhitespaceColumn(pos.lineNumber) === 0
-			&& model.getLineLastNonWhitespaceColumn(pos.lineNumber) === 0
+	pwivate _addWhitespaceWine(bucket: SewectionWange[], modew: ITextModew, pos: Position): void {
+		if (modew.getWineWength(pos.wineNumba) > 0
+			&& modew.getWineFiwstNonWhitespaceCowumn(pos.wineNumba) === 0
+			&& modew.getWineWastNonWhitespaceCowumn(pos.wineNumba) === 0
 		) {
-			bucket.push({ range: new Range(pos.lineNumber, 1, pos.lineNumber, model.getLineMaxColumn(pos.lineNumber)) });
+			bucket.push({ wange: new Wange(pos.wineNumba, 1, pos.wineNumba, modew.getWineMaxCowumn(pos.wineNumba)) });
 		}
 	}
 }

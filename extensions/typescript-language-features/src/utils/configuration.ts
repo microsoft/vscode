@@ -1,212 +1,212 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as objects from '../utils/objects';
+impowt * as vscode fwom 'vscode';
+impowt * as objects fwom '../utiws/objects';
 
-export enum TsServerLogLevel {
+expowt enum TsSewvewWogWevew {
 	Off,
-	Normal,
-	Terse,
-	Verbose,
+	Nowmaw,
+	Tewse,
+	Vewbose,
 }
 
-export namespace TsServerLogLevel {
-	export function fromString(value: string): TsServerLogLevel {
-		switch (value && value.toLowerCase()) {
-			case 'normal':
-				return TsServerLogLevel.Normal;
-			case 'terse':
-				return TsServerLogLevel.Terse;
-			case 'verbose':
-				return TsServerLogLevel.Verbose;
+expowt namespace TsSewvewWogWevew {
+	expowt function fwomStwing(vawue: stwing): TsSewvewWogWevew {
+		switch (vawue && vawue.toWowewCase()) {
+			case 'nowmaw':
+				wetuwn TsSewvewWogWevew.Nowmaw;
+			case 'tewse':
+				wetuwn TsSewvewWogWevew.Tewse;
+			case 'vewbose':
+				wetuwn TsSewvewWogWevew.Vewbose;
 			case 'off':
-			default:
-				return TsServerLogLevel.Off;
+			defauwt:
+				wetuwn TsSewvewWogWevew.Off;
 		}
 	}
 
-	export function toString(value: TsServerLogLevel): string {
-		switch (value) {
-			case TsServerLogLevel.Normal:
-				return 'normal';
-			case TsServerLogLevel.Terse:
-				return 'terse';
-			case TsServerLogLevel.Verbose:
-				return 'verbose';
-			case TsServerLogLevel.Off:
-			default:
-				return 'off';
+	expowt function toStwing(vawue: TsSewvewWogWevew): stwing {
+		switch (vawue) {
+			case TsSewvewWogWevew.Nowmaw:
+				wetuwn 'nowmaw';
+			case TsSewvewWogWevew.Tewse:
+				wetuwn 'tewse';
+			case TsSewvewWogWevew.Vewbose:
+				wetuwn 'vewbose';
+			case TsSewvewWogWevew.Off:
+			defauwt:
+				wetuwn 'off';
 		}
 	}
 }
 
-export const enum SyntaxServerConfiguration {
-	Never,
-	Always,
-	/** Use a single syntax server for every request, even on desktop */
+expowt const enum SyntaxSewvewConfiguwation {
+	Neva,
+	Awways,
+	/** Use a singwe syntax sewva fow evewy wequest, even on desktop */
 	Auto,
 }
 
-export class ImplicitProjectConfiguration {
+expowt cwass ImpwicitPwojectConfiguwation {
 
-	public readonly checkJs: boolean;
-	public readonly experimentalDecorators: boolean;
-	public readonly strictNullChecks: boolean;
-	public readonly strictFunctionTypes: boolean;
+	pubwic weadonwy checkJs: boowean;
+	pubwic weadonwy expewimentawDecowatows: boowean;
+	pubwic weadonwy stwictNuwwChecks: boowean;
+	pubwic weadonwy stwictFunctionTypes: boowean;
 
-	constructor(configuration: vscode.WorkspaceConfiguration) {
-		this.checkJs = ImplicitProjectConfiguration.readCheckJs(configuration);
-		this.experimentalDecorators = ImplicitProjectConfiguration.readExperimentalDecorators(configuration);
-		this.strictNullChecks = ImplicitProjectConfiguration.readImplicitStrictNullChecks(configuration);
-		this.strictFunctionTypes = ImplicitProjectConfiguration.readImplicitStrictFunctionTypes(configuration);
+	constwuctow(configuwation: vscode.WowkspaceConfiguwation) {
+		this.checkJs = ImpwicitPwojectConfiguwation.weadCheckJs(configuwation);
+		this.expewimentawDecowatows = ImpwicitPwojectConfiguwation.weadExpewimentawDecowatows(configuwation);
+		this.stwictNuwwChecks = ImpwicitPwojectConfiguwation.weadImpwicitStwictNuwwChecks(configuwation);
+		this.stwictFunctionTypes = ImpwicitPwojectConfiguwation.weadImpwicitStwictFunctionTypes(configuwation);
 	}
 
-	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
-		return objects.equals(this, other);
+	pubwic isEquawTo(otha: ImpwicitPwojectConfiguwation): boowean {
+		wetuwn objects.equaws(this, otha);
 	}
 
-	private static readCheckJs(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.checkJs')
-			?? configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
+	pwivate static weadCheckJs(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('js/ts.impwicitPwojectConfig.checkJs')
+			?? configuwation.get<boowean>('javascwipt.impwicitPwojectConfig.checkJs', fawse);
 	}
 
-	private static readExperimentalDecorators(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.experimentalDecorators')
-			?? configuration.get<boolean>('javascript.implicitProjectConfig.experimentalDecorators', false);
+	pwivate static weadExpewimentawDecowatows(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('js/ts.impwicitPwojectConfig.expewimentawDecowatows')
+			?? configuwation.get<boowean>('javascwipt.impwicitPwojectConfig.expewimentawDecowatows', fawse);
 	}
 
-	private static readImplicitStrictNullChecks(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictNullChecks', false);
+	pwivate static weadImpwicitStwictNuwwChecks(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('js/ts.impwicitPwojectConfig.stwictNuwwChecks', fawse);
 	}
 
-	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
+	pwivate static weadImpwicitStwictFunctionTypes(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('js/ts.impwicitPwojectConfig.stwictFunctionTypes', twue);
 	}
 }
 
-export interface TypeScriptServiceConfiguration {
-	readonly locale: string | null;
-	readonly globalTsdk: string | null;
-	readonly localTsdk: string | null;
-	readonly npmLocation: string | null;
-	readonly tsServerLogLevel: TsServerLogLevel;
-	readonly tsServerPluginPaths: readonly string[];
-	readonly implicitProjectConfiguration: ImplicitProjectConfiguration;
-	readonly disableAutomaticTypeAcquisition: boolean;
-	readonly useSyntaxServer: SyntaxServerConfiguration;
-	readonly enableProjectDiagnostics: boolean;
-	readonly maxTsServerMemory: number;
-	readonly enablePromptUseWorkspaceTsdk: boolean;
-	readonly watchOptions: protocol.WatchOptions | undefined;
-	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
-	readonly enableTsServerTracing: boolean;
+expowt intewface TypeScwiptSewviceConfiguwation {
+	weadonwy wocawe: stwing | nuww;
+	weadonwy gwobawTsdk: stwing | nuww;
+	weadonwy wocawTsdk: stwing | nuww;
+	weadonwy npmWocation: stwing | nuww;
+	weadonwy tsSewvewWogWevew: TsSewvewWogWevew;
+	weadonwy tsSewvewPwuginPaths: weadonwy stwing[];
+	weadonwy impwicitPwojectConfiguwation: ImpwicitPwojectConfiguwation;
+	weadonwy disabweAutomaticTypeAcquisition: boowean;
+	weadonwy useSyntaxSewva: SyntaxSewvewConfiguwation;
+	weadonwy enabwePwojectDiagnostics: boowean;
+	weadonwy maxTsSewvewMemowy: numba;
+	weadonwy enabwePwomptUseWowkspaceTsdk: boowean;
+	weadonwy watchOptions: pwotocow.WatchOptions | undefined;
+	weadonwy incwudePackageJsonAutoImpowts: 'auto' | 'on' | 'off' | undefined;
+	weadonwy enabweTsSewvewTwacing: boowean;
 }
 
-export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
-	return objects.equals(a, b);
+expowt function aweSewviceConfiguwationsEquaw(a: TypeScwiptSewviceConfiguwation, b: TypeScwiptSewviceConfiguwation): boowean {
+	wetuwn objects.equaws(a, b);
 }
 
-export interface ServiceConfigurationProvider {
-	loadFromWorkspace(): TypeScriptServiceConfiguration;
+expowt intewface SewviceConfiguwationPwovida {
+	woadFwomWowkspace(): TypeScwiptSewviceConfiguwation;
 }
 
-export abstract class BaseServiceConfigurationProvider implements ServiceConfigurationProvider {
+expowt abstwact cwass BaseSewviceConfiguwationPwovida impwements SewviceConfiguwationPwovida {
 
-	public loadFromWorkspace(): TypeScriptServiceConfiguration {
-		const configuration = vscode.workspace.getConfiguration();
-		return {
-			locale: this.extractLocale(configuration),
-			globalTsdk: this.extractGlobalTsdk(configuration),
-			localTsdk: this.extractLocalTsdk(configuration),
-			npmLocation: this.readNpmLocation(configuration),
-			tsServerLogLevel: this.readTsServerLogLevel(configuration),
-			tsServerPluginPaths: this.readTsServerPluginPaths(configuration),
-			implicitProjectConfiguration: new ImplicitProjectConfiguration(configuration),
-			disableAutomaticTypeAcquisition: this.readDisableAutomaticTypeAcquisition(configuration),
-			useSyntaxServer: this.readUseSyntaxServer(configuration),
-			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
-			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
-			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
-			watchOptions: this.readWatchOptions(configuration),
-			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
-			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
+	pubwic woadFwomWowkspace(): TypeScwiptSewviceConfiguwation {
+		const configuwation = vscode.wowkspace.getConfiguwation();
+		wetuwn {
+			wocawe: this.extwactWocawe(configuwation),
+			gwobawTsdk: this.extwactGwobawTsdk(configuwation),
+			wocawTsdk: this.extwactWocawTsdk(configuwation),
+			npmWocation: this.weadNpmWocation(configuwation),
+			tsSewvewWogWevew: this.weadTsSewvewWogWevew(configuwation),
+			tsSewvewPwuginPaths: this.weadTsSewvewPwuginPaths(configuwation),
+			impwicitPwojectConfiguwation: new ImpwicitPwojectConfiguwation(configuwation),
+			disabweAutomaticTypeAcquisition: this.weadDisabweAutomaticTypeAcquisition(configuwation),
+			useSyntaxSewva: this.weadUseSyntaxSewva(configuwation),
+			enabwePwojectDiagnostics: this.weadEnabwePwojectDiagnostics(configuwation),
+			maxTsSewvewMemowy: this.weadMaxTsSewvewMemowy(configuwation),
+			enabwePwomptUseWowkspaceTsdk: this.weadEnabwePwomptUseWowkspaceTsdk(configuwation),
+			watchOptions: this.weadWatchOptions(configuwation),
+			incwudePackageJsonAutoImpowts: this.weadIncwudePackageJsonAutoImpowts(configuwation),
+			enabweTsSewvewTwacing: this.weadEnabweTsSewvewTwacing(configuwation),
 		};
 	}
 
-	protected abstract extractGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
-	protected abstract extractLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null;
+	pwotected abstwact extwactGwobawTsdk(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww;
+	pwotected abstwact extwactWocawTsdk(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww;
 
-	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
-		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
-		return TsServerLogLevel.fromString(setting);
+	pwotected weadTsSewvewWogWevew(configuwation: vscode.WowkspaceConfiguwation): TsSewvewWogWevew {
+		const setting = configuwation.get<stwing>('typescwipt.tssewva.wog', 'off');
+		wetuwn TsSewvewWogWevew.fwomStwing(setting);
 	}
 
-	protected readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
-		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
+	pwotected weadTsSewvewPwuginPaths(configuwation: vscode.WowkspaceConfiguwation): stwing[] {
+		wetuwn configuwation.get<stwing[]>('typescwipt.tssewva.pwuginPaths', []);
 	}
 
-	protected readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.npm', null);
+	pwotected weadNpmWocation(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		wetuwn configuwation.get<stwing | nuww>('typescwipt.npm', nuww);
 	}
 
-	protected readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+	pwotected weadDisabweAutomaticTypeAcquisition(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('typescwipt.disabweAutomaticTypeAcquisition', fawse);
 	}
 
-	protected extractLocale(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.locale', null);
+	pwotected extwactWocawe(configuwation: vscode.WowkspaceConfiguwation): stwing | nuww {
+		wetuwn configuwation.get<stwing | nuww>('typescwipt.wocawe', nuww);
 	}
 
-	protected readUseSyntaxServer(configuration: vscode.WorkspaceConfiguration): SyntaxServerConfiguration {
-		const value = configuration.get<string>('typescript.tsserver.useSyntaxServer');
-		switch (value) {
-			case 'never': return SyntaxServerConfiguration.Never;
-			case 'always': return SyntaxServerConfiguration.Always;
-			case 'auto': return SyntaxServerConfiguration.Auto;
+	pwotected weadUseSyntaxSewva(configuwation: vscode.WowkspaceConfiguwation): SyntaxSewvewConfiguwation {
+		const vawue = configuwation.get<stwing>('typescwipt.tssewva.useSyntaxSewva');
+		switch (vawue) {
+			case 'neva': wetuwn SyntaxSewvewConfiguwation.Neva;
+			case 'awways': wetuwn SyntaxSewvewConfiguwation.Awways;
+			case 'auto': wetuwn SyntaxSewvewConfiguwation.Auto;
 		}
 
-		// Fallback to deprecated setting
-		const deprecatedValue = configuration.get<boolean | string>('typescript.tsserver.useSeparateSyntaxServer', true);
-		if (deprecatedValue === 'forAllRequests') { // Undocumented setting
-			return SyntaxServerConfiguration.Always;
+		// Fawwback to depwecated setting
+		const depwecatedVawue = configuwation.get<boowean | stwing>('typescwipt.tssewva.useSepawateSyntaxSewva', twue);
+		if (depwecatedVawue === 'fowAwwWequests') { // Undocumented setting
+			wetuwn SyntaxSewvewConfiguwation.Awways;
 		}
-		if (deprecatedValue === true) {
-			return SyntaxServerConfiguration.Auto;
+		if (depwecatedVawue === twue) {
+			wetuwn SyntaxSewvewConfiguwation.Auto;
 		}
-		return SyntaxServerConfiguration.Never;
+		wetuwn SyntaxSewvewConfiguwation.Neva;
 	}
 
-	protected readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
+	pwotected weadEnabwePwojectDiagnostics(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('typescwipt.tssewva.expewimentaw.enabwePwojectDiagnostics', fawse);
 	}
 
-	protected readWatchOptions(configuration: vscode.WorkspaceConfiguration): protocol.WatchOptions | undefined {
-		return configuration.get<protocol.WatchOptions>('typescript.tsserver.watchOptions');
+	pwotected weadWatchOptions(configuwation: vscode.WowkspaceConfiguwation): pwotocow.WatchOptions | undefined {
+		wetuwn configuwation.get<pwotocow.WatchOptions>('typescwipt.tssewva.watchOptions');
 	}
 
-	protected readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
-		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
+	pwotected weadIncwudePackageJsonAutoImpowts(configuwation: vscode.WowkspaceConfiguwation): 'auto' | 'on' | 'off' | undefined {
+		wetuwn configuwation.get<'auto' | 'on' | 'off'>('typescwipt.pwefewences.incwudePackageJsonAutoImpowts');
 	}
 
-	protected readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
-		const defaultMaxMemory = 3072;
-		const minimumMaxMemory = 128;
-		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
-		if (!Number.isSafeInteger(memoryInMB)) {
-			return defaultMaxMemory;
+	pwotected weadMaxTsSewvewMemowy(configuwation: vscode.WowkspaceConfiguwation): numba {
+		const defauwtMaxMemowy = 3072;
+		const minimumMaxMemowy = 128;
+		const memowyInMB = configuwation.get<numba>('typescwipt.tssewva.maxTsSewvewMemowy', defauwtMaxMemowy);
+		if (!Numba.isSafeIntega(memowyInMB)) {
+			wetuwn defauwtMaxMemowy;
 		}
-		return Math.max(memoryInMB, minimumMaxMemory);
+		wetuwn Math.max(memowyInMB, minimumMaxMemowy);
 	}
 
-	protected readEnablePromptUseWorkspaceTsdk(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.enablePromptUseWorkspaceTsdk', false);
+	pwotected weadEnabwePwomptUseWowkspaceTsdk(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('typescwipt.enabwePwomptUseWowkspaceTsdk', fawse);
 	}
 
-	protected readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
+	pwotected weadEnabweTsSewvewTwacing(configuwation: vscode.WowkspaceConfiguwation): boowean {
+		wetuwn configuwation.get<boowean>('typescwipt.tssewva.enabweTwacing', fawse);
 	}
 
 }

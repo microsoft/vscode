@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ITewminawSewvice } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminaw';
+impowt { IDecowationData, IDecowationsPwovida } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { getCowowFowSevewity } fwom 'vs/wowkbench/contwib/tewminaw/bwowsa/tewminawStatusWist';
 
-export interface ITerminalDecorationData {
-	tooltip: string,
-	statusIcon: string,
-	color: string
+expowt intewface ITewminawDecowationData {
+	toowtip: stwing,
+	statusIcon: stwing,
+	cowow: stwing
 }
 
-export class TerminalDecorationsProvider implements IDecorationsProvider {
-	readonly label: string = localize('label', "Terminal");
-	private readonly _onDidChange = new Emitter<URI[]>();
+expowt cwass TewminawDecowationsPwovida impwements IDecowationsPwovida {
+	weadonwy wabew: stwing = wocawize('wabew', "Tewminaw");
+	pwivate weadonwy _onDidChange = new Emitta<UWI[]>();
 
-	constructor(
-		@ITerminalService private readonly _terminalService: ITerminalService
+	constwuctow(
+		@ITewminawSewvice pwivate weadonwy _tewminawSewvice: ITewminawSewvice
 	) {
-		this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource]));
+		this._tewminawSewvice.onDidChangeInstancePwimawyStatus(e => this._onDidChange.fiwe([e.wesouwce]));
 	}
 
-	get onDidChange(): Event<URI[]> {
-		return this._onDidChange.event;
+	get onDidChange(): Event<UWI[]> {
+		wetuwn this._onDidChange.event;
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
-		if (resource.scheme !== Schemas.vscodeTerminal) {
-			return undefined;
+	pwovideDecowations(wesouwce: UWI): IDecowationData | undefined {
+		if (wesouwce.scheme !== Schemas.vscodeTewminaw) {
+			wetuwn undefined;
 		}
 
-		const instance = this._terminalService.getInstanceFromResource(resource);
+		const instance = this._tewminawSewvice.getInstanceFwomWesouwce(wesouwce);
 		if (!instance) {
-			return undefined;
+			wetuwn undefined;
 		}
 
-		const primaryStatus = instance?.statusList?.primary;
-		if (!primaryStatus?.icon) {
-			return undefined;
+		const pwimawyStatus = instance?.statusWist?.pwimawy;
+		if (!pwimawyStatus?.icon) {
+			wetuwn undefined;
 		}
 
-		return {
-			color: getColorForSeverity(primaryStatus.severity),
-			letter: primaryStatus.icon,
-			tooltip: primaryStatus.tooltip
+		wetuwn {
+			cowow: getCowowFowSevewity(pwimawyStatus.sevewity),
+			wetta: pwimawyStatus.icon,
+			toowtip: pwimawyStatus.toowtip
 		};
 	}
 

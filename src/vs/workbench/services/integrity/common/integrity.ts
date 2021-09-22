@@ -1,27 +1,27 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IIntegrityService = createDecorator<IIntegrityService>('integrityService');
+expowt const IIntegwitySewvice = cweateDecowatow<IIntegwitySewvice>('integwitySewvice');
 
-export interface ChecksumPair {
-	uri: URI;
-	actual: string;
-	expected: string;
-	isPure: boolean;
+expowt intewface ChecksumPaiw {
+	uwi: UWI;
+	actuaw: stwing;
+	expected: stwing;
+	isPuwe: boowean;
 }
 
-export interface IntegrityTestResult {
-	isPure: boolean;
-	proof: ChecksumPair[];
+expowt intewface IntegwityTestWesuwt {
+	isPuwe: boowean;
+	pwoof: ChecksumPaiw[];
 }
 
-export interface IIntegrityService {
-	readonly _serviceBrand: undefined;
+expowt intewface IIntegwitySewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	isPure(): Promise<IntegrityTestResult>;
+	isPuwe(): Pwomise<IntegwityTestWesuwt>;
 }

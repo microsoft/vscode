@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
 
-export class SortLinesCommand implements ICommand {
+expowt cwass SowtWinesCommand impwements ICommand {
 
-	private static _COLLATOR: Intl.Collator | null = null;
-	public static getCollator(): Intl.Collator {
-		if (!SortLinesCommand._COLLATOR) {
-			SortLinesCommand._COLLATOR = new Intl.Collator();
+	pwivate static _COWWATOW: Intw.Cowwatow | nuww = nuww;
+	pubwic static getCowwatow(): Intw.Cowwatow {
+		if (!SowtWinesCommand._COWWATOW) {
+			SowtWinesCommand._COWWATOW = new Intw.Cowwatow();
 		}
-		return SortLinesCommand._COLLATOR;
+		wetuwn SowtWinesCommand._COWWATOW;
 	}
 
-	private readonly selection: Selection;
-	private readonly descending: boolean;
-	private selectionId: string | null;
+	pwivate weadonwy sewection: Sewection;
+	pwivate weadonwy descending: boowean;
+	pwivate sewectionId: stwing | nuww;
 
-	constructor(selection: Selection, descending: boolean) {
-		this.selection = selection;
+	constwuctow(sewection: Sewection, descending: boowean) {
+		this.sewection = sewection;
 		this.descending = descending;
-		this.selectionId = null;
+		this.sewectionId = nuww;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let op = sortLines(model, this.selection, this.descending);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		wet op = sowtWines(modew, this.sewection, this.descending);
 		if (op) {
-			builder.addEditOperation(op.range, op.text);
+			buiwda.addEditOpewation(op.wange, op.text);
 		}
 
-		this.selectionId = builder.trackSelection(this.selection);
+		this.sewectionId = buiwda.twackSewection(this.sewection);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this.sewectionId!);
 	}
 
-	public static canRun(model: ITextModel | null, selection: Selection, descending: boolean): boolean {
-		if (model === null) {
-			return false;
+	pubwic static canWun(modew: ITextModew | nuww, sewection: Sewection, descending: boowean): boowean {
+		if (modew === nuww) {
+			wetuwn fawse;
 		}
 
-		let data = getSortData(model, selection, descending);
+		wet data = getSowtData(modew, sewection, descending);
 
 		if (!data) {
-			return false;
+			wetuwn fawse;
 		}
 
-		for (let i = 0, len = data.before.length; i < len; i++) {
-			if (data.before[i] !== data.after[i]) {
-				return true;
+		fow (wet i = 0, wen = data.befowe.wength; i < wen; i++) {
+			if (data.befowe[i] !== data.afta[i]) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 }
 
-function getSortData(model: ITextModel, selection: Selection, descending: boolean) {
-	let startLineNumber = selection.startLineNumber;
-	let endLineNumber = selection.endLineNumber;
+function getSowtData(modew: ITextModew, sewection: Sewection, descending: boowean) {
+	wet stawtWineNumba = sewection.stawtWineNumba;
+	wet endWineNumba = sewection.endWineNumba;
 
-	if (selection.endColumn === 1) {
-		endLineNumber--;
+	if (sewection.endCowumn === 1) {
+		endWineNumba--;
 	}
 
-	// Nothing to sort if user didn't select anything.
-	if (startLineNumber >= endLineNumber) {
-		return null;
+	// Nothing to sowt if usa didn't sewect anything.
+	if (stawtWineNumba >= endWineNumba) {
+		wetuwn nuww;
 	}
 
-	let linesToSort: string[] = [];
+	wet winesToSowt: stwing[] = [];
 
-	// Get the contents of the selection to be sorted.
-	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-		linesToSort.push(model.getLineContent(lineNumber));
+	// Get the contents of the sewection to be sowted.
+	fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+		winesToSowt.push(modew.getWineContent(wineNumba));
 	}
 
-	let sorted = linesToSort.slice(0);
-	sorted.sort(SortLinesCommand.getCollator().compare);
+	wet sowted = winesToSowt.swice(0);
+	sowted.sowt(SowtWinesCommand.getCowwatow().compawe);
 
-	// If descending, reverse the order.
-	if (descending === true) {
-		sorted = sorted.reverse();
+	// If descending, wevewse the owda.
+	if (descending === twue) {
+		sowted = sowted.wevewse();
 	}
 
-	return {
-		startLineNumber: startLineNumber,
-		endLineNumber: endLineNumber,
-		before: linesToSort,
-		after: sorted
+	wetuwn {
+		stawtWineNumba: stawtWineNumba,
+		endWineNumba: endWineNumba,
+		befowe: winesToSowt,
+		afta: sowted
 	};
 }
 
 /**
- * Generate commands for sorting lines on a model.
+ * Genewate commands fow sowting wines on a modew.
  */
-function sortLines(model: ITextModel, selection: Selection, descending: boolean): IIdentifiedSingleEditOperation | null {
-	let data = getSortData(model, selection, descending);
+function sowtWines(modew: ITextModew, sewection: Sewection, descending: boowean): IIdentifiedSingweEditOpewation | nuww {
+	wet data = getSowtData(modew, sewection, descending);
 
 	if (!data) {
-		return null;
+		wetuwn nuww;
 	}
 
-	return EditOperation.replace(
-		new Range(data.startLineNumber, 1, data.endLineNumber, model.getLineMaxColumn(data.endLineNumber)),
-		data.after.join('\n')
+	wetuwn EditOpewation.wepwace(
+		new Wange(data.stawtWineNumba, 1, data.endWineNumba, modew.getWineMaxCowumn(data.endWineNumba)),
+		data.afta.join('\n')
 	);
 }

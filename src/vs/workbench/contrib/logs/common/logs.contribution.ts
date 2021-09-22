@@ -1,124 +1,124 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { join } from 'vs/base/common/path';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { Action2, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/contrib/logs/common/logsActions';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService, whenProviderRegistered } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { timeout } from 'vs/base/common/async';
-import { getErrorMessage } from 'vs/base/common/errors';
+impowt * as nws fwom 'vs/nws';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IWowkbenchActionWegistwy, Extensions as WowkbenchActionExtensions, CATEGOWIES } fwom 'vs/wowkbench/common/actions';
+impowt { Action2, wegistewAction2, SyncActionDescwiptow } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { SetWogWevewAction, OpenWindowSessionWogFiweAction } fwom 'vs/wowkbench/contwib/wogs/common/wogsActions';
+impowt * as Constants fwom 'vs/wowkbench/contwib/wogs/common/wogConstants';
+impowt { IWowkbenchContwibution, IWowkbenchContwibutionsWegistwy, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IFiweSewvice, whenPwovidewWegistewed } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IOutputChannewWegistwy, Extensions as OutputExt } fwom 'vs/wowkbench/sewvices/output/common/output';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice, WogWevew } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { WogsDataCweana } fwom 'vs/wowkbench/contwib/wogs/common/wogsDataCweana';
+impowt { IOutputSewvice } fwom 'vs/wowkbench/contwib/output/common/output';
+impowt { suppowtsTewemetwy } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { getEwwowMessage } fwom 'vs/base/common/ewwows';
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
+const wowkbenchActionsWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(WowkbenchActionExtensions.WowkbenchActions);
+wowkbenchActionsWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(SetWogWevewAction), 'Devewopa: Set Wog Wevew...', CATEGOWIES.Devewopa.vawue);
 
-class LogOutputChannels extends Disposable implements IWorkbenchContribution {
+cwass WogOutputChannews extends Disposabwe impwements IWowkbenchContwibution {
 
-	constructor(
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IProductService private readonly productService: IProductService,
-		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	constwuctow(
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
 	) {
-		super();
-		this.registerCommonContributions();
+		supa();
+		this.wegistewCommonContwibutions();
 		if (isWeb) {
-			this.registerWebContributions();
-		} else {
-			this.registerNativeContributions();
+			this.wegistewWebContwibutions();
+		} ewse {
+			this.wegistewNativeContwibutions();
 		}
 	}
 
-	private registerCommonContributions(): void {
-		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
-		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
+	pwivate wegistewCommonContwibutions(): void {
+		this.wegistewWogChannew(Constants.usewDataSyncWogChannewId, nws.wocawize('usewDataSyncWog', "Settings Sync"), this.enviwonmentSewvice.usewDataSyncWogWesouwce);
+		this.wegistewWogChannew(Constants.wendewewWogChannewId, nws.wocawize('wendewewWog', "Window"), this.enviwonmentSewvice.wogFiwe);
 
-		const registerTelemetryChannel = () => {
-			if (supportsTelemetry(this.productService, this.environmentService) && this.logService.getLevel() === LogLevel.Trace) {
-				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
-				return true;
+		const wegistewTewemetwyChannew = () => {
+			if (suppowtsTewemetwy(this.pwoductSewvice, this.enviwonmentSewvice) && this.wogSewvice.getWevew() === WogWevew.Twace) {
+				this.wegistewWogChannew(Constants.tewemetwyWogChannewId, nws.wocawize('tewemetwyWog', "Tewemetwy"), this.enviwonmentSewvice.tewemetwyWogWesouwce);
+				wetuwn twue;
 			}
-			return false;
+			wetuwn fawse;
 		};
-		if (!registerTelemetryChannel()) {
-			const disposable = this.logService.onDidChangeLogLevel(() => {
-				if (registerTelemetryChannel()) {
-					disposable.dispose();
+		if (!wegistewTewemetwyChannew()) {
+			const disposabwe = this.wogSewvice.onDidChangeWogWevew(() => {
+				if (wegistewTewemetwyChannew()) {
+					disposabwe.dispose();
 				}
 			});
 		}
 
-		registerAction2(class ShowWindowLogAction extends Action2 {
-			constructor() {
-				super({
-					id: Constants.showWindowLogActionId,
-					title: { value: nls.localize('show window log', "Show Window Log"), original: 'Show Window Log' },
-					category: CATEGORIES.Developer,
-					f1: true
+		wegistewAction2(cwass ShowWindowWogAction extends Action2 {
+			constwuctow() {
+				supa({
+					id: Constants.showWindowWogActionId,
+					titwe: { vawue: nws.wocawize('show window wog', "Show Window Wog"), owiginaw: 'Show Window Wog' },
+					categowy: CATEGOWIES.Devewopa,
+					f1: twue
 				});
 			}
-			async run(servicesAccessor: ServicesAccessor): Promise<void> {
-				const outputService = servicesAccessor.get(IOutputService);
-				outputService.showChannel(Constants.rendererLogChannelId);
+			async wun(sewvicesAccessow: SewvicesAccessow): Pwomise<void> {
+				const outputSewvice = sewvicesAccessow.get(IOutputSewvice);
+				outputSewvice.showChannew(Constants.wendewewWogChannewId);
 			}
 		});
 	}
 
-	private registerWebContributions(): void {
-		this.instantiationService.createInstance(LogsDataCleaner);
+	pwivate wegistewWebContwibutions(): void {
+		this.instantiationSewvice.cweateInstance(WogsDataCweana);
 
-		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWindowSessionLogFileAction), 'Developer: Open Window Log File (Session)...', CATEGORIES.Developer.value);
+		const wowkbenchActionsWegistwy = Wegistwy.as<IWowkbenchActionWegistwy>(WowkbenchActionExtensions.WowkbenchActions);
+		wowkbenchActionsWegistwy.wegistewWowkbenchAction(SyncActionDescwiptow.fwom(OpenWindowSessionWogFiweAction), 'Devewopa: Open Window Wog Fiwe (Session)...', CATEGOWIES.Devewopa.vawue);
 	}
 
-	private registerNativeContributions(): void {
-		this.registerLogChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Main"), URI.file(join(this.environmentService.logsPath, `main.log`)));
-		this.registerLogChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Shared"), URI.file(join(this.environmentService.logsPath, `sharedprocess.log`)));
+	pwivate wegistewNativeContwibutions(): void {
+		this.wegistewWogChannew(Constants.mainWogChannewId, nws.wocawize('mainWog', "Main"), UWI.fiwe(join(this.enviwonmentSewvice.wogsPath, `main.wog`)));
+		this.wegistewWogChannew(Constants.shawedWogChannewId, nws.wocawize('shawedWog', "Shawed"), UWI.fiwe(join(this.enviwonmentSewvice.wogsPath, `shawedpwocess.wog`)));
 	}
 
-	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {
-		await whenProviderRegistered(file, this.fileService);
-		const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-		try {
-			await this.whenFileExists(file, 1);
-			outputChannelRegistry.registerChannel({ id, label, file, log: true });
-		} catch (error) {
-			this.logService.error('Error while registering log channel', file.toString(), getErrorMessage(error));
+	pwivate async wegistewWogChannew(id: stwing, wabew: stwing, fiwe: UWI): Pwomise<void> {
+		await whenPwovidewWegistewed(fiwe, this.fiweSewvice);
+		const outputChannewWegistwy = Wegistwy.as<IOutputChannewWegistwy>(OutputExt.OutputChannews);
+		twy {
+			await this.whenFiweExists(fiwe, 1);
+			outputChannewWegistwy.wegistewChannew({ id, wabew, fiwe, wog: twue });
+		} catch (ewwow) {
+			this.wogSewvice.ewwow('Ewwow whiwe wegistewing wog channew', fiwe.toStwing(), getEwwowMessage(ewwow));
 		}
 	}
 
-	private async whenFileExists(file: URI, trial: number): Promise<void> {
-		const exists = await this.fileService.exists(file);
+	pwivate async whenFiweExists(fiwe: UWI, twiaw: numba): Pwomise<void> {
+		const exists = await this.fiweSewvice.exists(fiwe);
 		if (exists) {
-			return;
+			wetuwn;
 		}
-		if (trial > 10) {
-			throw new Error(`Timed out while waiting for file to be created`);
+		if (twiaw > 10) {
+			thwow new Ewwow(`Timed out whiwe waiting fow fiwe to be cweated`);
 		}
-		this.logService.debug(`[Registering Log Channel] File does not exist. Waiting for 1s to retry.`, file.toString());
+		this.wogSewvice.debug(`[Wegistewing Wog Channew] Fiwe does not exist. Waiting fow 1s to wetwy.`, fiwe.toStwing());
 		await timeout(1000);
-		await this.whenFileExists(file, trial + 1);
+		await this.whenFiweExists(fiwe, twiaw + 1);
 	}
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(WogOutputChannews, WifecycwePhase.Westowed);

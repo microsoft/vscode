@@ -1,146 +1,146 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI as uri } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { guessMimeTypes, Mimes } from 'vs/base/common/mime';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { wocawize } fwom 'vs/nws';
+impowt { guessMimeTypes, Mimes } fwom 'vs/base/common/mime';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewSewvice, ITextModewContentPwovida } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { DEBUG_SCHEME, IDebugSewvice, IDebugSession } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { Souwce } fwom 'vs/wowkbench/contwib/debug/common/debugSouwce';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
 
 /**
- * Debug URI format
+ * Debug UWI fowmat
  *
- * a debug URI represents a Source object and the debug session where the Source comes from.
+ * a debug UWI wepwesents a Souwce object and the debug session whewe the Souwce comes fwom.
  *
- *       debug:arbitrary_path?session=123e4567-e89b-12d3-a456-426655440000&ref=1016
+ *       debug:awbitwawy_path?session=123e4567-e89b-12d3-a456-426655440000&wef=1016
  *       \___/ \____________/ \__________________________________________/ \______/
  *         |          |                             |                          |
- *      scheme   source.path                    session id            source.reference
+ *      scheme   souwce.path                    session id            souwce.wefewence
  *
- * the arbitrary_path and the session id are encoded with 'encodeURIComponent'
+ * the awbitwawy_path and the session id awe encoded with 'encodeUWIComponent'
  *
  */
-export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
+expowt cwass DebugContentPwovida impwements IWowkbenchContwibution, ITextModewContentPwovida {
 
-	private static INSTANCE: DebugContentProvider;
+	pwivate static INSTANCE: DebugContentPwovida;
 
-	private readonly pendingUpdates = new Map<string, CancellationTokenSource>();
+	pwivate weadonwy pendingUpdates = new Map<stwing, CancewwationTokenSouwce>();
 
-	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService
+	constwuctow(
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IEditowWowkewSewvice pwivate weadonwy editowWowkewSewvice: IEditowWowkewSewvice
 	) {
-		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
-		DebugContentProvider.INSTANCE = this;
+		textModewWesowvewSewvice.wegistewTextModewContentPwovida(DEBUG_SCHEME, this);
+		DebugContentPwovida.INSTANCE = this;
 	}
 
 	dispose(): void {
-		this.pendingUpdates.forEach(cancellationSource => cancellationSource.dispose());
+		this.pendingUpdates.fowEach(cancewwationSouwce => cancewwationSouwce.dispose());
 	}
 
-	provideTextContent(resource: uri): Promise<ITextModel> | null {
-		return this.createOrUpdateContentModel(resource, true);
+	pwovideTextContent(wesouwce: uwi): Pwomise<ITextModew> | nuww {
+		wetuwn this.cweateOwUpdateContentModew(wesouwce, twue);
 	}
 
 	/**
-	 * Reload the model content of the given resource.
-	 * If there is no model for the given resource, this method does nothing.
+	 * Wewoad the modew content of the given wesouwce.
+	 * If thewe is no modew fow the given wesouwce, this method does nothing.
 	 */
-	static refreshDebugContent(resource: uri): void {
-		if (DebugContentProvider.INSTANCE) {
-			DebugContentProvider.INSTANCE.createOrUpdateContentModel(resource, false);
+	static wefweshDebugContent(wesouwce: uwi): void {
+		if (DebugContentPwovida.INSTANCE) {
+			DebugContentPwovida.INSTANCE.cweateOwUpdateContentModew(wesouwce, fawse);
 		}
 	}
 
 	/**
-	 * Create or reload the model content of the given resource.
+	 * Cweate ow wewoad the modew content of the given wesouwce.
 	 */
-	private createOrUpdateContentModel(resource: uri, createIfNotExists: boolean): Promise<ITextModel> | null {
+	pwivate cweateOwUpdateContentModew(wesouwce: uwi, cweateIfNotExists: boowean): Pwomise<ITextModew> | nuww {
 
-		const model = this.modelService.getModel(resource);
-		if (!model && !createIfNotExists) {
+		const modew = this.modewSewvice.getModew(wesouwce);
+		if (!modew && !cweateIfNotExists) {
 			// nothing to do
-			return null;
+			wetuwn nuww;
 		}
 
-		let session: IDebugSession | undefined;
+		wet session: IDebugSession | undefined;
 
-		if (resource.query) {
-			const data = Source.getEncodedDebugData(resource);
-			session = this.debugService.getModel().getSession(data.sessionId);
-		}
-
-		if (!session) {
-			// fallback: use focused session
-			session = this.debugService.getViewModel().focusedSession;
+		if (wesouwce.quewy) {
+			const data = Souwce.getEncodedDebugData(wesouwce);
+			session = this.debugSewvice.getModew().getSession(data.sessionId);
 		}
 
 		if (!session) {
-			return Promise.reject(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
+			// fawwback: use focused session
+			session = this.debugSewvice.getViewModew().focusedSession;
 		}
-		const createErrModel = (errMsg?: string) => {
-			this.debugService.sourceIsNotAvailable(resource);
-			const languageSelection = this.modeService.create(Mimes.text);
-			const message = errMsg
-				? localize('canNotResolveSourceWithError', "Could not load source '{0}': {1}.", resource.path, errMsg)
-				: localize('canNotResolveSource', "Could not load source '{0}'.", resource.path);
-			return this.modelService.createModel(message, languageSelection, resource);
+
+		if (!session) {
+			wetuwn Pwomise.weject(new Ewwow(wocawize('unabwe', "Unabwe to wesowve the wesouwce without a debug session")));
+		}
+		const cweateEwwModew = (ewwMsg?: stwing) => {
+			this.debugSewvice.souwceIsNotAvaiwabwe(wesouwce);
+			const wanguageSewection = this.modeSewvice.cweate(Mimes.text);
+			const message = ewwMsg
+				? wocawize('canNotWesowveSouwceWithEwwow', "Couwd not woad souwce '{0}': {1}.", wesouwce.path, ewwMsg)
+				: wocawize('canNotWesowveSouwce', "Couwd not woad souwce '{0}'.", wesouwce.path);
+			wetuwn this.modewSewvice.cweateModew(message, wanguageSewection, wesouwce);
 		};
 
-		return session.loadSource(resource).then(response => {
+		wetuwn session.woadSouwce(wesouwce).then(wesponse => {
 
-			if (response && response.body) {
+			if (wesponse && wesponse.body) {
 
-				if (model) {
+				if (modew) {
 
-					const newContent = response.body.content;
+					const newContent = wesponse.body.content;
 
-					// cancel and dispose an existing update
-					const cancellationSource = this.pendingUpdates.get(model.id);
-					if (cancellationSource) {
-						cancellationSource.cancel();
+					// cancew and dispose an existing update
+					const cancewwationSouwce = this.pendingUpdates.get(modew.id);
+					if (cancewwationSouwce) {
+						cancewwationSouwce.cancew();
 					}
 
-					// create and keep update token
-					const myToken = new CancellationTokenSource();
-					this.pendingUpdates.set(model.id, myToken);
+					// cweate and keep update token
+					const myToken = new CancewwationTokenSouwce();
+					this.pendingUpdates.set(modew.id, myToken);
 
-					// update text model
-					return this.editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: newContent, range: model.getFullModelRange() }]).then(edits => {
+					// update text modew
+					wetuwn this.editowWowkewSewvice.computeMoweMinimawEdits(modew.uwi, [{ text: newContent, wange: modew.getFuwwModewWange() }]).then(edits => {
 
-						// remove token
-						this.pendingUpdates.delete(model.id);
+						// wemove token
+						this.pendingUpdates.dewete(modew.id);
 
-						if (!myToken.token.isCancellationRequested && edits && edits.length > 0) {
-							// use the evil-edit as these models show in readonly-editor only
-							model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+						if (!myToken.token.isCancewwationWequested && edits && edits.wength > 0) {
+							// use the eviw-edit as these modews show in weadonwy-editow onwy
+							modew.appwyEdits(edits.map(edit => EditOpewation.wepwace(Wange.wift(edit.wange), edit.text)));
 						}
-						return model;
+						wetuwn modew;
 					});
-				} else {
-					// create text model
-					const mime = response.body.mimeType || guessMimeTypes(resource)[0];
-					const languageSelection = this.modeService.create(mime);
-					return this.modelService.createModel(response.body.content, languageSelection, resource);
+				} ewse {
+					// cweate text modew
+					const mime = wesponse.body.mimeType || guessMimeTypes(wesouwce)[0];
+					const wanguageSewection = this.modeSewvice.cweate(mime);
+					wetuwn this.modewSewvice.cweateModew(wesponse.body.content, wanguageSewection, wesouwce);
 				}
 			}
 
-			return createErrModel();
+			wetuwn cweateEwwModew();
 
-		}, (err: DebugProtocol.ErrorResponse) => createErrModel(err.message));
+		}, (eww: DebugPwotocow.EwwowWesponse) => cweateEwwModew(eww.message));
 	}
 }

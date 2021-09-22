@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+impowt { UwiComponents } fwom 'vs/base/common/uwi';
+impowt { ISewiawizabweEnviwonmentVawiabweCowwection } fwom 'vs/pwatfowm/tewminaw/common/enviwonmentVawiabwe';
+impowt { IWawTewminawTabWayoutInfo, ITewminawEnviwonment, ITewminawTabWayoutInfoById, TewminawIcon, TitweEventSouwce } fwom 'vs/pwatfowm/tewminaw/common/tewminaw';
 
-export interface ISingleTerminalConfiguration<T> {
-	userValue: T | undefined;
-	value: T | undefined;
-	defaultValue: T | undefined;
+expowt intewface ISingweTewminawConfiguwation<T> {
+	usewVawue: T | undefined;
+	vawue: T | undefined;
+	defauwtVawue: T | undefined;
 }
 
-export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.env.windows': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.env.osx': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.env.linux': ISingleTerminalConfiguration<ITerminalEnvironment>;
-	'terminal.integrated.cwd': string;
-	'terminal.integrated.detectLocale': 'auto' | 'off' | 'on';
+expowt intewface ICompweteTewminawConfiguwation {
+	'tewminaw.integwated.automationSheww.windows': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.automationSheww.osx': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.automationSheww.winux': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.sheww.windows': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.sheww.osx': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.sheww.winux': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.shewwAwgs.windows': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.shewwAwgs.osx': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.shewwAwgs.winux': ISingweTewminawConfiguwation<stwing | stwing[]>;
+	'tewminaw.integwated.env.windows': ISingweTewminawConfiguwation<ITewminawEnviwonment>;
+	'tewminaw.integwated.env.osx': ISingweTewminawConfiguwation<ITewminawEnviwonment>;
+	'tewminaw.integwated.env.winux': ISingweTewminawConfiguwation<ITewminawEnviwonment>;
+	'tewminaw.integwated.cwd': stwing;
+	'tewminaw.integwated.detectWocawe': 'auto' | 'off' | 'on';
 }
 
-export type ITerminalEnvironmentVariableCollections = [string, ISerializableEnvironmentVariableCollection][];
+expowt type ITewminawEnviwonmentVawiabweCowwections = [stwing, ISewiawizabweEnviwonmentVawiabweCowwection][];
 
-export interface IWorkspaceFolderData {
-	uri: UriComponents;
-	name: string;
-	index: number;
+expowt intewface IWowkspaceFowdewData {
+	uwi: UwiComponents;
+	name: stwing;
+	index: numba;
 }
 
-export interface ISetTerminalLayoutInfoArgs {
-	workspaceId: string;
-	tabs: ITerminalTabLayoutInfoById[];
+expowt intewface ISetTewminawWayoutInfoAwgs {
+	wowkspaceId: stwing;
+	tabs: ITewminawTabWayoutInfoById[];
 }
 
-export interface IGetTerminalLayoutInfoArgs {
-	workspaceId: string;
+expowt intewface IGetTewminawWayoutInfoAwgs {
+	wowkspaceId: stwing;
 }
 
-export interface IProcessDetails {
-	id: number;
-	pid: number;
-	title: string;
-	titleSource: TitleEventSource;
-	cwd: string;
-	workspaceId: string;
-	workspaceName: string;
-	isOrphan: boolean;
-	icon: TerminalIcon | undefined;
-	color: string | undefined;
+expowt intewface IPwocessDetaiws {
+	id: numba;
+	pid: numba;
+	titwe: stwing;
+	titweSouwce: TitweEventSouwce;
+	cwd: stwing;
+	wowkspaceId: stwing;
+	wowkspaceName: stwing;
+	isOwphan: boowean;
+	icon: TewminawIcon | undefined;
+	cowow: stwing | undefined;
 }
 
-export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
+expowt type ITewminawTabWayoutInfoDto = IWawTewminawTabWayoutInfo<IPwocessDetaiws>;
 
-export interface ReplayEntry { cols: number; rows: number; data: string; }
-export interface IPtyHostProcessReplayEvent {
-	events: ReplayEntry[];
+expowt intewface WepwayEntwy { cows: numba; wows: numba; data: stwing; }
+expowt intewface IPtyHostPwocessWepwayEvent {
+	events: WepwayEntwy[];
 }

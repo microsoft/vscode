@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-pane-view {
@@ -9,135 +9,135 @@
 }
 
 .monaco-pane-view .pane {
-	overflow: hidden;
+	ovewfwow: hidden;
 	width: 100%;
 	height: 100%;
-	display: flex;
-	flex-direction: column;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) {
-	flex-direction: row;
+.monaco-pane-view .pane.howizontaw:not(.expanded) {
+	fwex-diwection: wow;
 }
 
-.monaco-pane-view .pane > .pane-header {
+.monaco-pane-view .pane > .pane-heada {
 	height: 22px;
 	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	overflow: hidden;
-	display: flex;
-	cursor: pointer;
-	align-items: center;
-	box-sizing: border-box;
+	font-weight: bowd;
+	text-twansfowm: uppewcase;
+	ovewfwow: hidden;
+	dispway: fwex;
+	cuwsow: pointa;
+	awign-items: centa;
+	box-sizing: bowda-box;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
-	flex-direction: column;
+.monaco-pane-view .pane.howizontaw:not(.expanded) > .pane-heada {
+	fwex-diwection: cowumn;
 	height: 100%;
 	width: 22px;
 }
 
-.monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
-	margin: 0 2px;
+.monaco-pane-view .pane > .pane-heada > .codicon:fiwst-of-type {
+	mawgin: 0 2px;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
-	margin: 2px;
+.monaco-pane-view .pane.howizontaw:not(.expanded) > .pane-heada > .codicon:fiwst-of-type {
+	mawgin: 2px;
 }
 
-/* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane > .pane-header > .actions {
-	display: none;
-	margin-left: auto;
+/* TODO: actions shouwd be pawt of the pane, but they awen't yet */
+.monaco-pane-view .pane > .pane-heada > .actions {
+	dispway: none;
+	mawgin-weft: auto;
 }
 
-.monaco-pane-view .pane > .pane-header > .actions .action-item {
-	margin-right: 4px;
+.monaco-pane-view .pane > .pane-heada > .actions .action-item {
+	mawgin-wight: 4px;
 }
 
-.monaco-pane-view .pane > .pane-header > .actions .action-label {
+.monaco-pane-view .pane > .pane-heada > .actions .action-wabew {
 	padding: 2px;
 }
 
-/* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
-.monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,
-.monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
-.monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
-	display: initial;
+/* TODO: actions shouwd be pawt of the pane, but they awen't yet */
+.monaco-pane-view .pane:hova > .pane-heada.expanded > .actions,
+.monaco-pane-view .pane:focus-within > .pane-heada.expanded > .actions,
+.monaco-pane-view .pane > .pane-heada.actions-awways-visibwe.expanded > .actions,
+.monaco-pane-view .pane > .pane-heada.focused.expanded > .actions {
+	dispway: initiaw;
 }
 
-.monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
-	cursor: default;
+.monaco-pane-view .pane > .pane-heada .monaco-action-baw .action-item.sewect-containa {
+	cuwsow: defauwt;
 }
 
-.monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
-	cursor: pointer;
+.monaco-pane-view .pane > .pane-heada .action-item .monaco-sewect-box {
+	cuwsow: pointa;
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
-	background-color: inherit !important;
-	color: inherit !important;
+	backgwound-cowow: inhewit !impowtant;
+	cowow: inhewit !impowtant;
 }
 
-.linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
-.windows .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+.winux .monaco-pane-view .pane > .pane-heada .action-item .monaco-sewect-box,
+.windows .monaco-pane-view .pane > .pane-heada .action-item .monaco-sewect-box {
 	padding: 0px 23px 0px 8px;
 }
 
-/* Bold font style does not go well with CJK fonts */
-.monaco-pane-view:lang(zh-Hans) .pane > .pane-header,
-.monaco-pane-view:lang(zh-Hant) .pane > .pane-header,
-.monaco-pane-view:lang(ja) .pane > .pane-header,
-.monaco-pane-view:lang(ko) .pane > .pane-header {
-	font-weight: normal;
+/* Bowd font stywe does not go weww with CJK fonts */
+.monaco-pane-view:wang(zh-Hans) .pane > .pane-heada,
+.monaco-pane-view:wang(zh-Hant) .pane > .pane-heada,
+.monaco-pane-view:wang(ja) .pane > .pane-heada,
+.monaco-pane-view:wang(ko) .pane > .pane-heada {
+	font-weight: nowmaw;
 }
 
-.monaco-pane-view .pane > .pane-header.hidden {
-	display: none;
+.monaco-pane-view .pane > .pane-heada.hidden {
+	dispway: none;
 }
 
 .monaco-pane-view .pane > .pane-body {
-	overflow: hidden;
-	flex: 1;
+	ovewfwow: hidden;
+	fwex: 1;
 }
 
 /* Animation */
 
-.monaco-pane-view.animated .split-view-view {
-	transition-duration: 0.15s;
-	transition-timing-function: ease-out;
+.monaco-pane-view.animated .spwit-view-view {
+	twansition-duwation: 0.15s;
+	twansition-timing-function: ease-out;
 }
 
-.monaco-pane-view.animated.vertical .split-view-view {
-	transition-property: height;
+.monaco-pane-view.animated.vewticaw .spwit-view-view {
+	twansition-pwopewty: height;
 }
 
-.monaco-pane-view.animated.horizontal .split-view-view {
-	transition-property: width;
+.monaco-pane-view.animated.howizontaw .spwit-view-view {
+	twansition-pwopewty: width;
 }
 
-#monaco-pane-drop-overlay {
-	position: absolute;
+#monaco-pane-dwop-ovewway {
+	position: absowute;
 	z-index: 10000;
 	width: 100%;
 	height: 100%;
-	left: 0;
-	box-sizing: border-box;
+	weft: 0;
+	box-sizing: bowda-box;
 }
 
-#monaco-pane-drop-overlay > .pane-overlay-indicator {
-	position: absolute;
+#monaco-pane-dwop-ovewway > .pane-ovewway-indicatow {
+	position: absowute;
 	width: 100%;
 	height: 100%;
 	min-height: 22px;
 	min-width: 19px;
 
-	pointer-events: none; /* very important to not take events away from the parent */
-	transition: opacity 150ms ease-out;
+	pointa-events: none; /* vewy impowtant to not take events away fwom the pawent */
+	twansition: opacity 150ms ease-out;
 }
 
-#monaco-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
-	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
+#monaco-pane-dwop-ovewway > .pane-ovewway-indicatow.ovewway-move-twansition {
+	twansition: top 70ms ease-out, weft 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

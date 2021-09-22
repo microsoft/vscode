@@ -1,308 +1,308 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposed } from 'vs/base/common/errors';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { equals as objectEquals } from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation } from 'vs/editor/common/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { revive } from 'vs/base/common/marshalling';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+impowt { disposed } fwom 'vs/base/common/ewwows';
+impowt { IDisposabwe, dispose, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { equaws as objectEquaws } fwom 'vs/base/common/objects';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IBuwkEditSewvice, WesouwceEdit, WesouwceFiweEdit, WesouwceTextEdit } fwom 'vs/editow/bwowsa/sewvices/buwkEditSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { IWange } fwom 'vs/editow/common/cowe/wange';
+impowt { ISewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IDecowationOptions, IDecowationWendewOptions, IWineChange } fwom 'vs/editow/common/editowCommon';
+impowt { ISingweEditOpewation } fwom 'vs/editow/common/modew';
+impowt { CommandsWegistwy } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITextEditowOptions, IWesouwceEditowInput, EditowActivation, EditowWesowution } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MainThweadDocumentsAndEditows } fwom 'vs/wowkbench/api/bwowsa/mainThweadDocumentsAndEditows';
+impowt { MainThweadTextEditow } fwom 'vs/wowkbench/api/bwowsa/mainThweadEditow';
+impowt { ExtHostContext, ExtHostEditowsShape, IAppwyEditsOptions, IExtHostContext, ITextDocumentShowOptions, ITextEditowConfiguwationUpdate, ITextEditowPositionData, IUndoStopOptions, MainThweadTextEditowsShape, TextEditowWeveawType, IWowkspaceEditDto, WowkspaceEditType } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { editowGwoupToCowumn, cowumnToEditowGwoup, EditowGwoupCowumn } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupCowumn';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { wevive } fwom 'vs/base/common/mawshawwing';
+impowt { WesouwceNotebookCewwEdit } fwom 'vs/wowkbench/contwib/buwkEdit/bwowsa/buwkCewwEdits';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { NotebookDto } fwom 'vs/wowkbench/api/bwowsa/mainThweadNotebookDto';
 
-export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
+expowt function weviveWowkspaceEditDto2(data: IWowkspaceEditDto | undefined): WesouwceEdit[] {
 	if (!data?.edits) {
-		return [];
+		wetuwn [];
 	}
 
-	const result: ResourceEdit[] = [];
-	for (let edit of revive<IWorkspaceEditDto>(data).edits) {
-		if (edit._type === WorkspaceEditType.File) {
-			result.push(new ResourceFileEdit(edit.oldUri, edit.newUri, edit.options, edit.metadata));
-		} else if (edit._type === WorkspaceEditType.Text) {
-			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
-		} else if (edit._type === WorkspaceEditType.Cell) {
-			result.push(new ResourceNotebookCellEdit(edit.resource, NotebookDto.fromCellEditOperationDto(edit.edit), edit.notebookVersionId, edit.metadata));
+	const wesuwt: WesouwceEdit[] = [];
+	fow (wet edit of wevive<IWowkspaceEditDto>(data).edits) {
+		if (edit._type === WowkspaceEditType.Fiwe) {
+			wesuwt.push(new WesouwceFiweEdit(edit.owdUwi, edit.newUwi, edit.options, edit.metadata));
+		} ewse if (edit._type === WowkspaceEditType.Text) {
+			wesuwt.push(new WesouwceTextEdit(edit.wesouwce, edit.edit, edit.modewVewsionId, edit.metadata));
+		} ewse if (edit._type === WowkspaceEditType.Ceww) {
+			wesuwt.push(new WesouwceNotebookCewwEdit(edit.wesouwce, NotebookDto.fwomCewwEditOpewationDto(edit.edit), edit.notebookVewsionId, edit.metadata));
 		}
 	}
-	return result;
+	wetuwn wesuwt;
 }
 
-export class MainThreadTextEditors implements MainThreadTextEditorsShape {
+expowt cwass MainThweadTextEditows impwements MainThweadTextEditowsShape {
 
-	private static INSTANCE_COUNT: number = 0;
+	pwivate static INSTANCE_COUNT: numba = 0;
 
-	private readonly _instanceId: string;
-	private readonly _proxy: ExtHostEditorsShape;
-	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
-	private readonly _toDispose = new DisposableStore();
-	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
-	private _editorPositionData: ITextEditorPositionData | null;
-	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
+	pwivate weadonwy _instanceId: stwing;
+	pwivate weadonwy _pwoxy: ExtHostEditowsShape;
+	pwivate weadonwy _documentsAndEditows: MainThweadDocumentsAndEditows;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _textEditowsWistenewsMap: { [editowId: stwing]: IDisposabwe[]; };
+	pwivate _editowPositionData: ITextEditowPositionData | nuww;
+	pwivate _wegistewedDecowationTypes: { [decowationType: stwing]: boowean; };
 
-	constructor(
-		documentsAndEditors: MainThreadDocumentsAndEditors,
+	constwuctow(
+		documentsAndEditows: MainThweadDocumentsAndEditows,
 		extHostContext: IExtHostContext,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@ICodeEditowSewvice pwivate weadonwy _codeEditowSewvice: ICodeEditowSewvice,
+		@IBuwkEditSewvice pwivate weadonwy _buwkEditSewvice: IBuwkEditSewvice,
+		@IEditowSewvice pwivate weadonwy _editowSewvice: IEditowSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy _editowGwoupSewvice: IEditowGwoupsSewvice
 	) {
-		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
-		this._documentsAndEditors = documentsAndEditors;
+		this._instanceId = Stwing(++MainThweadTextEditows.INSTANCE_COUNT);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostEditows);
+		this._documentsAndEditows = documentsAndEditows;
 
-		this._textEditorsListenersMap = Object.create(null);
-		this._editorPositionData = null;
+		this._textEditowsWistenewsMap = Object.cweate(nuww);
+		this._editowPositionData = nuww;
 
-		this._toDispose.add(documentsAndEditors.onTextEditorAdd(editors => editors.forEach(this._onTextEditorAdd, this)));
-		this._toDispose.add(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
+		this._toDispose.add(documentsAndEditows.onTextEditowAdd(editows => editows.fowEach(this._onTextEditowAdd, this)));
+		this._toDispose.add(documentsAndEditows.onTextEditowWemove(editows => editows.fowEach(this._onTextEditowWemove, this)));
 
-		this._toDispose.add(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.add(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.add(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.add(this._editowSewvice.onDidVisibweEditowsChange(() => this._updateActiveAndVisibweTextEditows()));
+		this._toDispose.add(this._editowGwoupSewvice.onDidWemoveGwoup(() => this._updateActiveAndVisibweTextEditows()));
+		this._toDispose.add(this._editowGwoupSewvice.onDidMoveGwoup(() => this._updateActiveAndVisibweTextEditows()));
 
-		this._registeredDecorationTypes = Object.create(null);
+		this._wegistewedDecowationTypes = Object.cweate(nuww);
 	}
 
-	public dispose(): void {
-		Object.keys(this._textEditorsListenersMap).forEach((editorId) => {
-			dispose(this._textEditorsListenersMap[editorId]);
+	pubwic dispose(): void {
+		Object.keys(this._textEditowsWistenewsMap).fowEach((editowId) => {
+			dispose(this._textEditowsWistenewsMap[editowId]);
 		});
-		this._textEditorsListenersMap = Object.create(null);
+		this._textEditowsWistenewsMap = Object.cweate(nuww);
 		this._toDispose.dispose();
-		for (let decorationType in this._registeredDecorationTypes) {
-			this._codeEditorService.removeDecorationType(decorationType);
+		fow (wet decowationType in this._wegistewedDecowationTypes) {
+			this._codeEditowSewvice.wemoveDecowationType(decowationType);
 		}
-		this._registeredDecorationTypes = Object.create(null);
+		this._wegistewedDecowationTypes = Object.cweate(nuww);
 	}
 
-	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
-		const id = textEditor.getId();
-		const toDispose: IDisposable[] = [];
-		toDispose.push(textEditor.onPropertiesChanged((data) => {
-			this._proxy.$acceptEditorPropertiesChanged(id, data);
+	pwivate _onTextEditowAdd(textEditow: MainThweadTextEditow): void {
+		const id = textEditow.getId();
+		const toDispose: IDisposabwe[] = [];
+		toDispose.push(textEditow.onPwopewtiesChanged((data) => {
+			this._pwoxy.$acceptEditowPwopewtiesChanged(id, data);
 		}));
 
-		this._textEditorsListenersMap[id] = toDispose;
+		this._textEditowsWistenewsMap[id] = toDispose;
 	}
 
-	private _onTextEditorRemove(id: string): void {
-		dispose(this._textEditorsListenersMap[id]);
-		delete this._textEditorsListenersMap[id];
+	pwivate _onTextEditowWemove(id: stwing): void {
+		dispose(this._textEditowsWistenewsMap[id]);
+		dewete this._textEditowsWistenewsMap[id];
 	}
 
-	private _updateActiveAndVisibleTextEditors(): void {
+	pwivate _updateActiveAndVisibweTextEditows(): void {
 
-		// editor columns
-		const editorPositionData = this._getTextEditorPositionData();
-		if (!objectEquals(this._editorPositionData, editorPositionData)) {
-			this._editorPositionData = editorPositionData;
-			this._proxy.$acceptEditorPositionData(this._editorPositionData);
+		// editow cowumns
+		const editowPositionData = this._getTextEditowPositionData();
+		if (!objectEquaws(this._editowPositionData, editowPositionData)) {
+			this._editowPositionData = editowPositionData;
+			this._pwoxy.$acceptEditowPositionData(this._editowPositionData);
 		}
 	}
 
-	private _getTextEditorPositionData(): ITextEditorPositionData {
-		const result: ITextEditorPositionData = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
-			const id = this._documentsAndEditors.findTextEditorIdFor(editorPane);
+	pwivate _getTextEditowPositionData(): ITextEditowPositionData {
+		const wesuwt: ITextEditowPositionData = Object.cweate(nuww);
+		fow (wet editowPane of this._editowSewvice.visibweEditowPanes) {
+			const id = this._documentsAndEditows.findTextEditowIdFow(editowPane);
 			if (id) {
-				result[id] = editorGroupToColumn(this._editorGroupService, editorPane.group);
+				wesuwt[id] = editowGwoupToCowumn(this._editowGwoupSewvice, editowPane.gwoup);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	// --- from extension host process
+	// --- fwom extension host pwocess
 
-	async $tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined> {
-		const uri = URI.revive(resource);
+	async $twyShowTextDocument(wesouwce: UwiComponents, options: ITextDocumentShowOptions): Pwomise<stwing | undefined> {
+		const uwi = UWI.wevive(wesouwce);
 
-		const editorOptions: ITextEditorOptions = {
-			preserveFocus: options.preserveFocus,
+		const editowOptions: ITextEditowOptions = {
+			pwesewveFocus: options.pwesewveFocus,
 			pinned: options.pinned,
-			selection: options.selection,
-			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
-			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorResolution.DISABLED
+			sewection: options.sewection,
+			// pwesewve pwe 1.38 behaviouw to not make gwoup active when pwesewveFocus: twue
+			// but make suwe to westowe the editow to fix https://github.com/micwosoft/vscode/issues/79633
+			activation: options.pwesewveFocus ? EditowActivation.WESTOWE : undefined,
+			ovewwide: EditowWesowution.DISABWED
 		};
 
-		const input: IResourceEditorInput = {
-			resource: uri,
-			options: editorOptions
+		const input: IWesouwceEditowInput = {
+			wesouwce: uwi,
+			options: editowOptions
 		};
 
-		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, options.position));
-		if (!editor) {
-			return undefined;
+		const editow = await this._editowSewvice.openEditow(input, cowumnToEditowGwoup(this._editowGwoupSewvice, options.position));
+		if (!editow) {
+			wetuwn undefined;
 		}
-		return this._documentsAndEditors.findTextEditorIdFor(editor);
+		wetuwn this._documentsAndEditows.findTextEditowIdFow(editow);
 	}
 
-	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
-		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
-		if (mainThreadEditor) {
-			const model = mainThreadEditor.getModel();
-			await this._editorService.openEditor({
-				resource: model.uri,
-				options: { preserveFocus: false }
-			}, columnToEditorGroup(this._editorGroupService, position));
-			return;
+	async $twyShowEditow(id: stwing, position?: EditowGwoupCowumn): Pwomise<void> {
+		const mainThweadEditow = this._documentsAndEditows.getEditow(id);
+		if (mainThweadEditow) {
+			const modew = mainThweadEditow.getModew();
+			await this._editowSewvice.openEditow({
+				wesouwce: modew.uwi,
+				options: { pwesewveFocus: fawse }
+			}, cowumnToEditowGwoup(this._editowGwoupSewvice, position));
+			wetuwn;
 		}
 	}
 
-	async $tryHideEditor(id: string): Promise<void> {
-		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
-		if (mainThreadEditor) {
-			const editorPanes = this._editorService.visibleEditorPanes;
-			for (let editorPane of editorPanes) {
-				if (mainThreadEditor.matches(editorPane)) {
-					return editorPane.group.closeEditor(editorPane.input);
+	async $twyHideEditow(id: stwing): Pwomise<void> {
+		const mainThweadEditow = this._documentsAndEditows.getEditow(id);
+		if (mainThweadEditow) {
+			const editowPanes = this._editowSewvice.visibweEditowPanes;
+			fow (wet editowPane of editowPanes) {
+				if (mainThweadEditow.matches(editowPane)) {
+					wetuwn editowPane.gwoup.cwoseEditow(editowPane.input);
 				}
 			}
 		}
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+	$twySetSewections(id: stwing, sewections: ISewection[]): Pwomise<void> {
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		editor.setSelections(selections);
-		return Promise.resolve(undefined);
+		editow.setSewections(sewections);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
+	$twySetDecowations(id: stwing, key: stwing, wanges: IDecowationOptions[]): Pwomise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		editor.setDecorations(key, ranges);
-		return Promise.resolve(undefined);
+		editow.setDecowations(key, wanges);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
+	$twySetDecowationsFast(id: stwing, key: stwing, wanges: numba[]): Pwomise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		editor.setDecorationsFast(key, ranges);
-		return Promise.resolve(undefined);
+		editow.setDecowationsFast(key, wanges);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+	$twyWeveawWange(id: stwing, wange: IWange, weveawType: TextEditowWeveawType): Pwomise<void> {
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		editor.revealRange(range, revealType);
-		return Promise.resolve();
+		editow.weveawWange(wange, weveawType);
+		wetuwn Pwomise.wesowve();
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+	$twySetOptions(id: stwing, options: ITextEditowConfiguwationUpdate): Pwomise<void> {
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		editor.setConfiguration(options);
-		return Promise.resolve(undefined);
+		editow.setConfiguwation(options);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+	$twyAppwyEdits(id: stwing, modewVewsionId: numba, edits: ISingweEditOpewation[], opts: IAppwyEditsOptions): Pwomise<boowean> {
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
+		wetuwn Pwomise.wesowve(editow.appwyEdits(modewVewsionId, edits, opts));
 	}
 
-	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto): Promise<boolean> {
-		const edits = reviveWorkspaceEditDto2(dto);
-		return this._bulkEditService.apply(edits).then(() => true, _err => false);
+	$twyAppwyWowkspaceEdit(dto: IWowkspaceEditDto): Pwomise<boowean> {
+		const edits = weviveWowkspaceEditDto2(dto);
+		wetuwn this._buwkEditSewvice.appwy(edits).then(() => twue, _eww => fawse);
 	}
 
-	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
-		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+	$twyInsewtSnippet(id: stwing, tempwate: stwing, wanges: weadonwy IWange[], opts: IUndoStopOptions): Pwomise<boowean> {
+		const editow = this._documentsAndEditows.getEditow(id);
+		if (!editow) {
+			wetuwn Pwomise.weject(disposed(`TextEditow(${id})`));
 		}
-		return Promise.resolve(editor.insertSnippet(template, ranges, opts));
+		wetuwn Pwomise.wesowve(editow.insewtSnippet(tempwate, wanges, opts));
 	}
 
-	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: IDecorationRenderOptions): void {
+	$wegistewTextEditowDecowationType(extensionId: ExtensionIdentifia, key: stwing, options: IDecowationWendewOptions): void {
 		key = `${this._instanceId}-${key}`;
-		this._registeredDecorationTypes[key] = true;
-		this._codeEditorService.registerDecorationType(`exthost-api-${extensionId}`, key, options);
+		this._wegistewedDecowationTypes[key] = twue;
+		this._codeEditowSewvice.wegistewDecowationType(`exthost-api-${extensionId}`, key, options);
 	}
 
-	$removeTextEditorDecorationType(key: string): void {
+	$wemoveTextEditowDecowationType(key: stwing): void {
 		key = `${this._instanceId}-${key}`;
-		delete this._registeredDecorationTypes[key];
-		this._codeEditorService.removeDecorationType(key);
+		dewete this._wegistewedDecowationTypes[key];
+		this._codeEditowSewvice.wemoveDecowationType(key);
 	}
 
-	$getDiffInformation(id: string): Promise<ILineChange[]> {
-		const editor = this._documentsAndEditors.getEditor(id);
+	$getDiffInfowmation(id: stwing): Pwomise<IWineChange[]> {
+		const editow = this._documentsAndEditows.getEditow(id);
 
-		if (!editor) {
-			return Promise.reject(new Error('No such TextEditor'));
+		if (!editow) {
+			wetuwn Pwomise.weject(new Ewwow('No such TextEditow'));
 		}
 
-		const codeEditor = editor.getCodeEditor();
-		if (!codeEditor) {
-			return Promise.reject(new Error('No such CodeEditor'));
+		const codeEditow = editow.getCodeEditow();
+		if (!codeEditow) {
+			wetuwn Pwomise.weject(new Ewwow('No such CodeEditow'));
 		}
 
-		const codeEditorId = codeEditor.getId();
-		const diffEditors = this._codeEditorService.listDiffEditors();
-		const [diffEditor] = diffEditors.filter(d => d.getOriginalEditor().getId() === codeEditorId || d.getModifiedEditor().getId() === codeEditorId);
+		const codeEditowId = codeEditow.getId();
+		const diffEditows = this._codeEditowSewvice.wistDiffEditows();
+		const [diffEditow] = diffEditows.fiwta(d => d.getOwiginawEditow().getId() === codeEditowId || d.getModifiedEditow().getId() === codeEditowId);
 
-		if (diffEditor) {
-			return Promise.resolve(diffEditor.getLineChanges() || []);
+		if (diffEditow) {
+			wetuwn Pwomise.wesowve(diffEditow.getWineChanges() || []);
 		}
 
-		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
+		const diwtyDiffContwibution = codeEditow.getContwibution('editow.contwib.diwtydiff');
 
-		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+		if (diwtyDiffContwibution) {
+			wetuwn Pwomise.wesowve((diwtyDiffContwibution as any).getChanges());
 		}
 
-		return Promise.resolve([]);
+		wetuwn Pwomise.wesowve([]);
 	}
 }
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.revertAllDirty', async function (accessor: ServicesAccessor) {
-	const environmentService = accessor.get(IEnvironmentService);
-	if (!environmentService.extensionTestsLocationURI) {
-		throw new Error('Command is only available when running extension tests.');
+CommandsWegistwy.wegistewCommand('_wowkbench.wevewtAwwDiwty', async function (accessow: SewvicesAccessow) {
+	const enviwonmentSewvice = accessow.get(IEnviwonmentSewvice);
+	if (!enviwonmentSewvice.extensionTestsWocationUWI) {
+		thwow new Ewwow('Command is onwy avaiwabwe when wunning extension tests.');
 	}
 
-	const workingCopyService = accessor.get(IWorkingCopyService);
-	for (const workingCopy of workingCopyService.dirtyWorkingCopies) {
-		await workingCopy.revert({ soft: true });
+	const wowkingCopySewvice = accessow.get(IWowkingCopySewvice);
+	fow (const wowkingCopy of wowkingCopySewvice.diwtyWowkingCopies) {
+		await wowkingCopy.wevewt({ soft: twue });
 	}
 });

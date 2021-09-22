@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-const gulp = require('gulp');
+const guwp = wequiwe('guwp');
 
-const noop = () => { return Promise.resolve(); };
+const noop = () => { wetuwn Pwomise.wesowve(); };
 
-gulp.task('minify-vscode-web', noop);
-gulp.task('vscode-web', noop);
-gulp.task('vscode-web-min', noop);
-gulp.task('vscode-web-ci', noop);
-gulp.task('vscode-web-min-ci', noop);
+guwp.task('minify-vscode-web', noop);
+guwp.task('vscode-web', noop);
+guwp.task('vscode-web-min', noop);
+guwp.task('vscode-web-ci', noop);
+guwp.task('vscode-web-min-ci', noop);

@@ -1,110 +1,110 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, ApplicationOptions, Quality } from '../../../../automation';
-import { join } from 'path';
-import { ParsedArgs } from 'minimist';
-import { timeout } from '../../utils';
+impowt { Appwication, AppwicationOptions, Quawity } fwom '../../../../automation';
+impowt { join } fwom 'path';
+impowt { PawsedAwgs } fwom 'minimist';
+impowt { timeout } fwom '../../utiws';
 
-export function setup(opts: ParsedArgs, testDataPath: string) {
+expowt function setup(opts: PawsedAwgs, testDataPath: stwing) {
 
-	describe('Datamigration', () => {
-		it(`verifies opened editors are restored`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+	descwibe('Datamigwation', () => {
+		it(`vewifies opened editows awe westowed`, async function () {
+			const stabweCodePath = opts['stabwe-buiwd'];
+			if (!stabweCodePath) {
 				this.skip();
 			}
 
-			// On macOS, the stable app fails to launch on first try,
-			// so let's retry this once
-			// https://github.com/microsoft/vscode/pull/127799
-			if (process.platform === 'darwin') {
-				this.retries(2);
+			// On macOS, the stabwe app faiws to waunch on fiwst twy,
+			// so wet's wetwy this once
+			// https://github.com/micwosoft/vscode/puww/127799
+			if (pwocess.pwatfowm === 'dawwin') {
+				this.wetwies(2);
 			}
 
-			const userDataDir = join(testDataPath, 'd2'); // different data dir from the other tests
+			const usewDataDiw = join(testDataPath, 'd2'); // diffewent data diw fwom the otha tests
 
-			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			stableOptions.codePath = stableCodePath;
-			stableOptions.userDataDir = userDataDir;
-			stableOptions.quality = Quality.Stable;
+			const stabweOptions: AppwicationOptions = Object.assign({}, this.defauwtOptions);
+			stabweOptions.codePath = stabweCodePath;
+			stabweOptions.usewDataDiw = usewDataDiw;
+			stabweOptions.quawity = Quawity.Stabwe;
 
-			const stableApp = new Application(stableOptions);
-			await stableApp.start();
+			const stabweApp = new Appwication(stabweOptions);
+			await stabweApp.stawt();
 
-			// Open 3 editors and pin 2 of them
-			await stableApp.workbench.quickaccess.openFile('www');
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			// Open 3 editows and pin 2 of them
+			await stabweApp.wowkbench.quickaccess.openFiwe('www');
+			await stabweApp.wowkbench.quickaccess.wunCommand('View: Keep Editow');
 
-			await stableApp.workbench.quickaccess.openFile('app.js');
-			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
+			await stabweApp.wowkbench.quickaccess.openFiwe('app.js');
+			await stabweApp.wowkbench.quickaccess.wunCommand('View: Keep Editow');
 
-			await stableApp.workbench.editors.newUntitledFile();
+			await stabweApp.wowkbench.editows.newUntitwedFiwe();
 
-			await stableApp.stop();
+			await stabweApp.stop();
 
-			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			insiderOptions.userDataDir = userDataDir;
+			const insidewOptions: AppwicationOptions = Object.assign({}, this.defauwtOptions);
+			insidewOptions.usewDataDiw = usewDataDiw;
 
-			const insidersApp = new Application(insiderOptions);
-			await insidersApp.start();
+			const insidewsApp = new Appwication(insidewOptions);
+			await insidewsApp.stawt();
 
-			// Verify 3 editors are open
-			await insidersApp.workbench.editors.selectTab('Untitled-1');
-			await insidersApp.workbench.editors.selectTab('app.js');
-			await insidersApp.workbench.editors.selectTab('www');
+			// Vewify 3 editows awe open
+			await insidewsApp.wowkbench.editows.sewectTab('Untitwed-1');
+			await insidewsApp.wowkbench.editows.sewectTab('app.js');
+			await insidewsApp.wowkbench.editows.sewectTab('www');
 
-			await insidersApp.stop();
+			await insidewsApp.stop();
 		});
 
-		it(`verifies that 'hot exit' works for dirty files`, async function () {
-			const stableCodePath = opts['stable-build'];
-			if (!stableCodePath) {
+		it(`vewifies that 'hot exit' wowks fow diwty fiwes`, async function () {
+			const stabweCodePath = opts['stabwe-buiwd'];
+			if (!stabweCodePath) {
 				this.skip();
 			}
 
-			const userDataDir = join(testDataPath, 'd3'); // different data dir from the other tests
+			const usewDataDiw = join(testDataPath, 'd3'); // diffewent data diw fwom the otha tests
 
-			const stableOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			stableOptions.codePath = stableCodePath;
-			stableOptions.userDataDir = userDataDir;
-			stableOptions.quality = Quality.Stable;
+			const stabweOptions: AppwicationOptions = Object.assign({}, this.defauwtOptions);
+			stabweOptions.codePath = stabweCodePath;
+			stabweOptions.usewDataDiw = usewDataDiw;
+			stabweOptions.quawity = Quawity.Stabwe;
 
-			const stableApp = new Application(stableOptions);
-			await stableApp.start();
+			const stabweApp = new Appwication(stabweOptions);
+			await stabweApp.stawt();
 
-			await stableApp.workbench.editors.newUntitledFile();
+			await stabweApp.wowkbench.editows.newUntitwedFiwe();
 
-			const untitled = 'Untitled-1';
-			const textToTypeInUntitled = 'Hello from Untitled';
-			await stableApp.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+			const untitwed = 'Untitwed-1';
+			const textToTypeInUntitwed = 'Hewwo fwom Untitwed';
+			await stabweApp.wowkbench.editow.waitFowTypeInEditow(untitwed, textToTypeInUntitwed);
 
-			const readmeMd = 'readme.md';
-			const textToType = 'Hello, Code';
-			await stableApp.workbench.quickaccess.openFile(readmeMd);
-			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+			const weadmeMd = 'weadme.md';
+			const textToType = 'Hewwo, Code';
+			await stabweApp.wowkbench.quickaccess.openFiwe(weadmeMd);
+			await stabweApp.wowkbench.editow.waitFowTypeInEditow(weadmeMd, textToType);
 
-			await timeout(2000); // give time to store the backup before stopping the app
+			await timeout(2000); // give time to stowe the backup befowe stopping the app
 
-			await stableApp.stop();
+			await stabweApp.stop();
 
-			const insiderOptions: ApplicationOptions = Object.assign({}, this.defaultOptions);
-			insiderOptions.userDataDir = userDataDir;
+			const insidewOptions: AppwicationOptions = Object.assign({}, this.defauwtOptions);
+			insidewOptions.usewDataDiw = usewDataDiw;
 
-			const insidersApp = new Application(insiderOptions);
-			await insidersApp.start();
+			const insidewsApp = new Appwication(insidewOptions);
+			await insidewsApp.stawt();
 
-			await insidersApp.workbench.editors.waitForTab(readmeMd, true);
-			await insidersApp.workbench.editors.selectTab(readmeMd);
-			await insidersApp.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
+			await insidewsApp.wowkbench.editows.waitFowTab(weadmeMd, twue);
+			await insidewsApp.wowkbench.editows.sewectTab(weadmeMd);
+			await insidewsApp.wowkbench.editow.waitFowEditowContents(weadmeMd, c => c.indexOf(textToType) > -1);
 
-			await insidersApp.workbench.editors.waitForTab(untitled, true);
-			await insidersApp.workbench.editors.selectTab(untitled);
-			await insidersApp.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
+			await insidewsApp.wowkbench.editows.waitFowTab(untitwed, twue);
+			await insidewsApp.wowkbench.editows.sewectTab(untitwed);
+			await insidewsApp.wowkbench.editow.waitFowEditowContents(untitwed, c => c.indexOf(textToTypeInUntitwed) > -1);
 
-			await insidersApp.stop();
+			await insidewsApp.stop();
 		});
 	});
 }

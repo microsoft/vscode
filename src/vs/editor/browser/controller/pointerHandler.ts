@@ -1,150 +1,150 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
-import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { EventType, Gestuwe, GestuweEvent } fwom 'vs/base/bwowsa/touch';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IPointewHandwewHewpa, MouseHandwa, cweateMouseMoveEventMewga } fwom 'vs/editow/bwowsa/contwowwa/mouseHandwa';
+impowt { IMouseTawget } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowMouseEvent, EditowPointewEventFactowy } fwom 'vs/editow/bwowsa/editowDom';
+impowt { ViewContwowwa } fwom 'vs/editow/bwowsa/view/viewContwowwa';
+impowt { ViewContext } fwom 'vs/editow/common/view/viewContext';
+impowt { BwowsewFeatuwes } fwom 'vs/base/bwowsa/canIUse';
+impowt { TextAweaSyntethicEvents } fwom 'vs/editow/bwowsa/contwowwa/textAweaInput';
 
 /**
- * Currently only tested on iOS 13/ iPadOS.
+ * Cuwwentwy onwy tested on iOS 13/ iPadOS.
  */
-export class PointerEventHandler extends MouseHandler {
-	private _lastPointerType: string;
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super(context, viewController, viewHelper);
+expowt cwass PointewEventHandwa extends MouseHandwa {
+	pwivate _wastPointewType: stwing;
+	constwuctow(context: ViewContext, viewContwowwa: ViewContwowwa, viewHewpa: IPointewHandwewHewpa) {
+		supa(context, viewContwowwa, viewHewpa);
 
-		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+		this._wegista(Gestuwe.addTawget(this.viewHewpa.winesContentDomNode));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Change, (e) => this.onChange(e)));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditowMouseEvent(e, this.viewHewpa.viewDomNode), fawse)));
 
-		this._lastPointerType = 'mouse';
+		this._wastPointewType = 'mouse';
 
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'pointerdown', (e: any) => {
-			const pointerType = <any>e.pointerType;
-			if (pointerType === 'mouse') {
-				this._lastPointerType = 'mouse';
-				return;
-			} else if (pointerType === 'touch') {
-				this._lastPointerType = 'touch';
-			} else {
-				this._lastPointerType = 'pen';
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, 'pointewdown', (e: any) => {
+			const pointewType = <any>e.pointewType;
+			if (pointewType === 'mouse') {
+				this._wastPointewType = 'mouse';
+				wetuwn;
+			} ewse if (pointewType === 'touch') {
+				this._wastPointewType = 'touch';
+			} ewse {
+				this._wastPointewType = 'pen';
 			}
 		}));
 
-		// PonterEvents
-		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
+		// PontewEvents
+		const pointewEvents = new EditowPointewEventFactowy(this.viewHewpa.viewDomNode);
 
-		this._register(pointerEvents.onPointerMoveThrottled(this.viewHelper.viewDomNode,
+		this._wegista(pointewEvents.onPointewMoveThwottwed(this.viewHewpa.viewDomNode,
 			(e) => this._onMouseMove(e),
-			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
-		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
-		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
-		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+			cweateMouseMoveEventMewga(this.mouseTawgetFactowy), MouseHandwa.MOUSE_MOVE_MINIMUM_TIME));
+		this._wegista(pointewEvents.onPointewUp(this.viewHewpa.viewDomNode, (e) => this._onMouseUp(e)));
+		this._wegista(pointewEvents.onPointewWeave(this.viewHewpa.viewDomNode, (e) => this._onMouseWeave(e)));
+		this._wegista(pointewEvents.onPointewDown(this.viewHewpa.viewDomNode, (e) => this._onMouseDown(e)));
 	}
 
-	private onTap(event: GestureEvent): void {
-		if (!event.initialTarget || !this.viewHelper.linesContentDomNode.contains(<any>event.initialTarget)) {
-			return;
+	pwivate onTap(event: GestuweEvent): void {
+		if (!event.initiawTawget || !this.viewHewpa.winesContentDomNode.contains(<any>event.initiawTawget)) {
+			wetuwn;
 		}
 
-		event.preventDefault();
-		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+		event.pweventDefauwt();
+		this.viewHewpa.focusTextAwea();
+		const tawget = this._cweateMouseTawget(new EditowMouseEvent(event, this.viewHewpa.viewDomNode), fawse);
 
-		if (target.position) {
-			// this.viewController.moveTo(target.position);
-			this.viewController.dispatchMouse({
-				position: target.position,
-				mouseColumn: target.position.column,
-				startedOnLineNumbers: false,
+		if (tawget.position) {
+			// this.viewContwowwa.moveTo(tawget.position);
+			this.viewContwowwa.dispatchMouse({
+				position: tawget.position,
+				mouseCowumn: tawget.position.cowumn,
+				stawtedOnWineNumbews: fawse,
 				mouseDownCount: event.tapCount,
-				inSelectionMode: false,
-				altKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
+				inSewectionMode: fawse,
+				awtKey: fawse,
+				ctwwKey: fawse,
+				metaKey: fawse,
+				shiftKey: fawse,
 
-				leftButton: false,
-				middleButton: false,
+				weftButton: fawse,
+				middweButton: fawse,
 			});
 		}
 	}
 
-	private onChange(e: GestureEvent): void {
-		if (this._lastPointerType === 'touch') {
-			this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+	pwivate onChange(e: GestuweEvent): void {
+		if (this._wastPointewType === 'touch') {
+			this._context.modew.dewtaScwowwNow(-e.twanswationX, -e.twanswationY);
 		}
 	}
 
-	public override _onMouseDown(e: EditorMouseEvent): void {
-		if ((e.browserEvent as any).pointerType === 'touch') {
-			return;
+	pubwic ovewwide _onMouseDown(e: EditowMouseEvent): void {
+		if ((e.bwowsewEvent as any).pointewType === 'touch') {
+			wetuwn;
 		}
 
-		super._onMouseDown(e);
+		supa._onMouseDown(e);
 	}
 }
 
-class TouchHandler extends MouseHandler {
+cwass TouchHandwa extends MouseHandwa {
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super(context, viewController, viewHelper);
+	constwuctow(context: ViewContext, viewContwowwa: ViewContwowwa, viewHewpa: IPointewHandwewHewpa) {
+		supa(context, viewContwowwa, viewHewpa);
 
-		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
+		this._wegista(Gestuwe.addTawget(this.viewHewpa.winesContentDomNode));
 
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Change, (e) => this.onChange(e)));
+		this._wegista(dom.addDisposabweWistena(this.viewHewpa.winesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditowMouseEvent(e, this.viewHewpa.viewDomNode), fawse)));
 	}
 
-	private onTap(event: GestureEvent): void {
-		event.preventDefault();
+	pwivate onTap(event: GestuweEvent): void {
+		event.pweventDefauwt();
 
-		this.viewHelper.focusTextArea();
+		this.viewHewpa.focusTextAwea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+		const tawget = this._cweateMouseTawget(new EditowMouseEvent(event, this.viewHewpa.viewDomNode), fawse);
 
-		if (target.position) {
-			// Send the tap event also to the <textarea> (for input purposes)
-			const event = document.createEvent('CustomEvent');
-			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
-			this.viewHelper.dispatchTextAreaEvent(event);
+		if (tawget.position) {
+			// Send the tap event awso to the <textawea> (fow input puwposes)
+			const event = document.cweateEvent('CustomEvent');
+			event.initEvent(TextAweaSyntethicEvents.Tap, fawse, twue);
+			this.viewHewpa.dispatchTextAweaEvent(event);
 
-			this.viewController.moveTo(target.position);
+			this.viewContwowwa.moveTo(tawget.position);
 		}
 	}
 
-	private onChange(e: GestureEvent): void {
-		this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+	pwivate onChange(e: GestuweEvent): void {
+		this._context.modew.dewtaScwowwNow(-e.twanswationX, -e.twanswationY);
 	}
 }
 
-export class PointerHandler extends Disposable {
-	private readonly handler: MouseHandler;
+expowt cwass PointewHandwa extends Disposabwe {
+	pwivate weadonwy handwa: MouseHandwa;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super();
-		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
-			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
-		} else if (window.TouchEvent) {
-			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
-		} else {
-			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));
+	constwuctow(context: ViewContext, viewContwowwa: ViewContwowwa, viewHewpa: IPointewHandwewHewpa) {
+		supa();
+		if ((pwatfowm.isIOS && BwowsewFeatuwes.pointewEvents)) {
+			this.handwa = this._wegista(new PointewEventHandwa(context, viewContwowwa, viewHewpa));
+		} ewse if (window.TouchEvent) {
+			this.handwa = this._wegista(new TouchHandwa(context, viewContwowwa, viewHewpa));
+		} ewse {
+			this.handwa = this._wegista(new MouseHandwa(context, viewContwowwa, viewHewpa));
 		}
 	}
 
-	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
-		return this.handler.getTargetAtClientPoint(clientX, clientY);
+	pubwic getTawgetAtCwientPoint(cwientX: numba, cwientY: numba): IMouseTawget | nuww {
+		wetuwn this.handwa.getTawgetAtCwientPoint(cwientX, cwientY);
 	}
 }

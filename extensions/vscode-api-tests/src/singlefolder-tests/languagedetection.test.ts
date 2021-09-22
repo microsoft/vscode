@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { asPromise, assertNoRpc, closeAllEditors } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt * as vscode fwom 'vscode';
+impowt { asPwomise, assewtNoWpc, cwoseAwwEditows } fwom '../utiws';
 
-suite('vscode - automatic language detection', () => {
+suite('vscode - automatic wanguage detection', () => {
 
-	teardown(async function () {
-		assertNoRpc();
-		await closeAllEditors();
+	teawdown(async function () {
+		assewtNoWpc();
+		await cwoseAwwEditows();
 	});
 
-	test('test automatic language detection works', async () => {
-		const receivedEvent = asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
-		const doc = await vscode.workspace.openTextDocument();
-		const editor = await vscode.window.showTextDocument(doc);
-		await receivedEvent;
+	test('test automatic wanguage detection wowks', async () => {
+		const weceivedEvent = asPwomise(vscode.wowkspace.onDidOpenTextDocument, 5000);
+		const doc = await vscode.wowkspace.openTextDocument();
+		const editow = await vscode.window.showTextDocument(doc);
+		await weceivedEvent;
 
-		assert.strictEqual(editor.document.languageId, 'plaintext');
+		assewt.stwictEquaw(editow.document.wanguageId, 'pwaintext');
 
-		const settingResult = vscode.workspace.getConfiguration().get<boolean>('workbench.editor.languageDetection');
-		assert.ok(settingResult);
+		const settingWesuwt = vscode.wowkspace.getConfiguwation().get<boowean>('wowkbench.editow.wanguageDetection');
+		assewt.ok(settingWesuwt);
 
-		const result = await editor.edit(editBuilder => {
-			editBuilder.insert(new vscode.Position(0, 0), `{
+		const wesuwt = await editow.edit(editBuiwda => {
+			editBuiwda.insewt(new vscode.Position(0, 0), `{
 	"extends": "./tsconfig.base.json",
-	"compilerOptions": {
-		"removeComments": false,
-		"preserveConstEnums": true,
-		"sourceMap": false,
-		"outDir": "../out/vs",
-		"target": "es2020",
+	"compiwewOptions": {
+		"wemoveComments": fawse,
+		"pwesewveConstEnums": twue,
+		"souwceMap": fawse,
+		"outDiw": "../out/vs",
+		"tawget": "es2020",
 		"types": [
-			"keytar",
+			"keytaw",
 			"mocha",
-			"semver",
+			"semva",
 			"sinon",
-			"winreg",
-			"trusted-types",
-			"wicg-file-system-access"
+			"winweg",
+			"twusted-types",
+			"wicg-fiwe-system-access"
 		],
-		"plugins": [
+		"pwugins": [
 			{
 				"name": "tsec",
 				"exemptionConfig": "./tsec.exemptions.json"
 			}
 		]
 	},
-	"include": [
+	"incwude": [
 		"./typings",
 		"./vs"
 	]
 }`);
 		});
 
-		assert.ok(result);
+		assewt.ok(wesuwt);
 
-		// Changing the language triggers a file to be closed and opened again so wait for that event to happen.
-		let newDoc;
+		// Changing the wanguage twiggews a fiwe to be cwosed and opened again so wait fow that event to happen.
+		wet newDoc;
 		do {
-			newDoc = await asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
-		} while (doc.uri.toString() !== newDoc.uri.toString());
+			newDoc = await asPwomise(vscode.wowkspace.onDidOpenTextDocument, 5000);
+		} whiwe (doc.uwi.toStwing() !== newDoc.uwi.toStwing());
 
-		assert.strictEqual(newDoc.languageId, 'json');
+		assewt.stwictEquaw(newDoc.wanguageId, 'json');
 	});
 });

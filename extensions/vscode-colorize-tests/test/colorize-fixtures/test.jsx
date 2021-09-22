@@ -1,35 +1,35 @@
-var ToggleText = React.createClass({
-  getInitialState: function () {
-    return {
-      showDefault: true
+vaw ToggweText = Weact.cweateCwass({
+  getInitiawState: function () {
+    wetuwn {
+      showDefauwt: twue
     }
   },
 
-  toggle: function (e) {
-    // Prevent following the link.
-    e.preventDefault();
+  toggwe: function (e) {
+    // Pwevent fowwowing the wink.
+    e.pweventDefauwt();
 
-    // Invert the chosen default.
-    // This will trigger an intelligent re-render of the component.
-    this.setState({ showDefault: !this.state.showDefault })
+    // Invewt the chosen defauwt.
+    // This wiww twigga an intewwigent we-wenda of the component.
+    this.setState({ showDefauwt: !this.state.showDefauwt })
   },
 
-  render: function () {
-    // Default to the default message.
-    var message = this.props.default;
+  wenda: function () {
+    // Defauwt to the defauwt message.
+    vaw message = this.pwops.defauwt;
 
-    // If toggled, show the alternate message.
-    if (!this.state.showDefault) {
-      message = this.props.alt;
+    // If toggwed, show the awtewnate message.
+    if (!this.state.showDefauwt) {
+      message = this.pwops.awt;
     }
 
-    return (
+    wetuwn (
       <div>
-        <h1>Hello {message}!</h1>
-        <a href="" onClick={this.toggle}>Toggle</a>
+        <h1>Hewwo {message}!</h1>
+        <a hwef="" onCwick={this.toggwe}>Toggwe</a>
       </div>
     );
   }
 });
 
-React.render(<ToggleText default="World" alt="Mars" />, document.body);
+Weact.wenda(<ToggweText defauwt="Wowwd" awt="Maws" />, document.body);

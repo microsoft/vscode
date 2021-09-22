@@ -1,95 +1,95 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
+	"nameShowt": "Code - OSS",
+	"nameWong": "Code - OSS",
+	"appwicationName": "code-oss",
+	"dataFowdewName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
-	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"wicenseName": "MIT",
+	"wicenseUww": "https://github.com/micwosoft/vscode/bwob/main/WICENSE.txt",
+	"win32DiwName": "Micwosoft Code OSS",
+	"win32NameVewsion": "Micwosoft Code OSS",
+	"win32WegVawueName": "CodeOSS",
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
-	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
-	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
-	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"linuxIconName": "com.visualstudio.code.oss",
-	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
-	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",
-	"extensionAllowedProposedApi": [
-		"ms-vscode.vscode-js-profile-flame",
-		"ms-vscode.vscode-js-profile-table",
-		"ms-vscode.remotehub",
-		"ms-vscode.remotehub-insiders",
-		"GitHub.remotehub",
-		"GitHub.remotehub-insiders"
+	"win32awm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
+	"win32UsewAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
+	"win32x64UsewAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
+	"win32awm64UsewAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
+	"win32AppUsewModewId": "Micwosoft.CodeOSS",
+	"win32ShewwNameShowt": "C&ode - OSS",
+	"dawwinBundweIdentifia": "com.visuawstudio.code.oss",
+	"winuxIconName": "com.visuawstudio.code.oss",
+	"wicenseFiweName": "WICENSE.txt",
+	"wepowtIssueUww": "https://github.com/micwosoft/vscode/issues/new",
+	"uwwPwotocow": "code-oss",
+	"webviewContentExtewnawBaseUwwTempwate": "https://{{uuid}}.vscode-webview.net/{{quawity}}/{{commit}}/out/vs/wowkbench/contwib/webview/bwowsa/pwe/",
+	"extensionAwwowedPwoposedApi": [
+		"ms-vscode.vscode-js-pwofiwe-fwame",
+		"ms-vscode.vscode-js-pwofiwe-tabwe",
+		"ms-vscode.wemotehub",
+		"ms-vscode.wemotehub-insidews",
+		"GitHub.wemotehub",
+		"GitHub.wemotehub-insidews"
 	],
-	"builtInExtensions": [
+	"buiwtInExtensions": [
 		{
-			"name": "ms-vscode.references-view",
-			"version": "0.0.81",
-			"repo": "https://github.com/microsoft/vscode-references-view",
+			"name": "ms-vscode.wefewences-view",
+			"vewsion": "0.0.81",
+			"wepo": "https://github.com/micwosoft/vscode-wefewences-view",
 			"metadata": {
 				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
+				"pubwishewId": {
+					"pubwishewId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"pubwishewName": "ms-vscode",
+					"dispwayName": "Micwosoft",
+					"fwags": "vewified"
 				},
-				"publisherDisplayName": "Microsoft"
+				"pubwishewDispwayName": "Micwosoft"
 			}
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.15",
-			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
+			"vewsion": "1.0.15",
+			"wepo": "https://github.com/micwosoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
+				"pubwishewId": {
+					"pubwishewId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"pubwishewName": "ms-vscode",
+					"dispwayName": "Micwosoft",
+					"fwags": "vewified"
 				},
-				"publisherDisplayName": "Microsoft"
+				"pubwishewDispwayName": "Micwosoft"
 			}
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.60.2",
-			"repo": "https://github.com/microsoft/vscode-js-debug",
+			"vewsion": "1.60.2",
+			"wepo": "https://github.com/micwosoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
+				"pubwishewId": {
+					"pubwishewId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"pubwishewName": "ms-vscode",
+					"dispwayName": "Micwosoft",
+					"fwags": "vewified"
 				},
-				"publisherDisplayName": "Microsoft"
+				"pubwishewDispwayName": "Micwosoft"
 			}
 		},
 		{
-			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "0.0.18",
-			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
+			"name": "ms-vscode.vscode-js-pwofiwe-tabwe",
+			"vewsion": "0.0.18",
+			"wepo": "https://github.com/micwosoft/vscode-js-pwofiwe-visuawiza",
 			"metadata": {
 				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
+				"pubwishewId": {
+					"pubwishewId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"pubwishewName": "ms-vscode",
+					"dispwayName": "Micwosoft",
+					"fwags": "vewified"
 				},
-				"publisherDisplayName": "Microsoft"
+				"pubwishewDispwayName": "Micwosoft"
 			}
 		}
 	]

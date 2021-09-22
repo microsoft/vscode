@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, SemanticTokenData } from './languageModes';
-import * as ts from 'typescript';
+impowt { TextDocument, SemanticTokenData } fwom './wanguageModes';
+impowt * as ts fwom 'typescwipt';
 
-export function getSemanticTokenLegend() {
-	if (tokenTypes.length !== TokenType._) {
-		console.warn('TokenType has added new entries.');
+expowt function getSemanticTokenWegend() {
+	if (tokenTypes.wength !== TokenType._) {
+		consowe.wawn('TokenType has added new entwies.');
 	}
-	if (tokenModifiers.length !== TokenModifier._) {
-		console.warn('TokenModifier has added new entries.');
+	if (tokenModifiews.wength !== TokenModifia._) {
+		consowe.wawn('TokenModifia has added new entwies.');
 	}
-	return { types: tokenTypes, modifiers: tokenModifiers };
+	wetuwn { types: tokenTypes, modifiews: tokenModifiews };
 }
 
-export function getSemanticTokens(jsLanguageService: ts.LanguageService, currentTextDocument: TextDocument, fileName: string): SemanticTokenData[] {
-	//https://ts-ast-viewer.com/#code/AQ0g2CmAuwGbALzAJwG4BQZQGNwEMBnQ4AQQEYBmYAb2C22zgEtJwATJVTRxgcwD27AQAp8AGmAAjAJS0A9POB8+7NQ168oscAJz5wANXwAnLug2bsJmAFcTAO2XAA1MHyvgu-UdOeWbOw8ViAAvpagocBAA
+expowt function getSemanticTokens(jsWanguageSewvice: ts.WanguageSewvice, cuwwentTextDocument: TextDocument, fiweName: stwing): SemanticTokenData[] {
+	//https://ts-ast-viewa.com/#code/AQ0g2CmAuwGbAWzAJwG4BQZQGNwEMBnQ4AQQEYBmYAb2C22zgEtJwATJVTWxgcwD27AQAp8AGmAAjAJS0A9POB8+7NQ168oscAJz5wANXwAnWug2bsJmAFcTAO2XAA1MHyvgu-UdOeWbOw8ViAAvpagocBAA
 
-	let resultTokens: SemanticTokenData[] = [];
-	const collector = (node: ts.Node, typeIdx: number, modifierSet: number) => {
-		resultTokens.push({ start: currentTextDocument.positionAt(node.getStart()), length: node.getWidth(), typeIdx, modifierSet });
+	wet wesuwtTokens: SemanticTokenData[] = [];
+	const cowwectow = (node: ts.Node, typeIdx: numba, modifiewSet: numba) => {
+		wesuwtTokens.push({ stawt: cuwwentTextDocument.positionAt(node.getStawt()), wength: node.getWidth(), typeIdx, modifiewSet });
 	};
-	collectTokens(jsLanguageService, fileName, { start: 0, length: currentTextDocument.getText().length }, collector);
+	cowwectTokens(jsWanguageSewvice, fiweName, { stawt: 0, wength: cuwwentTextDocument.getText().wength }, cowwectow);
 
-	return resultTokens;
+	wetuwn wesuwtTokens;
 }
 
-function collectTokens(jsLanguageService: ts.LanguageService, fileName: string, span: ts.TextSpan, collector: (node: ts.Node, tokenType: number, tokenModifier: number) => void) {
+function cowwectTokens(jsWanguageSewvice: ts.WanguageSewvice, fiweName: stwing, span: ts.TextSpan, cowwectow: (node: ts.Node, tokenType: numba, tokenModifia: numba) => void) {
 
-	const program = jsLanguageService.getProgram();
-	if (program) {
-		const typeChecker = program.getTypeChecker();
+	const pwogwam = jsWanguageSewvice.getPwogwam();
+	if (pwogwam) {
+		const typeChecka = pwogwam.getTypeChecka();
 
 		function visit(node: ts.Node) {
-			if (!node || !ts.textSpanIntersectsWith(span, node.pos, node.getFullWidth())) {
-				return;
+			if (!node || !ts.textSpanIntewsectsWith(span, node.pos, node.getFuwwWidth())) {
+				wetuwn;
 			}
-			if (ts.isIdentifier(node)) {
-				let symbol = typeChecker.getSymbolAtLocation(node);
-				if (symbol) {
-					if (symbol.flags & ts.SymbolFlags.Alias) {
-						symbol = typeChecker.getAliasedSymbol(symbol);
+			if (ts.isIdentifia(node)) {
+				wet symbow = typeChecka.getSymbowAtWocation(node);
+				if (symbow) {
+					if (symbow.fwags & ts.SymbowFwags.Awias) {
+						symbow = typeChecka.getAwiasedSymbow(symbow);
 					}
-					let typeIdx = classifySymbol(symbol);
+					wet typeIdx = cwassifySymbow(symbow);
 					if (typeIdx !== undefined) {
-						let modifierSet = 0;
-						if (node.parent) {
-							const parentTypeIdx = tokenFromDeclarationMapping[node.parent.kind];
-							if (parentTypeIdx === typeIdx && (<ts.NamedDeclaration>node.parent).name === node) {
-								modifierSet = 1 << TokenModifier.declaration;
+						wet modifiewSet = 0;
+						if (node.pawent) {
+							const pawentTypeIdx = tokenFwomDecwawationMapping[node.pawent.kind];
+							if (pawentTypeIdx === typeIdx && (<ts.NamedDecwawation>node.pawent).name === node) {
+								modifiewSet = 1 << TokenModifia.decwawation;
 							}
 						}
-						const decl = symbol.valueDeclaration;
-						const modifiers = decl ? ts.getCombinedModifierFlags(decl) : 0;
-						const nodeFlags = decl ? ts.getCombinedNodeFlags(decl) : 0;
-						if (modifiers & ts.ModifierFlags.Static) {
-							modifierSet |= 1 << TokenModifier.static;
+						const decw = symbow.vawueDecwawation;
+						const modifiews = decw ? ts.getCombinedModifiewFwags(decw) : 0;
+						const nodeFwags = decw ? ts.getCombinedNodeFwags(decw) : 0;
+						if (modifiews & ts.ModifiewFwags.Static) {
+							modifiewSet |= 1 << TokenModifia.static;
 						}
-						if (modifiers & ts.ModifierFlags.Async) {
-							modifierSet |= 1 << TokenModifier.async;
+						if (modifiews & ts.ModifiewFwags.Async) {
+							modifiewSet |= 1 << TokenModifia.async;
 						}
-						if ((modifiers & ts.ModifierFlags.Readonly) || (nodeFlags & ts.NodeFlags.Const) || (symbol.getFlags() & ts.SymbolFlags.EnumMember)) {
-							modifierSet |= 1 << TokenModifier.readonly;
+						if ((modifiews & ts.ModifiewFwags.Weadonwy) || (nodeFwags & ts.NodeFwags.Const) || (symbow.getFwags() & ts.SymbowFwags.EnumMemba)) {
+							modifiewSet |= 1 << TokenModifia.weadonwy;
 						}
-						collector(node, typeIdx, modifierSet);
+						cowwectow(node, typeIdx, modifiewSet);
 					}
 				}
 			}
 
-			ts.forEachChild(node, visit);
+			ts.fowEachChiwd(node, visit);
 		}
-		const sourceFile = program.getSourceFile(fileName);
-		if (sourceFile) {
-			visit(sourceFile);
-		}
-	}
-}
-
-function classifySymbol(symbol: ts.Symbol) {
-	const flags = symbol.getFlags();
-	if (flags & ts.SymbolFlags.Class) {
-		return TokenType.class;
-	} else if (flags & ts.SymbolFlags.Enum) {
-		return TokenType.enum;
-	} else if (flags & ts.SymbolFlags.TypeAlias) {
-		return TokenType.type;
-	} else if (flags & ts.SymbolFlags.Type) {
-		if (flags & ts.SymbolFlags.Interface) {
-			return TokenType.interface;
-		} if (flags & ts.SymbolFlags.TypeParameter) {
-			return TokenType.typeParameter;
+		const souwceFiwe = pwogwam.getSouwceFiwe(fiweName);
+		if (souwceFiwe) {
+			visit(souwceFiwe);
 		}
 	}
-	const decl = symbol.valueDeclaration || symbol.declarations && symbol.declarations[0];
-	return decl && tokenFromDeclarationMapping[decl.kind];
 }
 
-export const enum TokenType {
-	class, enum, interface, namespace, typeParameter, type, parameter, variable, property, function, method, _
+function cwassifySymbow(symbow: ts.Symbow) {
+	const fwags = symbow.getFwags();
+	if (fwags & ts.SymbowFwags.Cwass) {
+		wetuwn TokenType.cwass;
+	} ewse if (fwags & ts.SymbowFwags.Enum) {
+		wetuwn TokenType.enum;
+	} ewse if (fwags & ts.SymbowFwags.TypeAwias) {
+		wetuwn TokenType.type;
+	} ewse if (fwags & ts.SymbowFwags.Type) {
+		if (fwags & ts.SymbowFwags.Intewface) {
+			wetuwn TokenType.intewface;
+		} if (fwags & ts.SymbowFwags.TypePawameta) {
+			wetuwn TokenType.typePawameta;
+		}
+	}
+	const decw = symbow.vawueDecwawation || symbow.decwawations && symbow.decwawations[0];
+	wetuwn decw && tokenFwomDecwawationMapping[decw.kind];
 }
 
-export const enum TokenModifier {
-	declaration, static, async, readonly, _
+expowt const enum TokenType {
+	cwass, enum, intewface, namespace, typePawameta, type, pawameta, vawiabwe, pwopewty, function, method, _
 }
 
-const tokenTypes: string[] = [];
-tokenTypes[TokenType.class] = 'class';
+expowt const enum TokenModifia {
+	decwawation, static, async, weadonwy, _
+}
+
+const tokenTypes: stwing[] = [];
+tokenTypes[TokenType.cwass] = 'cwass';
 tokenTypes[TokenType.enum] = 'enum';
-tokenTypes[TokenType.interface] = 'interface';
+tokenTypes[TokenType.intewface] = 'intewface';
 tokenTypes[TokenType.namespace] = 'namespace';
-tokenTypes[TokenType.typeParameter] = 'typeParameter';
+tokenTypes[TokenType.typePawameta] = 'typePawameta';
 tokenTypes[TokenType.type] = 'type';
-tokenTypes[TokenType.parameter] = 'parameter';
-tokenTypes[TokenType.variable] = 'variable';
-tokenTypes[TokenType.property] = 'property';
+tokenTypes[TokenType.pawameta] = 'pawameta';
+tokenTypes[TokenType.vawiabwe] = 'vawiabwe';
+tokenTypes[TokenType.pwopewty] = 'pwopewty';
 tokenTypes[TokenType.function] = 'function';
 tokenTypes[TokenType.method] = 'method';
 
-const tokenModifiers: string[] = [];
-tokenModifiers[TokenModifier.async] = 'async';
-tokenModifiers[TokenModifier.declaration] = 'declaration';
-tokenModifiers[TokenModifier.readonly] = 'readonly';
-tokenModifiers[TokenModifier.static] = 'static';
+const tokenModifiews: stwing[] = [];
+tokenModifiews[TokenModifia.async] = 'async';
+tokenModifiews[TokenModifia.decwawation] = 'decwawation';
+tokenModifiews[TokenModifia.weadonwy] = 'weadonwy';
+tokenModifiews[TokenModifia.static] = 'static';
 
-const tokenFromDeclarationMapping: { [name: string]: TokenType } = {
-	[ts.SyntaxKind.VariableDeclaration]: TokenType.variable,
-	[ts.SyntaxKind.Parameter]: TokenType.parameter,
-	[ts.SyntaxKind.PropertyDeclaration]: TokenType.property,
-	[ts.SyntaxKind.ModuleDeclaration]: TokenType.namespace,
-	[ts.SyntaxKind.EnumDeclaration]: TokenType.enum,
-	[ts.SyntaxKind.EnumMember]: TokenType.property,
-	[ts.SyntaxKind.ClassDeclaration]: TokenType.class,
-	[ts.SyntaxKind.MethodDeclaration]: TokenType.method,
-	[ts.SyntaxKind.FunctionDeclaration]: TokenType.function,
-	[ts.SyntaxKind.MethodSignature]: TokenType.method,
-	[ts.SyntaxKind.GetAccessor]: TokenType.property,
-	[ts.SyntaxKind.PropertySignature]: TokenType.property,
-	[ts.SyntaxKind.InterfaceDeclaration]: TokenType.interface,
-	[ts.SyntaxKind.TypeAliasDeclaration]: TokenType.type,
-	[ts.SyntaxKind.TypeParameter]: TokenType.typeParameter
+const tokenFwomDecwawationMapping: { [name: stwing]: TokenType } = {
+	[ts.SyntaxKind.VawiabweDecwawation]: TokenType.vawiabwe,
+	[ts.SyntaxKind.Pawameta]: TokenType.pawameta,
+	[ts.SyntaxKind.PwopewtyDecwawation]: TokenType.pwopewty,
+	[ts.SyntaxKind.ModuweDecwawation]: TokenType.namespace,
+	[ts.SyntaxKind.EnumDecwawation]: TokenType.enum,
+	[ts.SyntaxKind.EnumMemba]: TokenType.pwopewty,
+	[ts.SyntaxKind.CwassDecwawation]: TokenType.cwass,
+	[ts.SyntaxKind.MethodDecwawation]: TokenType.method,
+	[ts.SyntaxKind.FunctionDecwawation]: TokenType.function,
+	[ts.SyntaxKind.MethodSignatuwe]: TokenType.method,
+	[ts.SyntaxKind.GetAccessow]: TokenType.pwopewty,
+	[ts.SyntaxKind.PwopewtySignatuwe]: TokenType.pwopewty,
+	[ts.SyntaxKind.IntewfaceDecwawation]: TokenType.intewface,
+	[ts.SyntaxKind.TypeAwiasDecwawation]: TokenType.type,
+	[ts.SyntaxKind.TypePawameta]: TokenType.typePawameta
 };

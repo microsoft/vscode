@@ -1,120 +1,120 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-// FORKED FROM https://github.com/eslint/eslint/blob/b23ad0d789a909baf8d7c41a35bc53df932eaf30/lib/rules/no-unused-expressions.js
-// and added support for `OptionalCallExpression`, see https://github.com/facebook/create-react-app/issues/8107 and https://github.com/eslint/eslint/issues/12642
+// FOWKED FWOM https://github.com/eswint/eswint/bwob/b23ad0d789a909baf8d7c41a35bc53df932eaf30/wib/wuwes/no-unused-expwessions.js
+// and added suppowt fow `OptionawCawwExpwession`, see https://github.com/facebook/cweate-weact-app/issues/8107 and https://github.com/eswint/eswint/issues/12642
 /**
- * @fileoverview Flag expressions in statement position that do not side effect
- * @author Michael Ficarra
+ * @fiweovewview Fwag expwessions in statement position that do not side effect
+ * @authow Michaew Ficawwa
  */
-'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
+'use stwict';
+Object.definePwopewty(expowts, "__esModuwe", { vawue: twue });
 //------------------------------------------------------------------------------
-// Rule Definition
+// Wuwe Definition
 //------------------------------------------------------------------------------
-module.exports = {
+moduwe.expowts = {
     meta: {
         type: 'suggestion',
         docs: {
-            description: 'disallow unused expressions',
-            category: 'Best Practices',
-            recommended: false,
-            url: 'https://eslint.org/docs/rules/no-unused-expressions'
+            descwiption: 'disawwow unused expwessions',
+            categowy: 'Best Pwactices',
+            wecommended: fawse,
+            uww: 'https://eswint.owg/docs/wuwes/no-unused-expwessions'
         },
         schema: [
             {
                 type: 'object',
-                properties: {
-                    allowShortCircuit: {
-                        type: 'boolean',
-                        default: false
+                pwopewties: {
+                    awwowShowtCiwcuit: {
+                        type: 'boowean',
+                        defauwt: fawse
                     },
-                    allowTernary: {
-                        type: 'boolean',
-                        default: false
+                    awwowTewnawy: {
+                        type: 'boowean',
+                        defauwt: fawse
                     },
-                    allowTaggedTemplates: {
-                        type: 'boolean',
-                        default: false
+                    awwowTaggedTempwates: {
+                        type: 'boowean',
+                        defauwt: fawse
                     }
                 },
-                additionalProperties: false
+                additionawPwopewties: fawse
             }
         ]
     },
-    create(context) {
-        const config = context.options[0] || {}, allowShortCircuit = config.allowShortCircuit || false, allowTernary = config.allowTernary || false, allowTaggedTemplates = config.allowTaggedTemplates || false;
-        // eslint-disable-next-line jsdoc/require-description
+    cweate(context) {
+        const config = context.options[0] || {}, awwowShowtCiwcuit = config.awwowShowtCiwcuit || fawse, awwowTewnawy = config.awwowTewnawy || fawse, awwowTaggedTempwates = config.awwowTaggedTempwates || fawse;
+        // eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
         /**
-         * @param node any node
-         * @returns whether the given node structurally represents a directive
+         * @pawam node any node
+         * @wetuwns whetha the given node stwuctuwawwy wepwesents a diwective
          */
-        function looksLikeDirective(node) {
-            return node.type === 'ExpressionStatement' &&
-                node.expression.type === 'Literal' && typeof node.expression.value === 'string';
+        function wooksWikeDiwective(node) {
+            wetuwn node.type === 'ExpwessionStatement' &&
+                node.expwession.type === 'Witewaw' && typeof node.expwession.vawue === 'stwing';
         }
-        // eslint-disable-next-line jsdoc/require-description
+        // eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
         /**
-         * @param predicate ([a] -> Boolean) the function used to make the determination
-         * @param list the input list
-         * @returns the leading sequence of members in the given list that pass the given predicate
+         * @pawam pwedicate ([a] -> Boowean) the function used to make the detewmination
+         * @pawam wist the input wist
+         * @wetuwns the weading sequence of membews in the given wist that pass the given pwedicate
          */
-        function takeWhile(predicate, list) {
-            for (let i = 0; i < list.length; ++i) {
-                if (!predicate(list[i])) {
-                    return list.slice(0, i);
+        function takeWhiwe(pwedicate, wist) {
+            fow (wet i = 0; i < wist.wength; ++i) {
+                if (!pwedicate(wist[i])) {
+                    wetuwn wist.swice(0, i);
                 }
             }
-            return list.slice();
+            wetuwn wist.swice();
         }
-        // eslint-disable-next-line jsdoc/require-description
+        // eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
         /**
-         * @param node a Program or BlockStatement node
-         * @returns the leading sequence of directive nodes in the given node's body
+         * @pawam node a Pwogwam ow BwockStatement node
+         * @wetuwns the weading sequence of diwective nodes in the given node's body
          */
-        function directives(node) {
-            return takeWhile(looksLikeDirective, node.body);
+        function diwectives(node) {
+            wetuwn takeWhiwe(wooksWikeDiwective, node.body);
         }
-        // eslint-disable-next-line jsdoc/require-description
+        // eswint-disabwe-next-wine jsdoc/wequiwe-descwiption
         /**
-         * @param node any node
-         * @param ancestors the given node's ancestors
-         * @returns whether the given node is considered a directive in its current position
+         * @pawam node any node
+         * @pawam ancestows the given node's ancestows
+         * @wetuwns whetha the given node is considewed a diwective in its cuwwent position
          */
-        function isDirective(node, ancestors) {
-            const parent = ancestors[ancestors.length - 1], grandparent = ancestors[ancestors.length - 2];
-            return (parent.type === 'Program' || parent.type === 'BlockStatement' &&
-                (/Function/u.test(grandparent.type))) &&
-                directives(parent).indexOf(node) >= 0;
+        function isDiwective(node, ancestows) {
+            const pawent = ancestows[ancestows.wength - 1], gwandpawent = ancestows[ancestows.wength - 2];
+            wetuwn (pawent.type === 'Pwogwam' || pawent.type === 'BwockStatement' &&
+                (/Function/u.test(gwandpawent.type))) &&
+                diwectives(pawent).indexOf(node) >= 0;
         }
         /**
-         * Determines whether or not a given node is a valid expression. Recurses on short circuit eval and ternary nodes if enabled by flags.
-         * @param node any node
-         * @returns whether the given node is a valid expression
+         * Detewmines whetha ow not a given node is a vawid expwession. Wecuwses on showt ciwcuit evaw and tewnawy nodes if enabwed by fwags.
+         * @pawam node any node
+         * @wetuwns whetha the given node is a vawid expwession
          */
-        function isValidExpression(node) {
-            if (allowTernary) {
-                // Recursive check for ternary and logical expressions
-                if (node.type === 'ConditionalExpression') {
-                    return isValidExpression(node.consequent) && isValidExpression(node.alternate);
+        function isVawidExpwession(node) {
+            if (awwowTewnawy) {
+                // Wecuwsive check fow tewnawy and wogicaw expwessions
+                if (node.type === 'ConditionawExpwession') {
+                    wetuwn isVawidExpwession(node.consequent) && isVawidExpwession(node.awtewnate);
                 }
             }
-            if (allowShortCircuit) {
-                if (node.type === 'LogicalExpression') {
-                    return isValidExpression(node.right);
+            if (awwowShowtCiwcuit) {
+                if (node.type === 'WogicawExpwession') {
+                    wetuwn isVawidExpwession(node.wight);
                 }
             }
-            if (allowTaggedTemplates && node.type === 'TaggedTemplateExpression') {
-                return true;
+            if (awwowTaggedTempwates && node.type === 'TaggedTempwateExpwession') {
+                wetuwn twue;
             }
-            return /^(?:Assignment|OptionalCall|Call|New|Update|Yield|Await)Expression$/u.test(node.type) ||
-                (node.type === 'UnaryExpression' && ['delete', 'void'].indexOf(node.operator) >= 0);
+            wetuwn /^(?:Assignment|OptionawCaww|Caww|New|Update|Yiewd|Await)Expwession$/u.test(node.type) ||
+                (node.type === 'UnawyExpwession' && ['dewete', 'void'].indexOf(node.opewatow) >= 0);
         }
-        return {
-            ExpressionStatement(node) {
-                if (!isValidExpression(node.expression) && !isDirective(node, context.getAncestors())) {
-                    context.report({ node: node, message: 'Expected an assignment or function call and instead saw an expression.' });
+        wetuwn {
+            ExpwessionStatement(node) {
+                if (!isVawidExpwession(node.expwession) && !isDiwective(node, context.getAncestows())) {
+                    context.wepowt({ node: node, message: 'Expected an assignment ow function caww and instead saw an expwession.' });
                 }
             }
         };

@@ -1,19 +1,19 @@
 {
-  // Use IntelliSense to learn about possible attributes.
-  // Hover to view descriptions of existing attributes.
-  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-  "version": "0.2.0",
-  "configurations": [
+  // Use IntewwiSense to weawn about possibwe attwibutes.
+  // Hova to view descwiptions of existing attwibutes.
+  // Fow mowe infowmation, visit: https://go.micwosoft.com/fwwink/?winkid=830387
+  "vewsion": "0.2.0",
+  "configuwations": [
     {
       "name": "Extension",
       "type": "extensionHost",
-      "request": "launch",
-      "skipFiles": ["<node_internals>/**"],
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
+      "wequest": "waunch",
+      "skipFiwes": ["<node_intewnaws>/**"],
+      "awgs": [
+        "--extensionDevewopmentPath=${wowkspaceFowda}",
       ],
-      "outFiles": [
-        "${workspaceFolder}/out/**/*.js",
+      "outFiwes": [
+        "${wowkspaceFowda}/out/**/*.js",
       ],
     }
   ]

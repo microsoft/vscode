@@ -1,342 +1,342 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import * as assert from 'assert';
-import { ITokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { TokenStyle, getTokenClassificationRegistry } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { Color } from 'vs/base/common/color';
-import { isString } from 'vs/base/common/types';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
-import { ITokenStyle } from 'vs/platform/theme/common/themeService';
+impowt { CowowThemeData } fwom 'vs/wowkbench/sewvices/themes/common/cowowThemeData';
+impowt * as assewt fwom 'assewt';
+impowt { ITokenCowowCustomizations } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { TokenStywe, getTokenCwassificationWegistwy } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { DiskFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/node/diskFiweSystemPwovida';
+impowt { FiweAccess, Schemas } fwom 'vs/base/common/netwowk';
+impowt { ExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/ewectwon-sandbox/extensionWesouwceWoadewSewvice';
+impowt { ITokenStywe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
-const unsetStyle = { bold: false, underline: false, italic: false };
+const undefinedStywe = { bowd: undefined, undewwine: undefined, itawic: undefined };
+const unsetStywe = { bowd: fawse, undewwine: fawse, itawic: fawse };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean; } | undefined): TokenStyle {
-	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, styleFlags && styleFlags.bold, styleFlags && styleFlags.underline, styleFlags && styleFlags.italic);
+function ts(fowegwound: stwing | undefined, styweFwags: { bowd?: boowean; undewwine?: boowean; itawic?: boowean; } | undefined): TokenStywe {
+	const fowegwoundCowow = isStwing(fowegwound) ? Cowow.fwomHex(fowegwound) : undefined;
+	wetuwn new TokenStywe(fowegwoundCowow, styweFwags && styweFwags.bowd, styweFwags && styweFwags.undewwine, styweFwags && styweFwags.itawic);
 }
 
-function tokenStyleAsString(ts: TokenStyle | undefined | null) {
+function tokenStyweAsStwing(ts: TokenStywe | undefined | nuww) {
 	if (!ts) {
-		return 'tokenstyle-undefined';
+		wetuwn 'tokenstywe-undefined';
 	}
-	let str = ts.foreground ? ts.foreground.toString() : 'no-foreground';
-	if (ts.bold !== undefined) {
-		str += ts.bold ? '+B' : '-B';
+	wet stw = ts.fowegwound ? ts.fowegwound.toStwing() : 'no-fowegwound';
+	if (ts.bowd !== undefined) {
+		stw += ts.bowd ? '+B' : '-B';
 	}
-	if (ts.underline !== undefined) {
-		str += ts.underline ? '+U' : '-U';
+	if (ts.undewwine !== undefined) {
+		stw += ts.undewwine ? '+U' : '-U';
 	}
-	if (ts.italic !== undefined) {
-		str += ts.italic ? '+I' : '-I';
+	if (ts.itawic !== undefined) {
+		stw += ts.itawic ? '+I' : '-I';
 	}
-	return str;
+	wetuwn stw;
 }
 
-function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
-	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
+function assewtTokenStywe(actuaw: TokenStywe | undefined | nuww, expected: TokenStywe | undefined | nuww, message?: stwing) {
+	assewt.stwictEquaw(tokenStyweAsStwing(actuaw), tokenStyweAsStwing(expected), message);
 }
 
-function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {
-	if (expected === undefined || expected === null || actual === undefined) {
-		assert.strictEqual(actual, expected, message);
-		return;
+function assewtTokenStyweMetaData(cowowIndex: stwing[], actuaw: ITokenStywe | undefined, expected: TokenStywe | undefined | nuww, message = '') {
+	if (expected === undefined || expected === nuww || actuaw === undefined) {
+		assewt.stwictEquaw(actuaw, expected, message);
+		wetuwn;
 	}
-	assert.strictEqual(actual.bold, expected.bold, 'bold ' + message);
-	assert.strictEqual(actual.italic, expected.italic, 'italic ' + message);
-	assert.strictEqual(actual.underline, expected.underline, 'underline ' + message);
+	assewt.stwictEquaw(actuaw.bowd, expected.bowd, 'bowd ' + message);
+	assewt.stwictEquaw(actuaw.itawic, expected.itawic, 'itawic ' + message);
+	assewt.stwictEquaw(actuaw.undewwine, expected.undewwine, 'undewwine ' + message);
 
-	const actualForegroundIndex = actual.foreground;
-	if (actualForegroundIndex && expected.foreground) {
-		assert.strictEqual(colorIndex[actualForegroundIndex], Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase(), 'foreground ' + message);
-	} else {
-		assert.strictEqual(actualForegroundIndex, expected.foreground || 0, 'foreground ' + message);
-	}
-}
-
-
-function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle; }, language = 'typescript') {
-	const colorIndex = themeData.tokenColorMap;
-
-	for (let qualifiedClassifier in expected) {
-		const [type, ...modifiers] = qualifiedClassifier.split('.');
-
-		const expectedTokenStyle = expected[qualifiedClassifier];
-
-		const tokenStyleMetaData = themeData.getTokenStyleMetadata(type, modifiers, language);
-		assertTokenStyleMetaData(colorIndex, tokenStyleMetaData, expectedTokenStyle, qualifiedClassifier);
+	const actuawFowegwoundIndex = actuaw.fowegwound;
+	if (actuawFowegwoundIndex && expected.fowegwound) {
+		assewt.stwictEquaw(cowowIndex[actuawFowegwoundIndex], Cowow.Fowmat.CSS.fowmatHexA(expected.fowegwound, twue).toUppewCase(), 'fowegwound ' + message);
+	} ewse {
+		assewt.stwictEquaw(actuawFowegwoundIndex, expected.fowegwound || 0, 'fowegwound ' + message);
 	}
 }
 
-suite('Themes - TokenStyleResolving', () => {
-	const fileService = new FileService(new NullLogService());
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService);
 
-	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
-	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+function assewtTokenStywes(themeData: CowowThemeData, expected: { [quawifiedCwassifia: stwing]: TokenStywe; }, wanguage = 'typescwipt') {
+	const cowowIndex = themeData.tokenCowowMap;
 
-	teardown(() => {
-		diskFileSystemProvider.dispose();
+	fow (wet quawifiedCwassifia in expected) {
+		const [type, ...modifiews] = quawifiedCwassifia.spwit('.');
+
+		const expectedTokenStywe = expected[quawifiedCwassifia];
+
+		const tokenStyweMetaData = themeData.getTokenStyweMetadata(type, modifiews, wanguage);
+		assewtTokenStyweMetaData(cowowIndex, tokenStyweMetaData, expectedTokenStywe, quawifiedCwassifia);
+	}
+}
+
+suite('Themes - TokenStyweWesowving', () => {
+	const fiweSewvice = new FiweSewvice(new NuwwWogSewvice());
+	const extensionWesouwceWoadewSewvice = new ExtensionWesouwceWoadewSewvice(fiweSewvice);
+
+	const diskFiweSystemPwovida = new DiskFiweSystemPwovida(new NuwwWogSewvice());
+	fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
+
+	teawdown(() => {
+		diskFiweSystemPwovida.dispose();
 	});
 
-	test('color defaults', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		themeData.location = FileAccess.asFileUri('./color-theme.json', require);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
+	test('cowow defauwts', async () => {
+		const themeData = CowowThemeData.cweateUnwoadedTheme('foo');
+		themeData.wocation = FiweAccess.asFiweUwi('./cowow-theme.json', wequiwe);
+		await themeData.ensuweWoaded(extensionWesouwceWoadewSewvice);
 
-		assert.strictEqual(themeData.isLoaded, true);
+		assewt.stwictEquaw(themeData.isWoaded, twue);
 
-		assertTokenStyles(themeData, {
-			'comment': ts('#000000', undefinedStyle),
-			'variable': ts('#111111', unsetStyle),
-			'type': ts('#333333', { bold: false, underline: true, italic: false }),
-			'function': ts('#333333', unsetStyle),
-			'string': ts('#444444', undefinedStyle),
-			'number': ts('#555555', undefinedStyle),
-			'keyword': ts('#666666', undefinedStyle)
+		assewtTokenStywes(themeData, {
+			'comment': ts('#000000', undefinedStywe),
+			'vawiabwe': ts('#111111', unsetStywe),
+			'type': ts('#333333', { bowd: fawse, undewwine: twue, itawic: fawse }),
+			'function': ts('#333333', unsetStywe),
+			'stwing': ts('#444444', undefinedStywe),
+			'numba': ts('#555555', undefinedStywe),
+			'keywowd': ts('#666666', undefinedStywe)
 		});
 	});
 
-	test('resolveScopes', async () => {
-		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+	test('wesowveScopes', async () => {
+		const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
 
-		const customTokenColors: ITokenColorCustomizations = {
-			textMateRules: [
+		const customTokenCowows: ITokenCowowCustomizations = {
+			textMateWuwes: [
 				{
-					scope: 'variable',
+					scope: 'vawiabwe',
 					settings: {
-						fontStyle: '',
-						foreground: '#F8F8F2'
+						fontStywe: '',
+						fowegwound: '#F8F8F2'
 					}
 				},
 				{
-					scope: 'keyword.operator',
+					scope: 'keywowd.opewatow',
 					settings: {
-						fontStyle: 'italic bold underline',
-						foreground: '#F92672'
+						fontStywe: 'itawic bowd undewwine',
+						fowegwound: '#F92672'
 					}
 				},
 				{
-					scope: 'storage',
+					scope: 'stowage',
 					settings: {
-						fontStyle: 'italic',
-						foreground: '#F92672'
+						fontStywe: 'itawic',
+						fowegwound: '#F92672'
 					}
 				},
 				{
-					scope: ['storage.type', 'meta.structure.dictionary.json string.quoted.double.json'],
+					scope: ['stowage.type', 'meta.stwuctuwe.dictionawy.json stwing.quoted.doubwe.json'],
 					settings: {
-						foreground: '#66D9EF'
+						fowegwound: '#66D9EF'
 					}
 				},
 				{
-					scope: 'entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution',
+					scope: 'entity.name.type, entity.name.cwass, entity.name.namespace, entity.name.scope-wesowution',
 					settings: {
-						fontStyle: 'underline',
-						foreground: '#A6E22E'
+						fontStywe: 'undewwine',
+						fowegwound: '#A6E22E'
 					}
 				},
 			]
 		};
 
-		themeData.setCustomTokenColors(customTokenColors);
+		themeData.setCustomTokenCowows(customTokenCowows);
 
-		let tokenStyle;
-		let defaultTokenStyle = undefined;
+		wet tokenStywe;
+		wet defauwtTokenStywe = undefined;
 
-		tokenStyle = themeData.resolveScopes([['variable']]);
-		assertTokenStyle(tokenStyle, ts('#F8F8F2', unsetStyle), 'variable');
+		tokenStywe = themeData.wesowveScopes([['vawiabwe']]);
+		assewtTokenStywe(tokenStywe, ts('#F8F8F2', unsetStywe), 'vawiabwe');
 
-		tokenStyle = themeData.resolveScopes([['keyword.operator']]);
-		assertTokenStyle(tokenStyle, ts('#F92672', { italic: true, bold: true, underline: true }), 'keyword');
+		tokenStywe = themeData.wesowveScopes([['keywowd.opewatow']]);
+		assewtTokenStywe(tokenStywe, ts('#F92672', { itawic: twue, bowd: twue, undewwine: twue }), 'keywowd');
 
-		tokenStyle = themeData.resolveScopes([['keyword']]);
-		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword');
+		tokenStywe = themeData.wesowveScopes([['keywowd']]);
+		assewtTokenStywe(tokenStywe, defauwtTokenStywe, 'keywowd');
 
-		tokenStyle = themeData.resolveScopes([['keyword.operator']]);
-		assertTokenStyle(tokenStyle, ts('#F92672', { italic: true, bold: true, underline: true }), 'keyword.operator');
+		tokenStywe = themeData.wesowveScopes([['keywowd.opewatow']]);
+		assewtTokenStywe(tokenStywe, ts('#F92672', { itawic: twue, bowd: twue, undewwine: twue }), 'keywowd.opewatow');
 
-		tokenStyle = themeData.resolveScopes([['keyword.operators']]);
-		assertTokenStyle(tokenStyle, defaultTokenStyle, 'keyword.operators');
+		tokenStywe = themeData.wesowveScopes([['keywowd.opewatows']]);
+		assewtTokenStywe(tokenStywe, defauwtTokenStywe, 'keywowd.opewatows');
 
-		tokenStyle = themeData.resolveScopes([['storage']]);
-		assertTokenStyle(tokenStyle, ts('#F92672', { italic: true, bold: false, underline: false }), 'storage');
+		tokenStywe = themeData.wesowveScopes([['stowage']]);
+		assewtTokenStywe(tokenStywe, ts('#F92672', { itawic: twue, bowd: fawse, undewwine: fawse }), 'stowage');
 
-		tokenStyle = themeData.resolveScopes([['storage.type']]);
-		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, bold: false, underline: false }), 'storage.type');
+		tokenStywe = themeData.wesowveScopes([['stowage.type']]);
+		assewtTokenStywe(tokenStywe, ts('#66D9EF', { itawic: twue, bowd: fawse, undewwine: fawse }), 'stowage.type');
 
-		tokenStyle = themeData.resolveScopes([['entity.name.class']]);
-		assertTokenStyle(tokenStyle, ts('#A6E22E', { italic: false, bold: false, underline: true }), 'entity.name.class');
+		tokenStywe = themeData.wesowveScopes([['entity.name.cwass']]);
+		assewtTokenStywe(tokenStywe, ts('#A6E22E', { itawic: fawse, bowd: fawse, undewwine: twue }), 'entity.name.cwass');
 
-		tokenStyle = themeData.resolveScopes([['meta.structure.dictionary.json', 'string.quoted.double.json']]);
-		assertTokenStyle(tokenStyle, ts('#66D9EF', undefined), 'json property');
+		tokenStywe = themeData.wesowveScopes([['meta.stwuctuwe.dictionawy.json', 'stwing.quoted.doubwe.json']]);
+		assewtTokenStywe(tokenStywe, ts('#66D9EF', undefined), 'json pwopewty');
 
-		tokenStyle = themeData.resolveScopes([['keyword'], ['storage.type'], ['entity.name.class']]);
-		assertTokenStyle(tokenStyle, ts('#66D9EF', { italic: true, bold: false, underline: false }), 'storage.type');
+		tokenStywe = themeData.wesowveScopes([['keywowd'], ['stowage.type'], ['entity.name.cwass']]);
+		assewtTokenStywe(tokenStywe, ts('#66D9EF', { itawic: twue, bowd: fawse, undewwine: fawse }), 'stowage.type');
 
 	});
 
 
-	test('resolveScopes - match most specific', async () => {
-		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+	test('wesowveScopes - match most specific', async () => {
+		const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
 
-		const customTokenColors: ITokenColorCustomizations = {
-			textMateRules: [
+		const customTokenCowows: ITokenCowowCustomizations = {
+			textMateWuwes: [
 				{
 					scope: 'entity.name.type',
 					settings: {
-						fontStyle: 'underline',
-						foreground: '#A6E22E'
+						fontStywe: 'undewwine',
+						fowegwound: '#A6E22E'
 					}
 				},
 				{
-					scope: 'entity.name.type.class',
+					scope: 'entity.name.type.cwass',
 					settings: {
-						foreground: '#FF00FF'
+						fowegwound: '#FF00FF'
 					}
 				},
 				{
 					scope: 'entity.name',
 					settings: {
-						foreground: '#FFFFFF'
+						fowegwound: '#FFFFFF'
 					}
 				},
 			]
 		};
 
-		themeData.setCustomTokenColors(customTokenColors);
+		themeData.setCustomTokenCowows(customTokenCowows);
 
-		const tokenStyle = themeData.resolveScopes([['entity.name.type.class']]);
-		assertTokenStyle(tokenStyle, ts('#FF00FF', { italic: false, bold: false, underline: true }), 'entity.name.type.class');
+		const tokenStywe = themeData.wesowveScopes([['entity.name.type.cwass']]);
+		assewtTokenStywe(tokenStywe, ts('#FF00FF', { itawic: fawse, bowd: fawse, undewwine: twue }), 'entity.name.type.cwass');
 
 	});
 
 
-	test('rule matching', async () => {
-		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-		themeData.setCustomColors({ 'editor.foreground': '#000000' });
-		themeData.setCustomSemanticTokenColors({
-			enabled: true,
-			rules: {
+	test('wuwe matching', async () => {
+		const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
+		themeData.setCustomCowows({ 'editow.fowegwound': '#000000' });
+		themeData.setCustomSemanticTokenCowows({
+			enabwed: twue,
+			wuwes: {
 				'type': '#ff0000',
-				'class': { foreground: '#0000ff', italic: true },
-				'*.static': { bold: true },
-				'*.declaration': { italic: true },
-				'*.async.static': { italic: true, underline: true },
-				'*.async': { foreground: '#000fff', underline: true }
+				'cwass': { fowegwound: '#0000ff', itawic: twue },
+				'*.static': { bowd: twue },
+				'*.decwawation': { itawic: twue },
+				'*.async.static': { itawic: twue, undewwine: twue },
+				'*.async': { fowegwound: '#000fff', undewwine: twue }
 			}
 		});
 
-		assertTokenStyles(themeData, {
-			'type': ts('#ff0000', undefinedStyle),
-			'type.static': ts('#ff0000', { bold: true }),
-			'type.static.declaration': ts('#ff0000', { bold: true, italic: true }),
-			'class': ts('#0000ff', { italic: true }),
-			'class.static.declaration': ts('#0000ff', { bold: true, italic: true, }),
-			'class.declaration': ts('#0000ff', { italic: true }),
-			'class.declaration.async': ts('#000fff', { underline: true, italic: true }),
-			'class.declaration.async.static': ts('#000fff', { italic: true, underline: true, bold: true }),
+		assewtTokenStywes(themeData, {
+			'type': ts('#ff0000', undefinedStywe),
+			'type.static': ts('#ff0000', { bowd: twue }),
+			'type.static.decwawation': ts('#ff0000', { bowd: twue, itawic: twue }),
+			'cwass': ts('#0000ff', { itawic: twue }),
+			'cwass.static.decwawation': ts('#0000ff', { bowd: twue, itawic: twue, }),
+			'cwass.decwawation': ts('#0000ff', { itawic: twue }),
+			'cwass.decwawation.async': ts('#000fff', { undewwine: twue, itawic: twue }),
+			'cwass.decwawation.async.static': ts('#000fff', { itawic: twue, undewwine: twue, bowd: twue }),
 		});
 
 	});
 
-	test('super type', async () => {
-		const registry = getTokenClassificationRegistry();
+	test('supa type', async () => {
+		const wegistwy = getTokenCwassificationWegistwy();
 
-		registry.registerTokenType('myTestInterface', 'A type just for testing', 'interface');
-		registry.registerTokenType('myTestSubInterface', 'A type just for testing', 'myTestInterface');
+		wegistwy.wegistewTokenType('myTestIntewface', 'A type just fow testing', 'intewface');
+		wegistwy.wegistewTokenType('myTestSubIntewface', 'A type just fow testing', 'myTestIntewface');
 
-		try {
-			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-			themeData.setCustomColors({ 'editor.foreground': '#000000' });
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { italic: true },
-					'interface.static': { bold: true }
+		twy {
+			const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
+			themeData.setCustomCowows({ 'editow.fowegwound': '#000000' });
+			themeData.setCustomSemanticTokenCowows({
+				enabwed: twue,
+				wuwes: {
+					'intewface': '#ff0000',
+					'myTestIntewface': { itawic: twue },
+					'intewface.static': { bowd: twue }
 				}
 			});
 
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff0000', { italic: true }) });
-			assertTokenStyles(themeData, { 'myTestSubInterface.static': ts('#ff0000', { italic: true, bold: true }) });
+			assewtTokenStywes(themeData, { 'myTestSubIntewface': ts('#ff0000', { itawic: twue }) });
+			assewtTokenStywes(themeData, { 'myTestSubIntewface.static': ts('#ff0000', { itawic: twue, bowd: twue }) });
 
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#ff0000',
-					'myTestInterface': { foreground: '#ff00ff', italic: true }
+			themeData.setCustomSemanticTokenCowows({
+				enabwed: twue,
+				wuwes: {
+					'intewface': '#ff0000',
+					'myTestIntewface': { fowegwound: '#ff00ff', itawic: twue }
 				}
 			});
-			assertTokenStyles(themeData, { 'myTestSubInterface': ts('#ff00ff', { italic: true }) });
-		} finally {
-			registry.deregisterTokenType('myTestInterface');
-			registry.deregisterTokenType('myTestSubInterface');
+			assewtTokenStywes(themeData, { 'myTestSubIntewface': ts('#ff00ff', { itawic: twue }) });
+		} finawwy {
+			wegistwy.dewegistewTokenType('myTestIntewface');
+			wegistwy.dewegistewTokenType('myTestSubIntewface');
 		}
 	});
 
-	test('language', async () => {
-		try {
-			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-			themeData.setCustomColors({ 'editor.foreground': '#000000' });
-			themeData.setCustomSemanticTokenColors({
-				enabled: true,
-				rules: {
-					'interface': '#fff000',
-					'interface:java': '#ff0000',
-					'interface.static': { bold: true },
-					'interface.static:typescript': { italic: true }
+	test('wanguage', async () => {
+		twy {
+			const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
+			themeData.setCustomCowows({ 'editow.fowegwound': '#000000' });
+			themeData.setCustomSemanticTokenCowows({
+				enabwed: twue,
+				wuwes: {
+					'intewface': '#fff000',
+					'intewface:java': '#ff0000',
+					'intewface.static': { bowd: twue },
+					'intewface.static:typescwipt': { itawic: twue }
 				}
 			});
 
-			assertTokenStyles(themeData, { 'interface': ts('#ff0000', undefined) }, 'java');
-			assertTokenStyles(themeData, { 'interface': ts('#fff000', undefined) }, 'typescript');
-			assertTokenStyles(themeData, { 'interface.static': ts('#ff0000', { bold: true }) }, 'java');
-			assertTokenStyles(themeData, { 'interface.static': ts('#fff000', { bold: true, italic: true }) }, 'typescript');
-		} finally {
+			assewtTokenStywes(themeData, { 'intewface': ts('#ff0000', undefined) }, 'java');
+			assewtTokenStywes(themeData, { 'intewface': ts('#fff000', undefined) }, 'typescwipt');
+			assewtTokenStywes(themeData, { 'intewface.static': ts('#ff0000', { bowd: twue }) }, 'java');
+			assewtTokenStywes(themeData, { 'intewface.static': ts('#fff000', { bowd: twue, itawic: twue }) }, 'typescwipt');
+		} finawwy {
 		}
 	});
 
-	test('language - scope resolving', async () => {
-		const registry = getTokenClassificationRegistry();
+	test('wanguage - scope wesowving', async () => {
+		const wegistwy = getTokenCwassificationWegistwy();
 
-		const numberOfDefaultRules = registry.getTokenStylingDefaultRules().length;
+		const numbewOfDefauwtWuwes = wegistwy.getTokenStywingDefauwtWuwes().wength;
 
-		registry.registerTokenStyleDefault(registry.parseTokenSelector('type', 'typescript1'), { scopesToProbe: [['entity.name.type.ts1']] });
-		registry.registerTokenStyleDefault(registry.parseTokenSelector('type:javascript1'), { scopesToProbe: [['entity.name.type.js1']] });
+		wegistwy.wegistewTokenStyweDefauwt(wegistwy.pawseTokenSewectow('type', 'typescwipt1'), { scopesToPwobe: [['entity.name.type.ts1']] });
+		wegistwy.wegistewTokenStyweDefauwt(wegistwy.pawseTokenSewectow('type:javascwipt1'), { scopesToPwobe: [['entity.name.type.js1']] });
 
-		try {
-			const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
-			themeData.setCustomColors({ 'editor.foreground': '#000000' });
-			themeData.setCustomTokenColors({
-				textMateRules: [
+		twy {
+			const themeData = CowowThemeData.cweateWoadedEmptyTheme('test', 'test');
+			themeData.setCustomCowows({ 'editow.fowegwound': '#000000' });
+			themeData.setCustomTokenCowows({
+				textMateWuwes: [
 					{
 						scope: 'entity.name.type',
-						settings: { foreground: '#aa0000' }
+						settings: { fowegwound: '#aa0000' }
 					},
 					{
 						scope: 'entity.name.type.ts1',
-						settings: { foreground: '#bb0000' }
+						settings: { fowegwound: '#bb0000' }
 					}
 				]
 			});
 
-			assertTokenStyles(themeData, { 'type': ts('#aa0000', undefined) }, 'javascript1');
-			assertTokenStyles(themeData, { 'type': ts('#bb0000', undefined) }, 'typescript1');
+			assewtTokenStywes(themeData, { 'type': ts('#aa0000', undefined) }, 'javascwipt1');
+			assewtTokenStywes(themeData, { 'type': ts('#bb0000', undefined) }, 'typescwipt1');
 
-		} finally {
-			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type', 'typescript1'));
-			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type:javascript1'));
+		} finawwy {
+			wegistwy.dewegistewTokenStyweDefauwt(wegistwy.pawseTokenSewectow('type', 'typescwipt1'));
+			wegistwy.dewegistewTokenStyweDefauwt(wegistwy.pawseTokenSewectow('type:javascwipt1'));
 
-			assert.strictEqual(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
+			assewt.stwictEquaw(wegistwy.getTokenStywingDefauwtWuwes().wength, numbewOfDefauwtWuwes);
 		}
 	});
 });

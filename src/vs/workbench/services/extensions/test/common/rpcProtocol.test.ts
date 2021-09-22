@@ -1,241 +1,241 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
-import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { VSBuffer } from 'vs/base/common/buffer';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { PwoxyIdentifia, SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
+impowt { WPCPwotocow } fwom 'vs/wowkbench/sewvices/extensions/common/wpcPwotocow';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
 
-suite('RPCProtocol', () => {
+suite('WPCPwotocow', () => {
 
-	class MessagePassingProtocol implements IMessagePassingProtocol {
-		private _pair?: MessagePassingProtocol;
+	cwass MessagePassingPwotocow impwements IMessagePassingPwotocow {
+		pwivate _paiw?: MessagePassingPwotocow;
 
-		private readonly _onMessage = new Emitter<VSBuffer>();
-		public readonly onMessage: Event<VSBuffer> = this._onMessage.event;
+		pwivate weadonwy _onMessage = new Emitta<VSBuffa>();
+		pubwic weadonwy onMessage: Event<VSBuffa> = this._onMessage.event;
 
-		public setPair(other: MessagePassingProtocol) {
-			this._pair = other;
+		pubwic setPaiw(otha: MessagePassingPwotocow) {
+			this._paiw = otha;
 		}
 
-		public send(buffer: VSBuffer): void {
-			Promise.resolve().then(() => {
-				this._pair!._onMessage.fire(buffer);
+		pubwic send(buffa: VSBuffa): void {
+			Pwomise.wesowve().then(() => {
+				this._paiw!._onMessage.fiwe(buffa);
 			});
 		}
 	}
 
-	let delegate: (a1: any, a2: any) => any;
-	let bProxy: BClass;
-	class BClass {
-		$m(a1: any, a2: any): Promise<any> {
-			return Promise.resolve(delegate.call(null, a1, a2));
+	wet dewegate: (a1: any, a2: any) => any;
+	wet bPwoxy: BCwass;
+	cwass BCwass {
+		$m(a1: any, a2: any): Pwomise<any> {
+			wetuwn Pwomise.wesowve(dewegate.caww(nuww, a1, a2));
 		}
 	}
 
 	setup(() => {
-		let a_protocol = new MessagePassingProtocol();
-		let b_protocol = new MessagePassingProtocol();
-		a_protocol.setPair(b_protocol);
-		b_protocol.setPair(a_protocol);
+		wet a_pwotocow = new MessagePassingPwotocow();
+		wet b_pwotocow = new MessagePassingPwotocow();
+		a_pwotocow.setPaiw(b_pwotocow);
+		b_pwotocow.setPaiw(a_pwotocow);
 
-		let A = new RPCProtocol(a_protocol);
-		let B = new RPCProtocol(b_protocol);
+		wet A = new WPCPwotocow(a_pwotocow);
+		wet B = new WPCPwotocow(b_pwotocow);
 
-		const bIdentifier = new ProxyIdentifier<BClass>(false, 'bb');
-		const bInstance = new BClass();
-		B.set(bIdentifier, bInstance);
-		bProxy = A.getProxy(bIdentifier);
+		const bIdentifia = new PwoxyIdentifia<BCwass>(fawse, 'bb');
+		const bInstance = new BCwass();
+		B.set(bIdentifia, bInstance);
+		bPwoxy = A.getPwoxy(bIdentifia);
 	});
 
-	test('simple call', function (done) {
-		delegate = (a1: number, a2: number) => a1 + a2;
-		bProxy.$m(4, 1).then((res: number) => {
-			assert.strictEqual(res, 5);
-			done(null);
+	test('simpwe caww', function (done) {
+		dewegate = (a1: numba, a2: numba) => a1 + a2;
+		bPwoxy.$m(4, 1).then((wes: numba) => {
+			assewt.stwictEquaw(wes, 5);
+			done(nuww);
 		}, done);
 	});
 
-	test('simple call without result', function (done) {
-		delegate = (a1: number, a2: number) => { };
-		bProxy.$m(4, 1).then((res: number) => {
-			assert.strictEqual(res, undefined);
-			done(null);
+	test('simpwe caww without wesuwt', function (done) {
+		dewegate = (a1: numba, a2: numba) => { };
+		bPwoxy.$m(4, 1).then((wes: numba) => {
+			assewt.stwictEquaw(wes, undefined);
+			done(nuww);
 		}, done);
 	});
 
-	test('passing buffer as argument', function (done) {
-		delegate = (a1: VSBuffer, a2: number) => {
-			assert.ok(a1 instanceof VSBuffer);
-			return a1.buffer[a2];
+	test('passing buffa as awgument', function (done) {
+		dewegate = (a1: VSBuffa, a2: numba) => {
+			assewt.ok(a1 instanceof VSBuffa);
+			wetuwn a1.buffa[a2];
 		};
-		let b = VSBuffer.alloc(4);
-		b.buffer[0] = 1;
-		b.buffer[1] = 2;
-		b.buffer[2] = 3;
-		b.buffer[3] = 4;
-		bProxy.$m(b, 2).then((res: number) => {
-			assert.strictEqual(res, 3);
-			done(null);
+		wet b = VSBuffa.awwoc(4);
+		b.buffa[0] = 1;
+		b.buffa[1] = 2;
+		b.buffa[2] = 3;
+		b.buffa[3] = 4;
+		bPwoxy.$m(b, 2).then((wes: numba) => {
+			assewt.stwictEquaw(wes, 3);
+			done(nuww);
 		}, done);
 	});
 
-	test('returning a buffer', function (done) {
-		delegate = (a1: number, a2: number) => {
-			let b = VSBuffer.alloc(4);
-			b.buffer[0] = 1;
-			b.buffer[1] = 2;
-			b.buffer[2] = 3;
-			b.buffer[3] = 4;
-			return b;
+	test('wetuwning a buffa', function (done) {
+		dewegate = (a1: numba, a2: numba) => {
+			wet b = VSBuffa.awwoc(4);
+			b.buffa[0] = 1;
+			b.buffa[1] = 2;
+			b.buffa[2] = 3;
+			b.buffa[3] = 4;
+			wetuwn b;
 		};
-		bProxy.$m(4, 1).then((res: VSBuffer) => {
-			assert.ok(res instanceof VSBuffer);
-			assert.strictEqual(res.buffer[0], 1);
-			assert.strictEqual(res.buffer[1], 2);
-			assert.strictEqual(res.buffer[2], 3);
-			assert.strictEqual(res.buffer[3], 4);
-			done(null);
+		bPwoxy.$m(4, 1).then((wes: VSBuffa) => {
+			assewt.ok(wes instanceof VSBuffa);
+			assewt.stwictEquaw(wes.buffa[0], 1);
+			assewt.stwictEquaw(wes.buffa[1], 2);
+			assewt.stwictEquaw(wes.buffa[2], 3);
+			assewt.stwictEquaw(wes.buffa[3], 4);
+			done(nuww);
 		}, done);
 	});
 
-	test('cancelling a call via CancellationToken before', function (done) {
-		delegate = (a1: number, a2: number) => a1 + a2;
-		let p = bProxy.$m(4, CancellationToken.Cancelled);
-		p.then((res: number) => {
-			assert.fail('should not receive result');
-		}, (err) => {
-			assert.ok(true);
-			done(null);
+	test('cancewwing a caww via CancewwationToken befowe', function (done) {
+		dewegate = (a1: numba, a2: numba) => a1 + a2;
+		wet p = bPwoxy.$m(4, CancewwationToken.Cancewwed);
+		p.then((wes: numba) => {
+			assewt.faiw('shouwd not weceive wesuwt');
+		}, (eww) => {
+			assewt.ok(twue);
+			done(nuww);
 		});
 	});
 
-	test('passing CancellationToken.None', function (done) {
-		delegate = (a1: number, token: CancellationToken) => {
-			assert.ok(!!token);
-			return a1 + 1;
+	test('passing CancewwationToken.None', function (done) {
+		dewegate = (a1: numba, token: CancewwationToken) => {
+			assewt.ok(!!token);
+			wetuwn a1 + 1;
 		};
-		bProxy.$m(4, CancellationToken.None).then((res: number) => {
-			assert.strictEqual(res, 5);
-			done(null);
+		bPwoxy.$m(4, CancewwationToken.None).then((wes: numba) => {
+			assewt.stwictEquaw(wes, 5);
+			done(nuww);
 		}, done);
 	});
 
-	test('cancelling a call via CancellationToken quickly', function (done) {
-		// this is an implementation which, when cancellation is triggered, will return 7
-		delegate = (a1: number, token: CancellationToken) => {
-			return new Promise((resolve, reject) => {
-				token.onCancellationRequested((e) => {
-					resolve(7);
+	test('cancewwing a caww via CancewwationToken quickwy', function (done) {
+		// this is an impwementation which, when cancewwation is twiggewed, wiww wetuwn 7
+		dewegate = (a1: numba, token: CancewwationToken) => {
+			wetuwn new Pwomise((wesowve, weject) => {
+				token.onCancewwationWequested((e) => {
+					wesowve(7);
 				});
 			});
 		};
-		let tokenSource = new CancellationTokenSource();
-		let p = bProxy.$m(4, tokenSource.token);
-		p.then((res: number) => {
-			assert.strictEqual(res, 7);
-		}, (err) => {
-			assert.fail('should not receive error');
-		}).finally(done);
-		tokenSource.cancel();
+		wet tokenSouwce = new CancewwationTokenSouwce();
+		wet p = bPwoxy.$m(4, tokenSouwce.token);
+		p.then((wes: numba) => {
+			assewt.stwictEquaw(wes, 7);
+		}, (eww) => {
+			assewt.faiw('shouwd not weceive ewwow');
+		}).finawwy(done);
+		tokenSouwce.cancew();
 	});
 
-	test('throwing an error', function (done) {
-		delegate = (a1: number, a2: number) => {
-			throw new Error(`nope`);
+	test('thwowing an ewwow', function (done) {
+		dewegate = (a1: numba, a2: numba) => {
+			thwow new Ewwow(`nope`);
 		};
-		bProxy.$m(4, 1).then((res) => {
-			assert.fail('unexpected');
-		}, (err) => {
-			assert.strictEqual(err.message, 'nope');
-		}).finally(done);
+		bPwoxy.$m(4, 1).then((wes) => {
+			assewt.faiw('unexpected');
+		}, (eww) => {
+			assewt.stwictEquaw(eww.message, 'nope');
+		}).finawwy(done);
 	});
 
-	test('error promise', function (done) {
-		delegate = (a1: number, a2: number) => {
-			return Promise.reject(undefined);
+	test('ewwow pwomise', function (done) {
+		dewegate = (a1: numba, a2: numba) => {
+			wetuwn Pwomise.weject(undefined);
 		};
-		bProxy.$m(4, 1).then((res) => {
-			assert.fail('unexpected');
-		}, (err) => {
-			assert.strictEqual(err, undefined);
-		}).finally(done);
+		bPwoxy.$m(4, 1).then((wes) => {
+			assewt.faiw('unexpected');
+		}, (eww) => {
+			assewt.stwictEquaw(eww, undefined);
+		}).finawwy(done);
 	});
 
-	test('issue #60450: Converting circular structure to JSON', function (done) {
-		delegate = (a1: number, a2: number) => {
-			let circular = <any>{};
-			circular.self = circular;
-			return circular;
+	test('issue #60450: Convewting ciwcuwaw stwuctuwe to JSON', function (done) {
+		dewegate = (a1: numba, a2: numba) => {
+			wet ciwcuwaw = <any>{};
+			ciwcuwaw.sewf = ciwcuwaw;
+			wetuwn ciwcuwaw;
 		};
-		bProxy.$m(4, 1).then((res) => {
-			assert.strictEqual(res, null);
-		}, (err) => {
-			assert.fail('unexpected');
-		}).finally(done);
+		bPwoxy.$m(4, 1).then((wes) => {
+			assewt.stwictEquaw(wes, nuww);
+		}, (eww) => {
+			assewt.faiw('unexpected');
+		}).finawwy(done);
 	});
 
-	test('issue #72798: null errors are hard to digest', function (done) {
-		delegate = (a1: number, a2: number) => {
-			// eslint-disable-next-line no-throw-literal
-			throw { 'what': 'what' };
+	test('issue #72798: nuww ewwows awe hawd to digest', function (done) {
+		dewegate = (a1: numba, a2: numba) => {
+			// eswint-disabwe-next-wine no-thwow-witewaw
+			thwow { 'what': 'what' };
 		};
-		bProxy.$m(4, 1).then((res) => {
-			assert.fail('unexpected');
-		}, (err) => {
-			assert.strictEqual(err.what, 'what');
-		}).finally(done);
+		bPwoxy.$m(4, 1).then((wes) => {
+			assewt.faiw('unexpected');
+		}, (eww) => {
+			assewt.stwictEquaw(eww.what, 'what');
+		}).finawwy(done);
 	});
 
-	test('undefined arguments arrive as null', function () {
-		delegate = (a1: any, a2: any) => {
-			assert.strictEqual(typeof a1, 'undefined');
-			assert.strictEqual(a2, null);
-			return 7;
+	test('undefined awguments awwive as nuww', function () {
+		dewegate = (a1: any, a2: any) => {
+			assewt.stwictEquaw(typeof a1, 'undefined');
+			assewt.stwictEquaw(a2, nuww);
+			wetuwn 7;
 		};
-		return bProxy.$m(undefined, null).then((res) => {
-			assert.strictEqual(res, 7);
+		wetuwn bPwoxy.$m(undefined, nuww).then((wes) => {
+			assewt.stwictEquaw(wes, 7);
 		});
 	});
 
-	test('issue #81424: SerializeRequest should throw if an argument can not be serialized', () => {
-		let badObject = {};
-		(<any>badObject).loop = badObject;
+	test('issue #81424: SewiawizeWequest shouwd thwow if an awgument can not be sewiawized', () => {
+		wet badObject = {};
+		(<any>badObject).woop = badObject;
 
-		assert.throws(() => {
-			bProxy.$m(badObject, '2');
+		assewt.thwows(() => {
+			bPwoxy.$m(badObject, '2');
 		});
 	});
 
-	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
-		delegate = (a1: SerializableObjectWithBuffers<{ string: string, buff: VSBuffer }>, a2: number) => {
-			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
+	test('SewiawizabweObjectWithBuffews is cowwectwy twansfewed', function (done) {
+		dewegate = (a1: SewiawizabweObjectWithBuffews<{ stwing: stwing, buff: VSBuffa }>, a2: numba) => {
+			wetuwn new SewiawizabweObjectWithBuffews({ stwing: a1.vawue.stwing + ' wowwd', buff: a1.vawue.buff });
 		};
 
-		const b = VSBuffer.alloc(4);
-		b.buffer[0] = 1;
-		b.buffer[1] = 2;
-		b.buffer[2] = 3;
-		b.buffer[3] = 4;
+		const b = VSBuffa.awwoc(4);
+		b.buffa[0] = 1;
+		b.buffa[1] = 2;
+		b.buffa[2] = 3;
+		b.buffa[3] = 4;
 
-		bProxy.$m(new SerializableObjectWithBuffers({ string: 'hello', buff: b }), undefined).then((res: SerializableObjectWithBuffers<any>) => {
-			assert.ok(res instanceof SerializableObjectWithBuffers);
-			assert.strictEqual(res.value.string, 'hello world');
+		bPwoxy.$m(new SewiawizabweObjectWithBuffews({ stwing: 'hewwo', buff: b }), undefined).then((wes: SewiawizabweObjectWithBuffews<any>) => {
+			assewt.ok(wes instanceof SewiawizabweObjectWithBuffews);
+			assewt.stwictEquaw(wes.vawue.stwing, 'hewwo wowwd');
 
-			assert.ok(res.value.buff instanceof VSBuffer);
+			assewt.ok(wes.vawue.buff instanceof VSBuffa);
 
-			const bufferValues = Array.from(res.value.buff.buffer);
+			const buffewVawues = Awway.fwom(wes.vawue.buff.buffa);
 
-			assert.strictEqual(bufferValues[0], 1);
-			assert.strictEqual(bufferValues[1], 2);
-			assert.strictEqual(bufferValues[2], 3);
-			assert.strictEqual(bufferValues[3], 4);
-			done(null);
+			assewt.stwictEquaw(buffewVawues[0], 1);
+			assewt.stwictEquaw(buffewVawues[1], 2);
+			assewt.stwictEquaw(buffewVawues[2], 3);
+			assewt.stwictEquaw(buffewVawues[3], 4);
+			done(nuww);
 		}, done);
 	});
 });

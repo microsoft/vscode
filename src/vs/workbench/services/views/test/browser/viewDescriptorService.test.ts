@@ -1,268 +1,268 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
-import { assertIsDefined } from 'vs/base/common/types';
-import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+impowt * as assewt fwom 'assewt';
+impowt { IViewsWegistwy, IViewDescwiptow, IViewContainewsWegistwy, Extensions as ViewContainewExtensions, IViewDescwiptowSewvice, ViewContainewWocation, ViewContaina } fwom 'vs/wowkbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewDescwiptowSewvice } fwom 'vs/wowkbench/sewvices/views/bwowsa/viewDescwiptowSewvice';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { ContextKeySewvice } fwom 'vs/pwatfowm/contextkey/bwowsa/contextKeySewvice';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
 
-const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-const sidebarContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testSidebar', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-const panelContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testPanel', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+const ViewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
+const sidebawContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({ id: 'testSidebaw', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Sidebaw);
+const panewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewContainewExtensions.ViewContainewsWegistwy).wegistewViewContaina({ id: 'testPanew', titwe: 'test', ctowDescwiptow: new SyncDescwiptow(<any>{}) }, ViewContainewWocation.Panew);
 
-suite('ViewDescriptorService', () => {
+suite('ViewDescwiptowSewvice', () => {
 
-	let viewDescriptorService: IViewDescriptorService;
+	wet viewDescwiptowSewvice: IViewDescwiptowSewvice;
 
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
-		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+		const instantiationSewvice: TestInstantiationSewvice = <TestInstantiationSewvice>wowkbenchInstantiationSewvice();
+		instantiationSewvice.stub(IContextKeySewvice, instantiationSewvice.cweateInstance(ContextKeySewvice));
+		viewDescwiptowSewvice = instantiationSewvice.cweateInstance(ViewDescwiptowSewvice);
 	});
 
-	teardown(() => {
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(sidebarContainer), sidebarContainer);
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(panelContainer), panelContainer);
+	teawdown(() => {
+		ViewsWegistwy.dewegistewViews(ViewsWegistwy.getViews(sidebawContaina), sidebawContaina);
+		ViewsWegistwy.dewegistewViews(ViewsWegistwy.getViews(panewContaina), panewContaina);
 	});
 
-	test('Empty Containers', function () {
-		const sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		const panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
-		assert.strictEqual(sidebarViews.allViewDescriptors.length, 0, 'The sidebar container should have no views yet.');
-		assert.strictEqual(panelViews.allViewDescriptors.length, 0, 'The panel container should have no views yet.');
+	test('Empty Containews', function () {
+		const sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		const panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
+		assewt.stwictEquaw(sidebawViews.awwViewDescwiptows.wength, 0, 'The sidebaw containa shouwd have no views yet.');
+		assewt.stwictEquaw(panewViews.awwViewDescwiptows.wength, 0, 'The panew containa shouwd have no views yet.');
 	});
 
-	test('Register/Deregister', () => {
-		const viewDescriptors: IViewDescriptor[] = [
+	test('Wegista/Dewegista', () => {
+		const viewDescwiptows: IViewDescwiptow[] = [
 			{
 				id: 'view1',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 1',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view2',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 2',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view3',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 3',
-				canMoveView: true
+				canMoveView: twue
 			}
 		];
 
 
-		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
-		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(0, 2), sidebawContaina);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(2), panewContaina);
 
 
-		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		wet sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		wet panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
 
-		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 2, 'Sidebar should have 2 views');
-		assert.strictEqual(panelViews.activeViewDescriptors.length, 1, 'Panel should have 1 view');
+		assewt.stwictEquaw(sidebawViews.activeViewDescwiptows.wength, 2, 'Sidebaw shouwd have 2 views');
+		assewt.stwictEquaw(panewViews.activeViewDescwiptows.wength, 1, 'Panew shouwd have 1 view');
 
-		ViewsRegistry.deregisterViews(viewDescriptors.slice(0, 2), sidebarContainer);
-		ViewsRegistry.deregisterViews(viewDescriptors.slice(2), panelContainer);
+		ViewsWegistwy.dewegistewViews(viewDescwiptows.swice(0, 2), sidebawContaina);
+		ViewsWegistwy.dewegistewViews(viewDescwiptows.swice(2), panewContaina);
 
 
-		sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
 
-		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 0, 'Sidebar should have no views');
-		assert.strictEqual(panelViews.activeViewDescriptors.length, 0, 'Panel should have no views');
+		assewt.stwictEquaw(sidebawViews.activeViewDescwiptows.wength, 0, 'Sidebaw shouwd have no views');
+		assewt.stwictEquaw(panewViews.activeViewDescwiptows.wength, 0, 'Panew shouwd have no views');
 	});
 
-	test('move views to existing containers', async function () {
-		const viewDescriptors: IViewDescriptor[] = [
+	test('move views to existing containews', async function () {
+		const viewDescwiptows: IViewDescwiptow[] = [
 			{
 				id: 'view1',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 1',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view2',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 2',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view3',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 3',
-				canMoveView: true
+				canMoveView: twue
 			}
 		];
 
-		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
-		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(0, 2), sidebawContaina);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(2), panewContaina);
 
-		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(2), sidebarContainer);
-		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(0, 2), panelContainer);
+		viewDescwiptowSewvice.moveViewsToContaina(viewDescwiptows.swice(2), sidebawContaina);
+		viewDescwiptowSewvice.moveViewsToContaina(viewDescwiptows.swice(0, 2), panewContaina);
 
-		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		wet sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		wet panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
 
-		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
-		assert.strictEqual(panelViews.activeViewDescriptors.length, 2, 'Panel should have 1 view');
+		assewt.stwictEquaw(sidebawViews.activeViewDescwiptows.wength, 1, 'Sidebaw shouwd have 2 views');
+		assewt.stwictEquaw(panewViews.activeViewDescwiptows.wength, 2, 'Panew shouwd have 1 view');
 
-		assert.notStrictEqual(sidebarViews.activeViewDescriptors.indexOf(viewDescriptors[2]), -1, `Sidebar should have ${viewDescriptors[2].name}`);
-		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[0]), -1, `Panel should have ${viewDescriptors[0].name}`);
-		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[1]), -1, `Panel should have ${viewDescriptors[1].name}`);
+		assewt.notStwictEquaw(sidebawViews.activeViewDescwiptows.indexOf(viewDescwiptows[2]), -1, `Sidebaw shouwd have ${viewDescwiptows[2].name}`);
+		assewt.notStwictEquaw(panewViews.activeViewDescwiptows.indexOf(viewDescwiptows[0]), -1, `Panew shouwd have ${viewDescwiptows[0].name}`);
+		assewt.notStwictEquaw(panewViews.activeViewDescwiptows.indexOf(viewDescwiptows[1]), -1, `Panew shouwd have ${viewDescwiptows[1].name}`);
 	});
 
-	test('move views to generated containers', async function () {
-		const viewDescriptors: IViewDescriptor[] = [
+	test('move views to genewated containews', async function () {
+		const viewDescwiptows: IViewDescwiptow[] = [
 			{
 				id: 'view1',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 1',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view2',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 2',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view3',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 3',
-				canMoveView: true
+				canMoveView: twue
 			}
 		];
 
-		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
-		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(0, 2), sidebawContaina);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(2), panewContaina);
 
-		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Panel);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[0], ViewContainewWocation.Panew);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[2], ViewContainewWocation.Sidebaw);
 
-		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		wet sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		wet panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
 
-		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar container should have 1 view');
-		assert.strictEqual(panelViews.activeViewDescriptors.length, 0, 'Panel container should have no views');
+		assewt.stwictEquaw(sidebawViews.activeViewDescwiptows.wength, 1, 'Sidebaw containa shouwd have 1 view');
+		assewt.stwictEquaw(panewViews.activeViewDescwiptows.wength, 0, 'Panew containa shouwd have no views');
 
-		const generatedPanel = assertIsDefined(viewDescriptorService.getViewContainerByViewId(viewDescriptors[0].id));
-		const generatedSidebar = assertIsDefined(viewDescriptorService.getViewContainerByViewId(viewDescriptors[2].id));
+		const genewatedPanew = assewtIsDefined(viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[0].id));
+		const genewatedSidebaw = assewtIsDefined(viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[2].id));
 
-		assert.strictEqual(viewDescriptorService.getViewContainerLocation(generatedPanel), ViewContainerLocation.Panel, 'Generated Panel should be in located in the panel');
-		assert.strictEqual(viewDescriptorService.getViewContainerLocation(generatedSidebar), ViewContainerLocation.Sidebar, 'Generated Sidebar should be in located in the sidebar');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewContainewWocation(genewatedPanew), ViewContainewWocation.Panew, 'Genewated Panew shouwd be in wocated in the panew');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewContainewWocation(genewatedSidebaw), ViewContainewWocation.Sidebaw, 'Genewated Sidebaw shouwd be in wocated in the sidebaw');
 
-		assert.strictEqual(viewDescriptorService.getViewContainerLocation(generatedPanel), viewDescriptorService.getViewLocationById(viewDescriptors[0].id), 'Panel view location and container location should match');
-		assert.strictEqual(viewDescriptorService.getViewContainerLocation(generatedSidebar), viewDescriptorService.getViewLocationById(viewDescriptors[2].id), 'Sidebar view location and container location should match');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewContainewWocation(genewatedPanew), viewDescwiptowSewvice.getViewWocationById(viewDescwiptows[0].id), 'Panew view wocation and containa wocation shouwd match');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewContainewWocation(genewatedSidebaw), viewDescwiptowSewvice.getViewWocationById(viewDescwiptows[2].id), 'Sidebaw view wocation and containa wocation shouwd match');
 
-		assert.strictEqual(viewDescriptorService.getDefaultContainerById(viewDescriptors[2].id), panelContainer, `${viewDescriptors[2].name} has wrong default container`);
-		assert.strictEqual(viewDescriptorService.getDefaultContainerById(viewDescriptors[0].id), sidebarContainer, `${viewDescriptors[0].name} has wrong default container`);
+		assewt.stwictEquaw(viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptows[2].id), panewContaina, `${viewDescwiptows[2].name} has wwong defauwt containa`);
+		assewt.stwictEquaw(viewDescwiptowSewvice.getDefauwtContainewById(viewDescwiptows[0].id), sidebawContaina, `${viewDescwiptows[0].name} has wwong defauwt containa`);
 
-		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[0], ViewContainewWocation.Sidebaw);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[2], ViewContainewWocation.Panew);
 
-		sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
-		panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
+		sidebawViews = viewDescwiptowSewvice.getViewContainewModew(sidebawContaina);
+		panewViews = viewDescwiptowSewvice.getViewContainewModew(panewContaina);
 
-		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
-		assert.strictEqual(panelViews.activeViewDescriptors.length, 0, 'Panel should have 1 view');
+		assewt.stwictEquaw(sidebawViews.activeViewDescwiptows.wength, 1, 'Sidebaw shouwd have 2 views');
+		assewt.stwictEquaw(panewViews.activeViewDescwiptows.wength, 0, 'Panew shouwd have 1 view');
 
-		assert.strictEqual(viewDescriptorService.getViewLocationById(viewDescriptors[0].id), ViewContainerLocation.Sidebar, 'View should be located in the sidebar');
-		assert.strictEqual(viewDescriptorService.getViewLocationById(viewDescriptors[2].id), ViewContainerLocation.Panel, 'View should be located in the panel');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewWocationById(viewDescwiptows[0].id), ViewContainewWocation.Sidebaw, 'View shouwd be wocated in the sidebaw');
+		assewt.stwictEquaw(viewDescwiptowSewvice.getViewWocationById(viewDescwiptows[2].id), ViewContainewWocation.Panew, 'View shouwd be wocated in the panew');
 	});
 
 	test('move view events', async function () {
-		const viewDescriptors: IViewDescriptor[] = [
+		const viewDescwiptows: IViewDescwiptow[] = [
 			{
 				id: 'view1',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 1',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view2',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 2',
-				canMoveView: true
+				canMoveView: twue
 			},
 			{
 				id: 'view3',
-				ctorDescriptor: null!,
+				ctowDescwiptow: nuww!,
 				name: 'Test View 3',
-				canMoveView: true
+				canMoveView: twue
 			}
 		];
 
 
-		let expectedSequence = '';
-		let actualSequence = '';
-		const disposables = [];
+		wet expectedSequence = '';
+		wet actuawSequence = '';
+		const disposabwes = [];
 
-		const containerMoveString = (view: IViewDescriptor, from: ViewContainer, to: ViewContainer) => {
-			return `Moved ${view.id} from ${from.id} to ${to.id}\n`;
+		const containewMoveStwing = (view: IViewDescwiptow, fwom: ViewContaina, to: ViewContaina) => {
+			wetuwn `Moved ${view.id} fwom ${fwom.id} to ${to.id}\n`;
 		};
 
-		const locationMoveString = (view: IViewDescriptor, from: ViewContainerLocation, to: ViewContainerLocation) => {
-			return `Moved ${view.id} from ${from === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'} to ${to === ViewContainerLocation.Sidebar ? 'Sidebar' : 'Panel'}\n`;
+		const wocationMoveStwing = (view: IViewDescwiptow, fwom: ViewContainewWocation, to: ViewContainewWocation) => {
+			wetuwn `Moved ${view.id} fwom ${fwom === ViewContainewWocation.Sidebaw ? 'Sidebaw' : 'Panew'} to ${to === ViewContainewWocation.Sidebaw ? 'Sidebaw' : 'Panew'}\n`;
 		};
-		disposables.push(viewDescriptorService.onDidChangeContainer(({ views, from, to }) => {
-			views.forEach(view => {
-				actualSequence += containerMoveString(view, from, to);
+		disposabwes.push(viewDescwiptowSewvice.onDidChangeContaina(({ views, fwom, to }) => {
+			views.fowEach(view => {
+				actuawSequence += containewMoveStwing(view, fwom, to);
 			});
 		}));
 
-		disposables.push(viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
-			views.forEach(view => {
-				actualSequence += locationMoveString(view, from, to);
+		disposabwes.push(viewDescwiptowSewvice.onDidChangeWocation(({ views, fwom, to }) => {
+			views.fowEach(view => {
+				actuawSequence += wocationMoveStwing(view, fwom, to);
 			});
 		}));
 
-		ViewsRegistry.registerViews(viewDescriptors.slice(0, 2), sidebarContainer);
-		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(0, 2), sidebawContaina);
+		ViewsWegistwy.wegistewViews(viewDescwiptows.swice(2), panewContaina);
 
-		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Panel);
-		expectedSequence += containerMoveString(viewDescriptors[0], sidebarContainer, viewDescriptorService.getViewContainerByViewId(viewDescriptors[0].id)!);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[0], ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[0], ViewContainewWocation.Panew);
+		expectedSequence += containewMoveStwing(viewDescwiptows[0], sidebawContaina, viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[0].id)!);
 
-		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
-		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
-		expectedSequence += containerMoveString(viewDescriptors[2], panelContainer, viewDescriptorService.getViewContainerByViewId(viewDescriptors[2].id)!);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[2], ViewContainewWocation.Panew, ViewContainewWocation.Sidebaw);
+		viewDescwiptowSewvice.moveViewToWocation(viewDescwiptows[2], ViewContainewWocation.Sidebaw);
+		expectedSequence += containewMoveStwing(viewDescwiptows[2], panewContaina, viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[2].id)!);
 
 
-		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
-		expectedSequence += containerMoveString(viewDescriptors[0], viewDescriptorService.getViewContainerByViewId(viewDescriptors[0].id)!, sidebarContainer);
-		viewDescriptorService.moveViewsToContainer([viewDescriptors[0]], sidebarContainer);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[0], ViewContainewWocation.Panew, ViewContainewWocation.Sidebaw);
+		expectedSequence += containewMoveStwing(viewDescwiptows[0], viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[0].id)!, sidebawContaina);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptows[0]], sidebawContaina);
 
-		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
-		expectedSequence += containerMoveString(viewDescriptors[2], viewDescriptorService.getViewContainerByViewId(viewDescriptors[2].id)!, panelContainer);
-		viewDescriptorService.moveViewsToContainer([viewDescriptors[2]], panelContainer);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[2], ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew);
+		expectedSequence += containewMoveStwing(viewDescwiptows[2], viewDescwiptowSewvice.getViewContainewByViewId(viewDescwiptows[2].id)!, panewContaina);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptows[2]], panewContaina);
 
-		expectedSequence += locationMoveString(viewDescriptors[0], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
-		expectedSequence += containerMoveString(viewDescriptors[0], sidebarContainer, panelContainer);
-		viewDescriptorService.moveViewsToContainer([viewDescriptors[0]], panelContainer);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[0], ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew);
+		expectedSequence += containewMoveStwing(viewDescwiptows[0], sidebawContaina, panewContaina);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptows[0]], panewContaina);
 
-		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Panel, ViewContainerLocation.Sidebar);
-		expectedSequence += containerMoveString(viewDescriptors[2], panelContainer, sidebarContainer);
-		viewDescriptorService.moveViewsToContainer([viewDescriptors[2]], sidebarContainer);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[2], ViewContainewWocation.Panew, ViewContainewWocation.Sidebaw);
+		expectedSequence += containewMoveStwing(viewDescwiptows[2], panewContaina, sidebawContaina);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptows[2]], sidebawContaina);
 
-		expectedSequence += locationMoveString(viewDescriptors[1], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
-		expectedSequence += locationMoveString(viewDescriptors[2], ViewContainerLocation.Sidebar, ViewContainerLocation.Panel);
-		expectedSequence += containerMoveString(viewDescriptors[1], sidebarContainer, panelContainer);
-		expectedSequence += containerMoveString(viewDescriptors[2], sidebarContainer, panelContainer);
-		viewDescriptorService.moveViewsToContainer([viewDescriptors[1], viewDescriptors[2]], panelContainer);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[1], ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew);
+		expectedSequence += wocationMoveStwing(viewDescwiptows[2], ViewContainewWocation.Sidebaw, ViewContainewWocation.Panew);
+		expectedSequence += containewMoveStwing(viewDescwiptows[1], sidebawContaina, panewContaina);
+		expectedSequence += containewMoveStwing(viewDescwiptows[2], sidebawContaina, panewContaina);
+		viewDescwiptowSewvice.moveViewsToContaina([viewDescwiptows[1], viewDescwiptows[2]], panewContaina);
 
-		assert.strictEqual(actualSequence, expectedSequence, 'Event sequence not matching expected sequence');
+		assewt.stwictEquaw(actuawSequence, expectedSequence, 'Event sequence not matching expected sequence');
 	});
 
 });

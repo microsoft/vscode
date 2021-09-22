@@ -1,54 +1,54 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+impowt * as assewt fwom 'assewt';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { AbstwactWesouwceEditowInput } fwom 'vs/wowkbench/common/editow/wesouwceEditowInput';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { EditowInputCapabiwities, Vewbosity } fwom 'vs/wowkbench/common/editow';
 
-suite('ResourceEditorInput', () => {
+suite('WesouwceEditowInput', () => {
 
-	let instantiationService: IInstantiationService;
+	wet instantiationSewvice: IInstantiationSewvice;
 
-	class TestResourceEditorInput extends AbstractResourceEditorInput {
+	cwass TestWesouwceEditowInput extends AbstwactWesouwceEditowInput {
 
-		readonly typeId = 'test.typeId';
+		weadonwy typeId = 'test.typeId';
 
-		constructor(
-			resource: URI,
-			@ILabelService labelService: ILabelService,
-			@IFileService fileService: IFileService
+		constwuctow(
+			wesouwce: UWI,
+			@IWabewSewvice wabewSewvice: IWabewSewvice,
+			@IFiweSewvice fiweSewvice: IFiweSewvice
 		) {
-			super(resource, resource, labelService, fileService);
+			supa(wesouwce, wesouwce, wabewSewvice, fiweSewvice);
 		}
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationSewvice = wowkbenchInstantiationSewvice();
 	});
 
 	test('basics', async () => {
-		const resource = URI.from({ scheme: 'testResource', path: 'thePath/of/the/resource.txt' });
+		const wesouwce = UWI.fwom({ scheme: 'testWesouwce', path: 'thePath/of/the/wesouwce.txt' });
 
-		const input = instantiationService.createInstance(TestResourceEditorInput, resource);
+		const input = instantiationSewvice.cweateInstance(TestWesouwceEditowInput, wesouwce);
 
-		assert.ok(input.getName().length > 0);
+		assewt.ok(input.getName().wength > 0);
 
-		assert.ok(input.getDescription(Verbosity.SHORT)!.length > 0);
-		assert.ok(input.getDescription(Verbosity.MEDIUM)!.length > 0);
-		assert.ok(input.getDescription(Verbosity.LONG)!.length > 0);
+		assewt.ok(input.getDescwiption(Vewbosity.SHOWT)!.wength > 0);
+		assewt.ok(input.getDescwiption(Vewbosity.MEDIUM)!.wength > 0);
+		assewt.ok(input.getDescwiption(Vewbosity.WONG)!.wength > 0);
 
-		assert.ok(input.getTitle(Verbosity.SHORT).length > 0);
-		assert.ok(input.getTitle(Verbosity.MEDIUM).length > 0);
-		assert.ok(input.getTitle(Verbosity.LONG).length > 0);
+		assewt.ok(input.getTitwe(Vewbosity.SHOWT).wength > 0);
+		assewt.ok(input.getTitwe(Vewbosity.MEDIUM).wength > 0);
+		assewt.ok(input.getTitwe(Vewbosity.WONG).wength > 0);
 
-		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
-		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
+		assewt.stwictEquaw(input.hasCapabiwity(EditowInputCapabiwities.Weadonwy), fawse);
+		assewt.stwictEquaw(input.hasCapabiwity(EditowInputCapabiwities.Untitwed), twue);
 	});
 });

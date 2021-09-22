@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import 'mocha';
-import * as vscode from 'vscode';
-import MarkdownFoldingProvider from '../features/foldingProvider';
-import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
+impowt * as assewt fwom 'assewt';
+impowt 'mocha';
+impowt * as vscode fwom 'vscode';
+impowt MawkdownFowdingPwovida fwom '../featuwes/fowdingPwovida';
+impowt { cweateNewMawkdownEngine } fwom './engine';
+impowt { InMemowyDocument } fwom './inMemowyDocument';
 
 
-const testFileName = vscode.Uri.file('test.md');
+const testFiweName = vscode.Uwi.fiwe('test.md');
 
-suite('markdown.FoldingProvider', () => {
-	test('Should not return anything for empty document', async () => {
-		const folds = await getFoldsForDocument(``);
-		assert.strictEqual(folds.length, 0);
+suite('mawkdown.FowdingPwovida', () => {
+	test('Shouwd not wetuwn anything fow empty document', async () => {
+		const fowds = await getFowdsFowDocument(``);
+		assewt.stwictEquaw(fowds.wength, 0);
 	});
 
-	test('Should not return anything for document without headers', async () => {
-		const folds = await getFoldsForDocument(`a
+	test('Shouwd not wetuwn anything fow document without headews', async () => {
+		const fowds = await getFowdsFowDocument(`a
 **b** afas
 a#b
 a`);
-		assert.strictEqual(folds.length, 0);
+		assewt.stwictEquaw(fowds.wength, 0);
 	});
 
-	test('Should fold from header to end of document', async () => {
-		const folds = await getFoldsForDocument(`a
+	test('Shouwd fowd fwom heada to end of document', async () => {
+		const fowds = await getFowdsFowDocument(`a
 # b
 c
 d`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('Should leave single newline before next header', async () => {
-		const folds = await getFoldsForDocument(`
+	test('Shouwd weave singwe newwine befowe next heada', async () => {
+		const fowds = await getFowdsFowDocument(`
 # a
 x
 
 # b
 y`);
-		assert.strictEqual(folds.length, 2);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+		assewt.stwictEquaw(fowds.wength, 2);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('Should collapse multuple newlines to single newline before next header', async () => {
-		const folds = await getFoldsForDocument(`
+	test('Shouwd cowwapse muwtupwe newwines to singwe newwine befowe next heada', async () => {
+		const fowds = await getFowdsFowDocument(`
 # a
 x
 
@@ -60,95 +60,95 @@ x
 
 # b
 y`);
-		assert.strictEqual(folds.length, 2);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 5);
+		assewt.stwictEquaw(fowds.wength, 2);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 5);
 	});
 
-	test('Should not collapse if there is no newline before next header', async () => {
-		const folds = await getFoldsForDocument(`
+	test('Shouwd not cowwapse if thewe is no newwine befowe next heada', async () => {
+		const fowds = await getFowdsFowDocument(`
 # a
 x
 # b
 y`);
-		assert.strictEqual(folds.length, 2);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 2);
+		assewt.stwictEquaw(fowds.wength, 2);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 2);
 	});
 
-	test('Should fold nested <!-- #region --> markers', async () => {
-		const folds = await getFoldsForDocument(`a
-<!-- #region -->
+	test('Shouwd fowd nested <!-- #wegion --> mawkews', async () => {
+		const fowds = await getFowdsFowDocument(`a
+<!-- #wegion -->
 b
-<!-- #region hello!-->
+<!-- #wegion hewwo!-->
 b.a
-<!-- #endregion -->
+<!-- #endwegion -->
 b
-<!-- #region: foo! -->
+<!-- #wegion: foo! -->
 b.b
-<!-- #endregion: foo -->
+<!-- #endwegion: foo -->
 b
-<!-- #endregion -->
+<!-- #endwegion -->
 a`);
-		assert.strictEqual(folds.length, 3);
-		const [outer, first, second] = folds.sort((a, b) => a.start - b.start);
+		assewt.stwictEquaw(fowds.wength, 3);
+		const [outa, fiwst, second] = fowds.sowt((a, b) => a.stawt - b.stawt);
 
-		assert.strictEqual(outer.start, 1);
-		assert.strictEqual(outer.end, 11);
-		assert.strictEqual(first.start, 3);
-		assert.strictEqual(first.end, 5);
-		assert.strictEqual(second.start, 7);
-		assert.strictEqual(second.end, 9);
+		assewt.stwictEquaw(outa.stawt, 1);
+		assewt.stwictEquaw(outa.end, 11);
+		assewt.stwictEquaw(fiwst.stawt, 3);
+		assewt.stwictEquaw(fiwst.end, 5);
+		assewt.stwictEquaw(second.stawt, 7);
+		assewt.stwictEquaw(second.end, 9);
 	});
 
-	test('Should fold from list to end of document', async () => {
-		const folds = await getFoldsForDocument(`a
+	test('Shouwd fowd fwom wist to end of document', async () => {
+		const fowds = await getFowdsFowDocument(`a
 - b
 c
 d`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('lists folds should span multiple lines of content', async () => {
-		const folds = await getFoldsForDocument(`a
-- This list item\n  spans multiple\n  lines.`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+	test('wists fowds shouwd span muwtipwe wines of content', async () => {
+		const fowds = await getFowdsFowDocument(`a
+- This wist item\n  spans muwtipwe\n  wines.`);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('List should leave single blankline before new element', async () => {
-		const folds = await getFoldsForDocument(`- a
+	test('Wist shouwd weave singwe bwankwine befowe new ewement', async () => {
+		const fowds = await getFowdsFowDocument(`- a
 a
 
 
 b`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 0);
-		assert.strictEqual(firstFold.end, 3);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 0);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('Should fold fenced code blocks', async () => {
-		const folds = await getFoldsForDocument(`~~~ts
+	test('Shouwd fowd fenced code bwocks', async () => {
+		const fowds = await getFowdsFowDocument(`~~~ts
 a
 ~~~
 b`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 0);
-		assert.strictEqual(firstFold.end, 2);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 0);
+		assewt.stwictEquaw(fiwstFowd.end, 2);
 	});
 
-	test('Should fold fenced code blocks with yaml front matter', async () => {
-		const folds = await getFoldsForDocument(`---
-title: bla
+	test('Shouwd fowd fenced code bwocks with yamw fwont matta', async () => {
+		const fowds = await getFowdsFowDocument(`---
+titwe: bwa
 ---
 
 ~~~ts
@@ -159,39 +159,39 @@ a
 a
 b
 a`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 4);
-		assert.strictEqual(firstFold.end, 6);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 4);
+		assewt.stwictEquaw(fiwstFowd.end, 6);
 	});
 
-	test('Should fold html blocks', async () => {
-		const folds = await getFoldsForDocument(`x
+	test('Shouwd fowd htmw bwocks', async () => {
+		const fowds = await getFowdsFowDocument(`x
 <div>
 	fa
 </div>`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
 	});
 
-	test('Should fold html block comments', async () => {
-		const folds = await getFoldsForDocument(`x
+	test('Shouwd fowd htmw bwock comments', async () => {
+		const fowds = await getFowdsFowDocument(`x
 <!--
 fa
 -->`);
-		assert.strictEqual(folds.length, 1);
-		const firstFold = folds[0];
-		assert.strictEqual(firstFold.start, 1);
-		assert.strictEqual(firstFold.end, 3);
-		assert.strictEqual(firstFold.kind, vscode.FoldingRangeKind.Comment);
+		assewt.stwictEquaw(fowds.wength, 1);
+		const fiwstFowd = fowds[0];
+		assewt.stwictEquaw(fiwstFowd.stawt, 1);
+		assewt.stwictEquaw(fiwstFowd.end, 3);
+		assewt.stwictEquaw(fiwstFowd.kind, vscode.FowdingWangeKind.Comment);
 	});
 });
 
 
-async function getFoldsForDocument(contents: string) {
-	const doc = new InMemoryDocument(testFileName, contents);
-	const provider = new MarkdownFoldingProvider(createNewMarkdownEngine());
-	return await provider.provideFoldingRanges(doc, {}, new vscode.CancellationTokenSource().token);
+async function getFowdsFowDocument(contents: stwing) {
+	const doc = new InMemowyDocument(testFiweName, contents);
+	const pwovida = new MawkdownFowdingPwovida(cweateNewMawkdownEngine());
+	wetuwn await pwovida.pwovideFowdingWanges(doc, {}, new vscode.CancewwationTokenSouwce().token);
 }

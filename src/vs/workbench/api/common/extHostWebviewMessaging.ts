@@ -1,122 +1,122 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import * as extHostProtocol from './extHost.protocol';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt * as extHostPwotocow fwom './extHost.pwotocow';
 
-class ArrayBufferSet {
-	public readonly buffers: ArrayBuffer[] = [];
+cwass AwwayBuffewSet {
+	pubwic weadonwy buffews: AwwayBuffa[] = [];
 
-	public add(buffer: ArrayBuffer): number {
-		let index = this.buffers.indexOf(buffer);
+	pubwic add(buffa: AwwayBuffa): numba {
+		wet index = this.buffews.indexOf(buffa);
 		if (index < 0) {
-			index = this.buffers.length;
-			this.buffers.push(buffer);
+			index = this.buffews.wength;
+			this.buffews.push(buffa);
 		}
-		return index;
+		wetuwn index;
 	}
 }
 
-export function serializeWebviewMessage(
+expowt function sewiawizeWebviewMessage(
 	message: any,
-	options: { serializeBuffersForPostMessage?: boolean }
-): { message: string, buffers: VSBuffer[] } {
-	if (options.serializeBuffersForPostMessage) {
-		// Extract all ArrayBuffers from the message and replace them with references.
-		const arrayBuffers = new ArrayBufferSet();
+	options: { sewiawizeBuffewsFowPostMessage?: boowean }
+): { message: stwing, buffews: VSBuffa[] } {
+	if (options.sewiawizeBuffewsFowPostMessage) {
+		// Extwact aww AwwayBuffews fwom the message and wepwace them with wefewences.
+		const awwayBuffews = new AwwayBuffewSet();
 
-		const replacer = (_key: string, value: any) => {
-			if (value instanceof ArrayBuffer) {
-				const index = arrayBuffers.add(value);
-				return <extHostProtocol.WebviewMessageArrayBufferReference>{
-					$$vscode_array_buffer_reference$$: true,
+		const wepwaca = (_key: stwing, vawue: any) => {
+			if (vawue instanceof AwwayBuffa) {
+				const index = awwayBuffews.add(vawue);
+				wetuwn <extHostPwotocow.WebviewMessageAwwayBuffewWefewence>{
+					$$vscode_awway_buffew_wefewence$$: twue,
 					index,
 				};
-			} else if (ArrayBuffer.isView(value)) {
-				const type = getTypedArrayType(value);
+			} ewse if (AwwayBuffa.isView(vawue)) {
+				const type = getTypedAwwayType(vawue);
 				if (type) {
-					const index = arrayBuffers.add(value.buffer);
-					return <extHostProtocol.WebviewMessageArrayBufferReference>{
-						$$vscode_array_buffer_reference$$: true,
+					const index = awwayBuffews.add(vawue.buffa);
+					wetuwn <extHostPwotocow.WebviewMessageAwwayBuffewWefewence>{
+						$$vscode_awway_buffew_wefewence$$: twue,
 						index,
 						view: {
 							type: type,
-							byteLength: value.byteLength,
-							byteOffset: value.byteOffset,
+							byteWength: vawue.byteWength,
+							byteOffset: vawue.byteOffset,
 						}
 					};
 				}
 			}
 
-			return value;
+			wetuwn vawue;
 		};
 
-		const serializedMessage = JSON.stringify(message, replacer);
+		const sewiawizedMessage = JSON.stwingify(message, wepwaca);
 
-		const buffers = arrayBuffers.buffers.map(arrayBuffer => {
-			const bytes = new Uint8Array(arrayBuffer);
-			return VSBuffer.wrap(bytes);
+		const buffews = awwayBuffews.buffews.map(awwayBuffa => {
+			const bytes = new Uint8Awway(awwayBuffa);
+			wetuwn VSBuffa.wwap(bytes);
 		});
 
-		return { message: serializedMessage, buffers };
-	} else {
-		return { message: JSON.stringify(message), buffers: [] };
+		wetuwn { message: sewiawizedMessage, buffews };
+	} ewse {
+		wetuwn { message: JSON.stwingify(message), buffews: [] };
 	}
 }
 
-function getTypedArrayType(value: ArrayBufferView): extHostProtocol.WebviewMessageArrayBufferViewType | undefined {
-	switch (value.constructor.name) {
-		case 'Int8Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Int8Array;
-		case 'Uint8Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Uint8Array;
-		case 'Uint8ClampedArray': return extHostProtocol.WebviewMessageArrayBufferViewType.Uint8ClampedArray;
-		case 'Int16Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Int16Array;
-		case 'Uint16Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Uint16Array;
-		case 'Int32Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Int32Array;
-		case 'Uint32Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Uint32Array;
-		case 'Float32Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Float32Array;
-		case 'Float64Array': return extHostProtocol.WebviewMessageArrayBufferViewType.Float64Array;
-		case 'BigInt64Array': return extHostProtocol.WebviewMessageArrayBufferViewType.BigInt64Array;
-		case 'BigUint64Array': return extHostProtocol.WebviewMessageArrayBufferViewType.BigUint64Array;
+function getTypedAwwayType(vawue: AwwayBuffewView): extHostPwotocow.WebviewMessageAwwayBuffewViewType | undefined {
+	switch (vawue.constwuctow.name) {
+		case 'Int8Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int8Awway;
+		case 'Uint8Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint8Awway;
+		case 'Uint8CwampedAwway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint8CwampedAwway;
+		case 'Int16Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int16Awway;
+		case 'Uint16Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint16Awway;
+		case 'Int32Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int32Awway;
+		case 'Uint32Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint32Awway;
+		case 'Fwoat32Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Fwoat32Awway;
+		case 'Fwoat64Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.Fwoat64Awway;
+		case 'BigInt64Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.BigInt64Awway;
+		case 'BigUint64Awway': wetuwn extHostPwotocow.WebviewMessageAwwayBuffewViewType.BigUint64Awway;
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: any, arrayBuffers: ArrayBuffer[] } {
-	const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
-		const arrayBuffer = new ArrayBuffer(buffer.byteLength);
-		const uint8Array = new Uint8Array(arrayBuffer);
-		uint8Array.set(buffer.buffer);
-		return arrayBuffer;
+expowt function desewiawizeWebviewMessage(jsonMessage: stwing, buffews: VSBuffa[]): { message: any, awwayBuffews: AwwayBuffa[] } {
+	const awwayBuffews: AwwayBuffa[] = buffews.map(buffa => {
+		const awwayBuffa = new AwwayBuffa(buffa.byteWength);
+		const uint8Awway = new Uint8Awway(awwayBuffa);
+		uint8Awway.set(buffa.buffa);
+		wetuwn awwayBuffa;
 	});
 
-	const reviver = !buffers.length ? undefined : (_key: string, value: any) => {
-		if (typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
-			const ref = value as extHostProtocol.WebviewMessageArrayBufferReference;
-			const { index } = ref;
-			const arrayBuffer = arrayBuffers[index];
-			if (ref.view) {
-				switch (ref.view.type) {
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Int8Array: return new Int8Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Int8Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Uint8Array: return new Uint8Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Uint8Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Uint8ClampedArray: return new Uint8ClampedArray(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Uint8ClampedArray.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Int16Array: return new Int16Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Int16Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Uint16Array: return new Uint16Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Uint16Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Int32Array: return new Int32Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Int32Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Uint32Array: return new Uint32Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Uint32Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Float32Array: return new Float32Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Float32Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.Float64Array: return new Float64Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / Float64Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.BigInt64Array: return new BigInt64Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / BigInt64Array.BYTES_PER_ELEMENT);
-					case extHostProtocol.WebviewMessageArrayBufferViewType.BigUint64Array: return new BigUint64Array(arrayBuffer, ref.view.byteOffset, ref.view.byteLength / BigUint64Array.BYTES_PER_ELEMENT);
-					default: throw new Error('Unknown array buffer view type');
+	const weviva = !buffews.wength ? undefined : (_key: stwing, vawue: any) => {
+		if (typeof vawue === 'object' && (vawue as extHostPwotocow.WebviewMessageAwwayBuffewWefewence).$$vscode_awway_buffew_wefewence$$) {
+			const wef = vawue as extHostPwotocow.WebviewMessageAwwayBuffewWefewence;
+			const { index } = wef;
+			const awwayBuffa = awwayBuffews[index];
+			if (wef.view) {
+				switch (wef.view.type) {
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int8Awway: wetuwn new Int8Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Int8Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint8Awway: wetuwn new Uint8Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Uint8Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint8CwampedAwway: wetuwn new Uint8CwampedAwway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Uint8CwampedAwway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int16Awway: wetuwn new Int16Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Int16Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint16Awway: wetuwn new Uint16Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Uint16Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Int32Awway: wetuwn new Int32Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Int32Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Uint32Awway: wetuwn new Uint32Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Uint32Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Fwoat32Awway: wetuwn new Fwoat32Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Fwoat32Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.Fwoat64Awway: wetuwn new Fwoat64Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / Fwoat64Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.BigInt64Awway: wetuwn new BigInt64Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / BigInt64Awway.BYTES_PEW_EWEMENT);
+					case extHostPwotocow.WebviewMessageAwwayBuffewViewType.BigUint64Awway: wetuwn new BigUint64Awway(awwayBuffa, wef.view.byteOffset, wef.view.byteWength / BigUint64Awway.BYTES_PEW_EWEMENT);
+					defauwt: thwow new Ewwow('Unknown awway buffa view type');
 				}
 			}
-			return arrayBuffer;
+			wetuwn awwayBuffa;
 		}
-		return value;
+		wetuwn vawue;
 	};
 
-	const message = JSON.parse(jsonMessage, reviver);
-	return { message, arrayBuffers };
+	const message = JSON.pawse(jsonMessage, weviva);
+	wetuwn { message, awwayBuffews };
 }

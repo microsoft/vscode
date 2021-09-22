@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+impowt * as nws fwom 'vs/nws';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IDebugSewvice, State, IDebugConfiguwation } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IStatusbawEntwy, IStatusbawSewvice, StatusbawAwignment, IStatusbawEntwyAccessow } fwom 'vs/wowkbench/sewvices/statusbaw/bwowsa/statusbaw';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
 
-export class DebugStatusContribution implements IWorkbenchContribution {
+expowt cwass DebugStatusContwibution impwements IWowkbenchContwibution {
 
-	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
-	private toDispose: IDisposable[] = [];
-	private entryAccessor: IStatusbarEntryAccessor | undefined;
+	pwivate showInStatusBaw!: 'neva' | 'awways' | 'onFiwstSessionStawt';
+	pwivate toDispose: IDisposabwe[] = [];
+	pwivate entwyAccessow: IStatusbawEntwyAccessow | undefined;
 
-	constructor(
-		@IStatusbarService private readonly statusBarService: IStatusbarService,
-		@IDebugService readonly debugService: IDebugService,
-		@IConfigurationService readonly configurationService: IConfigurationService
+	constwuctow(
+		@IStatusbawSewvice pwivate weadonwy statusBawSewvice: IStatusbawSewvice,
+		@IDebugSewvice weadonwy debugSewvice: IDebugSewvice,
+		@IConfiguwationSewvice weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
 
-		const addStatusBarEntry = () => {
-			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', StatusbarAlignment.LEFT, 30 /* Low Priority */);
+		const addStatusBawEntwy = () => {
+			this.entwyAccessow = this.statusBawSewvice.addEntwy(this.entwy, 'status.debug', StatusbawAwignment.WEFT, 30 /* Wow Pwiowity */);
 		};
 
-		const setShowInStatusBar = () => {
-			this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-			if (this.showInStatusBar === 'always' && !this.entryAccessor) {
-				addStatusBarEntry();
+		const setShowInStatusBaw = () => {
+			this.showInStatusBaw = configuwationSewvice.getVawue<IDebugConfiguwation>('debug').showInStatusBaw;
+			if (this.showInStatusBaw === 'awways' && !this.entwyAccessow) {
+				addStatusBawEntwy();
 			}
 		};
-		setShowInStatusBar();
+		setShowInStatusBaw();
 
-		this.toDispose.push(this.debugService.onDidChangeState(state => {
-			if (state !== State.Inactive && this.showInStatusBar === 'onFirstSessionStart' && !this.entryAccessor) {
-				addStatusBarEntry();
+		this.toDispose.push(this.debugSewvice.onDidChangeState(state => {
+			if (state !== State.Inactive && this.showInStatusBaw === 'onFiwstSessionStawt' && !this.entwyAccessow) {
+				addStatusBawEntwy();
 			}
 		}));
-		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.showInStatusBar')) {
-				setShowInStatusBar();
-				if (this.entryAccessor && this.showInStatusBar === 'never') {
-					this.entryAccessor.dispose();
-					this.entryAccessor = undefined;
+		this.toDispose.push(configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (e.affectsConfiguwation('debug.showInStatusBaw')) {
+				setShowInStatusBaw();
+				if (this.entwyAccessow && this.showInStatusBaw === 'neva') {
+					this.entwyAccessow.dispose();
+					this.entwyAccessow = undefined;
 				}
 			}
 		}));
-		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
-			if (this.entryAccessor) {
-				this.entryAccessor.update(this.entry);
+		this.toDispose.push(this.debugSewvice.getConfiguwationManaga().onDidSewectConfiguwation(e => {
+			if (this.entwyAccessow) {
+				this.entwyAccessow.update(this.entwy);
 			}
 		}));
 	}
 
-	private get entry(): IStatusbarEntry {
-		let text = '';
-		const manager = this.debugService.getConfigurationManager();
-		const name = manager.selectedConfiguration.name || '';
-		const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
-		if (nameAndLaunchPresent) {
-			text = (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
+	pwivate get entwy(): IStatusbawEntwy {
+		wet text = '';
+		const managa = this.debugSewvice.getConfiguwationManaga();
+		const name = managa.sewectedConfiguwation.name || '';
+		const nameAndWaunchPwesent = name && managa.sewectedConfiguwation.waunch;
+		if (nameAndWaunchPwesent) {
+			text = (managa.getWaunches().wength > 1 ? `${name} (${managa.sewectedConfiguwation.waunch!.name})` : name);
 		}
 
-		return {
-			name: nls.localize('status.debug', "Debug"),
-			text: '$(debug-alt-small) ' + text,
-			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
-			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
-			command: 'workbench.action.debug.selectandstart'
+		wetuwn {
+			name: nws.wocawize('status.debug', "Debug"),
+			text: '$(debug-awt-smaww) ' + text,
+			awiaWabew: nws.wocawize('debugTawget', "Debug: {0}", text),
+			toowtip: nws.wocawize('sewectAndStawtDebug', "Sewect and stawt debug configuwation"),
+			command: 'wowkbench.action.debug.sewectandstawt'
 		};
 	}
 
 	dispose(): void {
-		if (this.entryAccessor) {
-			this.entryAccessor.dispose();
+		if (this.entwyAccessow) {
+			this.entwyAccessow.dispose();
 		}
 		dispose(this.toDispose);
 	}

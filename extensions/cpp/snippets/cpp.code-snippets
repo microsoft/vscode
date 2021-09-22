@@ -1,16 +1,16 @@
 {
-	"Region Start": {
-		"prefix": "#region",
+	"Wegion Stawt": {
+		"pwefix": "#wegion",
 		"body": [
-			"#pragma region $0"
+			"#pwagma wegion $0"
 		],
-		"description": "Folding Region Start"
+		"descwiption": "Fowding Wegion Stawt"
 	},
-	"Region End": {
-		"prefix": "#endregion",
+	"Wegion End": {
+		"pwefix": "#endwegion",
 		"body": [
-			"#pragma endregion"
+			"#pwagma endwegion"
 		],
-		"description": "Folding Region End"
+		"descwiption": "Fowding Wegion End"
 	}
 }

@@ -1,30 +1,30 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+impowt { ExtensionWecommendations, ExtensionWecommendation } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionWecommendations';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
 
-export class LanguageRecommendations extends ExtensionRecommendations {
+expowt cwass WanguageWecommendations extends ExtensionWecommendations {
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	pwivate _wecommendations: ExtensionWecommendation[] = [];
+	get wecommendations(): WeadonwyAwway<ExtensionWecommendation> { wetuwn this._wecommendations; }
 
-	constructor(
-		@IProductService private readonly productService: IProductService,
+	constwuctow(
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
 	) {
-		super();
+		supa();
 	}
 
-	protected async doActivate(): Promise<void> {
-		if (this.productService.languageExtensionTips) {
-			this._recommendations = this.productService.languageExtensionTips.map(extensionId => (<ExtensionRecommendation>{
-				extensionId: extensionId.toLowerCase(),
-				reason: {
-					reasonId: ExtensionRecommendationReason.Application,
-					reasonText: ''
+	pwotected async doActivate(): Pwomise<void> {
+		if (this.pwoductSewvice.wanguageExtensionTips) {
+			this._wecommendations = this.pwoductSewvice.wanguageExtensionTips.map(extensionId => (<ExtensionWecommendation>{
+				extensionId: extensionId.toWowewCase(),
+				weason: {
+					weasonId: ExtensionWecommendationWeason.Appwication,
+					weasonText: ''
 				}
 			}));
 		}

@@ -1,541 +1,541 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/debug.contribution';
-import 'vs/css!./media/debugHover';
-import * as nls from 'vs/nls';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import {
-	IDebugService, VIEWLET_ID, DEBUG_PANEL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, EDITOR_CONTRIBUTION_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, getStateLabel, State, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_STACK_FRAME_SUPPORTS_RESTART, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, DISASSEMBLY_VIEW_ID, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY,
-} from 'vs/workbench/contrib/debug/common/debug';
-import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
-import { ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID, DEBUG_RUN_LABEL, DEBUG_RUN_COMMAND_ID, EDIT_EXPRESSION_COMMAND_ID, REMOVE_EXPRESSION_COMMAND_ID, SELECT_AND_START_ID, SELECT_AND_START_LABEL, SET_EXPRESSION_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
-import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
-import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
-import { RunToCursorAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
-import { WatchExpressionsView, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, ADD_WATCH_ID } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
-import { VariablesView, SET_VARIABLE_ID, COPY_VALUE_ID, BREAK_WHEN_VALUE_CHANGES_ID, COPY_EVALUATE_PATH_ID, ADD_TO_WATCH_ID, BREAK_WHEN_VALUE_IS_ACCESSED_ID, BREAK_WHEN_VALUE_IS_READ_ID } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { DebugViewPaneContainer } from 'vs/workbench/contrib/debug/browser/debugViewlet';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
-import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
-import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
-import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
-import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
-import { FileAccess } from 'vs/base/common/network';
-import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { EditorExtensions } from 'vs/workbench/common/editor';
-import { DisassemblyView, DisassemblyViewContribution } from 'vs/workbench/contrib/debug/browser/disassemblyView';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { Codicon } from 'vs/base/common/codicons';
-import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle';
+impowt 'vs/css!./media/debug.contwibution';
+impowt 'vs/css!./media/debugHova';
+impowt * as nws fwom 'vs/nws';
+impowt { KeyMod, KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { MenuWegistwy, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { BweakpointsView } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointsView';
+impowt { CawwStackView } fwom 'vs/wowkbench/contwib/debug/bwowsa/cawwStackView';
+impowt { Extensions as WowkbenchExtensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt {
+	IDebugSewvice, VIEWWET_ID, DEBUG_PANEW_ID, CONTEXT_IN_DEBUG_MODE, INTEWNAW_CONSOWE_OPTIONS_SCHEMA,
+	CONTEXT_DEBUG_STATE, VAWIABWES_VIEW_ID, CAWWSTACK_VIEW_ID, WATCH_VIEW_ID, BWEAKPOINTS_VIEW_ID, WOADED_SCWIPTS_VIEW_ID, CONTEXT_WOADED_SCWIPTS_SUPPOWTED, CONTEXT_CAWWSTACK_ITEM_TYPE, CONTEXT_WESTAWT_FWAME_SUPPOWTED, CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED, CONTEXT_DEBUG_UX, BWEAKPOINT_EDITOW_CONTWIBUTION_ID, WEPW_VIEW_ID, CONTEXT_BWEAKPOINTS_EXIST, EDITOW_CONTWIBUTION_ID, CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_SET_VAWIABWE_SUPPOWTED, CONTEXT_BWEAK_WHEN_VAWUE_CHANGES_SUPPOWTED, CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT, getStateWabew, State, CONTEXT_WATCH_ITEM_TYPE, CONTEXT_STACK_FWAME_SUPPOWTS_WESTAWT, CONTEXT_BWEAK_WHEN_VAWUE_IS_WEAD_SUPPOWTED, CONTEXT_BWEAK_WHEN_VAWUE_IS_ACCESSED_SUPPOWTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED, DISASSEMBWY_VIEW_ID, CONTEXT_SET_EXPWESSION_SUPPOWTED, CONTEXT_VAWIABWE_IS_WEADONWY,
+} fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { DebugToowBaw } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugToowBaw';
+impowt { DebugSewvice } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugSewvice';
+impowt { ADD_CONFIGUWATION_ID, TOGGWE_INWINE_BWEAKPOINT_ID, COPY_STACK_TWACE_ID, WESTAWT_SESSION_ID, TEWMINATE_THWEAD_ID, STEP_OVEW_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, WESTAWT_FWAME_ID, CONTINUE_ID, FOCUS_WEPW_ID, JUMP_TO_CUWSOW_ID, WESTAWT_WABEW, STEP_INTO_WABEW, STEP_OVEW_WABEW, STEP_OUT_WABEW, PAUSE_WABEW, DISCONNECT_WABEW, STOP_WABEW, CONTINUE_WABEW, DEBUG_STAWT_WABEW, DEBUG_STAWT_COMMAND_ID, DEBUG_WUN_WABEW, DEBUG_WUN_COMMAND_ID, EDIT_EXPWESSION_COMMAND_ID, WEMOVE_EXPWESSION_COMMAND_ID, SEWECT_AND_STAWT_ID, SEWECT_AND_STAWT_WABEW, SET_EXPWESSION_COMMAND_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
+impowt { StatusBawCowowPwovida } fwom 'vs/wowkbench/contwib/debug/bwowsa/statusbawCowowPwovida';
+impowt { IViewsWegistwy, Extensions as ViewExtensions, IViewContainewsWegistwy, ViewContainewWocation, ViewContaina } fwom 'vs/wowkbench/common/views';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { ContextKeyExpw, ContextKeyExpwession } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { DebugStatusContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugStatus';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { waunchSchemaId } fwom 'vs/wowkbench/sewvices/configuwation/common/configuwation';
+impowt { WoadedScwiptsView } fwom 'vs/wowkbench/contwib/debug/bwowsa/woadedScwiptsView';
+impowt { WunToCuwsowAction } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugEditowActions';
+impowt { WatchExpwessionsView, ADD_WATCH_WABEW, WEMOVE_WATCH_EXPWESSIONS_COMMAND_ID, WEMOVE_WATCH_EXPWESSIONS_WABEW, ADD_WATCH_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/watchExpwessionsView';
+impowt { VawiabwesView, SET_VAWIABWE_ID, COPY_VAWUE_ID, BWEAK_WHEN_VAWUE_CHANGES_ID, COPY_EVAWUATE_PATH_ID, ADD_TO_WATCH_ID, BWEAK_WHEN_VAWUE_IS_ACCESSED_ID, BWEAK_WHEN_VAWUE_IS_WEAD_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/vawiabwesView';
+impowt { Wepw } fwom 'vs/wowkbench/contwib/debug/bwowsa/wepw';
+impowt { DebugContentPwovida } fwom 'vs/wowkbench/contwib/debug/common/debugContentPwovida';
+impowt { WewcomeView } fwom 'vs/wowkbench/contwib/debug/bwowsa/wewcomeView';
+impowt { DebugViewPaneContaina } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugViewwet';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { CawwStackEditowContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/cawwStackEditowContwibution';
+impowt { BweakpointEditowContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/bweakpointEditowContwibution';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { ViewPaneContaina } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPaneContaina';
+impowt { IQuickAccessWegistwy, Extensions as QuickAccessExtensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { StawtDebugQuickAccessPwovida } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugQuickAccess';
+impowt { DebugPwogwessContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugPwogwess';
+impowt { DebugTitweContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugTitwe';
+impowt { wegistewCowows } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCowows';
+impowt { DebugEditowContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugEditowContwibution';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
+impowt * as icons fwom 'vs/wowkbench/contwib/debug/bwowsa/debugIcons';
+impowt { EditowExtensions } fwom 'vs/wowkbench/common/editow';
+impowt { DisassembwyView, DisassembwyViewContwibution } fwom 'vs/wowkbench/contwib/debug/bwowsa/disassembwyView';
+impowt { EditowPaneDescwiptow, IEditowPaneWegistwy } fwom 'vs/wowkbench/bwowsa/editow';
+impowt { DisassembwyViewInput } fwom 'vs/wowkbench/contwib/debug/common/disassembwyViewInput';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { DebugWifecycwe } fwom 'vs/wowkbench/contwib/debug/common/debugWifecycwe';
 
-const debugCategory = nls.localize('debugCategory', "Debug");
-registerColors();
-registerSingleton(IDebugService, DebugService, true);
+const debugCategowy = nws.wocawize('debugCategowy', "Debug");
+wegistewCowows();
+wegistewSingweton(IDebugSewvice, DebugSewvice, twue);
 
-// Register Debug Workbench Contributions
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
+// Wegista Debug Wowkbench Contwibutions
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugStatusContwibution, WifecycwePhase.Eventuawwy);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugPwogwessContwibution, WifecycwePhase.Eventuawwy);
 if (isWeb) {
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugTitleContribution, LifecyclePhase.Eventually);
+	Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugTitweContwibution, WifecycwePhase.Eventuawwy);
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisassemblyViewContribution, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugLifecycle, LifecyclePhase.Eventually);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugToowBaw, WifecycwePhase.Westowed);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugContentPwovida, WifecycwePhase.Eventuawwy);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(StatusBawCowowPwovida, WifecycwePhase.Eventuawwy);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DisassembwyViewContwibution, WifecycwePhase.Eventuawwy);
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench).wegistewWowkbenchContwibution(DebugWifecycwe, WifecycwePhase.Eventuawwy);
 
-// Register Quick Access
-Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StartDebugQuickAccessProvider,
-	prefix: StartDebugQuickAccessProvider.PREFIX,
-	contextKey: 'inLaunchConfigurationsPicker',
-	placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
-	helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), needsEditor: false }]
+// Wegista Quick Access
+Wegistwy.as<IQuickAccessWegistwy>(QuickAccessExtensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: StawtDebugQuickAccessPwovida,
+	pwefix: StawtDebugQuickAccessPwovida.PWEFIX,
+	contextKey: 'inWaunchConfiguwationsPicka',
+	pwacehowda: nws.wocawize('stawtDebugPwacehowda', "Type the name of a waunch configuwation to wun."),
+	hewpEntwies: [{ descwiption: nws.wocawize('stawtDebuggingHewp', "Stawt Debugging"), needsEditow: fawse }]
 });
 
 
-registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
-registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
-registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);
+wegistewEditowContwibution('editow.contwib.cawwStack', CawwStackEditowContwibution);
+wegistewEditowContwibution(BWEAKPOINT_EDITOW_CONTWIBUTION_ID, BweakpointEditowContwibution);
+wegistewEditowContwibution(EDITOW_CONTWIBUTION_ID, DebugEditowContwibution);
 
-const registerDebugCommandPaletteItem = (id: string, title: string, when?: ContextKeyExpression, precondition?: ContextKeyExpression) => {
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-		when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, when),
-		group: debugCategory,
+const wegistewDebugCommandPawetteItem = (id: stwing, titwe: stwing, when?: ContextKeyExpwession, pwecondition?: ContextKeyExpwession) => {
+	MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+		when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, when),
+		gwoup: debugCategowy,
 		command: {
 			id,
-			title: `Debug: ${title}`,
-			precondition
+			titwe: `Debug: ${titwe}`,
+			pwecondition
 		}
 	});
 };
 
-registerDebugCommandPaletteItem(RESTART_SESSION_ID, RESTART_LABEL);
-registerDebugCommandPaletteItem(TERMINATE_THREAD_ID, nls.localize('terminateThread', "Terminate Thread"), CONTEXT_IN_DEBUG_MODE);
-registerDebugCommandPaletteItem(STEP_OVER_ID, STEP_OVER_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(STEP_INTO_ID, STEP_INTO_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(STEP_OUT_ID, STEP_OUT_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(PAUSE_ID, PAUSE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('running'));
-registerDebugCommandPaletteItem(DISCONNECT_ID, DISCONNECT_LABEL, CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.or(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED));
-registerDebugCommandPaletteItem(STOP_ID, STOP_LABEL, CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.or(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED));
-registerDebugCommandPaletteItem(CONTINUE_ID, CONTINUE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugCommandPaletteItem(FOCUS_REPL_ID, nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View'));
-registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
-registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('SetNextStatement', "Set Next Statement"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
-registerDebugCommandPaletteItem(RunToCursorAction.ID, RunToCursorAction.LABEL, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
-registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlineBreakpoint', "Inline Breakpoint"));
-registerDebugCommandPaletteItem(DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))));
-registerDebugCommandPaletteItem(DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))));
-registerDebugCommandPaletteItem(SELECT_AND_START_ID, SELECT_AND_START_LABEL, ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))));
+wegistewDebugCommandPawetteItem(WESTAWT_SESSION_ID, WESTAWT_WABEW);
+wegistewDebugCommandPawetteItem(TEWMINATE_THWEAD_ID, nws.wocawize('tewminateThwead', "Tewminate Thwead"), CONTEXT_IN_DEBUG_MODE);
+wegistewDebugCommandPawetteItem(STEP_OVEW_ID, STEP_OVEW_WABEW, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugCommandPawetteItem(STEP_INTO_ID, STEP_INTO_WABEW, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugCommandPawetteItem(STEP_OUT_ID, STEP_OUT_WABEW, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugCommandPawetteItem(PAUSE_ID, PAUSE_WABEW, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('wunning'));
+wegistewDebugCommandPawetteItem(DISCONNECT_ID, DISCONNECT_WABEW, CONTEXT_IN_DEBUG_MODE, ContextKeyExpw.ow(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED));
+wegistewDebugCommandPawetteItem(STOP_ID, STOP_WABEW, CONTEXT_IN_DEBUG_MODE, ContextKeyExpw.ow(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_TEWMINATE_DEBUGGEE_SUPPOWTED));
+wegistewDebugCommandPawetteItem(CONTINUE_ID, CONTINUE_WABEW, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugCommandPawetteItem(FOCUS_WEPW_ID, nws.wocawize({ comment: ['Debug is a noun in this context, not a vewb.'], key: 'debugFocusConsowe' }, 'Focus on Debug Consowe View'));
+wegistewDebugCommandPawetteItem(JUMP_TO_CUWSOW_ID, nws.wocawize('jumpToCuwsow', "Jump to Cuwsow"), CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED);
+wegistewDebugCommandPawetteItem(JUMP_TO_CUWSOW_ID, nws.wocawize('SetNextStatement', "Set Next Statement"), CONTEXT_JUMP_TO_CUWSOW_SUPPOWTED);
+wegistewDebugCommandPawetteItem(WunToCuwsowAction.ID, WunToCuwsowAction.WABEW, ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEquawTo('stopped')));
+wegistewDebugCommandPawetteItem(TOGGWE_INWINE_BWEAKPOINT_ID, nws.wocawize('inwineBweakpoint', "Inwine Bweakpoint"));
+wegistewDebugCommandPawetteItem(DEBUG_STAWT_COMMAND_ID, DEBUG_STAWT_WABEW, ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Initiawizing))));
+wegistewDebugCommandPawetteItem(DEBUG_WUN_COMMAND_ID, DEBUG_WUN_WABEW, ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Initiawizing))));
+wegistewDebugCommandPawetteItem(SEWECT_AND_STAWT_ID, SEWECT_AND_STAWT_WABEW, ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUG_STATE.notEquawsTo(getStateWabew(State.Initiawizing))));
 
 
-// Debug callstack context menu
-const registerDebugViewMenuItem = (menuId: MenuId, id: string, title: string, order: number, when?: ContextKeyExpression, precondition?: ContextKeyExpression, group = 'navigation') => {
-	MenuRegistry.appendMenuItem(menuId, {
-		group,
+// Debug cawwstack context menu
+const wegistewDebugViewMenuItem = (menuId: MenuId, id: stwing, titwe: stwing, owda: numba, when?: ContextKeyExpwession, pwecondition?: ContextKeyExpwession, gwoup = 'navigation') => {
+	MenuWegistwy.appendMenuItem(menuId, {
+		gwoup,
 		when,
-		order,
+		owda,
 		command: {
 			id,
-			title,
-			precondition
+			titwe,
+			pwecondition
 		}
 	});
 };
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, RESTART_SESSION_ID, RESTART_LABEL, 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'), undefined, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, DISCONNECT_ID, DISCONNECT_LABEL, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'), undefined, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, STOP_ID, STOP_LABEL, 30, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('session'), undefined, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, PAUSE_ID, PAUSE_LABEL, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('running')));
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, CONTINUE_ID, CONTINUE_LABEL, 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, STEP_OVER_ID, STEP_OVER_LABEL, 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, STEP_INTO_ID, STEP_INTO_LABEL, 30, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, STEP_OUT_ID, STEP_OUT_LABEL, 40, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, TERMINATE_THREAD_ID, nls.localize('terminateThread', "Terminate Thread"), 10, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('thread'), undefined, 'termination');
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, RESTART_FRAME_ID, nls.localize('restartFrame', "Restart Frame"), 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_RESTART_FRAME_SUPPORTED), CONTEXT_STACK_FRAME_SUPPORTS_RESTART);
-registerDebugViewMenuItem(MenuId.DebugCallStackContext, COPY_STACK_TRACE_ID, nls.localize('copyStackTrace', "Copy Call Stack"), 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, WESTAWT_SESSION_ID, WESTAWT_WABEW, 10, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('session'), undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, DISCONNECT_ID, DISCONNECT_WABEW, 20, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('session'), undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, STOP_ID, STOP_WABEW, 30, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('session'), undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, PAUSE_ID, PAUSE_WABEW, 10, ContextKeyExpw.and(CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), CONTEXT_DEBUG_STATE.isEquawTo('wunning')));
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, CONTINUE_ID, CONTINUE_WABEW, 10, ContextKeyExpw.and(CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), CONTEXT_DEBUG_STATE.isEquawTo('stopped')));
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, STEP_OVEW_ID, STEP_OVEW_WABEW, 20, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, STEP_INTO_ID, STEP_INTO_WABEW, 30, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, STEP_OUT_ID, STEP_OUT_WABEW, 40, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), CONTEXT_DEBUG_STATE.isEquawTo('stopped'));
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, TEWMINATE_THWEAD_ID, nws.wocawize('tewminateThwead', "Tewminate Thwead"), 10, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('thwead'), undefined, 'tewmination');
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, WESTAWT_FWAME_ID, nws.wocawize('westawtFwame', "Westawt Fwame"), 10, ContextKeyExpw.and(CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('stackFwame'), CONTEXT_WESTAWT_FWAME_SUPPOWTED), CONTEXT_STACK_FWAME_SUPPOWTS_WESTAWT);
+wegistewDebugViewMenuItem(MenuId.DebugCawwStackContext, COPY_STACK_TWACE_ID, nws.wocawize('copyStackTwace', "Copy Caww Stack"), 20, CONTEXT_CAWWSTACK_ITEM_TYPE.isEquawTo('stackFwame'), undefined, '3_modification');
 
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, SET_VARIABLE_ID, nls.localize('setValue', "Set Value"), 10, ContextKeyExpr.or(CONTEXT_SET_VARIABLE_SUPPORTED, ContextKeyExpr.and(CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_SET_EXPRESSION_SUPPORTED)), CONTEXT_VARIABLE_IS_READONLY.toNegated(), '3_modification');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_VALUE_ID, nls.localize('copyValue', "Copy Value"), 10, undefined, undefined, '5_cutcopypaste');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_EVALUATE_PATH_ID, nls.localize('copyAsExpression', "Copy as Expression"), 20, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, undefined, '5_cutcopypaste');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, ADD_TO_WATCH_ID, nls.localize('addToWatchExpressions', "Add to Watch"), 100, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, undefined, 'z_commands');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, BREAK_WHEN_VALUE_IS_READ_ID, nls.localize('breakWhenValueIsRead', "Break on Value Read"), 200, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, undefined, 'z_commands');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, BREAK_WHEN_VALUE_CHANGES_ID, nls.localize('breakWhenValueChanges', "Break on Value Change"), 210, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, undefined, 'z_commands');
-registerDebugViewMenuItem(MenuId.DebugVariablesContext, BREAK_WHEN_VALUE_IS_ACCESSED_ID, nls.localize('breakWhenValueIsAccessed', "Break on Value Access"), 220, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, SET_VAWIABWE_ID, nws.wocawize('setVawue', "Set Vawue"), 10, ContextKeyExpw.ow(CONTEXT_SET_VAWIABWE_SUPPOWTED, ContextKeyExpw.and(CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT, CONTEXT_SET_EXPWESSION_SUPPOWTED)), CONTEXT_VAWIABWE_IS_WEADONWY.toNegated(), '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, COPY_VAWUE_ID, nws.wocawize('copyVawue', "Copy Vawue"), 10, undefined, undefined, '5_cutcopypaste');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, COPY_EVAWUATE_PATH_ID, nws.wocawize('copyAsExpwession', "Copy as Expwession"), 20, CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT, undefined, '5_cutcopypaste');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, ADD_TO_WATCH_ID, nws.wocawize('addToWatchExpwessions', "Add to Watch"), 100, CONTEXT_VAWIABWE_EVAWUATE_NAME_PWESENT, undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, BWEAK_WHEN_VAWUE_IS_WEAD_ID, nws.wocawize('bweakWhenVawueIsWead', "Bweak on Vawue Wead"), 200, CONTEXT_BWEAK_WHEN_VAWUE_IS_WEAD_SUPPOWTED, undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, BWEAK_WHEN_VAWUE_CHANGES_ID, nws.wocawize('bweakWhenVawueChanges', "Bweak on Vawue Change"), 210, CONTEXT_BWEAK_WHEN_VAWUE_CHANGES_SUPPOWTED, undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugVawiabwesContext, BWEAK_WHEN_VAWUE_IS_ACCESSED_ID, nws.wocawize('bweakWhenVawueIsAccessed', "Bweak on Vawue Access"), 220, CONTEXT_BWEAK_WHEN_VAWUE_IS_ACCESSED_SUPPOWTED, undefined, 'z_commands');
 
-registerDebugViewMenuItem(MenuId.DebugWatchContext, ADD_WATCH_ID, ADD_WATCH_LABEL, 10, undefined, undefined, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugWatchContext, EDIT_EXPRESSION_COMMAND_ID, nls.localize('editWatchExpression', "Edit Expression"), 20, CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression'), undefined, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugWatchContext, SET_EXPRESSION_COMMAND_ID, nls.localize('setValue', "Set Value"), 30, ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression'), CONTEXT_SET_EXPRESSION_SUPPORTED), ContextKeyExpr.and(CONTEXT_WATCH_ITEM_TYPE.isEqualTo('variable'), CONTEXT_SET_VARIABLE_SUPPORTED)), CONTEXT_VARIABLE_IS_READONLY.toNegated(), '3_modification');
-registerDebugViewMenuItem(MenuId.DebugWatchContext, COPY_VALUE_ID, nls.localize('copyValue', "Copy Value"), 40, ContextKeyExpr.or(CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression'), CONTEXT_WATCH_ITEM_TYPE.isEqualTo('variable')), CONTEXT_IN_DEBUG_MODE, '3_modification');
-registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_EXPRESSION_COMMAND_ID, nls.localize('removeWatchExpression', "Remove Expression"), 10, CONTEXT_WATCH_ITEM_TYPE.isEqualTo('expression'), undefined, 'z_commands');
-registerDebugViewMenuItem(MenuId.DebugWatchContext, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, 20, undefined, undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, ADD_WATCH_ID, ADD_WATCH_WABEW, 10, undefined, undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, EDIT_EXPWESSION_COMMAND_ID, nws.wocawize('editWatchExpwession', "Edit Expwession"), 20, CONTEXT_WATCH_ITEM_TYPE.isEquawTo('expwession'), undefined, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, SET_EXPWESSION_COMMAND_ID, nws.wocawize('setVawue', "Set Vawue"), 30, ContextKeyExpw.ow(ContextKeyExpw.and(CONTEXT_WATCH_ITEM_TYPE.isEquawTo('expwession'), CONTEXT_SET_EXPWESSION_SUPPOWTED), ContextKeyExpw.and(CONTEXT_WATCH_ITEM_TYPE.isEquawTo('vawiabwe'), CONTEXT_SET_VAWIABWE_SUPPOWTED)), CONTEXT_VAWIABWE_IS_WEADONWY.toNegated(), '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, COPY_VAWUE_ID, nws.wocawize('copyVawue', "Copy Vawue"), 40, ContextKeyExpw.ow(CONTEXT_WATCH_ITEM_TYPE.isEquawTo('expwession'), CONTEXT_WATCH_ITEM_TYPE.isEquawTo('vawiabwe')), CONTEXT_IN_DEBUG_MODE, '3_modification');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, WEMOVE_EXPWESSION_COMMAND_ID, nws.wocawize('wemoveWatchExpwession', "Wemove Expwession"), 10, CONTEXT_WATCH_ITEM_TYPE.isEquawTo('expwession'), undefined, 'z_commands');
+wegistewDebugViewMenuItem(MenuId.DebugWatchContext, WEMOVE_WATCH_EXPWESSIONS_COMMAND_ID, WEMOVE_WATCH_EXPWESSIONS_WABEW, 20, undefined, undefined, 'z_commands');
 
-// Touch Bar
+// Touch Baw
 if (isMacintosh) {
 
-	const registerTouchBarEntry = (id: string, title: string, order: number, when: ContextKeyExpression | undefined, iconUri: URI) => {
-		MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
+	const wegistewTouchBawEntwy = (id: stwing, titwe: stwing, owda: numba, when: ContextKeyExpwession | undefined, iconUwi: UWI) => {
+		MenuWegistwy.appendMenuItem(MenuId.TouchBawContext, {
 			command: {
 				id,
-				title,
-				icon: { dark: iconUri }
+				titwe,
+				icon: { dawk: iconUwi }
 			},
-			when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, when),
-			group: '9_debug',
-			order
+			when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, when),
+			gwoup: '9_debug',
+			owda
 		});
 	};
 
-	registerTouchBarEntry(DEBUG_RUN_COMMAND_ID, DEBUG_RUN_LABEL, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-tb.png', require));
-	registerTouchBarEntry(DEBUG_START_COMMAND_ID, DEBUG_START_LABEL, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/run-with-debugging-tb.png', require));
-	registerTouchBarEntry(CONTINUE_ID, CONTINUE_LABEL, 0, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/continue-tb.png', require));
-	registerTouchBarEntry(PAUSE_ID, PAUSE_LABEL, 1, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpr.notEquals('debugState', 'stopped')), FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/pause-tb.png', require));
-	registerTouchBarEntry(STEP_OVER_ID, STEP_OVER_LABEL, 2, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/stepover-tb.png', require));
-	registerTouchBarEntry(STEP_INTO_ID, STEP_INTO_LABEL, 3, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/stepinto-tb.png', require));
-	registerTouchBarEntry(STEP_OUT_ID, STEP_OUT_LABEL, 4, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/stepout-tb.png', require));
-	registerTouchBarEntry(RESTART_SESSION_ID, RESTART_LABEL, 5, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/restart-tb.png', require));
-	registerTouchBarEntry(STOP_ID, STOP_LABEL, 6, CONTEXT_IN_DEBUG_MODE, FileAccess.asFileUri('vs/workbench/contrib/debug/browser/media/stop-tb.png', require));
+	wegistewTouchBawEntwy(DEBUG_WUN_COMMAND_ID, DEBUG_WUN_WABEW, 0, CONTEXT_IN_DEBUG_MODE.toNegated(), FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/continue-tb.png', wequiwe));
+	wegistewTouchBawEntwy(DEBUG_STAWT_COMMAND_ID, DEBUG_STAWT_WABEW, 1, CONTEXT_IN_DEBUG_MODE.toNegated(), FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/wun-with-debugging-tb.png', wequiwe));
+	wegistewTouchBawEntwy(CONTINUE_ID, CONTINUE_WABEW, 0, CONTEXT_DEBUG_STATE.isEquawTo('stopped'), FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/continue-tb.png', wequiwe));
+	wegistewTouchBawEntwy(PAUSE_ID, PAUSE_WABEW, 1, ContextKeyExpw.and(CONTEXT_IN_DEBUG_MODE, ContextKeyExpw.notEquaws('debugState', 'stopped')), FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/pause-tb.png', wequiwe));
+	wegistewTouchBawEntwy(STEP_OVEW_ID, STEP_OVEW_WABEW, 2, CONTEXT_IN_DEBUG_MODE, FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/stepova-tb.png', wequiwe));
+	wegistewTouchBawEntwy(STEP_INTO_ID, STEP_INTO_WABEW, 3, CONTEXT_IN_DEBUG_MODE, FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/stepinto-tb.png', wequiwe));
+	wegistewTouchBawEntwy(STEP_OUT_ID, STEP_OUT_WABEW, 4, CONTEXT_IN_DEBUG_MODE, FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/stepout-tb.png', wequiwe));
+	wegistewTouchBawEntwy(WESTAWT_SESSION_ID, WESTAWT_WABEW, 5, CONTEXT_IN_DEBUG_MODE, FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/westawt-tb.png', wequiwe));
+	wegistewTouchBawEntwy(STOP_ID, STOP_WABEW, 6, CONTEXT_IN_DEBUG_MODE, FiweAccess.asFiweUwi('vs/wowkbench/contwib/debug/bwowsa/media/stop-tb.png', wequiwe));
 }
 
-// Editor Title Menu's "Run/Debug" dropdown item
+// Editow Titwe Menu's "Wun/Debug" dwopdown item
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { submenu: MenuId.EditorTitleRun, rememberDefaultAction: true, title: { value: nls.localize('run', "Run or Debug..."), original: 'Run or Debug...', }, icon: Codicon.run, group: 'navigation', order: -1 });
+MenuWegistwy.appendMenuItem(MenuId.EditowTitwe, { submenu: MenuId.EditowTitweWun, wemembewDefauwtAction: twue, titwe: { vawue: nws.wocawize('wun', "Wun ow Debug..."), owiginaw: 'Wun ow Debug...', }, icon: Codicon.wun, gwoup: 'navigation', owda: -1 });
 
 // Debug menu
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarDebugMenu,
-	title: {
-		value: 'Run',
-		original: 'Run',
-		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+MenuWegistwy.appendMenuItem(MenuId.MenubawMainMenu, {
+	submenu: MenuId.MenubawDebugMenu,
+	titwe: {
+		vawue: 'Wun',
+		owiginaw: 'Wun',
+		mnemonicTitwe: nws.wocawize({ key: 'mWun', comment: ['&& denotes a mnemonic'] }, "&&Wun")
 	},
-	when: ContextKeyExpr.or(CONTEXT_DEBUGGERS_AVAILABLE),
-	order: 6
+	when: ContextKeyExpw.ow(CONTEXT_DEBUGGEWS_AVAIWABWE),
+	owda: 6
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '1_debug',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '1_debug',
 	command: {
-		id: DEBUG_START_COMMAND_ID,
-		title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+		id: DEBUG_STAWT_COMMAND_ID,
+		titwe: nws.wocawize({ key: 'miStawtDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stawt Debugging")
 	},
-	order: 1,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 1,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '1_debug',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '1_debug',
 	command: {
-		id: DEBUG_RUN_COMMAND_ID,
-		title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "Run &&Without Debugging")
+		id: DEBUG_WUN_COMMAND_ID,
+		titwe: nws.wocawize({ key: 'miWun', comment: ['&& denotes a mnemonic'] }, "Wun &&Without Debugging")
 	},
-	order: 2,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 2,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '1_debug',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '1_debug',
 	command: {
 		id: STOP_ID,
-		title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
-		precondition: CONTEXT_IN_DEBUG_MODE
+		titwe: nws.wocawize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
+		pwecondition: CONTEXT_IN_DEBUG_MODE
 	},
-	order: 3,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 3,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '1_debug',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '1_debug',
 	command: {
-		id: RESTART_SESSION_ID,
-		title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
-		precondition: CONTEXT_IN_DEBUG_MODE
+		id: WESTAWT_SESSION_ID,
+		titwe: nws.wocawize({ key: 'miWestawt Debugging', comment: ['&& denotes a mnemonic'] }, "&&Westawt Debugging"),
+		pwecondition: CONTEXT_IN_DEBUG_MODE
 	},
-	order: 4,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 4,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-// Configuration
+// Configuwation
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '2_configuration',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '2_configuwation',
 	command: {
-		id: ADD_CONFIGURATION_ID,
-		title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "A&&dd Configuration...")
+		id: ADD_CONFIGUWATION_ID,
+		titwe: nws.wocawize({ key: 'miAddConfiguwation', comment: ['&& denotes a mnemonic'] }, "A&&dd Configuwation...")
 	},
-	order: 2,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 2,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
 // Step Commands
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '3_step',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '3_step',
 	command: {
-		id: STEP_OVER_ID,
-		title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
-		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+		id: STEP_OVEW_ID,
+		titwe: nws.wocawize({ key: 'miStepOva', comment: ['&& denotes a mnemonic'] }, "Step &&Ova"),
+		pwecondition: CONTEXT_DEBUG_STATE.isEquawTo('stopped')
 	},
-	order: 1,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 1,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '3_step',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '3_step',
 	command: {
 		id: STEP_INTO_ID,
-		title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
-		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+		titwe: nws.wocawize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
+		pwecondition: CONTEXT_DEBUG_STATE.isEquawTo('stopped')
 	},
-	order: 2,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 2,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '3_step',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '3_step',
 	command: {
 		id: STEP_OUT_ID,
-		title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
-		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+		titwe: nws.wocawize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
+		pwecondition: CONTEXT_DEBUG_STATE.isEquawTo('stopped')
 	},
-	order: 3,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 3,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '3_step',
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '3_step',
 	command: {
 		id: CONTINUE_ID,
-		title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
-		precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
+		titwe: nws.wocawize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
+		pwecondition: CONTEXT_DEBUG_STATE.isEquawTo('stopped')
 	},
-	order: 4,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 4,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-// New Breakpoints
+// New Bweakpoints
 
-MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
-	group: '1_breakpoints',
+MenuWegistwy.appendMenuItem(MenuId.MenubawNewBweakpointMenu, {
+	gwoup: '1_bweakpoints',
 	command: {
-		id: TOGGLE_INLINE_BREAKPOINT_ID,
-		title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
+		id: TOGGWE_INWINE_BWEAKPOINT_ID,
+		titwe: nws.wocawize({ key: 'miInwineBweakpoint', comment: ['&& denotes a mnemonic'] }, "Inwine Bweakp&&oint")
 	},
-	order: 2,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+	owda: 2,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: '4_new_breakpoint',
-	title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
-	submenu: MenuId.MenubarNewBreakpointMenu,
-	order: 2,
-	when: CONTEXT_DEBUGGERS_AVAILABLE
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: '4_new_bweakpoint',
+	titwe: nws.wocawize({ key: 'miNewBweakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Bweakpoint"),
+	submenu: MenuId.MenubawNewBweakpointMenu,
+	owda: 2,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE
 });
 
-// Breakpoint actions are registered from breakpointsView.ts
+// Bweakpoint actions awe wegistewed fwom bweakpointsView.ts
 
-// Install Debuggers
-MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
-	group: 'z_install',
+// Instaww Debuggews
+MenuWegistwy.appendMenuItem(MenuId.MenubawDebugMenu, {
+	gwoup: 'z_instaww',
 	command: {
-		id: 'debug.installAdditionalDebuggers',
-		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
+		id: 'debug.instawwAdditionawDebuggews',
+		titwe: nws.wocawize({ key: 'miInstawwAdditionawDebuggews', comment: ['&& denotes a mnemonic'] }, "&&Instaww Additionaw Debuggews...")
 	},
-	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	order: 1
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE,
+	owda: 1
 });
 
-// register repl panel
+// wegista wepw panew
 
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-	id: DEBUG_PANEL_ID,
-	title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
-	icon: icons.debugConsoleViewIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
-	storageId: DEBUG_PANEL_ID,
-	hideIfEmpty: true,
-}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
+const VIEW_CONTAINa: ViewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: DEBUG_PANEW_ID,
+	titwe: nws.wocawize({ comment: ['Debug is a noun in this context, not a vewb.'], key: 'debugPanew' }, 'Debug Consowe'),
+	icon: icons.debugConsoweViewIcon,
+	ctowDescwiptow: new SyncDescwiptow(ViewPaneContaina, [DEBUG_PANEW_ID, { mewgeViewWithContainewWhenSingweView: twue, donotShowContainewTitweWhenMewgedWithContaina: twue }]),
+	stowageId: DEBUG_PANEW_ID,
+	hideIfEmpty: twue,
+}, ViewContainewWocation.Panew, { donotWegistewOpenCommand: twue });
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
-	id: REPL_VIEW_ID,
-	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
-	containerIcon: icons.debugConsoleViewIcon,
-	canToggleVisibility: false,
-	canMoveView: true,
-	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	ctorDescriptor: new SyncDescriptor(Repl),
-	openCommandActionDescriptor: {
-		id: 'workbench.debug.action.toggleRepl',
-		mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y },
-		order: 2
+Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy).wegistewViews([{
+	id: WEPW_VIEW_ID,
+	name: nws.wocawize({ comment: ['Debug is a noun in this context, not a vewb.'], key: 'debugPanew' }, 'Debug Consowe'),
+	containewIcon: icons.debugConsoweViewIcon,
+	canToggweVisibiwity: fawse,
+	canMoveView: twue,
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE,
+	ctowDescwiptow: new SyncDescwiptow(Wepw),
+	openCommandActionDescwiptow: {
+		id: 'wowkbench.debug.action.toggweWepw',
+		mnemonicTitwe: nws.wocawize({ key: 'miToggweDebugConsowe', comment: ['&& denotes a mnemonic'] }, "De&&bug Consowe"),
+		keybindings: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_Y },
+		owda: 2
 	}
-}], VIEW_CONTAINER);
+}], VIEW_CONTAINa);
 
 
-const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-	id: VIEWLET_ID,
-	title: nls.localize('run and debug', "Run and Debug"),
-	openCommandActionDescriptor: {
-		id: VIEWLET_ID,
-		mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D },
-		order: 3
+const viewContaina = Wegistwy.as<IViewContainewsWegistwy>(ViewExtensions.ViewContainewsWegistwy).wegistewViewContaina({
+	id: VIEWWET_ID,
+	titwe: nws.wocawize('wun and debug', "Wun and Debug"),
+	openCommandActionDescwiptow: {
+		id: VIEWWET_ID,
+		mnemonicTitwe: nws.wocawize({ key: 'miViewWun', comment: ['&& denotes a mnemonic'] }, "&&Wun"),
+		keybindings: { pwimawy: KeyMod.CtwwCmd | KeyMod.Shift | KeyCode.KEY_D },
+		owda: 3
 	},
-	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
-	icon: icons.runViewIcon,
-	alwaysUseContainerInfo: true,
-	order: 3,
-}, ViewContainerLocation.Sidebar);
+	ctowDescwiptow: new SyncDescwiptow(DebugViewPaneContaina),
+	icon: icons.wunViewIcon,
+	awwaysUseContainewInfo: twue,
+	owda: 3,
+}, ViewContainewWocation.Sidebaw);
 
-// Register default debug views
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-viewsRegistry.registerViews([{ id: VARIABLES_VIEW_ID, name: nls.localize('variables', "Variables"), containerIcon: icons.variablesViewIcon, ctorDescriptor: new SyncDescriptor(VariablesView), order: 10, weight: 40, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusVariablesView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: WATCH_VIEW_ID, name: nls.localize('watch', "Watch"), containerIcon: icons.watchViewIcon, ctorDescriptor: new SyncDescriptor(WatchExpressionsView), order: 20, weight: 10, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: CALLSTACK_VIEW_ID, name: nls.localize('callStack', "Call Stack"), containerIcon: icons.callStackViewIcon, ctorDescriptor: new SyncDescriptor(CallStackView), order: 30, weight: 30, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusCallStackView' }, when: CONTEXT_DEBUG_UX.isEqualTo('default') }], viewContainer);
-viewsRegistry.registerViews([{ id: BREAKPOINTS_VIEW_ID, name: nls.localize('breakpoints', "Breakpoints"), containerIcon: icons.breakpointsViewIcon, ctorDescriptor: new SyncDescriptor(BreakpointsView), order: 40, weight: 20, canToggleVisibility: true, canMoveView: true, focusCommand: { id: 'workbench.debug.action.focusBreakpointsView' }, when: ContextKeyExpr.or(CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
-viewsRegistry.registerViews([{ id: WelcomeView.ID, name: WelcomeView.LABEL, containerIcon: icons.runViewIcon, ctorDescriptor: new SyncDescriptor(WelcomeView), order: 1, weight: 40, canToggleVisibility: true, when: CONTEXT_DEBUG_UX.isEqualTo('simple') }], viewContainer);
-viewsRegistry.registerViews([{ id: LOADED_SCRIPTS_VIEW_ID, name: nls.localize('loadedScripts', "Loaded Scripts"), containerIcon: icons.loadedScriptsViewIcon, ctorDescriptor: new SyncDescriptor(LoadedScriptsView), order: 35, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: ContextKeyExpr.and(CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_DEBUG_UX.isEqualTo('default')) }], viewContainer);
+// Wegista defauwt debug views
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy);
+viewsWegistwy.wegistewViews([{ id: VAWIABWES_VIEW_ID, name: nws.wocawize('vawiabwes', "Vawiabwes"), containewIcon: icons.vawiabwesViewIcon, ctowDescwiptow: new SyncDescwiptow(VawiabwesView), owda: 10, weight: 40, canToggweVisibiwity: twue, canMoveView: twue, focusCommand: { id: 'wowkbench.debug.action.focusVawiabwesView' }, when: CONTEXT_DEBUG_UX.isEquawTo('defauwt') }], viewContaina);
+viewsWegistwy.wegistewViews([{ id: WATCH_VIEW_ID, name: nws.wocawize('watch', "Watch"), containewIcon: icons.watchViewIcon, ctowDescwiptow: new SyncDescwiptow(WatchExpwessionsView), owda: 20, weight: 10, canToggweVisibiwity: twue, canMoveView: twue, focusCommand: { id: 'wowkbench.debug.action.focusWatchView' }, when: CONTEXT_DEBUG_UX.isEquawTo('defauwt') }], viewContaina);
+viewsWegistwy.wegistewViews([{ id: CAWWSTACK_VIEW_ID, name: nws.wocawize('cawwStack', "Caww Stack"), containewIcon: icons.cawwStackViewIcon, ctowDescwiptow: new SyncDescwiptow(CawwStackView), owda: 30, weight: 30, canToggweVisibiwity: twue, canMoveView: twue, focusCommand: { id: 'wowkbench.debug.action.focusCawwStackView' }, when: CONTEXT_DEBUG_UX.isEquawTo('defauwt') }], viewContaina);
+viewsWegistwy.wegistewViews([{ id: BWEAKPOINTS_VIEW_ID, name: nws.wocawize('bweakpoints', "Bweakpoints"), containewIcon: icons.bweakpointsViewIcon, ctowDescwiptow: new SyncDescwiptow(BweakpointsView), owda: 40, weight: 20, canToggweVisibiwity: twue, canMoveView: twue, focusCommand: { id: 'wowkbench.debug.action.focusBweakpointsView' }, when: ContextKeyExpw.ow(CONTEXT_BWEAKPOINTS_EXIST, CONTEXT_DEBUG_UX.isEquawTo('defauwt')) }], viewContaina);
+viewsWegistwy.wegistewViews([{ id: WewcomeView.ID, name: WewcomeView.WABEW, containewIcon: icons.wunViewIcon, ctowDescwiptow: new SyncDescwiptow(WewcomeView), owda: 1, weight: 40, canToggweVisibiwity: twue, when: CONTEXT_DEBUG_UX.isEquawTo('simpwe') }], viewContaina);
+viewsWegistwy.wegistewViews([{ id: WOADED_SCWIPTS_VIEW_ID, name: nws.wocawize('woadedScwipts', "Woaded Scwipts"), containewIcon: icons.woadedScwiptsViewIcon, ctowDescwiptow: new SyncDescwiptow(WoadedScwiptsView), owda: 35, weight: 5, canToggweVisibiwity: twue, canMoveView: twue, cowwapsed: twue, when: ContextKeyExpw.and(CONTEXT_WOADED_SCWIPTS_SUPPOWTED, CONTEXT_DEBUG_UX.isEquawTo('defauwt')) }], viewContaina);
 
-// Register disassembly view
+// Wegista disassembwy view
 
-Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-	EditorPaneDescriptor.create(DisassemblyView, DISASSEMBLY_VIEW_ID, nls.localize('disassembly', "Disassembly")),
-	[new SyncDescriptor(DisassemblyViewInput)]
+Wegistwy.as<IEditowPaneWegistwy>(EditowExtensions.EditowPane).wegistewEditowPane(
+	EditowPaneDescwiptow.cweate(DisassembwyView, DISASSEMBWY_VIEW_ID, nws.wocawize('disassembwy', "Disassembwy")),
+	[new SyncDescwiptow(DisassembwyViewInput)]
 );
 
-// Register configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
+// Wegista configuwation
+const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+configuwationWegistwy.wegistewConfiguwation({
 	id: 'debug',
-	order: 20,
-	title: nls.localize('debugConfigurationTitle', "Debug"),
+	owda: 20,
+	titwe: nws.wocawize('debugConfiguwationTitwe', "Debug"),
 	type: 'object',
-	properties: {
-		'debug.allowBreakpointsEverywhere': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),
-			default: false
+	pwopewties: {
+		'debug.awwowBweakpointsEvewywhewe': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'awwowBweakpointsEvewywhewe' }, "Awwow setting bweakpoints in any fiwe."),
+			defauwt: fawse
 		},
-		'debug.openExplorerOnEnd': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
-			default: false
+		'debug.openExpwowewOnEnd': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'openExpwowewOnEnd' }, "Automaticawwy open the expwowa view at the end of a debug session."),
+			defauwt: fawse
 		},
-		'debug.inlineValues': {
-			type: ['boolean', 'string'],
-			'enum': [true, false, 'auto'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
-			'enumDescriptions': [
-				nls.localize('inlineValues.on', 'Always show variable values inline in editor while debugging.'),
-				nls.localize('inlineValues.off', 'Never show variable values inline in editor while debugging.'),
-				nls.localize('inlineValues.focusNoScroll', 'Show variable values inline in editor while debugging when the language supports inline value locations.'),
+		'debug.inwineVawues': {
+			type: ['boowean', 'stwing'],
+			'enum': [twue, fawse, 'auto'],
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'inwineVawues' }, "Show vawiabwe vawues inwine in editow whiwe debugging."),
+			'enumDescwiptions': [
+				nws.wocawize('inwineVawues.on', 'Awways show vawiabwe vawues inwine in editow whiwe debugging.'),
+				nws.wocawize('inwineVawues.off', 'Neva show vawiabwe vawues inwine in editow whiwe debugging.'),
+				nws.wocawize('inwineVawues.focusNoScwoww', 'Show vawiabwe vawues inwine in editow whiwe debugging when the wanguage suppowts inwine vawue wocations.'),
 			],
-			default: 'auto'
+			defauwt: 'auto'
 		},
-		'debug.toolBarLocation': {
-			enum: ['floating', 'docked', 'hidden'],
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either `floating` in all views, `docked` in the debug view, or `hidden`."),
-			default: 'floating'
+		'debug.toowBawWocation': {
+			enum: ['fwoating', 'docked', 'hidden'],
+			mawkdownDescwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'toowBawWocation' }, "Contwows the wocation of the debug toowbaw. Eitha `fwoating` in aww views, `docked` in the debug view, ow `hidden`."),
+			defauwt: 'fwoating'
 		},
-		'debug.showInStatusBar': {
-			enum: ['never', 'always', 'onFirstSessionStart'],
-			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible."),
-			default: 'onFirstSessionStart'
+		'debug.showInStatusBaw': {
+			enum: ['neva', 'awways', 'onFiwstSessionStawt'],
+			enumDescwiptions: [nws.wocawize('neva', "Neva show debug in status baw"), nws.wocawize('awways', "Awways show debug in status baw"), nws.wocawize('onFiwstSessionStawt', "Show debug in status baw onwy afta debug was stawted fow the fiwst time")],
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'showInStatusBaw' }, "Contwows when the debug status baw shouwd be visibwe."),
+			defauwt: 'onFiwstSessionStawt'
 		},
-		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-		'debug.console.closeOnEnd': {
-			type: 'boolean',
-			description: nls.localize('debug.console.closeOnEnd', "Controls if the debug console should be automatically closed when the debug session ends."),
-			default: false
+		'debug.intewnawConsoweOptions': INTEWNAW_CONSOWE_OPTIONS_SCHEMA,
+		'debug.consowe.cwoseOnEnd': {
+			type: 'boowean',
+			descwiption: nws.wocawize('debug.consowe.cwoseOnEnd', "Contwows if the debug consowe shouwd be automaticawwy cwosed when the debug session ends."),
+			defauwt: fawse
 		},
-		'debug.terminal.clearBeforeReusing': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.terminal.clearBeforeReusing' }, "Before starting a new debug session in an integrated or external terminal, clear the terminal."),
-			default: false
+		'debug.tewminaw.cweawBefoweWeusing': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'debug.tewminaw.cweawBefoweWeusing' }, "Befowe stawting a new debug session in an integwated ow extewnaw tewminaw, cweaw the tewminaw."),
+			defauwt: fawse
 		},
 		'debug.openDebug': {
-			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
-			default: 'openOnDebugBreak',
-			description: nls.localize('openDebug', "Controls when the debug view should open.")
+			enum: ['nevewOpen', 'openOnSessionStawt', 'openOnFiwstSessionStawt', 'openOnDebugBweak'],
+			defauwt: 'openOnDebugBweak',
+			descwiption: nws.wocawize('openDebug', "Contwows when the debug view shouwd open.")
 		},
-		'debug.showSubSessionsInToolBar': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showSubSessionsInToolBar' }, "Controls whether the debug sub-sessions are shown in the debug tool bar. When this setting is false the stop command on a sub-session will also stop the parent session."),
-			default: false
+		'debug.showSubSessionsInToowBaw': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'showSubSessionsInToowBaw' }, "Contwows whetha the debug sub-sessions awe shown in the debug toow baw. When this setting is fawse the stop command on a sub-session wiww awso stop the pawent session."),
+			defauwt: fawse
 		},
-		'debug.console.fontSize': {
-			type: 'number',
-			description: nls.localize('debug.console.fontSize', "Controls the font size in pixels in the debug console."),
-			default: isMacintosh ? 12 : 14,
+		'debug.consowe.fontSize': {
+			type: 'numba',
+			descwiption: nws.wocawize('debug.consowe.fontSize', "Contwows the font size in pixews in the debug consowe."),
+			defauwt: isMacintosh ? 12 : 14,
 		},
-		'debug.console.fontFamily': {
-			type: 'string',
-			description: nls.localize('debug.console.fontFamily', "Controls the font family in the debug console."),
-			default: 'default'
+		'debug.consowe.fontFamiwy': {
+			type: 'stwing',
+			descwiption: nws.wocawize('debug.consowe.fontFamiwy', "Contwows the font famiwy in the debug consowe."),
+			defauwt: 'defauwt'
 		},
-		'debug.console.lineHeight': {
-			type: 'number',
-			description: nls.localize('debug.console.lineHeight', "Controls the line height in pixels in the debug console. Use 0 to compute the line height from the font size."),
-			default: 0
+		'debug.consowe.wineHeight': {
+			type: 'numba',
+			descwiption: nws.wocawize('debug.consowe.wineHeight', "Contwows the wine height in pixews in the debug consowe. Use 0 to compute the wine height fwom the font size."),
+			defauwt: 0
 		},
-		'debug.console.wordWrap': {
-			type: 'boolean',
-			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the debug console."),
-			default: true
+		'debug.consowe.wowdWwap': {
+			type: 'boowean',
+			descwiption: nws.wocawize('debug.consowe.wowdWwap', "Contwows if the wines shouwd wwap in the debug consowe."),
+			defauwt: twue
 		},
-		'debug.console.historySuggestions': {
-			type: 'boolean',
-			description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
-			default: true
+		'debug.consowe.histowySuggestions': {
+			type: 'boowean',
+			descwiption: nws.wocawize('debug.consowe.histowySuggestions', "Contwows if the debug consowe shouwd suggest pweviouswy typed input."),
+			defauwt: twue
 		},
-		'debug.console.collapseIdenticalLines': {
-			type: 'boolean',
-			description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the debug console should collapse identical lines and show a number of occurrences with a badge."),
-			default: true
+		'debug.consowe.cowwapseIdenticawWines': {
+			type: 'boowean',
+			descwiption: nws.wocawize('debug.consowe.cowwapseIdenticawWines', "Contwows if the debug consowe shouwd cowwapse identicaw wines and show a numba of occuwwences with a badge."),
+			defauwt: twue
 		},
-		'debug.console.acceptSuggestionOnEnter': {
+		'debug.consowe.acceptSuggestionOnEnta': {
 			enum: ['off', 'on'],
-			description: nls.localize('debug.console.acceptSuggestionOnEnter', "Controls whether suggestions should be accepted on enter in the debug console. enter is also used to evaluate whatever is typed in the debug console."),
-			default: 'off'
+			descwiption: nws.wocawize('debug.consowe.acceptSuggestionOnEnta', "Contwows whetha suggestions shouwd be accepted on enta in the debug consowe. enta is awso used to evawuate whateva is typed in the debug consowe."),
+			defauwt: 'off'
 		},
-		'launch': {
+		'waunch': {
 			type: 'object',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces."),
-			default: { configurations: [], compounds: [] },
-			$ref: launchSchemaId
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'waunch' }, "Gwobaw debug waunch configuwation. Shouwd be used as an awtewnative to 'waunch.json' that is shawed acwoss wowkspaces."),
+			defauwt: { configuwations: [], compounds: [] },
+			$wef: waunchSchemaId
 		},
-		'debug.focusWindowOnBreak': {
-			type: 'boolean',
-			description: nls.localize('debug.focusWindowOnBreak', "Controls whether the workbench window should be focused when the debugger breaks."),
-			default: true
+		'debug.focusWindowOnBweak': {
+			type: 'boowean',
+			descwiption: nws.wocawize('debug.focusWindowOnBweak', "Contwows whetha the wowkbench window shouwd be focused when the debugga bweaks."),
+			defauwt: twue
 		},
-		'debug.onTaskErrors': {
-			enum: ['debugAnyway', 'showErrors', 'prompt', 'abort'],
-			enumDescriptions: [nls.localize('debugAnyway', "Ignore task errors and start debugging."), nls.localize('showErrors', "Show the Problems view and do not start debugging."), nls.localize('prompt', "Prompt user."), nls.localize('cancel', "Cancel debugging.")],
-			description: nls.localize('debug.onTaskErrors', "Controls what to do when errors are encountered after running a preLaunchTask."),
-			default: 'prompt'
+		'debug.onTaskEwwows': {
+			enum: ['debugAnyway', 'showEwwows', 'pwompt', 'abowt'],
+			enumDescwiptions: [nws.wocawize('debugAnyway', "Ignowe task ewwows and stawt debugging."), nws.wocawize('showEwwows', "Show the Pwobwems view and do not stawt debugging."), nws.wocawize('pwompt', "Pwompt usa."), nws.wocawize('cancew', "Cancew debugging.")],
+			descwiption: nws.wocawize('debug.onTaskEwwows', "Contwows what to do when ewwows awe encountewed afta wunning a pweWaunchTask."),
+			defauwt: 'pwompt'
 		},
-		'debug.showBreakpointsInOverviewRuler': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showBreakpointsInOverviewRuler' }, "Controls whether breakpoints should be shown in the overview ruler."),
-			default: false
+		'debug.showBweakpointsInOvewviewWuwa': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'showBweakpointsInOvewviewWuwa' }, "Contwows whetha bweakpoints shouwd be shown in the ovewview wuwa."),
+			defauwt: fawse
 		},
-		'debug.showInlineBreakpointCandidates': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInlineBreakpointCandidates' }, "Controls whether inline breakpoints candidate decorations should be shown in the editor while debugging."),
-			default: true
+		'debug.showInwineBweakpointCandidates': {
+			type: 'boowean',
+			descwiption: nws.wocawize({ comment: ['This is the descwiption fow a setting'], key: 'showInwineBweakpointCandidates' }, "Contwows whetha inwine bweakpoints candidate decowations shouwd be shown in the editow whiwe debugging."),
+			defauwt: twue
 		},
-		'debug.saveBeforeStart': {
-			description: nls.localize('debug.saveBeforeStart', "Controls what editors to save before starting a debug session."),
-			enum: ['allEditorsInActiveGroup', 'nonUntitledEditorsInActiveGroup', 'none'],
-			enumDescriptions: [
-				nls.localize('debug.saveBeforeStart.allEditorsInActiveGroup', "Save all editors in the active group before starting a debug session."),
-				nls.localize('debug.saveBeforeStart.nonUntitledEditorsInActiveGroup', "Save all editors in the active group except untitled ones before starting a debug session."),
-				nls.localize('debug.saveBeforeStart.none', "Don't save any editors before starting a debug session."),
+		'debug.saveBefoweStawt': {
+			descwiption: nws.wocawize('debug.saveBefoweStawt', "Contwows what editows to save befowe stawting a debug session."),
+			enum: ['awwEditowsInActiveGwoup', 'nonUntitwedEditowsInActiveGwoup', 'none'],
+			enumDescwiptions: [
+				nws.wocawize('debug.saveBefoweStawt.awwEditowsInActiveGwoup', "Save aww editows in the active gwoup befowe stawting a debug session."),
+				nws.wocawize('debug.saveBefoweStawt.nonUntitwedEditowsInActiveGwoup', "Save aww editows in the active gwoup except untitwed ones befowe stawting a debug session."),
+				nws.wocawize('debug.saveBefoweStawt.none', "Don't save any editows befowe stawting a debug session."),
 			],
-			default: 'allEditorsInActiveGroup',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+			defauwt: 'awwEditowsInActiveGwoup',
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE
 		},
-		'debug.confirmOnExit': {
-			description: nls.localize('debug.confirmOnExit', "Controls whether to confirm when the window closes if there are active debug sessions."),
-			type: 'string',
-			enum: ['never', 'always'],
-			enumDescriptions: [
-				nls.localize('debug.confirmOnExit.never', "Never confirm."),
-				nls.localize('debug.confirmOnExit.always', "Always confirm if there are debug sessions."),
+		'debug.confiwmOnExit': {
+			descwiption: nws.wocawize('debug.confiwmOnExit', "Contwows whetha to confiwm when the window cwoses if thewe awe active debug sessions."),
+			type: 'stwing',
+			enum: ['neva', 'awways'],
+			enumDescwiptions: [
+				nws.wocawize('debug.confiwmOnExit.neva', "Neva confiwm."),
+				nws.wocawize('debug.confiwmOnExit.awways', "Awways confiwm if thewe awe debug sessions."),
 			],
-			default: 'never'
+			defauwt: 'neva'
 		}
 	}
 });

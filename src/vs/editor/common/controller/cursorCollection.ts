@@ -1,292 +1,292 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { Cursor } from 'vs/editor/common/controller/oneCursor';
-import { Position } from 'vs/editor/common/core/position';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+impowt { CuwsowContext, CuwsowState, PawtiawCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { Cuwsow } fwom 'vs/editow/common/contwowwa/oneCuwsow';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ISewection, Sewection } fwom 'vs/editow/common/cowe/sewection';
 
-export class CursorCollection {
+expowt cwass CuwsowCowwection {
 
-	private context: CursorContext;
+	pwivate context: CuwsowContext;
 
-	private primaryCursor: Cursor;
-	private secondaryCursors: Cursor[];
+	pwivate pwimawyCuwsow: Cuwsow;
+	pwivate secondawyCuwsows: Cuwsow[];
 
-	// An index which identifies the last cursor that was added / moved (think Ctrl+drag)
-	private lastAddedCursorIndex: number;
+	// An index which identifies the wast cuwsow that was added / moved (think Ctww+dwag)
+	pwivate wastAddedCuwsowIndex: numba;
 
-	constructor(context: CursorContext) {
+	constwuctow(context: CuwsowContext) {
 		this.context = context;
-		this.primaryCursor = new Cursor(context);
-		this.secondaryCursors = [];
-		this.lastAddedCursorIndex = 0;
+		this.pwimawyCuwsow = new Cuwsow(context);
+		this.secondawyCuwsows = [];
+		this.wastAddedCuwsowIndex = 0;
 	}
 
-	public dispose(): void {
-		this.primaryCursor.dispose(this.context);
-		this.killSecondaryCursors();
+	pubwic dispose(): void {
+		this.pwimawyCuwsow.dispose(this.context);
+		this.kiwwSecondawyCuwsows();
 	}
 
-	public startTrackingSelections(): void {
-		this.primaryCursor.startTrackingSelection(this.context);
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			this.secondaryCursors[i].startTrackingSelection(this.context);
+	pubwic stawtTwackingSewections(): void {
+		this.pwimawyCuwsow.stawtTwackingSewection(this.context);
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			this.secondawyCuwsows[i].stawtTwackingSewection(this.context);
 		}
 	}
 
-	public stopTrackingSelections(): void {
-		this.primaryCursor.stopTrackingSelection(this.context);
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			this.secondaryCursors[i].stopTrackingSelection(this.context);
+	pubwic stopTwackingSewections(): void {
+		this.pwimawyCuwsow.stopTwackingSewection(this.context);
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			this.secondawyCuwsows[i].stopTwackingSewection(this.context);
 		}
 	}
 
-	public updateContext(context: CursorContext): void {
+	pubwic updateContext(context: CuwsowContext): void {
 		this.context = context;
 	}
 
-	public ensureValidState(): void {
-		this.primaryCursor.ensureValidState(this.context);
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			this.secondaryCursors[i].ensureValidState(this.context);
+	pubwic ensuweVawidState(): void {
+		this.pwimawyCuwsow.ensuweVawidState(this.context);
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			this.secondawyCuwsows[i].ensuweVawidState(this.context);
 		}
 	}
 
-	public readSelectionFromMarkers(): Selection[] {
-		let result: Selection[] = [];
-		result[0] = this.primaryCursor.readSelectionFromMarkers(this.context);
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].readSelectionFromMarkers(this.context);
+	pubwic weadSewectionFwomMawkews(): Sewection[] {
+		wet wesuwt: Sewection[] = [];
+		wesuwt[0] = this.pwimawyCuwsow.weadSewectionFwomMawkews(this.context);
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i].weadSewectionFwomMawkews(this.context);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getAll(): CursorState[] {
-		let result: CursorState[] = [];
-		result[0] = this.primaryCursor.asCursorState();
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].asCursorState();
+	pubwic getAww(): CuwsowState[] {
+		wet wesuwt: CuwsowState[] = [];
+		wesuwt[0] = this.pwimawyCuwsow.asCuwsowState();
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i].asCuwsowState();
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getViewPositions(): Position[] {
-		let result: Position[] = [];
-		result[0] = this.primaryCursor.viewState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].viewState.position;
+	pubwic getViewPositions(): Position[] {
+		wet wesuwt: Position[] = [];
+		wesuwt[0] = this.pwimawyCuwsow.viewState.position;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i].viewState.position;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getTopMostViewPosition(): Position {
-		let result = this.primaryCursor.viewState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			const viewPosition = this.secondaryCursors[i].viewState.position;
-			if (viewPosition.isBefore(result)) {
-				result = viewPosition;
+	pubwic getTopMostViewPosition(): Position {
+		wet wesuwt = this.pwimawyCuwsow.viewState.position;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			const viewPosition = this.secondawyCuwsows[i].viewState.position;
+			if (viewPosition.isBefowe(wesuwt)) {
+				wesuwt = viewPosition;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getBottomMostViewPosition(): Position {
-		let result = this.primaryCursor.viewState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			const viewPosition = this.secondaryCursors[i].viewState.position;
-			if (result.isBeforeOrEqual(viewPosition)) {
-				result = viewPosition;
+	pubwic getBottomMostViewPosition(): Position {
+		wet wesuwt = this.pwimawyCuwsow.viewState.position;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			const viewPosition = this.secondawyCuwsows[i].viewState.position;
+			if (wesuwt.isBefoweOwEquaw(viewPosition)) {
+				wesuwt = viewPosition;
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getSelections(): Selection[] {
-		let result: Selection[] = [];
-		result[0] = this.primaryCursor.modelState.selection;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].modelState.selection;
+	pubwic getSewections(): Sewection[] {
+		wet wesuwt: Sewection[] = [];
+		wesuwt[0] = this.pwimawyCuwsow.modewState.sewection;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i].modewState.sewection;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getViewSelections(): Selection[] {
-		let result: Selection[] = [];
-		result[0] = this.primaryCursor.viewState.selection;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].viewState.selection;
+	pubwic getViewSewections(): Sewection[] {
+		wet wesuwt: Sewection[] = [];
+		wesuwt[0] = this.pwimawyCuwsow.viewState.sewection;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i].viewState.sewection;
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public setSelections(selections: ISelection[]): void {
-		this.setStates(CursorState.fromModelSelections(selections));
+	pubwic setSewections(sewections: ISewection[]): void {
+		this.setStates(CuwsowState.fwomModewSewections(sewections));
 	}
 
-	public getPrimaryCursor(): CursorState {
-		return this.primaryCursor.asCursorState();
+	pubwic getPwimawyCuwsow(): CuwsowState {
+		wetuwn this.pwimawyCuwsow.asCuwsowState();
 	}
 
-	public setStates(states: PartialCursorState[] | null): void {
-		if (states === null) {
-			return;
+	pubwic setStates(states: PawtiawCuwsowState[] | nuww): void {
+		if (states === nuww) {
+			wetuwn;
 		}
-		this.primaryCursor.setState(this.context, states[0].modelState, states[0].viewState);
-		this._setSecondaryStates(states.slice(1));
+		this.pwimawyCuwsow.setState(this.context, states[0].modewState, states[0].viewState);
+		this._setSecondawyStates(states.swice(1));
 	}
 
 	/**
-	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
+	 * Cweates ow disposes secondawy cuwsows as necessawy to match the numba of `secondawySewections`.
 	 */
-	private _setSecondaryStates(secondaryStates: PartialCursorState[]): void {
-		const secondaryCursorsLength = this.secondaryCursors.length;
-		const secondaryStatesLength = secondaryStates.length;
+	pwivate _setSecondawyStates(secondawyStates: PawtiawCuwsowState[]): void {
+		const secondawyCuwsowsWength = this.secondawyCuwsows.wength;
+		const secondawyStatesWength = secondawyStates.wength;
 
-		if (secondaryCursorsLength < secondaryStatesLength) {
-			let createCnt = secondaryStatesLength - secondaryCursorsLength;
-			for (let i = 0; i < createCnt; i++) {
-				this._addSecondaryCursor();
+		if (secondawyCuwsowsWength < secondawyStatesWength) {
+			wet cweateCnt = secondawyStatesWength - secondawyCuwsowsWength;
+			fow (wet i = 0; i < cweateCnt; i++) {
+				this._addSecondawyCuwsow();
 			}
-		} else if (secondaryCursorsLength > secondaryStatesLength) {
-			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
-			for (let i = 0; i < removeCnt; i++) {
-				this._removeSecondaryCursor(this.secondaryCursors.length - 1);
+		} ewse if (secondawyCuwsowsWength > secondawyStatesWength) {
+			wet wemoveCnt = secondawyCuwsowsWength - secondawyStatesWength;
+			fow (wet i = 0; i < wemoveCnt; i++) {
+				this._wemoveSecondawyCuwsow(this.secondawyCuwsows.wength - 1);
 			}
 		}
 
-		for (let i = 0; i < secondaryStatesLength; i++) {
-			this.secondaryCursors[i].setState(this.context, secondaryStates[i].modelState, secondaryStates[i].viewState);
+		fow (wet i = 0; i < secondawyStatesWength; i++) {
+			this.secondawyCuwsows[i].setState(this.context, secondawyStates[i].modewState, secondawyStates[i].viewState);
 		}
 	}
 
-	public killSecondaryCursors(): void {
-		this._setSecondaryStates([]);
+	pubwic kiwwSecondawyCuwsows(): void {
+		this._setSecondawyStates([]);
 	}
 
-	private _addSecondaryCursor(): void {
-		this.secondaryCursors.push(new Cursor(this.context));
-		this.lastAddedCursorIndex = this.secondaryCursors.length;
+	pwivate _addSecondawyCuwsow(): void {
+		this.secondawyCuwsows.push(new Cuwsow(this.context));
+		this.wastAddedCuwsowIndex = this.secondawyCuwsows.wength;
 	}
 
-	public getLastAddedCursorIndex(): number {
-		if (this.secondaryCursors.length === 0 || this.lastAddedCursorIndex === 0) {
-			return 0;
+	pubwic getWastAddedCuwsowIndex(): numba {
+		if (this.secondawyCuwsows.wength === 0 || this.wastAddedCuwsowIndex === 0) {
+			wetuwn 0;
 		}
-		return this.lastAddedCursorIndex;
+		wetuwn this.wastAddedCuwsowIndex;
 	}
 
-	private _removeSecondaryCursor(removeIndex: number): void {
-		if (this.lastAddedCursorIndex >= removeIndex + 1) {
-			this.lastAddedCursorIndex--;
+	pwivate _wemoveSecondawyCuwsow(wemoveIndex: numba): void {
+		if (this.wastAddedCuwsowIndex >= wemoveIndex + 1) {
+			this.wastAddedCuwsowIndex--;
 		}
-		this.secondaryCursors[removeIndex].dispose(this.context);
-		this.secondaryCursors.splice(removeIndex, 1);
+		this.secondawyCuwsows[wemoveIndex].dispose(this.context);
+		this.secondawyCuwsows.spwice(wemoveIndex, 1);
 	}
 
-	private _getAll(): Cursor[] {
-		let result: Cursor[] = [];
-		result[0] = this.primaryCursor;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i];
+	pwivate _getAww(): Cuwsow[] {
+		wet wesuwt: Cuwsow[] = [];
+		wesuwt[0] = this.pwimawyCuwsow;
+		fow (wet i = 0, wen = this.secondawyCuwsows.wength; i < wen; i++) {
+			wesuwt[i + 1] = this.secondawyCuwsows[i];
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public normalize(): void {
-		if (this.secondaryCursors.length === 0) {
-			return;
+	pubwic nowmawize(): void {
+		if (this.secondawyCuwsows.wength === 0) {
+			wetuwn;
 		}
-		let cursors = this._getAll();
+		wet cuwsows = this._getAww();
 
-		interface SortedCursor {
-			index: number;
-			selection: Selection;
+		intewface SowtedCuwsow {
+			index: numba;
+			sewection: Sewection;
 		}
-		let sortedCursors: SortedCursor[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			sortedCursors.push({
+		wet sowtedCuwsows: SowtedCuwsow[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			sowtedCuwsows.push({
 				index: i,
-				selection: cursors[i].modelState.selection,
+				sewection: cuwsows[i].modewState.sewection,
 			});
 		}
-		sortedCursors.sort((a, b) => {
-			if (a.selection.startLineNumber === b.selection.startLineNumber) {
-				return a.selection.startColumn - b.selection.startColumn;
+		sowtedCuwsows.sowt((a, b) => {
+			if (a.sewection.stawtWineNumba === b.sewection.stawtWineNumba) {
+				wetuwn a.sewection.stawtCowumn - b.sewection.stawtCowumn;
 			}
-			return a.selection.startLineNumber - b.selection.startLineNumber;
+			wetuwn a.sewection.stawtWineNumba - b.sewection.stawtWineNumba;
 		});
 
-		for (let sortedCursorIndex = 0; sortedCursorIndex < sortedCursors.length - 1; sortedCursorIndex++) {
-			const current = sortedCursors[sortedCursorIndex];
-			const next = sortedCursors[sortedCursorIndex + 1];
+		fow (wet sowtedCuwsowIndex = 0; sowtedCuwsowIndex < sowtedCuwsows.wength - 1; sowtedCuwsowIndex++) {
+			const cuwwent = sowtedCuwsows[sowtedCuwsowIndex];
+			const next = sowtedCuwsows[sowtedCuwsowIndex + 1];
 
-			const currentSelection = current.selection;
-			const nextSelection = next.selection;
+			const cuwwentSewection = cuwwent.sewection;
+			const nextSewection = next.sewection;
 
-			if (!this.context.cursorConfig.multiCursorMergeOverlapping) {
+			if (!this.context.cuwsowConfig.muwtiCuwsowMewgeOvewwapping) {
 				continue;
 			}
 
-			let shouldMergeCursors: boolean;
-			if (nextSelection.isEmpty() || currentSelection.isEmpty()) {
-				// Merge touching cursors if one of them is collapsed
-				shouldMergeCursors = nextSelection.getStartPosition().isBeforeOrEqual(currentSelection.getEndPosition());
-			} else {
-				// Merge only overlapping cursors (i.e. allow touching ranges)
-				shouldMergeCursors = nextSelection.getStartPosition().isBefore(currentSelection.getEndPosition());
+			wet shouwdMewgeCuwsows: boowean;
+			if (nextSewection.isEmpty() || cuwwentSewection.isEmpty()) {
+				// Mewge touching cuwsows if one of them is cowwapsed
+				shouwdMewgeCuwsows = nextSewection.getStawtPosition().isBefoweOwEquaw(cuwwentSewection.getEndPosition());
+			} ewse {
+				// Mewge onwy ovewwapping cuwsows (i.e. awwow touching wanges)
+				shouwdMewgeCuwsows = nextSewection.getStawtPosition().isBefowe(cuwwentSewection.getEndPosition());
 			}
 
-			if (shouldMergeCursors) {
-				const winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
-				const looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
+			if (shouwdMewgeCuwsows) {
+				const winnewSowtedCuwsowIndex = cuwwent.index < next.index ? sowtedCuwsowIndex : sowtedCuwsowIndex + 1;
+				const woosewSowtedCuwsowIndex = cuwwent.index < next.index ? sowtedCuwsowIndex + 1 : sowtedCuwsowIndex;
 
-				const looserIndex = sortedCursors[looserSortedCursorIndex].index;
-				const winnerIndex = sortedCursors[winnerSortedCursorIndex].index;
+				const woosewIndex = sowtedCuwsows[woosewSowtedCuwsowIndex].index;
+				const winnewIndex = sowtedCuwsows[winnewSowtedCuwsowIndex].index;
 
-				const looserSelection = sortedCursors[looserSortedCursorIndex].selection;
-				const winnerSelection = sortedCursors[winnerSortedCursorIndex].selection;
+				const woosewSewection = sowtedCuwsows[woosewSowtedCuwsowIndex].sewection;
+				const winnewSewection = sowtedCuwsows[winnewSowtedCuwsowIndex].sewection;
 
-				if (!looserSelection.equalsSelection(winnerSelection)) {
-					const resultingRange = looserSelection.plusRange(winnerSelection);
-					const looserSelectionIsLTR = (looserSelection.selectionStartLineNumber === looserSelection.startLineNumber && looserSelection.selectionStartColumn === looserSelection.startColumn);
-					const winnerSelectionIsLTR = (winnerSelection.selectionStartLineNumber === winnerSelection.startLineNumber && winnerSelection.selectionStartColumn === winnerSelection.startColumn);
+				if (!woosewSewection.equawsSewection(winnewSewection)) {
+					const wesuwtingWange = woosewSewection.pwusWange(winnewSewection);
+					const woosewSewectionIsWTW = (woosewSewection.sewectionStawtWineNumba === woosewSewection.stawtWineNumba && woosewSewection.sewectionStawtCowumn === woosewSewection.stawtCowumn);
+					const winnewSewectionIsWTW = (winnewSewection.sewectionStawtWineNumba === winnewSewection.stawtWineNumba && winnewSewection.sewectionStawtCowumn === winnewSewection.stawtCowumn);
 
-					// Give more importance to the last added cursor (think Ctrl-dragging + hitting another cursor)
-					let resultingSelectionIsLTR: boolean;
-					if (looserIndex === this.lastAddedCursorIndex) {
-						resultingSelectionIsLTR = looserSelectionIsLTR;
-						this.lastAddedCursorIndex = winnerIndex;
-					} else {
-						// Winner takes it all
-						resultingSelectionIsLTR = winnerSelectionIsLTR;
+					// Give mowe impowtance to the wast added cuwsow (think Ctww-dwagging + hitting anotha cuwsow)
+					wet wesuwtingSewectionIsWTW: boowean;
+					if (woosewIndex === this.wastAddedCuwsowIndex) {
+						wesuwtingSewectionIsWTW = woosewSewectionIsWTW;
+						this.wastAddedCuwsowIndex = winnewIndex;
+					} ewse {
+						// Winna takes it aww
+						wesuwtingSewectionIsWTW = winnewSewectionIsWTW;
 					}
 
-					let resultingSelection: Selection;
-					if (resultingSelectionIsLTR) {
-						resultingSelection = new Selection(resultingRange.startLineNumber, resultingRange.startColumn, resultingRange.endLineNumber, resultingRange.endColumn);
-					} else {
-						resultingSelection = new Selection(resultingRange.endLineNumber, resultingRange.endColumn, resultingRange.startLineNumber, resultingRange.startColumn);
+					wet wesuwtingSewection: Sewection;
+					if (wesuwtingSewectionIsWTW) {
+						wesuwtingSewection = new Sewection(wesuwtingWange.stawtWineNumba, wesuwtingWange.stawtCowumn, wesuwtingWange.endWineNumba, wesuwtingWange.endCowumn);
+					} ewse {
+						wesuwtingSewection = new Sewection(wesuwtingWange.endWineNumba, wesuwtingWange.endCowumn, wesuwtingWange.stawtWineNumba, wesuwtingWange.stawtCowumn);
 					}
 
-					sortedCursors[winnerSortedCursorIndex].selection = resultingSelection;
-					const resultingState = CursorState.fromModelSelection(resultingSelection);
-					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
+					sowtedCuwsows[winnewSowtedCuwsowIndex].sewection = wesuwtingSewection;
+					const wesuwtingState = CuwsowState.fwomModewSewection(wesuwtingSewection);
+					cuwsows[winnewIndex].setState(this.context, wesuwtingState.modewState, wesuwtingState.viewState);
 				}
 
-				for (const sortedCursor of sortedCursors) {
-					if (sortedCursor.index > looserIndex) {
-						sortedCursor.index--;
+				fow (const sowtedCuwsow of sowtedCuwsows) {
+					if (sowtedCuwsow.index > woosewIndex) {
+						sowtedCuwsow.index--;
 					}
 				}
 
-				cursors.splice(looserIndex, 1);
-				sortedCursors.splice(looserSortedCursorIndex, 1);
-				this._removeSecondaryCursor(looserIndex - 1);
+				cuwsows.spwice(woosewIndex, 1);
+				sowtedCuwsows.spwice(woosewSowtedCuwsowIndex, 1);
+				this._wemoveSecondawyCuwsow(woosewIndex - 1);
 
-				sortedCursorIndex--;
+				sowtedCuwsowIndex--;
 			}
 		}
 	}

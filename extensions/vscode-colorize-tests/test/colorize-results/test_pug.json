@@ -1,1707 +1,1707 @@
 [
 	{
-		"c": "// h1(name=maintainer.name)",
-		"t": "text.pug string.comment.buffered.block.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "// h1(name=maintaina.name)",
+		"t": "text.pug stwing.comment.buffewed.bwock.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "//   | Maintainer:",
-		"t": "text.pug string.comment.buffered.block.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "//   | Maintaina:",
+		"t": "text.pug stwing.comment.buffewed.bwock.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "//   = ' ' + maintainer.name",
-		"t": "text.pug string.comment.buffered.block.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "//   = ' ' + maintaina.name",
+		"t": "text.pug stwing.comment.buffewed.bwock.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "table",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": "  ",
-		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "tr",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": "    ",
-		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "td",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "style",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
-		}
-	},
-	{
-		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "'width: '",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "+",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": "(",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "100",
-		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
-		}
-	},
-	{
-		"c": "/",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": "2",
-		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
-		}
-	},
-	{
-		"c": ")",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "+",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": "'%'",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": ".",
-		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "      ",
-		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "Twitter",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": "    ",
-		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "td",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
-		}
-	},
-	{
-		"c": "=",
-		"t": "text.pug source.js constant",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": " ",
-		"t": "text.pug source.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "maintainer",
-		"t": "text.pug source.js variable.other.object.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
-		}
-	},
-	{
-		"c": ".",
-		"t": "text.pug source.js punctuation.accessor.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "twitter",
-		"t": "text.pug source.js variable.other.property.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "tabwe",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "  ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "tr",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"c": "tw",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "td",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "style",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"c": "stywe",
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "'width: '",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "+",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "100",
-		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "text.pug meta.tag.otha attwibute_vawue constant.numewic.decimaw.js",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": "/",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": "2",
-		"t": "text.pug meta.tag.other attribute_value constant.numeric.decimal.js",
-		"r": {
-			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #098658",
-			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #098658",
-			"hc_black": "constant.numeric: #B5CEA8"
+		"t": "text.pug meta.tag.otha attwibute_vawue constant.numewic.decimaw.js",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "+",
-		"t": "text.pug meta.tag.other attribute_value keyword.operator.arithmetic.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": "'%'",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": ".",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "      ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "Blog",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"c": "Twitta",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "td",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug source.js constant",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js constant",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "maintainer",
-		"t": "text.pug source.js variable.other.object.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "maintaina",
+		"t": "text.pug souwce.js vawiabwe.otha.object.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "text.pug source.js punctuation.accessor.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js punctuation.accessow.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "blog",
-		"t": "text.pug source.js variable.other.property.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "twitta",
+		"t": "text.pug souwce.js vawiabwe.otha.pwopewty.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
+		}
+	},
+	{
+		"c": "  ",
+		"t": "text.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "tw",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "td",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": "(",
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "stywe",
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "'width: '",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
+		}
+	},
+	{
+		"c": "+",
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
+		}
+	},
+	{
+		"c": "(",
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "100",
+		"t": "text.pug meta.tag.otha attwibute_vawue constant.numewic.decimaw.js",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
+		}
+	},
+	{
+		"c": "/",
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
+		}
+	},
+	{
+		"c": "2",
+		"t": "text.pug meta.tag.otha attwibute_vawue constant.numewic.decimaw.js",
+		"w": {
+			"dawk_pwus": "constant.numewic: #B5CEA8",
+			"wight_pwus": "constant.numewic: #098658",
+			"dawk_vs": "constant.numewic: #B5CEA8",
+			"wight_vs": "constant.numewic: #098658",
+			"hc_bwack": "constant.numewic: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "+",
+		"t": "text.pug meta.tag.otha attwibute_vawue keywowd.opewatow.awithmetic.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
+		}
+	},
+	{
+		"c": "'%'",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "text.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "      ",
+		"t": "text.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "Bwog",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "text.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "td",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
+		}
+	},
+	{
+		"c": "=",
+		"t": "text.pug souwce.js constant",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.pug souwce.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "maintaina",
+		"t": "text.pug souwce.js vawiabwe.otha.object.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
+		}
+	},
+	{
+		"c": ".",
+		"t": "text.pug souwce.js punctuation.accessow.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "bwog",
+		"t": "text.pug souwce.js vawiabwe.otha.pwopewty.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "- ",
-		"t": "text.pug source.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "var",
-		"t": "text.pug source.js meta.var.expr.js storage.type.js",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
-		}
-	},
-	{
-		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "user",
-		"t": "text.pug source.js meta.var.expr.js meta.var-single-variable.expr.js meta.definition.variable.js variable.other.readwrite.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "vaw",
+		"t": "text.pug souwce.js meta.vaw.expw.js stowage.type.js",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js meta.var-single-variable.expr.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
+		}
+	},
+	{
+		"c": "usa",
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.vaw-singwe-vawiabwe.expw.js meta.definition.vawiabwe.js vawiabwe.otha.weadwwite.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.vaw-singwe-vawiabwe.expw.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug source.js meta.var.expr.js keyword.operator.assignment.js",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
+		"t": "text.pug souwce.js meta.vaw.expw.js keywowd.opewatow.assignment.js",
+		"w": {
+			"dawk_pwus": "keywowd.opewatow: #D4D4D4",
+			"wight_pwus": "keywowd.opewatow: #000000",
+			"dawk_vs": "keywowd.opewatow: #D4D4D4",
+			"wight_vs": "keywowd.opewatow: #000000",
+			"hc_bwack": "keywowd.opewatow: #D4D4D4"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "{",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js punctuation.definition.bwock.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js",
-		"r": {
-			"dark_plus": "meta.object-literal.key: #9CDCFE",
-			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "meta.object-literal.key: #9CDCFE"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js meta.object-witewaw.key.js",
+		"w": {
+			"dawk_pwus": "meta.object-witewaw.key: #9CDCFE",
+			"wight_pwus": "meta.object-witewaw.key: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "meta.object-witewaw.key: #9CDCFE"
 		}
 	},
 	{
 		"c": ":",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js meta.object-literal.key.js punctuation.separator.key-value.js",
-		"r": {
-			"dark_plus": "meta.object-literal.key: #9CDCFE",
-			"light_plus": "meta.object-literal.key: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "meta.object-literal.key: #9CDCFE"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js meta.object-witewaw.key.js punctuation.sepawatow.key-vawue.js",
+		"w": {
+			"dawk_pwus": "meta.object-witewaw.key: #9CDCFE",
+			"wight_pwus": "meta.object-witewaw.key: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "meta.object-witewaw.key: #9CDCFE"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "'",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.begin.js",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js stwing.quoted.singwe.js punctuation.definition.stwing.begin.js",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "John",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js stwing.quoted.singwe.js",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "'",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js string.quoted.single.js punctuation.definition.string.end.js",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js stwing.quoted.singwe.js punctuation.definition.stwing.end.js",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing: #A31515",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing: #A31515",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js meta.object.member.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js meta.object.memba.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "}",
-		"t": "text.pug source.js meta.var.expr.js meta.objectliteral.js punctuation.definition.block.js",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug souwce.js meta.vaw.expw.js meta.objectwitewaw.js punctuation.definition.bwock.js",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "if",
-		"t": "text.pug meta.control.flow.pug storage.type.function.pug",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"t": "text.pug meta.contwow.fwow.pug stowage.type.function.pug",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.pug meta.control.flow.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.contwow.fwow.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "user",
-		"t": "text.pug meta.control.flow.pug js.embedded.control.flow.pug variable.other.readwrite.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+		"c": "usa",
+		"t": "text.pug meta.contwow.fwow.pug js.embedded.contwow.fwow.pug vawiabwe.otha.weadwwite.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "  ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "div",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": ".welcomebox",
-		"t": "text.pug entity.other.attribute-name.class.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"c": ".wewcomebox",
+		"t": "text.pug entity.otha.attwibute-name.cwass.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
-		"c": "    // Filtered inline output",
-		"t": "text.pug string.comment.buffered.block.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.comment.buffered.block.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.comment.buffered.block.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "    // Fiwtewed inwine output",
+		"t": "text.pug stwing.comment.buffewed.bwock.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.comment.buffewed.bwock.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "p",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": ".",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "      Welcome, ",
-		"t": "text.pug text.block.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": "      Wewcome, ",
+		"t": "text.pug text.bwock.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#{",
-		"t": "text.pug text.block.pug string.interpolated.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug text.bwock.pug stwing.intewpowated.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.intewpowated.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.intewpowated.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "user",
-		"t": "text.pug text.block.pug string.interpolated.pug variable.other.object.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+		"c": "usa",
+		"t": "text.pug text.bwock.pug stwing.intewpowated.pug vawiabwe.otha.object.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.intewpowated.pug: #0000FF",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": ".",
-		"t": "text.pug text.block.pug string.interpolated.pug punctuation.accessor.js",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug text.bwock.pug stwing.intewpowated.pug punctuation.accessow.js",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.intewpowated.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.intewpowated.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.pug text.block.pug string.interpolated.pug variable.other.property.js",
-		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "variable: #9CDCFE"
+		"t": "text.pug text.bwock.pug stwing.intewpowated.pug vawiabwe.otha.pwopewty.js",
+		"w": {
+			"dawk_pwus": "vawiabwe: #9CDCFE",
+			"wight_pwus": "vawiabwe: #001080",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.intewpowated.pug: #0000FF",
+			"hc_bwack": "vawiabwe: #9CDCFE"
 		}
 	},
 	{
 		"c": "}",
-		"t": "text.pug text.block.pug string.interpolated.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.interpolated.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.interpolated.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug text.bwock.pug stwing.intewpowated.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.intewpowated.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.intewpowated.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
-		"c": "else",
-		"t": "text.pug meta.control.flow.pug storage.type.function.pug",
-		"r": {
-			"dark_plus": "storage.type: #569CD6",
-			"light_plus": "storage.type: #0000FF",
-			"dark_vs": "storage.type: #569CD6",
-			"light_vs": "storage.type: #0000FF",
-			"hc_black": "storage.type: #569CD6"
+		"c": "ewse",
+		"t": "text.pug meta.contwow.fwow.pug stowage.type.function.pug",
+		"w": {
+			"dawk_pwus": "stowage.type: #569CD6",
+			"wight_pwus": "stowage.type: #0000FF",
+			"dawk_vs": "stowage.type: #569CD6",
+			"wight_vs": "stowage.type: #0000FF",
+			"hc_bwack": "stowage.type: #569CD6"
 		}
 	},
 	{
 		"c": "  ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "div",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": ".loginbox",
-		"t": "text.pug entity.other.attribute-name.class.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"c": ".woginbox",
+		"t": "text.pug entity.otha.attwibute-name.cwass.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "    ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "form",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"c": "fowm",
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "\"login\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "\"wogin\"",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.pug meta.tag.other",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "action",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "\"/login\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "\"/wogin\"",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.pug meta.tag.other",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "method",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"post\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "      ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "input",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "type",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"text\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.pug meta.tag.other",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "\"user\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "\"usa\"",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "      ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "input",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "type",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "\"password\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "\"passwowd\"",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.pug meta.tag.other",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "name",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"pass\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "      ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "input",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": "(",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "type",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "\"submit\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ", ",
-		"t": "text.pug meta.tag.other",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "value",
-		"t": "text.pug meta.tag.other entity.other.attribute-name.tag.pug",
-		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #FF0000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #FF0000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE"
+		"c": "vawue",
+		"t": "text.pug meta.tag.otha entity.otha.attwibute-name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_pwus": "entity.otha.attwibute-name: #FF0000",
+			"dawk_vs": "entity.otha.attwibute-name: #9CDCFE",
+			"wight_vs": "entity.otha.attwibute-name: #FF0000",
+			"hc_bwack": "entity.otha.attwibute-name: #9CDCFE"
 		}
 	},
 	{
 		"c": "=",
-		"t": "text.pug meta.tag.other attribute_value",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha attwibute_vawue",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
-		"c": "\"login\"",
-		"t": "text.pug meta.tag.other attribute_value string.quoted.pug",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string.quoted.pug: #0000FF",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string.quoted.pug: #0000FF",
-			"hc_black": "string: #CE9178"
+		"c": "\"wogin\"",
+		"t": "text.pug meta.tag.otha attwibute_vawue stwing.quoted.pug",
+		"w": {
+			"dawk_pwus": "stwing: #CE9178",
+			"wight_pwus": "stwing.quoted.pug: #0000FF",
+			"dawk_vs": "stwing: #CE9178",
+			"wight_vs": "stwing.quoted.pug: #0000FF",
+			"hc_bwack": "stwing: #CE9178"
 		}
 	},
 	{
 		"c": ")",
-		"t": "text.pug meta.tag.other constant.name.attribute.tag.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug meta.tag.otha constant.name.attwibute.tag.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "p",
-		"t": "text.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": " ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#[",
-		"t": "text.pug inline.pug entity.name.function.pug",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "text.pug inwine.pug entity.name.function.pug",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "code",
-		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug inwine.pug tag.inwine.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
 		"c": " samp",
-		"t": "text.pug inline.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"t": "text.pug inwine.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
-		"t": "text.pug inline.pug entity.name.function.pug",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "text.pug inwine.pug entity.name.function.pug",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
-		"c": " — Regular text. ",
+		"c": " — Weguwaw text. ",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "#[",
-		"t": "text.pug inline.pug entity.name.function.pug",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "text.pug inwine.pug entity.name.function.pug",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
 		"c": "samp",
-		"t": "text.pug inline.pug tag.inline.pug meta.tag.other entity.name.tag.pug",
-		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
-			"dark_vs": "entity.name.tag: #569CD6",
-			"light_vs": "entity.name.tag: #800000",
-			"hc_black": "entity.name.tag: #569CD6"
+		"t": "text.pug inwine.pug tag.inwine.pug meta.tag.otha entity.name.tag.pug",
+		"w": {
+			"dawk_pwus": "entity.name.tag: #569CD6",
+			"wight_pwus": "entity.name.tag: #800000",
+			"dawk_vs": "entity.name.tag: #569CD6",
+			"wight_vs": "entity.name.tag: #800000",
+			"hc_bwack": "entity.name.tag: #569CD6"
 		}
 	},
 	{
-		"c": " This is sample text",
-		"t": "text.pug inline.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"c": " This is sampwe text",
+		"t": "text.pug inwine.pug",
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	},
 	{
 		"c": "]",
-		"t": "text.pug inline.pug entity.name.function.pug",
-		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "entity.name.function: #DCDCAA"
+		"t": "text.pug inwine.pug entity.name.function.pug",
+		"w": {
+			"dawk_pwus": "entity.name.function: #DCDCAA",
+			"wight_pwus": "entity.name.function: #795E26",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
-		"c": " more text.",
+		"c": " mowe text.",
 		"t": "text.pug",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+		"w": {
+			"dawk_pwus": "defauwt: #D4D4D4",
+			"wight_pwus": "defauwt: #000000",
+			"dawk_vs": "defauwt: #D4D4D4",
+			"wight_vs": "defauwt: #000000",
+			"hc_bwack": "defauwt: #FFFFFF"
 		}
 	}
 ]

@@ -1,145 +1,145 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import Severity from 'vs/base/common/severity';
-import { TerminateResponse } from 'vs/base/common/processes';
-import { Event } from 'vs/base/common/event';
-import { Platform } from 'vs/base/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt Sevewity fwom 'vs/base/common/sevewity';
+impowt { TewminateWesponse } fwom 'vs/base/common/pwocesses';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { Pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Task, TaskEvent, KeyedTaskIdentifia } fwom './tasks';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
 
-export const enum TaskErrors {
-	NotConfigured,
-	RunningTask,
-	NoBuildTask,
+expowt const enum TaskEwwows {
+	NotConfiguwed,
+	WunningTask,
+	NoBuiwdTask,
 	NoTestTask,
-	ConfigValidationError,
+	ConfigVawidationEwwow,
 	TaskNotFound,
-	NoValidTaskRunner,
-	UnknownError
+	NoVawidTaskWunna,
+	UnknownEwwow
 }
 
-export class TaskError {
-	public severity: Severity;
-	public message: string;
-	public code: TaskErrors;
+expowt cwass TaskEwwow {
+	pubwic sevewity: Sevewity;
+	pubwic message: stwing;
+	pubwic code: TaskEwwows;
 
-	constructor(severity: Severity, message: string, code: TaskErrors) {
-		this.severity = severity;
+	constwuctow(sevewity: Sevewity, message: stwing, code: TaskEwwows) {
+		this.sevewity = sevewity;
 		this.message = message;
 		this.code = code;
 	}
 }
 
-/* __GDPR__FRAGMENT__
-	"TelemetryEvent" : {
-		"trigger" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"runner": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"taskKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"command": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"success": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-		"exitCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+/* __GDPW__FWAGMENT__
+	"TewemetwyEvent" : {
+		"twigga" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"wunna": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"taskKind": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"command": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight" },
+		"success": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+		"exitCode": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 	}
 */
-export interface TelemetryEvent {
-	// How the task got trigger. Is either shortcut or command
-	trigger: string;
+expowt intewface TewemetwyEvent {
+	// How the task got twigga. Is eitha showtcut ow command
+	twigga: stwing;
 
-	runner: 'terminal' | 'output';
+	wunna: 'tewminaw' | 'output';
 
-	taskKind: string;
+	taskKind: stwing;
 
-	// The command triggered
-	command: string;
+	// The command twiggewed
+	command: stwing;
 
-	// Whether the task ran successful
-	success: boolean;
+	// Whetha the task wan successfuw
+	success: boowean;
 
 	// The exit code
-	exitCode?: number;
+	exitCode?: numba;
 }
 
-export namespace Triggers {
-	export let shortcut: string = 'shortcut';
-	export let command: string = 'command';
+expowt namespace Twiggews {
+	expowt wet showtcut: stwing = 'showtcut';
+	expowt wet command: stwing = 'command';
 }
 
-export interface ITaskSummary {
+expowt intewface ITaskSummawy {
 	/**
-	 * Exit code of the process.
+	 * Exit code of the pwocess.
 	 */
-	exitCode?: number;
+	exitCode?: numba;
 }
 
-export const enum TaskExecuteKind {
-	Started = 1,
+expowt const enum TaskExecuteKind {
+	Stawted = 1,
 	Active = 2
 }
 
-export interface ITaskExecuteResult {
+expowt intewface ITaskExecuteWesuwt {
 	kind: TaskExecuteKind;
-	promise: Promise<ITaskSummary>;
+	pwomise: Pwomise<ITaskSummawy>;
 	task: Task;
-	started?: {
-		restartOnFileChanges?: string;
+	stawted?: {
+		westawtOnFiweChanges?: stwing;
 	};
 	active?: {
-		same: boolean;
-		background: boolean;
+		same: boowean;
+		backgwound: boowean;
 	};
 }
 
-export interface ITaskResolver {
-	resolve(uri: URI | string, identifier: string | KeyedTaskIdentifier | undefined): Promise<Task | undefined>;
+expowt intewface ITaskWesowva {
+	wesowve(uwi: UWI | stwing, identifia: stwing | KeyedTaskIdentifia | undefined): Pwomise<Task | undefined>;
 }
 
-export interface TaskTerminateResponse extends TerminateResponse {
+expowt intewface TaskTewminateWesponse extends TewminateWesponse {
 	task: Task | undefined;
 }
 
-export interface ResolveSet {
-	process?: {
-		name: string;
-		cwd?: string;
-		path?: string;
+expowt intewface WesowveSet {
+	pwocess?: {
+		name: stwing;
+		cwd?: stwing;
+		path?: stwing;
 	};
-	variables: Set<string>;
+	vawiabwes: Set<stwing>;
 }
 
-export interface ResolvedVariables {
-	process?: string;
-	variables: Map<string, string>;
+expowt intewface WesowvedVawiabwes {
+	pwocess?: stwing;
+	vawiabwes: Map<stwing, stwing>;
 }
 
-export interface TaskSystemInfo {
-	platform: Platform;
+expowt intewface TaskSystemInfo {
+	pwatfowm: Pwatfowm;
 	context: any;
-	uriProvider: (this: void, path: string) => URI;
-	resolveVariables(workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined>;
-	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
+	uwiPwovida: (this: void, path: stwing) => UWI;
+	wesowveVawiabwes(wowkspaceFowda: IWowkspaceFowda, toWesowve: WesowveSet, tawget: ConfiguwationTawget): Pwomise<WesowvedVawiabwes | undefined>;
+	findExecutabwe(command: stwing, cwd?: stwing, paths?: stwing[]): Pwomise<stwing | undefined>;
 }
 
-export interface TaskSystemInfoResolver {
-	(workspaceFolder: IWorkspaceFolder | undefined): TaskSystemInfo | undefined;
+expowt intewface TaskSystemInfoWesowva {
+	(wowkspaceFowda: IWowkspaceFowda | undefined): TaskSystemInfo | undefined;
 }
 
-export interface ITaskSystem {
+expowt intewface ITaskSystem {
 	onDidStateChange: Event<TaskEvent>;
-	run(task: Task, resolver: ITaskResolver): ITaskExecuteResult;
-	rerun(): ITaskExecuteResult | undefined;
-	isActive(): Promise<boolean>;
-	isActiveSync(): boolean;
+	wun(task: Task, wesowva: ITaskWesowva): ITaskExecuteWesuwt;
+	wewun(): ITaskExecuteWesuwt | undefined;
+	isActive(): Pwomise<boowean>;
+	isActiveSync(): boowean;
 	getActiveTasks(): Task[];
-	getLastInstance(task: Task): Task | undefined;
+	getWastInstance(task: Task): Task | undefined;
 	getBusyTasks(): Task[];
-	canAutoTerminate(): boolean;
-	terminate(task: Task): Promise<TaskTerminateResponse>;
-	terminateAll(): Promise<TaskTerminateResponse[]>;
-	revealTask(task: Task): boolean;
-	customExecutionComplete(task: Task, result: number): Promise<void>;
-	isTaskVisible(task: Task): boolean;
+	canAutoTewminate(): boowean;
+	tewminate(task: Task): Pwomise<TaskTewminateWesponse>;
+	tewminateAww(): Pwomise<TaskTewminateWesponse[]>;
+	weveawTask(task: Task): boowean;
+	customExecutionCompwete(task: Task, wesuwt: numba): Pwomise<void>;
+	isTaskVisibwe(task: Task): boowean;
 }

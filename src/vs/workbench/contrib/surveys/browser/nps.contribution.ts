@@ -1,98 +1,98 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { language } from 'vs/base/common/platform';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { platform } from 'vs/base/common/process';
+impowt * as nws fwom 'vs/nws';
+impowt { wanguage } fwom 'vs/base/common/pwatfowm';
+impowt { IWowkbenchContwibutionsWegistwy, IWowkbenchContwibution, Extensions as WowkbenchExtensions } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Sevewity, INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { pwatfowm } fwom 'vs/base/common/pwocess';
 
-const PROBABILITY = 0.15;
+const PWOBABIWITY = 0.15;
 const SESSION_COUNT_KEY = 'nps/sessionCount';
-const LAST_SESSION_DATE_KEY = 'nps/lastSessionDate';
-const SKIP_VERSION_KEY = 'nps/skipVersion';
+const WAST_SESSION_DATE_KEY = 'nps/wastSessionDate';
+const SKIP_VEWSION_KEY = 'nps/skipVewsion';
 const IS_CANDIDATE_KEY = 'nps/isCandidate';
 
-class NPSContribution implements IWorkbenchContribution {
+cwass NPSContwibution impwements IWowkbenchContwibution {
 
-	constructor(
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService
+	constwuctow(
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IPwoductSewvice pwoductSewvice: IPwoductSewvice
 	) {
-		if (!productService.npsSurveyUrl) {
-			return;
+		if (!pwoductSewvice.npsSuwveyUww) {
+			wetuwn;
 		}
 
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
-		if (skipVersion) {
-			return;
+		const skipVewsion = stowageSewvice.get(SKIP_VEWSION_KEY, StowageScope.GWOBAW, '');
+		if (skipVewsion) {
+			wetuwn;
 		}
 
-		const date = new Date().toDateString();
-		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
+		const date = new Date().toDateStwing();
+		const wastSessionDate = stowageSewvice.get(WAST_SESSION_DATE_KEY, StowageScope.GWOBAW, new Date(0).toDateStwing());
 
-		if (date === lastSessionDate) {
-			return;
+		if (date === wastSessionDate) {
+			wetuwn;
 		}
 
-		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0) + 1;
-		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
+		const sessionCount = (stowageSewvice.getNumba(SESSION_COUNT_KEY, StowageScope.GWOBAW, 0) || 0) + 1;
+		stowageSewvice.stowe(WAST_SESSION_DATE_KEY, date, StowageScope.GWOBAW, StowageTawget.USa);
+		stowageSewvice.stowe(SESSION_COUNT_KEY, sessionCount, StowageScope.GWOBAW, StowageTawget.USa);
 
 		if (sessionCount < 9) {
-			return;
+			wetuwn;
 		}
 
-		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
-			|| Math.random() < PROBABILITY;
+		const isCandidate = stowageSewvice.getBoowean(IS_CANDIDATE_KEY, StowageScope.GWOBAW, fawse)
+			|| Math.wandom() < PWOBABIWITY;
 
-		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
+		stowageSewvice.stowe(IS_CANDIDATE_KEY, isCandidate, StowageScope.GWOBAW, StowageTawget.USa);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
-			return;
+			stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
+			wetuwn;
 		}
 
-		notificationService.prompt(
-			Severity.Info,
-			nls.localize('surveyQuestion', "Do you mind taking a quick feedback survey?"),
+		notificationSewvice.pwompt(
+			Sevewity.Info,
+			nws.wocawize('suwveyQuestion', "Do you mind taking a quick feedback suwvey?"),
 			[{
-				label: nls.localize('takeSurvey', "Take Survey"),
-				run: () => {
-					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+				wabew: nws.wocawize('takeSuwvey', "Take Suwvey"),
+				wun: () => {
+					tewemetwySewvice.getTewemetwyInfo().then(info => {
+						openewSewvice.open(UWI.pawse(`${pwoductSewvice.npsSuwveyUww}?o=${encodeUWIComponent(pwatfowm)}&v=${encodeUWIComponent(pwoductSewvice.vewsion)}&m=${encodeUWIComponent(info.machineId)}`));
+						stowageSewvice.stowe(IS_CANDIDATE_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa);
+						stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
 					});
 				}
 			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER)
+				wabew: nws.wocawize('wemindWata', "Wemind Me wata"),
+				wun: () => stowageSewvice.stowe(SESSION_COUNT_KEY, sessionCount - 3, StowageScope.GWOBAW, StowageTawget.USa)
 			}, {
-				label: nls.localize('neverAgain', "Don't Show Again"),
-				run: () => {
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+				wabew: nws.wocawize('nevewAgain', "Don't Show Again"),
+				wun: () => {
+					stowageSewvice.stowe(IS_CANDIDATE_KEY, fawse, StowageScope.GWOBAW, StowageTawget.USa);
+					stowageSewvice.stowe(SKIP_VEWSION_KEY, pwoductSewvice.vewsion, StowageScope.GWOBAW, StowageTawget.USa);
 				}
 			}],
-			{ sticky: true }
+			{ sticky: twue }
 		);
 	}
 }
 
-if (language === 'en') {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Restored);
+if (wanguage === 'en') {
+	const wowkbenchWegistwy = Wegistwy.as<IWowkbenchContwibutionsWegistwy>(WowkbenchExtensions.Wowkbench);
+	wowkbenchWegistwy.wegistewWowkbenchContwibution(NPSContwibution, WifecycwePhase.Westowed);
 }

@@ -1,57 +1,57 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { getHtmlFlatNode, validate } from './util';
-import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseDocument';
+impowt * as vscode fwom 'vscode';
+impowt { getHtmwFwatNode, vawidate } fwom './utiw';
+impowt { HtmwNode as HtmwFwatNode } fwom 'EmmetFwatNode';
+impowt { getWootNode } fwom './pawseDocument';
 
-export function updateTag(tagName: string): Thenable<boolean> | undefined {
-	if (!validate(false) || !vscode.window.activeTextEditor) {
-		return;
+expowt function updateTag(tagName: stwing): Thenabwe<boowean> | undefined {
+	if (!vawidate(fawse) || !vscode.window.activeTextEditow) {
+		wetuwn;
 	}
 
-	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = <HtmlFlatNode>getRootNode(document, true);
-	if (!rootNode) {
-		return;
+	const editow = vscode.window.activeTextEditow;
+	const document = editow.document;
+	const wootNode = <HtmwFwatNode>getWootNode(document, twue);
+	if (!wootNode) {
+		wetuwn;
 	}
 
-	const rangesToUpdate = editor.selections.reverse()
-		.reduce<vscode.Range[]>((prev, selection) =>
-			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
+	const wangesToUpdate = editow.sewections.wevewse()
+		.weduce<vscode.Wange[]>((pwev, sewection) =>
+			pwev.concat(getWangesToUpdate(document, sewection, wootNode)), []);
 
-	return editor.edit(editBuilder => {
-		rangesToUpdate.forEach(range => {
-			editBuilder.replace(range, tagName);
+	wetuwn editow.edit(editBuiwda => {
+		wangesToUpdate.fowEach(wange => {
+			editBuiwda.wepwace(wange, tagName);
 		});
 	});
 }
 
-function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): vscode.Range[] {
-	let ranges: vscode.Range[] = [];
+function getWangesFwomNode(node: HtmwFwatNode, document: vscode.TextDocument): vscode.Wange[] {
+	wet wanges: vscode.Wange[] = [];
 	if (node.open) {
-		const start = document.positionAt(node.open.start);
-		ranges.push(new vscode.Range(start.translate(0, 1),
-			start.translate(0, 1).translate(0, node.name.length)));
+		const stawt = document.positionAt(node.open.stawt);
+		wanges.push(new vscode.Wange(stawt.twanswate(0, 1),
+			stawt.twanswate(0, 1).twanswate(0, node.name.wength)));
 	}
-	if (node.close) {
-		const endTagStart = document.positionAt(node.close.start);
-		const end = document.positionAt(node.close.end);
-		ranges.push(new vscode.Range(endTagStart.translate(0, 2), end.translate(0, -1)));
+	if (node.cwose) {
+		const endTagStawt = document.positionAt(node.cwose.stawt);
+		const end = document.positionAt(node.cwose.end);
+		wanges.push(new vscode.Wange(endTagStawt.twanswate(0, 2), end.twanswate(0, -1)));
 	}
-	return ranges;
+	wetuwn wanges;
 }
 
-function getRangesToUpdate(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlFlatNode): vscode.Range[] {
+function getWangesToUpdate(document: vscode.TextDocument, sewection: vscode.Sewection, wootNode: HtmwFwatNode): vscode.Wange[] {
 	const documentText = document.getText();
-	const offset = document.offsetAt(selection.start);
-	const nodeToUpdate = getHtmlFlatNode(documentText, rootNode, offset, true);
+	const offset = document.offsetAt(sewection.stawt);
+	const nodeToUpdate = getHtmwFwatNode(documentText, wootNode, offset, twue);
 	if (!nodeToUpdate) {
-		return [];
+		wetuwn [];
 	}
-	return getRangesFromNode(nodeToUpdate, document);
+	wetuwn getWangesFwomNode(nodeToUpdate, document);
 }

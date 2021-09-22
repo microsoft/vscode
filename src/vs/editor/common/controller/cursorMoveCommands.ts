@@ -1,629 +1,629 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as types from 'vs/base/common/types';
-import { CursorState, ICursorSimpleModel, PartialCursorState, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
-import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+impowt * as types fwom 'vs/base/common/types';
+impowt { CuwsowState, ICuwsowSimpweModew, PawtiawCuwsowState, SingweCuwsowState } fwom 'vs/editow/common/contwowwa/cuwsowCommon';
+impowt { MoveOpewations } fwom 'vs/editow/common/contwowwa/cuwsowMoveOpewations';
+impowt { WowdOpewations } fwom 'vs/editow/common/contwowwa/cuwsowWowdOpewations';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IViewModew } fwom 'vs/editow/common/viewModew/viewModew';
 
-export class CursorMoveCommands {
+expowt cwass CuwsowMoveCommands {
 
-	public static addCursorDown(viewModel: IViewModel, cursors: CursorState[], useLogicalLine: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [], resultLen = 0;
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-			if (useLogicalLine) {
-				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateDown(viewModel.cursorConfig, viewModel.model, cursor.modelState));
-			} else {
-				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateDown(viewModel.cursorConfig, viewModel, cursor.viewState));
+	pubwic static addCuwsowDown(viewModew: IViewModew, cuwsows: CuwsowState[], useWogicawWine: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [], wesuwtWen = 0;
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[wesuwtWen++] = new CuwsowState(cuwsow.modewState, cuwsow.viewState);
+			if (useWogicawWine) {
+				wesuwt[wesuwtWen++] = CuwsowState.fwomModewState(MoveOpewations.twanswateDown(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState));
+			} ewse {
+				wesuwt[wesuwtWen++] = CuwsowState.fwomViewState(MoveOpewations.twanswateDown(viewModew.cuwsowConfig, viewModew, cuwsow.viewState));
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static addCursorUp(viewModel: IViewModel, cursors: CursorState[], useLogicalLine: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [], resultLen = 0;
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-			if (useLogicalLine) {
-				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateUp(viewModel.cursorConfig, viewModel.model, cursor.modelState));
-			} else {
-				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateUp(viewModel.cursorConfig, viewModel, cursor.viewState));
+	pubwic static addCuwsowUp(viewModew: IViewModew, cuwsows: CuwsowState[], useWogicawWine: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [], wesuwtWen = 0;
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[wesuwtWen++] = new CuwsowState(cuwsow.modewState, cuwsow.viewState);
+			if (useWogicawWine) {
+				wesuwt[wesuwtWen++] = CuwsowState.fwomModewState(MoveOpewations.twanswateUp(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState));
+			} ewse {
+				wesuwt[wesuwtWen++] = CuwsowState.fwomViewState(MoveOpewations.twanswateUp(viewModew.cuwsowConfig, viewModew, cuwsow.viewState));
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static moveToBeginningOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = this._moveToLineStart(viewModel, cursor, inSelectionMode);
+	pubwic static moveToBeginningOfWine(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = this._moveToWineStawt(viewModew, cuwsow, inSewectionMode);
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToLineStart(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
-		const currentViewStateColumn = cursor.viewState.position.column;
-		const currentModelStateColumn = cursor.modelState.position.column;
-		const isFirstLineOfWrappedLine = currentViewStateColumn === currentModelStateColumn;
+	pwivate static _moveToWineStawt(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean): PawtiawCuwsowState {
+		const cuwwentViewStateCowumn = cuwsow.viewState.position.cowumn;
+		const cuwwentModewStateCowumn = cuwsow.modewState.position.cowumn;
+		const isFiwstWineOfWwappedWine = cuwwentViewStateCowumn === cuwwentModewStateCowumn;
 
-		const currentViewStatelineNumber = cursor.viewState.position.lineNumber;
-		const firstNonBlankColumn = viewModel.getLineFirstNonWhitespaceColumn(currentViewStatelineNumber);
-		const isBeginningOfViewLine = currentViewStateColumn === firstNonBlankColumn;
+		const cuwwentViewStatewineNumba = cuwsow.viewState.position.wineNumba;
+		const fiwstNonBwankCowumn = viewModew.getWineFiwstNonWhitespaceCowumn(cuwwentViewStatewineNumba);
+		const isBeginningOfViewWine = cuwwentViewStateCowumn === fiwstNonBwankCowumn;
 
-		if (!isFirstLineOfWrappedLine && !isBeginningOfViewLine) {
-			return this._moveToLineStartByView(viewModel, cursor, inSelectionMode);
-		} else {
-			return this._moveToLineStartByModel(viewModel, cursor, inSelectionMode);
-		}
-	}
-
-	private static _moveToLineStartByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
-		return CursorState.fromViewState(
-			MoveOperations.moveToBeginningOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)
-		);
-	}
-
-	private static _moveToLineStartByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
-		return CursorState.fromModelState(
-			MoveOperations.moveToBeginningOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)
-		);
-	}
-
-	public static moveToEndOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, sticky: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = this._moveToLineEnd(viewModel, cursor, inSelectionMode, sticky);
-		}
-
-		return result;
-	}
-
-	private static _moveToLineEnd(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
-		const viewStatePosition = cursor.viewState.position;
-		const viewModelMaxColumn = viewModel.getLineMaxColumn(viewStatePosition.lineNumber);
-		const isEndOfViewLine = viewStatePosition.column === viewModelMaxColumn;
-
-		const modelStatePosition = cursor.modelState.position;
-		const modelMaxColumn = viewModel.model.getLineMaxColumn(modelStatePosition.lineNumber);
-		const isEndLineOfWrappedLine = viewModelMaxColumn - viewStatePosition.column === modelMaxColumn - modelStatePosition.column;
-
-		if (isEndOfViewLine || isEndLineOfWrappedLine) {
-			return this._moveToLineEndByModel(viewModel, cursor, inSelectionMode, sticky);
-		} else {
-			return this._moveToLineEndByView(viewModel, cursor, inSelectionMode, sticky);
+		if (!isFiwstWineOfWwappedWine && !isBeginningOfViewWine) {
+			wetuwn this._moveToWineStawtByView(viewModew, cuwsow, inSewectionMode);
+		} ewse {
+			wetuwn this._moveToWineStawtByModew(viewModew, cuwsow, inSewectionMode);
 		}
 	}
 
-	private static _moveToLineEndByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
-		return CursorState.fromViewState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, sticky)
+	pwivate static _moveToWineStawtByView(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomViewState(
+			MoveOpewations.moveToBeginningOfWine(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode)
 		);
 	}
 
-	private static _moveToLineEndByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
-		return CursorState.fromModelState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, sticky)
+	pwivate static _moveToWineStawtByModew(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomModewState(
+			MoveOpewations.moveToBeginningOfWine(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode)
 		);
 	}
 
-	public static expandLineSelection(viewModel: IViewModel, cursors: CursorState[]): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
+	pubwic static moveToEndOfWine(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, sticky: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = this._moveToWineEnd(viewModew, cuwsow, inSewectionMode, sticky);
+		}
 
-			const startLineNumber = cursor.modelState.selection.startLineNumber;
-			const lineCount = viewModel.model.getLineCount();
+		wetuwn wesuwt;
+	}
 
-			let endLineNumber = cursor.modelState.selection.endLineNumber;
-			let endColumn: number;
-			if (endLineNumber === lineCount) {
-				endColumn = viewModel.model.getLineMaxColumn(lineCount);
-			} else {
-				endLineNumber++;
-				endColumn = 1;
+	pwivate static _moveToWineEnd(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, sticky: boowean): PawtiawCuwsowState {
+		const viewStatePosition = cuwsow.viewState.position;
+		const viewModewMaxCowumn = viewModew.getWineMaxCowumn(viewStatePosition.wineNumba);
+		const isEndOfViewWine = viewStatePosition.cowumn === viewModewMaxCowumn;
+
+		const modewStatePosition = cuwsow.modewState.position;
+		const modewMaxCowumn = viewModew.modew.getWineMaxCowumn(modewStatePosition.wineNumba);
+		const isEndWineOfWwappedWine = viewModewMaxCowumn - viewStatePosition.cowumn === modewMaxCowumn - modewStatePosition.cowumn;
+
+		if (isEndOfViewWine || isEndWineOfWwappedWine) {
+			wetuwn this._moveToWineEndByModew(viewModew, cuwsow, inSewectionMode, sticky);
+		} ewse {
+			wetuwn this._moveToWineEndByView(viewModew, cuwsow, inSewectionMode, sticky);
+		}
+	}
+
+	pwivate static _moveToWineEndByView(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, sticky: boowean): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomViewState(
+			MoveOpewations.moveToEndOfWine(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, sticky)
+		);
+	}
+
+	pwivate static _moveToWineEndByModew(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, sticky: boowean): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomModewState(
+			MoveOpewations.moveToEndOfWine(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode, sticky)
+		);
+	}
+
+	pubwic static expandWineSewection(viewModew: IViewModew, cuwsows: CuwsowState[]): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+
+			const stawtWineNumba = cuwsow.modewState.sewection.stawtWineNumba;
+			const wineCount = viewModew.modew.getWineCount();
+
+			wet endWineNumba = cuwsow.modewState.sewection.endWineNumba;
+			wet endCowumn: numba;
+			if (endWineNumba === wineCount) {
+				endCowumn = viewModew.modew.getWineMaxCowumn(wineCount);
+			} ewse {
+				endWineNumba++;
+				endCowumn = 1;
 			}
 
-			result[i] = CursorState.fromModelState(new SingleCursorState(
-				new Range(startLineNumber, 1, startLineNumber, 1), 0,
-				new Position(endLineNumber, endColumn), 0
+			wesuwt[i] = CuwsowState.fwomModewState(new SingweCuwsowState(
+				new Wange(stawtWineNumba, 1, stawtWineNumba, 1), 0,
+				new Position(endWineNumba, endCowumn), 0
 			));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static moveToBeginningOfBuffer(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromModelState(MoveOperations.moveToBeginningOfBuffer(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode));
+	pubwic static moveToBeginningOfBuffa(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomModewState(MoveOpewations.moveToBeginningOfBuffa(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static moveToEndOfBuffer(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromModelState(MoveOperations.moveToEndOfBuffer(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode));
+	pubwic static moveToEndOfBuffa(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomModewState(MoveOpewations.moveToEndOfBuffa(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public static selectAll(viewModel: IViewModel, cursor: CursorState): PartialCursorState {
-		const lineCount = viewModel.model.getLineCount();
-		const maxColumn = viewModel.model.getLineMaxColumn(lineCount);
+	pubwic static sewectAww(viewModew: IViewModew, cuwsow: CuwsowState): PawtiawCuwsowState {
+		const wineCount = viewModew.modew.getWineCount();
+		const maxCowumn = viewModew.modew.getWineMaxCowumn(wineCount);
 
-		return CursorState.fromModelState(new SingleCursorState(
-			new Range(1, 1, 1, 1), 0,
-			new Position(lineCount, maxColumn), 0
+		wetuwn CuwsowState.fwomModewState(new SingweCuwsowState(
+			new Wange(1, 1, 1, 1), 0,
+			new Position(wineCount, maxCowumn), 0
 		));
 	}
 
-	public static line(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
-		const position = viewModel.model.validatePosition(_position);
+	pubwic static wine(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, _position: IPosition, _viewPosition: IPosition): PawtiawCuwsowState {
+		const position = viewModew.modew.vawidatePosition(_position);
 		const viewPosition = (
 			_viewPosition
-				? viewModel.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
-				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
+				? viewModew.coowdinatesConvewta.vawidateViewPosition(new Position(_viewPosition.wineNumba, _viewPosition.cowumn), position)
+				: viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(position)
 		);
 
-		if (!inSelectionMode || !cursor.modelState.hasSelection()) {
-			// Entering line selection for the first time
-			const lineCount = viewModel.model.getLineCount();
+		if (!inSewectionMode || !cuwsow.modewState.hasSewection()) {
+			// Entewing wine sewection fow the fiwst time
+			const wineCount = viewModew.modew.getWineCount();
 
-			let selectToLineNumber = position.lineNumber + 1;
-			let selectToColumn = 1;
-			if (selectToLineNumber > lineCount) {
-				selectToLineNumber = lineCount;
-				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
+			wet sewectToWineNumba = position.wineNumba + 1;
+			wet sewectToCowumn = 1;
+			if (sewectToWineNumba > wineCount) {
+				sewectToWineNumba = wineCount;
+				sewectToCowumn = viewModew.modew.getWineMaxCowumn(sewectToWineNumba);
 			}
 
-			return CursorState.fromModelState(new SingleCursorState(
-				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), 0,
-				new Position(selectToLineNumber, selectToColumn), 0
+			wetuwn CuwsowState.fwomModewState(new SingweCuwsowState(
+				new Wange(position.wineNumba, 1, sewectToWineNumba, sewectToCowumn), 0,
+				new Position(sewectToWineNumba, sewectToCowumn), 0
 			));
 		}
 
-		// Continuing line selection
-		const enteringLineNumber = cursor.modelState.selectionStart.getStartPosition().lineNumber;
+		// Continuing wine sewection
+		const entewingWineNumba = cuwsow.modewState.sewectionStawt.getStawtPosition().wineNumba;
 
-		if (position.lineNumber < enteringLineNumber) {
+		if (position.wineNumba < entewingWineNumba) {
 
-			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), viewPosition.lineNumber, 1, 0
+			wetuwn CuwsowState.fwomViewState(cuwsow.viewState.move(
+				cuwsow.modewState.hasSewection(), viewPosition.wineNumba, 1, 0
 			));
 
-		} else if (position.lineNumber > enteringLineNumber) {
+		} ewse if (position.wineNumba > entewingWineNumba) {
 
-			const lineCount = viewModel.getLineCount();
+			const wineCount = viewModew.getWineCount();
 
-			let selectToViewLineNumber = viewPosition.lineNumber + 1;
-			let selectToViewColumn = 1;
-			if (selectToViewLineNumber > lineCount) {
-				selectToViewLineNumber = lineCount;
-				selectToViewColumn = viewModel.getLineMaxColumn(selectToViewLineNumber);
+			wet sewectToViewWineNumba = viewPosition.wineNumba + 1;
+			wet sewectToViewCowumn = 1;
+			if (sewectToViewWineNumba > wineCount) {
+				sewectToViewWineNumba = wineCount;
+				sewectToViewCowumn = viewModew.getWineMaxCowumn(sewectToViewWineNumba);
 			}
 
-			return CursorState.fromViewState(cursor.viewState.move(
-				cursor.modelState.hasSelection(), selectToViewLineNumber, selectToViewColumn, 0
+			wetuwn CuwsowState.fwomViewState(cuwsow.viewState.move(
+				cuwsow.modewState.hasSewection(), sewectToViewWineNumba, sewectToViewCowumn, 0
 			));
 
-		} else {
+		} ewse {
 
-			const endPositionOfSelectionStart = cursor.modelState.selectionStart.getEndPosition();
-			return CursorState.fromModelState(cursor.modelState.move(
-				cursor.modelState.hasSelection(), endPositionOfSelectionStart.lineNumber, endPositionOfSelectionStart.column, 0
+			const endPositionOfSewectionStawt = cuwsow.modewState.sewectionStawt.getEndPosition();
+			wetuwn CuwsowState.fwomModewState(cuwsow.modewState.move(
+				cuwsow.modewState.hasSewection(), endPositionOfSewectionStawt.wineNumba, endPositionOfSewectionStawt.cowumn, 0
 			));
 
 		}
 	}
 
-	public static word(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition): PartialCursorState {
-		const position = viewModel.model.validatePosition(_position);
-		return CursorState.fromModelState(WordOperations.word(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, position));
+	pubwic static wowd(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, _position: IPosition): PawtiawCuwsowState {
+		const position = viewModew.modew.vawidatePosition(_position);
+		wetuwn CuwsowState.fwomModewState(WowdOpewations.wowd(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode, position));
 	}
 
-	public static cancelSelection(viewModel: IViewModel, cursor: CursorState): PartialCursorState {
-		if (!cursor.modelState.hasSelection()) {
-			return new CursorState(cursor.modelState, cursor.viewState);
+	pubwic static cancewSewection(viewModew: IViewModew, cuwsow: CuwsowState): PawtiawCuwsowState {
+		if (!cuwsow.modewState.hasSewection()) {
+			wetuwn new CuwsowState(cuwsow.modewState, cuwsow.viewState);
 		}
 
-		const lineNumber = cursor.viewState.position.lineNumber;
-		const column = cursor.viewState.position.column;
+		const wineNumba = cuwsow.viewState.position.wineNumba;
+		const cowumn = cuwsow.viewState.position.cowumn;
 
-		return CursorState.fromViewState(new SingleCursorState(
-			new Range(lineNumber, column, lineNumber, column), 0,
-			new Position(lineNumber, column), 0
+		wetuwn CuwsowState.fwomViewState(new SingweCuwsowState(
+			new Wange(wineNumba, cowumn, wineNumba, cowumn), 0,
+			new Position(wineNumba, cowumn), 0
 		));
 	}
 
-	public static moveTo(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): PartialCursorState {
-		const position = viewModel.model.validatePosition(_position);
+	pubwic static moveTo(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, _position: IPosition, _viewPosition: IPosition): PawtiawCuwsowState {
+		const position = viewModew.modew.vawidatePosition(_position);
 		const viewPosition = (
 			_viewPosition
-				? viewModel.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
-				: viewModel.coordinatesConverter.convertModelPositionToViewPosition(position)
+				? viewModew.coowdinatesConvewta.vawidateViewPosition(new Position(_viewPosition.wineNumba, _viewPosition.cowumn), position)
+				: viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(position)
 		);
-		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
+		wetuwn CuwsowState.fwomViewState(cuwsow.viewState.move(inSewectionMode, viewPosition.wineNumba, viewPosition.cowumn, 0));
 	}
 
-	public static simpleMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.SimpleMoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit): PartialCursorState[] | null {
-		switch (direction) {
-			case CursorMove.Direction.Left: {
-				if (unit === CursorMove.Unit.HalfLine) {
-					// Move left by half the current line length
-					return this._moveHalfLineLeft(viewModel, cursors, inSelectionMode);
-				} else {
-					// Move left by `moveParams.value` columns
-					return this._moveLeft(viewModel, cursors, inSelectionMode, value);
+	pubwic static simpweMove(viewModew: IViewModew, cuwsows: CuwsowState[], diwection: CuwsowMove.SimpweMoveDiwection, inSewectionMode: boowean, vawue: numba, unit: CuwsowMove.Unit): PawtiawCuwsowState[] | nuww {
+		switch (diwection) {
+			case CuwsowMove.Diwection.Weft: {
+				if (unit === CuwsowMove.Unit.HawfWine) {
+					// Move weft by hawf the cuwwent wine wength
+					wetuwn this._moveHawfWineWeft(viewModew, cuwsows, inSewectionMode);
+				} ewse {
+					// Move weft by `movePawams.vawue` cowumns
+					wetuwn this._moveWeft(viewModew, cuwsows, inSewectionMode, vawue);
 				}
 			}
-			case CursorMove.Direction.Right: {
-				if (unit === CursorMove.Unit.HalfLine) {
-					// Move right by half the current line length
-					return this._moveHalfLineRight(viewModel, cursors, inSelectionMode);
-				} else {
-					// Move right by `moveParams.value` columns
-					return this._moveRight(viewModel, cursors, inSelectionMode, value);
+			case CuwsowMove.Diwection.Wight: {
+				if (unit === CuwsowMove.Unit.HawfWine) {
+					// Move wight by hawf the cuwwent wine wength
+					wetuwn this._moveHawfWineWight(viewModew, cuwsows, inSewectionMode);
+				} ewse {
+					// Move wight by `movePawams.vawue` cowumns
+					wetuwn this._moveWight(viewModew, cuwsows, inSewectionMode, vawue);
 				}
 			}
-			case CursorMove.Direction.Up: {
-				if (unit === CursorMove.Unit.WrappedLine) {
-					// Move up by view lines
-					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
-				} else {
-					// Move up by model lines
-					return this._moveUpByModelLines(viewModel, cursors, inSelectionMode, value);
+			case CuwsowMove.Diwection.Up: {
+				if (unit === CuwsowMove.Unit.WwappedWine) {
+					// Move up by view wines
+					wetuwn this._moveUpByViewWines(viewModew, cuwsows, inSewectionMode, vawue);
+				} ewse {
+					// Move up by modew wines
+					wetuwn this._moveUpByModewWines(viewModew, cuwsows, inSewectionMode, vawue);
 				}
 			}
-			case CursorMove.Direction.Down: {
-				if (unit === CursorMove.Unit.WrappedLine) {
-					// Move down by view lines
-					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);
-				} else {
-					// Move down by model lines
-					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
+			case CuwsowMove.Diwection.Down: {
+				if (unit === CuwsowMove.Unit.WwappedWine) {
+					// Move down by view wines
+					wetuwn this._moveDownByViewWines(viewModew, cuwsows, inSewectionMode, vawue);
+				} ewse {
+					// Move down by modew wines
+					wetuwn this._moveDownByModewWines(viewModew, cuwsows, inSewectionMode, vawue);
 				}
 			}
-			case CursorMove.Direction.PrevBlankLine: {
-				if (unit === CursorMove.Unit.WrappedLine) {
-					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
-				} else {
-					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+			case CuwsowMove.Diwection.PwevBwankWine: {
+				if (unit === CuwsowMove.Unit.WwappedWine) {
+					wetuwn cuwsows.map(cuwsow => CuwsowState.fwomViewState(MoveOpewations.moveToPwevBwankWine(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode)));
+				} ewse {
+					wetuwn cuwsows.map(cuwsow => CuwsowState.fwomModewState(MoveOpewations.moveToPwevBwankWine(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode)));
 				}
 			}
-			case CursorMove.Direction.NextBlankLine: {
-				if (unit === CursorMove.Unit.WrappedLine) {
-					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
-				} else {
-					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+			case CuwsowMove.Diwection.NextBwankWine: {
+				if (unit === CuwsowMove.Unit.WwappedWine) {
+					wetuwn cuwsows.map(cuwsow => CuwsowState.fwomViewState(MoveOpewations.moveToNextBwankWine(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode)));
+				} ewse {
+					wetuwn cuwsows.map(cuwsow => CuwsowState.fwomModewState(MoveOpewations.moveToNextBwankWine(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode)));
 				}
 			}
-			case CursorMove.Direction.WrappedLineStart: {
-				// Move to the beginning of the current view line
-				return this._moveToViewMinColumn(viewModel, cursors, inSelectionMode);
+			case CuwsowMove.Diwection.WwappedWineStawt: {
+				// Move to the beginning of the cuwwent view wine
+				wetuwn this._moveToViewMinCowumn(viewModew, cuwsows, inSewectionMode);
 			}
-			case CursorMove.Direction.WrappedLineFirstNonWhitespaceCharacter: {
-				// Move to the first non-whitespace column of the current view line
-				return this._moveToViewFirstNonWhitespaceColumn(viewModel, cursors, inSelectionMode);
+			case CuwsowMove.Diwection.WwappedWineFiwstNonWhitespaceChawacta: {
+				// Move to the fiwst non-whitespace cowumn of the cuwwent view wine
+				wetuwn this._moveToViewFiwstNonWhitespaceCowumn(viewModew, cuwsows, inSewectionMode);
 			}
-			case CursorMove.Direction.WrappedLineColumnCenter: {
-				// Move to the "center" of the current view line
-				return this._moveToViewCenterColumn(viewModel, cursors, inSelectionMode);
+			case CuwsowMove.Diwection.WwappedWineCowumnCenta: {
+				// Move to the "centa" of the cuwwent view wine
+				wetuwn this._moveToViewCentewCowumn(viewModew, cuwsows, inSewectionMode);
 			}
-			case CursorMove.Direction.WrappedLineEnd: {
-				// Move to the end of the current view line
-				return this._moveToViewMaxColumn(viewModel, cursors, inSelectionMode);
+			case CuwsowMove.Diwection.WwappedWineEnd: {
+				// Move to the end of the cuwwent view wine
+				wetuwn this._moveToViewMaxCowumn(viewModew, cuwsows, inSewectionMode);
 			}
-			case CursorMove.Direction.WrappedLineLastNonWhitespaceCharacter: {
-				// Move to the last non-whitespace column of the current view line
-				return this._moveToViewLastNonWhitespaceColumn(viewModel, cursors, inSelectionMode);
+			case CuwsowMove.Diwection.WwappedWineWastNonWhitespaceChawacta: {
+				// Move to the wast non-whitespace cowumn of the cuwwent view wine
+				wetuwn this._moveToViewWastNonWhitespaceCowumn(viewModew, cuwsows, inSewectionMode);
 			}
-			default:
-				return null;
+			defauwt:
+				wetuwn nuww;
 		}
 
 	}
 
-	public static viewportMove(viewModel: IViewModel, cursors: CursorState[], direction: CursorMove.ViewportDirection, inSelectionMode: boolean, value: number): PartialCursorState[] | null {
-		const visibleViewRange = viewModel.getCompletelyVisibleViewRange();
-		const visibleModelRange = viewModel.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
-		switch (direction) {
-			case CursorMove.Direction.ViewPortTop: {
-				// Move to the nth line start in the viewport (from the top)
-				const modelLineNumber = this._firstLineNumberInRange(viewModel.model, visibleModelRange, value);
-				const modelColumn = viewModel.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(viewModel, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
+	pubwic static viewpowtMove(viewModew: IViewModew, cuwsows: CuwsowState[], diwection: CuwsowMove.ViewpowtDiwection, inSewectionMode: boowean, vawue: numba): PawtiawCuwsowState[] | nuww {
+		const visibweViewWange = viewModew.getCompwetewyVisibweViewWange();
+		const visibweModewWange = viewModew.coowdinatesConvewta.convewtViewWangeToModewWange(visibweViewWange);
+		switch (diwection) {
+			case CuwsowMove.Diwection.ViewPowtTop: {
+				// Move to the nth wine stawt in the viewpowt (fwom the top)
+				const modewWineNumba = this._fiwstWineNumbewInWange(viewModew.modew, visibweModewWange, vawue);
+				const modewCowumn = viewModew.modew.getWineFiwstNonWhitespaceCowumn(modewWineNumba);
+				wetuwn [this._moveToModewPosition(viewModew, cuwsows[0], inSewectionMode, modewWineNumba, modewCowumn)];
 			}
-			case CursorMove.Direction.ViewPortBottom: {
-				// Move to the nth line start in the viewport (from the bottom)
-				const modelLineNumber = this._lastLineNumberInRange(viewModel.model, visibleModelRange, value);
-				const modelColumn = viewModel.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(viewModel, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
+			case CuwsowMove.Diwection.ViewPowtBottom: {
+				// Move to the nth wine stawt in the viewpowt (fwom the bottom)
+				const modewWineNumba = this._wastWineNumbewInWange(viewModew.modew, visibweModewWange, vawue);
+				const modewCowumn = viewModew.modew.getWineFiwstNonWhitespaceCowumn(modewWineNumba);
+				wetuwn [this._moveToModewPosition(viewModew, cuwsows[0], inSewectionMode, modewWineNumba, modewCowumn)];
 			}
-			case CursorMove.Direction.ViewPortCenter: {
-				// Move to the line start in the viewport center
-				const modelLineNumber = Math.round((visibleModelRange.startLineNumber + visibleModelRange.endLineNumber) / 2);
-				const modelColumn = viewModel.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(viewModel, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
+			case CuwsowMove.Diwection.ViewPowtCenta: {
+				// Move to the wine stawt in the viewpowt centa
+				const modewWineNumba = Math.wound((visibweModewWange.stawtWineNumba + visibweModewWange.endWineNumba) / 2);
+				const modewCowumn = viewModew.modew.getWineFiwstNonWhitespaceCowumn(modewWineNumba);
+				wetuwn [this._moveToModewPosition(viewModew, cuwsows[0], inSewectionMode, modewWineNumba, modewCowumn)];
 			}
-			case CursorMove.Direction.ViewPortIfOutside: {
-				// Move to a position inside the viewport
-				let result: PartialCursorState[] = [];
-				for (let i = 0, len = cursors.length; i < len; i++) {
-					const cursor = cursors[i];
-					result[i] = this.findPositionInViewportIfOutside(viewModel, cursor, visibleViewRange, inSelectionMode);
+			case CuwsowMove.Diwection.ViewPowtIfOutside: {
+				// Move to a position inside the viewpowt
+				wet wesuwt: PawtiawCuwsowState[] = [];
+				fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+					const cuwsow = cuwsows[i];
+					wesuwt[i] = this.findPositionInViewpowtIfOutside(viewModew, cuwsow, visibweViewWange, inSewectionMode);
 				}
-				return result;
+				wetuwn wesuwt;
 			}
-			default:
-				return null;
+			defauwt:
+				wetuwn nuww;
 		}
 	}
 
-	public static findPositionInViewportIfOutside(viewModel: IViewModel, cursor: CursorState, visibleViewRange: Range, inSelectionMode: boolean): PartialCursorState {
-		let viewLineNumber = cursor.viewState.position.lineNumber;
+	pubwic static findPositionInViewpowtIfOutside(viewModew: IViewModew, cuwsow: CuwsowState, visibweViewWange: Wange, inSewectionMode: boowean): PawtiawCuwsowState {
+		wet viewWineNumba = cuwsow.viewState.position.wineNumba;
 
-		if (visibleViewRange.startLineNumber <= viewLineNumber && viewLineNumber <= visibleViewRange.endLineNumber - 1) {
-			// Nothing to do, cursor is in viewport
-			return new CursorState(cursor.modelState, cursor.viewState);
+		if (visibweViewWange.stawtWineNumba <= viewWineNumba && viewWineNumba <= visibweViewWange.endWineNumba - 1) {
+			// Nothing to do, cuwsow is in viewpowt
+			wetuwn new CuwsowState(cuwsow.modewState, cuwsow.viewState);
 
-		} else {
-			if (viewLineNumber > visibleViewRange.endLineNumber - 1) {
-				viewLineNumber = visibleViewRange.endLineNumber - 1;
+		} ewse {
+			if (viewWineNumba > visibweViewWange.endWineNumba - 1) {
+				viewWineNumba = visibweViewWange.endWineNumba - 1;
 			}
-			if (viewLineNumber < visibleViewRange.startLineNumber) {
-				viewLineNumber = visibleViewRange.startLineNumber;
+			if (viewWineNumba < visibweViewWange.stawtWineNumba) {
+				viewWineNumba = visibweViewWange.stawtWineNumba;
 			}
-			const viewColumn = viewModel.getLineFirstNonWhitespaceColumn(viewLineNumber);
-			return this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+			const viewCowumn = viewModew.getWineFiwstNonWhitespaceCowumn(viewWineNumba);
+			wetuwn this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
 	}
 
 	/**
-	 * Find the nth line start included in the range (from the start).
+	 * Find the nth wine stawt incwuded in the wange (fwom the stawt).
 	 */
-	private static _firstLineNumberInRange(model: ICursorSimpleModel, range: Range, count: number): number {
-		let startLineNumber = range.startLineNumber;
-		if (range.startColumn !== model.getLineMinColumn(startLineNumber)) {
-			// Move on to the second line if the first line start is not included in the range
-			startLineNumber++;
+	pwivate static _fiwstWineNumbewInWange(modew: ICuwsowSimpweModew, wange: Wange, count: numba): numba {
+		wet stawtWineNumba = wange.stawtWineNumba;
+		if (wange.stawtCowumn !== modew.getWineMinCowumn(stawtWineNumba)) {
+			// Move on to the second wine if the fiwst wine stawt is not incwuded in the wange
+			stawtWineNumba++;
 		}
 
-		return Math.min(range.endLineNumber, startLineNumber + count - 1);
+		wetuwn Math.min(wange.endWineNumba, stawtWineNumba + count - 1);
 	}
 
 	/**
-	 * Find the nth line start included in the range (from the end).
+	 * Find the nth wine stawt incwuded in the wange (fwom the end).
 	 */
-	private static _lastLineNumberInRange(model: ICursorSimpleModel, range: Range, count: number): number {
-		let startLineNumber = range.startLineNumber;
-		if (range.startColumn !== model.getLineMinColumn(startLineNumber)) {
-			// Move on to the second line if the first line start is not included in the range
-			startLineNumber++;
+	pwivate static _wastWineNumbewInWange(modew: ICuwsowSimpweModew, wange: Wange, count: numba): numba {
+		wet stawtWineNumba = wange.stawtWineNumba;
+		if (wange.stawtCowumn !== modew.getWineMinCowumn(stawtWineNumba)) {
+			// Move on to the second wine if the fiwst wine stawt is not incwuded in the wange
+			stawtWineNumba++;
 		}
 
-		return Math.max(startLineNumber, range.endLineNumber - count + 1);
+		wetuwn Math.max(stawtWineNumba, wange.endWineNumba - count + 1);
 	}
 
-	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+	pwivate static _moveWeft(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, noOfCowumns: numba): PawtiawCuwsowState[] {
+		wetuwn cuwsows.map(cuwsow =>
+			CuwsowState.fwomViewState(
+				MoveOpewations.moveWeft(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, noOfCowumns)
 			)
 		);
 	}
 
-	private static _moveHalfLineLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
-			result[i] = CursorState.fromViewState(MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
+	pwivate static _moveHawfWineWeft(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const hawfWine = Math.wound(viewModew.getWineContent(viewWineNumba).wength / 2);
+			wesuwt[i] = CuwsowState.fwomViewState(MoveOpewations.moveWeft(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, hawfWine));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
-		return cursors.map(cursor =>
-			CursorState.fromViewState(
-				MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns)
+	pwivate static _moveWight(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, noOfCowumns: numba): PawtiawCuwsowState[] {
+		wetuwn cuwsows.map(cuwsow =>
+			CuwsowState.fwomViewState(
+				MoveOpewations.moveWight(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, noOfCowumns)
 			)
 		);
 	}
 
-	private static _moveHalfLineRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
-			result[i] = CursorState.fromViewState(MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
+	pwivate static _moveHawfWineWight(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const hawfWine = Math.wound(viewModew.getWineContent(viewWineNumba).wength / 2);
+			wesuwt[i] = CuwsowState.fwomViewState(MoveOpewations.moveWight(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, hawfWine));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveDownByViewLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveDown(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, linesCount));
+	pwivate static _moveDownByViewWines(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, winesCount: numba): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomViewState(MoveOpewations.moveDown(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, winesCount));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveDownByModelLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromModelState(MoveOperations.moveDown(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, linesCount));
+	pwivate static _moveDownByModewWines(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, winesCount: numba): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomModewState(MoveOpewations.moveDown(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode, winesCount));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveUpByViewLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveUp(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, linesCount));
+	pwivate static _moveUpByViewWines(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, winesCount: numba): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomViewState(MoveOpewations.moveUp(viewModew.cuwsowConfig, viewModew, cuwsow.viewState, inSewectionMode, winesCount));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveUpByModelLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, linesCount: number): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[i] = CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, linesCount));
+	pwivate static _moveUpByModewWines(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean, winesCount: numba): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			wesuwt[i] = CuwsowState.fwomModewState(MoveOpewations.moveUp(viewModew.cuwsowConfig, viewModew.modew, cuwsow.modewState, inSewectionMode, winesCount));
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToViewPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): PartialCursorState {
-		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, toViewLineNumber, toViewColumn, 0));
+	pwivate static _moveToViewPosition(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, toViewWineNumba: numba, toViewCowumn: numba): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomViewState(cuwsow.viewState.move(inSewectionMode, toViewWineNumba, toViewCowumn, 0));
 	}
 
-	private static _moveToModelPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toModelLineNumber: number, toModelColumn: number): PartialCursorState {
-		return CursorState.fromModelState(cursor.modelState.move(inSelectionMode, toModelLineNumber, toModelColumn, 0));
+	pwivate static _moveToModewPosition(viewModew: IViewModew, cuwsow: CuwsowState, inSewectionMode: boowean, toModewWineNumba: numba, toModewCowumn: numba): PawtiawCuwsowState {
+		wetuwn CuwsowState.fwomModewState(cuwsow.modewState.move(inSewectionMode, toModewWineNumba, toModewCowumn, 0));
 	}
 
-	private static _moveToViewMinColumn(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const viewColumn = viewModel.getLineMinColumn(viewLineNumber);
-			result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+	pwivate static _moveToViewMinCowumn(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const viewCowumn = viewModew.getWineMinCowumn(viewWineNumba);
+			wesuwt[i] = this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToViewFirstNonWhitespaceColumn(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const viewColumn = viewModel.getLineFirstNonWhitespaceColumn(viewLineNumber);
-			result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+	pwivate static _moveToViewFiwstNonWhitespaceCowumn(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const viewCowumn = viewModew.getWineFiwstNonWhitespaceCowumn(viewWineNumba);
+			wesuwt[i] = this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToViewCenterColumn(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const viewColumn = Math.round((viewModel.getLineMaxColumn(viewLineNumber) + viewModel.getLineMinColumn(viewLineNumber)) / 2);
-			result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+	pwivate static _moveToViewCentewCowumn(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const viewCowumn = Math.wound((viewModew.getWineMaxCowumn(viewWineNumba) + viewModew.getWineMinCowumn(viewWineNumba)) / 2);
+			wesuwt[i] = this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToViewMaxColumn(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const viewColumn = viewModel.getLineMaxColumn(viewLineNumber);
-			result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+	pwivate static _moveToViewMaxCowumn(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const viewCowumn = viewModew.getWineMaxCowumn(viewWineNumba);
+			wesuwt[i] = this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private static _moveToViewLastNonWhitespaceColumn(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
-		let result: PartialCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const viewColumn = viewModel.getLineLastNonWhitespaceColumn(viewLineNumber);
-			result[i] = this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+	pwivate static _moveToViewWastNonWhitespaceCowumn(viewModew: IViewModew, cuwsows: CuwsowState[], inSewectionMode: boowean): PawtiawCuwsowState[] {
+		wet wesuwt: PawtiawCuwsowState[] = [];
+		fow (wet i = 0, wen = cuwsows.wength; i < wen; i++) {
+			const cuwsow = cuwsows[i];
+			const viewWineNumba = cuwsow.viewState.position.wineNumba;
+			const viewCowumn = viewModew.getWineWastNonWhitespaceCowumn(viewWineNumba);
+			wesuwt[i] = this._moveToViewPosition(viewModew, cuwsow, inSewectionMode, viewWineNumba, viewCowumn);
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export namespace CursorMove {
+expowt namespace CuwsowMove {
 
-	const isCursorMoveArgs = function (arg: any): boolean {
-		if (!types.isObject(arg)) {
-			return false;
+	const isCuwsowMoveAwgs = function (awg: any): boowean {
+		if (!types.isObject(awg)) {
+			wetuwn fawse;
 		}
 
-		let cursorMoveArg: RawArguments = arg;
+		wet cuwsowMoveAwg: WawAwguments = awg;
 
-		if (!types.isString(cursorMoveArg.to)) {
-			return false;
+		if (!types.isStwing(cuwsowMoveAwg.to)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(cursorMoveArg.select) && !types.isBoolean(cursorMoveArg.select)) {
-			return false;
+		if (!types.isUndefined(cuwsowMoveAwg.sewect) && !types.isBoowean(cuwsowMoveAwg.sewect)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(cursorMoveArg.by) && !types.isString(cursorMoveArg.by)) {
-			return false;
+		if (!types.isUndefined(cuwsowMoveAwg.by) && !types.isStwing(cuwsowMoveAwg.by)) {
+			wetuwn fawse;
 		}
 
-		if (!types.isUndefined(cursorMoveArg.value) && !types.isNumber(cursorMoveArg.value)) {
-			return false;
+		if (!types.isUndefined(cuwsowMoveAwg.vawue) && !types.isNumba(cuwsowMoveAwg.vawue)) {
+			wetuwn fawse;
 		}
 
-		return true;
+		wetuwn twue;
 	};
 
-	export const description = <ICommandHandlerDescription>{
-		description: 'Move cursor to a logical position in the view',
-		args: [
+	expowt const descwiption = <ICommandHandwewDescwiption>{
+		descwiption: 'Move cuwsow to a wogicaw position in the view',
+		awgs: [
 			{
-				name: 'Cursor move argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory logical position value providing where to move the cursor.
+				name: 'Cuwsow move awgument object',
+				descwiption: `Pwopewty-vawue paiws that can be passed thwough this awgument:
+					* 'to': A mandatowy wogicaw position vawue pwoviding whewe to move the cuwsow.
 						\`\`\`
-						'left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine',
-						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
-						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'
-						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
+						'weft', 'wight', 'up', 'down', 'pwevBwankWine', 'nextBwankWine',
+						'wwappedWineStawt', 'wwappedWineEnd', 'wwappedWineCowumnCenta'
+						'wwappedWineFiwstNonWhitespaceChawacta', 'wwappedWineWastNonWhitespaceChawacta'
+						'viewPowtTop', 'viewPowtCenta', 'viewPowtBottom', 'viewPowtIfOutside'
 						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
+					* 'by': Unit to move. Defauwt is computed based on 'to' vawue.
 						\`\`\`
-						'line', 'wrappedLine', 'character', 'halfLine'
+						'wine', 'wwappedWine', 'chawacta', 'hawfWine'
 						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'select': If 'true' makes the selection. Default is 'false'.
+					* 'vawue': Numba of units to move. Defauwt is '1'.
+					* 'sewect': If 'twue' makes the sewection. Defauwt is 'fawse'.
 				`,
-				constraint: isCursorMoveArgs,
+				constwaint: isCuwsowMoveAwgs,
 				schema: {
 					'type': 'object',
-					'required': ['to'],
-					'properties': {
+					'wequiwed': ['to'],
+					'pwopewties': {
 						'to': {
-							'type': 'string',
-							'enum': ['left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+							'type': 'stwing',
+							'enum': ['weft', 'wight', 'up', 'down', 'pwevBwankWine', 'nextBwankWine', 'wwappedWineStawt', 'wwappedWineEnd', 'wwappedWineCowumnCenta', 'wwappedWineFiwstNonWhitespaceChawacta', 'wwappedWineWastNonWhitespaceChawacta', 'viewPowtTop', 'viewPowtCenta', 'viewPowtBottom', 'viewPowtIfOutside']
 						},
 						'by': {
-							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+							'type': 'stwing',
+							'enum': ['wine', 'wwappedWine', 'chawacta', 'hawfWine']
 						},
-						'value': {
-							'type': 'number',
-							'default': 1
+						'vawue': {
+							'type': 'numba',
+							'defauwt': 1
 						},
-						'select': {
-							'type': 'boolean',
-							'default': false
+						'sewect': {
+							'type': 'boowean',
+							'defauwt': fawse
 						}
 					}
 				}
@@ -632,194 +632,194 @@ export namespace CursorMove {
 	};
 
 	/**
-	 * Positions in the view for cursor move command.
+	 * Positions in the view fow cuwsow move command.
 	 */
-	export const RawDirection = {
-		Left: 'left',
-		Right: 'right',
+	expowt const WawDiwection = {
+		Weft: 'weft',
+		Wight: 'wight',
 		Up: 'up',
 		Down: 'down',
 
-		PrevBlankLine: 'prevBlankLine',
-		NextBlankLine: 'nextBlankLine',
+		PwevBwankWine: 'pwevBwankWine',
+		NextBwankWine: 'nextBwankWine',
 
-		WrappedLineStart: 'wrappedLineStart',
-		WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
-		WrappedLineColumnCenter: 'wrappedLineColumnCenter',
-		WrappedLineEnd: 'wrappedLineEnd',
-		WrappedLineLastNonWhitespaceCharacter: 'wrappedLineLastNonWhitespaceCharacter',
+		WwappedWineStawt: 'wwappedWineStawt',
+		WwappedWineFiwstNonWhitespaceChawacta: 'wwappedWineFiwstNonWhitespaceChawacta',
+		WwappedWineCowumnCenta: 'wwappedWineCowumnCenta',
+		WwappedWineEnd: 'wwappedWineEnd',
+		WwappedWineWastNonWhitespaceChawacta: 'wwappedWineWastNonWhitespaceChawacta',
 
-		ViewPortTop: 'viewPortTop',
-		ViewPortCenter: 'viewPortCenter',
-		ViewPortBottom: 'viewPortBottom',
+		ViewPowtTop: 'viewPowtTop',
+		ViewPowtCenta: 'viewPowtCenta',
+		ViewPowtBottom: 'viewPowtBottom',
 
-		ViewPortIfOutside: 'viewPortIfOutside'
+		ViewPowtIfOutside: 'viewPowtIfOutside'
 	};
 
 	/**
-	 * Units for Cursor move 'by' argument
+	 * Units fow Cuwsow move 'by' awgument
 	 */
-	export const RawUnit = {
-		Line: 'line',
-		WrappedLine: 'wrappedLine',
-		Character: 'character',
-		HalfLine: 'halfLine'
+	expowt const WawUnit = {
+		Wine: 'wine',
+		WwappedWine: 'wwappedWine',
+		Chawacta: 'chawacta',
+		HawfWine: 'hawfWine'
 	};
 
 	/**
-	 * Arguments for Cursor move command
+	 * Awguments fow Cuwsow move command
 	 */
-	export interface RawArguments {
-		to: string;
-		select?: boolean;
-		by?: string;
-		value?: number;
+	expowt intewface WawAwguments {
+		to: stwing;
+		sewect?: boowean;
+		by?: stwing;
+		vawue?: numba;
 	}
 
-	export function parse(args: RawArguments): ParsedArguments | null {
-		if (!args.to) {
-			// illegal arguments
-			return null;
+	expowt function pawse(awgs: WawAwguments): PawsedAwguments | nuww {
+		if (!awgs.to) {
+			// iwwegaw awguments
+			wetuwn nuww;
 		}
 
-		let direction: Direction;
-		switch (args.to) {
-			case RawDirection.Left:
-				direction = Direction.Left;
-				break;
-			case RawDirection.Right:
-				direction = Direction.Right;
-				break;
-			case RawDirection.Up:
-				direction = Direction.Up;
-				break;
-			case RawDirection.Down:
-				direction = Direction.Down;
-				break;
-			case RawDirection.PrevBlankLine:
-				direction = Direction.PrevBlankLine;
-				break;
-			case RawDirection.NextBlankLine:
-				direction = Direction.NextBlankLine;
-				break;
-			case RawDirection.WrappedLineStart:
-				direction = Direction.WrappedLineStart;
-				break;
-			case RawDirection.WrappedLineFirstNonWhitespaceCharacter:
-				direction = Direction.WrappedLineFirstNonWhitespaceCharacter;
-				break;
-			case RawDirection.WrappedLineColumnCenter:
-				direction = Direction.WrappedLineColumnCenter;
-				break;
-			case RawDirection.WrappedLineEnd:
-				direction = Direction.WrappedLineEnd;
-				break;
-			case RawDirection.WrappedLineLastNonWhitespaceCharacter:
-				direction = Direction.WrappedLineLastNonWhitespaceCharacter;
-				break;
-			case RawDirection.ViewPortTop:
-				direction = Direction.ViewPortTop;
-				break;
-			case RawDirection.ViewPortBottom:
-				direction = Direction.ViewPortBottom;
-				break;
-			case RawDirection.ViewPortCenter:
-				direction = Direction.ViewPortCenter;
-				break;
-			case RawDirection.ViewPortIfOutside:
-				direction = Direction.ViewPortIfOutside;
-				break;
-			default:
-				// illegal arguments
-				return null;
+		wet diwection: Diwection;
+		switch (awgs.to) {
+			case WawDiwection.Weft:
+				diwection = Diwection.Weft;
+				bweak;
+			case WawDiwection.Wight:
+				diwection = Diwection.Wight;
+				bweak;
+			case WawDiwection.Up:
+				diwection = Diwection.Up;
+				bweak;
+			case WawDiwection.Down:
+				diwection = Diwection.Down;
+				bweak;
+			case WawDiwection.PwevBwankWine:
+				diwection = Diwection.PwevBwankWine;
+				bweak;
+			case WawDiwection.NextBwankWine:
+				diwection = Diwection.NextBwankWine;
+				bweak;
+			case WawDiwection.WwappedWineStawt:
+				diwection = Diwection.WwappedWineStawt;
+				bweak;
+			case WawDiwection.WwappedWineFiwstNonWhitespaceChawacta:
+				diwection = Diwection.WwappedWineFiwstNonWhitespaceChawacta;
+				bweak;
+			case WawDiwection.WwappedWineCowumnCenta:
+				diwection = Diwection.WwappedWineCowumnCenta;
+				bweak;
+			case WawDiwection.WwappedWineEnd:
+				diwection = Diwection.WwappedWineEnd;
+				bweak;
+			case WawDiwection.WwappedWineWastNonWhitespaceChawacta:
+				diwection = Diwection.WwappedWineWastNonWhitespaceChawacta;
+				bweak;
+			case WawDiwection.ViewPowtTop:
+				diwection = Diwection.ViewPowtTop;
+				bweak;
+			case WawDiwection.ViewPowtBottom:
+				diwection = Diwection.ViewPowtBottom;
+				bweak;
+			case WawDiwection.ViewPowtCenta:
+				diwection = Diwection.ViewPowtCenta;
+				bweak;
+			case WawDiwection.ViewPowtIfOutside:
+				diwection = Diwection.ViewPowtIfOutside;
+				bweak;
+			defauwt:
+				// iwwegaw awguments
+				wetuwn nuww;
 		}
 
-		let unit = Unit.None;
-		switch (args.by) {
-			case RawUnit.Line:
-				unit = Unit.Line;
-				break;
-			case RawUnit.WrappedLine:
-				unit = Unit.WrappedLine;
-				break;
-			case RawUnit.Character:
-				unit = Unit.Character;
-				break;
-			case RawUnit.HalfLine:
-				unit = Unit.HalfLine;
-				break;
+		wet unit = Unit.None;
+		switch (awgs.by) {
+			case WawUnit.Wine:
+				unit = Unit.Wine;
+				bweak;
+			case WawUnit.WwappedWine:
+				unit = Unit.WwappedWine;
+				bweak;
+			case WawUnit.Chawacta:
+				unit = Unit.Chawacta;
+				bweak;
+			case WawUnit.HawfWine:
+				unit = Unit.HawfWine;
+				bweak;
 		}
 
-		return {
-			direction: direction,
+		wetuwn {
+			diwection: diwection,
 			unit: unit,
-			select: (!!args.select),
-			value: (args.value || 1)
+			sewect: (!!awgs.sewect),
+			vawue: (awgs.vawue || 1)
 		};
 	}
 
-	export interface ParsedArguments {
-		direction: Direction;
+	expowt intewface PawsedAwguments {
+		diwection: Diwection;
 		unit: Unit;
-		select: boolean;
-		value: number;
+		sewect: boowean;
+		vawue: numba;
 	}
 
-	export interface SimpleMoveArguments {
-		direction: SimpleMoveDirection;
+	expowt intewface SimpweMoveAwguments {
+		diwection: SimpweMoveDiwection;
 		unit: Unit;
-		select: boolean;
-		value: number;
+		sewect: boowean;
+		vawue: numba;
 	}
 
-	export const enum Direction {
-		Left,
-		Right,
+	expowt const enum Diwection {
+		Weft,
+		Wight,
 		Up,
 		Down,
-		PrevBlankLine,
-		NextBlankLine,
+		PwevBwankWine,
+		NextBwankWine,
 
-		WrappedLineStart,
-		WrappedLineFirstNonWhitespaceCharacter,
-		WrappedLineColumnCenter,
-		WrappedLineEnd,
-		WrappedLineLastNonWhitespaceCharacter,
+		WwappedWineStawt,
+		WwappedWineFiwstNonWhitespaceChawacta,
+		WwappedWineCowumnCenta,
+		WwappedWineEnd,
+		WwappedWineWastNonWhitespaceChawacta,
 
-		ViewPortTop,
-		ViewPortCenter,
-		ViewPortBottom,
+		ViewPowtTop,
+		ViewPowtCenta,
+		ViewPowtBottom,
 
-		ViewPortIfOutside,
+		ViewPowtIfOutside,
 	}
 
-	export type SimpleMoveDirection = (
-		Direction.Left
-		| Direction.Right
-		| Direction.Up
-		| Direction.Down
-		| Direction.PrevBlankLine
-		| Direction.NextBlankLine
-		| Direction.WrappedLineStart
-		| Direction.WrappedLineFirstNonWhitespaceCharacter
-		| Direction.WrappedLineColumnCenter
-		| Direction.WrappedLineEnd
-		| Direction.WrappedLineLastNonWhitespaceCharacter
+	expowt type SimpweMoveDiwection = (
+		Diwection.Weft
+		| Diwection.Wight
+		| Diwection.Up
+		| Diwection.Down
+		| Diwection.PwevBwankWine
+		| Diwection.NextBwankWine
+		| Diwection.WwappedWineStawt
+		| Diwection.WwappedWineFiwstNonWhitespaceChawacta
+		| Diwection.WwappedWineCowumnCenta
+		| Diwection.WwappedWineEnd
+		| Diwection.WwappedWineWastNonWhitespaceChawacta
 	);
 
-	export type ViewportDirection = (
-		Direction.ViewPortTop
-		| Direction.ViewPortCenter
-		| Direction.ViewPortBottom
-		| Direction.ViewPortIfOutside
+	expowt type ViewpowtDiwection = (
+		Diwection.ViewPowtTop
+		| Diwection.ViewPowtCenta
+		| Diwection.ViewPowtBottom
+		| Diwection.ViewPowtIfOutside
 	);
 
-	export const enum Unit {
+	expowt const enum Unit {
 		None,
-		Line,
-		WrappedLine,
-		Character,
-		HalfLine,
+		Wine,
+		WwappedWine,
+		Chawacta,
+		HawfWine,
 	}
 
 }

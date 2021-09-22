@@ -1,86 +1,86 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-action-bar .action-item .action-label.extension-action {
-	line-height: initial;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+.monaco-action-baw .action-item .action-wabew.extension-action {
+	wine-height: initiaw;
+	ovewfwow: hidden;
+	white-space: nowwap;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-action-bar .action-item > .action-label.extension-action.label,
-.monaco-action-bar .action-dropdown-item > .action-label.extension-action.label {
+.monaco-action-baw .action-item > .action-wabew.extension-action.wabew,
+.monaco-action-baw .action-dwopdown-item > .action-wabew.extension-action.wabew {
 	padding: 0 5px;
 }
 
-.monaco-action-bar .action-dropdown-item > .monaco-dropdown .action-label {
+.monaco-action-baw .action-dwopdown-item > .monaco-dwopdown .action-wabew {
 	padding: 0;
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.label {
-	outline-offset: 1px;
+.monaco-action-baw .action-item .action-wabew.extension-action.wabew {
+	outwine-offset: 1px;
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.text,
-.monaco-action-bar .action-item .action-label.extension-action.label,
-.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
+.monaco-action-baw .action-item .action-wabew.extension-action.text,
+.monaco-action-baw .action-item .action-wabew.extension-action.wabew,
+.monaco-action-baw .action-dwopdown-item .action-wabew.extension-action.wabew {
 	width: auto;
 	height: auto;
-	line-height: 14px;
+	wine-height: 14px;
 }
 
-.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.text,
-.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
-.monaco-action-bar .action-item .action-label.extension-action.icon,
-.monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
-	margin-top: 2px; /* margin for outline */
+.monaco-action-baw .action-item:not(.disabwed) .action-wabew.extension-action.text,
+.monaco-action-baw .action-item:not(.disabwed) .action-wabew.extension-action.wabew,
+.monaco-action-baw .action-item .action-wabew.extension-action.icon,
+.monaco-action-baw .action-dwopdown-item .action-wabew.extension-action.wabew {
+	mawgin-top: 2px; /* mawgin fow outwine */
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after {
+.monaco-action-baw .action-item .action-wabew.extension-action.muwtisewva.instaww:afta,
+.monaco-action-baw .action-item .action-wabew.extension-action.muwtisewva.update:afta {
 	content: '▼';
-	padding-left: 2px;
+	padding-weft: 2px;
 	font-size: 80%;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
-.monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
-.monaco-action-bar .action-item.disabled .action-label.extension-action.update,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sync,
-.monaco-action-bar .action-item.action-dropdown-item.disabled,
-.monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
-.monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
-.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
-	display: none;
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.hide,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.ignowe,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.undo-ignowe,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.instaww:not(.instawwing),
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.uninstaww:not(.uninstawwing),
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.update,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.theme,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.extension-sync,
+.monaco-action-baw .action-item.action-dwopdown-item.disabwed,
+.monaco-action-baw .action-item.action-dwopdown-item .action-wabew.extension-action.hide,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.wewoad,
+.monaco-action-baw .action-item.disabwed .action-wabew.disabwe-status.hide,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-status.hide,
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-status-wabew.hide,
+.monaco-action-baw .action-item .action-wabew.extension-action.manage.hide {
+	dispway: none;
 }
 
-.monaco-action-bar .extension-action.label {
-	display: inherit;
+.monaco-action-baw .extension-action.wabew {
+	dispway: inhewit;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-status:before {
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-status:befowe {
 	opacity: 1;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-status-wabew:befowe {
 	content: '✓';
-	padding-right: 4px;
+	padding-wight: 4px;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-action {
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action {
 	opacity: 1;
 }
 
-.monaco-action-bar .action-item.disabled .action-label.extension-action.text {
+.monaco-action-baw .action-item.disabwed .action-wabew.extension-action.text {
 	opacity: 0.9;
-	font-style: italic;
+	font-stywe: itawic;
 }

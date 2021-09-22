@@ -1,180 +1,180 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./standaloneQuickInput';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { QuickInputService, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInput';
-import { once } from 'vs/base/common/functional';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+impowt 'vs/css!./standawoneQuickInput';
+impowt { ICodeEditow, IOvewwayWidget, IOvewwayWidgetPosition, OvewwayWidgetPositionPwefewence } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { wegistewEditowContwibution } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IQuickInputSewvice, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguwation, IPickOptions, QuickPickInput, IInputOptions } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { QuickInputContwowwa } fwom 'vs/base/pawts/quickinput/bwowsa/quickInput';
+impowt { QuickInputSewvice, IQuickInputContwowwewHost } fwom 'vs/pwatfowm/quickinput/bwowsa/quickInput';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { IQuickAccessContwowwa } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
 
-export class EditorScopedQuickInputServiceImpl extends QuickInputService {
+expowt cwass EditowScopedQuickInputSewviceImpw extends QuickInputSewvice {
 
-	private host: IQuickInputControllerHost | undefined = undefined;
+	pwivate host: IQuickInputContwowwewHost | undefined = undefined;
 
-	constructor(
-		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService
+	constwuctow(
+		editow: ICodeEditow,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice,
+		@IWayoutSewvice wayoutSewvice: IWayoutSewvice
 	) {
-		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
+		supa(instantiationSewvice, contextKeySewvice, themeSewvice, accessibiwitySewvice, wayoutSewvice);
 
-		// Use the passed in code editor as host for the quick input widget
-		const contribution = QuickInputEditorContribution.get(editor);
+		// Use the passed in code editow as host fow the quick input widget
+		const contwibution = QuickInputEditowContwibution.get(editow);
 		this.host = {
-			_serviceBrand: undefined,
-			get container() { return contribution.widget.getDomNode(); },
-			get dimension() { return editor.getLayoutInfo(); },
-			get onDidLayout() { return editor.onDidLayoutChange; },
-			focus: () => editor.focus()
+			_sewviceBwand: undefined,
+			get containa() { wetuwn contwibution.widget.getDomNode(); },
+			get dimension() { wetuwn editow.getWayoutInfo(); },
+			get onDidWayout() { wetuwn editow.onDidWayoutChange; },
+			focus: () => editow.focus()
 		};
 	}
 
-	protected override createController(): QuickInputController {
-		return super.createController(this.host);
+	pwotected ovewwide cweateContwowwa(): QuickInputContwowwa {
+		wetuwn supa.cweateContwowwa(this.host);
 	}
 }
 
-export class StandaloneQuickInputServiceImpl implements IQuickInputService {
+expowt cwass StandawoneQuickInputSewviceImpw impwements IQuickInputSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private mapEditorToService = new Map<ICodeEditor, EditorScopedQuickInputServiceImpl>();
-	private get activeService(): IQuickInputService {
-		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (!editor) {
-			throw new Error('Quick input service needs a focused editor to work.');
+	pwivate mapEditowToSewvice = new Map<ICodeEditow, EditowScopedQuickInputSewviceImpw>();
+	pwivate get activeSewvice(): IQuickInputSewvice {
+		const editow = this.codeEditowSewvice.getFocusedCodeEditow();
+		if (!editow) {
+			thwow new Ewwow('Quick input sewvice needs a focused editow to wowk.');
 		}
 
-		// Find the quick input implementation for the focused
-		// editor or create it lazily if not yet created
-		let quickInputService = this.mapEditorToService.get(editor);
-		if (!quickInputService) {
-			const newQuickInputService = quickInputService = this.instantiationService.createInstance(EditorScopedQuickInputServiceImpl, editor);
-			this.mapEditorToService.set(editor, quickInputService);
+		// Find the quick input impwementation fow the focused
+		// editow ow cweate it waziwy if not yet cweated
+		wet quickInputSewvice = this.mapEditowToSewvice.get(editow);
+		if (!quickInputSewvice) {
+			const newQuickInputSewvice = quickInputSewvice = this.instantiationSewvice.cweateInstance(EditowScopedQuickInputSewviceImpw, editow);
+			this.mapEditowToSewvice.set(editow, quickInputSewvice);
 
-			once(editor.onDidDispose)(() => {
-				newQuickInputService.dispose();
-				this.mapEditorToService.delete(editor);
+			once(editow.onDidDispose)(() => {
+				newQuickInputSewvice.dispose();
+				this.mapEditowToSewvice.dewete(editow);
 			});
 		}
 
-		return quickInputService;
+		wetuwn quickInputSewvice;
 	}
 
-	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
+	get quickAccess(): IQuickAccessContwowwa { wetuwn this.activeSewvice.quickAccess; }
 
-	get backButton(): IQuickInputButton { return this.activeService.backButton; }
+	get backButton(): IQuickInputButton { wetuwn this.activeSewvice.backButton; }
 
-	get onShow() { return this.activeService.onShow; }
-	get onHide() { return this.activeService.onHide; }
+	get onShow() { wetuwn this.activeSewvice.onShow; }
+	get onHide() { wetuwn this.activeSewvice.onHide; }
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice
 	) {
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
-		return (this.activeService as unknown as QuickInputController /* TS fail */).pick(picks, options, token);
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancewwationToken = CancewwationToken.None): Pwomise<(O extends { canPickMany: twue } ? T[] : T) | undefined> {
+		wetuwn (this.activeSewvice as unknown as QuickInputContwowwa /* TS faiw */).pick(picks, options, token);
 	}
 
-	input(options?: IInputOptions | undefined, token?: CancellationToken | undefined): Promise<string | undefined> {
-		return this.activeService.input(options, token);
+	input(options?: IInputOptions | undefined, token?: CancewwationToken | undefined): Pwomise<stwing | undefined> {
+		wetuwn this.activeSewvice.input(options, token);
 	}
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
-		return this.activeService.createQuickPick();
+	cweateQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+		wetuwn this.activeSewvice.cweateQuickPick();
 	}
 
-	createInputBox(): IInputBox {
-		return this.activeService.createInputBox();
+	cweateInputBox(): IInputBox {
+		wetuwn this.activeSewvice.cweateInputBox();
 	}
 
 	focus(): void {
-		return this.activeService.focus();
+		wetuwn this.activeSewvice.focus();
 	}
 
-	toggle(): void {
-		return this.activeService.toggle();
+	toggwe(): void {
+		wetuwn this.activeSewvice.toggwe();
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration | undefined): void {
-		return this.activeService.navigate(next, quickNavigate);
+	navigate(next: boowean, quickNavigate?: IQuickNavigateConfiguwation | undefined): void {
+		wetuwn this.activeSewvice.navigate(next, quickNavigate);
 	}
 
-	accept(): Promise<void> {
-		return this.activeService.accept();
+	accept(): Pwomise<void> {
+		wetuwn this.activeSewvice.accept();
 	}
 
-	back(): Promise<void> {
-		return this.activeService.back();
+	back(): Pwomise<void> {
+		wetuwn this.activeSewvice.back();
 	}
 
-	cancel(): Promise<void> {
-		return this.activeService.cancel();
+	cancew(): Pwomise<void> {
+		wetuwn this.activeSewvice.cancew();
 	}
 }
 
-export class QuickInputEditorContribution implements IEditorContribution {
+expowt cwass QuickInputEditowContwibution impwements IEditowContwibution {
 
-	static readonly ID = 'editor.controller.quickInput';
+	static weadonwy ID = 'editow.contwowwa.quickInput';
 
-	static get(editor: ICodeEditor): QuickInputEditorContribution {
-		return editor.getContribution<QuickInputEditorContribution>(QuickInputEditorContribution.ID);
+	static get(editow: ICodeEditow): QuickInputEditowContwibution {
+		wetuwn editow.getContwibution<QuickInputEditowContwibution>(QuickInputEditowContwibution.ID);
 	}
 
-	readonly widget = new QuickInputEditorWidget(this.editor);
+	weadonwy widget = new QuickInputEditowWidget(this.editow);
 
-	constructor(private editor: ICodeEditor) { }
+	constwuctow(pwivate editow: ICodeEditow) { }
 
 	dispose(): void {
 		this.widget.dispose();
 	}
 }
 
-export class QuickInputEditorWidget implements IOverlayWidget {
+expowt cwass QuickInputEditowWidget impwements IOvewwayWidget {
 
-	private static readonly ID = 'editor.contrib.quickInputWidget';
+	pwivate static weadonwy ID = 'editow.contwib.quickInputWidget';
 
-	private domNode: HTMLElement;
+	pwivate domNode: HTMWEwement;
 
-	constructor(private codeEditor: ICodeEditor) {
-		this.domNode = document.createElement('div');
+	constwuctow(pwivate codeEditow: ICodeEditow) {
+		this.domNode = document.cweateEwement('div');
 
-		this.codeEditor.addOverlayWidget(this);
+		this.codeEditow.addOvewwayWidget(this);
 	}
 
-	getId(): string {
-		return QuickInputEditorWidget.ID;
+	getId(): stwing {
+		wetuwn QuickInputEditowWidget.ID;
 	}
 
-	getDomNode(): HTMLElement {
-		return this.domNode;
+	getDomNode(): HTMWEwement {
+		wetuwn this.domNode;
 	}
 
-	getPosition(): IOverlayWidgetPosition | null {
-		return { preference: OverlayWidgetPositionPreference.TOP_CENTER };
+	getPosition(): IOvewwayWidgetPosition | nuww {
+		wetuwn { pwefewence: OvewwayWidgetPositionPwefewence.TOP_CENTa };
 	}
 
 	dispose(): void {
-		this.codeEditor.removeOverlayWidget(this);
+		this.codeEditow.wemoveOvewwayWidget(this);
 	}
 }
 
-registerEditorContribution(QuickInputEditorContribution.ID, QuickInputEditorContribution);
+wegistewEditowContwibution(QuickInputEditowContwibution.ID, QuickInputEditowContwibution);

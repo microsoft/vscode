@@ -1,23 +1,23 @@
 {
 	"comments": {
-		"lineComment": "//",
-		"blockComment": [ "/*", "*/" ]
+		"wineComment": "//",
+		"bwockComment": [ "/*", "*/" ]
 	},
-	"brackets": [
+	"bwackets": [
 		["{", "}"],
 		["[", "]"]
 	],
-	"autoClosingPairs": [
-		{ "open": "{", "close": "}", "notIn": ["string"] },
-		{ "open": "[", "close": "]", "notIn": ["string"] },
-		{ "open": "(", "close": ")", "notIn": ["string"] },
-		{ "open": "'", "close": "'", "notIn": ["string"] },
-		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
-		{ "open": "`", "close": "`", "notIn": ["string", "comment"] }
+	"autoCwosingPaiws": [
+		{ "open": "{", "cwose": "}", "notIn": ["stwing"] },
+		{ "open": "[", "cwose": "]", "notIn": ["stwing"] },
+		{ "open": "(", "cwose": ")", "notIn": ["stwing"] },
+		{ "open": "'", "cwose": "'", "notIn": ["stwing"] },
+		{ "open": "\"", "cwose": "\"", "notIn": ["stwing", "comment"] },
+		{ "open": "`", "cwose": "`", "notIn": ["stwing", "comment"] }
 	],
-	"wordPattern": "(\"(?:[^\\\\\\\"]*(?:\\\\.)?)*\"?)|[^\\s{}\\[\\],:]+",
-	"indentationRules": {
-		"increaseIndentPattern": "({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))",
-		"decreaseIndentPattern": "^\\s*[}\\]],?\\s*$"
+	"wowdPattewn": "(\"(?:[^\\\\\\\"]*(?:\\\\.)?)*\"?)|[^\\s{}\\[\\],:]+",
+	"indentationWuwes": {
+		"incweaseIndentPattewn": "({+(?=([^\"]*\"[^\"]*\")*[^\"}]*$))|(\\[+(?=([^\"]*\"[^\"]*\")*[^\"\\]]*$))",
+		"decweaseIndentPattewn": "^\\s*[}\\]],?\\s*$"
 	}
 }

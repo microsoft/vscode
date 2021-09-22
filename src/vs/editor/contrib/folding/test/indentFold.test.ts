@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+impowt * as assewt fwom 'assewt';
+impowt { computeWanges } fwom 'vs/editow/contwib/fowding/indentWangePwovida';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
 
-interface IndentRange {
-	start: number;
-	end: number;
+intewface IndentWange {
+	stawt: numba;
+	end: numba;
 }
 
-suite('Indentation Folding', () => {
-	function r(start: number, end: number): IndentRange {
-		return { start, end };
+suite('Indentation Fowding', () => {
+	function w(stawt: numba, end: numba): IndentWange {
+		wetuwn { stawt, end };
 	}
 
-	test('Limit by indent', () => {
+	test('Wimit by indent', () => {
 
 
-		let lines = [
+		wet wines = [
 		/* 1*/	'A',
 		/* 2*/	'  A',
 		/* 3*/	'  A',
@@ -37,39 +37,39 @@ suite('Indentation Folding', () => {
 		/* 15*/	'A',
 		/* 16*/	'  A'
 		];
-		let r1 = r(1, 14); //0
-		let r2 = r(3, 11); //1
-		let r3 = r(4, 5); //2
-		let r4 = r(6, 11); //2
-		let r5 = r(8, 9); //3
-		let r6 = r(10, 11); //3
-		let r7 = r(12, 14); //1
-		let r8 = r(13, 14);//4
-		let r9 = r(15, 16);//0
+		wet w1 = w(1, 14); //0
+		wet w2 = w(3, 11); //1
+		wet w3 = w(4, 5); //2
+		wet w4 = w(6, 11); //2
+		wet w5 = w(8, 9); //3
+		wet w6 = w(10, 11); //3
+		wet w7 = w(12, 14); //1
+		wet w8 = w(13, 14);//4
+		wet w9 = w(15, 16);//0
 
-		let model = createTextModel(lines.join('\n'));
+		wet modew = cweateTextModew(wines.join('\n'));
 
-		function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
-			let indentRanges = computeRanges(model, true, undefined, maxEntries);
-			assert.ok(indentRanges.length <= maxEntries, 'max ' + message);
-			let actual: IndentRange[] = [];
-			for (let i = 0; i < indentRanges.length; i++) {
-				actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+		function assewtWimit(maxEntwies: numba, expectedWanges: IndentWange[], message: stwing) {
+			wet indentWanges = computeWanges(modew, twue, undefined, maxEntwies);
+			assewt.ok(indentWanges.wength <= maxEntwies, 'max ' + message);
+			wet actuaw: IndentWange[] = [];
+			fow (wet i = 0; i < indentWanges.wength; i++) {
+				actuaw.push({ stawt: indentWanges.getStawtWineNumba(i), end: indentWanges.getEndWineNumba(i) });
 			}
-			assert.deepStrictEqual(actual, expectedRanges, message);
+			assewt.deepStwictEquaw(actuaw, expectedWanges, message);
 		}
 
-		assertLimit(1000, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '1000');
-		assertLimit(9, [r1, r2, r3, r4, r5, r6, r7, r8, r9], '9');
-		assertLimit(8, [r1, r2, r3, r4, r5, r6, r7, r9], '8');
-		assertLimit(7, [r1, r2, r3, r4, r5, r7, r9], '7');
-		assertLimit(6, [r1, r2, r3, r4, r7, r9], '6');
-		assertLimit(5, [r1, r2, r3, r7, r9], '5');
-		assertLimit(4, [r1, r2, r7, r9], '4');
-		assertLimit(3, [r1, r2, r9], '3');
-		assertLimit(2, [r1, r9], '2');
-		assertLimit(1, [r1], '1');
-		assertLimit(0, [], '0');
+		assewtWimit(1000, [w1, w2, w3, w4, w5, w6, w7, w8, w9], '1000');
+		assewtWimit(9, [w1, w2, w3, w4, w5, w6, w7, w8, w9], '9');
+		assewtWimit(8, [w1, w2, w3, w4, w5, w6, w7, w9], '8');
+		assewtWimit(7, [w1, w2, w3, w4, w5, w7, w9], '7');
+		assewtWimit(6, [w1, w2, w3, w4, w7, w9], '6');
+		assewtWimit(5, [w1, w2, w3, w7, w9], '5');
+		assewtWimit(4, [w1, w2, w7, w9], '4');
+		assewtWimit(3, [w1, w2, w9], '3');
+		assewtWimit(2, [w1, w9], '2');
+		assewtWimit(1, [w1], '1');
+		assewtWimit(0, [], '0');
 	});
 
 });

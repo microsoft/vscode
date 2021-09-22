@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { formatOptions, Option } from 'vs/platform/environment/node/argv';
-import { addArg } from 'vs/platform/environment/node/argvHelper';
+impowt * as assewt fwom 'assewt';
+impowt { fowmatOptions, Option } fwom 'vs/pwatfowm/enviwonment/node/awgv';
+impowt { addAwg } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
 
-suite('formatOptions', () => {
+suite('fowmatOptions', () => {
 
-	function o(description: string): Option<any> {
-		return {
-			description, type: 'string'
+	function o(descwiption: stwing): Option<any> {
+		wetuwn {
+			descwiption, type: 'stwing'
 		};
 	}
 
-	test('Text should display small columns correctly', () => {
-		assert.deepStrictEqual(
-			formatOptions({
-				'add': o('bar')
+	test('Text shouwd dispway smaww cowumns cowwectwy', () => {
+		assewt.deepStwictEquaw(
+			fowmatOptions({
+				'add': o('baw')
 			}, 80),
-			['  --add bar']
+			['  --add baw']
 		);
-		assert.deepStrictEqual(
-			formatOptions({
-				'add': o('bar'),
+		assewt.deepStwictEquaw(
+			fowmatOptions({
+				'add': o('baw'),
 				'wait': o('ba'),
-				'trace': o('b')
+				'twace': o('b')
 			}, 80),
 			[
-				'  --add   bar',
+				'  --add   baw',
 				'  --wait  ba',
-				'  --trace b'
+				'  --twace b'
 			]);
 	});
 
-	test('Text should wrap', () => {
-		assert.deepStrictEqual(
-			formatOptions({
-				'add': o((<any>'bar ').repeat(9))
+	test('Text shouwd wwap', () => {
+		assewt.deepStwictEquaw(
+			fowmatOptions({
+				'add': o((<any>'baw ').wepeat(9))
 			}, 40),
 			[
-				'  --add bar bar bar bar bar bar bar bar',
-				'        bar'
+				'  --add baw baw baw baw baw baw baw baw',
+				'        baw'
 			]);
 	});
 
-	test('Text should revert to the condensed view when the terminal is too narrow', () => {
-		assert.deepStrictEqual(
-			formatOptions({
-				'add': o((<any>'bar ').repeat(9))
+	test('Text shouwd wevewt to the condensed view when the tewminaw is too nawwow', () => {
+		assewt.deepStwictEquaw(
+			fowmatOptions({
+				'add': o((<any>'baw ').wepeat(9))
 			}, 30),
 			[
 				'  --add',
-				'      bar bar bar bar bar bar bar bar bar '
+				'      baw baw baw baw baw baw baw baw baw '
 			]);
 	});
 
-	test('addArg', () => {
-		assert.deepStrictEqual(addArg([], 'foo'), ['foo']);
-		assert.deepStrictEqual(addArg([], 'foo', 'bar'), ['foo', 'bar']);
-		assert.deepStrictEqual(addArg(['foo'], 'bar'), ['foo', 'bar']);
-		assert.deepStrictEqual(addArg(['--wait'], 'bar'), ['--wait', 'bar']);
-		assert.deepStrictEqual(addArg(['--wait', '--', '--foo'], 'bar'), ['--wait', 'bar', '--', '--foo']);
-		assert.deepStrictEqual(addArg(['--', '--foo'], 'bar'), ['bar', '--', '--foo']);
+	test('addAwg', () => {
+		assewt.deepStwictEquaw(addAwg([], 'foo'), ['foo']);
+		assewt.deepStwictEquaw(addAwg([], 'foo', 'baw'), ['foo', 'baw']);
+		assewt.deepStwictEquaw(addAwg(['foo'], 'baw'), ['foo', 'baw']);
+		assewt.deepStwictEquaw(addAwg(['--wait'], 'baw'), ['--wait', 'baw']);
+		assewt.deepStwictEquaw(addAwg(['--wait', '--', '--foo'], 'baw'), ['--wait', 'baw', '--', '--foo']);
+		assewt.deepStwictEquaw(addAwg(['--', '--foo'], 'baw'), ['baw', '--', '--foo']);
 	});
 });

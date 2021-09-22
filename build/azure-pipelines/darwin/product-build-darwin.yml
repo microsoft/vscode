@@ -1,311 +1,311 @@
 steps:
-  - task: NodeTool@0
+  - task: NodeToow@0
     inputs:
-      versionSpec: "14.x"
+      vewsionSpec: "14.x"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
+  - task: AzuweKeyVauwt@1
+    dispwayName: "Azuwe Key Vauwt: Get Secwets"
     inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
-      SecretsFilter: 'github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key,ticino-storage-key'
+      azuweSubscwiption: "vscode-buiwds-subscwiption"
+      KeyVauwtName: vscode
+      SecwetsFiwta: 'github-distwo-mixin-passwowd,macos-devewopa-cewtificate,macos-devewopa-cewtificate-key,ticino-stowage-key'
 
-  - task: DownloadPipelineArtifact@2
+  - task: DownwoadPipewineAwtifact@2
     inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
+      awtifact: Compiwation
+      path: $(Buiwd.AwtifactStagingDiwectowy)
+    dispwayName: Downwoad compiwation output
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  - script: |
+  - scwipt: |
       set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
+      taw -xzf $(Buiwd.AwtifactStagingDiwectowy)/compiwation.taw.gz
+    dispwayName: Extwact compiwation output
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  # Set up the credentials to retrieve distro repo and setup git persona
-  # to create a merge commit for when we merge distro into oss
-  - script: |
+  # Set up the cwedentiaws to wetwieve distwo wepo and setup git pewsona
+  # to cweate a mewge commit fow when we mewge distwo into oss
+  - scwipt: |
       set -e
-      cat << EOF > ~/.netrc
+      cat << EOF > ~/.netwc
       machine github.com
-      login vscode
-      password $(github-distro-mixin-password)
+      wogin vscode
+      passwowd $(github-distwo-mixin-passwowd)
       EOF
 
-      git config user.email "vscode@microsoft.com"
-      git config user.name "VSCode"
-    displayName: Prepare tooling
+      git config usa.emaiw "vscode@micwosoft.com"
+      git config usa.name "VSCode"
+    dispwayName: Pwepawe toowing
 
-  - script: |
+  - scwipt: |
       set -e
-      sudo xcode-select -s /Applications/Xcode_12.2.app
-    displayName: Switch to Xcode 12
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+      sudo xcode-sewect -s /Appwications/Xcode_12.2.app
+    dispwayName: Switch to Xcode 12
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'awm64'))
 
-  - script: |
+  - scwipt: |
       set -e
-      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-    displayName: Merge distro
+      git puww --no-webase https://github.com/$(VSCODE_MIXIN_WEPO).git $(node -p "wequiwe('./package.json').distwo")
+    dispwayName: Mewge distwo
 
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  - scwipt: |
+      mkdiw -p .buiwd
+      node buiwd/azuwe-pipewines/common/computeNodeModuwesCacheKey.js $VSCODE_AWCH $ENABWE_TEWWAPIN > .buiwd/yawnwockhash
+    dispwayName: Pwepawe yawn cache fwags
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-      path: .build/node_modules_cache
-      cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Restore node_modules cache
+      key: "nodeModuwes | $(Agent.OS) | .buiwd/yawnwockhash"
+      path: .buiwd/node_moduwes_cache
+      cacheHitVaw: NODE_MODUWES_WESTOWED
+    dispwayName: Westowe node_moduwes cache
 
-  - script: |
+  - scwipt: |
       set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules cache
+      taw -xzf .buiwd/node_moduwes_cache/cache.tgz
+    condition: and(succeeded(), eq(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Extwact node_moduwes cache
 
-  - script: |
+  - scwipt: |
       set -e
-      npm install -g node-gyp@latest
-      node-gyp --version
-    displayName: Update node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      npm instaww -g node-gyp@watest
+      node-gyp --vewsion
+    dispwayName: Update node-gyp
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
 
-  - script: |
+  - scwipt: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
+      npx https://aka.ms/enabwesecuwefeed standAwone
     timeoutInMinutes: 5
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'), eq(vawiabwes['ENABWE_TEWWAPIN'], 'twue'))
+    dispwayName: Switch to Tewwapin packages
 
-  - script: |
+  - scwipt: |
       set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
-      export npm_config_build_from_source=true
-      export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
+      expowt npm_config_awch=$(VSCODE_AWCH)
+      expowt npm_config_node_gyp=$(which node-gyp)
+      expowt npm_config_buiwd_fwom_souwce=twue
+      expowt SDKWOOT=/Appwications/Xcode_12.2.app/Contents/Devewopa/Pwatfowms/MacOSX.pwatfowm/Devewopa/SDKs/MacOSX11.0.sdk
 
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile && break
+      fow i in {1..3}; do # twy 3 times, fow Tewwapin
+        yawn --fwozen-wockfiwe && bweak
         if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+          echo "Yawn faiwed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Yawn faiwed $i, twying again..."
       done
     env:
-      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      EWECTWON_SKIP_BINAWY_DOWNWOAD: 1
+      PWAYWWIGHT_SKIP_BWOWSEW_DOWNWOAD: 1
+      GITHUB_TOKEN: "$(github-distwo-mixin-passwowd)"
+    dispwayName: Instaww dependencies
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
 
-  - script: |
+  - scwipt: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
-      mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Create node_modules archive
+      node buiwd/azuwe-pipewines/common/wistNodeModuwes.js .buiwd/node_moduwes_wist.txt
+      mkdiw -p .buiwd/node_moduwes_cache
+      taw -czf .buiwd/node_moduwes_cache/cache.tgz --fiwes-fwom .buiwd/node_moduwes_wist.txt
+    condition: and(succeeded(), ne(vawiabwes.NODE_MODUWES_WESTOWED, 'twue'))
+    dispwayName: Cweate node_moduwes awchive
 
-  # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-  - script: |
+  # This scwipt bwings in the wight wesouwces (images, icons, etc) based on the quawity (insidews, stabwe, expwowation)
+  - scwipt: |
       set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
+      node buiwd/azuwe-pipewines/mixin
+    dispwayName: Mix in quawity
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
-    displayName: Build client
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
+      VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)" \
+        yawn guwp vscode-dawwin-$(VSCODE_AWCH)-min-ci
+    dispwayName: Buiwd cwient
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-darwin-min-ci
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-web-darwin-min-ci
-    displayName: Build Server
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+      VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)" \
+        yawn guwp vscode-weh-dawwin-min-ci
+      VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)" \
+        yawn guwp vscode-weh-web-dawwin-min-ci
+    dispwayName: Buiwd Sewva
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'))
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
-    displayName: Download Electron and Playwright
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      VSCODE_MIXIN_PASSWOWD="$(github-distwo-mixin-passwowd)" \
+        yawn npm-wun-aww -wp "ewectwon $(VSCODE_AWCH)" "pwaywwight-instaww"
+    dispwayName: Downwoad Ewectwon and Pwaywwight
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_AWCH'], 'univewsaw'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - download: current
-    artifact: unsigned_vscode_client_darwin_x64_archive
-    displayName: Download x64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+  - downwoad: cuwwent
+    awtifact: unsigned_vscode_cwient_dawwin_x64_awchive
+    dispwayName: Downwoad x64 awtifact
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  - download: current
-    artifact: unsigned_vscode_client_darwin_arm64_archive
-    displayName: Download arm64 artifact
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+  - downwoad: cuwwent
+    awtifact: unsigned_vscode_cwient_dawwin_awm64_awchive
+    dispwayName: Downwoad awm64 awtifact
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  - script: |
+  - scwipt: |
       set -e
-      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin-x64.zip
-      cp $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip $(agent.builddirectory)/VSCode-darwin-arm64.zip
-      unzip $(agent.builddirectory)/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64
-      unzip $(agent.builddirectory)/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64
-      DEBUG=* node build/darwin/create-universal-app.js
-    displayName: Create Universal App
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+      cp $(Pipewine.Wowkspace)/unsigned_vscode_cwient_dawwin_x64_awchive/VSCode-dawwin-x64.zip $(agent.buiwddiwectowy)/VSCode-dawwin-x64.zip
+      cp $(Pipewine.Wowkspace)/unsigned_vscode_cwient_dawwin_awm64_awchive/VSCode-dawwin-awm64.zip $(agent.buiwddiwectowy)/VSCode-dawwin-awm64.zip
+      unzip $(agent.buiwddiwectowy)/VSCode-dawwin-x64.zip -d $(agent.buiwddiwectowy)/VSCode-dawwin-x64
+      unzip $(agent.buiwddiwectowy)/VSCode-dawwin-awm64.zip -d $(agent.buiwddiwectowy)/VSCode-dawwin-awm64
+      DEBUG=* node buiwd/dawwin/cweate-univewsaw-app.js
+    dispwayName: Cweate Univewsaw App
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'univewsaw'))
 
-  # Setting hardened entitlements is a requirement for:
-  # * Apple notarization
-  # * Running tests on Big Sur (because Big Sur has additional security precautions)
-  - script: |
+  # Setting hawdened entitwements is a wequiwement fow:
+  # * Appwe notawization
+  # * Wunning tests on Big Suw (because Big Suw has additionaw secuwity pwecautions)
+  - scwipt: |
       set -e
-      security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
-      security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-      echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-      security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
-      security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-      VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
-    displayName: Set Hardened Entitlements
+      secuwity cweate-keychain -p pwd $(agent.tempdiwectowy)/buiwdagent.keychain
+      secuwity defauwt-keychain -s $(agent.tempdiwectowy)/buiwdagent.keychain
+      secuwity unwock-keychain -p pwd $(agent.tempdiwectowy)/buiwdagent.keychain
+      echo "$(macos-devewopa-cewtificate)" | base64 -D > $(agent.tempdiwectowy)/cewt.p12
+      secuwity impowt $(agent.tempdiwectowy)/cewt.p12 -k $(agent.tempdiwectowy)/buiwdagent.keychain -P "$(macos-devewopa-cewtificate-key)" -T /usw/bin/codesign
+      secuwity set-key-pawtition-wist -S appwe-toow:,appwe:,codesign: -s -k pwd $(agent.tempdiwectowy)/buiwdagent.keychain
+      VSCODE_AWCH=$(VSCODE_AWCH) DEBUG=ewectwon-osx-sign* node buiwd/dawwin/sign.js
+    dispwayName: Set Hawdened Entitwements
 
-  - script: |
+  - scwipt: |
       set -e
-      ./scripts/test.sh --build --tfs "Unit Tests"
-    displayName: Run unit tests (Electron)
+      ./scwipts/test.sh --buiwd --tfs "Unit Tests"
+    dispwayName: Wun unit tests (Ewectwon)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser)
+      yawn test-bwowsa --buiwd --bwowsa chwomium --bwowsa webkit --bwowsa fiwefox --tfs "Bwowsa Unit Tests"
+    dispwayName: Wun unit tests (Bwowsa)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
-      # Figure out the full absolute path of the product we just built
-      # including the remote server and configure the integration tests
-      # to run with these builds instead of running out of sources.
+  - scwipt: |
+      # Figuwe out the fuww absowute path of the pwoduct we just buiwt
+      # incwuding the wemote sewva and configuwe the integwation tests
+      # to wun with these buiwds instead of wunning out of souwces.
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      ./scripts/test-integration.sh --build --tfs "Integration Tests"
-    displayName: Run integration tests (Electron)
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      INTEGWATION_TEST_EWECTWON_PATH="$APP_WOOT/$APP_NAME/Contents/MacOS/Ewectwon" \
+      VSCODE_WEMOTE_SEWVEW_PATH="$(agent.buiwddiwectowy)/vscode-weh-dawwin" \
+      ./scwipts/test-integwation.sh --buiwd --tfs "Integwation Tests"
+    dispwayName: Wun integwation tests (Ewectwon)
     timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      ./resources/server/test/test-web-integration.sh --browser webkit
-    displayName: Run integration tests (Browser)
+      VSCODE_WEMOTE_SEWVEW_PATH="$(agent.buiwddiwectowy)/vscode-weh-web-dawwin" \
+      ./wesouwces/sewva/test/test-web-integwation.sh --bwowsa webkit
+    dispwayName: Wun integwation tests (Bwowsa)
     timeoutInMinutes: 10
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      ./resources/server/test/test-remote-integration.sh
-    displayName: Run remote integration tests (Electron)
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      INTEGWATION_TEST_EWECTWON_PATH="$APP_WOOT/$APP_NAME/Contents/MacOS/Ewectwon" \
+      VSCODE_WEMOTE_SEWVEW_PATH="$(agent.buiwddiwectowy)/vscode-weh-dawwin" \
+      ./wesouwces/sewva/test/test-wemote-integwation.sh
+    dispwayName: Wun wemote integwation tests (Ewectwon)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      yawn smoketest-no-compiwe --buiwd "$APP_WOOT/$APP_NAME" --scweenshots $(Buiwd.SouwcesDiwectowy)/.buiwd/wogs/smoke-tests
     timeoutInMinutes: 5
-    displayName: Run smoke tests (Electron)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    dispwayName: Wun smoke tests (Ewectwon)
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote --screenshots $(Build.SourcesDirectory)/.build/logs/smoke-tests
+      APP_WOOT=$(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH)
+      APP_NAME="`ws $APP_WOOT | head -n 1`"
+      VSCODE_WEMOTE_SEWVEW_PATH="$(agent.buiwddiwectowy)/vscode-weh-dawwin" \
+      yawn smoketest-no-compiwe --buiwd "$APP_WOOT/$APP_NAME" --wemote --scweenshots $(Buiwd.SouwcesDiwectowy)/.buiwd/wogs/smoke-tests
     timeoutInMinutes: 5
-    displayName: Run smoke tests (Remote)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    dispwayName: Wun smoke tests (Wemote)
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      yarn smoketest-no-compile --web --headless
+      VSCODE_WEMOTE_SEWVEW_PATH="$(agent.buiwddiwectowy)/vscode-weh-web-dawwin" \
+      yawn smoketest-no-compiwe --web --headwess
     timeoutInMinutes: 5
-    displayName: Run smoke tests (Browser)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    dispwayName: Wun smoke tests (Bwowsa)
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - task: PublishPipelineArtifact@0
+  - task: PubwishPipewineAwtifact@0
     inputs:
-      artifactName: crash-dump-macos-$(VSCODE_ARCH)
-      targetPath: .build/crashes
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+      awtifactName: cwash-dump-macos-$(VSCODE_AWCH)
+      tawgetPath: .buiwd/cwashes
+    dispwayName: "Pubwish Cwash Wepowts"
+    continueOnEwwow: twue
+    condition: faiwed()
 
-  - task: PublishPipelineArtifact@0
+  - task: PubwishPipewineAwtifact@0
     inputs:
-      artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
-      targetPath: .build/logs
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      awtifactName: wogs-macos-$(VSCODE_AWCH)-$(System.JobAttempt)
+      tawgetPath: .buiwd/wogs
+    dispwayName: "Pubwish Wog Fiwes"
+    continueOnEwwow: twue
+    condition: and(succeededOwFaiwed(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - task: PublishTestResults@2
-    displayName: Publish Tests Results
+  - task: PubwishTestWesuwts@2
+    dispwayName: Pubwish Tests Wesuwts
     inputs:
-      testResultsFiles: "*-results.xml"
-      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
-    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      testWesuwtsFiwes: "*-wesuwts.xmw"
+      seawchFowda: "$(Buiwd.AwtifactStagingDiwectowy)/test-wesuwts"
+    condition: and(succeededOwFaiwed(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), eq(vawiabwes['VSCODE_STEP_ON_IT'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
-      pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
-    displayName: Archive build
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+      pushd $(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH) && zip -w -X -y $(agent.buiwddiwectowy)/VSCode-dawwin-$(VSCODE_AWCH).zip * && popd
+    dispwayName: Awchive buiwd
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - script: |
+  - scwipt: |
       set -e
 
-      # package Remote Extension Host
-      pushd .. && mv vscode-reh-darwin vscode-server-darwin && zip -Xry vscode-server-darwin.zip vscode-server-darwin && popd
+      # package Wemote Extension Host
+      pushd .. && mv vscode-weh-dawwin vscode-sewva-dawwin && zip -Xwy vscode-sewva-dawwin.zip vscode-sewva-dawwin && popd
 
-      # package Remote Extension Host (Web)
-      pushd .. && mv vscode-reh-web-darwin vscode-server-darwin-web && zip -Xry vscode-server-darwin-web.zip vscode-server-darwin-web && popd
-    displayName: Prepare to publish servers
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+      # package Wemote Extension Host (Web)
+      pushd .. && mv vscode-weh-web-dawwin vscode-sewva-dawwin-web && zip -Xwy vscode-sewva-dawwin-web.zip vscode-sewva-dawwin-web && popd
+    dispwayName: Pwepawe to pubwish sewvews
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-    displayName: Publish client archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(Agent.BuiwdDiwectowy)/VSCode-dawwin-$(VSCODE_AWCH).zip
+    awtifact: unsigned_vscode_cwient_dawwin_$(VSCODE_AWCH)_awchive
+    dispwayName: Pubwish cwient awchive
+    condition: and(succeeded(), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
-    artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(Agent.BuiwdDiwectowy)/vscode-sewva-dawwin.zip
+    awtifact: vscode_sewvew_dawwin_$(VSCODE_AWCH)_awchive-unsigned
+    dispwayName: Pubwish sewva awchive
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
-    artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish web server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - pubwish: $(Agent.BuiwdDiwectowy)/vscode-sewva-dawwin-web.zip
+    awtifact: vscode_web_dawwin_$(VSCODE_AWCH)_awchive-unsigned
+    dispwayName: Pubwish web sewva awchive
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
 
-  - script: |
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-      VSCODE_ARCH="$(VSCODE_ARCH)" \
-      yarn gulp upload-vscode-configuration
-    displayName: Upload configuration (for Bing settings search)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
-    continueOnError: true
+  - scwipt: |
+      AZUWE_STOWAGE_ACCESS_KEY="$(ticino-stowage-key)" \
+      VSCODE_AWCH="$(VSCODE_AWCH)" \
+      yawn guwp upwoad-vscode-configuwation
+    dispwayName: Upwoad configuwation (fow Bing settings seawch)
+    condition: and(succeeded(), eq(vawiabwes['VSCODE_AWCH'], 'x64'), ne(vawiabwes['VSCODE_PUBWISH'], 'fawse'))
+    continueOnEwwow: twue

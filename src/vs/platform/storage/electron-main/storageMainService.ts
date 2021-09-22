@@ -1,133 +1,133 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+impowt { once } fwom 'vs/base/common/functionaw';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWifecycweMainSewvice, WifecycweMainPhase } fwom 'vs/pwatfowm/wifecycwe/ewectwon-main/wifecycweMainSewvice';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { GwobawStowageMain, IStowageMain, IStowageMainOptions, WowkspaceStowageMain } fwom 'vs/pwatfowm/stowage/ewectwon-main/stowageMain';
+impowt { IEmptyWowkspaceIdentifia, ISingweFowdewWowkspaceIdentifia, IWowkspaceIdentifia } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
 
-export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
+expowt const IStowageMainSewvice = cweateDecowatow<IStowageMainSewvice>('stowageMainSewvice');
 
-export interface IStorageMainService {
+expowt intewface IStowageMainSewvice {
 
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Provides access to the global storage shared across all windows.
-	 */
-	readonly globalStorage: IStorageMain;
+	weadonwy _sewviceBwand: undefined;
 
 	/**
-	 * Provides access to the workspace storage specific to a single window.
+	 * Pwovides access to the gwobaw stowage shawed acwoss aww windows.
 	 */
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain;
+	weadonwy gwobawStowage: IStowageMain;
+
+	/**
+	 * Pwovides access to the wowkspace stowage specific to a singwe window.
+	 */
+	wowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia): IStowageMain;
 }
 
-export class StorageMainService extends Disposable implements IStorageMainService {
+expowt cwass StowageMainSewvice extends Disposabwe impwements IStowageMainSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+	constwuctow(
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice,
+		@IEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IEnviwonmentSewvice,
+		@IWifecycweMainSewvice pwivate weadonwy wifecycweMainSewvice: IWifecycweMainSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	protected getStorageOptions(): IStorageMainOptions {
-		return {
-			useInMemoryStorage: !!this.environmentService.extensionTestsLocationURI // no storage during extension tests!
+	pwotected getStowageOptions(): IStowageMainOptions {
+		wetuwn {
+			useInMemowyStowage: !!this.enviwonmentSewvice.extensionTestsWocationUWI // no stowage duwing extension tests!
 		};
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Global Storage: Warmup when any window opens
+		// Gwobaw Stowage: Wawmup when any window opens
 		(async () => {
-			await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
+			await this.wifecycweMainSewvice.when(WifecycweMainPhase.AftewWindowOpen);
 
-			this.globalStorage.init();
+			this.gwobawStowage.init();
 		})();
 
-		// Workspace Storage: Warmup when related window with workspace loads
-		this._register(this.lifecycleMainService.onWillLoadWindow(async e => {
-			if (e.workspace) {
-				this.workspaceStorage(e.workspace).init();
+		// Wowkspace Stowage: Wawmup when wewated window with wowkspace woads
+		this._wegista(this.wifecycweMainSewvice.onWiwwWoadWindow(async e => {
+			if (e.wowkspace) {
+				this.wowkspaceStowage(e.wowkspace).init();
 			}
 		}));
 
-		// All Storage: Close when shutting down
-		this._register(this.lifecycleMainService.onWillShutdown(e => {
+		// Aww Stowage: Cwose when shutting down
+		this._wegista(this.wifecycweMainSewvice.onWiwwShutdown(e => {
 
-			// Global Storage
-			e.join(this.globalStorage.close());
+			// Gwobaw Stowage
+			e.join(this.gwobawStowage.cwose());
 
-			// Workspace Storage(s)
-			for (const [, storage] of this.mapWorkspaceToStorage) {
-				e.join(storage.close());
+			// Wowkspace Stowage(s)
+			fow (const [, stowage] of this.mapWowkspaceToStowage) {
+				e.join(stowage.cwose());
 			}
 		}));
 	}
 
-	//#region Global Storage
+	//#wegion Gwobaw Stowage
 
-	readonly globalStorage = this.createGlobalStorage();
+	weadonwy gwobawStowage = this.cweateGwobawStowage();
 
-	private createGlobalStorage(): IStorageMain {
-		if (this.globalStorage) {
-			return this.globalStorage; // only once
+	pwivate cweateGwobawStowage(): IStowageMain {
+		if (this.gwobawStowage) {
+			wetuwn this.gwobawStowage; // onwy once
 		}
 
-		this.logService.trace(`StorageMainService: creating global storage`);
+		this.wogSewvice.twace(`StowageMainSewvice: cweating gwobaw stowage`);
 
-		const globalStorage = new GlobalStorageMain(this.getStorageOptions(), this.logService, this.environmentService);
+		const gwobawStowage = new GwobawStowageMain(this.getStowageOptions(), this.wogSewvice, this.enviwonmentSewvice);
 
-		once(globalStorage.onDidCloseStorage)(() => {
-			this.logService.trace(`StorageMainService: closed global storage`);
+		once(gwobawStowage.onDidCwoseStowage)(() => {
+			this.wogSewvice.twace(`StowageMainSewvice: cwosed gwobaw stowage`);
 		});
 
-		return globalStorage;
+		wetuwn gwobawStowage;
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Workspace Storage
+	//#wegion Wowkspace Stowage
 
-	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
+	pwivate weadonwy mapWowkspaceToStowage = new Map<stwing, IStowageMain>();
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace, this.getStorageOptions(), this.logService, this.environmentService);
+	pwivate cweateWowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia): IStowageMain {
+		const wowkspaceStowage = new WowkspaceStowageMain(wowkspace, this.getStowageOptions(), this.wogSewvice, this.enviwonmentSewvice);
 
-		return workspaceStorage;
+		wetuwn wowkspaceStowage;
 	}
 
-	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
-		if (!workspaceStorage) {
-			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
+	wowkspaceStowage(wowkspace: IWowkspaceIdentifia | ISingweFowdewWowkspaceIdentifia | IEmptyWowkspaceIdentifia): IStowageMain {
+		wet wowkspaceStowage = this.mapWowkspaceToStowage.get(wowkspace.id);
+		if (!wowkspaceStowage) {
+			this.wogSewvice.twace(`StowageMainSewvice: cweating wowkspace stowage (${wowkspace.id})`);
 
-			workspaceStorage = this.createWorkspaceStorage(workspace);
-			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
+			wowkspaceStowage = this.cweateWowkspaceStowage(wowkspace);
+			this.mapWowkspaceToStowage.set(wowkspace.id, wowkspaceStowage);
 
-			once(workspaceStorage.onDidCloseStorage)(() => {
-				this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`);
+			once(wowkspaceStowage.onDidCwoseStowage)(() => {
+				this.wogSewvice.twace(`StowageMainSewvice: cwosed wowkspace stowage (${wowkspace.id})`);
 
-				this.mapWorkspaceToStorage.delete(workspace.id);
+				this.mapWowkspaceToStowage.dewete(wowkspace.id);
 			});
 		}
 
-		return workspaceStorage;
+		wetuwn wowkspaceStowage;
 	}
 
-	//#endregion
+	//#endwegion
 }

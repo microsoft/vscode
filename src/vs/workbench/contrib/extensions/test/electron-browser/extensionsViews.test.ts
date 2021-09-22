@@ -1,559 +1,559 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import {
-	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy, InstallExtensionResult, getTargetPlatform
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IPager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { URI } from 'vs/base/common/uri';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { SinonStub } from 'sinon';
-import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
-import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
-import { platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
+impowt * as assewt fwom 'assewt';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { ExtensionsWistView } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsViews';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/common/extensions';
+impowt { ExtensionsWowkbenchSewvice } fwom 'vs/wowkbench/contwib/extensions/bwowsa/extensionsWowkbenchSewvice';
+impowt {
+	IExtensionManagementSewvice, IExtensionGawwewySewvice, IWocawExtension, IGawwewyExtension, IQuewyOptions,
+	DidUninstawwExtensionEvent, InstawwExtensionEvent, IExtensionIdentifia, SowtBy, InstawwExtensionWesuwt, getTawgetPwatfowm
+} fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchExtensionEnabwementSewvice, EnabwementState, IExtensionManagementSewvewSewvice, IExtensionManagementSewva } fwom 'vs/wowkbench/sewvices/extensionManagement/common/extensionManagement';
+impowt { IExtensionWecommendationsSewvice, ExtensionWecommendationWeason } fwom 'vs/wowkbench/sewvices/extensionWecommendations/common/extensionWecommendations';
+impowt { getGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { TestExtensionEnabwementSewvice } fwom 'vs/wowkbench/sewvices/extensionManagement/test/bwowsa/extensionEnabwementSewvice.test';
+impowt { ExtensionGawwewySewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionGawwewySewvice';
+impowt { IUWWSewvice } fwom 'vs/pwatfowm/uww/common/uww';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { IPaga } fwom 'vs/base/common/paging';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IExtensionSewvice, toExtensionDescwiption } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestMenuSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { TestShawedPwocessSewvice } fwom 'vs/wowkbench/test/ewectwon-bwowsa/wowkbenchTestSewvices';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { NativeUWWSewvice } fwom 'vs/pwatfowm/uww/common/uwwSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { SinonStub } fwom 'sinon';
+impowt { IExpewimentSewvice, ExpewimentState, ExpewimentActionType, ExpewimentSewvice } fwom 'vs/wowkbench/contwib/expewiments/common/expewimentSewvice';
+impowt { IWemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/common/wemoteAgentSewvice';
+impowt { WemoteAgentSewvice } fwom 'vs/wowkbench/sewvices/wemote/ewectwon-sandbox/wemoteAgentSewviceImpw';
+impowt { ExtensionType, IExtension, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IShawedPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IViewDescwiptowSewvice, ViewContainewWocation } fwom 'vs/wowkbench/common/views';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { pwatfowm } fwom 'vs/base/common/pwatfowm';
+impowt { awch } fwom 'vs/base/common/pwocess';
 
-suite('ExtensionsListView Tests', () => {
+suite('ExtensionsWistView Tests', () => {
 
-	let instantiationService: TestInstantiationService;
-	let testableView: ExtensionsListView;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<IExtensionIdentifier>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet testabweView: ExtensionsWistView;
+	wet instawwEvent: Emitta<InstawwExtensionEvent>,
+		didInstawwEvent: Emitta<weadonwy InstawwExtensionWesuwt[]>,
+		uninstawwEvent: Emitta<IExtensionIdentifia>,
+		didUninstawwEvent: Emitta<DidUninstawwExtensionEvent>;
 
-	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] });
-	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'] });
-	const localDisabledTheme = aLocalExtension('first-disabled-extension', { categories: ['themes'] });
-	const localDisabledLanguage = aLocalExtension('second-disabled-extension', { categories: ['programming languages'] });
-	const localRandom = aLocalExtension('random-enabled-extension', { categories: ['random'] });
-	const builtInTheme = aLocalExtension('my-theme', { contributes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
-	const builtInBasic = aLocalExtension('my-lang', { contributes: { grammars: [{ language: 'my-language' }] } }, { type: ExtensionType.System });
+	const wocawEnabwedTheme = aWocawExtension('fiwst-enabwed-extension', { categowies: ['Themes', 'wandom'] });
+	const wocawEnabwedWanguage = aWocawExtension('second-enabwed-extension', { categowies: ['Pwogwamming wanguages'] });
+	const wocawDisabwedTheme = aWocawExtension('fiwst-disabwed-extension', { categowies: ['themes'] });
+	const wocawDisabwedWanguage = aWocawExtension('second-disabwed-extension', { categowies: ['pwogwamming wanguages'] });
+	const wocawWandom = aWocawExtension('wandom-enabwed-extension', { categowies: ['wandom'] });
+	const buiwtInTheme = aWocawExtension('my-theme', { contwibutes: { themes: ['my-theme'] } }, { type: ExtensionType.System });
+	const buiwtInBasic = aWocawExtension('my-wang', { contwibutes: { gwammaws: [{ wanguage: 'my-wanguage' }] } }, { type: ExtensionType.System });
 
-	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
-	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
-	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
-	const configBasedRecommendationB = aGalleryExtension('configbased-recommendation-B');
-	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
-	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
-	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
+	const wowkspaceWecommendationA = aGawwewyExtension('wowkspace-wecommendation-A');
+	const wowkspaceWecommendationB = aGawwewyExtension('wowkspace-wecommendation-B');
+	const configBasedWecommendationA = aGawwewyExtension('configbased-wecommendation-A');
+	const configBasedWecommendationB = aGawwewyExtension('configbased-wecommendation-B');
+	const fiweBasedWecommendationA = aGawwewyExtension('fiwebased-wecommendation-A');
+	const fiweBasedWecommendationB = aGawwewyExtension('fiwebased-wecommendation-B');
+	const othewWecommendationA = aGawwewyExtension('otha-wecommendation-A');
 
 	suiteSetup(() => {
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<IExtensionIdentifier>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+		instawwEvent = new Emitta<InstawwExtensionEvent>();
+		didInstawwEvent = new Emitta<weadonwy InstawwExtensionWesuwt[]>();
+		uninstawwEvent = new Emitta<IExtensionIdentifia>();
+		didUninstawwEvent = new Emitta<DidUninstawwExtensionEvent>();
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(ILogService, NullLogService);
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IWogSewvice, NuwwWogSewvice);
 
-		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationSewvice.stub(IWowkspaceContextSewvice, new TestContextSewvice());
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
 
-		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
-		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
-		instantiationService.stub(IExperimentService, ExperimentService);
+		instantiationSewvice.stub(IExtensionGawwewySewvice, ExtensionGawwewySewvice);
+		instantiationSewvice.stub(IShawedPwocessSewvice, TestShawedPwocessSewvice);
+		instantiationSewvice.stub(IExpewimentSewvice, ExpewimentSewvice);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			async getInstalled() { return []; },
-			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
+		instantiationSewvice.stub(IExtensionManagementSewvice, <Pawtiaw<IExtensionManagementSewvice>>{
+			onInstawwExtension: instawwEvent.event,
+			onDidInstawwExtensions: didInstawwEvent.event,
+			onUninstawwExtension: uninstawwEvent.event,
+			onDidUninstawwExtension: didUninstawwEvent.event,
+			async getInstawwed() { wetuwn []; },
+			async canInstaww() { wetuwn twue; },
+			async getExtensionsWepowt() { wetuwn []; },
 		});
-		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IMenuService, new TestMenuService());
+		instantiationSewvice.stub(IWemoteAgentSewvice, WemoteAgentSewvice);
+		instantiationSewvice.stub(IContextKeySewvice, new MockContextKeySewvice());
+		instantiationSewvice.stub(IMenuSewvice, new TestMenuSewvice());
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
-		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
-			get localExtensionManagementServer(): IExtensionManagementServer {
-				return localExtensionManagementServer;
+		const wocawExtensionManagementSewva = { extensionManagementSewvice: instantiationSewvice.get(IExtensionManagementSewvice), wabew: 'wocaw', id: 'vscode-wocaw' };
+		instantiationSewvice.stub(IExtensionManagementSewvewSewvice, <Pawtiaw<IExtensionManagementSewvewSewvice>>{
+			get wocawExtensionManagementSewva(): IExtensionManagementSewva {
+				wetuwn wocawExtensionManagementSewva;
 			},
-			getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
+			getExtensionManagementSewva(extension: IExtension): IExtensionManagementSewva | nuww {
+				if (extension.wocation.scheme === Schemas.fiwe) {
+					wetuwn wocawExtensionManagementSewva;
 				}
-				throw new Error(`Invalid Extension ${extension.location}`);
+				thwow new Ewwow(`Invawid Extension ${extension.wocation}`);
 			}
 		});
 
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationSewvice.stub(IWowkbenchExtensionEnabwementSewvice, new TestExtensionEnabwementSewvice(instantiationSewvice));
 
-		const reasons: { [key: string]: any } = {};
-		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
-		reasons[workspaceRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
-		reasons[fileBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
-		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
-		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
-		reasons[configBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.WorkspaceConfig };
-		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
-			getWorkspaceRecommendations() {
-				return Promise.resolve([
-					workspaceRecommendationA.identifier.id,
-					workspaceRecommendationB.identifier.id]);
+		const weasons: { [key: stwing]: any } = {};
+		weasons[wowkspaceWecommendationA.identifia.id] = { weasonId: ExtensionWecommendationWeason.Wowkspace };
+		weasons[wowkspaceWecommendationB.identifia.id] = { weasonId: ExtensionWecommendationWeason.Wowkspace };
+		weasons[fiweBasedWecommendationA.identifia.id] = { weasonId: ExtensionWecommendationWeason.Fiwe };
+		weasons[fiweBasedWecommendationB.identifia.id] = { weasonId: ExtensionWecommendationWeason.Fiwe };
+		weasons[othewWecommendationA.identifia.id] = { weasonId: ExtensionWecommendationWeason.Executabwe };
+		weasons[configBasedWecommendationA.identifia.id] = { weasonId: ExtensionWecommendationWeason.WowkspaceConfig };
+		instantiationSewvice.stub(IExtensionWecommendationsSewvice, <Pawtiaw<IExtensionWecommendationsSewvice>>{
+			getWowkspaceWecommendations() {
+				wetuwn Pwomise.wesowve([
+					wowkspaceWecommendationA.identifia.id,
+					wowkspaceWecommendationB.identifia.id]);
 			},
-			getConfigBasedRecommendations() {
-				return Promise.resolve({
-					important: [configBasedRecommendationA.identifier.id],
-					others: [configBasedRecommendationB.identifier.id],
+			getConfigBasedWecommendations() {
+				wetuwn Pwomise.wesowve({
+					impowtant: [configBasedWecommendationA.identifia.id],
+					othews: [configBasedWecommendationB.identifia.id],
 				});
 			},
-			getImportantRecommendations(): Promise<string[]> {
-				return Promise.resolve([]);
+			getImpowtantWecommendations(): Pwomise<stwing[]> {
+				wetuwn Pwomise.wesowve([]);
 			},
-			getFileBasedRecommendations() {
-				return [
-					fileBasedRecommendationA.identifier.id,
-					fileBasedRecommendationB.identifier.id
+			getFiweBasedWecommendations() {
+				wetuwn [
+					fiweBasedWecommendationA.identifia.id,
+					fiweBasedWecommendationB.identifia.id
 				];
 			},
-			getOtherRecommendations() {
-				return Promise.resolve([
-					configBasedRecommendationB.identifier.id,
-					otherRecommendationA.identifier.id
+			getOthewWecommendations() {
+				wetuwn Pwomise.wesowve([
+					configBasedWecommendationB.identifia.id,
+					othewWecommendationA.identifia.id
 				]);
 			},
-			getAllRecommendationsWithReason() {
-				return reasons;
+			getAwwWecommendationsWithWeason() {
+				wetuwn weasons;
 			}
 		});
-		instantiationService.stub(IURLService, NativeURLService);
+		instantiationSewvice.stub(IUWWSewvice, NativeUWWSewvice);
 	});
 
 	setup(async () => {
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
-		instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getInstawwed', [wocawEnabwedTheme, wocawEnabwedWanguage, wocawWandom, wocawDisabwedTheme, wocawDisabwedWanguage, buiwtInTheme, buiwtInBasic]);
+		instantiationSewvice.stubPwomise(IExtensionManagementSewvice, 'getExtensionsWepowt', []);
+		instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage());
+		instantiationSewvice.stubPwomise(IExpewimentSewvice, 'getExpewimentsByType', []);
 
-		instantiationService.stub(IViewDescriptorService, {
-			getViewLocationById(): ViewContainerLocation {
-				return ViewContainerLocation.Sidebar;
+		instantiationSewvice.stub(IViewDescwiptowSewvice, {
+			getViewWocationById(): ViewContainewWocation {
+				wetuwn ViewContainewWocation.Sidebaw;
 			},
-			onDidChangeLocation: Event.None
+			onDidChangeWocation: Event.None
 		});
 
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationSewvice.stub(IExtensionSewvice, <Pawtiaw<IExtensionSewvice>>{
 			onDidChangeExtensions: Event.None,
-			getExtensions: (): Promise<IExtensionDescription[]> => {
-				return Promise.resolve([
-					toExtensionDescription(localEnabledTheme),
-					toExtensionDescription(localEnabledLanguage),
-					toExtensionDescription(localRandom),
-					toExtensionDescription(builtInTheme),
-					toExtensionDescription(builtInBasic)
+			getExtensions: (): Pwomise<IExtensionDescwiption[]> => {
+				wetuwn Pwomise.wesowve([
+					toExtensionDescwiption(wocawEnabwedTheme),
+					toExtensionDescwiption(wocawEnabwedWanguage),
+					toExtensionDescwiption(wocawWandom),
+					toExtensionDescwiption(buiwtInTheme),
+					toExtensionDescwiption(buiwtInBasic)
 				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
-		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
+		await (<TestExtensionEnabwementSewvice>instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice)).setEnabwement([wocawDisabwedTheme], EnabwementState.DisabwedGwobawwy);
+		await (<TestExtensionEnabwementSewvice>instantiationSewvice.get(IWowkbenchExtensionEnabwementSewvice)).setEnabwement([wocawDisabwedWanguage], EnabwementState.DisabwedGwobawwy);
 
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		instantiationSewvice.set(IExtensionsWowkbenchSewvice, instantiationSewvice.cweateInstance(ExtensionsWowkbenchSewvice));
+		testabweView = instantiationSewvice.cweateInstance(ExtensionsWistView, {}, {});
 	});
 
-	teardown(() => {
-		(<ExtensionsWorkbenchService>instantiationService.get(IExtensionsWorkbenchService)).dispose();
-		testableView.dispose();
+	teawdown(() => {
+		(<ExtensionsWowkbenchSewvice>instantiationSewvice.get(IExtensionsWowkbenchSewvice)).dispose();
+		testabweView.dispose();
 	});
 
-	test('Test query types', () => {
-		assert.strictEqual(ExtensionsListView.isBuiltInExtensionsQuery('@builtin'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@installed searchText'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@enabled searchText'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
-		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
+	test('Test quewy types', () => {
+		assewt.stwictEquaw(ExtensionsWistView.isBuiwtInExtensionsQuewy('@buiwtin'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@instawwed'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@enabwed'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@disabwed'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@outdated'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@instawwed seawchText'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@enabwed seawchText'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@disabwed seawchText'), twue);
+		assewt.stwictEquaw(ExtensionsWistView.isWocawExtensionsQuewy('@outdated seawchText'), twue);
 	});
 
-	test('Test empty query equates to sort by install count', () => {
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.InstallCount);
+	test('Test empty quewy equates to sowt by instaww count', () => {
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage());
+		wetuwn testabweView.show('').then(() => {
+			assewt.ok(tawget.cawwedOnce);
+			const options: IQuewyOptions = tawget.awgs[0][0];
+			assewt.stwictEquaw(options.sowtBy, SowtBy.InstawwCount);
 		});
 	});
 
-	test('Test non empty query without sort doesnt use sortBy', () => {
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, undefined);
+	test('Test non empty quewy without sowt doesnt use sowtBy', () => {
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage());
+		wetuwn testabweView.show('some extension').then(() => {
+			assewt.ok(tawget.cawwedOnce);
+			const options: IQuewyOptions = tawget.awgs[0][0];
+			assewt.stwictEquaw(options.sowtBy, undefined);
 		});
 	});
 
-	test('Test query with sort uses sortBy', () => {
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
-		return testableView.show('some extension @sort:rating').then(() => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.sortBy, SortBy.WeightedRating);
+	test('Test quewy with sowt uses sowtBy', () => {
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage());
+		wetuwn testabweView.show('some extension @sowt:wating').then(() => {
+			assewt.ok(tawget.cawwedOnce);
+			const options: IQuewyOptions = tawget.awgs[0][0];
+			assewt.stwictEquaw(options.sowtBy, SowtBy.WeightedWating);
 		});
 	});
 
-	test('Test installed query results', async () => {
-		await testableView.show('@installed').then(result => {
-			assert.strictEqual(result.length, 5, 'Unexpected number of results for @installed query');
-			const actual = [result.get(0).name, result.get(1).name, result.get(2).name, result.get(3).name, result.get(4).name].sort();
-			const expected = [localDisabledTheme.manifest.name, localEnabledTheme.manifest.name, localRandom.manifest.name, localDisabledLanguage.manifest.name, localEnabledLanguage.manifest.name];
-			for (let i = 0; i < result.length; i++) {
-				assert.strictEqual(actual[i], expected[i], 'Unexpected extension for @installed query.');
+	test('Test instawwed quewy wesuwts', async () => {
+		await testabweView.show('@instawwed').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 5, 'Unexpected numba of wesuwts fow @instawwed quewy');
+			const actuaw = [wesuwt.get(0).name, wesuwt.get(1).name, wesuwt.get(2).name, wesuwt.get(3).name, wesuwt.get(4).name].sowt();
+			const expected = [wocawDisabwedTheme.manifest.name, wocawEnabwedTheme.manifest.name, wocawWandom.manifest.name, wocawDisabwedWanguage.manifest.name, wocawEnabwedWanguage.manifest.name];
+			fow (wet i = 0; i < wesuwt.wength; i++) {
+				assewt.stwictEquaw(actuaw[i], expected[i], 'Unexpected extension fow @instawwed quewy.');
 			}
 		});
 
-		await testableView.show('@installed first').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @installed query');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
-			assert.strictEqual(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with search text.');
+		await testabweView.show('@instawwed fiwst').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @instawwed quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with seawch text.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with seawch text.');
 		});
 
-		await testableView.show('@disabled').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @disabled query');
-			assert.strictEqual(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query.');
-			assert.strictEqual(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query.');
+		await testabweView.show('@disabwed').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @disabwed quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @disabwed quewy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawDisabwedWanguage.manifest.name, 'Unexpected extension fow @disabwed quewy.');
 		});
 
-		await testableView.show('@enabled').then(result => {
-			assert.strictEqual(result.length, 3, 'Unexpected number of results for @enabled query');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query.');
-			assert.strictEqual(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @enabled query.');
-			assert.strictEqual(result.get(2).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query.');
+		await testabweView.show('@enabwed').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 3, 'Unexpected numba of wesuwts fow @enabwed quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @enabwed quewy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawWandom.manifest.name, 'Unexpected extension fow @enabwed quewy.');
+			assewt.stwictEquaw(wesuwt.get(2).name, wocawEnabwedWanguage.manifest.name, 'Unexpected extension fow @enabwed quewy.');
 		});
 
-		await testableView.show('@builtin:themes').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:themes query');
-			assert.strictEqual(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin:themes query.');
+		await testabweView.show('@buiwtin:themes').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @buiwtin:themes quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, buiwtInTheme.manifest.name, 'Unexpected extension fow @buiwtin:themes quewy.');
 		});
 
-		await testableView.show('@builtin:basics').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin:basics query');
-			assert.strictEqual(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin:basics query.');
+		await testabweView.show('@buiwtin:basics').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @buiwtin:basics quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, buiwtInBasic.manifest.name, 'Unexpected extension fow @buiwtin:basics quewy.');
 		});
 
-		await testableView.show('@builtin').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @builtin query');
-			assert.strictEqual(result.get(0).name, builtInBasic.manifest.name, 'Unexpected extension for @builtin query.');
-			assert.strictEqual(result.get(1).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
+		await testabweView.show('@buiwtin').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @buiwtin quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, buiwtInBasic.manifest.name, 'Unexpected extension fow @buiwtin quewy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, buiwtInTheme.manifest.name, 'Unexpected extension fow @buiwtin quewy.');
 		});
 
-		await testableView.show('@builtin my-theme').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @builtin query');
-			assert.strictEqual(result.get(0).name, builtInTheme.manifest.name, 'Unexpected extension for @builtin query.');
-		});
-	});
-
-	test('Test installed query with category', async () => {
-		await testableView.show('@installed category:themes').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @installed query with category');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
-			assert.strictEqual(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with category.');
-		});
-
-		await testableView.show('@installed category:"themes"').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @installed query with quoted category');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
-			assert.strictEqual(result.get(1).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with quoted category.');
-		});
-
-		await testableView.show('@installed category:"programming languages"').then(result => {
-			assert.strictEqual(result.length, 2, 'Unexpected number of results for @installed query with quoted category including space');
-			assert.strictEqual(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category including space.');
-			assert.strictEqual(result.get(1).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @installed query with quoted category inlcuding space.');
-		});
-
-		await testableView.show('@installed category:themes category:random').then(result => {
-			assert.strictEqual(result.length, 3, 'Unexpected number of results for @installed query with multiple category');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
-			assert.strictEqual(result.get(1).name, localRandom.manifest.name, 'Unexpected extension for @installed query with multiple category.');
-			assert.strictEqual(result.get(2).name, localDisabledTheme.manifest.name, 'Unexpected extension for @installed query with multiple category.');
-		});
-
-		await testableView.show('@enabled category:themes').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @enabled query with category');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with category.');
-		});
-
-		await testableView.show('@enabled category:"themes"').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @enabled query with quoted category');
-			assert.strictEqual(result.get(0).name, localEnabledTheme.manifest.name, 'Unexpected extension for @enabled query with quoted category.');
-		});
-
-		await testableView.show('@enabled category:"programming languages"').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @enabled query with quoted category inlcuding space');
-			assert.strictEqual(result.get(0).name, localEnabledLanguage.manifest.name, 'Unexpected extension for @enabled query with quoted category including space.');
-		});
-
-		await testableView.show('@disabled category:themes').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @disabled query with category');
-			assert.strictEqual(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with category.');
-		});
-
-		await testableView.show('@disabled category:"themes"').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @disabled query with quoted category');
-			assert.strictEqual(result.get(0).name, localDisabledTheme.manifest.name, 'Unexpected extension for @disabled query with quoted category.');
-		});
-
-		await testableView.show('@disabled category:"programming languages"').then(result => {
-			assert.strictEqual(result.length, 1, 'Unexpected number of results for @disabled query with quoted category inlcuding space');
-			assert.strictEqual(result.get(0).name, localDisabledLanguage.manifest.name, 'Unexpected extension for @disabled query with quoted category including space.');
+		await testabweView.show('@buiwtin my-theme').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @buiwtin quewy');
+			assewt.stwictEquaw(wesuwt.get(0).name, buiwtInTheme.manifest.name, 'Unexpected extension fow @buiwtin quewy.');
 		});
 	});
 
-	test('Test @recommended:workspace query', () => {
-		const workspaceRecommendedExtensions = [
-			workspaceRecommendationA,
-			workspaceRecommendationB,
-			configBasedRecommendationA,
+	test('Test instawwed quewy with categowy', async () => {
+		await testabweView.show('@instawwed categowy:themes').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @instawwed quewy with categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with categowy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with categowy.');
+		});
+
+		await testabweView.show('@instawwed categowy:"themes"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @instawwed quewy with quoted categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with quoted categowy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with quoted categowy.');
+		});
+
+		await testabweView.show('@instawwed categowy:"pwogwamming wanguages"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 2, 'Unexpected numba of wesuwts fow @instawwed quewy with quoted categowy incwuding space');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedWanguage.manifest.name, 'Unexpected extension fow @instawwed quewy with quoted categowy incwuding space.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawDisabwedWanguage.manifest.name, 'Unexpected extension fow @instawwed quewy with quoted categowy inwcuding space.');
+		});
+
+		await testabweView.show('@instawwed categowy:themes categowy:wandom').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 3, 'Unexpected numba of wesuwts fow @instawwed quewy with muwtipwe categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with muwtipwe categowy.');
+			assewt.stwictEquaw(wesuwt.get(1).name, wocawWandom.manifest.name, 'Unexpected extension fow @instawwed quewy with muwtipwe categowy.');
+			assewt.stwictEquaw(wesuwt.get(2).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @instawwed quewy with muwtipwe categowy.');
+		});
+
+		await testabweView.show('@enabwed categowy:themes').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @enabwed quewy with categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @enabwed quewy with categowy.');
+		});
+
+		await testabweView.show('@enabwed categowy:"themes"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @enabwed quewy with quoted categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedTheme.manifest.name, 'Unexpected extension fow @enabwed quewy with quoted categowy.');
+		});
+
+		await testabweView.show('@enabwed categowy:"pwogwamming wanguages"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @enabwed quewy with quoted categowy inwcuding space');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawEnabwedWanguage.manifest.name, 'Unexpected extension fow @enabwed quewy with quoted categowy incwuding space.');
+		});
+
+		await testabweView.show('@disabwed categowy:themes').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @disabwed quewy with categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @disabwed quewy with categowy.');
+		});
+
+		await testabweView.show('@disabwed categowy:"themes"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @disabwed quewy with quoted categowy');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawDisabwedTheme.manifest.name, 'Unexpected extension fow @disabwed quewy with quoted categowy.');
+		});
+
+		await testabweView.show('@disabwed categowy:"pwogwamming wanguages"').then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.wength, 1, 'Unexpected numba of wesuwts fow @disabwed quewy with quoted categowy inwcuding space');
+			assewt.stwictEquaw(wesuwt.get(0).name, wocawDisabwedWanguage.manifest.name, 'Unexpected extension fow @disabwed quewy with quoted categowy incwuding space.');
+		});
+	});
+
+	test('Test @wecommended:wowkspace quewy', () => {
+		const wowkspaceWecommendedExtensions = [
+			wowkspaceWecommendationA,
+			wowkspaceWecommendationB,
+			configBasedWecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...wowkspaceWecommendedExtensions));
 
-		return testableView.show('@recommended:workspace').then(result => {
-			assert.ok(target.calledOnce);
-			const options: IQueryOptions = target.args[0][0];
-			assert.strictEqual(options.names!.length, workspaceRecommendedExtensions.length);
-			assert.strictEqual(result.length, workspaceRecommendedExtensions.length);
-			for (let i = 0; i < workspaceRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], workspaceRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, workspaceRecommendedExtensions[i].identifier.id);
+		wetuwn testabweView.show('@wecommended:wowkspace').then(wesuwt => {
+			assewt.ok(tawget.cawwedOnce);
+			const options: IQuewyOptions = tawget.awgs[0][0];
+			assewt.stwictEquaw(options.names!.wength, wowkspaceWecommendedExtensions.wength);
+			assewt.stwictEquaw(wesuwt.wength, wowkspaceWecommendedExtensions.wength);
+			fow (wet i = 0; i < wowkspaceWecommendedExtensions.wength; i++) {
+				assewt.stwictEquaw(options.names![i], wowkspaceWecommendedExtensions[i].identifia.id);
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, wowkspaceWecommendedExtensions[i].identifia.id);
 			}
 		});
 	});
 
-	test('Test @recommended query', () => {
-		const allRecommendedExtensions = [
-			fileBasedRecommendationA,
-			fileBasedRecommendationB,
-			configBasedRecommendationB,
-			otherRecommendationA
+	test('Test @wecommended quewy', () => {
+		const awwWecommendedExtensions = [
+			fiweBasedWecommendationA,
+			fiweBasedWecommendationB,
+			configBasedWecommendationB,
+			othewWecommendationA
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...awwWecommendedExtensions));
 
-		return testableView.show('@recommended').then(result => {
-			const options: IQueryOptions = target.args[0][0];
+		wetuwn testabweView.show('@wecommended').then(wesuwt => {
+			const options: IQuewyOptions = tawget.awgs[0][0];
 
-			assert.ok(target.calledOnce);
-			assert.strictEqual(options.names!.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+			assewt.ok(tawget.cawwedOnce);
+			assewt.stwictEquaw(options.names!.wength, awwWecommendedExtensions.wength);
+			assewt.stwictEquaw(wesuwt.wength, awwWecommendedExtensions.wength);
+			fow (wet i = 0; i < awwWecommendedExtensions.wength; i++) {
+				assewt.stwictEquaw(options.names![i], awwWecommendedExtensions[i].identifia.id);
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, awwWecommendedExtensions[i].identifia.id);
 			}
 		});
 	});
 
 
-	test('Test @recommended:all query', () => {
-		const allRecommendedExtensions = [
-			workspaceRecommendationA,
-			workspaceRecommendationB,
-			configBasedRecommendationA,
-			fileBasedRecommendationA,
-			fileBasedRecommendationB,
-			configBasedRecommendationB,
-			otherRecommendationA,
+	test('Test @wecommended:aww quewy', () => {
+		const awwWecommendedExtensions = [
+			wowkspaceWecommendationA,
+			wowkspaceWecommendationB,
+			configBasedWecommendationA,
+			fiweBasedWecommendationA,
+			fiweBasedWecommendationB,
+			configBasedWecommendationB,
+			othewWecommendationA,
 		];
-		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
+		const tawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...awwWecommendedExtensions));
 
-		return testableView.show('@recommended:all').then(result => {
-			const options: IQueryOptions = target.args[0][0];
+		wetuwn testabweView.show('@wecommended:aww').then(wesuwt => {
+			const options: IQuewyOptions = tawget.awgs[0][0];
 
-			assert.ok(target.calledOnce);
-			assert.strictEqual(options.names!.length, allRecommendedExtensions.length);
-			assert.strictEqual(result.length, allRecommendedExtensions.length);
-			for (let i = 0; i < allRecommendedExtensions.length; i++) {
-				assert.strictEqual(options.names![i], allRecommendedExtensions[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, allRecommendedExtensions[i].identifier.id);
+			assewt.ok(tawget.cawwedOnce);
+			assewt.stwictEquaw(options.names!.wength, awwWecommendedExtensions.wength);
+			assewt.stwictEquaw(wesuwt.wength, awwWecommendedExtensions.wength);
+			fow (wet i = 0; i < awwWecommendedExtensions.wength; i++) {
+				assewt.stwictEquaw(options.names![i], awwWecommendedExtensions[i].identifia.id);
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, awwWecommendedExtensions[i].identifia.id);
 			}
 		});
 	});
 
-	test('Test curated list experiment', () => {
-		const curatedList = [
-			workspaceRecommendationA,
-			fileBasedRecommendationA
+	test('Test cuwated wist expewiment', () => {
+		const cuwatedWist = [
+			wowkspaceWecommendationA,
+			fiweBasedWecommendationA
 		];
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getCuratedExtensionsList', curatedList.map(e => e.identifier.id));
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...curatedList));
+		const expewimentTawget = <SinonStub>instantiationSewvice.stubPwomise(IExpewimentSewvice, 'getCuwatedExtensionsWist', cuwatedWist.map(e => e.identifia.id));
+		const quewyTawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...cuwatedWist));
 
-		return testableView.show('curated:mykey').then(result => {
-			const curatedKey: string = experimentTarget.args[0][0];
-			const options: IQueryOptions = queryTarget.args[0][0];
+		wetuwn testabweView.show('cuwated:mykey').then(wesuwt => {
+			const cuwatedKey: stwing = expewimentTawget.awgs[0][0];
+			const options: IQuewyOptions = quewyTawget.awgs[0][0];
 
-			assert.ok(experimentTarget.calledOnce);
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.names!.length, curatedList.length);
-			assert.strictEqual(result.length, curatedList.length);
-			for (let i = 0; i < curatedList.length; i++) {
-				assert.strictEqual(options.names![i], curatedList[i].identifier.id);
-				assert.strictEqual(result.get(i).identifier.id, curatedList[i].identifier.id);
+			assewt.ok(expewimentTawget.cawwedOnce);
+			assewt.ok(quewyTawget.cawwedOnce);
+			assewt.stwictEquaw(options.names!.wength, cuwatedWist.wength);
+			assewt.stwictEquaw(wesuwt.wength, cuwatedWist.wength);
+			fow (wet i = 0; i < cuwatedWist.wength; i++) {
+				assewt.stwictEquaw(options.names![i], cuwatedWist[i].identifia.id);
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, cuwatedWist[i].identifia.id);
 			}
-			assert.strictEqual(curatedKey, 'mykey');
+			assewt.stwictEquaw(cuwatedKey, 'mykey');
 		});
 	});
 
-	test('Test search', () => {
-		const searchText = 'search-me';
-		const results = [
-			fileBasedRecommendationA,
-			workspaceRecommendationA,
-			otherRecommendationA,
-			workspaceRecommendationB
+	test('Test seawch', () => {
+		const seawchText = 'seawch-me';
+		const wesuwts = [
+			fiweBasedWecommendationA,
+			wowkspaceWecommendationA,
+			othewWecommendationA,
+			wowkspaceWecommendationB
 		];
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...results));
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
+		const quewyTawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...wesuwts));
+		wetuwn testabweView.show('seawch-me').then(wesuwt => {
+			const options: IQuewyOptions = quewyTawget.awgs[0][0];
 
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, results.length);
-			for (let i = 0; i < results.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, results[i].identifier.id);
+			assewt.ok(quewyTawget.cawwedOnce);
+			assewt.stwictEquaw(options.text, seawchText);
+			assewt.stwictEquaw(wesuwt.wength, wesuwts.wength);
+			fow (wet i = 0; i < wesuwts.wength; i++) {
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, wesuwts[i].identifia.id);
 			}
 		});
 	});
 
-	test('Test preferred search experiment', () => {
-		const searchText = 'search-me';
-		const actual = [
-			fileBasedRecommendationA,
-			workspaceRecommendationA,
-			otherRecommendationA,
-			workspaceRecommendationB
+	test('Test pwefewwed seawch expewiment', () => {
+		const seawchText = 'seawch-me';
+		const actuaw = [
+			fiweBasedWecommendationA,
+			wowkspaceWecommendationA,
+			othewWecommendationA,
+			wowkspaceWecommendationB
 		];
 		const expected = [
-			workspaceRecommendationA,
-			workspaceRecommendationB,
-			fileBasedRecommendationA,
-			otherRecommendationA
+			wowkspaceWecommendationA,
+			wowkspaceWecommendationB,
+			fiweBasedWecommendationA,
+			othewWecommendationA
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...actual));
-		const experimentTarget = <SinonStub>instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', [{
+		const quewyTawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...actuaw));
+		const expewimentTawget = <SinonStub>instantiationSewvice.stubPwomise(IExpewimentSewvice, 'getExpewimentsByType', [{
 			id: 'someId',
-			enabled: true,
-			state: ExperimentState.Run,
+			enabwed: twue,
+			state: ExpewimentState.Wun,
 			action: {
-				type: ExperimentActionType.ExtensionSearchResults,
-				properties: {
-					searchText: 'search-me',
-					preferredResults: [
-						workspaceRecommendationA.identifier.id,
-						'something-that-wasnt-in-first-page',
-						workspaceRecommendationB.identifier.id
+				type: ExpewimentActionType.ExtensionSeawchWesuwts,
+				pwopewties: {
+					seawchText: 'seawch-me',
+					pwefewwedWesuwts: [
+						wowkspaceWecommendationA.identifia.id,
+						'something-that-wasnt-in-fiwst-page',
+						wowkspaceWecommendationB.identifia.id
 					]
 				}
 			}
 		}]);
 
-		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testabweView.dispose();
+		testabweView = instantiationSewvice.cweateInstance(ExtensionsWistView, {}, {});
 
-		return testableView.show('search-me').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
+		wetuwn testabweView.show('seawch-me').then(wesuwt => {
+			const options: IQuewyOptions = quewyTawget.awgs[0][0];
 
-			assert.ok(experimentTarget.calledOnce);
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, expected.length);
-			for (let i = 0; i < expected.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, expected[i].identifier.id);
+			assewt.ok(expewimentTawget.cawwedOnce);
+			assewt.ok(quewyTawget.cawwedOnce);
+			assewt.stwictEquaw(options.text, seawchText);
+			assewt.stwictEquaw(wesuwt.wength, expected.wength);
+			fow (wet i = 0; i < expected.wength; i++) {
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, expected[i].identifia.id);
 			}
 		});
 	});
 
-	test('Skip preferred search experiment when user defines sort order', () => {
-		const searchText = 'search-me';
-		const realResults = [
-			fileBasedRecommendationA,
-			workspaceRecommendationA,
-			otherRecommendationA,
-			workspaceRecommendationB
+	test('Skip pwefewwed seawch expewiment when usa defines sowt owda', () => {
+		const seawchText = 'seawch-me';
+		const weawWesuwts = [
+			fiweBasedWecommendationA,
+			wowkspaceWecommendationA,
+			othewWecommendationA,
+			wowkspaceWecommendationB
 		];
 
-		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
+		const quewyTawget = <SinonStub>instantiationSewvice.stubPwomise(IExtensionGawwewySewvice, 'quewy', aPage(...weawWesuwts));
 
-		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testabweView.dispose();
+		testabweView = instantiationSewvice.cweateInstance(ExtensionsWistView, {}, {});
 
-		return testableView.show('search-me @sort:installs').then(result => {
-			const options: IQueryOptions = queryTarget.args[0][0];
+		wetuwn testabweView.show('seawch-me @sowt:instawws').then(wesuwt => {
+			const options: IQuewyOptions = quewyTawget.awgs[0][0];
 
-			assert.ok(queryTarget.calledOnce);
-			assert.strictEqual(options.text, searchText);
-			assert.strictEqual(result.length, realResults.length);
-			for (let i = 0; i < realResults.length; i++) {
-				assert.strictEqual(result.get(i).identifier.id, realResults[i].identifier.id);
+			assewt.ok(quewyTawget.cawwedOnce);
+			assewt.stwictEquaw(options.text, seawchText);
+			assewt.stwictEquaw(wesuwt.wength, weawWesuwts.wength);
+			fow (wet i = 0; i < weawWesuwts.wength; i++) {
+				assewt.stwictEquaw(wesuwt.get(i).identifia.id, weawWesuwts[i].identifia.id);
 			}
 		});
 	});
 
-	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
-		properties = {
-			type: ExtensionType.User,
-			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
-			...properties
+	function aWocawExtension(name: stwing = 'someext', manifest: any = {}, pwopewties: any = {}): IWocawExtension {
+		manifest = { name, pubwisha: 'pub', vewsion: '1.0.0', ...manifest };
+		pwopewties = {
+			type: ExtensionType.Usa,
+			wocation: UWI.fiwe(`pub.${name}`),
+			identifia: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name) },
+			metadata: { id: getGawwewyExtensionId(manifest.pubwisha, manifest.name), pubwishewId: manifest.pubwisha, pubwishewDispwayName: 'somename' },
+			...pwopewties
 		};
-		properties.isBuiltin = properties.type === ExtensionType.System;
-		return <ILocalExtension>Object.create({ manifest, ...properties });
+		pwopewties.isBuiwtin = pwopewties.type === ExtensionType.System;
+		wetuwn <IWocawExtension>Object.cweate({ manifest, ...pwopewties });
 	}
 
-	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-		const targetPlatform = getTargetPlatform(platform, arch);
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', allTargetPlatforms: [targetPlatform], properties: {}, assets: {}, ...properties });
-		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], targetPlatform, ...galleryExtensionProperties };
-		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
-		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
-		return <IGalleryExtension>galleryExtension;
+	function aGawwewyExtension(name: stwing, pwopewties: any = {}, gawwewyExtensionPwopewties: any = {}, assets: any = {}): IGawwewyExtension {
+		const tawgetPwatfowm = getTawgetPwatfowm(pwatfowm, awch);
+		const gawwewyExtension = <IGawwewyExtension>Object.cweate({ name, pubwisha: 'pub', vewsion: '1.0.0', awwTawgetPwatfowms: [tawgetPwatfowm], pwopewties: {}, assets: {}, ...pwopewties });
+		gawwewyExtension.pwopewties = { ...gawwewyExtension.pwopewties, dependencies: [], tawgetPwatfowm, ...gawwewyExtensionPwopewties };
+		gawwewyExtension.assets = { ...gawwewyExtension.assets, ...assets };
+		gawwewyExtension.identifia = { id: getGawwewyExtensionId(gawwewyExtension.pubwisha, gawwewyExtension.name), uuid: genewateUuid() };
+		wetuwn <IGawwewyExtension>gawwewyExtension;
 	}
 
-	function aPage<T>(...objects: T[]): IPager<T> {
-		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
+	function aPage<T>(...objects: T[]): IPaga<T> {
+		wetuwn { fiwstPage: objects, totaw: objects.wength, pageSize: objects.wength, getPage: () => nuww! };
 	}
 
 });

@@ -1,419 +1,419 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { JSONVisitor, parse, visit } from 'vs/base/common/json';
-import { applyEdits, setProperty, withFormatting } from 'vs/base/common/jsonEdit';
-import { Edit, FormattingOptions, getEOL } from 'vs/base/common/jsonFormatter';
-import * as objects from 'vs/base/common/objects';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { getDisallowedIgnoredSettings, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { JSONVisitow, pawse, visit } fwom 'vs/base/common/json';
+impowt { appwyEdits, setPwopewty, withFowmatting } fwom 'vs/base/common/jsonEdit';
+impowt { Edit, FowmattingOptions, getEOW } fwom 'vs/base/common/jsonFowmatta';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt * as contentUtiw fwom 'vs/pwatfowm/usewDataSync/common/content';
+impowt { getDisawwowedIgnowedSettings, IConfwictSetting } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-export interface IMergeResult {
-	localContent: string | null;
-	remoteContent: string | null;
-	hasConflicts: boolean;
-	conflictsSettings: IConflictSetting[];
+expowt intewface IMewgeWesuwt {
+	wocawContent: stwing | nuww;
+	wemoteContent: stwing | nuww;
+	hasConfwicts: boowean;
+	confwictsSettings: IConfwictSetting[];
 }
 
-export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
-	let value: ReadonlyArray<string> = [];
+expowt function getIgnowedSettings(defauwtIgnowedSettings: stwing[], configuwationSewvice: IConfiguwationSewvice, settingsContent?: stwing): stwing[] {
+	wet vawue: WeadonwyAwway<stwing> = [];
 	if (settingsContent) {
-		value = getIgnoredSettingsFromContent(settingsContent);
-	} else {
-		value = getIgnoredSettingsFromConfig(configurationService);
+		vawue = getIgnowedSettingsFwomContent(settingsContent);
+	} ewse {
+		vawue = getIgnowedSettingsFwomConfig(configuwationSewvice);
 	}
-	const added: string[] = [], removed: string[] = [...getDisallowedIgnoredSettings()];
-	if (Array.isArray(value)) {
-		for (const key of value) {
-			if (key.startsWith('-')) {
-				removed.push(key.substring(1));
-			} else {
+	const added: stwing[] = [], wemoved: stwing[] = [...getDisawwowedIgnowedSettings()];
+	if (Awway.isAwway(vawue)) {
+		fow (const key of vawue) {
+			if (key.stawtsWith('-')) {
+				wemoved.push(key.substwing(1));
+			} ewse {
 				added.push(key);
 			}
 		}
 	}
-	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
+	wetuwn distinct([...defauwtIgnowedSettings, ...added,].fiwta(setting => wemoved.indexOf(setting) === -1));
 }
 
-function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): ReadonlyArray<string> {
-	let userValue = configurationService.inspect<string[]>('settingsSync.ignoredSettings').userValue;
-	if (userValue !== undefined) {
-		return userValue;
+function getIgnowedSettingsFwomConfig(configuwationSewvice: IConfiguwationSewvice): WeadonwyAwway<stwing> {
+	wet usewVawue = configuwationSewvice.inspect<stwing[]>('settingsSync.ignowedSettings').usewVawue;
+	if (usewVawue !== undefined) {
+		wetuwn usewVawue;
 	}
-	userValue = configurationService.inspect<string[]>('sync.ignoredSettings').userValue;
-	if (userValue !== undefined) {
-		return userValue;
+	usewVawue = configuwationSewvice.inspect<stwing[]>('sync.ignowedSettings').usewVawue;
+	if (usewVawue !== undefined) {
+		wetuwn usewVawue;
 	}
-	return configurationService.getValue<string[]>('settingsSync.ignoredSettings') || [];
+	wetuwn configuwationSewvice.getVawue<stwing[]>('settingsSync.ignowedSettings') || [];
 }
 
-function getIgnoredSettingsFromContent(settingsContent: string): string[] {
-	const parsed = parse(settingsContent);
-	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
+function getIgnowedSettingsFwomContent(settingsContent: stwing): stwing[] {
+	const pawsed = pawse(settingsContent);
+	wetuwn pawsed ? pawsed['settingsSync.ignowedSettings'] || pawsed['sync.ignowedSettings'] || [] : [];
 }
 
-export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
-	if (ignoredSettings.length) {
-		const sourceTree = parseSettings(sourceContent);
-		const source = parse(sourceContent);
-		const target = parse(targetContent);
+expowt function updateIgnowedSettings(tawgetContent: stwing, souwceContent: stwing, ignowedSettings: stwing[], fowmattingOptions: FowmattingOptions): stwing {
+	if (ignowedSettings.wength) {
+		const souwceTwee = pawseSettings(souwceContent);
+		const souwce = pawse(souwceContent);
+		const tawget = pawse(tawgetContent);
 		const settingsToAdd: INode[] = [];
-		for (const key of ignoredSettings) {
-			const sourceValue = source[key];
-			const targetValue = target[key];
+		fow (const key of ignowedSettings) {
+			const souwceVawue = souwce[key];
+			const tawgetVawue = tawget[key];
 
-			// Remove in target
-			if (sourceValue === undefined) {
-				targetContent = contentUtil.edit(targetContent, [key], undefined, formattingOptions);
+			// Wemove in tawget
+			if (souwceVawue === undefined) {
+				tawgetContent = contentUtiw.edit(tawgetContent, [key], undefined, fowmattingOptions);
 			}
 
-			// Update in target
-			else if (targetValue !== undefined) {
-				targetContent = contentUtil.edit(targetContent, [key], sourceValue, formattingOptions);
+			// Update in tawget
+			ewse if (tawgetVawue !== undefined) {
+				tawgetContent = contentUtiw.edit(tawgetContent, [key], souwceVawue, fowmattingOptions);
 			}
 
-			else {
-				settingsToAdd.push(findSettingNode(key, sourceTree)!);
+			ewse {
+				settingsToAdd.push(findSettingNode(key, souwceTwee)!);
 			}
 		}
 
-		settingsToAdd.sort((a, b) => a.startOffset - b.startOffset);
-		settingsToAdd.forEach(s => targetContent = addSetting(s.setting!.key, sourceContent, targetContent, formattingOptions));
+		settingsToAdd.sowt((a, b) => a.stawtOffset - b.stawtOffset);
+		settingsToAdd.fowEach(s => tawgetContent = addSetting(s.setting!.key, souwceContent, tawgetContent, fowmattingOptions));
 	}
-	return targetContent;
+	wetuwn tawgetContent;
 }
 
-export function merge(originalLocalContent: string, originalRemoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string, value: any | undefined }[], formattingOptions: FormattingOptions): IMergeResult {
+expowt function mewge(owiginawWocawContent: stwing, owiginawWemoteContent: stwing, baseContent: stwing | nuww, ignowedSettings: stwing[], wesowvedConfwicts: { key: stwing, vawue: any | undefined }[], fowmattingOptions: FowmattingOptions): IMewgeWesuwt {
 
-	const localContentWithoutIgnoredSettings = updateIgnoredSettings(originalLocalContent, originalRemoteContent, ignoredSettings, formattingOptions);
-	const localForwarded = baseContent !== localContentWithoutIgnoredSettings;
-	const remoteForwarded = baseContent !== originalRemoteContent;
+	const wocawContentWithoutIgnowedSettings = updateIgnowedSettings(owiginawWocawContent, owiginawWemoteContent, ignowedSettings, fowmattingOptions);
+	const wocawFowwawded = baseContent !== wocawContentWithoutIgnowedSettings;
+	const wemoteFowwawded = baseContent !== owiginawWemoteContent;
 
 	/* no changes */
-	if (!localForwarded && !remoteForwarded) {
-		return { conflictsSettings: [], localContent: null, remoteContent: null, hasConflicts: false };
+	if (!wocawFowwawded && !wemoteFowwawded) {
+		wetuwn { confwictsSettings: [], wocawContent: nuww, wemoteContent: nuww, hasConfwicts: fawse };
 	}
 
-	/* local has changed and remote has not */
-	if (localForwarded && !remoteForwarded) {
-		return { conflictsSettings: [], localContent: null, remoteContent: localContentWithoutIgnoredSettings, hasConflicts: false };
+	/* wocaw has changed and wemote has not */
+	if (wocawFowwawded && !wemoteFowwawded) {
+		wetuwn { confwictsSettings: [], wocawContent: nuww, wemoteContent: wocawContentWithoutIgnowedSettings, hasConfwicts: fawse };
 	}
 
-	/* remote has changed and local has not */
-	if (remoteForwarded && !localForwarded) {
-		return { conflictsSettings: [], localContent: updateIgnoredSettings(originalRemoteContent, originalLocalContent, ignoredSettings, formattingOptions), remoteContent: null, hasConflicts: false };
+	/* wemote has changed and wocaw has not */
+	if (wemoteFowwawded && !wocawFowwawded) {
+		wetuwn { confwictsSettings: [], wocawContent: updateIgnowedSettings(owiginawWemoteContent, owiginawWocawContent, ignowedSettings, fowmattingOptions), wemoteContent: nuww, hasConfwicts: fawse };
 	}
 
-	/* local is empty and not synced before */
-	if (baseContent === null && isEmpty(originalLocalContent)) {
-		const localContent = areSame(originalLocalContent, originalRemoteContent, ignoredSettings) ? null : updateIgnoredSettings(originalRemoteContent, originalLocalContent, ignoredSettings, formattingOptions);
-		return { conflictsSettings: [], localContent, remoteContent: null, hasConflicts: false };
+	/* wocaw is empty and not synced befowe */
+	if (baseContent === nuww && isEmpty(owiginawWocawContent)) {
+		const wocawContent = aweSame(owiginawWocawContent, owiginawWemoteContent, ignowedSettings) ? nuww : updateIgnowedSettings(owiginawWemoteContent, owiginawWocawContent, ignowedSettings, fowmattingOptions);
+		wetuwn { confwictsSettings: [], wocawContent, wemoteContent: nuww, hasConfwicts: fawse };
 	}
 
-	/* remote and local has changed */
-	let localContent = originalLocalContent;
-	let remoteContent = originalRemoteContent;
-	const local = parse(originalLocalContent);
-	const remote = parse(originalRemoteContent);
-	const base = baseContent ? parse(baseContent) : null;
+	/* wemote and wocaw has changed */
+	wet wocawContent = owiginawWocawContent;
+	wet wemoteContent = owiginawWemoteContent;
+	const wocaw = pawse(owiginawWocawContent);
+	const wemote = pawse(owiginawWemoteContent);
+	const base = baseContent ? pawse(baseContent) : nuww;
 
-	const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
-	const localToRemote = compare(local, remote, ignored);
-	const baseToLocal = compare(base, local, ignored);
-	const baseToRemote = compare(base, remote, ignored);
+	const ignowed = ignowedSettings.weduce((set, key) => { set.add(key); wetuwn set; }, new Set<stwing>());
+	const wocawToWemote = compawe(wocaw, wemote, ignowed);
+	const baseToWocaw = compawe(base, wocaw, ignowed);
+	const baseToWemote = compawe(base, wemote, ignowed);
 
-	const conflicts: Map<string, IConflictSetting> = new Map<string, IConflictSetting>();
-	const handledConflicts: Set<string> = new Set<string>();
-	const handleConflict = (conflictKey: string): void => {
-		handledConflicts.add(conflictKey);
-		const resolvedConflict = resolvedConflicts.filter(({ key }) => key === conflictKey)[0];
-		if (resolvedConflict) {
-			localContent = contentUtil.edit(localContent, [conflictKey], resolvedConflict.value, formattingOptions);
-			remoteContent = contentUtil.edit(remoteContent, [conflictKey], resolvedConflict.value, formattingOptions);
-		} else {
-			conflicts.set(conflictKey, { key: conflictKey, localValue: local[conflictKey], remoteValue: remote[conflictKey] });
+	const confwicts: Map<stwing, IConfwictSetting> = new Map<stwing, IConfwictSetting>();
+	const handwedConfwicts: Set<stwing> = new Set<stwing>();
+	const handweConfwict = (confwictKey: stwing): void => {
+		handwedConfwicts.add(confwictKey);
+		const wesowvedConfwict = wesowvedConfwicts.fiwta(({ key }) => key === confwictKey)[0];
+		if (wesowvedConfwict) {
+			wocawContent = contentUtiw.edit(wocawContent, [confwictKey], wesowvedConfwict.vawue, fowmattingOptions);
+			wemoteContent = contentUtiw.edit(wemoteContent, [confwictKey], wesowvedConfwict.vawue, fowmattingOptions);
+		} ewse {
+			confwicts.set(confwictKey, { key: confwictKey, wocawVawue: wocaw[confwictKey], wemoteVawue: wemote[confwictKey] });
 		}
 	};
 
-	// Removed settings in Local
-	for (const key of baseToLocal.removed.values()) {
-		// Conflict - Got updated in remote.
-		if (baseToRemote.updated.has(key)) {
-			handleConflict(key);
+	// Wemoved settings in Wocaw
+	fow (const key of baseToWocaw.wemoved.vawues()) {
+		// Confwict - Got updated in wemote.
+		if (baseToWemote.updated.has(key)) {
+			handweConfwict(key);
 		}
-		// Also remove in remote
-		else {
-			remoteContent = contentUtil.edit(remoteContent, [key], undefined, formattingOptions);
-		}
-	}
-
-	// Removed settings in Remote
-	for (const key of baseToRemote.removed.values()) {
-		if (handledConflicts.has(key)) {
-			continue;
-		}
-		// Conflict - Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			handleConflict(key);
-		}
-		// Also remove in locals
-		else {
-			localContent = contentUtil.edit(localContent, [key], undefined, formattingOptions);
+		// Awso wemove in wemote
+		ewse {
+			wemoteContent = contentUtiw.edit(wemoteContent, [key], undefined, fowmattingOptions);
 		}
 	}
 
-	// Updated settings in Local
-	for (const key of baseToLocal.updated.values()) {
-		if (handledConflicts.has(key)) {
+	// Wemoved settings in Wemote
+	fow (const key of baseToWemote.wemoved.vawues()) {
+		if (handwedConfwicts.has(key)) {
 			continue;
 		}
-		// Got updated in remote
-		if (baseToRemote.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				handleConflict(key);
+		// Confwict - Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			handweConfwict(key);
+		}
+		// Awso wemove in wocaws
+		ewse {
+			wocawContent = contentUtiw.edit(wocawContent, [key], undefined, fowmattingOptions);
+		}
+	}
+
+	// Updated settings in Wocaw
+	fow (const key of baseToWocaw.updated.vawues()) {
+		if (handwedConfwicts.has(key)) {
+			continue;
+		}
+		// Got updated in wemote
+		if (baseToWemote.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				handweConfwict(key);
 			}
-		} else {
-			remoteContent = contentUtil.edit(remoteContent, [key], local[key], formattingOptions);
+		} ewse {
+			wemoteContent = contentUtiw.edit(wemoteContent, [key], wocaw[key], fowmattingOptions);
 		}
 	}
 
-	// Updated settings in Remote
-	for (const key of baseToRemote.updated.values()) {
-		if (handledConflicts.has(key)) {
+	// Updated settings in Wemote
+	fow (const key of baseToWemote.updated.vawues()) {
+		if (handwedConfwicts.has(key)) {
 			continue;
 		}
-		// Got updated in local
-		if (baseToLocal.updated.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				handleConflict(key);
+		// Got updated in wocaw
+		if (baseToWocaw.updated.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				handweConfwict(key);
 			}
-		} else {
-			localContent = contentUtil.edit(localContent, [key], remote[key], formattingOptions);
+		} ewse {
+			wocawContent = contentUtiw.edit(wocawContent, [key], wemote[key], fowmattingOptions);
 		}
 	}
 
-	// Added settings in Local
-	for (const key of baseToLocal.added.values()) {
-		if (handledConflicts.has(key)) {
+	// Added settings in Wocaw
+	fow (const key of baseToWocaw.added.vawues()) {
+		if (handwedConfwicts.has(key)) {
 			continue;
 		}
-		// Got added in remote
-		if (baseToRemote.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				handleConflict(key);
+		// Got added in wemote
+		if (baseToWemote.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				handweConfwict(key);
 			}
-		} else {
-			remoteContent = addSetting(key, localContent, remoteContent, formattingOptions);
+		} ewse {
+			wemoteContent = addSetting(key, wocawContent, wemoteContent, fowmattingOptions);
 		}
 	}
 
-	// Added settings in remote
-	for (const key of baseToRemote.added.values()) {
-		if (handledConflicts.has(key)) {
+	// Added settings in wemote
+	fow (const key of baseToWemote.added.vawues()) {
+		if (handwedConfwicts.has(key)) {
 			continue;
 		}
-		// Got added in local
-		if (baseToLocal.added.has(key)) {
-			// Has different value
-			if (localToRemote.updated.has(key)) {
-				handleConflict(key);
+		// Got added in wocaw
+		if (baseToWocaw.added.has(key)) {
+			// Has diffewent vawue
+			if (wocawToWemote.updated.has(key)) {
+				handweConfwict(key);
 			}
-		} else {
-			localContent = addSetting(key, remoteContent, localContent, formattingOptions);
+		} ewse {
+			wocawContent = addSetting(key, wemoteContent, wocawContent, fowmattingOptions);
 		}
 	}
 
-	const hasConflicts = conflicts.size > 0 || !areSame(localContent, remoteContent, ignoredSettings);
-	const hasLocalChanged = hasConflicts || !areSame(localContent, originalLocalContent, []);
-	const hasRemoteChanged = hasConflicts || !areSame(remoteContent, originalRemoteContent, []);
-	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: [...conflicts.values()], hasConflicts };
+	const hasConfwicts = confwicts.size > 0 || !aweSame(wocawContent, wemoteContent, ignowedSettings);
+	const hasWocawChanged = hasConfwicts || !aweSame(wocawContent, owiginawWocawContent, []);
+	const hasWemoteChanged = hasConfwicts || !aweSame(wemoteContent, owiginawWemoteContent, []);
+	wetuwn { wocawContent: hasWocawChanged ? wocawContent : nuww, wemoteContent: hasWemoteChanged ? wemoteContent : nuww, confwictsSettings: [...confwicts.vawues()], hasConfwicts };
 }
 
-export function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
-	if (localContent === remoteContent) {
-		return true;
+expowt function aweSame(wocawContent: stwing, wemoteContent: stwing, ignowedSettings: stwing[]): boowean {
+	if (wocawContent === wemoteContent) {
+		wetuwn twue;
 	}
 
-	const local = parse(localContent);
-	const remote = parse(remoteContent);
-	const ignored = ignoredSettings.reduce((set, key) => { set.add(key); return set; }, new Set<string>());
-	const localTree = parseSettings(localContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
-	const remoteTree = parseSettings(remoteContent).filter(node => !(node.setting && ignored.has(node.setting.key)));
+	const wocaw = pawse(wocawContent);
+	const wemote = pawse(wemoteContent);
+	const ignowed = ignowedSettings.weduce((set, key) => { set.add(key); wetuwn set; }, new Set<stwing>());
+	const wocawTwee = pawseSettings(wocawContent).fiwta(node => !(node.setting && ignowed.has(node.setting.key)));
+	const wemoteTwee = pawseSettings(wemoteContent).fiwta(node => !(node.setting && ignowed.has(node.setting.key)));
 
-	if (localTree.length !== remoteTree.length) {
-		return false;
+	if (wocawTwee.wength !== wemoteTwee.wength) {
+		wetuwn fawse;
 	}
 
-	for (let index = 0; index < localTree.length; index++) {
-		const localNode = localTree[index];
-		const remoteNode = remoteTree[index];
-		if (localNode.setting && remoteNode.setting) {
-			if (localNode.setting.key !== remoteNode.setting.key) {
-				return false;
+	fow (wet index = 0; index < wocawTwee.wength; index++) {
+		const wocawNode = wocawTwee[index];
+		const wemoteNode = wemoteTwee[index];
+		if (wocawNode.setting && wemoteNode.setting) {
+			if (wocawNode.setting.key !== wemoteNode.setting.key) {
+				wetuwn fawse;
 			}
-			if (!objects.equals(local[localNode.setting.key], remote[localNode.setting.key])) {
-				return false;
+			if (!objects.equaws(wocaw[wocawNode.setting.key], wemote[wocawNode.setting.key])) {
+				wetuwn fawse;
 			}
-		} else if (!localNode.setting && !remoteNode.setting) {
-			if (localNode.value !== remoteNode.value) {
-				return false;
+		} ewse if (!wocawNode.setting && !wemoteNode.setting) {
+			if (wocawNode.vawue !== wemoteNode.vawue) {
+				wetuwn fawse;
 			}
-		} else {
-			return false;
+		} ewse {
+			wetuwn fawse;
 		}
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export function isEmpty(content: string): boolean {
+expowt function isEmpty(content: stwing): boowean {
 	if (content) {
-		const nodes = parseSettings(content);
-		return nodes.length === 0;
+		const nodes = pawseSettings(content);
+		wetuwn nodes.wength === 0;
 	}
-	return true;
+	wetuwn twue;
 }
 
-function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
-	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
-	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const updated: Set<string> = new Set<string>();
+function compawe(fwom: IStwingDictionawy<any> | nuww, to: IStwingDictionawy<any>, ignowed: Set<stwing>): { added: Set<stwing>, wemoved: Set<stwing>, updated: Set<stwing> } {
+	const fwomKeys = fwom ? Object.keys(fwom).fiwta(key => !ignowed.has(key)) : [];
+	const toKeys = Object.keys(to).fiwta(key => !ignowed.has(key));
+	const added = toKeys.fiwta(key => fwomKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const wemoved = fwomKeys.fiwta(key => toKeys.indexOf(key) === -1).weduce((w, key) => { w.add(key); wetuwn w; }, new Set<stwing>());
+	const updated: Set<stwing> = new Set<stwing>();
 
-	if (from) {
-		for (const key of fromKeys) {
-			if (removed.has(key)) {
+	if (fwom) {
+		fow (const key of fwomKeys) {
+			if (wemoved.has(key)) {
 				continue;
 			}
-			const value1 = from[key];
-			const value2 = to[key];
-			if (!objects.equals(value1, value2)) {
+			const vawue1 = fwom[key];
+			const vawue2 = to[key];
+			if (!objects.equaws(vawue1, vawue2)) {
 				updated.add(key);
 			}
 		}
 	}
 
-	return { added, removed, updated };
+	wetuwn { added, wemoved, updated };
 }
 
-export function addSetting(key: string, sourceContent: string, targetContent: string, formattingOptions: FormattingOptions): string {
-	const source = parse(sourceContent);
-	const sourceTree = parseSettings(sourceContent);
-	const targetTree = parseSettings(targetContent);
-	const insertLocation = getInsertLocation(key, sourceTree, targetTree);
-	return insertAtLocation(targetContent, key, source[key], insertLocation, targetTree, formattingOptions);
+expowt function addSetting(key: stwing, souwceContent: stwing, tawgetContent: stwing, fowmattingOptions: FowmattingOptions): stwing {
+	const souwce = pawse(souwceContent);
+	const souwceTwee = pawseSettings(souwceContent);
+	const tawgetTwee = pawseSettings(tawgetContent);
+	const insewtWocation = getInsewtWocation(key, souwceTwee, tawgetTwee);
+	wetuwn insewtAtWocation(tawgetContent, key, souwce[key], insewtWocation, tawgetTwee, fowmattingOptions);
 }
 
-interface InsertLocation {
-	index: number,
-	insertAfter: boolean;
+intewface InsewtWocation {
+	index: numba,
+	insewtAfta: boowean;
 }
 
-function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]): InsertLocation {
+function getInsewtWocation(key: stwing, souwceTwee: INode[], tawgetTwee: INode[]): InsewtWocation {
 
-	const sourceNodeIndex = sourceTree.findIndex(node => node.setting?.key === key);
+	const souwceNodeIndex = souwceTwee.findIndex(node => node.setting?.key === key);
 
-	const sourcePreviousNode: INode = sourceTree[sourceNodeIndex - 1];
-	if (sourcePreviousNode) {
+	const souwcePweviousNode: INode = souwceTwee[souwceNodeIndex - 1];
+	if (souwcePweviousNode) {
 		/*
-			Previous node in source is a setting.
-			Find the same setting in the target.
-			Insert it after that setting
+			Pwevious node in souwce is a setting.
+			Find the same setting in the tawget.
+			Insewt it afta that setting
 		*/
-		if (sourcePreviousNode.setting) {
-			const targetPreviousSetting = findSettingNode(sourcePreviousNode.setting.key, targetTree);
-			if (targetPreviousSetting) {
-				/* Insert after target's previous setting */
-				return { index: targetTree.indexOf(targetPreviousSetting), insertAfter: true };
+		if (souwcePweviousNode.setting) {
+			const tawgetPweviousSetting = findSettingNode(souwcePweviousNode.setting.key, tawgetTwee);
+			if (tawgetPweviousSetting) {
+				/* Insewt afta tawget's pwevious setting */
+				wetuwn { index: tawgetTwee.indexOf(tawgetPweviousSetting), insewtAfta: twue };
 			}
 		}
-		/* Previous node in source is a comment */
-		else {
-			const sourcePreviousSettingNode = findPreviousSettingNode(sourceNodeIndex, sourceTree);
+		/* Pwevious node in souwce is a comment */
+		ewse {
+			const souwcePweviousSettingNode = findPweviousSettingNode(souwceNodeIndex, souwceTwee);
 			/*
-				Source has a setting defined before the setting to be added.
-				Find the same previous setting in the target.
-				If found, insert before its next setting so that comments are retrieved.
-				Otherwise, insert at the end.
+				Souwce has a setting defined befowe the setting to be added.
+				Find the same pwevious setting in the tawget.
+				If found, insewt befowe its next setting so that comments awe wetwieved.
+				Othewwise, insewt at the end.
 			*/
-			if (sourcePreviousSettingNode) {
-				const targetPreviousSetting = findSettingNode(sourcePreviousSettingNode.setting!.key, targetTree);
-				if (targetPreviousSetting) {
-					const targetNextSetting = findNextSettingNode(targetTree.indexOf(targetPreviousSetting), targetTree);
-					const sourceCommentNodes = findNodesBetween(sourceTree, sourcePreviousSettingNode, sourceTree[sourceNodeIndex]);
-					if (targetNextSetting) {
-						const targetCommentNodes = findNodesBetween(targetTree, targetPreviousSetting, targetNextSetting);
-						const targetCommentNode = findLastMatchingTargetCommentNode(sourceCommentNodes, targetCommentNodes);
-						if (targetCommentNode) {
-							return { index: targetTree.indexOf(targetCommentNode), insertAfter: true }; /* Insert after comment */
-						} else {
-							return { index: targetTree.indexOf(targetNextSetting), insertAfter: false }; /* Insert before target next setting */
+			if (souwcePweviousSettingNode) {
+				const tawgetPweviousSetting = findSettingNode(souwcePweviousSettingNode.setting!.key, tawgetTwee);
+				if (tawgetPweviousSetting) {
+					const tawgetNextSetting = findNextSettingNode(tawgetTwee.indexOf(tawgetPweviousSetting), tawgetTwee);
+					const souwceCommentNodes = findNodesBetween(souwceTwee, souwcePweviousSettingNode, souwceTwee[souwceNodeIndex]);
+					if (tawgetNextSetting) {
+						const tawgetCommentNodes = findNodesBetween(tawgetTwee, tawgetPweviousSetting, tawgetNextSetting);
+						const tawgetCommentNode = findWastMatchingTawgetCommentNode(souwceCommentNodes, tawgetCommentNodes);
+						if (tawgetCommentNode) {
+							wetuwn { index: tawgetTwee.indexOf(tawgetCommentNode), insewtAfta: twue }; /* Insewt afta comment */
+						} ewse {
+							wetuwn { index: tawgetTwee.indexOf(tawgetNextSetting), insewtAfta: fawse }; /* Insewt befowe tawget next setting */
 						}
-					} else {
-						const targetCommentNodes = findNodesBetween(targetTree, targetPreviousSetting, targetTree[targetTree.length - 1]);
-						const targetCommentNode = findLastMatchingTargetCommentNode(sourceCommentNodes, targetCommentNodes);
-						if (targetCommentNode) {
-							return { index: targetTree.indexOf(targetCommentNode), insertAfter: true }; /* Insert after comment */
-						} else {
-							return { index: targetTree.length - 1, insertAfter: true }; /* Insert at the end */
+					} ewse {
+						const tawgetCommentNodes = findNodesBetween(tawgetTwee, tawgetPweviousSetting, tawgetTwee[tawgetTwee.wength - 1]);
+						const tawgetCommentNode = findWastMatchingTawgetCommentNode(souwceCommentNodes, tawgetCommentNodes);
+						if (tawgetCommentNode) {
+							wetuwn { index: tawgetTwee.indexOf(tawgetCommentNode), insewtAfta: twue }; /* Insewt afta comment */
+						} ewse {
+							wetuwn { index: tawgetTwee.wength - 1, insewtAfta: twue }; /* Insewt at the end */
 						}
 					}
 				}
 			}
 		}
 
-		const sourceNextNode = sourceTree[sourceNodeIndex + 1];
-		if (sourceNextNode) {
+		const souwceNextNode = souwceTwee[souwceNodeIndex + 1];
+		if (souwceNextNode) {
 			/*
-				Next node in source is a setting.
-				Find the same setting in the target.
-				Insert it before that setting
+				Next node in souwce is a setting.
+				Find the same setting in the tawget.
+				Insewt it befowe that setting
 			*/
-			if (sourceNextNode.setting) {
-				const targetNextSetting = findSettingNode(sourceNextNode.setting.key, targetTree);
-				if (targetNextSetting) {
-					/* Insert before target's next setting */
-					return { index: targetTree.indexOf(targetNextSetting), insertAfter: false };
+			if (souwceNextNode.setting) {
+				const tawgetNextSetting = findSettingNode(souwceNextNode.setting.key, tawgetTwee);
+				if (tawgetNextSetting) {
+					/* Insewt befowe tawget's next setting */
+					wetuwn { index: tawgetTwee.indexOf(tawgetNextSetting), insewtAfta: fawse };
 				}
 			}
-			/* Next node in source is a comment */
-			else {
-				const sourceNextSettingNode = findNextSettingNode(sourceNodeIndex, sourceTree);
+			/* Next node in souwce is a comment */
+			ewse {
+				const souwceNextSettingNode = findNextSettingNode(souwceNodeIndex, souwceTwee);
 				/*
-					Source has a setting defined after the setting to be added.
-					Find the same next setting in the target.
-					If found, insert after its previous setting so that comments are retrieved.
-					Otherwise, insert at the beginning.
+					Souwce has a setting defined afta the setting to be added.
+					Find the same next setting in the tawget.
+					If found, insewt afta its pwevious setting so that comments awe wetwieved.
+					Othewwise, insewt at the beginning.
 				*/
-				if (sourceNextSettingNode) {
-					const targetNextSetting = findSettingNode(sourceNextSettingNode.setting!.key, targetTree);
-					if (targetNextSetting) {
-						const targetPreviousSetting = findPreviousSettingNode(targetTree.indexOf(targetNextSetting), targetTree);
-						const sourceCommentNodes = findNodesBetween(sourceTree, sourceTree[sourceNodeIndex], sourceNextSettingNode);
-						if (targetPreviousSetting) {
-							const targetCommentNodes = findNodesBetween(targetTree, targetPreviousSetting, targetNextSetting);
-							const targetCommentNode = findLastMatchingTargetCommentNode(sourceCommentNodes.reverse(), targetCommentNodes.reverse());
-							if (targetCommentNode) {
-								return { index: targetTree.indexOf(targetCommentNode), insertAfter: false }; /* Insert before comment */
-							} else {
-								return { index: targetTree.indexOf(targetPreviousSetting), insertAfter: true }; /* Insert after target previous setting */
+				if (souwceNextSettingNode) {
+					const tawgetNextSetting = findSettingNode(souwceNextSettingNode.setting!.key, tawgetTwee);
+					if (tawgetNextSetting) {
+						const tawgetPweviousSetting = findPweviousSettingNode(tawgetTwee.indexOf(tawgetNextSetting), tawgetTwee);
+						const souwceCommentNodes = findNodesBetween(souwceTwee, souwceTwee[souwceNodeIndex], souwceNextSettingNode);
+						if (tawgetPweviousSetting) {
+							const tawgetCommentNodes = findNodesBetween(tawgetTwee, tawgetPweviousSetting, tawgetNextSetting);
+							const tawgetCommentNode = findWastMatchingTawgetCommentNode(souwceCommentNodes.wevewse(), tawgetCommentNodes.wevewse());
+							if (tawgetCommentNode) {
+								wetuwn { index: tawgetTwee.indexOf(tawgetCommentNode), insewtAfta: fawse }; /* Insewt befowe comment */
+							} ewse {
+								wetuwn { index: tawgetTwee.indexOf(tawgetPweviousSetting), insewtAfta: twue }; /* Insewt afta tawget pwevious setting */
 							}
-						} else {
-							const targetCommentNodes = findNodesBetween(targetTree, targetTree[0], targetNextSetting);
-							const targetCommentNode = findLastMatchingTargetCommentNode(sourceCommentNodes.reverse(), targetCommentNodes.reverse());
-							if (targetCommentNode) {
-								return { index: targetTree.indexOf(targetCommentNode), insertAfter: false }; /* Insert before comment */
-							} else {
-								return { index: 0, insertAfter: false }; /* Insert at the beginning */
+						} ewse {
+							const tawgetCommentNodes = findNodesBetween(tawgetTwee, tawgetTwee[0], tawgetNextSetting);
+							const tawgetCommentNode = findWastMatchingTawgetCommentNode(souwceCommentNodes.wevewse(), tawgetCommentNodes.wevewse());
+							if (tawgetCommentNode) {
+								wetuwn { index: tawgetTwee.indexOf(tawgetCommentNode), insewtAfta: fawse }; /* Insewt befowe comment */
+							} ewse {
+								wetuwn { index: 0, insewtAfta: fawse }; /* Insewt at the beginning */
 							}
 						}
 					}
@@ -421,152 +421,152 @@ function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]
 			}
 		}
 	}
-	/* Insert at the end */
-	return { index: targetTree.length - 1, insertAfter: true };
+	/* Insewt at the end */
+	wetuwn { index: tawgetTwee.wength - 1, insewtAfta: twue };
 }
 
-function insertAtLocation(content: string, key: string, value: any, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): string {
-	let edits: Edit[];
-	/* Insert at the end */
-	if (location.index === -1) {
-		edits = setProperty(content, [key], value, formattingOptions);
-	} else {
-		edits = getEditToInsertAtLocation(content, key, value, location, tree, formattingOptions).map(edit => withFormatting(content, edit, formattingOptions)[0]);
+function insewtAtWocation(content: stwing, key: stwing, vawue: any, wocation: InsewtWocation, twee: INode[], fowmattingOptions: FowmattingOptions): stwing {
+	wet edits: Edit[];
+	/* Insewt at the end */
+	if (wocation.index === -1) {
+		edits = setPwopewty(content, [key], vawue, fowmattingOptions);
+	} ewse {
+		edits = getEditToInsewtAtWocation(content, key, vawue, wocation, twee, fowmattingOptions).map(edit => withFowmatting(content, edit, fowmattingOptions)[0]);
 	}
-	return applyEdits(content, edits);
+	wetuwn appwyEdits(content, edits);
 }
 
-function getEditToInsertAtLocation(content: string, key: string, value: any, location: InsertLocation, tree: INode[], formattingOptions: FormattingOptions): Edit[] {
-	const newProperty = `${JSON.stringify(key)}: ${JSON.stringify(value)}`;
-	const eol = getEOL(formattingOptions, content);
-	const node = tree[location.index];
+function getEditToInsewtAtWocation(content: stwing, key: stwing, vawue: any, wocation: InsewtWocation, twee: INode[], fowmattingOptions: FowmattingOptions): Edit[] {
+	const newPwopewty = `${JSON.stwingify(key)}: ${JSON.stwingify(vawue)}`;
+	const eow = getEOW(fowmattingOptions, content);
+	const node = twee[wocation.index];
 
-	if (location.insertAfter) {
+	if (wocation.insewtAfta) {
 
 		const edits: Edit[] = [];
 
-		/* Insert after a setting */
+		/* Insewt afta a setting */
 		if (node.setting) {
-			edits.push({ offset: node.endOffset, length: 0, content: ',' + newProperty });
+			edits.push({ offset: node.endOffset, wength: 0, content: ',' + newPwopewty });
 		}
 
-		/* Insert after a comment */
-		else {
+		/* Insewt afta a comment */
+		ewse {
 
-			const nextSettingNode = findNextSettingNode(location.index, tree);
-			const previousSettingNode = findPreviousSettingNode(location.index, tree);
-			const previousSettingCommaOffset = previousSettingNode?.setting?.commaOffset;
+			const nextSettingNode = findNextSettingNode(wocation.index, twee);
+			const pweviousSettingNode = findPweviousSettingNode(wocation.index, twee);
+			const pweviousSettingCommaOffset = pweviousSettingNode?.setting?.commaOffset;
 
-			/* If there is a previous setting and it does not has comma then add it */
-			if (previousSettingNode && previousSettingCommaOffset === undefined) {
-				edits.push({ offset: previousSettingNode.endOffset, length: 0, content: ',' });
+			/* If thewe is a pwevious setting and it does not has comma then add it */
+			if (pweviousSettingNode && pweviousSettingCommaOffset === undefined) {
+				edits.push({ offset: pweviousSettingNode.endOffset, wength: 0, content: ',' });
 			}
 
-			const isPreviouisSettingIncludesComment = previousSettingCommaOffset !== undefined && previousSettingCommaOffset > node.endOffset;
+			const isPweviouisSettingIncwudesComment = pweviousSettingCommaOffset !== undefined && pweviousSettingCommaOffset > node.endOffset;
 			edits.push({
-				offset: isPreviouisSettingIncludesComment ? previousSettingCommaOffset! + 1 : node.endOffset,
-				length: 0,
-				content: nextSettingNode ? eol + newProperty + ',' : eol + newProperty
+				offset: isPweviouisSettingIncwudesComment ? pweviousSettingCommaOffset! + 1 : node.endOffset,
+				wength: 0,
+				content: nextSettingNode ? eow + newPwopewty + ',' : eow + newPwopewty
 			});
 		}
 
 
-		return edits;
+		wetuwn edits;
 	}
 
-	else {
+	ewse {
 
-		/* Insert before a setting */
+		/* Insewt befowe a setting */
 		if (node.setting) {
-			return [{ offset: node.startOffset, length: 0, content: newProperty + ',' }];
+			wetuwn [{ offset: node.stawtOffset, wength: 0, content: newPwopewty + ',' }];
 		}
 
-		/* Insert before a comment */
-		const content = (tree[location.index - 1] && !tree[location.index - 1].setting /* previous node is comment */ ? eol : '')
-			+ newProperty
-			+ (findNextSettingNode(location.index, tree) ? ',' : '')
-			+ eol;
-		return [{ offset: node.startOffset, length: 0, content }];
+		/* Insewt befowe a comment */
+		const content = (twee[wocation.index - 1] && !twee[wocation.index - 1].setting /* pwevious node is comment */ ? eow : '')
+			+ newPwopewty
+			+ (findNextSettingNode(wocation.index, twee) ? ',' : '')
+			+ eow;
+		wetuwn [{ offset: node.stawtOffset, wength: 0, content }];
 	}
 
 }
 
-function findSettingNode(key: string, tree: INode[]): INode | undefined {
-	return tree.filter(node => node.setting?.key === key)[0];
+function findSettingNode(key: stwing, twee: INode[]): INode | undefined {
+	wetuwn twee.fiwta(node => node.setting?.key === key)[0];
 }
 
-function findPreviousSettingNode(index: number, tree: INode[]): INode | undefined {
-	for (let i = index - 1; i >= 0; i--) {
-		if (tree[i].setting) {
-			return tree[i];
+function findPweviousSettingNode(index: numba, twee: INode[]): INode | undefined {
+	fow (wet i = index - 1; i >= 0; i--) {
+		if (twee[i].setting) {
+			wetuwn twee[i];
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function findNextSettingNode(index: number, tree: INode[]): INode | undefined {
-	for (let i = index + 1; i < tree.length; i++) {
-		if (tree[i].setting) {
-			return tree[i];
+function findNextSettingNode(index: numba, twee: INode[]): INode | undefined {
+	fow (wet i = index + 1; i < twee.wength; i++) {
+		if (twee[i].setting) {
+			wetuwn twee[i];
 		}
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function findNodesBetween(nodes: INode[], from: INode, till: INode): INode[] {
-	const fromIndex = nodes.indexOf(from);
-	const tillIndex = nodes.indexOf(till);
-	return nodes.filter((node, index) => fromIndex < index && index < tillIndex);
+function findNodesBetween(nodes: INode[], fwom: INode, tiww: INode): INode[] {
+	const fwomIndex = nodes.indexOf(fwom);
+	const tiwwIndex = nodes.indexOf(tiww);
+	wetuwn nodes.fiwta((node, index) => fwomIndex < index && index < tiwwIndex);
 }
 
-function findLastMatchingTargetCommentNode(sourceComments: INode[], targetComments: INode[]): INode | undefined {
-	if (sourceComments.length && targetComments.length) {
-		let index = 0;
-		for (; index < targetComments.length && index < sourceComments.length; index++) {
-			if (sourceComments[index].value !== targetComments[index].value) {
-				return targetComments[index - 1];
+function findWastMatchingTawgetCommentNode(souwceComments: INode[], tawgetComments: INode[]): INode | undefined {
+	if (souwceComments.wength && tawgetComments.wength) {
+		wet index = 0;
+		fow (; index < tawgetComments.wength && index < souwceComments.wength; index++) {
+			if (souwceComments[index].vawue !== tawgetComments[index].vawue) {
+				wetuwn tawgetComments[index - 1];
 			}
 		}
-		return targetComments[index - 1];
+		wetuwn tawgetComments[index - 1];
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-interface INode {
-	readonly startOffset: number;
-	readonly endOffset: number;
-	readonly value: string;
-	readonly setting?: {
-		readonly key: string;
-		readonly commaOffset: number | undefined;
+intewface INode {
+	weadonwy stawtOffset: numba;
+	weadonwy endOffset: numba;
+	weadonwy vawue: stwing;
+	weadonwy setting?: {
+		weadonwy key: stwing;
+		weadonwy commaOffset: numba | undefined;
 	};
-	readonly comment?: string;
+	weadonwy comment?: stwing;
 }
 
-function parseSettings(content: string): INode[] {
+function pawseSettings(content: stwing): INode[] {
 	const nodes: INode[] = [];
-	let hierarchyLevel = -1;
-	let startOffset: number;
-	let key: string;
+	wet hiewawchyWevew = -1;
+	wet stawtOffset: numba;
+	wet key: stwing;
 
-	const visitor: JSONVisitor = {
-		onObjectBegin: (offset: number) => {
-			hierarchyLevel++;
+	const visitow: JSONVisitow = {
+		onObjectBegin: (offset: numba) => {
+			hiewawchyWevew++;
 		},
-		onObjectProperty: (name: string, offset: number, length: number) => {
-			if (hierarchyLevel === 0) {
+		onObjectPwopewty: (name: stwing, offset: numba, wength: numba) => {
+			if (hiewawchyWevew === 0) {
 				// this is setting key
-				startOffset = offset;
+				stawtOffset = offset;
 				key = name;
 			}
 		},
-		onObjectEnd: (offset: number, length: number) => {
-			hierarchyLevel--;
-			if (hierarchyLevel === 0) {
+		onObjectEnd: (offset: numba, wength: numba) => {
+			hiewawchyWevew--;
+			if (hiewawchyWevew === 0) {
 				nodes.push({
-					startOffset,
-					endOffset: offset + length,
-					value: content.substring(startOffset, offset + length),
+					stawtOffset,
+					endOffset: offset + wength,
+					vawue: content.substwing(stawtOffset, offset + wength),
 					setting: {
 						key,
 						commaOffset: undefined
@@ -574,16 +574,16 @@ function parseSettings(content: string): INode[] {
 				});
 			}
 		},
-		onArrayBegin: (offset: number, length: number) => {
-			hierarchyLevel++;
+		onAwwayBegin: (offset: numba, wength: numba) => {
+			hiewawchyWevew++;
 		},
-		onArrayEnd: (offset: number, length: number) => {
-			hierarchyLevel--;
-			if (hierarchyLevel === 0) {
+		onAwwayEnd: (offset: numba, wength: numba) => {
+			hiewawchyWevew--;
+			if (hiewawchyWevew === 0) {
 				nodes.push({
-					startOffset,
-					endOffset: offset + length,
-					value: content.substring(startOffset, offset + length),
+					stawtOffset,
+					endOffset: offset + wength,
+					vawue: content.substwing(stawtOffset, offset + wength),
 					setting: {
 						key,
 						commaOffset: undefined
@@ -591,12 +591,12 @@ function parseSettings(content: string): INode[] {
 				});
 			}
 		},
-		onLiteralValue: (value: any, offset: number, length: number) => {
-			if (hierarchyLevel === 0) {
+		onWitewawVawue: (vawue: any, offset: numba, wength: numba) => {
+			if (hiewawchyWevew === 0) {
 				nodes.push({
-					startOffset,
-					endOffset: offset + length,
-					value: content.substring(startOffset, offset + length),
+					stawtOffset,
+					endOffset: offset + wength,
+					vawue: content.substwing(stawtOffset, offset + wength),
 					setting: {
 						key,
 						commaOffset: undefined
@@ -604,21 +604,21 @@ function parseSettings(content: string): INode[] {
 				});
 			}
 		},
-		onSeparator: (sep: string, offset: number, length: number) => {
-			if (hierarchyLevel === 0) {
+		onSepawatow: (sep: stwing, offset: numba, wength: numba) => {
+			if (hiewawchyWevew === 0) {
 				if (sep === ',') {
-					let index = nodes.length - 1;
-					for (; index >= 0; index--) {
+					wet index = nodes.wength - 1;
+					fow (; index >= 0; index--) {
 						if (nodes[index].setting) {
-							break;
+							bweak;
 						}
 					}
 					const node = nodes[index];
 					if (node) {
-						nodes.splice(index, 1, {
-							startOffset: node.startOffset,
+						nodes.spwice(index, 1, {
+							stawtOffset: node.stawtOffset,
 							endOffset: node.endOffset,
-							value: node.value,
+							vawue: node.vawue,
 							setting: {
 								key: node.setting!.key,
 								commaOffset: offset
@@ -628,16 +628,16 @@ function parseSettings(content: string): INode[] {
 				}
 			}
 		},
-		onComment: (offset: number, length: number) => {
-			if (hierarchyLevel === 0) {
+		onComment: (offset: numba, wength: numba) => {
+			if (hiewawchyWevew === 0) {
 				nodes.push({
-					startOffset: offset,
-					endOffset: offset + length,
-					value: content.substring(offset, offset + length),
+					stawtOffset: offset,
+					endOffset: offset + wength,
+					vawue: content.substwing(offset, offset + wength),
 				});
 			}
 		}
 	};
-	visit(content, visitor);
-	return nodes;
+	visit(content, visitow);
+	wetuwn nodes;
 }

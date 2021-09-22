@@ -1,69 +1,69 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { MoveCawetCommand } fwom 'vs/editow/contwib/cawetOpewations/moveCawetCommand';
+impowt { testCommand } fwom 'vs/editow/test/bwowsa/testCommand';
 
 
-function testMoveCaretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, true), expectedLines, expectedSelection);
+function testMoveCawetWeftCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new MoveCawetCommand(sew, twue), expectedWines, expectedSewection);
 }
 
-function testMoveCaretRightCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, false), expectedLines, expectedSelection);
+function testMoveCawetWightCommand(wines: stwing[], sewection: Sewection, expectedWines: stwing[], expectedSewection: Sewection): void {
+	testCommand(wines, nuww, sewection, (sew) => new MoveCawetCommand(sew, fawse), expectedWines, expectedSewection);
 }
 
-suite('Editor Contrib - Move Caret Command', () => {
+suite('Editow Contwib - Move Cawet Command', () => {
 
-	test('move selection to left', function () {
-		testMoveCaretLeftCommand(
+	test('move sewection to weft', function () {
+		testMoveCawetWeftCommand(
 			[
 				'012345'
 			],
-			new Selection(1, 3, 1, 5),
+			new Sewection(1, 3, 1, 5),
 			[
 				'023145'
 			],
-			new Selection(1, 2, 1, 4)
+			new Sewection(1, 2, 1, 4)
 		);
 	});
-	test('move selection to right', function () {
-		testMoveCaretRightCommand(
+	test('move sewection to wight', function () {
+		testMoveCawetWightCommand(
 			[
 				'012345'
 			],
-			new Selection(1, 3, 1, 5),
+			new Sewection(1, 3, 1, 5),
 			[
 				'014235'
 			],
-			new Selection(1, 4, 1, 6)
+			new Sewection(1, 4, 1, 6)
 		);
 	});
-	test('move selection to left - from first column - no change', function () {
-		testMoveCaretLeftCommand(
+	test('move sewection to weft - fwom fiwst cowumn - no change', function () {
+		testMoveCawetWeftCommand(
 			[
 				'012345'
 			],
-			new Selection(1, 1, 1, 1),
+			new Sewection(1, 1, 1, 1),
 			[
 				'012345'
 			],
-			new Selection(1, 1, 1, 1)
+			new Sewection(1, 1, 1, 1)
 		);
 	});
-	test('move selection to right - from last column - no change', function () {
-		testMoveCaretRightCommand(
+	test('move sewection to wight - fwom wast cowumn - no change', function () {
+		testMoveCawetWightCommand(
 			[
 				'012345'
 			],
-			new Selection(1, 5, 1, 7),
+			new Sewection(1, 5, 1, 7),
 			[
 				'012345'
 			],
-			new Selection(1, 5, 1, 7)
+			new Sewection(1, 5, 1, 7)
 		);
 	});
 });

@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadKeytarShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { MainContext, MainThweadKeytawShape, IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ICwedentiawsSewvice } fwom 'vs/wowkbench/sewvices/cwedentiaws/common/cwedentiaws';
 
-@extHostNamedCustomer(MainContext.MainThreadKeytar)
-export class MainThreadKeytar implements MainThreadKeytarShape {
+@extHostNamedCustoma(MainContext.MainThweadKeytaw)
+expowt cwass MainThweadKeytaw impwements MainThweadKeytawShape {
 
-	constructor(
+	constwuctow(
 		_extHostContext: IExtHostContext,
-		@ICredentialsService private readonly _credentialsService: ICredentialsService,
+		@ICwedentiawsSewvice pwivate weadonwy _cwedentiawsSewvice: ICwedentiawsSewvice,
 	) { }
 
-	async $getPassword(service: string, account: string): Promise<string | null> {
-		return this._credentialsService.getPassword(service, account);
+	async $getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		wetuwn this._cwedentiawsSewvice.getPasswowd(sewvice, account);
 	}
 
-	async $setPassword(service: string, account: string, password: string): Promise<void> {
-		return this._credentialsService.setPassword(service, account, password);
+	async $setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		wetuwn this._cwedentiawsSewvice.setPasswowd(sewvice, account, passwowd);
 	}
 
-	async $deletePassword(service: string, account: string): Promise<boolean> {
-		return this._credentialsService.deletePassword(service, account);
+	async $dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		wetuwn this._cwedentiawsSewvice.dewetePasswowd(sewvice, account);
 	}
 
-	async $findPassword(service: string): Promise<string | null> {
-		return this._credentialsService.findPassword(service);
+	async $findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> {
+		wetuwn this._cwedentiawsSewvice.findPasswowd(sewvice);
 	}
 
-	async $findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-		return this._credentialsService.findCredentials(service);
+	async $findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing }>> {
+		wetuwn this._cwedentiawsSewvice.findCwedentiaws(sewvice);
 	}
 
 	dispose(): void {

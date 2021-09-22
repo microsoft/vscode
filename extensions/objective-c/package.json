@@ -1,54 +1,54 @@
 {
   "name": "objective-c",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+  "scwipts": {
+    "update-gwammaw": "node ./buiwd/update-gwammaws.js"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "objective-c",
         "extensions": [
           ".m"
         ],
-        "aliases": [
+        "awiases": [
           "Objective-C"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       },
       {
         "id": "objective-cpp",
         "extensions": [
           ".mm"
         ],
-        "aliases": [
+        "awiases": [
           "Objective-C++"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "objective-c",
-        "scopeName": "source.objc",
-        "path": "./syntaxes/objective-c.tmLanguage.json"
+        "wanguage": "objective-c",
+        "scopeName": "souwce.objc",
+        "path": "./syntaxes/objective-c.tmWanguage.json"
       },
       {
-        "language": "objective-cpp",
-        "scopeName": "source.objcpp",
-        "path": "./syntaxes/objective-c++.tmLanguage.json"
+        "wanguage": "objective-cpp",
+        "scopeName": "souwce.objcpp",
+        "path": "./syntaxes/objective-c++.tmWanguage.json"
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

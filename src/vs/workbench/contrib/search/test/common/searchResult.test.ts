@@ -1,365 +1,365 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { URI } from 'vs/base/common/uri';
-import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Range } from 'vs/editor/common/core/range';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { NullLogService } from 'vs/platform/log/common/log';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { Match, FiweMatch, SeawchWesuwt, SeawchModew } fwom 'vs/wowkbench/contwib/seawch/common/seawchModew';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFiweMatch, TextSeawchMatch, OneWineWange, ITextSeawchMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWepwaceSewvice } fwom 'vs/wowkbench/contwib/seawch/common/wepwace';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-const lineOneRange = new OneLineRange(1, 0, 1);
+const wineOneWange = new OneWineWange(1, 0, 1);
 
-suite('SearchResult', () => {
+suite('SeawchWesuwt', () => {
 
-	let instantiationService: TestInstantiationService;
+	wet instantiationSewvice: TestInstantiationSewvice;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
-		instantiationService.stubPromise(IReplaceService, {});
-		instantiationService.stubPromise(IReplaceService, 'replace', null);
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IModewSewvice, stubModewSewvice(instantiationSewvice));
+		instantiationSewvice.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(new FiweSewvice(new NuwwWogSewvice())));
+		instantiationSewvice.stubPwomise(IWepwaceSewvice, {});
+		instantiationSewvice.stubPwomise(IWepwaceSewvice, 'wepwace', nuww);
 	});
 
-	test('Line Match', function () {
-		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5));
-		assert.strictEqual(lineMatch.text(), '0 foo bar');
-		assert.strictEqual(lineMatch.range().startLineNumber, 2);
-		assert.strictEqual(lineMatch.range().endLineNumber, 2);
-		assert.strictEqual(lineMatch.range().startColumn, 1);
-		assert.strictEqual(lineMatch.range().endColumn, 6);
-		assert.strictEqual(lineMatch.id(), 'file:///folder/file.txt>[2,1 -> 2,6]foo');
+	test('Wine Match', function () {
+		const fiweMatch = aFiweMatch('fowda/fiwe.txt', nuww!);
+		const wineMatch = new Match(fiweMatch, ['0 foo baw'], new OneWineWange(0, 2, 5), new OneWineWange(1, 0, 5));
+		assewt.stwictEquaw(wineMatch.text(), '0 foo baw');
+		assewt.stwictEquaw(wineMatch.wange().stawtWineNumba, 2);
+		assewt.stwictEquaw(wineMatch.wange().endWineNumba, 2);
+		assewt.stwictEquaw(wineMatch.wange().stawtCowumn, 1);
+		assewt.stwictEquaw(wineMatch.wange().endCowumn, 6);
+		assewt.stwictEquaw(wineMatch.id(), 'fiwe:///fowda/fiwe.txt>[2,1 -> 2,6]foo');
 
-		assert.strictEqual(lineMatch.fullMatchText(), 'foo');
-		assert.strictEqual(lineMatch.fullMatchText(true), '0 foo bar');
+		assewt.stwictEquaw(wineMatch.fuwwMatchText(), 'foo');
+		assewt.stwictEquaw(wineMatch.fuwwMatchText(twue), '0 foo baw');
 	});
 
-	test('Line Match - Remove', function () {
-		const fileMatch = aFileMatch('folder/file.txt', aSearchResult(), new TextSearchMatch('foo bar', new OneLineRange(1, 0, 3)));
-		const lineMatch = fileMatch.matches()[0];
-		fileMatch.remove(lineMatch);
-		assert.strictEqual(fileMatch.matches().length, 0);
+	test('Wine Match - Wemove', function () {
+		const fiweMatch = aFiweMatch('fowda/fiwe.txt', aSeawchWesuwt(), new TextSeawchMatch('foo baw', new OneWineWange(1, 0, 3)));
+		const wineMatch = fiweMatch.matches()[0];
+		fiweMatch.wemove(wineMatch);
+		assewt.stwictEquaw(fiweMatch.matches().wength, 0);
 	});
 
-	test('File Match', function () {
-		let fileMatch = aFileMatch('folder/file.txt');
-		assert.strictEqual(fileMatch.matches().length, 0);
-		assert.strictEqual(fileMatch.resource.toString(), 'file:///folder/file.txt');
-		assert.strictEqual(fileMatch.name(), 'file.txt');
+	test('Fiwe Match', function () {
+		wet fiweMatch = aFiweMatch('fowda/fiwe.txt');
+		assewt.stwictEquaw(fiweMatch.matches().wength, 0);
+		assewt.stwictEquaw(fiweMatch.wesouwce.toStwing(), 'fiwe:///fowda/fiwe.txt');
+		assewt.stwictEquaw(fiweMatch.name(), 'fiwe.txt');
 
-		fileMatch = aFileMatch('file.txt');
-		assert.strictEqual(fileMatch.matches().length, 0);
-		assert.strictEqual(fileMatch.resource.toString(), 'file:///file.txt');
-		assert.strictEqual(fileMatch.name(), 'file.txt');
+		fiweMatch = aFiweMatch('fiwe.txt');
+		assewt.stwictEquaw(fiweMatch.matches().wength, 0);
+		assewt.stwictEquaw(fiweMatch.wesouwce.toStwing(), 'fiwe:///fiwe.txt');
+		assewt.stwictEquaw(fiweMatch.name(), 'fiwe.txt');
 	});
 
-	test('File Match: Select an existing match', function () {
-		const testObject = aFileMatch(
-			'folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
+	test('Fiwe Match: Sewect an existing match', function () {
+		const testObject = aFiweMatch(
+			'fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
 
-		testObject.setSelectedMatch(testObject.matches()[0]);
+		testObject.setSewectedMatch(testObject.matches()[0]);
 
-		assert.strictEqual(testObject.matches()[0], testObject.getSelectedMatch());
+		assewt.stwictEquaw(testObject.matches()[0], testObject.getSewectedMatch());
 	});
 
-	test('File Match: Select non existing match', function () {
-		const testObject = aFileMatch(
-			'folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		const target = testObject.matches()[0];
-		testObject.remove(target);
+	test('Fiwe Match: Sewect non existing match', function () {
+		const testObject = aFiweMatch(
+			'fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
+		const tawget = testObject.matches()[0];
+		testObject.wemove(tawget);
 
-		testObject.setSelectedMatch(target);
+		testObject.setSewectedMatch(tawget);
 
-		assert.strictEqual(testObject.getSelectedMatch(), null);
+		assewt.stwictEquaw(testObject.getSewectedMatch(), nuww);
 	});
 
-	test('File Match: isSelected return true for selected match', function () {
-		const testObject = aFileMatch(
-			'folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		const target = testObject.matches()[0];
-		testObject.setSelectedMatch(target);
+	test('Fiwe Match: isSewected wetuwn twue fow sewected match', function () {
+		const testObject = aFiweMatch(
+			'fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
+		const tawget = testObject.matches()[0];
+		testObject.setSewectedMatch(tawget);
 
-		assert.ok(testObject.isMatchSelected(target));
+		assewt.ok(testObject.isMatchSewected(tawget));
 	});
 
-	test('File Match: isSelected return false for un-selected match', function () {
-		const testObject = aFileMatch('folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		testObject.setSelectedMatch(testObject.matches()[0]);
-		assert.ok(!testObject.isMatchSelected(testObject.matches()[1]));
+	test('Fiwe Match: isSewected wetuwn fawse fow un-sewected match', function () {
+		const testObject = aFiweMatch('fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
+		testObject.setSewectedMatch(testObject.matches()[0]);
+		assewt.ok(!testObject.isMatchSewected(testObject.matches()[1]));
 	});
 
-	test('File Match: unselect', function () {
-		const testObject = aFileMatch(
-			'folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		testObject.setSelectedMatch(testObject.matches()[0]);
-		testObject.setSelectedMatch(null);
+	test('Fiwe Match: unsewect', function () {
+		const testObject = aFiweMatch(
+			'fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
+		testObject.setSewectedMatch(testObject.matches()[0]);
+		testObject.setSewectedMatch(nuww);
 
-		assert.strictEqual(null, testObject.getSelectedMatch());
+		assewt.stwictEquaw(nuww, testObject.getSewectedMatch());
 	});
 
-	test('File Match: unselect when not selected', function () {
-		const testObject = aFileMatch(
-			'folder/file.txt',
-			aSearchResult(),
-			new TextSearchMatch('foo', new OneLineRange(1, 0, 3)),
-			new TextSearchMatch('bar', new OneLineRange(1, 5, 3)));
-		testObject.setSelectedMatch(null);
+	test('Fiwe Match: unsewect when not sewected', function () {
+		const testObject = aFiweMatch(
+			'fowda/fiwe.txt',
+			aSeawchWesuwt(),
+			new TextSeawchMatch('foo', new OneWineWange(1, 0, 3)),
+			new TextSeawchMatch('baw', new OneWineWange(1, 5, 3)));
+		testObject.setSewectedMatch(nuww);
 
-		assert.strictEqual(null, testObject.getSelectedMatch());
+		assewt.stwictEquaw(nuww, testObject.getSewectedMatch());
 	});
 
-	test('Alle Drei Zusammen', function () {
-		const searchResult = instantiationService.createInstance(SearchResult, null);
-		const fileMatch = aFileMatch('far/boo', searchResult);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3));
+	test('Awwe Dwei Zusammen', function () {
+		const seawchWesuwt = instantiationSewvice.cweateInstance(SeawchWesuwt, nuww);
+		const fiweMatch = aFiweMatch('faw/boo', seawchWesuwt);
+		const wineMatch = new Match(fiweMatch, ['foo baw'], new OneWineWange(0, 0, 3), new OneWineWange(1, 0, 3));
 
-		assert(lineMatch.parent() === fileMatch);
-		assert(fileMatch.parent() === searchResult);
+		assewt(wineMatch.pawent() === fiweMatch);
+		assewt(fiweMatch.pawent() === seawchWesuwt);
 	});
 
-	test('Adding a raw match will add a file match with line matches', function () {
-		const testObject = aSearchResult();
-		const target = [aRawMatch('file://c:/',
-			new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-			new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-			new TextSearchMatch('preview 2', lineOneRange))];
+	test('Adding a waw match wiww add a fiwe match with wine matches', function () {
+		const testObject = aSeawchWesuwt();
+		const tawget = [aWawMatch('fiwe://c:/',
+			new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+			new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11)),
+			new TextSeawchMatch('pweview 2', wineOneWange))];
 
-		testObject.add(target);
+		testObject.add(tawget);
 
-		assert.strictEqual(3, testObject.count());
+		assewt.stwictEquaw(3, testObject.count());
 
-		const actual = testObject.matches();
-		assert.strictEqual(1, actual.length);
-		assert.strictEqual('file://c:/', actual[0].resource.toString());
+		const actuaw = testObject.matches();
+		assewt.stwictEquaw(1, actuaw.wength);
+		assewt.stwictEquaw('fiwe://c:/', actuaw[0].wesouwce.toStwing());
 
-		const actuaMatches = actual[0].matches();
-		assert.strictEqual(3, actuaMatches.length);
+		const actuaMatches = actuaw[0].matches();
+		assewt.stwictEquaw(3, actuaMatches.wength);
 
-		assert.strictEqual('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
+		assewt.stwictEquaw('pweview 1', actuaMatches[0].text());
+		assewt.ok(new Wange(2, 2, 2, 5).equawsWange(actuaMatches[0].wange()));
 
-		assert.strictEqual('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		assewt.stwictEquaw('pweview 1', actuaMatches[1].text());
+		assewt.ok(new Wange(2, 5, 2, 12).equawsWange(actuaMatches[1].wange()));
 
-		assert.strictEqual('preview 2', actuaMatches[2].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[2].range()));
+		assewt.stwictEquaw('pweview 2', actuaMatches[2].text());
+		assewt.ok(new Wange(2, 1, 2, 2).equawsWange(actuaMatches[2].wange()));
 	});
 
-	test('Adding multiple raw matches', function () {
-		const testObject = aSearchResult();
-		const target = [
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-				new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11))),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))];
+	test('Adding muwtipwe waw matches', function () {
+		const testObject = aSeawchWesuwt();
+		const tawget = [
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 1, 4)),
+				new TextSeawchMatch('pweview 1', new OneWineWange(1, 4, 11))),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))];
 
-		testObject.add(target);
+		testObject.add(tawget);
 
-		assert.strictEqual(3, testObject.count());
+		assewt.stwictEquaw(3, testObject.count());
 
-		const actual = testObject.matches();
-		assert.strictEqual(2, actual.length);
-		assert.strictEqual('file://c:/1', actual[0].resource.toString());
+		const actuaw = testObject.matches();
+		assewt.stwictEquaw(2, actuaw.wength);
+		assewt.stwictEquaw('fiwe://c:/1', actuaw[0].wesouwce.toStwing());
 
-		let actuaMatches = actual[0].matches();
-		assert.strictEqual(2, actuaMatches.length);
-		assert.strictEqual('preview 1', actuaMatches[0].text());
-		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-		assert.strictEqual('preview 1', actuaMatches[1].text());
-		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
+		wet actuaMatches = actuaw[0].matches();
+		assewt.stwictEquaw(2, actuaMatches.wength);
+		assewt.stwictEquaw('pweview 1', actuaMatches[0].text());
+		assewt.ok(new Wange(2, 2, 2, 5).equawsWange(actuaMatches[0].wange()));
+		assewt.stwictEquaw('pweview 1', actuaMatches[1].text());
+		assewt.ok(new Wange(2, 5, 2, 12).equawsWange(actuaMatches[1].wange()));
 
-		actuaMatches = actual[1].matches();
-		assert.strictEqual(1, actuaMatches.length);
-		assert.strictEqual('preview 2', actuaMatches[0].text());
-		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
+		actuaMatches = actuaw[1].matches();
+		assewt.stwictEquaw(1, actuaMatches.wength);
+		assewt.stwictEquaw('pweview 2', actuaMatches[0].text());
+		assewt.ok(new Wange(2, 1, 2, 2).equawsWange(actuaMatches[0].wange()));
 	});
 
 	test('Dispose disposes matches', function () {
-		const target1 = sinon.spy();
-		const target2 = sinon.spy();
+		const tawget1 = sinon.spy();
+		const tawget2 = sinon.spy();
 
-		const testObject = aSearchResult();
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))]);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange)),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))]);
 
-		testObject.matches()[0].onDispose(target1);
-		testObject.matches()[1].onDispose(target2);
+		testObject.matches()[0].onDispose(tawget1);
+		testObject.matches()[1].onDispose(tawget2);
 
 		testObject.dispose();
 
-		assert.ok(testObject.isEmpty());
-		assert.ok(target1.calledOnce);
-		assert.ok(target2.calledOnce);
+		assewt.ok(testObject.isEmpty());
+		assewt.ok(tawget1.cawwedOnce);
+		assewt.ok(tawget2.cawwedOnce);
 	});
 
-	test('remove triggers change event', function () {
-		const target = sinon.spy();
-		const testObject = aSearchResult();
+	test('wemove twiggews change event', function () {
+		const tawget = sinon.spy();
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
-		const objectToRemove = testObject.matches()[0];
-		testObject.onChange(target);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange))]);
+		const objectToWemove = testObject.matches()[0];
+		testObject.onChange(tawget);
 
-		testObject.remove(objectToRemove);
+		testObject.wemove(objectToWemove);
 
-		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+		assewt.ok(tawget.cawwedOnce);
+		assewt.deepStwictEquaw([{ ewements: [objectToWemove], wemoved: twue }], tawget.awgs[0]);
 	});
 
-	test('remove array triggers change event', function () {
-		const target = sinon.spy();
-		const testObject = aSearchResult();
+	test('wemove awway twiggews change event', function () {
+		const tawget = sinon.spy();
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))]);
-		const arrayToRemove = testObject.matches();
-		testObject.onChange(target);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange)),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))]);
+		const awwayToWemove = testObject.matches();
+		testObject.onChange(tawget);
 
-		testObject.remove(arrayToRemove);
+		testObject.wemove(awwayToWemove);
 
-		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: arrayToRemove, removed: true }], target.args[0]);
+		assewt.ok(tawget.cawwedOnce);
+		assewt.deepStwictEquaw([{ ewements: awwayToWemove, wemoved: twue }], tawget.awgs[0]);
 	});
 
-	test('remove triggers change event', function () {
-		const target = sinon.spy();
-		const testObject = aSearchResult();
+	test('wemove twiggews change event', function () {
+		const tawget = sinon.spy();
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
-		const objectToRemove = testObject.matches()[0];
-		testObject.onChange(target);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange))]);
+		const objectToWemove = testObject.matches()[0];
+		testObject.onChange(tawget);
 
-		testObject.remove(objectToRemove);
+		testObject.wemove(objectToWemove);
 
-		assert.ok(target.calledOnce);
-		assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+		assewt.ok(tawget.cawwedOnce);
+		assewt.deepStwictEquaw([{ ewements: [objectToWemove], wemoved: twue }], tawget.awgs[0]);
 	});
 
-	test('Removing all line matches and adding back will add file back to result', function () {
-		const testObject = aSearchResult();
+	test('Wemoving aww wine matches and adding back wiww add fiwe back to wesuwt', function () {
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
-		const target = testObject.matches()[0];
-		const matchToRemove = target.matches()[0];
-		target.remove(matchToRemove);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange))]);
+		const tawget = testObject.matches()[0];
+		const matchToWemove = tawget.matches()[0];
+		tawget.wemove(matchToWemove);
 
-		assert.ok(testObject.isEmpty());
-		target.add(matchToRemove, true);
+		assewt.ok(testObject.isEmpty());
+		tawget.add(matchToWemove, twue);
 
-		assert.strictEqual(1, testObject.fileCount());
-		assert.strictEqual(target, testObject.matches()[0]);
+		assewt.stwictEquaw(1, testObject.fiweCount());
+		assewt.stwictEquaw(tawget, testObject.matches()[0]);
 	});
 
-	test('replace should remove the file match', function () {
-		const voidPromise = Promise.resolve(null);
-		instantiationService.stub(IReplaceService, 'replace', voidPromise);
-		const testObject = aSearchResult();
+	test('wepwace shouwd wemove the fiwe match', function () {
+		const voidPwomise = Pwomise.wesowve(nuww);
+		instantiationSewvice.stub(IWepwaceSewvice, 'wepwace', voidPwomise);
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange))]);
 
-		testObject.replace(testObject.matches()[0]);
+		testObject.wepwace(testObject.matches()[0]);
 
-		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
+		wetuwn voidPwomise.then(() => assewt.ok(testObject.isEmpty()));
 	});
 
-	test('replace should trigger the change event', function () {
-		const target = sinon.spy();
-		const voidPromise = Promise.resolve(null);
-		instantiationService.stub(IReplaceService, 'replace', voidPromise);
-		const testObject = aSearchResult();
+	test('wepwace shouwd twigga the change event', function () {
+		const tawget = sinon.spy();
+		const voidPwomise = Pwomise.wesowve(nuww);
+		instantiationSewvice.stub(IWepwaceSewvice, 'wepwace', voidPwomise);
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange))]);
-		testObject.onChange(target);
-		const objectToRemove = testObject.matches()[0];
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange))]);
+		testObject.onChange(tawget);
+		const objectToWemove = testObject.matches()[0];
 
-		testObject.replace(objectToRemove);
+		testObject.wepwace(objectToWemove);
 
-		return voidPromise.then(() => {
-			assert.ok(target.calledOnce);
-			assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+		wetuwn voidPwomise.then(() => {
+			assewt.ok(tawget.cawwedOnce);
+			assewt.deepStwictEquaw([{ ewements: [objectToWemove], wemoved: twue }], tawget.awgs[0]);
 		});
 	});
 
-	test('replaceAll should remove all file matches', function () {
-		const voidPromise = Promise.resolve(null);
-		instantiationService.stubPromise(IReplaceService, 'replace', voidPromise);
-		const testObject = aSearchResult();
+	test('wepwaceAww shouwd wemove aww fiwe matches', function () {
+		const voidPwomise = Pwomise.wesowve(nuww);
+		instantiationSewvice.stubPwomise(IWepwaceSewvice, 'wepwace', voidPwomise);
+		const testObject = aSeawchWesuwt();
 		testObject.add([
-			aRawMatch('file://c:/1',
-				new TextSearchMatch('preview 1', lineOneRange)),
-			aRawMatch('file://c:/2',
-				new TextSearchMatch('preview 2', lineOneRange))]);
+			aWawMatch('fiwe://c:/1',
+				new TextSeawchMatch('pweview 1', wineOneWange)),
+			aWawMatch('fiwe://c:/2',
+				new TextSeawchMatch('pweview 2', wineOneWange))]);
 
-		testObject.replaceAll(null!);
+		testObject.wepwaceAww(nuww!);
 
-		return voidPromise.then(() => assert.ok(testObject.isEmpty()));
+		wetuwn voidPwomise.then(() => assewt.ok(testObject.isEmpty()));
 	});
 
-	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
-		const rawMatch: IFileMatch = {
-			resource: URI.file('/' + path),
-			results: lineMatches
+	function aFiweMatch(path: stwing, seawchWesuwt?: SeawchWesuwt, ...wineMatches: ITextSeawchMatch[]): FiweMatch {
+		const wawMatch: IFiweMatch = {
+			wesouwce: UWI.fiwe('/' + path),
+			wesuwts: wineMatches
 		};
-		return instantiationService.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
+		wetuwn instantiationSewvice.cweateInstance(FiweMatch, nuww, nuww, nuww, seawchWesuwt, wawMatch);
 	}
 
-	function aSearchResult(): SearchResult {
-		const searchModel = instantiationService.createInstance(SearchModel);
-		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
-		return searchModel.searchResult;
+	function aSeawchWesuwt(): SeawchWesuwt {
+		const seawchModew = instantiationSewvice.cweateInstance(SeawchModew);
+		seawchModew.seawchWesuwt.quewy = { type: 1, fowdewQuewies: [{ fowda: UWI.pawse('fiwe://c:/') }] };
+		wetuwn seawchModew.seawchWesuwt;
 	}
 
-	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
-		return { resource: URI.parse(resource), results };
+	function aWawMatch(wesouwce: stwing, ...wesuwts: ITextSeawchMatch[]): IFiweMatch {
+		wetuwn { wesouwce: UWI.pawse(wesouwce), wesuwts };
 	}
 
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+	function stubModewSewvice(instantiationSewvice: TestInstantiationSewvice): IModewSewvice {
+		instantiationSewvice.stub(IConfiguwationSewvice, new TestConfiguwationSewvice());
+		instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
+		wetuwn instantiationSewvice.cweateInstance(ModewSewviceImpw);
 	}
 });

@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ToggleCellToolbarPositionAction } from 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
+impowt * as assewt fwom 'assewt';
+impowt { ToggweCewwToowbawPositionAction } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/wayout/wayoutActions';
 
-suite('Notebook Layout Actions', () => {
-	test('Toggle Cell Toolbar Position', async function () {
-		const action = new ToggleCellToolbarPositionAction();
+suite('Notebook Wayout Actions', () => {
+	test('Toggwe Ceww Toowbaw Position', async function () {
+		const action = new ToggweCewwToowbawPositionAction();
 
-		// "notebook.cellToolbarLocation": "right"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'right'), {
-			default: 'right',
-			'test-nb': 'left'
+		// "notebook.cewwToowbawWocation": "wight"
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', 'wight'), {
+			defauwt: 'wight',
+			'test-nb': 'weft'
 		});
 
-		// "notebook.cellToolbarLocation": "left"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'left'), {
-			default: 'left',
-			'test-nb': 'right'
+		// "notebook.cewwToowbawWocation": "weft"
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', 'weft'), {
+			defauwt: 'weft',
+			'test-nb': 'wight'
 		});
 
-		// "notebook.cellToolbarLocation": "hidden"
-		assert.deepStrictEqual(action.togglePosition('test-nb', 'hidden'), {
-			default: 'hidden',
-			'test-nb': 'right'
+		// "notebook.cewwToowbawWocation": "hidden"
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', 'hidden'), {
+			defauwt: 'hidden',
+			'test-nb': 'wight'
 		});
 
-		// invalid
-		assert.deepStrictEqual(action.togglePosition('test-nb', ''), {
-			default: 'right',
-			'test-nb': 'left'
+		// invawid
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', ''), {
+			defauwt: 'wight',
+			'test-nb': 'weft'
 		});
 
-		// no user config, default value
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'right'
+		// no usa config, defauwt vawue
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', {
+			defauwt: 'wight'
 		}), {
-			default: 'right',
-			'test-nb': 'left'
+			defauwt: 'wight',
+			'test-nb': 'weft'
 		});
 
-		// user config, default to left
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'left'
+		// usa config, defauwt to weft
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', {
+			defauwt: 'weft'
 		}), {
-			default: 'left',
-			'test-nb': 'right'
+			defauwt: 'weft',
+			'test-nb': 'wight'
 		});
 
-		// user config, default to hidden
-		assert.deepStrictEqual(action.togglePosition('test-nb', {
-			default: 'hidden'
+		// usa config, defauwt to hidden
+		assewt.deepStwictEquaw(action.toggwePosition('test-nb', {
+			defauwt: 'hidden'
 		}), {
-			default: 'hidden',
-			'test-nb': 'right'
+			defauwt: 'hidden',
+			'test-nb': 'wight'
 		});
 	});
 });

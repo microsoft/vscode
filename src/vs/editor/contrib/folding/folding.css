@@ -1,31 +1,31 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .margin-view-overlays .codicon-folding-expanded,
-.monaco-editor .margin-view-overlays .codicon-folding-collapsed {
-	cursor: pointer;
+.monaco-editow .mawgin-view-ovewways .codicon-fowding-expanded,
+.monaco-editow .mawgin-view-ovewways .codicon-fowding-cowwapsed {
+	cuwsow: pointa;
 	opacity: 0;
-	transition: opacity 0.5s;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	twansition: opacity 0.5s;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
 	font-size: 140%;
-	margin-left: 2px;
+	mawgin-weft: 2px;
 }
 
-.monaco-editor .margin-view-overlays:hover .codicon,
-.monaco-editor .margin-view-overlays .codicon.codicon-folding-collapsed,
-.monaco-editor .margin-view-overlays .codicon.alwaysShowFoldIcons {
+.monaco-editow .mawgin-view-ovewways:hova .codicon,
+.monaco-editow .mawgin-view-ovewways .codicon.codicon-fowding-cowwapsed,
+.monaco-editow .mawgin-view-ovewways .codicon.awwaysShowFowdIcons {
 	opacity: 1;
 }
 
-.monaco-editor .inline-folded:after {
-	color: grey;
-	margin: 0.1em 0.2em 0 0.2em;
+.monaco-editow .inwine-fowded:afta {
+	cowow: gwey;
+	mawgin: 0.1em 0.2em 0 0.2em;
 	content: "⋯";
-	display: inline;
-	line-height: 1em;
-	cursor: pointer;
+	dispway: inwine;
+	wine-height: 1em;
+	cuwsow: pointa;
 }

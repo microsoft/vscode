@@ -1,21 +1,21 @@
 {
   "name": "scss",
-  "displayName": "%displayName%",
-  "description": "%description%",
-  "version": "1.0.0",
-  "publisher": "vscode",
-  "license": "MIT",
+  "dispwayName": "%dispwayName%",
+  "descwiption": "%descwiption%",
+  "vewsion": "1.0.0",
+  "pubwisha": "vscode",
+  "wicense": "MIT",
   "engines": {
     "vscode": "*"
   },
-  "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-sass grammars/scss.cson ./syntaxes/scss.tmLanguage.json grammars/sassdoc.cson ./syntaxes/sassdoc.tmLanguage.json"
+  "scwipts": {
+    "update-gwammaw": "node ../node_moduwes/vscode-gwammaw-updata/bin atom/wanguage-sass gwammaws/scss.cson ./syntaxes/scss.tmWanguage.json gwammaws/sassdoc.cson ./syntaxes/sassdoc.tmWanguage.json"
   },
-  "contributes": {
-    "languages": [
+  "contwibutes": {
+    "wanguages": [
       {
         "id": "scss",
-        "aliases": [
+        "awiases": [
           "SCSS",
           "scss"
         ],
@@ -26,61 +26,61 @@
           "text/x-scss",
           "text/scss"
         ],
-        "configuration": "./language-configuration.json"
+        "configuwation": "./wanguage-configuwation.json"
       }
     ],
-    "grammars": [
+    "gwammaws": [
       {
-        "language": "scss",
-        "scopeName": "source.css.scss",
-        "path": "./syntaxes/scss.tmLanguage.json"
+        "wanguage": "scss",
+        "scopeName": "souwce.css.scss",
+        "path": "./syntaxes/scss.tmWanguage.json"
       },
       {
-        "scopeName": "source.sassdoc",
-        "path": "./syntaxes/sassdoc.tmLanguage.json"
+        "scopeName": "souwce.sassdoc",
+        "path": "./syntaxes/sassdoc.tmWanguage.json"
       }
     ],
-    "problemMatchers": [
+    "pwobwemMatchews": [
       {
         "name": "node-sass",
-        "label": "Node Sass Compiler",
-        "owner": "node-sass",
-        "fileLocation": "absolute",
-        "pattern": [
+        "wabew": "Node Sass Compiwa",
+        "owna": "node-sass",
+        "fiweWocation": "absowute",
+        "pattewn": [
           {
-            "regexp": "^{$"
+            "wegexp": "^{$"
           },
           {
-            "regexp": "\\s*\"status\":\\s\\d+,"
+            "wegexp": "\\s*\"status\":\\s\\d+,"
           },
           {
-            "regexp": "\\s*\"file\":\\s\"(.*)\",",
-            "file": 1
+            "wegexp": "\\s*\"fiwe\":\\s\"(.*)\",",
+            "fiwe": 1
           },
           {
-            "regexp": "\\s*\"line\":\\s(\\d+),",
-            "line": 1
+            "wegexp": "\\s*\"wine\":\\s(\\d+),",
+            "wine": 1
           },
           {
-            "regexp": "\\s*\"column\":\\s(\\d+),",
-            "column": 1
+            "wegexp": "\\s*\"cowumn\":\\s(\\d+),",
+            "cowumn": 1
           },
           {
-            "regexp": "\\s*\"message\":\\s\"(.*)\",",
+            "wegexp": "\\s*\"message\":\\s\"(.*)\",",
             "message": 1
           },
           {
-            "regexp": "\\s*\"formatted\":\\s(.*)"
+            "wegexp": "\\s*\"fowmatted\":\\s(.*)"
           },
           {
-            "regexp": "^}$"
+            "wegexp": "^}$"
           }
         ]
       }
     ]
   },
-  "repository": {
+  "wepositowy": {
     "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "uww": "https://github.com/micwosoft/vscode.git"
   }
 }

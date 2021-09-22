@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as os from 'os';
-import { join } from 'path';
+impowt * as vscode fwom 'vscode';
+impowt * as fs fwom 'fs';
+impowt * as os fwom 'os';
+impowt { join } fwom 'path';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+function wndName() {
+	wetuwn Math.wandom().toStwing(36).wepwace(/[^a-z]+/g, '').substw(0, 10);
 }
 
-export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
-	return new Promise((resolve, reject) => {
-		const tmpFile = join(os.tmpdir(), rndName() + '.' + fileExtension);
-		fs.writeFile(tmpFile, contents, (error) => {
-			if (error) {
-				return reject(error);
+expowt function cweateWandomFiwe(contents = '', fiweExtension = 'txt'): Thenabwe<vscode.Uwi> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		const tmpFiwe = join(os.tmpdiw(), wndName() + '.' + fiweExtension);
+		fs.wwiteFiwe(tmpFiwe, contents, (ewwow) => {
+			if (ewwow) {
+				wetuwn weject(ewwow);
 			}
 
-			resolve(vscode.Uri.file(tmpFile));
+			wesowve(vscode.Uwi.fiwe(tmpFiwe));
 		});
 	});
 }
 
-export function pathEquals(path1: string, path2: string): boolean {
-	if (process.platform !== 'linux') {
-		path1 = path1.toLowerCase();
-		path2 = path2.toLowerCase();
+expowt function pathEquaws(path1: stwing, path2: stwing): boowean {
+	if (pwocess.pwatfowm !== 'winux') {
+		path1 = path1.toWowewCase();
+		path2 = path2.toWowewCase();
 	}
 
-	return path1 === path2;
+	wetuwn path1 === path2;
 }
 
-export function deleteFile(file: vscode.Uri): Thenable<boolean> {
-	return new Promise((resolve, reject) => {
-		fs.unlink(file.fsPath, (err) => {
-			if (err) {
-				reject(err);
-			} else {
-				resolve(true);
+expowt function deweteFiwe(fiwe: vscode.Uwi): Thenabwe<boowean> {
+	wetuwn new Pwomise((wesowve, weject) => {
+		fs.unwink(fiwe.fsPath, (eww) => {
+			if (eww) {
+				weject(eww);
+			} ewse {
+				wesowve(twue);
 			}
 		});
 	});
 }
 
-export function closeAllEditors(): Thenable<any> {
-	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
+expowt function cwoseAwwEditows(): Thenabwe<any> {
+	wetuwn vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 }
 
-export function withRandomFileEditor(initialContents: string, fileExtension: string = 'txt', run: (editor: vscode.TextEditor, doc: vscode.TextDocument) => Thenable<void>): Thenable<boolean> {
-	return createRandomFile(initialContents, fileExtension).then(file => {
-		return vscode.workspace.openTextDocument(file).then(doc => {
-			return vscode.window.showTextDocument(doc).then((editor) => {
-				return run(editor, doc).then(_ => {
-					if (doc.isDirty) {
-						return doc.save().then(() => {
-							return deleteFile(file);
+expowt function withWandomFiweEditow(initiawContents: stwing, fiweExtension: stwing = 'txt', wun: (editow: vscode.TextEditow, doc: vscode.TextDocument) => Thenabwe<void>): Thenabwe<boowean> {
+	wetuwn cweateWandomFiwe(initiawContents, fiweExtension).then(fiwe => {
+		wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+			wetuwn vscode.window.showTextDocument(doc).then((editow) => {
+				wetuwn wun(editow, doc).then(_ => {
+					if (doc.isDiwty) {
+						wetuwn doc.save().then(() => {
+							wetuwn deweteFiwe(fiwe);
 						});
-					} else {
-						return deleteFile(file);
+					} ewse {
+						wetuwn deweteFiwe(fiwe);
 					}
 				});
 			});

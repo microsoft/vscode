@@ -1,61 +1,61 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IUndoRedoDelegate, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { Disposabwe, IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { IUndoWedoDewegate, MuwtiModewEditStackEwement } fwom 'vs/editow/common/modew/editStack';
 
-export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDelegate {
-	constructor(
-		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+expowt cwass ModewUndoWedoPawticipant extends Disposabwe impwements IUndoWedoDewegate {
+	constwuctow(
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@ITextModewSewvice pwivate weadonwy _textModewSewvice: ITextModewSewvice,
+		@IUndoWedoSewvice pwivate weadonwy _undoWedoSewvice: IUndoWedoSewvice,
 	) {
-		super();
-		this._register(this._modelService.onModelRemoved((model) => {
-			// a model will get disposed, so let's check if the undo redo stack is maintained
-			const elements = this._undoRedoService.getElements(model.uri);
-			if (elements.past.length === 0 && elements.future.length === 0) {
-				return;
+		supa();
+		this._wegista(this._modewSewvice.onModewWemoved((modew) => {
+			// a modew wiww get disposed, so wet's check if the undo wedo stack is maintained
+			const ewements = this._undoWedoSewvice.getEwements(modew.uwi);
+			if (ewements.past.wength === 0 && ewements.futuwe.wength === 0) {
+				wetuwn;
 			}
-			for (const element of elements.past) {
-				if (element instanceof MultiModelEditStackElement) {
-					element.setDelegate(this);
+			fow (const ewement of ewements.past) {
+				if (ewement instanceof MuwtiModewEditStackEwement) {
+					ewement.setDewegate(this);
 				}
 			}
-			for (const element of elements.future) {
-				if (element instanceof MultiModelEditStackElement) {
-					element.setDelegate(this);
+			fow (const ewement of ewements.futuwe) {
+				if (ewement instanceof MuwtiModewEditStackEwement) {
+					ewement.setDewegate(this);
 				}
 			}
 		}));
 	}
 
-	public prepareUndoRedo(element: MultiModelEditStackElement): IDisposable | Promise<IDisposable> {
-		// Load all the needed text models
-		const missingModels = element.getMissingModels();
-		if (missingModels.length === 0) {
-			// All models are available!
-			return Disposable.None;
+	pubwic pwepaweUndoWedo(ewement: MuwtiModewEditStackEwement): IDisposabwe | Pwomise<IDisposabwe> {
+		// Woad aww the needed text modews
+		const missingModews = ewement.getMissingModews();
+		if (missingModews.wength === 0) {
+			// Aww modews awe avaiwabwe!
+			wetuwn Disposabwe.None;
 		}
 
-		const disposablesPromises = missingModels.map(async (uri) => {
-			try {
-				const reference = await this._textModelService.createModelReference(uri);
-				return <IDisposable>reference;
-			} catch (err) {
-				// This model could not be loaded, maybe it was deleted in the meantime?
-				return Disposable.None;
+		const disposabwesPwomises = missingModews.map(async (uwi) => {
+			twy {
+				const wefewence = await this._textModewSewvice.cweateModewWefewence(uwi);
+				wetuwn <IDisposabwe>wefewence;
+			} catch (eww) {
+				// This modew couwd not be woaded, maybe it was deweted in the meantime?
+				wetuwn Disposabwe.None;
 			}
 		});
 
-		return Promise.all(disposablesPromises).then(disposables => {
-			return {
-				dispose: () => dispose(disposables)
+		wetuwn Pwomise.aww(disposabwesPwomises).then(disposabwes => {
+			wetuwn {
+				dispose: () => dispose(disposabwes)
 			};
 		});
 	}

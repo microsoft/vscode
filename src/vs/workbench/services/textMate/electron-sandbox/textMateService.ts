@@ -1,252 +1,252 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import type { IRawTheme } from 'vscode-textmate';
-import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TextMateWorker } from 'vs/workbench/services/textMate/electron-sandbox/textMateWorker';
-import { ITextModel } from 'vs/editor/common/model';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { MultilineTokensBuilder } from 'vs/editor/common/model/tokensStore';
-import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { FileAccess } from 'vs/base/common/network';
+impowt { ITextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/common/textMateSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { AbstwactTextMateSewvice } fwom 'vs/wowkbench/sewvices/textMate/bwowsa/abstwactTextMateSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IWowkbenchThemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { cweateWebWowka, MonacoWebWowka } fwom 'vs/editow/common/sewvices/webWowka';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt type { IWawTheme } fwom 'vscode-textmate';
+impowt { IVawidGwammawDefinition } fwom 'vs/wowkbench/sewvices/textMate/common/TMScopeWegistwy';
+impowt { TextMateWowka } fwom 'vs/wowkbench/sewvices/textMate/ewectwon-sandbox/textMateWowka';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UwiComponents, UWI } fwom 'vs/base/common/uwi';
+impowt { MuwtiwineTokensBuiwda } fwom 'vs/editow/common/modew/tokensStowe';
+impowt { TMGwammawFactowy } fwom 'vs/wowkbench/sewvices/textMate/common/TMGwammawFactowy';
+impowt { IModewContentChangedEvent } fwom 'vs/editow/common/modew/textModewEvents';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IPwogwessSewvice } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { FiweAccess } fwom 'vs/base/common/netwowk';
 
-const RUN_TEXTMATE_IN_WORKER = false;
+const WUN_TEXTMATE_IN_WOWKa = fawse;
 
-class ModelWorkerTextMateTokenizer extends Disposable {
+cwass ModewWowkewTextMateTokeniza extends Disposabwe {
 
-	private readonly _worker: TextMateWorker;
-	private readonly _model: ITextModel;
-	private _isSynced: boolean;
-	private _pendingChanges: IModelContentChangedEvent[] = [];
+	pwivate weadonwy _wowka: TextMateWowka;
+	pwivate weadonwy _modew: ITextModew;
+	pwivate _isSynced: boowean;
+	pwivate _pendingChanges: IModewContentChangedEvent[] = [];
 
-	constructor(worker: TextMateWorker, model: ITextModel) {
-		super();
-		this._worker = worker;
-		this._model = model;
-		this._isSynced = false;
+	constwuctow(wowka: TextMateWowka, modew: ITextModew) {
+		supa();
+		this._wowka = wowka;
+		this._modew = modew;
+		this._isSynced = fawse;
 
-		this._register(this._model.onDidChangeAttached(() => this._onDidChangeAttached()));
+		this._wegista(this._modew.onDidChangeAttached(() => this._onDidChangeAttached()));
 		this._onDidChangeAttached();
 
-		this._register(this._model.onDidChangeContent((e) => {
+		this._wegista(this._modew.onDidChangeContent((e) => {
 			if (this._isSynced) {
-				this._worker.acceptModelChanged(this._model.uri.toString(), e);
+				this._wowka.acceptModewChanged(this._modew.uwi.toStwing(), e);
 				this._pendingChanges.push(e);
 			}
 		}));
 
-		this._register(this._model.onDidChangeLanguage((e) => {
+		this._wegista(this._modew.onDidChangeWanguage((e) => {
 			if (this._isSynced) {
-				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
+				this._wowka.acceptModewWanguageChanged(this._modew.uwi.toStwing(), this._modew.getWanguageIdentifia().id);
 			}
 		}));
 	}
 
-	private _onDidChangeAttached(): void {
-		if (this._model.isAttachedToEditor()) {
+	pwivate _onDidChangeAttached(): void {
+		if (this._modew.isAttachedToEditow()) {
 			if (!this._isSynced) {
 				this._beginSync();
 			}
-		} else {
+		} ewse {
 			if (this._isSynced) {
 				this._endSync();
 			}
 		}
 	}
 
-	private _beginSync(): void {
-		this._isSynced = true;
-		this._worker.acceptNewModel({
-			uri: this._model.uri,
-			versionId: this._model.getVersionId(),
-			lines: this._model.getLinesContent(),
-			EOL: this._model.getEOL(),
-			languageId: this._model.getLanguageIdentifier().id,
+	pwivate _beginSync(): void {
+		this._isSynced = twue;
+		this._wowka.acceptNewModew({
+			uwi: this._modew.uwi,
+			vewsionId: this._modew.getVewsionId(),
+			wines: this._modew.getWinesContent(),
+			EOW: this._modew.getEOW(),
+			wanguageId: this._modew.getWanguageIdentifia().id,
 		});
 	}
 
-	private _endSync(): void {
-		this._isSynced = false;
-		this._worker.acceptRemovedModel(this._model.uri.toString());
+	pwivate _endSync(): void {
+		this._isSynced = fawse;
+		this._wowka.acceptWemovedModew(this._modew.uwi.toStwing());
 	}
 
-	public override dispose() {
-		super.dispose();
+	pubwic ovewwide dispose() {
+		supa.dispose();
 		this._endSync();
 	}
 
-	private _confirm(versionId: number): void {
-		while (this._pendingChanges.length > 0 && this._pendingChanges[0].versionId <= versionId) {
+	pwivate _confiwm(vewsionId: numba): void {
+		whiwe (this._pendingChanges.wength > 0 && this._pendingChanges[0].vewsionId <= vewsionId) {
 			this._pendingChanges.shift();
 		}
 	}
 
-	public setTokens(versionId: number, rawTokens: ArrayBuffer): void {
-		this._confirm(versionId);
-		const tokens = MultilineTokensBuilder.deserialize(new Uint8Array(rawTokens));
+	pubwic setTokens(vewsionId: numba, wawTokens: AwwayBuffa): void {
+		this._confiwm(vewsionId);
+		const tokens = MuwtiwineTokensBuiwda.desewiawize(new Uint8Awway(wawTokens));
 
-		for (let i = 0; i < this._pendingChanges.length; i++) {
+		fow (wet i = 0; i < this._pendingChanges.wength; i++) {
 			const change = this._pendingChanges[i];
-			for (let j = 0; j < tokens.length; j++) {
-				for (let k = 0; k < change.changes.length; k++) {
-					tokens[j].applyEdit(change.changes[k].range, change.changes[k].text);
+			fow (wet j = 0; j < tokens.wength; j++) {
+				fow (wet k = 0; k < change.changes.wength; k++) {
+					tokens[j].appwyEdit(change.changes[k].wange, change.changes[k].text);
 				}
 			}
 		}
 
-		this._model.setTokens(tokens);
+		this._modew.setTokens(tokens);
 	}
 }
 
-export class TextMateWorkerHost {
+expowt cwass TextMateWowkewHost {
 
-	constructor(
-		private readonly textMateService: TextMateService,
-		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService
+	constwuctow(
+		pwivate weadonwy textMateSewvice: TextMateSewvice,
+		@IExtensionWesouwceWoadewSewvice pwivate weadonwy _extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice
 	) {
 	}
 
-	async readFile(_resource: UriComponents): Promise<string> {
-		const resource = URI.revive(_resource);
-		return this._extensionResourceLoaderService.readExtensionResource(resource);
+	async weadFiwe(_wesouwce: UwiComponents): Pwomise<stwing> {
+		const wesouwce = UWI.wevive(_wesouwce);
+		wetuwn this._extensionWesouwceWoadewSewvice.weadExtensionWesouwce(wesouwce);
 	}
 
-	async setTokens(_resource: UriComponents, versionId: number, tokens: Uint8Array): Promise<void> {
-		const resource = URI.revive(_resource);
-		this.textMateService.setTokens(resource, versionId, tokens);
+	async setTokens(_wesouwce: UwiComponents, vewsionId: numba, tokens: Uint8Awway): Pwomise<void> {
+		const wesouwce = UWI.wevive(_wesouwce);
+		this.textMateSewvice.setTokens(wesouwce, vewsionId, tokens);
 	}
 }
 
-export class TextMateService extends AbstractTextMateService {
+expowt cwass TextMateSewvice extends AbstwactTextMateSewvice {
 
-	private _worker: MonacoWebWorker<TextMateWorker> | null;
-	private _workerProxy: TextMateWorker | null;
-	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer; };
+	pwivate _wowka: MonacoWebWowka<TextMateWowka> | nuww;
+	pwivate _wowkewPwoxy: TextMateWowka | nuww;
+	pwivate _tokenizews: { [uwi: stwing]: ModewWowkewTextMateTokeniza; };
 
-	constructor(
-		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IExtensionResourceLoaderService extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@INotificationService notificationService: INotificationService,
-		@ILogService logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IProgressService progressService: IProgressService,
-		@IModelService private readonly _modelService: IModelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+	constwuctow(
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IWowkbenchThemeSewvice themeSewvice: IWowkbenchThemeSewvice,
+		@IExtensionWesouwceWoadewSewvice extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice,
+		@INotificationSewvice notificationSewvice: INotificationSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@IModewSewvice pwivate weadonwy _modewSewvice: IModewSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy _enviwonmentSewvice: IWowkbenchEnviwonmentSewvice,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, progressService);
-		this._worker = null;
-		this._workerProxy = null;
-		this._tokenizers = Object.create(null);
-		this._register(this._modelService.onModelAdded(model => this._onModelAdded(model)));
-		this._register(this._modelService.onModelRemoved(model => this._onModelRemoved(model)));
-		this._modelService.getModels().forEach((model) => this._onModelAdded(model));
+		supa(modeSewvice, themeSewvice, extensionWesouwceWoadewSewvice, notificationSewvice, wogSewvice, configuwationSewvice, pwogwessSewvice);
+		this._wowka = nuww;
+		this._wowkewPwoxy = nuww;
+		this._tokenizews = Object.cweate(nuww);
+		this._wegista(this._modewSewvice.onModewAdded(modew => this._onModewAdded(modew)));
+		this._wegista(this._modewSewvice.onModewWemoved(modew => this._onModewWemoved(modew)));
+		this._modewSewvice.getModews().fowEach((modew) => this._onModewAdded(modew));
 	}
 
-	private _onModelAdded(model: ITextModel): void {
-		if (!this._workerProxy) {
-			return;
+	pwivate _onModewAdded(modew: ITextModew): void {
+		if (!this._wowkewPwoxy) {
+			wetuwn;
 		}
-		if (model.isTooLargeForSyncing()) {
-			return;
+		if (modew.isTooWawgeFowSyncing()) {
+			wetuwn;
 		}
-		const key = model.uri.toString();
-		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, model);
-		this._tokenizers[key] = tokenizer;
+		const key = modew.uwi.toStwing();
+		const tokeniza = new ModewWowkewTextMateTokeniza(this._wowkewPwoxy, modew);
+		this._tokenizews[key] = tokeniza;
 	}
 
-	private _onModelRemoved(model: ITextModel): void {
-		const key = model.uri.toString();
-		if (this._tokenizers[key]) {
-			this._tokenizers[key].dispose();
-			delete this._tokenizers[key];
+	pwivate _onModewWemoved(modew: ITextModew): void {
+		const key = modew.uwi.toStwing();
+		if (this._tokenizews[key]) {
+			this._tokenizews[key].dispose();
+			dewete this._tokenizews[key];
 		}
 	}
 
-	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const response = await fetch(this._environmentService.isBuilt
-			? FileAccess.asBrowserUri('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm', require).toString(true)
-			: FileAccess.asBrowserUri('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm', require).toString(true));
-		return response;
+	pwotected async _woadVSCodeOniguwumWASM(): Pwomise<Wesponse | AwwayBuffa> {
+		const wesponse = await fetch(this._enviwonmentSewvice.isBuiwt
+			? FiweAccess.asBwowsewUwi('../../../../../../node_moduwes.asaw.unpacked/vscode-oniguwuma/wewease/onig.wasm', wequiwe).toStwing(twue)
+			: FiweAccess.asBwowsewUwi('../../../../../../node_moduwes/vscode-oniguwuma/wewease/onig.wasm', wequiwe).toStwing(twue));
+		wetuwn wesponse;
 	}
 
-	protected override _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {
-		this._killWorker();
+	pwotected ovewwide _onDidCweateGwammawFactowy(gwammawDefinitions: IVawidGwammawDefinition[]): void {
+		this._kiwwWowka();
 
-		if (RUN_TEXTMATE_IN_WORKER) {
-			const workerHost = new TextMateWorkerHost(this, this._extensionResourceLoaderService);
-			const worker = createWebWorker<TextMateWorker>(this._modelService, {
-				createData: {
-					grammarDefinitions
+		if (WUN_TEXTMATE_IN_WOWKa) {
+			const wowkewHost = new TextMateWowkewHost(this, this._extensionWesouwceWoadewSewvice);
+			const wowka = cweateWebWowka<TextMateWowka>(this._modewSewvice, {
+				cweateData: {
+					gwammawDefinitions
 				},
-				label: 'textMateWorker',
-				moduleId: 'vs/workbench/services/textMate/electron-browser/textMateWorker',
-				host: workerHost
+				wabew: 'textMateWowka',
+				moduweId: 'vs/wowkbench/sewvices/textMate/ewectwon-bwowsa/textMateWowka',
+				host: wowkewHost
 			});
 
-			this._worker = worker;
-			worker.getProxy().then((proxy) => {
-				if (this._worker !== worker) {
+			this._wowka = wowka;
+			wowka.getPwoxy().then((pwoxy) => {
+				if (this._wowka !== wowka) {
 					// disposed in the meantime
-					return;
+					wetuwn;
 				}
-				this._workerProxy = proxy;
-				if (this._currentTheme && this._currentTokenColorMap) {
-					this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+				this._wowkewPwoxy = pwoxy;
+				if (this._cuwwentTheme && this._cuwwentTokenCowowMap) {
+					this._wowkewPwoxy.acceptTheme(this._cuwwentTheme, this._cuwwentTokenCowowMap);
 				}
-				this._modelService.getModels().forEach((model) => this._onModelAdded(model));
+				this._modewSewvice.getModews().fowEach((modew) => this._onModewAdded(modew));
 			});
 		}
 	}
 
-	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
-		super._doUpdateTheme(grammarFactory, theme, colorMap);
-		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
-			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);
+	pwotected ovewwide _doUpdateTheme(gwammawFactowy: TMGwammawFactowy, theme: IWawTheme, cowowMap: stwing[]): void {
+		supa._doUpdateTheme(gwammawFactowy, theme, cowowMap);
+		if (this._cuwwentTheme && this._cuwwentTokenCowowMap && this._wowkewPwoxy) {
+			this._wowkewPwoxy.acceptTheme(this._cuwwentTheme, this._cuwwentTokenCowowMap);
 		}
 	}
 
-	protected override _onDidDisposeGrammarFactory(): void {
-		this._killWorker();
+	pwotected ovewwide _onDidDisposeGwammawFactowy(): void {
+		this._kiwwWowka();
 	}
 
-	private _killWorker(): void {
-		for (let key of Object.keys(this._tokenizers)) {
-			this._tokenizers[key].dispose();
+	pwivate _kiwwWowka(): void {
+		fow (wet key of Object.keys(this._tokenizews)) {
+			this._tokenizews[key].dispose();
 		}
-		this._tokenizers = Object.create(null);
+		this._tokenizews = Object.cweate(nuww);
 
-		if (this._worker) {
-			this._worker.dispose();
-			this._worker = null;
+		if (this._wowka) {
+			this._wowka.dispose();
+			this._wowka = nuww;
 		}
-		this._workerProxy = null;
+		this._wowkewPwoxy = nuww;
 	}
 
-	setTokens(resource: URI, versionId: number, tokens: ArrayBuffer): void {
-		const key = resource.toString();
-		if (!this._tokenizers[key]) {
-			return;
+	setTokens(wesouwce: UWI, vewsionId: numba, tokens: AwwayBuffa): void {
+		const key = wesouwce.toStwing();
+		if (!this._tokenizews[key]) {
+			wetuwn;
 		}
-		this._tokenizers[key].setTokens(versionId, tokens);
+		this._tokenizews[key].setTokens(vewsionId, tokens);
 	}
 }
 
-registerSingleton(ITextMateService, TextMateService);
+wegistewSingweton(ITextMateSewvice, TextMateSewvice);

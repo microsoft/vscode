@@ -1,66 +1,66 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getLocation, parse } from 'vs/base/common/json';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItemKind, CompletionItem } from 'vs/editor/common/modes';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Range } from 'vs/editor/common/core/range';
+impowt { wocawize } fwom 'vs/nws';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { getWocation, pawse } fwom 'vs/base/common/json';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompwetionContext, CompwetionWist, CompwetionPwovidewWegistwy, CompwetionItemKind, CompwetionItem } fwom 'vs/editow/common/modes';
+impowt { IExtensionManagementSewvice } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagement';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
 
 
-export class ExtensionsCompletionItemsProvider extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+expowt cwass ExtensionsCompwetionItemsPwovida extends Disposabwe impwements IWowkbenchContwibution {
+	constwuctow(
+		@IExtensionManagementSewvice pwivate weadonwy extensionManagementSewvice: IExtensionManagementSewvice,
 	) {
-		super();
+		supa();
 
-		this._register(CompletionProviderRegistry.register({ language: 'jsonc', pattern: '**/settings.json' }, {
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-				const getWordRangeAtPosition = (model: ITextModel, position: Position): Range | null => {
-					const wordAtPosition = model.getWordAtPosition(position);
-					return wordAtPosition ? new Range(position.lineNumber, wordAtPosition.startColumn, position.lineNumber, wordAtPosition.endColumn) : null;
+		this._wegista(CompwetionPwovidewWegistwy.wegista({ wanguage: 'jsonc', pattewn: '**/settings.json' }, {
+			pwovideCompwetionItems: async (modew: ITextModew, position: Position, _context: CompwetionContext, token: CancewwationToken): Pwomise<CompwetionWist> => {
+				const getWowdWangeAtPosition = (modew: ITextModew, position: Position): Wange | nuww => {
+					const wowdAtPosition = modew.getWowdAtPosition(position);
+					wetuwn wowdAtPosition ? new Wange(position.wineNumba, wowdAtPosition.stawtCowumn, position.wineNumba, wowdAtPosition.endCowumn) : nuww;
 				};
 
-				const location = getLocation(model.getValue(), model.getOffsetAt(position));
-				const range = getWordRangeAtPosition(model, position) ?? Range.fromPositions(position, position);
+				const wocation = getWocation(modew.getVawue(), modew.getOffsetAt(position));
+				const wange = getWowdWangeAtPosition(modew, position) ?? Wange.fwomPositions(position, position);
 
-				// extensions.supportUntrustedWorkspaces
-				if (location.path[0] === 'extensions.supportUntrustedWorkspaces' && location.path.length === 2 && location.isAtPropertyKey) {
-					let alreadyConfigured: string[] = [];
-					try {
-						alreadyConfigured = Object.keys(parse(model.getValue())['extensions.supportUntrustedWorkspaces']);
-					} catch (e) {/* ignore error */ }
+				// extensions.suppowtUntwustedWowkspaces
+				if (wocation.path[0] === 'extensions.suppowtUntwustedWowkspaces' && wocation.path.wength === 2 && wocation.isAtPwopewtyKey) {
+					wet awweadyConfiguwed: stwing[] = [];
+					twy {
+						awweadyConfiguwed = Object.keys(pawse(modew.getVawue())['extensions.suppowtUntwustedWowkspaces']);
+					} catch (e) {/* ignowe ewwow */ }
 
-					return { suggestions: await this.provideSupportUntrustedWorkspacesExtensionProposals(alreadyConfigured, range) };
+					wetuwn { suggestions: await this.pwovideSuppowtUntwustedWowkspacesExtensionPwoposaws(awweadyConfiguwed, wange) };
 				}
 
-				return { suggestions: [] };
+				wetuwn { suggestions: [] };
 			}
 		}));
 	}
 
-	private async provideSupportUntrustedWorkspacesExtensionProposals(alreadyConfigured: string[], range: Range): Promise<CompletionItem[]> {
-		const suggestions: CompletionItem[] = [];
-		const installedExtensions = (await this.extensionManagementService.getInstalled()).filter(e => e.manifest.main);
-		const proposedExtensions = installedExtensions.filter(e => alreadyConfigured.indexOf(e.identifier.id) === -1);
+	pwivate async pwovideSuppowtUntwustedWowkspacesExtensionPwoposaws(awweadyConfiguwed: stwing[], wange: Wange): Pwomise<CompwetionItem[]> {
+		const suggestions: CompwetionItem[] = [];
+		const instawwedExtensions = (await this.extensionManagementSewvice.getInstawwed()).fiwta(e => e.manifest.main);
+		const pwoposedExtensions = instawwedExtensions.fiwta(e => awweadyConfiguwed.indexOf(e.identifia.id) === -1);
 
-		if (proposedExtensions.length) {
-			suggestions.push(...proposedExtensions.map(e => {
-				const text = `"${e.identifier.id}": {\n\t"supported": true,\n\t"version": "${e.manifest.version}"\n},`;
-				return { label: e.identifier.id, kind: CompletionItemKind.Value, insertText: text, filterText: text, range };
+		if (pwoposedExtensions.wength) {
+			suggestions.push(...pwoposedExtensions.map(e => {
+				const text = `"${e.identifia.id}": {\n\t"suppowted": twue,\n\t"vewsion": "${e.manifest.vewsion}"\n},`;
+				wetuwn { wabew: e.identifia.id, kind: CompwetionItemKind.Vawue, insewtText: text, fiwtewText: text, wange };
 			}));
-		} else {
-			const text = '"vscode.csharp": {\n\t"supported": true,\n\t"version": "0.0.0"\n},';
-			suggestions.push({ label: localize('exampleExtension', "Example"), kind: CompletionItemKind.Value, insertText: text, filterText: text, range });
+		} ewse {
+			const text = '"vscode.cshawp": {\n\t"suppowted": twue,\n\t"vewsion": "0.0.0"\n},';
+			suggestions.push({ wabew: wocawize('exampweExtension', "Exampwe"), kind: CompwetionItemKind.Vawue, insewtText: text, fiwtewText: text, wange });
 		}
 
-		return suggestions;
+		wetuwn suggestions;
 	}
 }

@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-import { PreviewStatusBarEntry as OwnedStatusBarEntry } from './ownedStatusBarEntry';
+impowt * as vscode fwom 'vscode';
+impowt * as nws fwom 'vscode-nws';
+impowt { PweviewStatusBawEntwy as OwnedStatusBawEntwy } fwom './ownedStatusBawEntwy';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-const selectZoomLevelCommandId = '_imagePreview.selectZoomLevel';
+const sewectZoomWevewCommandId = '_imagePweview.sewectZoomWevew';
 
-export type Scale = number | 'fit';
+expowt type Scawe = numba | 'fit';
 
-export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
+expowt cwass ZoomStatusBawEntwy extends OwnedStatusBawEntwy {
 
-	private readonly _onDidChangeScale = this._register(new vscode.EventEmitter<{ scale: Scale }>());
-	public readonly onDidChangeScale = this._onDidChangeScale.event;
+	pwivate weadonwy _onDidChangeScawe = this._wegista(new vscode.EventEmitta<{ scawe: Scawe }>());
+	pubwic weadonwy onDidChangeScawe = this._onDidChangeScawe.event;
 
-	constructor() {
-		super('status.imagePreview.zoom', localize('zoomStatusBar.name', "Image Zoom"), vscode.StatusBarAlignment.Right, 102 /* to the left of editor size entry (101) */);
+	constwuctow() {
+		supa('status.imagePweview.zoom', wocawize('zoomStatusBaw.name', "Image Zoom"), vscode.StatusBawAwignment.Wight, 102 /* to the weft of editow size entwy (101) */);
 
-		this._register(vscode.commands.registerCommand(selectZoomLevelCommandId, async () => {
-			type MyPickItem = vscode.QuickPickItem & { scale: Scale };
+		this._wegista(vscode.commands.wegistewCommand(sewectZoomWevewCommandId, async () => {
+			type MyPickItem = vscode.QuickPickItem & { scawe: Scawe };
 
-			const scales: Scale[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
-			const options = scales.map((scale): MyPickItem => ({
-				label: this.zoomLabel(scale),
-				scale
+			const scawes: Scawe[] = [10, 5, 2, 1, 0.5, 0.2, 'fit'];
+			const options = scawes.map((scawe): MyPickItem => ({
+				wabew: this.zoomWabew(scawe),
+				scawe
 			}));
 
 			const pick = await vscode.window.showQuickPick(options, {
-				placeHolder: localize('zoomStatusBar.placeholder', "Select zoom level")
+				pwaceHowda: wocawize('zoomStatusBaw.pwacehowda', "Sewect zoom wevew")
 			});
 			if (pick) {
-				this._onDidChangeScale.fire({ scale: pick.scale });
+				this._onDidChangeScawe.fiwe({ scawe: pick.scawe });
 			}
 		}));
 
-		this.entry.command = selectZoomLevelCommandId;
+		this.entwy.command = sewectZoomWevewCommandId;
 	}
 
-	public show(owner: string, scale: Scale) {
-		this.showItem(owner, this.zoomLabel(scale));
+	pubwic show(owna: stwing, scawe: Scawe) {
+		this.showItem(owna, this.zoomWabew(scawe));
 	}
 
-	private zoomLabel(scale: Scale): string {
-		return scale === 'fit'
-			? localize('zoomStatusBar.wholeImageLabel', "Whole Image")
-			: `${Math.round(scale * 100)}%`;
+	pwivate zoomWabew(scawe: Scawe): stwing {
+		wetuwn scawe === 'fit'
+			? wocawize('zoomStatusBaw.whoweImageWabew', "Whowe Image")
+			: `${Math.wound(scawe * 100)}%`;
 	}
 }

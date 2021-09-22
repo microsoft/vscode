@@ -1,115 +1,115 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as appInsights from 'applicationinsights';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { mixin } from 'vs/base/common/objects';
-import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+impowt * as appInsights fwom 'appwicationinsights';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { mixin } fwom 'vs/base/common/objects';
+impowt { ITewemetwyAppenda, vawidateTewemetwyData } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
 
-async function getClient(aiKey: string): Promise<appInsights.TelemetryClient> {
-	const appInsights = await import('applicationinsights');
-	let client: appInsights.TelemetryClient;
-	if (appInsights.defaultClient) {
-		client = new appInsights.TelemetryClient(aiKey);
-		client.channel.setUseDiskRetryCaching(true);
-	} else {
+async function getCwient(aiKey: stwing): Pwomise<appInsights.TewemetwyCwient> {
+	const appInsights = await impowt('appwicationinsights');
+	wet cwient: appInsights.TewemetwyCwient;
+	if (appInsights.defauwtCwient) {
+		cwient = new appInsights.TewemetwyCwient(aiKey);
+		cwient.channew.setUseDiskWetwyCaching(twue);
+	} ewse {
 		appInsights.setup(aiKey)
-			.setAutoCollectRequests(false)
-			.setAutoCollectPerformance(false)
-			.setAutoCollectExceptions(false)
-			.setAutoCollectDependencies(false)
-			.setAutoDependencyCorrelation(false)
-			.setAutoCollectConsole(false)
-			.setInternalLogging(false, false)
-			.setUseDiskRetryCaching(true)
-			.start();
-		client = appInsights.defaultClient;
+			.setAutoCowwectWequests(fawse)
+			.setAutoCowwectPewfowmance(fawse)
+			.setAutoCowwectExceptions(fawse)
+			.setAutoCowwectDependencies(fawse)
+			.setAutoDependencyCowwewation(fawse)
+			.setAutoCowwectConsowe(fawse)
+			.setIntewnawWogging(fawse, fawse)
+			.setUseDiskWetwyCaching(twue)
+			.stawt();
+		cwient = appInsights.defauwtCwient;
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		cwient.config.endpointUww = 'https://vowtex.data.micwosoft.com/cowwect/v1';
 	}
-	return client;
+	wetuwn cwient;
 }
 
 
-export class AppInsightsAppender implements ITelemetryAppender {
+expowt cwass AppInsightsAppenda impwements ITewemetwyAppenda {
 
-	private _aiClient: string | appInsights.TelemetryClient | undefined;
-	private _asyncAIClient: Promise<appInsights.TelemetryClient> | null;
+	pwivate _aiCwient: stwing | appInsights.TewemetwyCwient | undefined;
+	pwivate _asyncAICwient: Pwomise<appInsights.TewemetwyCwient> | nuww;
 
-	constructor(
-		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any } | null,
-		aiKeyOrClientFactory: string | (() => appInsights.TelemetryClient), // allow factory function for testing
+	constwuctow(
+		pwivate _eventPwefix: stwing,
+		pwivate _defauwtData: { [key: stwing]: any } | nuww,
+		aiKeyOwCwientFactowy: stwing | (() => appInsights.TewemetwyCwient), // awwow factowy function fow testing
 	) {
-		if (!this._defaultData) {
-			this._defaultData = Object.create(null);
+		if (!this._defauwtData) {
+			this._defauwtData = Object.cweate(nuww);
 		}
 
-		if (typeof aiKeyOrClientFactory === 'function') {
-			this._aiClient = aiKeyOrClientFactory();
-		} else {
-			this._aiClient = aiKeyOrClientFactory;
+		if (typeof aiKeyOwCwientFactowy === 'function') {
+			this._aiCwient = aiKeyOwCwientFactowy();
+		} ewse {
+			this._aiCwient = aiKeyOwCwientFactowy;
 		}
-		this._asyncAIClient = null;
+		this._asyncAICwient = nuww;
 	}
 
-	private _withAIClient(callback: (aiClient: appInsights.TelemetryClient) => void): void {
-		if (!this._aiClient) {
-			return;
+	pwivate _withAICwient(cawwback: (aiCwient: appInsights.TewemetwyCwient) => void): void {
+		if (!this._aiCwient) {
+			wetuwn;
 		}
 
-		if (typeof this._aiClient !== 'string') {
-			callback(this._aiClient);
-			return;
+		if (typeof this._aiCwient !== 'stwing') {
+			cawwback(this._aiCwient);
+			wetuwn;
 		}
 
-		if (!this._asyncAIClient) {
-			this._asyncAIClient = getClient(this._aiClient);
+		if (!this._asyncAICwient) {
+			this._asyncAICwient = getCwient(this._aiCwient);
 		}
 
-		this._asyncAIClient.then(
-			(aiClient) => {
-				callback(aiClient);
+		this._asyncAICwient.then(
+			(aiCwient) => {
+				cawwback(aiCwient);
 			},
-			(err) => {
-				onUnexpectedError(err);
-				console.error(err);
+			(eww) => {
+				onUnexpectedEwwow(eww);
+				consowe.ewwow(eww);
 			}
 		);
 	}
 
-	log(eventName: string, data?: any): void {
-		if (!this._aiClient) {
-			return;
+	wog(eventName: stwing, data?: any): void {
+		if (!this._aiCwient) {
+			wetuwn;
 		}
-		data = mixin(data, this._defaultData);
-		data = validateTelemetryData(data);
+		data = mixin(data, this._defauwtData);
+		data = vawidateTewemetwyData(data);
 
-		this._withAIClient((aiClient) => aiClient.trackEvent({
-			name: this._eventPrefix + '/' + eventName,
-			properties: data.properties,
-			measurements: data.measurements
+		this._withAICwient((aiCwient) => aiCwient.twackEvent({
+			name: this._eventPwefix + '/' + eventName,
+			pwopewties: data.pwopewties,
+			measuwements: data.measuwements
 		}));
 	}
 
-	flush(): Promise<any> {
-		if (this._aiClient) {
-			return new Promise(resolve => {
-				this._withAIClient((aiClient) => {
-					aiClient.flush({
-						callback: () => {
-							// all data flushed
-							this._aiClient = undefined;
-							resolve(undefined);
+	fwush(): Pwomise<any> {
+		if (this._aiCwient) {
+			wetuwn new Pwomise(wesowve => {
+				this._withAICwient((aiCwient) => {
+					aiCwient.fwush({
+						cawwback: () => {
+							// aww data fwushed
+							this._aiCwient = undefined;
+							wesowve(undefined);
 						}
 					});
 				});
 			});
 		}
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 }

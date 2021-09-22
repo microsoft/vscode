@@ -1,957 +1,957 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
-import * as Json from 'vs/base/common/json';
-import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { URI } from 'vs/base/common/uri';
-import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
-import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { CharCode } from 'vs/base/common/charCode';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+impowt { basename } fwom 'vs/base/common/path';
+impowt * as Json fwom 'vs/base/common/json';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { ExtensionData, ITokenCowowCustomizations, ITextMateThemingWuwe, IWowkbenchCowowTheme, ICowowMap, IThemeExtensionPoint, VS_WIGHT_THEME, VS_HC_THEME, ICowowCustomizations, ISemanticTokenWuwes, ISemanticTokenCowowizationSetting, ISemanticTokenCowowCustomizations, IThemeScopabweCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CWOSE_PAWEN, THEME_SCOPE_OPEN_PAWEN, themeScopeWegex, THEME_SCOPE_WIWDCAWD } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { convewtSettings } fwom 'vs/wowkbench/sewvices/themes/common/themeCompatibiwity';
+impowt * as nws fwom 'vs/nws';
+impowt * as types fwom 'vs/base/common/types';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt { Extensions as CowowWegistwyExtensions, ICowowWegistwy, CowowIdentifia, editowBackgwound, editowFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ITokenStywe, getThemeTypeSewectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { getPawseEwwowMessage } fwom 'vs/base/common/jsonEwwowMessages';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { pawse as pawsePWist } fwom 'vs/wowkbench/sewvices/themes/common/pwistPawsa';
+impowt { TokenStywe, SemanticTokenWuwe, PwobeScope, getTokenCwassificationWegistwy, TokenStyweVawue, TokenStyweData, pawseCwassifiewStwing } fwom 'vs/pwatfowm/theme/common/tokenCwassificationWegistwy';
+impowt { MatchewWithPwiowity, Matcha, cweateMatchews } fwom 'vs/wowkbench/sewvices/themes/common/textMateScopeMatcha';
+impowt { IExtensionWesouwceWoadewSewvice } fwom 'vs/wowkbench/sewvices/extensionWesouwceWoada/common/extensionWesouwceWoada';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { StowageScope, IStowageSewvice, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ThemeConfiguwation } fwom 'vs/wowkbench/sewvices/themes/common/themeConfiguwation';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
 
-let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
+wet cowowWegistwy = Wegistwy.as<ICowowWegistwy>(CowowWegistwyExtensions.CowowContwibution);
 
-let tokenClassificationRegistry = getTokenClassificationRegistry();
+wet tokenCwassificationWegistwy = getTokenCwassificationWegistwy();
 
-const tokenGroupToScopesMap = {
+const tokenGwoupToScopesMap = {
 	comments: ['comment', 'punctuation.definition.comment'],
-	strings: ['string', 'meta.embedded.assembly'],
-	keywords: ['keyword - keyword.operator', 'keyword.control', 'storage', 'storage.type'],
-	numbers: ['constant.numeric'],
-	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
-	functions: ['entity.name.function', 'support.function'],
-	variables: ['variable', 'entity.name.variable']
+	stwings: ['stwing', 'meta.embedded.assembwy'],
+	keywowds: ['keywowd - keywowd.opewatow', 'keywowd.contwow', 'stowage', 'stowage.type'],
+	numbews: ['constant.numewic'],
+	types: ['entity.name.type', 'entity.name.cwass', 'suppowt.type', 'suppowt.cwass'],
+	functions: ['entity.name.function', 'suppowt.function'],
+	vawiabwes: ['vawiabwe', 'entity.name.vawiabwe']
 };
 
 
-export type TokenStyleDefinition = SemanticTokenRule | ProbeScope[] | TokenStyleValue;
-export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
+expowt type TokenStyweDefinition = SemanticTokenWuwe | PwobeScope[] | TokenStyweVawue;
+expowt type TokenStyweDefinitions = { [P in keyof TokenStyweData]?: TokenStyweDefinition | undefined };
 
-export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
+expowt type TextMateThemingWuweDefinitions = { [P in keyof TokenStyweData]?: ITextMateThemingWuwe | undefined; } & { scope?: PwobeScope; };
 
-export class ColorThemeData implements IWorkbenchColorTheme {
+expowt cwass CowowThemeData impwements IWowkbenchCowowTheme {
 
-	static readonly STORAGE_KEY = 'colorThemeData';
+	static weadonwy STOWAGE_KEY = 'cowowThemeData';
 
-	id: string;
-	label: string;
-	settingsId: string;
-	description?: string;
-	isLoaded: boolean;
-	location?: URI; // only set for extension from the registry, not for themes restored from the storage
-	watch?: boolean;
+	id: stwing;
+	wabew: stwing;
+	settingsId: stwing;
+	descwiption?: stwing;
+	isWoaded: boowean;
+	wocation?: UWI; // onwy set fow extension fwom the wegistwy, not fow themes westowed fwom the stowage
+	watch?: boowean;
 	extensionData?: ExtensionData;
 
-	private themeSemanticHighlighting: boolean | undefined;
-	private customSemanticHighlighting: boolean | undefined;
-	private customSemanticHighlightingDeprecated: boolean | undefined;
+	pwivate themeSemanticHighwighting: boowean | undefined;
+	pwivate customSemanticHighwighting: boowean | undefined;
+	pwivate customSemanticHighwightingDepwecated: boowean | undefined;
 
-	private themeTokenColors: ITextMateThemingRule[] = [];
-	private customTokenColors: ITextMateThemingRule[] = [];
-	private colorMap: IColorMap = {};
-	private customColorMap: IColorMap = {};
+	pwivate themeTokenCowows: ITextMateThemingWuwe[] = [];
+	pwivate customTokenCowows: ITextMateThemingWuwe[] = [];
+	pwivate cowowMap: ICowowMap = {};
+	pwivate customCowowMap: ICowowMap = {};
 
-	private semanticTokenRules: SemanticTokenRule[] = [];
-	private customSemanticTokenRules: SemanticTokenRule[] = [];
+	pwivate semanticTokenWuwes: SemanticTokenWuwe[] = [];
+	pwivate customSemanticTokenWuwes: SemanticTokenWuwe[] = [];
 
-	private themeTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
-	private customTokenScopeMatchers: Matcher<ProbeScope>[] | undefined;
+	pwivate themeTokenScopeMatchews: Matcha<PwobeScope>[] | undefined;
+	pwivate customTokenScopeMatchews: Matcha<PwobeScope>[] | undefined;
 
-	private textMateThemingRules: ITextMateThemingRule[] | undefined = undefined; // created on demand
-	private tokenColorIndex: TokenColorIndex | undefined = undefined; // created on demand
+	pwivate textMateThemingWuwes: ITextMateThemingWuwe[] | undefined = undefined; // cweated on demand
+	pwivate tokenCowowIndex: TokenCowowIndex | undefined = undefined; // cweated on demand
 
-	private constructor(id: string, label: string, settingsId: string) {
+	pwivate constwuctow(id: stwing, wabew: stwing, settingsId: stwing) {
 		this.id = id;
-		this.label = label;
+		this.wabew = wabew;
 		this.settingsId = settingsId;
-		this.isLoaded = false;
+		this.isWoaded = fawse;
 	}
 
-	get semanticHighlighting(): boolean {
-		if (this.customSemanticHighlighting !== undefined) {
-			return this.customSemanticHighlighting;
+	get semanticHighwighting(): boowean {
+		if (this.customSemanticHighwighting !== undefined) {
+			wetuwn this.customSemanticHighwighting;
 		}
-		if (this.customSemanticHighlightingDeprecated !== undefined) {
-			return this.customSemanticHighlightingDeprecated;
+		if (this.customSemanticHighwightingDepwecated !== undefined) {
+			wetuwn this.customSemanticHighwightingDepwecated;
 		}
-		return !!this.themeSemanticHighlighting;
+		wetuwn !!this.themeSemanticHighwighting;
 	}
 
-	get tokenColors(): ITextMateThemingRule[] {
-		if (!this.textMateThemingRules) {
-			const result: ITextMateThemingRule[] = [];
+	get tokenCowows(): ITextMateThemingWuwe[] {
+		if (!this.textMateThemingWuwes) {
+			const wesuwt: ITextMateThemingWuwe[] = [];
 
-			// the default rule (scope empty) is always the first rule. Ignore all other default rules.
-			const foreground = this.getColor(editorForeground) || this.getDefault(editorForeground)!;
-			const background = this.getColor(editorBackground) || this.getDefault(editorBackground)!;
-			result.push({
+			// the defauwt wuwe (scope empty) is awways the fiwst wuwe. Ignowe aww otha defauwt wuwes.
+			const fowegwound = this.getCowow(editowFowegwound) || this.getDefauwt(editowFowegwound)!;
+			const backgwound = this.getCowow(editowBackgwound) || this.getDefauwt(editowBackgwound)!;
+			wesuwt.push({
 				settings: {
-					foreground: normalizeColor(foreground),
-					background: normalizeColor(background)
+					fowegwound: nowmawizeCowow(fowegwound),
+					backgwound: nowmawizeCowow(backgwound)
 				}
 			});
 
-			let hasDefaultTokens = false;
+			wet hasDefauwtTokens = fawse;
 
-			function addRule(rule: ITextMateThemingRule) {
-				if (rule.scope && rule.settings) {
-					if (rule.scope === 'token.info-token') {
-						hasDefaultTokens = true;
+			function addWuwe(wuwe: ITextMateThemingWuwe) {
+				if (wuwe.scope && wuwe.settings) {
+					if (wuwe.scope === 'token.info-token') {
+						hasDefauwtTokens = twue;
 					}
-					result.push({ scope: rule.scope, settings: { foreground: normalizeColor(rule.settings.foreground), background: normalizeColor(rule.settings.background), fontStyle: rule.settings.fontStyle } });
+					wesuwt.push({ scope: wuwe.scope, settings: { fowegwound: nowmawizeCowow(wuwe.settings.fowegwound), backgwound: nowmawizeCowow(wuwe.settings.backgwound), fontStywe: wuwe.settings.fontStywe } });
 				}
 			}
 
-			this.themeTokenColors.forEach(addRule);
-			// Add the custom colors after the theme colors
-			// so that they will override them
-			this.customTokenColors.forEach(addRule);
+			this.themeTokenCowows.fowEach(addWuwe);
+			// Add the custom cowows afta the theme cowows
+			// so that they wiww ovewwide them
+			this.customTokenCowows.fowEach(addWuwe);
 
-			if (!hasDefaultTokens) {
-				defaultThemeColors[this.type].forEach(addRule);
+			if (!hasDefauwtTokens) {
+				defauwtThemeCowows[this.type].fowEach(addWuwe);
 			}
-			this.textMateThemingRules = result;
+			this.textMateThemingWuwes = wesuwt;
 		}
-		return this.textMateThemingRules;
+		wetuwn this.textMateThemingWuwes;
 	}
 
-	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		let color: Color | undefined = this.customColorMap[colorId];
-		if (color) {
-			return color;
+	pubwic getCowow(cowowId: CowowIdentifia, useDefauwt?: boowean): Cowow | undefined {
+		wet cowow: Cowow | undefined = this.customCowowMap[cowowId];
+		if (cowow) {
+			wetuwn cowow;
 		}
-		color = this.colorMap[colorId];
-		if (useDefault !== false && types.isUndefined(color)) {
-			color = this.getDefault(colorId);
+		cowow = this.cowowMap[cowowId];
+		if (useDefauwt !== fawse && types.isUndefined(cowow)) {
+			cowow = this.getDefauwt(cowowId);
 		}
-		return color;
+		wetuwn cowow;
 	}
 
-	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
-		let result: any = {
-			foreground: undefined,
-			bold: undefined,
-			underline: undefined,
-			italic: undefined
+	pwivate getTokenStywe(type: stwing, modifiews: stwing[], wanguage: stwing, useDefauwt = twue, definitions: TokenStyweDefinitions = {}): TokenStywe | undefined {
+		wet wesuwt: any = {
+			fowegwound: undefined,
+			bowd: undefined,
+			undewwine: undefined,
+			itawic: undefined
 		};
-		let score = {
-			foreground: -1,
-			bold: -1,
-			underline: -1,
-			italic: -1
+		wet scowe = {
+			fowegwound: -1,
+			bowd: -1,
+			undewwine: -1,
+			itawic: -1
 		};
 
-		function _processStyle(matchScore: number, style: TokenStyle, definition: TokenStyleDefinition) {
-			if (style.foreground && score.foreground <= matchScore) {
-				score.foreground = matchScore;
-				result.foreground = style.foreground;
-				definitions.foreground = definition;
+		function _pwocessStywe(matchScowe: numba, stywe: TokenStywe, definition: TokenStyweDefinition) {
+			if (stywe.fowegwound && scowe.fowegwound <= matchScowe) {
+				scowe.fowegwound = matchScowe;
+				wesuwt.fowegwound = stywe.fowegwound;
+				definitions.fowegwound = definition;
 			}
-			for (let p of ['bold', 'underline', 'italic']) {
-				const property = p as keyof TokenStyle;
-				const info = style[property];
+			fow (wet p of ['bowd', 'undewwine', 'itawic']) {
+				const pwopewty = p as keyof TokenStywe;
+				const info = stywe[pwopewty];
 				if (info !== undefined) {
-					if (score[property] <= matchScore) {
-						score[property] = matchScore;
-						result[property] = info;
-						definitions[property] = definition;
+					if (scowe[pwopewty] <= matchScowe) {
+						scowe[pwopewty] = matchScowe;
+						wesuwt[pwopewty] = info;
+						definitions[pwopewty] = definition;
 					}
 				}
 			}
 		}
-		function _processSemanticTokenRule(rule: SemanticTokenRule) {
-			const matchScore = rule.selector.match(type, modifiers, language);
-			if (matchScore >= 0) {
-				_processStyle(matchScore, rule.style, rule);
+		function _pwocessSemanticTokenWuwe(wuwe: SemanticTokenWuwe) {
+			const matchScowe = wuwe.sewectow.match(type, modifiews, wanguage);
+			if (matchScowe >= 0) {
+				_pwocessStywe(matchScowe, wuwe.stywe, wuwe);
 			}
 		}
 
-		this.semanticTokenRules.forEach(_processSemanticTokenRule);
-		this.customSemanticTokenRules.forEach(_processSemanticTokenRule);
+		this.semanticTokenWuwes.fowEach(_pwocessSemanticTokenWuwe);
+		this.customSemanticTokenWuwes.fowEach(_pwocessSemanticTokenWuwe);
 
-		let hasUndefinedStyleProperty = false;
-		for (let k in score) {
-			const key = k as keyof TokenStyle;
-			if (score[key] === -1) {
-				hasUndefinedStyleProperty = true;
-			} else {
-				score[key] = Number.MAX_VALUE; // set it to the max, so it won't be replaced by a default
+		wet hasUndefinedStywePwopewty = fawse;
+		fow (wet k in scowe) {
+			const key = k as keyof TokenStywe;
+			if (scowe[key] === -1) {
+				hasUndefinedStywePwopewty = twue;
+			} ewse {
+				scowe[key] = Numba.MAX_VAWUE; // set it to the max, so it won't be wepwaced by a defauwt
 			}
 		}
-		if (hasUndefinedStyleProperty) {
-			for (const rule of tokenClassificationRegistry.getTokenStylingDefaultRules()) {
-				const matchScore = rule.selector.match(type, modifiers, language);
-				if (matchScore >= 0) {
-					let style: TokenStyle | undefined;
-					if (rule.defaults.scopesToProbe) {
-						style = this.resolveScopes(rule.defaults.scopesToProbe);
-						if (style) {
-							_processStyle(matchScore, style, rule.defaults.scopesToProbe);
+		if (hasUndefinedStywePwopewty) {
+			fow (const wuwe of tokenCwassificationWegistwy.getTokenStywingDefauwtWuwes()) {
+				const matchScowe = wuwe.sewectow.match(type, modifiews, wanguage);
+				if (matchScowe >= 0) {
+					wet stywe: TokenStywe | undefined;
+					if (wuwe.defauwts.scopesToPwobe) {
+						stywe = this.wesowveScopes(wuwe.defauwts.scopesToPwobe);
+						if (stywe) {
+							_pwocessStywe(matchScowe, stywe, wuwe.defauwts.scopesToPwobe);
 						}
 					}
-					if (!style && useDefault !== false) {
-						const tokenStyleValue = rule.defaults[this.type];
-						style = this.resolveTokenStyleValue(tokenStyleValue);
-						if (style) {
-							_processStyle(matchScore, style, tokenStyleValue!);
+					if (!stywe && useDefauwt !== fawse) {
+						const tokenStyweVawue = wuwe.defauwts[this.type];
+						stywe = this.wesowveTokenStyweVawue(tokenStyweVawue);
+						if (stywe) {
+							_pwocessStywe(matchScowe, stywe, tokenStyweVawue!);
 						}
 					}
 				}
 			}
 		}
-		return TokenStyle.fromData(result);
+		wetuwn TokenStywe.fwomData(wesuwt);
 
 	}
 
 	/**
-	 * @param tokenStyleValue Resolve a tokenStyleValue in the context of a theme
+	 * @pawam tokenStyweVawue Wesowve a tokenStyweVawue in the context of a theme
 	 */
-	public resolveTokenStyleValue(tokenStyleValue: TokenStyleValue | undefined): TokenStyle | undefined {
-		if (tokenStyleValue === undefined) {
-			return undefined;
-		} else if (typeof tokenStyleValue === 'string') {
-			const { type, modifiers, language } = parseClassifierString(tokenStyleValue, '');
-			return this.getTokenStyle(type, modifiers, language);
-		} else if (typeof tokenStyleValue === 'object') {
-			return tokenStyleValue;
+	pubwic wesowveTokenStyweVawue(tokenStyweVawue: TokenStyweVawue | undefined): TokenStywe | undefined {
+		if (tokenStyweVawue === undefined) {
+			wetuwn undefined;
+		} ewse if (typeof tokenStyweVawue === 'stwing') {
+			const { type, modifiews, wanguage } = pawseCwassifiewStwing(tokenStyweVawue, '');
+			wetuwn this.getTokenStywe(type, modifiews, wanguage);
+		} ewse if (typeof tokenStyweVawue === 'object') {
+			wetuwn tokenStyweVawue;
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private getTokenColorIndex(): TokenColorIndex {
-		// collect all colors that tokens can have
-		if (!this.tokenColorIndex) {
-			const index = new TokenColorIndex();
-			this.tokenColors.forEach(rule => {
-				index.add(rule.settings.foreground);
-				index.add(rule.settings.background);
+	pwivate getTokenCowowIndex(): TokenCowowIndex {
+		// cowwect aww cowows that tokens can have
+		if (!this.tokenCowowIndex) {
+			const index = new TokenCowowIndex();
+			this.tokenCowows.fowEach(wuwe => {
+				index.add(wuwe.settings.fowegwound);
+				index.add(wuwe.settings.backgwound);
 			});
 
-			this.semanticTokenRules.forEach(r => index.add(r.style.foreground));
-			tokenClassificationRegistry.getTokenStylingDefaultRules().forEach(r => {
-				const defaultColor = r.defaults[this.type];
-				if (defaultColor && typeof defaultColor === 'object') {
-					index.add(defaultColor.foreground);
+			this.semanticTokenWuwes.fowEach(w => index.add(w.stywe.fowegwound));
+			tokenCwassificationWegistwy.getTokenStywingDefauwtWuwes().fowEach(w => {
+				const defauwtCowow = w.defauwts[this.type];
+				if (defauwtCowow && typeof defauwtCowow === 'object') {
+					index.add(defauwtCowow.fowegwound);
 				}
 			});
-			this.customSemanticTokenRules.forEach(r => index.add(r.style.foreground));
+			this.customSemanticTokenWuwes.fowEach(w => index.add(w.stywe.fowegwound));
 
-			this.tokenColorIndex = index;
+			this.tokenCowowIndex = index;
 		}
-		return this.tokenColorIndex;
+		wetuwn this.tokenCowowIndex;
 	}
 
-	public get tokenColorMap(): string[] {
-		return this.getTokenColorIndex().asArray();
+	pubwic get tokenCowowMap(): stwing[] {
+		wetuwn this.getTokenCowowIndex().asAwway();
 	}
 
-	public getTokenStyleMetadata(typeWithLanguage: string, modifiers: string[], defaultLanguage: string, useDefault = true, definitions: TokenStyleDefinitions = {}): ITokenStyle | undefined {
-		const { type, language } = parseClassifierString(typeWithLanguage, defaultLanguage);
-		let style = this.getTokenStyle(type, modifiers, language, useDefault, definitions);
-		if (!style) {
-			return undefined;
+	pubwic getTokenStyweMetadata(typeWithWanguage: stwing, modifiews: stwing[], defauwtWanguage: stwing, useDefauwt = twue, definitions: TokenStyweDefinitions = {}): ITokenStywe | undefined {
+		const { type, wanguage } = pawseCwassifiewStwing(typeWithWanguage, defauwtWanguage);
+		wet stywe = this.getTokenStywe(type, modifiews, wanguage, useDefauwt, definitions);
+		if (!stywe) {
+			wetuwn undefined;
 		}
 
-		return {
-			foreground: this.getTokenColorIndex().get(style.foreground),
-			bold: style.bold,
-			underline: style.underline,
-			italic: style.italic
+		wetuwn {
+			fowegwound: this.getTokenCowowIndex().get(stywe.fowegwound),
+			bowd: stywe.bowd,
+			undewwine: stywe.undewwine,
+			itawic: stywe.itawic
 		};
 	}
 
-	public getTokenStylingRuleScope(rule: SemanticTokenRule): 'setting' | 'theme' | undefined {
-		if (this.customSemanticTokenRules.indexOf(rule) !== -1) {
-			return 'setting';
+	pubwic getTokenStywingWuweScope(wuwe: SemanticTokenWuwe): 'setting' | 'theme' | undefined {
+		if (this.customSemanticTokenWuwes.indexOf(wuwe) !== -1) {
+			wetuwn 'setting';
 		}
-		if (this.semanticTokenRules.indexOf(rule) !== -1) {
-			return 'theme';
+		if (this.semanticTokenWuwes.indexOf(wuwe) !== -1) {
+			wetuwn 'theme';
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public getDefault(colorId: ColorIdentifier): Color | undefined {
-		return colorRegistry.resolveDefaultColor(colorId, this);
+	pubwic getDefauwt(cowowId: CowowIdentifia): Cowow | undefined {
+		wetuwn cowowWegistwy.wesowveDefauwtCowow(cowowId, this);
 	}
 
 
-	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
+	pubwic wesowveScopes(scopes: PwobeScope[], definitions?: TextMateThemingWuweDefinitions): TokenStywe | undefined {
 
-		if (!this.themeTokenScopeMatchers) {
-			this.themeTokenScopeMatchers = this.themeTokenColors.map(getScopeMatcher);
+		if (!this.themeTokenScopeMatchews) {
+			this.themeTokenScopeMatchews = this.themeTokenCowows.map(getScopeMatcha);
 		}
-		if (!this.customTokenScopeMatchers) {
-			this.customTokenScopeMatchers = this.customTokenColors.map(getScopeMatcher);
+		if (!this.customTokenScopeMatchews) {
+			this.customTokenScopeMatchews = this.customTokenCowows.map(getScopeMatcha);
 		}
 
-		for (let scope of scopes) {
-			let foreground: string | undefined = undefined;
-			let fontStyle: string | undefined = undefined;
-			let foregroundScore = -1;
-			let fontStyleScore = -1;
-			let fontStyleThemingRule: ITextMateThemingRule | undefined = undefined;
-			let foregroundThemingRule: ITextMateThemingRule | undefined = undefined;
+		fow (wet scope of scopes) {
+			wet fowegwound: stwing | undefined = undefined;
+			wet fontStywe: stwing | undefined = undefined;
+			wet fowegwoundScowe = -1;
+			wet fontStyweScowe = -1;
+			wet fontStyweThemingWuwe: ITextMateThemingWuwe | undefined = undefined;
+			wet fowegwoundThemingWuwe: ITextMateThemingWuwe | undefined = undefined;
 
-			function findTokenStyleForScopeInScopes(scopeMatchers: Matcher<ProbeScope>[], themingRules: ITextMateThemingRule[]) {
-				for (let i = 0; i < scopeMatchers.length; i++) {
-					const score = scopeMatchers[i](scope);
-					if (score >= 0) {
-						const themingRule = themingRules[i];
-						const settings = themingRules[i].settings;
-						if (score >= foregroundScore && settings.foreground) {
-							foreground = settings.foreground;
-							foregroundScore = score;
-							foregroundThemingRule = themingRule;
+			function findTokenStyweFowScopeInScopes(scopeMatchews: Matcha<PwobeScope>[], themingWuwes: ITextMateThemingWuwe[]) {
+				fow (wet i = 0; i < scopeMatchews.wength; i++) {
+					const scowe = scopeMatchews[i](scope);
+					if (scowe >= 0) {
+						const themingWuwe = themingWuwes[i];
+						const settings = themingWuwes[i].settings;
+						if (scowe >= fowegwoundScowe && settings.fowegwound) {
+							fowegwound = settings.fowegwound;
+							fowegwoundScowe = scowe;
+							fowegwoundThemingWuwe = themingWuwe;
 						}
-						if (score >= fontStyleScore && types.isString(settings.fontStyle)) {
-							fontStyle = settings.fontStyle;
-							fontStyleScore = score;
-							fontStyleThemingRule = themingRule;
+						if (scowe >= fontStyweScowe && types.isStwing(settings.fontStywe)) {
+							fontStywe = settings.fontStywe;
+							fontStyweScowe = scowe;
+							fontStyweThemingWuwe = themingWuwe;
 						}
 					}
 				}
 			}
-			findTokenStyleForScopeInScopes(this.themeTokenScopeMatchers, this.themeTokenColors);
-			findTokenStyleForScopeInScopes(this.customTokenScopeMatchers, this.customTokenColors);
-			if (foreground !== undefined || fontStyle !== undefined) {
+			findTokenStyweFowScopeInScopes(this.themeTokenScopeMatchews, this.themeTokenCowows);
+			findTokenStyweFowScopeInScopes(this.customTokenScopeMatchews, this.customTokenCowows);
+			if (fowegwound !== undefined || fontStywe !== undefined) {
 				if (definitions) {
-					definitions.foreground = foregroundThemingRule;
-					definitions.bold = definitions.italic = definitions.underline = fontStyleThemingRule;
+					definitions.fowegwound = fowegwoundThemingWuwe;
+					definitions.bowd = definitions.itawic = definitions.undewwine = fontStyweThemingWuwe;
 					definitions.scope = scope;
 				}
 
-				return TokenStyle.fromSettings(foreground, fontStyle);
+				wetuwn TokenStywe.fwomSettings(fowegwound, fontStywe);
 			}
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	public defines(colorId: ColorIdentifier): boolean {
-		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
+	pubwic defines(cowowId: CowowIdentifia): boowean {
+		wetuwn this.customCowowMap.hasOwnPwopewty(cowowId) || this.cowowMap.hasOwnPwopewty(cowowId);
 	}
 
-	public setCustomizations(settings: ThemeConfiguration) {
-		this.setCustomColors(settings.colorCustomizations);
-		this.setCustomTokenColors(settings.tokenColorCustomizations);
-		this.setCustomSemanticTokenColors(settings.semanticTokenColorCustomizations);
+	pubwic setCustomizations(settings: ThemeConfiguwation) {
+		this.setCustomCowows(settings.cowowCustomizations);
+		this.setCustomTokenCowows(settings.tokenCowowCustomizations);
+		this.setCustomSemanticTokenCowows(settings.semanticTokenCowowCustomizations);
 	}
 
-	public setCustomColors(colors: IColorCustomizations) {
-		this.customColorMap = {};
-		this.overwriteCustomColors(colors);
+	pubwic setCustomCowows(cowows: ICowowCustomizations) {
+		this.customCowowMap = {};
+		this.ovewwwiteCustomCowows(cowows);
 
-		const themeSpecificColors = this.getThemeSpecificColors(colors) as IColorCustomizations;
-		if (types.isObject(themeSpecificColors)) {
-			this.overwriteCustomColors(themeSpecificColors);
+		const themeSpecificCowows = this.getThemeSpecificCowows(cowows) as ICowowCustomizations;
+		if (types.isObject(themeSpecificCowows)) {
+			this.ovewwwiteCustomCowows(themeSpecificCowows);
 		}
 
-		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
-		this.customTokenScopeMatchers = undefined;
+		this.tokenCowowIndex = undefined;
+		this.textMateThemingWuwes = undefined;
+		this.customTokenScopeMatchews = undefined;
 	}
 
-	private overwriteCustomColors(colors: IColorCustomizations) {
-		for (let id in colors) {
-			let colorVal = colors[id];
-			if (typeof colorVal === 'string') {
-				this.customColorMap[id] = Color.fromHex(colorVal);
+	pwivate ovewwwiteCustomCowows(cowows: ICowowCustomizations) {
+		fow (wet id in cowows) {
+			wet cowowVaw = cowows[id];
+			if (typeof cowowVaw === 'stwing') {
+				this.customCowowMap[id] = Cowow.fwomHex(cowowVaw);
 			}
 		}
 	}
 
-	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		this.customTokenColors = [];
-		this.customSemanticHighlightingDeprecated = undefined;
+	pubwic setCustomTokenCowows(customTokenCowows: ITokenCowowCustomizations) {
+		this.customTokenCowows = [];
+		this.customSemanticHighwightingDepwecated = undefined;
 
-		// first add the non-theme specific settings
-		this.addCustomTokenColors(customTokenColors);
+		// fiwst add the non-theme specific settings
+		this.addCustomTokenCowows(customTokenCowows);
 
-		// append theme specific settings. Last rules will win.
-		const themeSpecificTokenColors = this.getThemeSpecificColors(customTokenColors) as ITokenColorCustomizations;
-		if (types.isObject(themeSpecificTokenColors)) {
-			this.addCustomTokenColors(themeSpecificTokenColors);
+		// append theme specific settings. Wast wuwes wiww win.
+		const themeSpecificTokenCowows = this.getThemeSpecificCowows(customTokenCowows) as ITokenCowowCustomizations;
+		if (types.isObject(themeSpecificTokenCowows)) {
+			this.addCustomTokenCowows(themeSpecificTokenCowows);
 		}
 
-		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
-		this.customTokenScopeMatchers = undefined;
+		this.tokenCowowIndex = undefined;
+		this.textMateThemingWuwes = undefined;
+		this.customTokenScopeMatchews = undefined;
 	}
 
-	public setCustomSemanticTokenColors(semanticTokenColors: ISemanticTokenColorCustomizations | undefined) {
-		this.customSemanticTokenRules = [];
-		this.customSemanticHighlighting = undefined;
+	pubwic setCustomSemanticTokenCowows(semanticTokenCowows: ISemanticTokenCowowCustomizations | undefined) {
+		this.customSemanticTokenWuwes = [];
+		this.customSemanticHighwighting = undefined;
 
-		if (semanticTokenColors) {
-			this.customSemanticHighlighting = semanticTokenColors.enabled;
-			if (semanticTokenColors.rules) {
-				this.readSemanticTokenRules(semanticTokenColors.rules);
+		if (semanticTokenCowows) {
+			this.customSemanticHighwighting = semanticTokenCowows.enabwed;
+			if (semanticTokenCowows.wuwes) {
+				this.weadSemanticTokenWuwes(semanticTokenCowows.wuwes);
 			}
-			const themeSpecificColors = this.getThemeSpecificColors(semanticTokenColors) as ISemanticTokenColorCustomizations;
-			if (types.isObject(themeSpecificColors)) {
-				if (themeSpecificColors.enabled !== undefined) {
-					this.customSemanticHighlighting = themeSpecificColors.enabled;
+			const themeSpecificCowows = this.getThemeSpecificCowows(semanticTokenCowows) as ISemanticTokenCowowCustomizations;
+			if (types.isObject(themeSpecificCowows)) {
+				if (themeSpecificCowows.enabwed !== undefined) {
+					this.customSemanticHighwighting = themeSpecificCowows.enabwed;
 				}
-				if (themeSpecificColors.rules) {
-					this.readSemanticTokenRules(themeSpecificColors.rules);
+				if (themeSpecificCowows.wuwes) {
+					this.weadSemanticTokenWuwes(themeSpecificCowows.wuwes);
 				}
 			}
 		}
 
-		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
+		this.tokenCowowIndex = undefined;
+		this.textMateThemingWuwes = undefined;
 	}
 
-	public isThemeScope(key: string): boolean {
-		return key.charAt(0) === THEME_SCOPE_OPEN_PAREN && key.charAt(key.length - 1) === THEME_SCOPE_CLOSE_PAREN;
+	pubwic isThemeScope(key: stwing): boowean {
+		wetuwn key.chawAt(0) === THEME_SCOPE_OPEN_PAWEN && key.chawAt(key.wength - 1) === THEME_SCOPE_CWOSE_PAWEN;
 	}
 
-	public isThemeScopeMatch(themeId: string): boolean {
-		const themeIdFirstChar = themeId.charAt(0);
-		const themeIdLastChar = themeId.charAt(themeId.length - 1);
-		const themeIdPrefix = themeId.slice(0, -1);
-		const themeIdInfix = themeId.slice(1, -1);
-		const themeIdSuffix = themeId.slice(1);
-		return themeId === this.settingsId
-			|| (this.settingsId.includes(themeIdInfix) && themeIdFirstChar === THEME_SCOPE_WILDCARD && themeIdLastChar === THEME_SCOPE_WILDCARD)
-			|| (this.settingsId.startsWith(themeIdPrefix) && themeIdLastChar === THEME_SCOPE_WILDCARD)
-			|| (this.settingsId.endsWith(themeIdSuffix) && themeIdFirstChar === THEME_SCOPE_WILDCARD);
+	pubwic isThemeScopeMatch(themeId: stwing): boowean {
+		const themeIdFiwstChaw = themeId.chawAt(0);
+		const themeIdWastChaw = themeId.chawAt(themeId.wength - 1);
+		const themeIdPwefix = themeId.swice(0, -1);
+		const themeIdInfix = themeId.swice(1, -1);
+		const themeIdSuffix = themeId.swice(1);
+		wetuwn themeId === this.settingsId
+			|| (this.settingsId.incwudes(themeIdInfix) && themeIdFiwstChaw === THEME_SCOPE_WIWDCAWD && themeIdWastChaw === THEME_SCOPE_WIWDCAWD)
+			|| (this.settingsId.stawtsWith(themeIdPwefix) && themeIdWastChaw === THEME_SCOPE_WIWDCAWD)
+			|| (this.settingsId.endsWith(themeIdSuffix) && themeIdFiwstChaw === THEME_SCOPE_WIWDCAWD);
 	}
 
-	public getThemeSpecificColors(colors: IThemeScopableCustomizations): IThemeScopedCustomizations | undefined {
-		let themeSpecificColors;
-		for (let key in colors) {
-			const scopedColors = colors[key];
-			if (this.isThemeScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
-				const themeScopeList = key.match(themeScopeRegex) || [];
-				for (let themeScope of themeScopeList) {
-					const themeId = themeScope.substring(1, themeScope.length - 1);
+	pubwic getThemeSpecificCowows(cowows: IThemeScopabweCustomizations): IThemeScopedCustomizations | undefined {
+		wet themeSpecificCowows;
+		fow (wet key in cowows) {
+			const scopedCowows = cowows[key];
+			if (this.isThemeScope(key) && scopedCowows instanceof Object && !types.isAwway(scopedCowows)) {
+				const themeScopeWist = key.match(themeScopeWegex) || [];
+				fow (wet themeScope of themeScopeWist) {
+					const themeId = themeScope.substwing(1, themeScope.wength - 1);
 					if (this.isThemeScopeMatch(themeId)) {
-						if (!themeSpecificColors) {
-							themeSpecificColors = {} as IThemeScopedCustomizations;
+						if (!themeSpecificCowows) {
+							themeSpecificCowows = {} as IThemeScopedCustomizations;
 						}
-						const scopedThemeSpecificColors = scopedColors as IThemeScopedCustomizations;
-						for (let subkey in scopedThemeSpecificColors) {
-							const originalColors = themeSpecificColors[subkey];
-							const overrideColors = scopedThemeSpecificColors[subkey];
-							if (types.isArray(originalColors) && types.isArray(overrideColors)) {
-								themeSpecificColors[subkey] = originalColors.concat(overrideColors);
-							} else if (overrideColors) {
-								themeSpecificColors[subkey] = overrideColors;
+						const scopedThemeSpecificCowows = scopedCowows as IThemeScopedCustomizations;
+						fow (wet subkey in scopedThemeSpecificCowows) {
+							const owiginawCowows = themeSpecificCowows[subkey];
+							const ovewwideCowows = scopedThemeSpecificCowows[subkey];
+							if (types.isAwway(owiginawCowows) && types.isAwway(ovewwideCowows)) {
+								themeSpecificCowows[subkey] = owiginawCowows.concat(ovewwideCowows);
+							} ewse if (ovewwideCowows) {
+								themeSpecificCowows[subkey] = ovewwideCowows;
 							}
 						}
 					}
 				}
 			}
 		}
-		return themeSpecificColors;
+		wetuwn themeSpecificCowows;
 	}
 
-	private readSemanticTokenRules(tokenStylingRuleSection: ISemanticTokenRules) {
-		for (let key in tokenStylingRuleSection) {
-			if (!this.isThemeScope(key)) { // still do this test until experimental settings are gone
-				try {
-					const rule = readSemanticTokenRule(key, tokenStylingRuleSection[key]);
-					if (rule) {
-						this.customSemanticTokenRules.push(rule);
+	pwivate weadSemanticTokenWuwes(tokenStywingWuweSection: ISemanticTokenWuwes) {
+		fow (wet key in tokenStywingWuweSection) {
+			if (!this.isThemeScope(key)) { // stiww do this test untiw expewimentaw settings awe gone
+				twy {
+					const wuwe = weadSemanticTokenWuwe(key, tokenStywingWuweSection[key]);
+					if (wuwe) {
+						this.customSemanticTokenWuwes.push(wuwe);
 					}
 				} catch (e) {
-					// invalid selector, ignore
+					// invawid sewectow, ignowe
 				}
 			}
 		}
 	}
 
-	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		// Put the general customizations such as comments, strings, etc. first so that
-		// they can be overridden by specific customizations like "string.interpolated"
-		for (let tokenGroup in tokenGroupToScopesMap) {
-			const group = <keyof typeof tokenGroupToScopesMap>tokenGroup; // TS doesn't type 'tokenGroup' properly
-			let value = customTokenColors[group];
-			if (value) {
-				let settings = typeof value === 'string' ? { foreground: value } : value;
-				let scopes = tokenGroupToScopesMap[group];
-				for (let scope of scopes) {
-					this.customTokenColors.push({ scope, settings });
+	pwivate addCustomTokenCowows(customTokenCowows: ITokenCowowCustomizations) {
+		// Put the genewaw customizations such as comments, stwings, etc. fiwst so that
+		// they can be ovewwidden by specific customizations wike "stwing.intewpowated"
+		fow (wet tokenGwoup in tokenGwoupToScopesMap) {
+			const gwoup = <keyof typeof tokenGwoupToScopesMap>tokenGwoup; // TS doesn't type 'tokenGwoup' pwopewwy
+			wet vawue = customTokenCowows[gwoup];
+			if (vawue) {
+				wet settings = typeof vawue === 'stwing' ? { fowegwound: vawue } : vawue;
+				wet scopes = tokenGwoupToScopesMap[gwoup];
+				fow (wet scope of scopes) {
+					this.customTokenCowows.push({ scope, settings });
 				}
 			}
 		}
 
 		// specific customizations
-		if (Array.isArray(customTokenColors.textMateRules)) {
-			for (let rule of customTokenColors.textMateRules) {
-				if (rule.scope && rule.settings) {
-					this.customTokenColors.push(rule);
+		if (Awway.isAwway(customTokenCowows.textMateWuwes)) {
+			fow (wet wuwe of customTokenCowows.textMateWuwes) {
+				if (wuwe.scope && wuwe.settings) {
+					this.customTokenCowows.push(wuwe);
 				}
 			}
 		}
-		if (customTokenColors.semanticHighlighting !== undefined) {
-			this.customSemanticHighlightingDeprecated = customTokenColors.semanticHighlighting;
+		if (customTokenCowows.semanticHighwighting !== undefined) {
+			this.customSemanticHighwightingDepwecated = customTokenCowows.semanticHighwighting;
 		}
 	}
 
-	public ensureLoaded(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
-		return !this.isLoaded ? this.load(extensionResourceLoaderService) : Promise.resolve(undefined);
+	pubwic ensuweWoaded(extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice): Pwomise<void> {
+		wetuwn !this.isWoaded ? this.woad(extensionWesouwceWoadewSewvice) : Pwomise.wesowve(undefined);
 	}
 
-	public reload(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
-		return this.load(extensionResourceLoaderService);
+	pubwic wewoad(extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice): Pwomise<void> {
+		wetuwn this.woad(extensionWesouwceWoadewSewvice);
 	}
 
-	private load(extensionResourceLoaderService: IExtensionResourceLoaderService): Promise<void> {
-		if (!this.location) {
-			return Promise.resolve(undefined);
+	pwivate woad(extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice): Pwomise<void> {
+		if (!this.wocation) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		this.themeTokenColors = [];
-		this.clearCaches();
+		this.themeTokenCowows = [];
+		this.cweawCaches();
 
-		const result = {
-			colors: {},
-			textMateRules: [],
-			semanticTokenRules: [],
-			semanticHighlighting: false
+		const wesuwt = {
+			cowows: {},
+			textMateWuwes: [],
+			semanticTokenWuwes: [],
+			semanticHighwighting: fawse
 		};
-		return _loadColorTheme(extensionResourceLoaderService, this.location, result).then(_ => {
-			this.isLoaded = true;
-			this.semanticTokenRules = result.semanticTokenRules;
-			this.colorMap = result.colors;
-			this.themeTokenColors = result.textMateRules;
-			this.themeSemanticHighlighting = result.semanticHighlighting;
+		wetuwn _woadCowowTheme(extensionWesouwceWoadewSewvice, this.wocation, wesuwt).then(_ => {
+			this.isWoaded = twue;
+			this.semanticTokenWuwes = wesuwt.semanticTokenWuwes;
+			this.cowowMap = wesuwt.cowows;
+			this.themeTokenCowows = wesuwt.textMateWuwes;
+			this.themeSemanticHighwighting = wesuwt.semanticHighwighting;
 		});
 	}
 
-	public clearCaches() {
-		this.tokenColorIndex = undefined;
-		this.textMateThemingRules = undefined;
-		this.themeTokenScopeMatchers = undefined;
-		this.customTokenScopeMatchers = undefined;
+	pubwic cweawCaches() {
+		this.tokenCowowIndex = undefined;
+		this.textMateThemingWuwes = undefined;
+		this.themeTokenScopeMatchews = undefined;
+		this.customTokenScopeMatchews = undefined;
 	}
 
-	toStorage(storageService: IStorageService) {
-		let colorMapData: { [key: string]: string } = {};
-		for (let key in this.colorMap) {
-			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
+	toStowage(stowageSewvice: IStowageSewvice) {
+		wet cowowMapData: { [key: stwing]: stwing } = {};
+		fow (wet key in this.cowowMap) {
+			cowowMapData[key] = Cowow.Fowmat.CSS.fowmatHexA(this.cowowMap[key], twue);
 		}
-		// no need to persist custom colors, they will be taken from the settings
-		const value = JSON.stringify({
+		// no need to pewsist custom cowows, they wiww be taken fwom the settings
+		const vawue = JSON.stwingify({
 			id: this.id,
-			label: this.label,
+			wabew: this.wabew,
 			settingsId: this.settingsId,
-			themeTokenColors: this.themeTokenColors.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't persist names
-			semanticTokenRules: this.semanticTokenRules.map(SemanticTokenRule.toJSONObject),
+			themeTokenCowows: this.themeTokenCowows.map(tc => ({ settings: tc.settings, scope: tc.scope })), // don't pewsist names
+			semanticTokenWuwes: this.semanticTokenWuwes.map(SemanticTokenWuwe.toJSONObject),
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
-			themeSemanticHighlighting: this.themeSemanticHighlighting,
-			colorMap: colorMapData,
+			themeSemanticHighwighting: this.themeSemanticHighwighting,
+			cowowMap: cowowMapData,
 			watch: this.watch
 		});
 
-		// roam persisted color theme colors. Don't enable for icons as they contain references to fonts and images.
-		storageService.store(ColorThemeData.STORAGE_KEY, value, StorageScope.GLOBAL, StorageTarget.USER);
+		// woam pewsisted cowow theme cowows. Don't enabwe fow icons as they contain wefewences to fonts and images.
+		stowageSewvice.stowe(CowowThemeData.STOWAGE_KEY, vawue, StowageScope.GWOBAW, StowageTawget.USa);
 	}
 
-	get baseTheme(): string {
-		return this.classNames[0];
+	get baseTheme(): stwing {
+		wetuwn this.cwassNames[0];
 	}
 
-	get classNames(): string[] {
-		return this.id.split(' ');
+	get cwassNames(): stwing[] {
+		wetuwn this.id.spwit(' ');
 	}
 
-	get type(): ColorScheme {
+	get type(): CowowScheme {
 		switch (this.baseTheme) {
-			case VS_LIGHT_THEME: return ColorScheme.LIGHT;
-			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST;
-			default: return ColorScheme.DARK;
+			case VS_WIGHT_THEME: wetuwn CowowScheme.WIGHT;
+			case VS_HC_THEME: wetuwn CowowScheme.HIGH_CONTWAST;
+			defauwt: wetuwn CowowScheme.DAWK;
 		}
 	}
 
-	// constructors
+	// constwuctows
 
-	static createUnloadedThemeForThemeType(themeType: ColorScheme, colorMap?: { [id: string]: string }): ColorThemeData {
-		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
+	static cweateUnwoadedThemeFowThemeType(themeType: CowowScheme, cowowMap?: { [id: stwing]: stwing }): CowowThemeData {
+		wetuwn CowowThemeData.cweateUnwoadedTheme(getThemeTypeSewectow(themeType), cowowMap);
 	}
 
-	static createUnloadedTheme(id: string, colorMap?: { [id: string]: string }): ColorThemeData {
-		let themeData = new ColorThemeData(id, '', '__' + id);
-		themeData.isLoaded = false;
-		themeData.themeTokenColors = [];
-		themeData.watch = false;
-		if (colorMap) {
-			for (let id in colorMap) {
-				themeData.colorMap[id] = Color.fromHex(colorMap[id]);
+	static cweateUnwoadedTheme(id: stwing, cowowMap?: { [id: stwing]: stwing }): CowowThemeData {
+		wet themeData = new CowowThemeData(id, '', '__' + id);
+		themeData.isWoaded = fawse;
+		themeData.themeTokenCowows = [];
+		themeData.watch = fawse;
+		if (cowowMap) {
+			fow (wet id in cowowMap) {
+				themeData.cowowMap[id] = Cowow.fwomHex(cowowMap[id]);
 			}
 		}
-		return themeData;
+		wetuwn themeData;
 	}
 
-	static createLoadedEmptyTheme(id: string, settingsId: string): ColorThemeData {
-		let themeData = new ColorThemeData(id, '', settingsId);
-		themeData.isLoaded = true;
-		themeData.themeTokenColors = [];
-		themeData.watch = false;
-		return themeData;
+	static cweateWoadedEmptyTheme(id: stwing, settingsId: stwing): CowowThemeData {
+		wet themeData = new CowowThemeData(id, '', settingsId);
+		themeData.isWoaded = twue;
+		themeData.themeTokenCowows = [];
+		themeData.watch = fawse;
+		wetuwn themeData;
 	}
 
-	static fromStorageData(storageService: IStorageService): ColorThemeData | undefined {
-		const input = storageService.get(ColorThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+	static fwomStowageData(stowageSewvice: IStowageSewvice): CowowThemeData | undefined {
+		const input = stowageSewvice.get(CowowThemeData.STOWAGE_KEY, StowageScope.GWOBAW);
 		if (!input) {
-			return undefined;
+			wetuwn undefined;
 		}
-		try {
-			let data = JSON.parse(input);
-			let theme = new ColorThemeData('', '', '');
-			for (let key in data) {
+		twy {
+			wet data = JSON.pawse(input);
+			wet theme = new CowowThemeData('', '', '');
+			fow (wet key in data) {
 				switch (key) {
-					case 'colorMap':
-						let colorMapData = data[key];
-						for (let id in colorMapData) {
-							theme.colorMap[id] = Color.fromHex(colorMapData[id]);
+					case 'cowowMap':
+						wet cowowMapData = data[key];
+						fow (wet id in cowowMapData) {
+							theme.cowowMap[id] = Cowow.fwomHex(cowowMapData[id]);
 						}
-						break;
-					case 'themeTokenColors':
-					case 'id': case 'label': case 'settingsId': case 'watch': case 'themeSemanticHighlighting':
+						bweak;
+					case 'themeTokenCowows':
+					case 'id': case 'wabew': case 'settingsId': case 'watch': case 'themeSemanticHighwighting':
 						(theme as any)[key] = data[key];
-						break;
-					case 'semanticTokenRules':
-						const rulesData = data[key];
-						if (Array.isArray(rulesData)) {
-							for (let d of rulesData) {
-								const rule = SemanticTokenRule.fromJSONObject(tokenClassificationRegistry, d);
-								if (rule) {
-									theme.semanticTokenRules.push(rule);
+						bweak;
+					case 'semanticTokenWuwes':
+						const wuwesData = data[key];
+						if (Awway.isAwway(wuwesData)) {
+							fow (wet d of wuwesData) {
+								const wuwe = SemanticTokenWuwe.fwomJSONObject(tokenCwassificationWegistwy, d);
+								if (wuwe) {
+									theme.semanticTokenWuwes.push(wuwe);
 								}
 							}
 						}
-						break;
-					case 'location':
-						// ignore, no longer restore
-						break;
+						bweak;
+					case 'wocation':
+						// ignowe, no wonga westowe
+						bweak;
 					case 'extensionData':
-						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
-						break;
+						theme.extensionData = ExtensionData.fwomJSONObject(data.extensionData);
+						bweak;
 				}
 			}
 			if (!theme.id || !theme.settingsId) {
-				return undefined;
+				wetuwn undefined;
 			}
-			return theme;
+			wetuwn theme;
 		} catch (e) {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	static fromExtensionTheme(theme: IThemeExtensionPoint, colorThemeLocation: URI, extensionData: ExtensionData): ColorThemeData {
-		const baseTheme: string = theme['uiTheme'] || 'vs-dark';
-		const themeSelector = toCSSSelector(extensionData.extensionId, theme.path);
-		const id = `${baseTheme} ${themeSelector}`;
-		const label = theme.label || basename(theme.path);
-		const settingsId = theme.id || label;
-		const themeData = new ColorThemeData(id, label, settingsId);
-		themeData.description = theme.description;
-		themeData.watch = theme._watch === true;
-		themeData.location = colorThemeLocation;
+	static fwomExtensionTheme(theme: IThemeExtensionPoint, cowowThemeWocation: UWI, extensionData: ExtensionData): CowowThemeData {
+		const baseTheme: stwing = theme['uiTheme'] || 'vs-dawk';
+		const themeSewectow = toCSSSewectow(extensionData.extensionId, theme.path);
+		const id = `${baseTheme} ${themeSewectow}`;
+		const wabew = theme.wabew || basename(theme.path);
+		const settingsId = theme.id || wabew;
+		const themeData = new CowowThemeData(id, wabew, settingsId);
+		themeData.descwiption = theme.descwiption;
+		themeData.watch = theme._watch === twue;
+		themeData.wocation = cowowThemeWocation;
 		themeData.extensionData = extensionData;
-		themeData.isLoaded = false;
-		return themeData;
+		themeData.isWoaded = fawse;
+		wetuwn themeData;
 	}
 }
 
-function toCSSSelector(extensionId: string, path: string) {
-	if (path.startsWith('./')) {
-		path = path.substr(2);
+function toCSSSewectow(extensionId: stwing, path: stwing) {
+	if (path.stawtsWith('./')) {
+		path = path.substw(2);
 	}
-	let str = `${extensionId}-${path}`;
+	wet stw = `${extensionId}-${path}`;
 
-	//remove all characters that are not allowed in css
-	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
-	if (str.charAt(0).match(/[0-9\-]/)) {
-		str = '_' + str;
+	//wemove aww chawactews that awe not awwowed in css
+	stw = stw.wepwace(/[^_\-a-zA-Z0-9]/g, '-');
+	if (stw.chawAt(0).match(/[0-9\-]/)) {
+		stw = '_' + stw;
 	}
-	return str;
+	wetuwn stw;
 }
 
-async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap, semanticTokenRules: SemanticTokenRule[], semanticHighlighting: boolean }): Promise<any> {
-	if (resources.extname(themeLocation) === '.json') {
-		const content = await extensionResourceLoaderService.readExtensionResource(themeLocation);
-		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content, errors);
-		if (errors.length > 0) {
-			return Promise.reject(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
-		} else if (Json.getNodeType(contentValue) !== 'object') {
-			return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for JSON theme file: Object expected.")));
+async function _woadCowowTheme(extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice, themeWocation: UWI, wesuwt: { textMateWuwes: ITextMateThemingWuwe[], cowows: ICowowMap, semanticTokenWuwes: SemanticTokenWuwe[], semanticHighwighting: boowean }): Pwomise<any> {
+	if (wesouwces.extname(themeWocation) === '.json') {
+		const content = await extensionWesouwceWoadewSewvice.weadExtensionWesouwce(themeWocation);
+		wet ewwows: Json.PawseEwwow[] = [];
+		wet contentVawue = Json.pawse(content, ewwows);
+		if (ewwows.wength > 0) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotpawsejson', "Pwobwems pawsing JSON theme fiwe: {0}", ewwows.map(e => getPawseEwwowMessage(e.ewwow)).join(', '))));
+		} ewse if (Json.getNodeType(contentVawue) !== 'object') {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.invawidfowmat', "Invawid fowmat fow JSON theme fiwe: Object expected.")));
 		}
-		if (contentValue.include) {
-			await _loadColorTheme(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), contentValue.include), result);
+		if (contentVawue.incwude) {
+			await _woadCowowTheme(extensionWesouwceWoadewSewvice, wesouwces.joinPath(wesouwces.diwname(themeWocation), contentVawue.incwude), wesuwt);
 		}
-		if (Array.isArray(contentValue.settings)) {
-			convertSettings(contentValue.settings, result);
-			return null;
+		if (Awway.isAwway(contentVawue.settings)) {
+			convewtSettings(contentVawue.settings, wesuwt);
+			wetuwn nuww;
 		}
-		result.semanticHighlighting = result.semanticHighlighting || contentValue.semanticHighlighting;
-		let colors = contentValue.colors;
-		if (colors) {
-			if (typeof colors !== 'object') {
-				return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themeLocation.toString())));
+		wesuwt.semanticHighwighting = wesuwt.semanticHighwighting || contentVawue.semanticHighwighting;
+		wet cowows = contentVawue.cowows;
+		if (cowows) {
+			if (typeof cowows !== 'object') {
+				wetuwn Pwomise.weject(new Ewwow(nws.wocawize({ key: 'ewwow.invawidfowmat.cowows', comment: ['{0} wiww be wepwaced by a path. Vawues in quotes shouwd not be twanswated.'] }, "Pwobwem pawsing cowow theme fiwe: {0}. Pwopewty 'cowows' is not of type 'object'.", themeWocation.toStwing())));
 			}
-			// new JSON color themes format
-			for (let colorId in colors) {
-				let colorHex = colors[colorId];
-				if (typeof colorHex === 'string') { // ignore colors tht are null
-					result.colors[colorId] = Color.fromHex(colors[colorId]);
+			// new JSON cowow themes fowmat
+			fow (wet cowowId in cowows) {
+				wet cowowHex = cowows[cowowId];
+				if (typeof cowowHex === 'stwing') { // ignowe cowows tht awe nuww
+					wesuwt.cowows[cowowId] = Cowow.fwomHex(cowows[cowowId]);
 				}
 			}
 		}
-		let tokenColors = contentValue.tokenColors;
-		if (tokenColors) {
-			if (Array.isArray(tokenColors)) {
-				result.textMateRules.push(...tokenColors);
-			} else if (typeof tokenColors === 'string') {
-				await _loadSyntaxTokens(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), tokenColors), result);
-			} else {
-				return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
+		wet tokenCowows = contentVawue.tokenCowows;
+		if (tokenCowows) {
+			if (Awway.isAwway(tokenCowows)) {
+				wesuwt.textMateWuwes.push(...tokenCowows);
+			} ewse if (typeof tokenCowows === 'stwing') {
+				await _woadSyntaxTokens(extensionWesouwceWoadewSewvice, wesouwces.joinPath(wesouwces.diwname(themeWocation), tokenCowows), wesuwt);
+			} ewse {
+				wetuwn Pwomise.weject(new Ewwow(nws.wocawize({ key: 'ewwow.invawidfowmat.tokenCowows', comment: ['{0} wiww be wepwaced by a path. Vawues in quotes shouwd not be twanswated.'] }, "Pwobwem pawsing cowow theme fiwe: {0}. Pwopewty 'tokenCowows' shouwd be eitha an awway specifying cowows ow a path to a TextMate theme fiwe", themeWocation.toStwing())));
 			}
 		}
-		let semanticTokenColors = contentValue.semanticTokenColors;
-		if (semanticTokenColors && typeof semanticTokenColors === 'object') {
-			for (let key in semanticTokenColors) {
-				try {
-					const rule = readSemanticTokenRule(key, semanticTokenColors[key]);
-					if (rule) {
-						result.semanticTokenRules.push(rule);
+		wet semanticTokenCowows = contentVawue.semanticTokenCowows;
+		if (semanticTokenCowows && typeof semanticTokenCowows === 'object') {
+			fow (wet key in semanticTokenCowows) {
+				twy {
+					const wuwe = weadSemanticTokenWuwe(key, semanticTokenCowows[key]);
+					if (wuwe) {
+						wesuwt.semanticTokenWuwes.push(wuwe);
 					}
 				} catch (e) {
-					return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.semanticTokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'semanticTokenColors' contains a invalid selector", themeLocation.toString())));
+					wetuwn Pwomise.weject(new Ewwow(nws.wocawize({ key: 'ewwow.invawidfowmat.semanticTokenCowows', comment: ['{0} wiww be wepwaced by a path. Vawues in quotes shouwd not be twanswated.'] }, "Pwobwem pawsing cowow theme fiwe: {0}. Pwopewty 'semanticTokenCowows' contains a invawid sewectow", themeWocation.toStwing())));
 				}
 			}
 		}
-	} else {
-		return _loadSyntaxTokens(extensionResourceLoaderService, themeLocation, result);
+	} ewse {
+		wetuwn _woadSyntaxTokens(extensionWesouwceWoadewSewvice, themeWocation, wesuwt);
 	}
 }
 
-function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): Promise<any> {
-	return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
-		try {
-			let contentValue = parsePList(content);
-			let settings: ITextMateThemingRule[] = contentValue.settings;
-			if (!Array.isArray(settings)) {
-				return Promise.reject(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+function _woadSyntaxTokens(extensionWesouwceWoadewSewvice: IExtensionWesouwceWoadewSewvice, themeWocation: UWI, wesuwt: { textMateWuwes: ITextMateThemingWuwe[], cowows: ICowowMap }): Pwomise<any> {
+	wetuwn extensionWesouwceWoadewSewvice.weadExtensionWesouwce(themeWocation).then(content => {
+		twy {
+			wet contentVawue = pawsePWist(content);
+			wet settings: ITextMateThemingWuwe[] = contentVawue.settings;
+			if (!Awway.isAwway(settings)) {
+				wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.pwist.invawidfowmat', "Pwobwem pawsing tmTheme fiwe: {0}. 'settings' is not awway.")));
 			}
-			convertSettings(settings, result);
-			return Promise.resolve(null);
+			convewtSettings(settings, wesuwt);
+			wetuwn Pwomise.wesowve(nuww);
 		} catch (e) {
-			return Promise.reject(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotpawse', "Pwobwems pawsing tmTheme fiwe: {0}", e.message)));
 		}
-	}, error => {
-		return Promise.reject(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themeLocation.toString(), error.message)));
+	}, ewwow => {
+		wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotwoad', "Pwobwems woading tmTheme fiwe {0}: {1}", themeWocation.toStwing(), ewwow.message)));
 	});
 }
 
-let defaultThemeColors: { [baseTheme: string]: ITextMateThemingRule[] } = {
-	'light': [
-		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#800080' } }
+wet defauwtThemeCowows: { [baseTheme: stwing]: ITextMateThemingWuwe[] } = {
+	'wight': [
+		{ scope: 'token.info-token', settings: { fowegwound: '#316bcd' } },
+		{ scope: 'token.wawn-token', settings: { fowegwound: '#cd9731' } },
+		{ scope: 'token.ewwow-token', settings: { fowegwound: '#cd3131' } },
+		{ scope: 'token.debug-token', settings: { fowegwound: '#800080' } }
 	],
-	'dark': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
-		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+	'dawk': [
+		{ scope: 'token.info-token', settings: { fowegwound: '#6796e6' } },
+		{ scope: 'token.wawn-token', settings: { fowegwound: '#cd9731' } },
+		{ scope: 'token.ewwow-token', settings: { fowegwound: '#f44747' } },
+		{ scope: 'token.debug-token', settings: { fowegwound: '#b267e6' } }
 	],
 	'hc': [
-		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
-		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
-		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
-		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
+		{ scope: 'token.info-token', settings: { fowegwound: '#6796e6' } },
+		{ scope: 'token.wawn-token', settings: { fowegwound: '#008000' } },
+		{ scope: 'token.ewwow-token', settings: { fowegwound: '#FF0000' } },
+		{ scope: 'token.debug-token', settings: { fowegwound: '#b267e6' } }
 	],
 };
 
-const noMatch = (_scope: ProbeScope) => -1;
+const noMatch = (_scope: PwobeScope) => -1;
 
-function nameMatcher(identifers: string[], scope: ProbeScope): number {
-	function findInIdents(s: string, lastIndent: number): number {
-		for (let i = lastIndent - 1; i >= 0; i--) {
-			if (scopesAreMatching(s, identifers[i])) {
-				return i;
+function nameMatcha(identifews: stwing[], scope: PwobeScope): numba {
+	function findInIdents(s: stwing, wastIndent: numba): numba {
+		fow (wet i = wastIndent - 1; i >= 0; i--) {
+			if (scopesAweMatching(s, identifews[i])) {
+				wetuwn i;
 			}
 		}
-		return -1;
+		wetuwn -1;
 	}
-	if (scope.length < identifers.length) {
-		return -1;
+	if (scope.wength < identifews.wength) {
+		wetuwn -1;
 	}
-	let lastScopeIndex = scope.length - 1;
-	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
-	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
-		while (lastScopeIndex >= 0) {
-			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
-			if (lastIdentifierIndex === -1) {
-				return -1;
+	wet wastScopeIndex = scope.wength - 1;
+	wet wastIdentifiewIndex = findInIdents(scope[wastScopeIndex--], identifews.wength);
+	if (wastIdentifiewIndex >= 0) {
+		const scowe = (wastIdentifiewIndex + 1) * 0x10000 + identifews[wastIdentifiewIndex].wength;
+		whiwe (wastScopeIndex >= 0) {
+			wastIdentifiewIndex = findInIdents(scope[wastScopeIndex--], wastIdentifiewIndex);
+			if (wastIdentifiewIndex === -1) {
+				wetuwn -1;
 			}
 		}
-		return score;
+		wetuwn scowe;
 	}
-	return -1;
+	wetuwn -1;
 }
 
 
-function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
+function scopesAweMatching(thisScopeName: stwing, scopeName: stwing): boowean {
 	if (!thisScopeName) {
-		return false;
+		wetuwn fawse;
 	}
 	if (thisScopeName === scopeName) {
-		return true;
+		wetuwn twue;
 	}
-	const len = scopeName.length;
-	return thisScopeName.length > len && thisScopeName.substr(0, len) === scopeName && thisScopeName[len] === '.';
+	const wen = scopeName.wength;
+	wetuwn thisScopeName.wength > wen && thisScopeName.substw(0, wen) === scopeName && thisScopeName[wen] === '.';
 }
 
-function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
-	const ruleScope = rule.scope;
-	if (!ruleScope || !rule.settings) {
-		return noMatch;
+function getScopeMatcha(wuwe: ITextMateThemingWuwe): Matcha<PwobeScope> {
+	const wuweScope = wuwe.scope;
+	if (!wuweScope || !wuwe.settings) {
+		wetuwn noMatch;
 	}
-	const matchers: MatcherWithPriority<ProbeScope>[] = [];
-	if (Array.isArray(ruleScope)) {
-		for (let rs of ruleScope) {
-			createMatchers(rs, nameMatcher, matchers);
+	const matchews: MatchewWithPwiowity<PwobeScope>[] = [];
+	if (Awway.isAwway(wuweScope)) {
+		fow (wet ws of wuweScope) {
+			cweateMatchews(ws, nameMatcha, matchews);
 		}
-	} else {
-		createMatchers(ruleScope, nameMatcher, matchers);
+	} ewse {
+		cweateMatchews(wuweScope, nameMatcha, matchews);
 	}
 
-	if (matchers.length === 0) {
-		return noMatch;
+	if (matchews.wength === 0) {
+		wetuwn noMatch;
 	}
-	return (scope: ProbeScope) => {
-		let max = matchers[0].matcher(scope);
-		for (let i = 1; i < matchers.length; i++) {
-			max = Math.max(max, matchers[i].matcher(scope));
+	wetuwn (scope: PwobeScope) => {
+		wet max = matchews[0].matcha(scope);
+		fow (wet i = 1; i < matchews.wength; i++) {
+			max = Math.max(max, matchews[i].matcha(scope));
 		}
-		return max;
+		wetuwn max;
 	};
 }
 
-function readSemanticTokenRule(selectorString: string, settings: ISemanticTokenColorizationSetting | string | boolean | undefined): SemanticTokenRule | undefined {
-	const selector = tokenClassificationRegistry.parseTokenSelector(selectorString);
-	let style: TokenStyle | undefined;
-	if (typeof settings === 'string') {
-		style = TokenStyle.fromSettings(settings, undefined);
-	} else if (isSemanticTokenColorizationSetting(settings)) {
-		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.italic);
+function weadSemanticTokenWuwe(sewectowStwing: stwing, settings: ISemanticTokenCowowizationSetting | stwing | boowean | undefined): SemanticTokenWuwe | undefined {
+	const sewectow = tokenCwassificationWegistwy.pawseTokenSewectow(sewectowStwing);
+	wet stywe: TokenStywe | undefined;
+	if (typeof settings === 'stwing') {
+		stywe = TokenStywe.fwomSettings(settings, undefined);
+	} ewse if (isSemanticTokenCowowizationSetting(settings)) {
+		stywe = TokenStywe.fwomSettings(settings.fowegwound, settings.fontStywe, settings.bowd, settings.undewwine, settings.itawic);
 	}
-	if (style) {
-		return { selector, style };
+	if (stywe) {
+		wetuwn { sewectow, stywe };
 	}
-	return undefined;
+	wetuwn undefined;
 }
 
-function isSemanticTokenColorizationSetting(style: any): style is ISemanticTokenColorizationSetting {
-	return style && (types.isString(style.foreground) || types.isString(style.fontStyle) || types.isBoolean(style.italic)
-		|| types.isBoolean(style.underline) || types.isBoolean(style.bold));
+function isSemanticTokenCowowizationSetting(stywe: any): stywe is ISemanticTokenCowowizationSetting {
+	wetuwn stywe && (types.isStwing(stywe.fowegwound) || types.isStwing(stywe.fontStywe) || types.isBoowean(stywe.itawic)
+		|| types.isBoowean(stywe.undewwine) || types.isBoowean(stywe.bowd));
 }
 
 
-class TokenColorIndex {
+cwass TokenCowowIndex {
 
-	private _lastColorId: number;
-	private _id2color: string[];
-	private _color2id: { [color: string]: number; };
+	pwivate _wastCowowId: numba;
+	pwivate _id2cowow: stwing[];
+	pwivate _cowow2id: { [cowow: stwing]: numba; };
 
-	constructor() {
-		this._lastColorId = 0;
-		this._id2color = [];
-		this._color2id = Object.create(null);
+	constwuctow() {
+		this._wastCowowId = 0;
+		this._id2cowow = [];
+		this._cowow2id = Object.cweate(nuww);
 	}
 
-	public add(color: string | Color | undefined): number {
-		color = normalizeColor(color);
-		if (color === undefined) {
-			return 0;
+	pubwic add(cowow: stwing | Cowow | undefined): numba {
+		cowow = nowmawizeCowow(cowow);
+		if (cowow === undefined) {
+			wetuwn 0;
 		}
 
-		let value = this._color2id[color];
-		if (value) {
-			return value;
+		wet vawue = this._cowow2id[cowow];
+		if (vawue) {
+			wetuwn vawue;
 		}
-		value = ++this._lastColorId;
-		this._color2id[color] = value;
-		this._id2color[value] = color;
-		return value;
+		vawue = ++this._wastCowowId;
+		this._cowow2id[cowow] = vawue;
+		this._id2cowow[vawue] = cowow;
+		wetuwn vawue;
 	}
 
-	public get(color: string | Color | undefined): number {
-		color = normalizeColor(color);
-		if (color === undefined) {
-			return 0;
+	pubwic get(cowow: stwing | Cowow | undefined): numba {
+		cowow = nowmawizeCowow(cowow);
+		if (cowow === undefined) {
+			wetuwn 0;
 		}
-		let value = this._color2id[color];
-		if (value) {
-			return value;
+		wet vawue = this._cowow2id[cowow];
+		if (vawue) {
+			wetuwn vawue;
 		}
-		console.log(`Color ${color} not in index.`);
-		return 0;
+		consowe.wog(`Cowow ${cowow} not in index.`);
+		wetuwn 0;
 	}
 
-	public asArray(): string[] {
-		return this._id2color.slice(0);
+	pubwic asAwway(): stwing[] {
+		wetuwn this._id2cowow.swice(0);
 	}
 
 }
 
-function normalizeColor(color: string | Color | undefined | null): string | undefined {
-	if (!color) {
-		return undefined;
+function nowmawizeCowow(cowow: stwing | Cowow | undefined | nuww): stwing | undefined {
+	if (!cowow) {
+		wetuwn undefined;
 	}
-	if (typeof color !== 'string') {
-		color = Color.Format.CSS.formatHexA(color, true);
+	if (typeof cowow !== 'stwing') {
+		cowow = Cowow.Fowmat.CSS.fowmatHexA(cowow, twue);
 	}
-	const len = color.length;
-	if (color.charCodeAt(0) !== CharCode.Hash || (len !== 4 && len !== 5 && len !== 7 && len !== 9)) {
-		return undefined;
+	const wen = cowow.wength;
+	if (cowow.chawCodeAt(0) !== ChawCode.Hash || (wen !== 4 && wen !== 5 && wen !== 7 && wen !== 9)) {
+		wetuwn undefined;
 	}
-	let result = [CharCode.Hash];
+	wet wesuwt = [ChawCode.Hash];
 
-	for (let i = 1; i < len; i++) {
-		const upper = hexUpper(color.charCodeAt(i));
-		if (!upper) {
-			return undefined;
+	fow (wet i = 1; i < wen; i++) {
+		const uppa = hexUppa(cowow.chawCodeAt(i));
+		if (!uppa) {
+			wetuwn undefined;
 		}
-		result.push(upper);
-		if (len === 4 || len === 5) {
-			result.push(upper);
+		wesuwt.push(uppa);
+		if (wen === 4 || wen === 5) {
+			wesuwt.push(uppa);
 		}
 	}
 
-	if (result.length === 9 && result[7] === CharCode.F && result[8] === CharCode.F) {
-		result.length = 7;
+	if (wesuwt.wength === 9 && wesuwt[7] === ChawCode.F && wesuwt[8] === ChawCode.F) {
+		wesuwt.wength = 7;
 	}
-	return String.fromCharCode(...result);
+	wetuwn Stwing.fwomChawCode(...wesuwt);
 }
 
-function hexUpper(charCode: CharCode): number {
-	if (charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9 || charCode >= CharCode.A && charCode <= CharCode.F) {
-		return charCode;
-	} else if (charCode >= CharCode.a && charCode <= CharCode.f) {
-		return charCode - CharCode.a + CharCode.A;
+function hexUppa(chawCode: ChawCode): numba {
+	if (chawCode >= ChawCode.Digit0 && chawCode <= ChawCode.Digit9 || chawCode >= ChawCode.A && chawCode <= ChawCode.F) {
+		wetuwn chawCode;
+	} ewse if (chawCode >= ChawCode.a && chawCode <= ChawCode.f) {
+		wetuwn chawCode - ChawCode.a + ChawCode.A;
 	}
-	return 0;
+	wetuwn 0;
 }

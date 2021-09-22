@@ -1,36 +1,36 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
+impowt * as vscode fwom 'vscode';
+impowt { ITypeScwiptSewviceCwient } fwom '../typescwiptSewvice';
+impowt * as typeConvewtews fwom '../utiws/typeConvewtews';
 
 
-export default class TypeScriptDefinitionProviderBase {
-	constructor(
-		protected readonly client: ITypeScriptServiceClient
+expowt defauwt cwass TypeScwiptDefinitionPwovidewBase {
+	constwuctow(
+		pwotected weadonwy cwient: ITypeScwiptSewviceCwient
 	) { }
 
-	protected async getSymbolLocations(
-		definitionType: 'definition' | 'implementation' | 'typeDefinition',
+	pwotected async getSymbowWocations(
+		definitionType: 'definition' | 'impwementation' | 'typeDefinition',
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken
-	): Promise<vscode.Location[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
-		if (!file) {
-			return undefined;
+		token: vscode.CancewwationToken
+	): Pwomise<vscode.Wocation[] | undefined> {
+		const fiwe = this.cwient.toOpenedFiwePath(document);
+		if (!fiwe) {
+			wetuwn undefined;
 		}
 
-		const args = typeConverters.Position.toFileLocationRequestArgs(file, position);
-		const response = await this.client.execute(definitionType, args, token);
-		if (response.type !== 'response' || !response.body) {
-			return undefined;
+		const awgs = typeConvewtews.Position.toFiweWocationWequestAwgs(fiwe, position);
+		const wesponse = await this.cwient.execute(definitionType, awgs, token);
+		if (wesponse.type !== 'wesponse' || !wesponse.body) {
+			wetuwn undefined;
 		}
 
-		return response.body.map(location =>
-			typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location));
+		wetuwn wesponse.body.map(wocation =>
+			typeConvewtews.Wocation.fwomTextSpan(this.cwient.toWesouwce(wocation.fiwe), wocation));
 	}
 }

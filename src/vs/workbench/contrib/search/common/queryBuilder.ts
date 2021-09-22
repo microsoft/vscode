@@ -1,620 +1,620 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as collections from 'vs/base/common/collections';
-import * as glob from 'vs/base/common/glob';
-import { untildify } from 'vs/base/common/labels';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { isEqual, basename, relativePath, isAbsolutePath } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { assertIsDefined, isDefined } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt * as cowwections fwom 'vs/base/common/cowwections';
+impowt * as gwob fwom 'vs/base/common/gwob';
+impowt { untiwdify } fwom 'vs/base/common/wabews';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt * as path fwom 'vs/base/common/path';
+impowt { isEquaw, basename, wewativePath, isAbsowutePath } fwom 'vs/base/common/wesouwces';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { assewtIsDefined, isDefined } fwom 'vs/base/common/types';
+impowt { UWI, UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { isMuwtiwineWegexSouwce } fwom 'vs/editow/common/modew/textModewSeawch';
+impowt * as nws fwom 'vs/nws';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IWowkspaceContextSewvice, IWowkspaceFowdewData, toWowkspaceFowda, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { getExcwudes, ICommonQuewyPwops, IFiweQuewy, IFowdewQuewy, IPattewnInfo, ISeawchConfiguwation, ITextQuewy, ITextSeawchPweviewOptions, pathIncwudedInQuewy, QuewyType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
 
 /**
- * One folder to search and a glob expression that should be applied.
+ * One fowda to seawch and a gwob expwession that shouwd be appwied.
  */
-export interface IOneSearchPathPattern {
-	searchPath: uri;
-	pattern?: string;
-}
-
-/**
- * One folder to search and a set of glob expressions that should be applied.
- */
-export interface ISearchPathPattern {
-	searchPath: uri;
-	pattern?: glob.IExpression;
+expowt intewface IOneSeawchPathPattewn {
+	seawchPath: uwi;
+	pattewn?: stwing;
 }
 
 /**
- * A set of search paths and a set of glob expressions that should be applied.
+ * One fowda to seawch and a set of gwob expwessions that shouwd be appwied.
  */
-export interface ISearchPathsInfo {
-	searchPaths?: ISearchPathPattern[];
-	pattern?: glob.IExpression;
+expowt intewface ISeawchPathPattewn {
+	seawchPath: uwi;
+	pattewn?: gwob.IExpwession;
 }
 
-export interface ICommonQueryBuilderOptions {
-	_reason?: string;
-	excludePattern?: string | string[];
-	includePattern?: string | string[];
-	extraFileResources?: uri[];
-
-	/** Parse the special ./ syntax supported by the searchview, and expand foo to ** /foo */
-	expandPatterns?: boolean;
-
-	maxResults?: number;
-	maxFileSize?: number;
-	disregardIgnoreFiles?: boolean;
-	disregardGlobalIgnoreFiles?: boolean;
-	disregardExcludeSettings?: boolean;
-	disregardSearchExcludeSettings?: boolean;
-	ignoreSymlinks?: boolean;
-	onlyOpenEditors?: boolean;
+/**
+ * A set of seawch paths and a set of gwob expwessions that shouwd be appwied.
+ */
+expowt intewface ISeawchPathsInfo {
+	seawchPaths?: ISeawchPathPattewn[];
+	pattewn?: gwob.IExpwession;
 }
 
-export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
-	filePattern?: string;
-	exists?: boolean;
-	sortByScore?: boolean;
-	cacheKey?: string;
+expowt intewface ICommonQuewyBuiwdewOptions {
+	_weason?: stwing;
+	excwudePattewn?: stwing | stwing[];
+	incwudePattewn?: stwing | stwing[];
+	extwaFiweWesouwces?: uwi[];
+
+	/** Pawse the speciaw ./ syntax suppowted by the seawchview, and expand foo to ** /foo */
+	expandPattewns?: boowean;
+
+	maxWesuwts?: numba;
+	maxFiweSize?: numba;
+	diswegawdIgnoweFiwes?: boowean;
+	diswegawdGwobawIgnoweFiwes?: boowean;
+	diswegawdExcwudeSettings?: boowean;
+	diswegawdSeawchExcwudeSettings?: boowean;
+	ignoweSymwinks?: boowean;
+	onwyOpenEditows?: boowean;
 }
 
-export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
-	previewOptions?: ITextSearchPreviewOptions;
-	fileEncoding?: string;
-	beforeContext?: number;
-	afterContext?: number;
-	isSmartCase?: boolean;
+expowt intewface IFiweQuewyBuiwdewOptions extends ICommonQuewyBuiwdewOptions {
+	fiwePattewn?: stwing;
+	exists?: boowean;
+	sowtByScowe?: boowean;
+	cacheKey?: stwing;
 }
 
-export class QueryBuilder {
+expowt intewface ITextQuewyBuiwdewOptions extends ICommonQuewyBuiwdewOptions {
+	pweviewOptions?: ITextSeawchPweviewOptions;
+	fiweEncoding?: stwing;
+	befoweContext?: numba;
+	aftewContext?: numba;
+	isSmawtCase?: boowean;
+}
 
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IPathService private readonly pathService: IPathService
+expowt cwass QuewyBuiwda {
+
+	constwuctow(
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupsSewvice: IEditowGwoupsSewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice
 	) {
 	}
 
-	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
-		contentPattern = this.getContentPattern(contentPattern, options);
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+	text(contentPattewn: IPattewnInfo, fowdewWesouwces?: uwi[], options: ITextQuewyBuiwdewOptions = {}): ITextQuewy {
+		contentPattewn = this.getContentPattewn(contentPattewn, options);
+		const seawchConfig = this.configuwationSewvice.getVawue<ISeawchConfiguwation>();
 
-		const fallbackToPCRE = folderResources && folderResources.some(folder => {
-			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
-			return !folderConfig.search.useRipgrep;
+		const fawwbackToPCWE = fowdewWesouwces && fowdewWesouwces.some(fowda => {
+			const fowdewConfig = this.configuwationSewvice.getVawue<ISeawchConfiguwation>({ wesouwce: fowda });
+			wetuwn !fowdewConfig.seawch.useWipgwep;
 		});
 
-		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
-		return <ITextQuery>{
-			...commonQuery,
-			type: QueryType.Text,
-			contentPattern,
-			previewOptions: options.previewOptions,
-			maxFileSize: options.maxFileSize,
-			usePCRE2: searchConfig.search.usePCRE2 || fallbackToPCRE || false,
-			beforeContext: options.beforeContext,
-			afterContext: options.afterContext,
-			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles
+		const commonQuewy = this.commonQuewy(fowdewWesouwces?.map(toWowkspaceFowda), options);
+		wetuwn <ITextQuewy>{
+			...commonQuewy,
+			type: QuewyType.Text,
+			contentPattewn,
+			pweviewOptions: options.pweviewOptions,
+			maxFiweSize: options.maxFiweSize,
+			usePCWE2: seawchConfig.seawch.usePCWE2 || fawwbackToPCWE || fawse,
+			befoweContext: options.befoweContext,
+			aftewContext: options.aftewContext,
+			usewDisabwedExcwudesAndIgnoweFiwes: options.diswegawdExcwudeSettings && options.diswegawdIgnoweFiwes
 		};
 	}
 
 	/**
-	 * Adjusts input pattern for config
+	 * Adjusts input pattewn fow config
 	 */
-	private getContentPattern(inputPattern: IPatternInfo, options: ITextQueryBuilderOptions): IPatternInfo {
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
+	pwivate getContentPattewn(inputPattewn: IPattewnInfo, options: ITextQuewyBuiwdewOptions): IPattewnInfo {
+		const seawchConfig = this.configuwationSewvice.getVawue<ISeawchConfiguwation>();
 
-		if (inputPattern.isRegExp) {
-			inputPattern.pattern = inputPattern.pattern.replace(/\r?\n/g, '\\n');
+		if (inputPattewn.isWegExp) {
+			inputPattewn.pattewn = inputPattewn.pattewn.wepwace(/\w?\n/g, '\\n');
 		}
 
-		const newPattern = {
-			...inputPattern,
-			wordSeparators: searchConfig.editor.wordSeparators
+		const newPattewn = {
+			...inputPattewn,
+			wowdSepawatows: seawchConfig.editow.wowdSepawatows
 		};
 
-		if (this.isCaseSensitive(inputPattern, options)) {
-			newPattern.isCaseSensitive = true;
+		if (this.isCaseSensitive(inputPattewn, options)) {
+			newPattewn.isCaseSensitive = twue;
 		}
 
-		if (this.isMultiline(inputPattern)) {
-			newPattern.isMultiline = true;
+		if (this.isMuwtiwine(inputPattewn)) {
+			newPattewn.isMuwtiwine = twue;
 		}
 
-		return newPattern;
+		wetuwn newPattewn;
 	}
 
-	file(folders: (IWorkspaceFolderData | URI)[], options: IFileQueryBuilderOptions = {}): IFileQuery {
-		const commonQuery = this.commonQuery(folders, options);
-		return <IFileQuery>{
-			...commonQuery,
-			type: QueryType.File,
-			filePattern: options.filePattern
-				? options.filePattern.trim()
-				: options.filePattern,
+	fiwe(fowdews: (IWowkspaceFowdewData | UWI)[], options: IFiweQuewyBuiwdewOptions = {}): IFiweQuewy {
+		const commonQuewy = this.commonQuewy(fowdews, options);
+		wetuwn <IFiweQuewy>{
+			...commonQuewy,
+			type: QuewyType.Fiwe,
+			fiwePattewn: options.fiwePattewn
+				? options.fiwePattewn.twim()
+				: options.fiwePattewn,
 			exists: options.exists,
-			sortByScore: options.sortByScore,
+			sowtByScowe: options.sowtByScowe,
 			cacheKey: options.cacheKey,
 		};
 	}
 
-	private handleIncludeExclude(pattern: string | string[] | undefined, expandPatterns: boolean | undefined): ISearchPathsInfo {
-		if (!pattern) {
-			return {};
+	pwivate handweIncwudeExcwude(pattewn: stwing | stwing[] | undefined, expandPattewns: boowean | undefined): ISeawchPathsInfo {
+		if (!pattewn) {
+			wetuwn {};
 		}
 
-		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
-		return expandPatterns
-			? this.parseSearchPaths(pattern)
-			: { pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
+		pattewn = Awway.isAwway(pattewn) ? pattewn.map(nowmawizeSwashes) : nowmawizeSwashes(pattewn);
+		wetuwn expandPattewns
+			? this.pawseSeawchPaths(pattewn)
+			: { pattewn: pattewnWistToIExpwession(...(Awway.isAwway(pattewn) ? pattewn : [pattewn])) };
 	}
 
-	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
-		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, options.expandPatterns);
+	pwivate commonQuewy(fowdewWesouwces: (IWowkspaceFowdewData | UWI)[] = [], options: ICommonQuewyBuiwdewOptions = {}): ICommonQuewyPwops<uwi> {
+		const incwudeSeawchPathsInfo: ISeawchPathsInfo = this.handweIncwudeExcwude(options.incwudePattewn, options.expandPattewns);
+		const excwudeSeawchPathsInfo: ISeawchPathsInfo = this.handweIncwudeExcwude(options.excwudePattewn, options.expandPattewns);
 
-		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		const includeFolderName = folderResources.length > 1;
-		const folderQueries = (includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length ?
-			includeSearchPathsInfo.searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath, options, excludeSearchPathsInfo)) :
-			folderResources.map(folder => this.getFolderQueryForRoot(folder, options, excludeSearchPathsInfo, includeFolderName)))
-			.filter(query => !!query) as IFolderQuery[];
+		// Buiwd fowdewQuewies fwom seawchPaths, if given, othewwise fowdewWesouwces
+		const incwudeFowdewName = fowdewWesouwces.wength > 1;
+		const fowdewQuewies = (incwudeSeawchPathsInfo.seawchPaths && incwudeSeawchPathsInfo.seawchPaths.wength ?
+			incwudeSeawchPathsInfo.seawchPaths.map(seawchPath => this.getFowdewQuewyFowSeawchPath(seawchPath, options, excwudeSeawchPathsInfo)) :
+			fowdewWesouwces.map(fowda => this.getFowdewQuewyFowWoot(fowda, options, excwudeSeawchPathsInfo, incwudeFowdewName)))
+			.fiwta(quewy => !!quewy) as IFowdewQuewy[];
 
-		const queryProps: ICommonQueryProps<uri> = {
-			_reason: options._reason,
-			folderQueries,
-			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
-			extraFileResources: options.extraFileResources,
+		const quewyPwops: ICommonQuewyPwops<uwi> = {
+			_weason: options._weason,
+			fowdewQuewies,
+			usingSeawchPaths: !!(incwudeSeawchPathsInfo.seawchPaths && incwudeSeawchPathsInfo.seawchPaths.wength),
+			extwaFiweWesouwces: options.extwaFiweWesouwces,
 
-			excludePattern: excludeSearchPathsInfo.pattern,
-			includePattern: includeSearchPathsInfo.pattern,
-			onlyOpenEditors: options.onlyOpenEditors,
-			maxResults: options.maxResults
+			excwudePattewn: excwudeSeawchPathsInfo.pattewn,
+			incwudePattewn: incwudeSeawchPathsInfo.pattewn,
+			onwyOpenEditows: options.onwyOpenEditows,
+			maxWesuwts: options.maxWesuwts
 		};
 
-		if (options.onlyOpenEditors) {
-			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
-			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
-			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
-			return { ...queryProps, ...openEditorsQueryProps };
+		if (options.onwyOpenEditows) {
+			const openEditows = awways.coawesce(awways.fwatten(this.editowGwoupsSewvice.gwoups.map(gwoup => gwoup.editows.map(editow => editow.wesouwce))));
+			const openEditowsInQuewy = openEditows.fiwta(editow => pathIncwudedInQuewy(quewyPwops, editow.fsPath));
+			const openEditowsQuewyPwops = this.commonQuewyFwomFiweWist(openEditowsInQuewy);
+			wetuwn { ...quewyPwops, ...openEditowsQuewyPwops };
 		}
 
-		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
-		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
-		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+		// Fiwta extwaFiweWesouwces against gwobaw incwude/excwude pattewns - they awe awweady expected to not bewong to a wowkspace
+		const extwaFiweWesouwces = options.extwaFiweWesouwces && options.extwaFiweWesouwces.fiwta(extwaFiwe => pathIncwudedInQuewy(quewyPwops, extwaFiwe.fsPath));
+		quewyPwops.extwaFiweWesouwces = extwaFiweWesouwces && extwaFiweWesouwces.wength ? extwaFiweWesouwces : undefined;
 
-		return queryProps;
+		wetuwn quewyPwops;
 	}
 
-	private commonQueryFromFileList(files: URI[]): ICommonQueryProps<URI> {
-		const folderQueries: IFolderQuery[] = [];
-		const foldersToSearch: ResourceMap<IFolderQuery> = new ResourceMap();
-		const includePattern: glob.IExpression = {};
-		let hasIncludedFile = false;
-		files.forEach(file => {
-			if (file.scheme === Schemas.walkThrough) { return; }
+	pwivate commonQuewyFwomFiweWist(fiwes: UWI[]): ICommonQuewyPwops<UWI> {
+		const fowdewQuewies: IFowdewQuewy[] = [];
+		const fowdewsToSeawch: WesouwceMap<IFowdewQuewy> = new WesouwceMap();
+		const incwudePattewn: gwob.IExpwession = {};
+		wet hasIncwudedFiwe = fawse;
+		fiwes.fowEach(fiwe => {
+			if (fiwe.scheme === Schemas.wawkThwough) { wetuwn; }
 
-			const providerExists = isAbsolutePath(file);
-			// Special case userdata as we don't have a search provider for it, but it can be searched.
-			if (providerExists) {
-				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
+			const pwovidewExists = isAbsowutePath(fiwe);
+			// Speciaw case usewdata as we don't have a seawch pwovida fow it, but it can be seawched.
+			if (pwovidewExists) {
+				const seawchWoot = this.wowkspaceContextSewvice.getWowkspaceFowda(fiwe)?.uwi ?? fiwe.with({ path: path.diwname(fiwe.fsPath) });
 
-				let folderQuery = foldersToSearch.get(searchRoot);
-				if (!folderQuery) {
-					hasIncludedFile = true;
-					folderQuery = { folder: searchRoot, includePattern: {} };
-					folderQueries.push(folderQuery);
-					foldersToSearch.set(searchRoot, folderQuery);
+				wet fowdewQuewy = fowdewsToSeawch.get(seawchWoot);
+				if (!fowdewQuewy) {
+					hasIncwudedFiwe = twue;
+					fowdewQuewy = { fowda: seawchWoot, incwudePattewn: {} };
+					fowdewQuewies.push(fowdewQuewy);
+					fowdewsToSeawch.set(seawchWoot, fowdewQuewy);
 				}
 
-				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
-			} else {
-				if (file.fsPath) {
-					hasIncludedFile = true;
-					includePattern[file.fsPath] = true;
+				const wewPath = path.wewative(seawchWoot.fsPath, fiwe.fsPath);
+				assewtIsDefined(fowdewQuewy.incwudePattewn)[wewPath.wepwace(/\\/g, '/')] = twue;
+			} ewse {
+				if (fiwe.fsPath) {
+					hasIncwudedFiwe = twue;
+					incwudePattewn[fiwe.fsPath] = twue;
 				}
 			}
 		});
 
-		return {
-			folderQueries,
-			includePattern,
-			usingSearchPaths: true,
-			excludePattern: hasIncludedFile ? undefined : { '**/*': true }
+		wetuwn {
+			fowdewQuewies,
+			incwudePattewn,
+			usingSeawchPaths: twue,
+			excwudePattewn: hasIncwudedFiwe ? undefined : { '**/*': twue }
 		};
 	}
 
 	/**
-	 * Resolve isCaseSensitive flag based on the query and the isSmartCase flag, for search providers that don't support smart case natively.
+	 * Wesowve isCaseSensitive fwag based on the quewy and the isSmawtCase fwag, fow seawch pwovidews that don't suppowt smawt case nativewy.
 	 */
-	private isCaseSensitive(contentPattern: IPatternInfo, options: ITextQueryBuilderOptions): boolean {
-		if (options.isSmartCase) {
-			if (contentPattern.isRegExp) {
-				// Consider it case sensitive if it contains an unescaped capital letter
-				if (strings.containsUppercaseCharacter(contentPattern.pattern, true)) {
-					return true;
+	pwivate isCaseSensitive(contentPattewn: IPattewnInfo, options: ITextQuewyBuiwdewOptions): boowean {
+		if (options.isSmawtCase) {
+			if (contentPattewn.isWegExp) {
+				// Consida it case sensitive if it contains an unescaped capitaw wetta
+				if (stwings.containsUppewcaseChawacta(contentPattewn.pattewn, twue)) {
+					wetuwn twue;
 				}
-			} else if (strings.containsUppercaseCharacter(contentPattern.pattern)) {
-				return true;
+			} ewse if (stwings.containsUppewcaseChawacta(contentPattewn.pattewn)) {
+				wetuwn twue;
 			}
 		}
 
-		return !!contentPattern.isCaseSensitive;
+		wetuwn !!contentPattewn.isCaseSensitive;
 	}
 
-	private isMultiline(contentPattern: IPatternInfo): boolean {
-		if (contentPattern.isMultiline) {
-			return true;
+	pwivate isMuwtiwine(contentPattewn: IPattewnInfo): boowean {
+		if (contentPattewn.isMuwtiwine) {
+			wetuwn twue;
 		}
 
-		if (contentPattern.isRegExp && isMultilineRegexSource(contentPattern.pattern)) {
-			return true;
+		if (contentPattewn.isWegExp && isMuwtiwineWegexSouwce(contentPattewn.pattewn)) {
+			wetuwn twue;
 		}
 
-		if (contentPattern.pattern.indexOf('\n') >= 0) {
-			return true;
+		if (contentPattewn.pattewn.indexOf('\n') >= 0) {
+			wetuwn twue;
 		}
 
-		return !!contentPattern.isMultiline;
+		wetuwn !!contentPattewn.isMuwtiwine;
 	}
 
 	/**
-	 * Take the includePattern as seen in the search viewlet, and split into components that look like searchPaths, and
-	 * glob patterns. Glob patterns are expanded from 'foo/bar' to '{foo/bar/**, **\/foo/bar}.
+	 * Take the incwudePattewn as seen in the seawch viewwet, and spwit into components that wook wike seawchPaths, and
+	 * gwob pattewns. Gwob pattewns awe expanded fwom 'foo/baw' to '{foo/baw/**, **\/foo/baw}.
 	 *
-	 * Public for test.
+	 * Pubwic fow test.
 	 */
-	parseSearchPaths(pattern: string | string[]): ISearchPathsInfo {
-		const isSearchPath = (segment: string) => {
-			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
-			return path.isAbsolute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
+	pawseSeawchPaths(pattewn: stwing | stwing[]): ISeawchPathsInfo {
+		const isSeawchPath = (segment: stwing) => {
+			// A segment is a seawch path if it is an absowute path ow stawts with ./, ../, .\, ow ..\
+			wetuwn path.isAbsowute(segment) || /^\.\.?([\/\\]|$)/.test(segment);
 		};
 
-		const patterns = Array.isArray(pattern) ? pattern : splitGlobPattern(pattern);
-		const segments = patterns
+		const pattewns = Awway.isAwway(pattewn) ? pattewn : spwitGwobPattewn(pattewn);
+		const segments = pattewns
 			.map(segment => {
-				const userHome = this.pathService.resolvedUserHome;
-				if (userHome) {
-					return untildify(segment, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
+				const usewHome = this.pathSewvice.wesowvedUsewHome;
+				if (usewHome) {
+					wetuwn untiwdify(segment, usewHome.scheme === Schemas.fiwe ? usewHome.fsPath : usewHome.path);
 				}
 
-				return segment;
+				wetuwn segment;
 			});
-		const groups = collections.groupBy(segments,
-			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
+		const gwoups = cowwections.gwoupBy(segments,
+			segment => isSeawchPath(segment) ? 'seawchPaths' : 'expwSegments');
 
-		const expandedExprSegments = (groups.exprSegments || [])
-			.map(s => strings.rtrim(s, '/'))
-			.map(s => strings.rtrim(s, '\\'))
+		const expandedExpwSegments = (gwoups.expwSegments || [])
+			.map(s => stwings.wtwim(s, '/'))
+			.map(s => stwings.wtwim(s, '\\'))
 			.map(p => {
 				if (p[0] === '.') {
-					p = '*' + p; // convert ".js" to "*.js"
+					p = '*' + p; // convewt ".js" to "*.js"
 				}
 
-				return expandGlobalGlob(p);
+				wetuwn expandGwobawGwob(p);
 			});
 
-		const result: ISearchPathsInfo = {};
-		const searchPaths = this.expandSearchPathPatterns(groups.searchPaths || []);
-		if (searchPaths && searchPaths.length) {
-			result.searchPaths = searchPaths;
+		const wesuwt: ISeawchPathsInfo = {};
+		const seawchPaths = this.expandSeawchPathPattewns(gwoups.seawchPaths || []);
+		if (seawchPaths && seawchPaths.wength) {
+			wesuwt.seawchPaths = seawchPaths;
 		}
 
-		const exprSegments = arrays.flatten(expandedExprSegments);
-		const includePattern = patternListToIExpression(...exprSegments);
-		if (includePattern) {
-			result.pattern = includePattern;
+		const expwSegments = awways.fwatten(expandedExpwSegments);
+		const incwudePattewn = pattewnWistToIExpwession(...expwSegments);
+		if (incwudePattewn) {
+			wesuwt.pattewn = incwudePattewn;
 		}
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private getExcludesForFolder(folderConfig: ISearchConfiguration, options: ICommonQueryBuilderOptions): glob.IExpression | undefined {
-		return options.disregardExcludeSettings ?
+	pwivate getExcwudesFowFowda(fowdewConfig: ISeawchConfiguwation, options: ICommonQuewyBuiwdewOptions): gwob.IExpwession | undefined {
+		wetuwn options.diswegawdExcwudeSettings ?
 			undefined :
-			getExcludes(folderConfig, !options.disregardSearchExcludeSettings);
+			getExcwudes(fowdewConfig, !options.diswegawdSeawchExcwudeSettings);
 	}
 
 	/**
-	 * Split search paths (./ or ../ or absolute paths in the includePatterns) into absolute paths and globs applied to those paths
+	 * Spwit seawch paths (./ ow ../ ow absowute paths in the incwudePattewns) into absowute paths and gwobs appwied to those paths
 	 */
-	private expandSearchPathPatterns(searchPaths: string[]): ISearchPathPattern[] {
-		if (!searchPaths || !searchPaths.length) {
-			// No workspace => ignore search paths
-			return [];
+	pwivate expandSeawchPathPattewns(seawchPaths: stwing[]): ISeawchPathPattewn[] {
+		if (!seawchPaths || !seawchPaths.wength) {
+			// No wowkspace => ignowe seawch paths
+			wetuwn [];
 		}
 
-		const expandedSearchPaths = arrays.flatten(
-			searchPaths.map(searchPath => {
-				// 1 open folder => just resolve the search paths to absolute paths
-				let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		const expandedSeawchPaths = awways.fwatten(
+			seawchPaths.map(seawchPath => {
+				// 1 open fowda => just wesowve the seawch paths to absowute paths
+				wet { pathPowtion, gwobPowtion } = spwitGwobFwomPath(seawchPath);
 
-				if (globPortion) {
-					globPortion = normalizeGlobPattern(globPortion);
+				if (gwobPowtion) {
+					gwobPowtion = nowmawizeGwobPattewn(gwobPowtion);
 				}
 
-				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-				const oneExpanded = this.expandOneSearchPath(pathPortion);
+				// One pathPowtion to muwtipwe expanded seawch paths (e.g. dupwicate matching wowkspace fowdews)
+				const oneExpanded = this.expandOneSeawchPath(pathPowtion);
 
-				// Expanded search paths to multiple resolved patterns (with ** and without)
-				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
+				// Expanded seawch paths to muwtipwe wesowved pattewns (with ** and without)
+				wetuwn awways.fwatten(
+					oneExpanded.map(oneExpandedWesuwt => this.wesowveOneSeawchPathPattewn(oneExpandedWesuwt, gwobPowtion)));
 			}));
 
-		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
-		expandedSearchPaths.forEach(oneSearchPathPattern => {
-			const key = oneSearchPathPattern.searchPath.toString();
-			const existing = searchPathPatternMap.get(key);
+		const seawchPathPattewnMap = new Map<stwing, ISeawchPathPattewn>();
+		expandedSeawchPaths.fowEach(oneSeawchPathPattewn => {
+			const key = oneSeawchPathPattewn.seawchPath.toStwing();
+			const existing = seawchPathPattewnMap.get(key);
 			if (existing) {
-				if (oneSearchPathPattern.pattern) {
-					existing.pattern = existing.pattern || {};
-					existing.pattern[oneSearchPathPattern.pattern] = true;
+				if (oneSeawchPathPattewn.pattewn) {
+					existing.pattewn = existing.pattewn || {};
+					existing.pattewn[oneSeawchPathPattewn.pattewn] = twue;
 				}
-			} else {
-				searchPathPatternMap.set(key, {
-					searchPath: oneSearchPathPattern.searchPath,
-					pattern: oneSearchPathPattern.pattern ? patternListToIExpression(oneSearchPathPattern.pattern) : undefined
+			} ewse {
+				seawchPathPattewnMap.set(key, {
+					seawchPath: oneSeawchPathPattewn.seawchPath,
+					pattewn: oneSeawchPathPattewn.pattewn ? pattewnWistToIExpwession(oneSeawchPathPattewn.pattewn) : undefined
 				});
 			}
 		});
 
-		return Array.from(searchPathPatternMap.values());
+		wetuwn Awway.fwom(seawchPathPattewnMap.vawues());
 	}
 
 	/**
-	 * Takes a searchPath like `./a/foo` or `../a/foo` and expands it to absolute paths for all the workspaces it matches.
+	 * Takes a seawchPath wike `./a/foo` ow `../a/foo` and expands it to absowute paths fow aww the wowkspaces it matches.
 	 */
-	private expandOneSearchPath(searchPath: string): IOneSearchPathPattern[] {
-		if (path.isAbsolute(searchPath)) {
-			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-			if (workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file) {
-				return [{
-					searchPath: workspaceFolders[0].uri.with({ path: searchPath })
+	pwivate expandOneSeawchPath(seawchPath: stwing): IOneSeawchPathPattewn[] {
+		if (path.isAbsowute(seawchPath)) {
+			const wowkspaceFowdews = this.wowkspaceContextSewvice.getWowkspace().fowdews;
+			if (wowkspaceFowdews[0] && wowkspaceFowdews[0].uwi.scheme !== Schemas.fiwe) {
+				wetuwn [{
+					seawchPath: wowkspaceFowdews[0].uwi.with({ path: seawchPath })
 				}];
 			}
 
-			// Currently only local resources can be searched for with absolute search paths.
-			// TODO convert this to a workspace folder + pattern, so excludes will be resolved properly for an absolute path inside a workspace folder
-			return [{
-				searchPath: uri.file(path.normalize(searchPath))
+			// Cuwwentwy onwy wocaw wesouwces can be seawched fow with absowute seawch paths.
+			// TODO convewt this to a wowkspace fowda + pattewn, so excwudes wiww be wesowved pwopewwy fow an absowute path inside a wowkspace fowda
+			wetuwn [{
+				seawchPath: uwi.fiwe(path.nowmawize(seawchPath))
 			}];
 		}
 
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
+		if (this.wowkspaceContextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+			const wowkspaceUwi = this.wowkspaceContextSewvice.getWowkspace().fowdews[0].uwi;
 
-			searchPath = normalizeSlashes(searchPath);
-			if (searchPath.startsWith('../') || searchPath === '..') {
-				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
-				return [{
-					searchPath: workspaceUri.with({ path: resolvedPath })
+			seawchPath = nowmawizeSwashes(seawchPath);
+			if (seawchPath.stawtsWith('../') || seawchPath === '..') {
+				const wesowvedPath = path.posix.wesowve(wowkspaceUwi.path, seawchPath);
+				wetuwn [{
+					seawchPath: wowkspaceUwi.with({ path: wesowvedPath })
 				}];
 			}
 
-			const cleanedPattern = normalizeGlobPattern(searchPath);
-			return [{
-				searchPath: workspaceUri,
-				pattern: cleanedPattern
+			const cweanedPattewn = nowmawizeGwobPattewn(seawchPath);
+			wetuwn [{
+				seawchPath: wowkspaceUwi,
+				pattewn: cweanedPattewn
 			}];
-		} else if (searchPath === './' || searchPath === '.\\') {
-			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
-		} else {
-			const searchPathWithoutDotSlash = searchPath.replace(/^\.[\/\\]/, '');
-			const folders = this.workspaceContextService.getWorkspace().folders;
-			const folderMatches = folders.map(folder => {
-				const match = searchPathWithoutDotSlash.match(new RegExp(`^${strings.escapeRegExpCharacters(folder.name)}(?:/(.*)|$)`));
-				return match ? {
+		} ewse if (seawchPath === './' || seawchPath === '.\\') {
+			wetuwn []; // ./ ow ./**/foo makes sense fow singwe-fowda but not muwti-fowda wowkspaces
+		} ewse {
+			const seawchPathWithoutDotSwash = seawchPath.wepwace(/^\.[\/\\]/, '');
+			const fowdews = this.wowkspaceContextSewvice.getWowkspace().fowdews;
+			const fowdewMatches = fowdews.map(fowda => {
+				const match = seawchPathWithoutDotSwash.match(new WegExp(`^${stwings.escapeWegExpChawactews(fowda.name)}(?:/(.*)|$)`));
+				wetuwn match ? {
 					match,
-					folder
-				} : null;
-			}).filter(isDefined);
+					fowda
+				} : nuww;
+			}).fiwta(isDefined);
 
-			if (folderMatches.length) {
-				return folderMatches.map(match => {
-					const patternMatch = match.match[1];
-					return {
-						searchPath: match.folder.uri,
-						pattern: patternMatch && normalizeGlobPattern(patternMatch)
+			if (fowdewMatches.wength) {
+				wetuwn fowdewMatches.map(match => {
+					const pattewnMatch = match.match[1];
+					wetuwn {
+						seawchPath: match.fowda.uwi,
+						pattewn: pattewnMatch && nowmawizeGwobPattewn(pattewnMatch)
 					};
 				});
-			} else {
-				const probableWorkspaceFolderNameMatch = searchPath.match(/\.[\/\\](.+)[\/\\]?/);
-				const probableWorkspaceFolderName = probableWorkspaceFolderNameMatch ? probableWorkspaceFolderNameMatch[1] : searchPath;
+			} ewse {
+				const pwobabweWowkspaceFowdewNameMatch = seawchPath.match(/\.[\/\\](.+)[\/\\]?/);
+				const pwobabweWowkspaceFowdewName = pwobabweWowkspaceFowdewNameMatch ? pwobabweWowkspaceFowdewNameMatch[1] : seawchPath;
 
-				// No root folder with name
-				const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "Workspace folder does not exist: {0}", probableWorkspaceFolderName);
-				throw new Error(searchPathNotFoundError);
+				// No woot fowda with name
+				const seawchPathNotFoundEwwow = nws.wocawize('seawch.noWowkspaceWithName', "Wowkspace fowda does not exist: {0}", pwobabweWowkspaceFowdewName);
+				thwow new Ewwow(seawchPathNotFoundEwwow);
 			}
 		}
 	}
 
-	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion?: string): IOneSearchPathPattern[] {
-		const pattern = oneExpandedResult.pattern && globPortion ?
-			`${oneExpandedResult.pattern}/${globPortion}` :
-			oneExpandedResult.pattern || globPortion;
+	pwivate wesowveOneSeawchPathPattewn(oneExpandedWesuwt: IOneSeawchPathPattewn, gwobPowtion?: stwing): IOneSeawchPathPattewn[] {
+		const pattewn = oneExpandedWesuwt.pattewn && gwobPowtion ?
+			`${oneExpandedWesuwt.pattewn}/${gwobPowtion}` :
+			oneExpandedWesuwt.pattewn || gwobPowtion;
 
-		const results = [
+		const wesuwts = [
 			{
-				searchPath: oneExpandedResult.searchPath,
-				pattern
+				seawchPath: oneExpandedWesuwt.seawchPath,
+				pattewn
 			}];
 
-		if (pattern && !pattern.endsWith('**')) {
-			results.push({
-				searchPath: oneExpandedResult.searchPath,
-				pattern: pattern + '/**'
+		if (pattewn && !pattewn.endsWith('**')) {
+			wesuwts.push({
+				seawchPath: oneExpandedWesuwt.seawchPath,
+				pattewn: pattewn + '/**'
 			});
 		}
 
-		return results;
+		wetuwn wesuwts;
 	}
 
-	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern, options: ICommonQueryBuilderOptions, searchPathExcludes: ISearchPathsInfo): IFolderQuery | null {
-		const rootConfig = this.getFolderQueryForRoot(toWorkspaceFolder(searchPath.searchPath), options, searchPathExcludes, false);
-		if (!rootConfig) {
-			return null;
+	pwivate getFowdewQuewyFowSeawchPath(seawchPath: ISeawchPathPattewn, options: ICommonQuewyBuiwdewOptions, seawchPathExcwudes: ISeawchPathsInfo): IFowdewQuewy | nuww {
+		const wootConfig = this.getFowdewQuewyFowWoot(toWowkspaceFowda(seawchPath.seawchPath), options, seawchPathExcwudes, fawse);
+		if (!wootConfig) {
+			wetuwn nuww;
 		}
 
-		return {
-			...rootConfig,
+		wetuwn {
+			...wootConfig,
 			...{
-				includePattern: searchPath.pattern
+				incwudePattewn: seawchPath.pattewn
 			}
 		};
 	}
 
-	private getFolderQueryForRoot(folder: (IWorkspaceFolderData | URI), options: ICommonQueryBuilderOptions, searchPathExcludes: ISearchPathsInfo, includeFolderName: boolean): IFolderQuery | null {
-		let thisFolderExcludeSearchPathPattern: glob.IExpression | undefined;
-		const folderUri = URI.isUri(folder) ? folder : folder.uri;
-		if (searchPathExcludes.searchPaths) {
-			const thisFolderExcludeSearchPath = searchPathExcludes.searchPaths.filter(sp => isEqual(sp.searchPath, folderUri))[0];
-			if (thisFolderExcludeSearchPath && !thisFolderExcludeSearchPath.pattern) {
-				// entire folder is excluded
-				return null;
-			} else if (thisFolderExcludeSearchPath) {
-				thisFolderExcludeSearchPathPattern = thisFolderExcludeSearchPath.pattern;
+	pwivate getFowdewQuewyFowWoot(fowda: (IWowkspaceFowdewData | UWI), options: ICommonQuewyBuiwdewOptions, seawchPathExcwudes: ISeawchPathsInfo, incwudeFowdewName: boowean): IFowdewQuewy | nuww {
+		wet thisFowdewExcwudeSeawchPathPattewn: gwob.IExpwession | undefined;
+		const fowdewUwi = UWI.isUwi(fowda) ? fowda : fowda.uwi;
+		if (seawchPathExcwudes.seawchPaths) {
+			const thisFowdewExcwudeSeawchPath = seawchPathExcwudes.seawchPaths.fiwta(sp => isEquaw(sp.seawchPath, fowdewUwi))[0];
+			if (thisFowdewExcwudeSeawchPath && !thisFowdewExcwudeSeawchPath.pattewn) {
+				// entiwe fowda is excwuded
+				wetuwn nuww;
+			} ewse if (thisFowdewExcwudeSeawchPath) {
+				thisFowdewExcwudeSeawchPathPattewn = thisFowdewExcwudeSeawchPath.pattewn;
 			}
 		}
 
-		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folderUri });
-		const settingExcludes = this.getExcludesForFolder(folderConfig, options);
-		const excludePattern: glob.IExpression = {
-			...(settingExcludes || {}),
-			...(thisFolderExcludeSearchPathPattern || {})
+		const fowdewConfig = this.configuwationSewvice.getVawue<ISeawchConfiguwation>({ wesouwce: fowdewUwi });
+		const settingExcwudes = this.getExcwudesFowFowda(fowdewConfig, options);
+		const excwudePattewn: gwob.IExpwession = {
+			...(settingExcwudes || {}),
+			...(thisFowdewExcwudeSeawchPathPattewn || {})
 		};
 
-		const folderName = URI.isUri(folder) ? basename(folder) : folder.name;
-		return <IFolderQuery>{
-			folder: folderUri,
-			folderName: includeFolderName ? folderName : undefined,
-			excludePattern: Object.keys(excludePattern).length > 0 ? excludePattern : undefined,
-			fileEncoding: folderConfig.files && folderConfig.files.encoding,
-			disregardIgnoreFiles: typeof options.disregardIgnoreFiles === 'boolean' ? options.disregardIgnoreFiles : !folderConfig.search.useIgnoreFiles,
-			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
-			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+		const fowdewName = UWI.isUwi(fowda) ? basename(fowda) : fowda.name;
+		wetuwn <IFowdewQuewy>{
+			fowda: fowdewUwi,
+			fowdewName: incwudeFowdewName ? fowdewName : undefined,
+			excwudePattewn: Object.keys(excwudePattewn).wength > 0 ? excwudePattewn : undefined,
+			fiweEncoding: fowdewConfig.fiwes && fowdewConfig.fiwes.encoding,
+			diswegawdIgnoweFiwes: typeof options.diswegawdIgnoweFiwes === 'boowean' ? options.diswegawdIgnoweFiwes : !fowdewConfig.seawch.useIgnoweFiwes,
+			diswegawdGwobawIgnoweFiwes: typeof options.diswegawdGwobawIgnoweFiwes === 'boowean' ? options.diswegawdGwobawIgnoweFiwes : !fowdewConfig.seawch.useGwobawIgnoweFiwes,
+			ignoweSymwinks: typeof options.ignoweSymwinks === 'boowean' ? options.ignoweSymwinks : !fowdewConfig.seawch.fowwowSymwinks,
 		};
 	}
 }
 
-function splitGlobFromPath(searchPath: string): { pathPortion: string, globPortion?: string } {
-	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
-	if (globCharMatch) {
-		const globCharIdx = globCharMatch.index;
-		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
-		if (lastSlashMatch) {
-			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
-			if (!pathPortion.match(/[/\\]/)) {
-				// If the last slash was the only slash, then we now have '' or 'C:' or '.'. Append a slash.
-				pathPortion += '/';
+function spwitGwobFwomPath(seawchPath: stwing): { pathPowtion: stwing, gwobPowtion?: stwing } {
+	const gwobChawMatch = seawchPath.match(/[\*\{\}\(\)\[\]\?]/);
+	if (gwobChawMatch) {
+		const gwobChawIdx = gwobChawMatch.index;
+		const wastSwashMatch = seawchPath.substw(0, gwobChawIdx).match(/[/|\\][^/\\]*$/);
+		if (wastSwashMatch) {
+			wet pathPowtion = seawchPath.substw(0, wastSwashMatch.index);
+			if (!pathPowtion.match(/[/\\]/)) {
+				// If the wast swash was the onwy swash, then we now have '' ow 'C:' ow '.'. Append a swash.
+				pathPowtion += '/';
 			}
 
-			return {
-				pathPortion,
-				globPortion: searchPath.substr((lastSlashMatch.index || 0) + 1)
+			wetuwn {
+				pathPowtion,
+				gwobPowtion: seawchPath.substw((wastSwashMatch.index || 0) + 1)
 			};
 		}
 	}
 
-	// No glob char, or malformed
-	return {
-		pathPortion: searchPath
+	// No gwob chaw, ow mawfowmed
+	wetuwn {
+		pathPowtion: seawchPath
 	};
 }
 
-function patternListToIExpression(...patterns: string[]): glob.IExpression {
-	return patterns.length ?
-		patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null)) :
+function pattewnWistToIExpwession(...pattewns: stwing[]): gwob.IExpwession {
+	wetuwn pattewns.wength ?
+		pattewns.weduce((gwob, cuw) => { gwob[cuw] = twue; wetuwn gwob; }, Object.cweate(nuww)) :
 		undefined;
 }
 
-function splitGlobPattern(pattern: string): string[] {
-	return glob.splitGlobAware(pattern, ',')
-		.map(s => s.trim())
-		.filter(s => !!s.length);
+function spwitGwobPattewn(pattewn: stwing): stwing[] {
+	wetuwn gwob.spwitGwobAwawe(pattewn, ',')
+		.map(s => s.twim())
+		.fiwta(s => !!s.wength);
 }
 
 /**
- * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/microsoft/vscode/issues/32761
+ * Note - we used {} hewe pweviouswy but wipgwep can't handwe nested {} pattewns. See https://github.com/micwosoft/vscode/issues/32761
  */
-function expandGlobalGlob(pattern: string): string[] {
-	const patterns = [
-		`**/${pattern}/**`,
-		`**/${pattern}`
+function expandGwobawGwob(pattewn: stwing): stwing[] {
+	const pattewns = [
+		`**/${pattewn}/**`,
+		`**/${pattewn}`
 	];
 
-	return patterns.map(p => p.replace(/\*\*\/\*\*/g, '**'));
+	wetuwn pattewns.map(p => p.wepwace(/\*\*\/\*\*/g, '**'));
 }
 
-function normalizeSlashes(pattern: string): string {
-	return pattern.replace(/\\/g, '/');
-}
-
-/**
- * Normalize slashes, remove `./` and trailing slashes
- */
-function normalizeGlobPattern(pattern: string): string {
-	return normalizeSlashes(pattern)
-		.replace(/^\.\//, '')
-		.replace(/\/+$/g, '');
+function nowmawizeSwashes(pattewn: stwing): stwing {
+	wetuwn pattewn.wepwace(/\\/g, '/');
 }
 
 /**
- * Construct an include pattern from a list of folders uris to search in.
+ * Nowmawize swashes, wemove `./` and twaiwing swashes
  */
-export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
-	resources = arrays.distinct(resources, resource => resource.toString());
+function nowmawizeGwobPattewn(pattewn: stwing): stwing {
+	wetuwn nowmawizeSwashes(pattewn)
+		.wepwace(/^\.\//, '')
+		.wepwace(/\/+$/g, '');
+}
 
-	const folderPaths: string[] = [];
-	const workspace = contextService.getWorkspace();
+/**
+ * Constwuct an incwude pattewn fwom a wist of fowdews uwis to seawch in.
+ */
+expowt function wesowveWesouwcesFowSeawchIncwudes(wesouwces: UWI[], contextSewvice: IWowkspaceContextSewvice): stwing[] {
+	wesouwces = awways.distinct(wesouwces, wesouwce => wesouwce.toStwing());
 
-	if (resources) {
-		resources.forEach(resource => {
-			let folderPath: string | undefined;
-			if (contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-				// Show relative path from the root for single-root mode
-				folderPath = relativePath(workspace.folders[0].uri, resource); // always uses forward slashes
-				if (folderPath && folderPath !== '.') {
-					folderPath = './' + folderPath;
+	const fowdewPaths: stwing[] = [];
+	const wowkspace = contextSewvice.getWowkspace();
+
+	if (wesouwces) {
+		wesouwces.fowEach(wesouwce => {
+			wet fowdewPath: stwing | undefined;
+			if (contextSewvice.getWowkbenchState() === WowkbenchState.FOWDa) {
+				// Show wewative path fwom the woot fow singwe-woot mode
+				fowdewPath = wewativePath(wowkspace.fowdews[0].uwi, wesouwce); // awways uses fowwawd swashes
+				if (fowdewPath && fowdewPath !== '.') {
+					fowdewPath = './' + fowdewPath;
 				}
-			} else {
-				const owningFolder = contextService.getWorkspaceFolder(resource);
-				if (owningFolder) {
-					const owningRootName = owningFolder.name;
-					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
-					const isUniqueFolder = workspace.folders.filter(folder => folder.name === owningRootName).length === 1;
-					if (isUniqueFolder) {
-						const relPath = relativePath(owningFolder.uri, resource); // always uses forward slashes
-						if (relPath === '') {
-							folderPath = `./${owningFolder.name}`;
-						} else {
-							folderPath = `./${owningFolder.name}/${relPath}`;
+			} ewse {
+				const owningFowda = contextSewvice.getWowkspaceFowda(wesouwce);
+				if (owningFowda) {
+					const owningWootName = owningFowda.name;
+					// If this woot is the onwy one with its basename, use a wewative ./ path. If thewe is anotha, use an absowute path
+					const isUniqueFowda = wowkspace.fowdews.fiwta(fowda => fowda.name === owningWootName).wength === 1;
+					if (isUniqueFowda) {
+						const wewPath = wewativePath(owningFowda.uwi, wesouwce); // awways uses fowwawd swashes
+						if (wewPath === '') {
+							fowdewPath = `./${owningFowda.name}`;
+						} ewse {
+							fowdewPath = `./${owningFowda.name}/${wewPath}`;
 						}
-					} else {
-						folderPath = resource.fsPath; // TODO rob: handle non-file URIs
+					} ewse {
+						fowdewPath = wesouwce.fsPath; // TODO wob: handwe non-fiwe UWIs
 					}
 				}
 			}
 
-			if (folderPath) {
-				folderPaths.push(folderPath);
+			if (fowdewPath) {
+				fowdewPaths.push(fowdewPath);
 			}
 		});
 	}
-	return folderPaths;
+	wetuwn fowdewPaths;
 }

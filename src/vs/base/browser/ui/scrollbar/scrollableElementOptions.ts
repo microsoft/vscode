@@ -1,165 +1,165 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
 
-export interface ScrollableElementCreationOptions {
+expowt intewface ScwowwabweEwementCweationOptions {
 	/**
-	 * The scrollable element should not do any DOM mutations until renderNow() is called.
-	 * Defaults to false.
+	 * The scwowwabwe ewement shouwd not do any DOM mutations untiw wendewNow() is cawwed.
+	 * Defauwts to fawse.
 	 */
-	lazyRender?: boolean;
+	wazyWenda?: boowean;
 	/**
-	 * CSS Class name for the scrollable element.
+	 * CSS Cwass name fow the scwowwabwe ewement.
 	 */
-	className?: string;
+	cwassName?: stwing;
 	/**
-	 * Drop subtle horizontal and vertical shadows.
-	 * Defaults to false.
+	 * Dwop subtwe howizontaw and vewticaw shadows.
+	 * Defauwts to fawse.
 	 */
-	useShadows?: boolean;
+	useShadows?: boowean;
 	/**
-	 * Handle mouse wheel (listen to mouse wheel scrolling).
-	 * Defaults to true
+	 * Handwe mouse wheew (wisten to mouse wheew scwowwing).
+	 * Defauwts to twue
 	 */
-	handleMouseWheel?: boolean;
+	handweMouseWheew?: boowean;
 	/**
-	 * If mouse wheel is handled, make mouse wheel scrolling smooth.
-	 * Defaults to true.
+	 * If mouse wheew is handwed, make mouse wheew scwowwing smooth.
+	 * Defauwts to twue.
 	 */
-	mouseWheelSmoothScroll?: boolean;
+	mouseWheewSmoothScwoww?: boowean;
 	/**
-	 * Flip axes. Treat vertical scrolling like horizontal and vice-versa.
-	 * Defaults to false.
+	 * Fwip axes. Tweat vewticaw scwowwing wike howizontaw and vice-vewsa.
+	 * Defauwts to fawse.
 	 */
-	flipAxes?: boolean;
+	fwipAxes?: boowean;
 	/**
-	 * If enabled, will scroll horizontally when scrolling vertical.
-	 * Defaults to false.
+	 * If enabwed, wiww scwoww howizontawwy when scwowwing vewticaw.
+	 * Defauwts to fawse.
 	 */
-	scrollYToX?: boolean;
+	scwowwYToX?: boowean;
 	/**
-	 * Consume all mouse wheel events if a scrollbar is needed (i.e. scrollSize > size).
-	 * Defaults to false.
+	 * Consume aww mouse wheew events if a scwowwbaw is needed (i.e. scwowwSize > size).
+	 * Defauwts to fawse.
 	 */
-	consumeMouseWheelIfScrollbarIsNeeded?: boolean;
+	consumeMouseWheewIfScwowwbawIsNeeded?: boowean;
 	/**
-	 * Always consume mouse wheel events, even when scrolling is no longer possible.
-	 * Defaults to false.
+	 * Awways consume mouse wheew events, even when scwowwing is no wonga possibwe.
+	 * Defauwts to fawse.
 	 */
-	alwaysConsumeMouseWheel?: boolean;
+	awwaysConsumeMouseWheew?: boowean;
 	/**
-	 * A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.
-	 * Defaults to 1.
+	 * A muwtipwia to be used on the `dewtaX` and `dewtaY` of mouse wheew scwoww events.
+	 * Defauwts to 1.
 	 */
-	mouseWheelScrollSensitivity?: number;
+	mouseWheewScwowwSensitivity?: numba;
 	/**
-	 * FastScrolling mulitplier speed when pressing `Alt`
-	 * Defaults to 5.
+	 * FastScwowwing muwitpwia speed when pwessing `Awt`
+	 * Defauwts to 5.
 	 */
-	fastScrollSensitivity?: number;
+	fastScwowwSensitivity?: numba;
 	/**
-	 * Whether the scrollable will only scroll along the predominant axis when scrolling both
-	 * vertically and horizontally at the same time.
-	 * Prevents horizontal drift when scrolling vertically on a trackpad.
-	 * Defaults to true.
+	 * Whetha the scwowwabwe wiww onwy scwoww awong the pwedominant axis when scwowwing both
+	 * vewticawwy and howizontawwy at the same time.
+	 * Pwevents howizontaw dwift when scwowwing vewticawwy on a twackpad.
+	 * Defauwts to twue.
 	 */
-	scrollPredominantAxis?: boolean;
+	scwowwPwedominantAxis?: boowean;
 	/**
-	 * Height for vertical arrows (top/bottom) and width for horizontal arrows (left/right).
-	 * Defaults to 11.
+	 * Height fow vewticaw awwows (top/bottom) and width fow howizontaw awwows (weft/wight).
+	 * Defauwts to 11.
 	 */
-	arrowSize?: number;
+	awwowSize?: numba;
 	/**
-	 * The dom node events should be bound to.
-	 * If no listenOnDomNode is provided, the dom node passed to the constructor will be used for event listening.
+	 * The dom node events shouwd be bound to.
+	 * If no wistenOnDomNode is pwovided, the dom node passed to the constwuctow wiww be used fow event wistening.
 	 */
-	listenOnDomNode?: HTMLElement;
+	wistenOnDomNode?: HTMWEwement;
 	/**
-	 * Control the visibility of the horizontal scrollbar.
-	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
-	 * Defaults to 'auto'.
+	 * Contwow the visibiwity of the howizontaw scwowwbaw.
+	 * Accepted vawues: 'auto' (on mouse ova), 'visibwe' (awways visibwe), 'hidden' (neva visibwe)
+	 * Defauwts to 'auto'.
 	 */
-	horizontal?: ScrollbarVisibility;
+	howizontaw?: ScwowwbawVisibiwity;
 	/**
-	 * Height (in px) of the horizontal scrollbar.
-	 * Defaults to 10.
+	 * Height (in px) of the howizontaw scwowwbaw.
+	 * Defauwts to 10.
 	 */
-	horizontalScrollbarSize?: number;
+	howizontawScwowwbawSize?: numba;
 	/**
-	 * Height (in px) of the horizontal scrollbar slider.
-	 * Defaults to `horizontalScrollbarSize`
+	 * Height (in px) of the howizontaw scwowwbaw swida.
+	 * Defauwts to `howizontawScwowwbawSize`
 	 */
-	horizontalSliderSize?: number;
+	howizontawSwidewSize?: numba;
 	/**
-	 * Render arrows (left/right) for the horizontal scrollbar.
-	 * Defaults to false.
+	 * Wenda awwows (weft/wight) fow the howizontaw scwowwbaw.
+	 * Defauwts to fawse.
 	 */
-	horizontalHasArrows?: boolean;
+	howizontawHasAwwows?: boowean;
 	/**
-	 * Control the visibility of the vertical scrollbar.
-	 * Accepted values: 'auto' (on mouse over), 'visible' (always visible), 'hidden' (never visible)
-	 * Defaults to 'auto'.
+	 * Contwow the visibiwity of the vewticaw scwowwbaw.
+	 * Accepted vawues: 'auto' (on mouse ova), 'visibwe' (awways visibwe), 'hidden' (neva visibwe)
+	 * Defauwts to 'auto'.
 	 */
-	vertical?: ScrollbarVisibility;
+	vewticaw?: ScwowwbawVisibiwity;
 	/**
-	 * Width (in px) of the vertical scrollbar.
-	 * Defaults to 10.
+	 * Width (in px) of the vewticaw scwowwbaw.
+	 * Defauwts to 10.
 	 */
-	verticalScrollbarSize?: number;
+	vewticawScwowwbawSize?: numba;
 	/**
-	 * Width (in px) of the vertical scrollbar slider.
-	 * Defaults to `verticalScrollbarSize`
+	 * Width (in px) of the vewticaw scwowwbaw swida.
+	 * Defauwts to `vewticawScwowwbawSize`
 	 */
-	verticalSliderSize?: number;
+	vewticawSwidewSize?: numba;
 	/**
-	 * Render arrows (top/bottom) for the vertical scrollbar.
-	 * Defaults to false.
+	 * Wenda awwows (top/bottom) fow the vewticaw scwowwbaw.
+	 * Defauwts to fawse.
 	 */
-	verticalHasArrows?: boolean;
+	vewticawHasAwwows?: boowean;
 	/**
-	 * Scroll gutter clicks move by page vs. jump to position.
-	 * Defaults to false.
+	 * Scwoww gutta cwicks move by page vs. jump to position.
+	 * Defauwts to fawse.
 	 */
-	scrollByPage?: boolean;
+	scwowwByPage?: boowean;
 }
 
-export interface ScrollableElementChangeOptions {
-	handleMouseWheel?: boolean;
-	mouseWheelScrollSensitivity?: number;
-	fastScrollSensitivity?: number;
-	scrollPredominantAxis?: boolean;
-	horizontal?: ScrollbarVisibility;
-	horizontalScrollbarSize?: number;
-	vertical?: ScrollbarVisibility;
-	verticalScrollbarSize?: number;
-	scrollByPage?: boolean;
+expowt intewface ScwowwabweEwementChangeOptions {
+	handweMouseWheew?: boowean;
+	mouseWheewScwowwSensitivity?: numba;
+	fastScwowwSensitivity?: numba;
+	scwowwPwedominantAxis?: boowean;
+	howizontaw?: ScwowwbawVisibiwity;
+	howizontawScwowwbawSize?: numba;
+	vewticaw?: ScwowwbawVisibiwity;
+	vewticawScwowwbawSize?: numba;
+	scwowwByPage?: boowean;
 }
 
-export interface ScrollableElementResolvedOptions {
-	lazyRender: boolean;
-	className: string;
-	useShadows: boolean;
-	handleMouseWheel: boolean;
-	flipAxes: boolean;
-	scrollYToX: boolean;
-	consumeMouseWheelIfScrollbarIsNeeded: boolean;
-	alwaysConsumeMouseWheel: boolean;
-	mouseWheelScrollSensitivity: number;
-	fastScrollSensitivity: number;
-	scrollPredominantAxis: boolean;
-	mouseWheelSmoothScroll: boolean;
-	arrowSize: number;
-	listenOnDomNode: HTMLElement | null;
-	horizontal: ScrollbarVisibility;
-	horizontalScrollbarSize: number;
-	horizontalSliderSize: number;
-	horizontalHasArrows: boolean;
-	vertical: ScrollbarVisibility;
-	verticalScrollbarSize: number;
-	verticalSliderSize: number;
-	verticalHasArrows: boolean;
-	scrollByPage: boolean;
+expowt intewface ScwowwabweEwementWesowvedOptions {
+	wazyWenda: boowean;
+	cwassName: stwing;
+	useShadows: boowean;
+	handweMouseWheew: boowean;
+	fwipAxes: boowean;
+	scwowwYToX: boowean;
+	consumeMouseWheewIfScwowwbawIsNeeded: boowean;
+	awwaysConsumeMouseWheew: boowean;
+	mouseWheewScwowwSensitivity: numba;
+	fastScwowwSensitivity: numba;
+	scwowwPwedominantAxis: boowean;
+	mouseWheewSmoothScwoww: boowean;
+	awwowSize: numba;
+	wistenOnDomNode: HTMWEwement | nuww;
+	howizontaw: ScwowwbawVisibiwity;
+	howizontawScwowwbawSize: numba;
+	howizontawSwidewSize: numba;
+	howizontawHasAwwows: boowean;
+	vewticaw: ScwowwbawVisibiwity;
+	vewticawScwowwbawSize: numba;
+	vewticawSwidewSize: numba;
+	vewticawHasAwwows: boowean;
+	scwowwByPage: boowean;
 }

@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { StartupProfiler } from './startupProfiler';
-import { StartupTimings } from './startupTimings';
+impowt { WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions, IWowkbenchContwibutionsWegistwy } fwom 'vs/wowkbench/common/contwibutions';
+impowt { StawtupPwofiwa } fwom './stawtupPwofiwa';
+impowt { StawtupTimings } fwom './stawtupTimings';
 
-// -- startup profiler
+// -- stawtup pwofiwa
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupProfiler,
-	LifecyclePhase.Restored
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench).wegistewWowkbenchContwibution(
+	StawtupPwofiwa,
+	WifecycwePhase.Westowed
 );
 
-// -- startup timings
+// -- stawtup timings
 
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
-	StartupTimings,
-	LifecyclePhase.Eventually
+Wegistwy.as<IWowkbenchContwibutionsWegistwy>(Extensions.Wowkbench).wegistewWowkbenchContwibution(
+	StawtupTimings,
+	WifecycwePhase.Eventuawwy
 );

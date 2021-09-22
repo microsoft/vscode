@@ -1,204 +1,204 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+impowt { CancewabwePwomise, cweateCancewabwePwomise, WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
 
-export interface IHoverComputer<Result> {
-
-	/**
-	 * This is called after half the hover time
-	 */
-	computeAsync?: (token: CancellationToken) => Promise<Result>;
+expowt intewface IHovewComputa<Wesuwt> {
 
 	/**
-	 * This is called after all the hover time
+	 * This is cawwed afta hawf the hova time
 	 */
-	computeSync?: () => Result;
+	computeAsync?: (token: CancewwationToken) => Pwomise<Wesuwt>;
 
 	/**
-	 * This is called whenever one of the compute* methods returns a truey value
+	 * This is cawwed afta aww the hova time
 	 */
-	onResult: (result: Result, isFromSynchronousComputation: boolean) => void;
+	computeSync?: () => Wesuwt;
 
 	/**
-	 * This is what will be sent as progress/complete to the computation promise
+	 * This is cawwed wheneva one of the compute* methods wetuwns a twuey vawue
 	 */
-	getResult: () => Result;
+	onWesuwt: (wesuwt: Wesuwt, isFwomSynchwonousComputation: boowean) => void;
 
-	getResultWithLoadingMessage: () => Result;
+	/**
+	 * This is what wiww be sent as pwogwess/compwete to the computation pwomise
+	 */
+	getWesuwt: () => Wesuwt;
+
+	getWesuwtWithWoadingMessage: () => Wesuwt;
 
 }
 
-const enum ComputeHoverOperationState {
-	IDLE = 0,
-	FIRST_WAIT = 1,
+const enum ComputeHovewOpewationState {
+	IDWE = 0,
+	FIWST_WAIT = 1,
 	SECOND_WAIT = 2,
-	WAITING_FOR_ASYNC_COMPUTATION = 3
+	WAITING_FOW_ASYNC_COMPUTATION = 3
 }
 
-export const enum HoverStartMode {
-	Delayed = 0,
+expowt const enum HovewStawtMode {
+	Dewayed = 0,
 	Immediate = 1
 }
 
-export class HoverOperation<Result> {
+expowt cwass HovewOpewation<Wesuwt> {
 
-	private readonly _computer: IHoverComputer<Result>;
-	private _state: ComputeHoverOperationState;
-	private _hoverTime: number;
+	pwivate weadonwy _computa: IHovewComputa<Wesuwt>;
+	pwivate _state: ComputeHovewOpewationState;
+	pwivate _hovewTime: numba;
 
-	private readonly _firstWaitScheduler: RunOnceScheduler;
-	private readonly _secondWaitScheduler: RunOnceScheduler;
-	private readonly _loadingMessageScheduler: RunOnceScheduler;
-	private _asyncComputationPromise: CancelablePromise<Result> | null;
-	private _asyncComputationPromiseDone: boolean;
+	pwivate weadonwy _fiwstWaitScheduwa: WunOnceScheduwa;
+	pwivate weadonwy _secondWaitScheduwa: WunOnceScheduwa;
+	pwivate weadonwy _woadingMessageScheduwa: WunOnceScheduwa;
+	pwivate _asyncComputationPwomise: CancewabwePwomise<Wesuwt> | nuww;
+	pwivate _asyncComputationPwomiseDone: boowean;
 
-	private readonly _completeCallback: (r: Result) => void;
-	private readonly _errorCallback: ((err: any) => void) | null | undefined;
-	private readonly _progressCallback: (progress: any) => void;
+	pwivate weadonwy _compweteCawwback: (w: Wesuwt) => void;
+	pwivate weadonwy _ewwowCawwback: ((eww: any) => void) | nuww | undefined;
+	pwivate weadonwy _pwogwessCawwback: (pwogwess: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: ((err: any) => void) | null | undefined, progress: (progress: any) => void, hoverTime: number) {
-		this._computer = computer;
-		this._state = ComputeHoverOperationState.IDLE;
-		this._hoverTime = hoverTime;
+	constwuctow(computa: IHovewComputa<Wesuwt>, success: (w: Wesuwt) => void, ewwow: ((eww: any) => void) | nuww | undefined, pwogwess: (pwogwess: any) => void, hovewTime: numba) {
+		this._computa = computa;
+		this._state = ComputeHovewOpewationState.IDWE;
+		this._hovewTime = hovewTime;
 
-		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
-		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);
-		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 0);
+		this._fiwstWaitScheduwa = new WunOnceScheduwa(() => this._twiggewAsyncComputation(), 0);
+		this._secondWaitScheduwa = new WunOnceScheduwa(() => this._twiggewSyncComputation(), 0);
+		this._woadingMessageScheduwa = new WunOnceScheduwa(() => this._showWoadingMessage(), 0);
 
-		this._asyncComputationPromise = null;
-		this._asyncComputationPromiseDone = false;
+		this._asyncComputationPwomise = nuww;
+		this._asyncComputationPwomiseDone = fawse;
 
-		this._completeCallback = success;
-		this._errorCallback = error;
-		this._progressCallback = progress;
+		this._compweteCawwback = success;
+		this._ewwowCawwback = ewwow;
+		this._pwogwessCawwback = pwogwess;
 	}
 
-	public setHoverTime(hoverTime: number): void {
-		this._hoverTime = hoverTime;
+	pubwic setHovewTime(hovewTime: numba): void {
+		this._hovewTime = hovewTime;
 	}
 
-	private _firstWaitTime(): number {
-		return this._hoverTime / 2;
+	pwivate _fiwstWaitTime(): numba {
+		wetuwn this._hovewTime / 2;
 	}
 
-	private _secondWaitTime(): number {
-		return this._hoverTime / 2;
+	pwivate _secondWaitTime(): numba {
+		wetuwn this._hovewTime / 2;
 	}
 
-	private _loadingMessageTime(): number {
-		return 3 * this._hoverTime;
+	pwivate _woadingMessageTime(): numba {
+		wetuwn 3 * this._hovewTime;
 	}
 
-	private _triggerAsyncComputation(): void {
-		this._state = ComputeHoverOperationState.SECOND_WAIT;
-		this._secondWaitScheduler.schedule(this._secondWaitTime());
+	pwivate _twiggewAsyncComputation(): void {
+		this._state = ComputeHovewOpewationState.SECOND_WAIT;
+		this._secondWaitScheduwa.scheduwe(this._secondWaitTime());
 
-		if (this._computer.computeAsync) {
-			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = createCancelablePromise(token => this._computer.computeAsync!(token));
-			this._asyncComputationPromise.then((asyncResult: Result) => {
-				this._asyncComputationPromiseDone = true;
-				this._withAsyncResult(asyncResult);
-			}, (e) => this._onError(e));
+		if (this._computa.computeAsync) {
+			this._asyncComputationPwomiseDone = fawse;
+			this._asyncComputationPwomise = cweateCancewabwePwomise(token => this._computa.computeAsync!(token));
+			this._asyncComputationPwomise.then((asyncWesuwt: Wesuwt) => {
+				this._asyncComputationPwomiseDone = twue;
+				this._withAsyncWesuwt(asyncWesuwt);
+			}, (e) => this._onEwwow(e));
 
-		} else {
-			this._asyncComputationPromiseDone = true;
+		} ewse {
+			this._asyncComputationPwomiseDone = twue;
 		}
 	}
 
-	private _triggerSyncComputation(): void {
-		if (this._computer.computeSync) {
-			this._computer.onResult(this._computer.computeSync(), true);
+	pwivate _twiggewSyncComputation(): void {
+		if (this._computa.computeSync) {
+			this._computa.onWesuwt(this._computa.computeSync(), twue);
 		}
 
-		if (this._asyncComputationPromiseDone) {
-			this._state = ComputeHoverOperationState.IDLE;
-			this._onComplete(this._computer.getResult());
-		} else {
-			this._state = ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION;
-			this._onProgress(this._computer.getResult());
-		}
-	}
-
-	private _showLoadingMessage(): void {
-		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
-			this._onProgress(this._computer.getResultWithLoadingMessage());
+		if (this._asyncComputationPwomiseDone) {
+			this._state = ComputeHovewOpewationState.IDWE;
+			this._onCompwete(this._computa.getWesuwt());
+		} ewse {
+			this._state = ComputeHovewOpewationState.WAITING_FOW_ASYNC_COMPUTATION;
+			this._onPwogwess(this._computa.getWesuwt());
 		}
 	}
 
-	private _withAsyncResult(asyncResult: Result): void {
-		if (asyncResult) {
-			this._computer.onResult(asyncResult, false);
-		}
-
-		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
-			this._state = ComputeHoverOperationState.IDLE;
-			this._onComplete(this._computer.getResult());
+	pwivate _showWoadingMessage(): void {
+		if (this._state === ComputeHovewOpewationState.WAITING_FOW_ASYNC_COMPUTATION) {
+			this._onPwogwess(this._computa.getWesuwtWithWoadingMessage());
 		}
 	}
 
-	private _onComplete(value: Result): void {
-		this._completeCallback(value);
-	}
+	pwivate _withAsyncWesuwt(asyncWesuwt: Wesuwt): void {
+		if (asyncWesuwt) {
+			this._computa.onWesuwt(asyncWesuwt, fawse);
+		}
 
-	private _onError(error: any): void {
-		if (this._errorCallback) {
-			this._errorCallback(error);
-		} else {
-			onUnexpectedError(error);
+		if (this._state === ComputeHovewOpewationState.WAITING_FOW_ASYNC_COMPUTATION) {
+			this._state = ComputeHovewOpewationState.IDWE;
+			this._onCompwete(this._computa.getWesuwt());
 		}
 	}
 
-	private _onProgress(value: Result): void {
-		this._progressCallback(value);
+	pwivate _onCompwete(vawue: Wesuwt): void {
+		this._compweteCawwback(vawue);
 	}
 
-	public start(mode: HoverStartMode): void {
-		if (mode === HoverStartMode.Delayed) {
-			if (this._state === ComputeHoverOperationState.IDLE) {
-				this._state = ComputeHoverOperationState.FIRST_WAIT;
-				this._firstWaitScheduler.schedule(this._firstWaitTime());
-				this._loadingMessageScheduler.schedule(this._loadingMessageTime());
+	pwivate _onEwwow(ewwow: any): void {
+		if (this._ewwowCawwback) {
+			this._ewwowCawwback(ewwow);
+		} ewse {
+			onUnexpectedEwwow(ewwow);
+		}
+	}
+
+	pwivate _onPwogwess(vawue: Wesuwt): void {
+		this._pwogwessCawwback(vawue);
+	}
+
+	pubwic stawt(mode: HovewStawtMode): void {
+		if (mode === HovewStawtMode.Dewayed) {
+			if (this._state === ComputeHovewOpewationState.IDWE) {
+				this._state = ComputeHovewOpewationState.FIWST_WAIT;
+				this._fiwstWaitScheduwa.scheduwe(this._fiwstWaitTime());
+				this._woadingMessageScheduwa.scheduwe(this._woadingMessageTime());
 			}
-		} else {
+		} ewse {
 			switch (this._state) {
-				case ComputeHoverOperationState.IDLE:
-					this._triggerAsyncComputation();
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
-					break;
-				case ComputeHoverOperationState.SECOND_WAIT:
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
-					break;
+				case ComputeHovewOpewationState.IDWE:
+					this._twiggewAsyncComputation();
+					this._secondWaitScheduwa.cancew();
+					this._twiggewSyncComputation();
+					bweak;
+				case ComputeHovewOpewationState.SECOND_WAIT:
+					this._secondWaitScheduwa.cancew();
+					this._twiggewSyncComputation();
+					bweak;
 			}
 		}
 	}
 
-	public cancel(): void {
-		this._loadingMessageScheduler.cancel();
-		if (this._state === ComputeHoverOperationState.FIRST_WAIT) {
-			this._firstWaitScheduler.cancel();
+	pubwic cancew(): void {
+		this._woadingMessageScheduwa.cancew();
+		if (this._state === ComputeHovewOpewationState.FIWST_WAIT) {
+			this._fiwstWaitScheduwa.cancew();
 		}
-		if (this._state === ComputeHoverOperationState.SECOND_WAIT) {
-			this._secondWaitScheduler.cancel();
-			if (this._asyncComputationPromise) {
-				this._asyncComputationPromise.cancel();
-				this._asyncComputationPromise = null;
+		if (this._state === ComputeHovewOpewationState.SECOND_WAIT) {
+			this._secondWaitScheduwa.cancew();
+			if (this._asyncComputationPwomise) {
+				this._asyncComputationPwomise.cancew();
+				this._asyncComputationPwomise = nuww;
 			}
 		}
-		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
-			if (this._asyncComputationPromise) {
-				this._asyncComputationPromise.cancel();
-				this._asyncComputationPromise = null;
+		if (this._state === ComputeHovewOpewationState.WAITING_FOW_ASYNC_COMPUTATION) {
+			if (this._asyncComputationPwomise) {
+				this._asyncComputationPwomise.cancew();
+				this._asyncComputationPwomise = nuww;
 			}
 		}
-		this._state = ComputeHoverOperationState.IDLE;
+		this._state = ComputeHovewOpewationState.IDWE;
 	}
 
 }

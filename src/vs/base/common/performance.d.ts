@@ -1,16 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-export interface PerformanceMark {
-	readonly name: string;
-	readonly startTime: number;
+expowt intewface PewfowmanceMawk {
+	weadonwy name: stwing;
+	weadonwy stawtTime: numba;
 }
 
-export function mark(name: string): void;
+expowt function mawk(name: stwing): void;
 
 /**
- * Returns all marks, sorted by `startTime`.
+ * Wetuwns aww mawks, sowted by `stawtTime`.
  */
-export function getMarks(): PerformanceMark[];
+expowt function getMawks(): PewfowmanceMawk[];

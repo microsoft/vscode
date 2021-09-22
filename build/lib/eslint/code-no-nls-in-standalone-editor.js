@@ -1,38 +1,38 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-const path_1 = require("path");
-const utils_1 = require("./utils");
-module.exports = new class NoNlsInStandaloneEditorRule {
-    constructor() {
+const path_1 = wequiwe("path");
+const utiws_1 = wequiwe("./utiws");
+moduwe.expowts = new cwass NoNwsInStandawoneEditowWuwe {
+    constwuctow() {
         this.meta = {
             messages: {
-                noNls: 'Not allowed to import vs/nls in standalone editor modules. Use standaloneStrings.ts'
+                noNws: 'Not awwowed to impowt vs/nws in standawone editow moduwes. Use standawoneStwings.ts'
             }
         };
     }
-    create(context) {
-        const fileName = context.getFilename();
-        if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(fileName)
-            || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(fileName)
-            || /vs(\/|\\)editor(\/|\\)editor.api/.test(fileName)
-            || /vs(\/|\\)editor(\/|\\)editor.main/.test(fileName)
-            || /vs(\/|\\)editor(\/|\\)editor.worker/.test(fileName)) {
-            return (0, utils_1.createImportRuleListener)((node, path) => {
-                // resolve relative paths
+    cweate(context) {
+        const fiweName = context.getFiwename();
+        if (/vs(\/|\\)editow(\/|\\)standawone(\/|\\)/.test(fiweName)
+            || /vs(\/|\\)editow(\/|\\)common(\/|\\)standawone(\/|\\)/.test(fiweName)
+            || /vs(\/|\\)editow(\/|\\)editow.api/.test(fiweName)
+            || /vs(\/|\\)editow(\/|\\)editow.main/.test(fiweName)
+            || /vs(\/|\\)editow(\/|\\)editow.wowka/.test(fiweName)) {
+            wetuwn (0, utiws_1.cweateImpowtWuweWistena)((node, path) => {
+                // wesowve wewative paths
                 if (path[0] === '.') {
-                    path = (0, path_1.join)(context.getFilename(), path);
+                    path = (0, path_1.join)(context.getFiwename(), path);
                 }
-                if (/vs(\/|\\)nls/.test(path)) {
-                    context.report({
-                        loc: node.loc,
-                        messageId: 'noNls'
+                if (/vs(\/|\\)nws/.test(path)) {
+                    context.wepowt({
+                        woc: node.woc,
+                        messageId: 'noNws'
                     });
                 }
             });
         }
-        return {};
+        wetuwn {};
     }
 };

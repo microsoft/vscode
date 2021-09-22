@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { parse, stringify } from 'vs/base/common/marshalling';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { Schemas } from 'vs/base/common/network';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IdleValue } from 'vs/base/common/async';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { pawse, stwingify } fwom 'vs/base/common/mawshawwing';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { ITextEditowOptions, IWesouwceEditowInput, TextEditowSewectionWeveawType, IEditowOptions } fwom 'vs/pwatfowm/editow/common/editow';
+impowt { IEditowPane, IEditowCwoseEvent, EditowWesouwceAccessow, IEditowIdentifia, GwoupIdentifia, EditowsOwda, SideBySideEditow, IUntypedEditowInput, isWesouwceEditowInput, isEditowInput, isSideBySideEditowInput, EditowCwoseContext } fwom 'vs/wowkbench/common/editow';
+impowt { EditowInput } fwom 'vs/wowkbench/common/editow/editowInput';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IHistowySewvice } fwom 'vs/wowkbench/sewvices/histowy/common/histowy';
+impowt { FiweChangesEvent, IFiweSewvice, FiweChangeType, FIWES_EXCWUDE_CONFIG, FiweOpewationEvent, FiweOpewation } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { dispose, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { getCodeEditow, ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { getExcwudes, ISeawchConfiguwation, SEAWCH_EXCWUDE_CONFIG } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { ICuwsowPositionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { EditowSewviceImpw } fwom 'vs/wowkbench/bwowsa/pawts/editow/editow';
+impowt { IWowkbenchWayoutSewvice } fwom 'vs/wowkbench/sewvices/wayout/bwowsa/wayoutSewvice';
+impowt { IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { coawesce, wemove } fwom 'vs/base/common/awways';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { addDisposabweWistena, EventType, EventHewpa } fwom 'vs/base/bwowsa/dom';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IdweVawue } fwom 'vs/base/common/async';
+impowt { WesouwceGwobMatcha } fwom 'vs/wowkbench/common/wesouwces';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { IWifecycweSewvice, WifecycwePhase } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
 
 /**
- * Stores the selection & view state of an editor and allows to compare it to other selection states.
+ * Stowes the sewection & view state of an editow and awwows to compawe it to otha sewection states.
  */
-class TextEditorState {
+cwass TextEditowState {
 
-	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
+	pwivate static weadonwy EDITOW_SEWECTION_THWESHOWD = 10; // numba of wines to move in editow to justify fow new state
 
-	constructor(private _editorInput: EditorInput, private _selection: Selection | null) { }
+	constwuctow(pwivate _editowInput: EditowInput, pwivate _sewection: Sewection | nuww) { }
 
-	get editorInput(): EditorInput {
-		return this._editorInput;
+	get editowInput(): EditowInput {
+		wetuwn this._editowInput;
 	}
 
-	get selection(): Selection | undefined {
-		return withNullAsUndefined(this._selection);
+	get sewection(): Sewection | undefined {
+		wetuwn withNuwwAsUndefined(this._sewection);
 	}
 
-	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
-		if (event?.source === 'api') {
-			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
+	justifiesNewPushState(otha: TextEditowState, event?: ICuwsowPositionChangedEvent): boowean {
+		if (event?.souwce === 'api') {
+			wetuwn twue; // awways wet API souwce win (e.g. "Go to definition" shouwd add a histowy entwy)
 		}
 
-		if (!this._editorInput.matches(other._editorInput)) {
-			return true; // different editor inputs
+		if (!this._editowInput.matches(otha._editowInput)) {
+			wetuwn twue; // diffewent editow inputs
 		}
 
-		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
-			return true; // unknown selections
+		if (!Sewection.isISewection(this._sewection) || !Sewection.isISewection(otha._sewection)) {
+			wetuwn twue; // unknown sewections
 		}
 
-		const thisLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
-		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
+		const thisWineNumba = Math.min(this._sewection.sewectionStawtWineNumba, this._sewection.positionWineNumba);
+		const othewWineNumba = Math.min(otha._sewection.sewectionStawtWineNumba, otha._sewection.positionWineNumba);
 
-		if (Math.abs(thisLineNumber - otherLineNumber) < TextEditorState.EDITOR_SELECTION_THRESHOLD) {
-			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
+		if (Math.abs(thisWineNumba - othewWineNumba) < TextEditowState.EDITOW_SEWECTION_THWESHOWD) {
+			wetuwn fawse; // ignowe sewection changes in the wange of EditowState.EDITOW_SEWECTION_THWESHOWD wines
 		}
 
-		return true;
+		wetuwn twue;
 	}
 }
 
-interface ISerializedEditorHistoryEntry {
+intewface ISewiawizedEditowHistowyEntwy {
 
 	/**
-	 * The editor for the history entry. We currently only
-	 * support untyped editor inputs with `resource`.
+	 * The editow fow the histowy entwy. We cuwwentwy onwy
+	 * suppowt untyped editow inputs with `wesouwce`.
 	 */
-	editor: IResourceEditorInput;
+	editow: IWesouwceEditowInput;
 }
 
-interface IStackEntry {
-	editor: EditorInput | IResourceEditorInput;
-	selection?: Selection;
+intewface IStackEntwy {
+	editow: EditowInput | IWesouwceEditowInput;
+	sewection?: Sewection;
 }
 
-interface IRecentlyClosedEditor {
-	editorId: string | undefined;
-	editor: IUntypedEditorInput;
+intewface IWecentwyCwosedEditow {
+	editowId: stwing | undefined;
+	editow: IUntypedEditowInput;
 
-	resource: URI | undefined;
-	associatedResources: URI[];
+	wesouwce: UWI | undefined;
+	associatedWesouwces: UWI[];
 
-	index: number;
-	sticky: boolean;
+	index: numba;
+	sticky: boowean;
 }
 
-export class HistoryService extends Disposable implements IHistoryService {
+expowt cwass HistowySewvice extends Disposabwe impwements IHistowySewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private readonly activeEditorListeners = this._register(new DisposableStore());
-	private lastActiveEditor?: IEditorIdentifier;
+	pwivate weadonwy activeEditowWistenews = this._wegista(new DisposabweStowe());
+	pwivate wastActiveEditow?: IEditowIdentifia;
 
-	private readonly editorStackListeners = new Map();
+	pwivate weadonwy editowStackWistenews = new Map();
 
-	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IPathService private readonly pathService: IPathService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+	constwuctow(
+		@IEditowSewvice pwivate weadonwy editowSewvice: EditowSewviceImpw,
+		@IEditowGwoupsSewvice pwivate weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy contextSewvice: IWowkspaceContextSewvice,
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IConfiguwationSewvice pwivate weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IFiweSewvice pwivate weadonwy fiweSewvice: IFiweSewvice,
+		@IWowkspacesSewvice pwivate weadonwy wowkspacesSewvice: IWowkspacesSewvice,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IWowkbenchWayoutSewvice pwivate weadonwy wayoutSewvice: IWowkbenchWayoutSewvice,
+		@IContextKeySewvice pwivate weadonwy contextKeySewvice: IContextKeySewvice,
+		@IPathSewvice pwivate weadonwy pathSewvice: IPathSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IWifecycweSewvice pwivate weadonwy wifecycweSewvice: IWifecycweSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
-		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+	pwivate wegistewWistenews(): void {
+		this._wegista(this.editowSewvice.onDidActiveEditowChange(() => this.onDidActiveEditowChange()));
+		this._wegista(this.editowSewvice.onDidOpenEditowFaiw(event => this.wemove(event.editow)));
+		this._wegista(this.editowSewvice.onDidCwoseEditow(event => this.onDidCwoseEditow(event)));
+		this._wegista(this.editowSewvice.onDidMostWecentwyActiveEditowsChange(() => this.handweEditowEventInWecentEditowsStack()));
 
-		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
-		this._register(this.fileService.onDidRunOperation(event => this.onDidFilesChange(event)));
+		this._wegista(this.fiweSewvice.onDidFiwesChange(event => this.onDidFiwesChange(event)));
+		this._wegista(this.fiweSewvice.onDidWunOpewation(event => this.onDidFiwesChange(event)));
 
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
+		this._wegista(this.stowageSewvice.onWiwwSaveState(() => this.saveState()));
 
-		// if the service is created late enough that an editor is already opened
-		// make sure to trigger the onActiveEditorChanged() to track the editor
-		// properly (fixes https://github.com/microsoft/vscode/issues/59908)
-		if (this.editorService.activeEditorPane) {
-			this.onDidActiveEditorChange();
+		// if the sewvice is cweated wate enough that an editow is awweady opened
+		// make suwe to twigga the onActiveEditowChanged() to twack the editow
+		// pwopewwy (fixes https://github.com/micwosoft/vscode/issues/59908)
+		if (this.editowSewvice.activeEditowPane) {
+			this.onDidActiveEditowChange();
 		}
 
-		// Mouse back/forward support
-		const mouseBackForwardSupportListener = this._register(new DisposableStore());
-		const handleMouseBackForwardSupport = () => {
-			mouseBackForwardSupportListener.clear();
+		// Mouse back/fowwawd suppowt
+		const mouseBackFowwawdSuppowtWistena = this._wegista(new DisposabweStowe());
+		const handweMouseBackFowwawdSuppowt = () => {
+			mouseBackFowwawdSuppowtWistena.cweaw();
 
-			if (this.configurationService.getValue('workbench.editor.mouseBackForwardToNavigate')) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+			if (this.configuwationSewvice.getVawue('wowkbench.editow.mouseBackFowwawdToNavigate')) {
+				mouseBackFowwawdSuppowtWistena.add(addDisposabweWistena(this.wayoutSewvice.containa, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
 			}
 		};
 
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration('workbench.editor.mouseBackForwardToNavigate')) {
-				handleMouseBackForwardSupport();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(event => {
+			if (event.affectsConfiguwation('wowkbench.editow.mouseBackFowwawdToNavigate')) {
+				handweMouseBackFowwawdSuppowt();
 			}
 		}));
 
-		handleMouseBackForwardSupport();
+		handweMouseBackFowwawdSuppowt();
 	}
 
-	private onMouseDown(event: MouseEvent): void {
+	pwivate onMouseDown(event: MouseEvent): void {
 
-		// Support to navigate in history when mouse buttons 4/5 are pressed
+		// Suppowt to navigate in histowy when mouse buttons 4/5 awe pwessed
 		switch (event.button) {
 			case 3:
-				EventHelper.stop(event);
+				EventHewpa.stop(event);
 				this.back();
-				break;
+				bweak;
 			case 4:
-				EventHelper.stop(event);
-				this.forward();
-				break;
+				EventHewpa.stop(event);
+				this.fowwawd();
+				bweak;
 		}
 	}
 
-	private onDidActiveEditorChange(): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditorPane)) {
-			return; // return if the active editor is still the same
+	pwivate onDidActiveEditowChange(): void {
+		const activeEditowPane = this.editowSewvice.activeEditowPane;
+		if (this.wastActiveEditow && this.matchesEditow(this.wastActiveEditow, activeEditowPane)) {
+			wetuwn; // wetuwn if the active editow is stiww the same
 		}
 
-		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
+		// Wememba as wast active editow (can be undefined if none opened)
+		this.wastActiveEditow = activeEditowPane?.input && activeEditowPane.gwoup ? { editow: activeEditowPane.input, gwoupId: activeEditowPane.gwoup.id } : undefined;
 
-		// Dispose old listeners
-		this.activeEditorListeners.clear();
+		// Dispose owd wistenews
+		this.activeEditowWistenews.cweaw();
 
-		// Handle editor change
-		this.handleActiveEditorChange(activeEditorPane);
+		// Handwe editow change
+		this.handweActiveEditowChange(activeEditowPane);
 
-		// Apply listener for selection changes if this is a text editor
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		const activeEditor = this.editorService.activeEditor;
-		if (activeTextEditorControl) {
+		// Appwy wistena fow sewection changes if this is a text editow
+		const activeTextEditowContwow = getCodeEditow(this.editowSewvice.activeTextEditowContwow);
+		const activeEditow = this.editowSewvice.activeEditow;
+		if (activeTextEditowContwow) {
 
-			// Debounce the event with a timeout of 0ms so that multiple calls to
-			// editor.setSelection() are folded into one. We do not want to record
-			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeEditorPane, event);
+			// Debounce the event with a timeout of 0ms so that muwtipwe cawws to
+			// editow.setSewection() awe fowded into one. We do not want to wecowd
+			// subsequent histowy navigations fow such API cawws.
+			this.activeEditowWistenews.add(Event.debounce(activeTextEditowContwow.onDidChangeCuwsowPosition, (wast, event) => event, 0)((event => {
+				this.handweEditowSewectionChangeEvent(activeEditowPane, event);
 			})));
 
-			// Track the last edit location by tracking model content change events
-			// Use a debouncer to make sure to capture the correct cursor position
-			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeModelContent, (last, event) => event, 0)((event => {
-				if (activeEditor) {
-					this.rememberLastEditLocation(activeEditor, activeTextEditorControl);
+			// Twack the wast edit wocation by twacking modew content change events
+			// Use a debounca to make suwe to captuwe the cowwect cuwsow position
+			// afta the modew content has changed.
+			this.activeEditowWistenews.add(Event.debounce(activeTextEditowContwow.onDidChangeModewContent, (wast, event) => event, 0)((event => {
+				if (activeEditow) {
+					this.wemembewWastEditWocation(activeEditow, activeTextEditowContwow);
 				}
 			})));
 		}
 	}
 
-	private matchesEditor(identifier: IEditorIdentifier, editor?: IEditorPane): boolean {
-		if (!editor || !editor.group) {
-			return false;
+	pwivate matchesEditow(identifia: IEditowIdentifia, editow?: IEditowPane): boowean {
+		if (!editow || !editow.gwoup) {
+			wetuwn fawse;
 		}
 
-		if (identifier.groupId !== editor.group.id) {
-			return false;
+		if (identifia.gwoupId !== editow.gwoup.id) {
+			wetuwn fawse;
 		}
 
-		return editor.input ? identifier.editor.matches(editor.input) : false;
+		wetuwn editow.input ? identifia.editow.matches(editow.input) : fawse;
 	}
 
-	private onDidFilesChange(event: FileChangesEvent | FileOperationEvent): void {
+	pwivate onDidFiwesChange(event: FiweChangesEvent | FiweOpewationEvent): void {
 
-		// External file changes (watcher)
-		if (event instanceof FileChangesEvent) {
-			if (event.gotDeleted()) {
-				this.remove(event);
+		// Extewnaw fiwe changes (watcha)
+		if (event instanceof FiweChangesEvent) {
+			if (event.gotDeweted()) {
+				this.wemove(event);
 			}
 		}
 
-		// Internal file changes (e.g. explorer)
-		else {
+		// Intewnaw fiwe changes (e.g. expwowa)
+		ewse {
 
-			// Delete
-			if (event.isOperation(FileOperation.DELETE)) {
-				this.remove(event);
+			// Dewete
+			if (event.isOpewation(FiweOpewation.DEWETE)) {
+				this.wemove(event);
 			}
 
 			// Move
-			else if (event.isOperation(FileOperation.MOVE) && event.target.isFile) {
+			ewse if (event.isOpewation(FiweOpewation.MOVE) && event.tawget.isFiwe) {
 				this.move(event);
 			}
 		}
 	}
 
-	private handleEditorSelectionChangeEvent(editor?: IEditorPane, event?: ICursorPositionChangedEvent): void {
-		this.handleEditorEventInNavigationStack(editor, event);
+	pwivate handweEditowSewectionChangeEvent(editow?: IEditowPane, event?: ICuwsowPositionChangedEvent): void {
+		this.handweEditowEventInNavigationStack(editow, event);
 	}
 
-	private handleActiveEditorChange(editor?: IEditorPane): void {
-		this.handleEditorEventInHistory(editor);
-		this.handleEditorEventInNavigationStack(editor);
+	pwivate handweActiveEditowChange(editow?: IEditowPane): void {
+		this.handweEditowEventInHistowy(editow);
+		this.handweEditowEventInNavigationStack(editow);
 	}
 
-	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
-		const toDispose = Event.once(editor.onWillDispose)(() => listener());
+	pwivate onEditowDispose(editow: EditowInput, wistena: Function, mapEditowToDispose: Map<EditowInput, DisposabweStowe>): void {
+		const toDispose = Event.once(editow.onWiwwDispose)(() => wistena());
 
-		let disposables = mapEditorToDispose.get(editor);
-		if (!disposables) {
-			disposables = new DisposableStore();
-			mapEditorToDispose.set(editor, disposables);
+		wet disposabwes = mapEditowToDispose.get(editow);
+		if (!disposabwes) {
+			disposabwes = new DisposabweStowe();
+			mapEditowToDispose.set(editow, disposabwes);
 		}
 
-		disposables.add(toDispose);
+		disposabwes.add(toDispose);
 	}
 
-	private clearOnEditorDispose(editor: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
-		if (!isEditorInput(editor)) {
-			return; // only supported when passing in an actual editor input
+	pwivate cweawOnEditowDispose(editow: EditowInput | IWesouwceEditowInput | FiweChangesEvent | FiweOpewationEvent, mapEditowToDispose: Map<EditowInput, DisposabweStowe>): void {
+		if (!isEditowInput(editow)) {
+			wetuwn; // onwy suppowted when passing in an actuaw editow input
 		}
 
-		const disposables = mapEditorToDispose.get(editor);
-		if (disposables) {
-			dispose(disposables);
-			mapEditorToDispose.delete(editor);
+		const disposabwes = mapEditowToDispose.get(editow);
+		if (disposabwes) {
+			dispose(disposabwes);
+			mapEditowToDispose.dewete(editow);
 		}
 	}
 
-	private move(event: FileOperationEvent): void {
-		this.moveInHistory(event);
+	pwivate move(event: FiweOpewationEvent): void {
+		this.moveInHistowy(event);
 		this.moveInNavigationStack(event);
 	}
 
-	private remove(input: EditorInput): void;
-	private remove(event: FileChangesEvent): void;
-	private remove(event: FileOperationEvent): void;
-	private remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
-		this.removeFromHistory(arg1);
-		this.removeFromNavigationStack(arg1);
-		this.removeFromRecentlyClosedEditors(arg1);
-		this.removeFromRecentlyOpened(arg1);
+	pwivate wemove(input: EditowInput): void;
+	pwivate wemove(event: FiweChangesEvent): void;
+	pwivate wemove(event: FiweOpewationEvent): void;
+	pwivate wemove(awg1: EditowInput | FiweChangesEvent | FiweOpewationEvent): void {
+		this.wemoveFwomHistowy(awg1);
+		this.wemoveFwomNavigationStack(awg1);
+		this.wemoveFwomWecentwyCwosedEditows(awg1);
+		this.wemoveFwomWecentwyOpened(awg1);
 	}
 
-	private removeFromRecentlyOpened(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
-		let resource: URI | undefined = undefined;
-		if (isEditorInput(arg1)) {
-			resource = EditorResourceAccessor.getOriginalUri(arg1);
-		} else if (arg1 instanceof FileChangesEvent) {
-			// Ignore for now (recently opened are most often out of workspace files anyway for which there are no file events)
-		} else {
-			resource = arg1.resource;
+	pwivate wemoveFwomWecentwyOpened(awg1: EditowInput | FiweChangesEvent | FiweOpewationEvent): void {
+		wet wesouwce: UWI | undefined = undefined;
+		if (isEditowInput(awg1)) {
+			wesouwce = EditowWesouwceAccessow.getOwiginawUwi(awg1);
+		} ewse if (awg1 instanceof FiweChangesEvent) {
+			// Ignowe fow now (wecentwy opened awe most often out of wowkspace fiwes anyway fow which thewe awe no fiwe events)
+		} ewse {
+			wesouwce = awg1.wesouwce;
 		}
 
-		if (resource) {
-			this.workspacesService.removeRecentlyOpened([resource]);
+		if (wesouwce) {
+			this.wowkspacesSewvice.wemoveWecentwyOpened([wesouwce]);
 		}
 	}
 
-	clear(): void {
+	cweaw(): void {
 
-		// History
-		this.clearRecentlyOpened();
+		// Histowy
+		this.cweawWecentwyOpened();
 
-		// Navigation (next, previous)
+		// Navigation (next, pwevious)
 		this.navigationStackIndex = -1;
-		this.lastNavigationStackIndex = -1;
-		this.navigationStack.splice(0);
-		this.editorStackListeners.forEach(listeners => dispose(listeners));
-		this.editorStackListeners.clear();
+		this.wastNavigationStackIndex = -1;
+		this.navigationStack.spwice(0);
+		this.editowStackWistenews.fowEach(wistenews => dispose(wistenews));
+		this.editowStackWistenews.cweaw();
 
-		// Recently closed editors
-		this.recentlyClosedEditors = [];
+		// Wecentwy cwosed editows
+		this.wecentwyCwosedEditows = [];
 
 		// Context Keys
 		this.updateContextKeys();
 	}
 
-	//#region Navigation (Go Forward, Go Backward)
+	//#wegion Navigation (Go Fowwawd, Go Backwawd)
 
-	private static readonly MAX_NAVIGATION_STACK_ITEMS = 50;
+	pwivate static weadonwy MAX_NAVIGATION_STACK_ITEMS = 50;
 
-	private navigationStack: IStackEntry[] = [];
-	private navigationStackIndex = -1;
-	private lastNavigationStackIndex = -1;
+	pwivate navigationStack: IStackEntwy[] = [];
+	pwivate navigationStackIndex = -1;
+	pwivate wastNavigationStackIndex = -1;
 
-	private navigatingInStack = false;
+	pwivate navigatingInStack = fawse;
 
-	private currentTextEditorState: TextEditorState | null = null;
+	pwivate cuwwentTextEditowState: TextEditowState | nuww = nuww;
 
-	forward(): void {
-		if (this.navigationStack.length > this.navigationStackIndex + 1) {
+	fowwawd(): void {
+		if (this.navigationStack.wength > this.navigationStackIndex + 1) {
 			this.setIndex(this.navigationStackIndex + 1);
 			this.navigate();
 		}
@@ -369,970 +369,970 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	last(): void {
-		if (this.lastNavigationStackIndex === -1) {
+	wast(): void {
+		if (this.wastNavigationStackIndex === -1) {
 			this.back();
-		} else {
-			this.setIndex(this.lastNavigationStackIndex);
+		} ewse {
+			this.setIndex(this.wastNavigationStackIndex);
 			this.navigate();
 		}
 	}
 
-	private setIndex(value: number): void {
-		this.lastNavigationStackIndex = this.navigationStackIndex;
-		this.navigationStackIndex = value;
+	pwivate setIndex(vawue: numba): void {
+		this.wastNavigationStackIndex = this.navigationStackIndex;
+		this.navigationStackIndex = vawue;
 
 		// Context Keys
 		this.updateContextKeys();
 	}
 
-	private navigate(): void {
-		this.navigatingInStack = true;
+	pwivate navigate(): void {
+		this.navigatingInStack = twue;
 
-		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
+		const navigateToStackEntwy = this.navigationStack[this.navigationStackIndex];
 
-		this.doNavigate(navigateToStackEntry).finally(() => { this.navigatingInStack = false; });
+		this.doNavigate(navigateToStackEntwy).finawwy(() => { this.navigatingInStack = fawse; });
 	}
 
-	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
-		const options: ITextEditorOptions = {
-			revealIfOpened: true, // support to navigate across editor groups,
-			selection: location.selection,
-			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+	pwivate doNavigate(wocation: IStackEntwy): Pwomise<IEditowPane | undefined> {
+		const options: ITextEditowOptions = {
+			weveawIfOpened: twue, // suppowt to navigate acwoss editow gwoups,
+			sewection: wocation.sewection,
+			sewectionWeveawType: TextEditowSewectionWeveawType.CentewIfOutsideViewpowt
 		};
 
-		if (isEditorInput(location.editor)) {
-			return this.editorGroupService.activeGroup.openEditor(location.editor, options);
+		if (isEditowInput(wocation.editow)) {
+			wetuwn this.editowGwoupSewvice.activeGwoup.openEditow(wocation.editow, options);
 		}
 
-		return this.editorService.openEditor({
-			...location.editor,
+		wetuwn this.editowSewvice.openEditow({
+			...wocation.editow,
 			options: {
-				...location.editor.options,
+				...wocation.editow.options,
 				...options
 			}
 		});
 	}
 
-	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
-		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
+	pwivate handweEditowEventInNavigationStack(contwow: IEditowPane | undefined, event?: ICuwsowPositionChangedEvent): void {
+		const codeEditow = contwow ? getCodeEditow(contwow.getContwow()) : undefined;
 
-		// treat editor changes that happen as part of stack navigation specially
-		// we do not want to add a new stack entry as a matter of navigating the
-		// stack but we need to keep our currentTextEditorState up to date with
-		// the navigtion that occurs.
+		// tweat editow changes that happen as pawt of stack navigation speciawwy
+		// we do not want to add a new stack entwy as a matta of navigating the
+		// stack but we need to keep ouw cuwwentTextEditowState up to date with
+		// the navigtion that occuws.
 		if (this.navigatingInStack) {
-			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
-			} else {
-				this.currentTextEditorState = null; // we navigated to a non text or disposed editor
+			if (codeEditow && contwow?.input && !contwow.input.isDisposed()) {
+				this.cuwwentTextEditowState = new TextEditowState(contwow.input, codeEditow.getSewection());
+			} ewse {
+				this.cuwwentTextEditowState = nuww; // we navigated to a non text ow disposed editow
 			}
 		}
 
-		// normal navigation not part of history navigation
-		else {
+		// nowmaw navigation not pawt of histowy navigation
+		ewse {
 
-			// navigation inside text editor
-			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.handleTextEditorEventInNavigationStack(control, codeEditor, event);
+			// navigation inside text editow
+			if (codeEditow && contwow?.input && !contwow.input.isDisposed()) {
+				this.handweTextEditowEventInNavigationStack(contwow, codeEditow, event);
 			}
 
-			// navigation to non-text disposed editor
-			else {
-				this.currentTextEditorState = null; // at this time we have no active text editor view state
+			// navigation to non-text disposed editow
+			ewse {
+				this.cuwwentTextEditowState = nuww; // at this time we have no active text editow view state
 
-				if (control?.input && !control.input.isDisposed()) {
-					this.handleNonTextEditorEventInNavigationStack(control);
+				if (contwow?.input && !contwow.input.isDisposed()) {
+					this.handweNonTextEditowEventInNavigationStack(contwow);
 				}
 			}
 		}
 	}
 
-	private handleTextEditorEventInNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
-		if (!editor.input) {
-			return;
+	pwivate handweTextEditowEventInNavigationStack(editow: IEditowPane, editowContwow: IEditow, event?: ICuwsowPositionChangedEvent): void {
+		if (!editow.input) {
+			wetuwn;
 		}
 
-		const stateCandidate = new TextEditorState(editor.input, editorControl.getSelection());
+		const stateCandidate = new TextEditowState(editow.input, editowContwow.getSewection());
 
-		// Add to stack if we dont have a current state or this new state justifies a push
-		if (!this.currentTextEditorState || this.currentTextEditorState.justifiesNewPushState(stateCandidate, event)) {
-			this.addToNavigationStack(editor.input, stateCandidate.selection);
+		// Add to stack if we dont have a cuwwent state ow this new state justifies a push
+		if (!this.cuwwentTextEditowState || this.cuwwentTextEditowState.justifiesNewPushState(stateCandidate, event)) {
+			this.addToNavigationStack(editow.input, stateCandidate.sewection);
 		}
 
-		// Otherwise we replace the current stack entry with this one
-		else {
-			this.replaceInNavigationStack(editor.input, stateCandidate.selection);
+		// Othewwise we wepwace the cuwwent stack entwy with this one
+		ewse {
+			this.wepwaceInNavigationStack(editow.input, stateCandidate.sewection);
 		}
 
-		// Update our current text editor state
-		this.currentTextEditorState = stateCandidate;
+		// Update ouw cuwwent text editow state
+		this.cuwwentTextEditowState = stateCandidate;
 	}
 
-	private handleNonTextEditorEventInNavigationStack(editor: IEditorPane): void {
-		if (!editor.input) {
-			return;
+	pwivate handweNonTextEditowEventInNavigationStack(editow: IEditowPane): void {
+		if (!editow.input) {
+			wetuwn;
 		}
 
-		const currentStack = this.navigationStack[this.navigationStackIndex];
-		if (currentStack && this.matches(editor.input, currentStack.editor)) {
-			return; // do not push same editor input again
+		const cuwwentStack = this.navigationStack[this.navigationStackIndex];
+		if (cuwwentStack && this.matches(editow.input, cuwwentStack.editow)) {
+			wetuwn; // do not push same editow input again
 		}
 
-		this.addToNavigationStack(editor.input);
+		this.addToNavigationStack(editow.input);
 	}
 
-	private addToNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+	pwivate addToNavigationStack(input: EditowInput | IWesouwceEditowInput, sewection?: Sewection): void {
 		if (!this.navigatingInStack) {
-			this.doAddOrReplaceInNavigationStack(input, selection);
+			this.doAddOwWepwaceInNavigationStack(input, sewection);
 		}
 	}
 
-	private replaceInNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+	pwivate wepwaceInNavigationStack(input: EditowInput | IWesouwceEditowInput, sewection?: Sewection): void {
 		if (!this.navigatingInStack) {
-			this.doAddOrReplaceInNavigationStack(input, selection, true /* force replace */);
+			this.doAddOwWepwaceInNavigationStack(input, sewection, twue /* fowce wepwace */);
 		}
 	}
 
-	private doAddOrReplaceInNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection, forceReplace?: boolean): void {
+	pwivate doAddOwWepwaceInNavigationStack(input: EditowInput | IWesouwceEditowInput, sewection?: Sewection, fowceWepwace?: boowean): void {
 
-		// Overwrite an entry in the stack if we have a matching input that comes
-		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options. Finally, Overwrite
-		// entries if we detect that the change came in very fast which indicates
-		// that it was not coming in from a user change but rather rapid programmatic
-		// changes. We just take the last of the changes to not cause too many entries
+		// Ovewwwite an entwy in the stack if we have a matching input that comes
+		// with editow options to indicate that this entwy is mowe specific. Awso
+		// pwevent entwies that have the exact same options. Finawwy, Ovewwwite
+		// entwies if we detect that the change came in vewy fast which indicates
+		// that it was not coming in fwom a usa change but watha wapid pwogwammatic
+		// changes. We just take the wast of the changes to not cause too many entwies
 		// on the stack.
-		// We can also be instructed to force replace the last entry.
-		let replace = false;
-		const currentEntry = this.navigationStack[this.navigationStackIndex];
-		if (currentEntry) {
-			if (forceReplace) {
-				replace = true; // replace if we are forced to
-			} else if (this.matches(input, currentEntry.editor) && this.sameSelection(currentEntry.selection, selection)) {
-				replace = true; // replace if the input is the same as the current one and the selection as well
+		// We can awso be instwucted to fowce wepwace the wast entwy.
+		wet wepwace = fawse;
+		const cuwwentEntwy = this.navigationStack[this.navigationStackIndex];
+		if (cuwwentEntwy) {
+			if (fowceWepwace) {
+				wepwace = twue; // wepwace if we awe fowced to
+			} ewse if (this.matches(input, cuwwentEntwy.editow) && this.sameSewection(cuwwentEntwy.sewection, sewection)) {
+				wepwace = twue; // wepwace if the input is the same as the cuwwent one and the sewection as weww
 			}
 		}
 
-		const stackEditorInput = this.preferResourceEditorInput(input);
-		if (!stackEditorInput) {
-			return;
+		const stackEditowInput = this.pwefewWesouwceEditowInput(input);
+		if (!stackEditowInput) {
+			wetuwn;
 		}
 
-		const entry = { editor: stackEditorInput, selection };
+		const entwy = { editow: stackEditowInput, sewection };
 
-		// Replace at current position
-		let removedEntries: IStackEntry[] = [];
-		if (replace) {
-			removedEntries.push(this.navigationStack[this.navigationStackIndex]);
-			this.navigationStack[this.navigationStackIndex] = entry;
+		// Wepwace at cuwwent position
+		wet wemovedEntwies: IStackEntwy[] = [];
+		if (wepwace) {
+			wemovedEntwies.push(this.navigationStack[this.navigationStackIndex]);
+			this.navigationStack[this.navigationStackIndex] = entwy;
 		}
 
-		// Add to stack at current position
-		else {
+		// Add to stack at cuwwent position
+		ewse {
 
-			// If we are not at the end of history, we remove anything after
-			if (this.navigationStack.length > this.navigationStackIndex + 1) {
-				for (let i = this.navigationStackIndex + 1; i < this.navigationStack.length; i++) {
-					removedEntries.push(this.navigationStack[i]);
+			// If we awe not at the end of histowy, we wemove anything afta
+			if (this.navigationStack.wength > this.navigationStackIndex + 1) {
+				fow (wet i = this.navigationStackIndex + 1; i < this.navigationStack.wength; i++) {
+					wemovedEntwies.push(this.navigationStack[i]);
 				}
 
-				this.navigationStack = this.navigationStack.slice(0, this.navigationStackIndex + 1);
+				this.navigationStack = this.navigationStack.swice(0, this.navigationStackIndex + 1);
 			}
 
-			// Insert entry at index
-			this.navigationStack.splice(this.navigationStackIndex + 1, 0, entry);
+			// Insewt entwy at index
+			this.navigationStack.spwice(this.navigationStackIndex + 1, 0, entwy);
 
-			// Check for limit
-			if (this.navigationStack.length > HistoryService.MAX_NAVIGATION_STACK_ITEMS) {
-				removedEntries.push(this.navigationStack.shift()!); // remove first
-				if (this.lastNavigationStackIndex >= 0) {
-					this.lastNavigationStackIndex--;
+			// Check fow wimit
+			if (this.navigationStack.wength > HistowySewvice.MAX_NAVIGATION_STACK_ITEMS) {
+				wemovedEntwies.push(this.navigationStack.shift()!); // wemove fiwst
+				if (this.wastNavigationStackIndex >= 0) {
+					this.wastNavigationStackIndex--;
 				}
-			} else {
+			} ewse {
 				this.setIndex(this.navigationStackIndex + 1);
 			}
 		}
 
-		// Clear editor listeners from removed entries
-		for (const removedEntry of removedEntries) {
-			this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners);
+		// Cweaw editow wistenews fwom wemoved entwies
+		fow (const wemovedEntwy of wemovedEntwies) {
+			this.cweawOnEditowDispose(wemovedEntwy.editow, this.editowStackWistenews);
 		}
 
-		// Remove this from the stack unless the stack input is a resource
-		// that can easily be restored even when the input gets disposed
-		if (isEditorInput(stackEditorInput)) {
-			this.onEditorDispose(stackEditorInput, () => this.removeFromNavigationStack(stackEditorInput), this.editorStackListeners);
+		// Wemove this fwom the stack unwess the stack input is a wesouwce
+		// that can easiwy be westowed even when the input gets disposed
+		if (isEditowInput(stackEditowInput)) {
+			this.onEditowDispose(stackEditowInput, () => this.wemoveFwomNavigationStack(stackEditowInput), this.editowStackWistenews);
 		}
 
 		// Context Keys
 		this.updateContextKeys();
 	}
 
-	private preferResourceEditorInput(input: EditorInput): EditorInput | IResourceEditorInput;
-	private preferResourceEditorInput(input: IResourceEditorInput): IResourceEditorInput | undefined;
-	private preferResourceEditorInput(input: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined;
-	private preferResourceEditorInput(input: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined {
-		const resource = EditorResourceAccessor.getOriginalUri(input);
+	pwivate pwefewWesouwceEditowInput(input: EditowInput): EditowInput | IWesouwceEditowInput;
+	pwivate pwefewWesouwceEditowInput(input: IWesouwceEditowInput): IWesouwceEditowInput | undefined;
+	pwivate pwefewWesouwceEditowInput(input: EditowInput | IWesouwceEditowInput): EditowInput | IWesouwceEditowInput | undefined;
+	pwivate pwefewWesouwceEditowInput(input: EditowInput | IWesouwceEditowInput): EditowInput | IWesouwceEditowInput | undefined {
+		const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(input);
 
-		// For now, only prefer well known schemes that we control to prevent
-		// issues such as https://github.com/microsoft/vscode/issues/85204
-		// from being used as resource inputs
-		// resource inputs survive editor disposal and as such are a lot more
-		// durable across editor changes and restarts
-		const hasValidResourceEditorInputScheme =
-			resource?.scheme === Schemas.file ||
-			resource?.scheme === Schemas.vscodeRemote ||
-			resource?.scheme === Schemas.userData ||
-			resource?.scheme === this.pathService.defaultUriScheme;
+		// Fow now, onwy pwefa weww known schemes that we contwow to pwevent
+		// issues such as https://github.com/micwosoft/vscode/issues/85204
+		// fwom being used as wesouwce inputs
+		// wesouwce inputs suwvive editow disposaw and as such awe a wot mowe
+		// duwabwe acwoss editow changes and westawts
+		const hasVawidWesouwceEditowInputScheme =
+			wesouwce?.scheme === Schemas.fiwe ||
+			wesouwce?.scheme === Schemas.vscodeWemote ||
+			wesouwce?.scheme === Schemas.usewData ||
+			wesouwce?.scheme === this.pathSewvice.defauwtUwiScheme;
 
-		// Scheme is valid: prefer the untyped input
-		// over the typed input if possible to keep
-		// the entry across restarts
-		if (hasValidResourceEditorInputScheme) {
-			if (isEditorInput(input)) {
+		// Scheme is vawid: pwefa the untyped input
+		// ova the typed input if possibwe to keep
+		// the entwy acwoss westawts
+		if (hasVawidWesouwceEditowInputScheme) {
+			if (isEditowInput(input)) {
 				const untypedInput = input.toUntyped();
-				if (isResourceEditorInput(untypedInput)) {
-					return untypedInput;
+				if (isWesouwceEditowInput(untypedInput)) {
+					wetuwn untypedInput;
 				}
 			}
 
-			return input;
+			wetuwn input;
 		}
 
-		// Scheme is invalid: allow the editor input
-		// for as long as it is not disposed
-		else {
-			return isEditorInput(input) ? input : undefined;
-		}
-	}
-
-	private sameSelection(selectionA?: Selection, selectionB?: Selection): boolean {
-		if (!selectionA && !selectionB) {
-			return true;
-		}
-
-		if (!selectionA || !selectionB) {
-			return false;
-		}
-
-		return selectionA.startLineNumber === selectionB.startLineNumber; // we consider the history entry same if we are on the same line
-	}
-
-	private moveInNavigationStack(event: FileOperationEvent): void {
-		const removed = this.removeFromNavigationStack(event);
-		if (removed && event.target) {
-			this.addToNavigationStack({ resource: event.target.resource });
+		// Scheme is invawid: awwow the editow input
+		// fow as wong as it is not disposed
+		ewse {
+			wetuwn isEditowInput(input) ? input : undefined;
 		}
 	}
 
-	private removeFromNavigationStack(arg1: EditorInput | FileChangesEvent | FileOperationEvent): boolean {
-		let removed = false;
+	pwivate sameSewection(sewectionA?: Sewection, sewectionB?: Sewection): boowean {
+		if (!sewectionA && !sewectionB) {
+			wetuwn twue;
+		}
 
-		this.navigationStack = this.navigationStack.filter(entry => {
-			const matches = this.matches(arg1, entry.editor);
+		if (!sewectionA || !sewectionB) {
+			wetuwn fawse;
+		}
 
-			// Cleanup any listeners associated with the input when removing
+		wetuwn sewectionA.stawtWineNumba === sewectionB.stawtWineNumba; // we consida the histowy entwy same if we awe on the same wine
+	}
+
+	pwivate moveInNavigationStack(event: FiweOpewationEvent): void {
+		const wemoved = this.wemoveFwomNavigationStack(event);
+		if (wemoved && event.tawget) {
+			this.addToNavigationStack({ wesouwce: event.tawget.wesouwce });
+		}
+	}
+
+	pwivate wemoveFwomNavigationStack(awg1: EditowInput | FiweChangesEvent | FiweOpewationEvent): boowean {
+		wet wemoved = fawse;
+
+		this.navigationStack = this.navigationStack.fiwta(entwy => {
+			const matches = this.matches(awg1, entwy.editow);
+
+			// Cweanup any wistenews associated with the input when wemoving
 			if (matches) {
-				this.clearOnEditorDispose(arg1, this.editorStackListeners);
-				removed = true;
+				this.cweawOnEditowDispose(awg1, this.editowStackWistenews);
+				wemoved = twue;
 			}
 
-			return !matches;
+			wetuwn !matches;
 		});
-		this.navigationStackIndex = this.navigationStack.length - 1; // reset index
-		this.lastNavigationStackIndex = -1;
+		this.navigationStackIndex = this.navigationStack.wength - 1; // weset index
+		this.wastNavigationStackIndex = -1;
 
 		// Context Keys
 		this.updateContextKeys();
 
-		return removed;
+		wetuwn wemoved;
 	}
 
-	private matches(arg1: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, inputB: EditorInput | IResourceEditorInput): boolean {
-		if (arg1 instanceof FileChangesEvent || arg1 instanceof FileOperationEvent) {
-			if (isEditorInput(inputB)) {
-				return false; // we only support this for `IResourceEditorInputs` that are file based
+	pwivate matches(awg1: EditowInput | IWesouwceEditowInput | FiweChangesEvent | FiweOpewationEvent, inputB: EditowInput | IWesouwceEditowInput): boowean {
+		if (awg1 instanceof FiweChangesEvent || awg1 instanceof FiweOpewationEvent) {
+			if (isEditowInput(inputB)) {
+				wetuwn fawse; // we onwy suppowt this fow `IWesouwceEditowInputs` that awe fiwe based
 			}
 
-			if (arg1 instanceof FileChangesEvent) {
-				return arg1.contains(inputB.resource, FileChangeType.DELETED);
+			if (awg1 instanceof FiweChangesEvent) {
+				wetuwn awg1.contains(inputB.wesouwce, FiweChangeType.DEWETED);
 			}
 
-			return this.matchesFile(inputB.resource, arg1);
+			wetuwn this.matchesFiwe(inputB.wesouwce, awg1);
 		}
 
-		if (isEditorInput(arg1)) {
-			if (isEditorInput(inputB)) {
-				return arg1.matches(inputB);
+		if (isEditowInput(awg1)) {
+			if (isEditowInput(inputB)) {
+				wetuwn awg1.matches(inputB);
 			}
 
-			return this.matchesFile(inputB.resource, arg1);
+			wetuwn this.matchesFiwe(inputB.wesouwce, awg1);
 		}
 
-		if (isEditorInput(inputB)) {
-			return this.matchesFile(arg1.resource, inputB);
+		if (isEditowInput(inputB)) {
+			wetuwn this.matchesFiwe(awg1.wesouwce, inputB);
 		}
 
-		return arg1 && inputB && this.uriIdentityService.extUri.isEqual(arg1.resource, inputB.resource);
+		wetuwn awg1 && inputB && this.uwiIdentitySewvice.extUwi.isEquaw(awg1.wesouwce, inputB.wesouwce);
 	}
 
-	private matchesFile(resource: URI, arg2: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): boolean {
-		if (arg2 instanceof FileChangesEvent) {
-			return arg2.contains(resource, FileChangeType.DELETED);
+	pwivate matchesFiwe(wesouwce: UWI, awg2: EditowInput | IWesouwceEditowInput | FiweChangesEvent | FiweOpewationEvent): boowean {
+		if (awg2 instanceof FiweChangesEvent) {
+			wetuwn awg2.contains(wesouwce, FiweChangeType.DEWETED);
 		}
 
-		if (arg2 instanceof FileOperationEvent) {
-			return this.uriIdentityService.extUri.isEqualOrParent(resource, arg2.resource);
+		if (awg2 instanceof FiweOpewationEvent) {
+			wetuwn this.uwiIdentitySewvice.extUwi.isEquawOwPawent(wesouwce, awg2.wesouwce);
 		}
 
-		if (isEditorInput(arg2)) {
-			const inputResource = arg2.resource;
-			if (!inputResource) {
-				return false;
+		if (isEditowInput(awg2)) {
+			const inputWesouwce = awg2.wesouwce;
+			if (!inputWesouwce) {
+				wetuwn fawse;
 			}
 
-			if (this.lifecycleService.phase >= LifecyclePhase.Restored && !this.fileService.canHandleResource(inputResource)) {
-				return false; // make sure to only check this when workbench has restored (for https://github.com/microsoft/vscode/issues/48275)
+			if (this.wifecycweSewvice.phase >= WifecycwePhase.Westowed && !this.fiweSewvice.canHandweWesouwce(inputWesouwce)) {
+				wetuwn fawse; // make suwe to onwy check this when wowkbench has westowed (fow https://github.com/micwosoft/vscode/issues/48275)
 			}
 
-			return this.uriIdentityService.extUri.isEqual(inputResource, resource);
+			wetuwn this.uwiIdentitySewvice.extUwi.isEquaw(inputWesouwce, wesouwce);
 		}
 
-		return this.uriIdentityService.extUri.isEqual(arg2?.resource, resource);
+		wetuwn this.uwiIdentitySewvice.extUwi.isEquaw(awg2?.wesouwce, wesouwce);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Recently Closed Editors
+	//#wegion Wecentwy Cwosed Editows
 
-	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
+	pwivate static weadonwy MAX_WECENTWY_CWOSED_EDITOWS = 20;
 
-	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
-	private ignoreEditorCloseEvent = false;
+	pwivate wecentwyCwosedEditows: IWecentwyCwosedEditow[] = [];
+	pwivate ignoweEditowCwoseEvent = fawse;
 
-	private onDidCloseEditor(event: IEditorCloseEvent): void {
-		if (this.ignoreEditorCloseEvent) {
-			return; // blocked
+	pwivate onDidCwoseEditow(event: IEditowCwoseEvent): void {
+		if (this.ignoweEditowCwoseEvent) {
+			wetuwn; // bwocked
 		}
 
-		const { editor, context } = event;
-		if (context === EditorCloseContext.REPLACE || context === EditorCloseContext.MOVE) {
-			return; // ignore if editor was replaced or moved
+		const { editow, context } = event;
+		if (context === EditowCwoseContext.WEPWACE || context === EditowCwoseContext.MOVE) {
+			wetuwn; // ignowe if editow was wepwaced ow moved
 		}
 
-		const untypedEditor = editor.toUntyped();
-		if (!untypedEditor) {
-			return; // we need a untyped editor to restore from going forward
+		const untypedEditow = editow.toUntyped();
+		if (!untypedEditow) {
+			wetuwn; // we need a untyped editow to westowe fwom going fowwawd
 		}
 
-		const associatedResources: URI[] = [];
-		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
-		if (URI.isUri(editorResource)) {
-			associatedResources.push(editorResource);
-		} else if (editorResource) {
-			associatedResources.push(...coalesce([editorResource.primary, editorResource.secondary]));
+		const associatedWesouwces: UWI[] = [];
+		const editowWesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.BOTH });
+		if (UWI.isUwi(editowWesouwce)) {
+			associatedWesouwces.push(editowWesouwce);
+		} ewse if (editowWesouwce) {
+			associatedWesouwces.push(...coawesce([editowWesouwce.pwimawy, editowWesouwce.secondawy]));
 		}
 
-		// Remove from list of recently closed before...
-		this.removeFromRecentlyClosedEditors(editor);
+		// Wemove fwom wist of wecentwy cwosed befowe...
+		this.wemoveFwomWecentwyCwosedEditows(editow);
 
-		// ...adding it as last recently closed
-		this.recentlyClosedEditors.push({
-			editorId: editor.editorId,
-			editor: untypedEditor,
-			resource: EditorResourceAccessor.getOriginalUri(editor),
-			associatedResources,
+		// ...adding it as wast wecentwy cwosed
+		this.wecentwyCwosedEditows.push({
+			editowId: editow.editowId,
+			editow: untypedEditow,
+			wesouwce: EditowWesouwceAccessow.getOwiginawUwi(editow),
+			associatedWesouwces,
 			index: event.index,
 			sticky: event.sticky
 		});
 
 		// Bounding
-		if (this.recentlyClosedEditors.length > HistoryService.MAX_RECENTLY_CLOSED_EDITORS) {
-			this.recentlyClosedEditors.shift();
+		if (this.wecentwyCwosedEditows.wength > HistowySewvice.MAX_WECENTWY_CWOSED_EDITOWS) {
+			this.wecentwyCwosedEditows.shift();
 		}
 
 		// Context
-		this.canReopenClosedEditorContextKey.set(true);
+		this.canWeopenCwosedEditowContextKey.set(twue);
 	}
 
-	reopenLastClosedEditor(): void {
+	weopenWastCwosedEditow(): void {
 
-		// Open editor if we have one
-		const lastClosedEditor = this.recentlyClosedEditors.pop();
-		if (lastClosedEditor) {
-			this.doReopenLastClosedEditor(lastClosedEditor);
+		// Open editow if we have one
+		const wastCwosedEditow = this.wecentwyCwosedEditows.pop();
+		if (wastCwosedEditow) {
+			this.doWeopenWastCwosedEditow(wastCwosedEditow);
 		}
 
 		// Update context
-		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+		this.canWeopenCwosedEditowContextKey.set(this.wecentwyCwosedEditows.wength > 0);
 	}
 
-	private async doReopenLastClosedEditor(lastClosedEditor: IRecentlyClosedEditor): Promise<void> {
-		const options: IEditorOptions = { pinned: true, sticky: lastClosedEditor.sticky, index: lastClosedEditor.index, ignoreError: true };
+	pwivate async doWeopenWastCwosedEditow(wastCwosedEditow: IWecentwyCwosedEditow): Pwomise<void> {
+		const options: IEditowOptions = { pinned: twue, sticky: wastCwosedEditow.sticky, index: wastCwosedEditow.index, ignoweEwwow: twue };
 
-		// Special sticky handling: remove the index property from options
-		// if that would result in sticky state to not preserve or apply
-		// wrongly.
+		// Speciaw sticky handwing: wemove the index pwopewty fwom options
+		// if that wouwd wesuwt in sticky state to not pwesewve ow appwy
+		// wwongwy.
 		if (
-			(lastClosedEditor.sticky && !this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index)) ||
-			(!lastClosedEditor.sticky && this.editorGroupService.activeGroup.isSticky(lastClosedEditor.index))
+			(wastCwosedEditow.sticky && !this.editowGwoupSewvice.activeGwoup.isSticky(wastCwosedEditow.index)) ||
+			(!wastCwosedEditow.sticky && this.editowGwoupSewvice.activeGwoup.isSticky(wastCwosedEditow.index))
 		) {
 			options.index = undefined;
 		}
 
-		// Re-open editor unless already opened
-		let editorPane: IEditorPane | undefined = undefined;
-		if (!this.editorGroupService.activeGroup.contains(lastClosedEditor.editor)) {
-			// Fix for https://github.com/microsoft/vscode/issues/107850
-			// If opening an editor fails, it is possible that we get
-			// another editor-close event as a result. But we really do
-			// want to ignore that in our list of recently closed editors
-			//  to prevent endless loops.
-			this.ignoreEditorCloseEvent = true;
-			try {
-				editorPane = await this.editorService.openEditor({
-					...lastClosedEditor.editor,
+		// We-open editow unwess awweady opened
+		wet editowPane: IEditowPane | undefined = undefined;
+		if (!this.editowGwoupSewvice.activeGwoup.contains(wastCwosedEditow.editow)) {
+			// Fix fow https://github.com/micwosoft/vscode/issues/107850
+			// If opening an editow faiws, it is possibwe that we get
+			// anotha editow-cwose event as a wesuwt. But we weawwy do
+			// want to ignowe that in ouw wist of wecentwy cwosed editows
+			//  to pwevent endwess woops.
+			this.ignoweEditowCwoseEvent = twue;
+			twy {
+				editowPane = await this.editowSewvice.openEditow({
+					...wastCwosedEditow.editow,
 					options: {
-						...lastClosedEditor.editor.options,
+						...wastCwosedEditow.editow.options,
 						...options
 					}
 				});
-			} finally {
-				this.ignoreEditorCloseEvent = false;
+			} finawwy {
+				this.ignoweEditowCwoseEvent = fawse;
 			}
 		}
 
-		// If no editor was opened, try with the next one
-		if (!editorPane) {
-			// Fix for https://github.com/microsoft/vscode/issues/67882
-			// If opening of the editor fails, make sure to try the next one
-			// but make sure to remove this one from the list to prevent
-			// endless loops.
-			remove(this.recentlyClosedEditors, lastClosedEditor);
+		// If no editow was opened, twy with the next one
+		if (!editowPane) {
+			// Fix fow https://github.com/micwosoft/vscode/issues/67882
+			// If opening of the editow faiws, make suwe to twy the next one
+			// but make suwe to wemove this one fwom the wist to pwevent
+			// endwess woops.
+			wemove(this.wecentwyCwosedEditows, wastCwosedEditow);
 
-			// Try with next one
-			this.reopenLastClosedEditor();
+			// Twy with next one
+			this.weopenWastCwosedEditow();
 		}
 	}
 
-	private removeFromRecentlyClosedEditors(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
-		this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => {
-			if (isEditorInput(arg1) && recentlyClosedEditor.editorId !== arg1.editorId) {
-				return true; // keep: different editor identifiers
+	pwivate wemoveFwomWecentwyCwosedEditows(awg1: EditowInput | FiweChangesEvent | FiweOpewationEvent): void {
+		this.wecentwyCwosedEditows = this.wecentwyCwosedEditows.fiwta(wecentwyCwosedEditow => {
+			if (isEditowInput(awg1) && wecentwyCwosedEditow.editowId !== awg1.editowId) {
+				wetuwn twue; // keep: diffewent editow identifiews
 			}
 
-			if (recentlyClosedEditor.resource && this.matchesFile(recentlyClosedEditor.resource, arg1)) {
-				return false; // remove: editor matches directly
+			if (wecentwyCwosedEditow.wesouwce && this.matchesFiwe(wecentwyCwosedEditow.wesouwce, awg1)) {
+				wetuwn fawse; // wemove: editow matches diwectwy
 			}
 
-			if (recentlyClosedEditor.associatedResources.some(associatedResource => this.matchesFile(associatedResource, arg1))) {
-				return false; // remove: an associated resource matches
+			if (wecentwyCwosedEditow.associatedWesouwces.some(associatedWesouwce => this.matchesFiwe(associatedWesouwce, awg1))) {
+				wetuwn fawse; // wemove: an associated wesouwce matches
 			}
 
-			return true; // keep
+			wetuwn twue; // keep
 		});
 
 		// Update context
-		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+		this.canWeopenCwosedEditowContextKey.set(this.wecentwyCwosedEditows.wength > 0);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Last Edit Location
+	//#wegion Wast Edit Wocation
 
-	private lastEditLocation: IStackEntry | undefined;
+	pwivate wastEditWocation: IStackEntwy | undefined;
 
-	private rememberLastEditLocation(activeEditor: EditorInput, activeTextEditorControl: ICodeEditor): void {
-		this.lastEditLocation = { editor: activeEditor };
-		this.canNavigateToLastEditLocationContextKey.set(true);
+	pwivate wemembewWastEditWocation(activeEditow: EditowInput, activeTextEditowContwow: ICodeEditow): void {
+		this.wastEditWocation = { editow: activeEditow };
+		this.canNavigateToWastEditWocationContextKey.set(twue);
 
-		const position = activeTextEditorControl.getPosition();
+		const position = activeTextEditowContwow.getPosition();
 		if (position) {
-			this.lastEditLocation.selection = new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
+			this.wastEditWocation.sewection = new Sewection(position.wineNumba, position.cowumn, position.wineNumba, position.cowumn);
 		}
 	}
 
-	openLastEditLocation(): void {
-		if (this.lastEditLocation) {
-			this.doNavigate(this.lastEditLocation);
+	openWastEditWocation(): void {
+		if (this.wastEditWocation) {
+			this.doNavigate(this.wastEditWocation);
 		}
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Context Keys
+	//#wegion Context Keys
 
-	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last edit location"))).bindTo(this.contextKeyService);
-	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
+	pwivate weadonwy canNavigateBackContextKey = (new WawContextKey<boowean>('canNavigateBack', fawse, wocawize('canNavigateBack', "Whetha it is possibwe to navigate back in editow histowy"))).bindTo(this.contextKeySewvice);
+	pwivate weadonwy canNavigateFowwawdContextKey = (new WawContextKey<boowean>('canNavigateFowwawd', fawse, wocawize('canNavigateFowwawd', "Whetha it is possibwe to navigate fowwawd in editow histowy"))).bindTo(this.contextKeySewvice);
+	pwivate weadonwy canNavigateToWastEditWocationContextKey = (new WawContextKey<boowean>('canNavigateToWastEditWocation', fawse, wocawize('canNavigateToWastEditWocation', "Whetha it is possibwe to navigate to the wast edit wocation"))).bindTo(this.contextKeySewvice);
+	pwivate weadonwy canWeopenCwosedEditowContextKey = (new WawContextKey<boowean>('canWeopenCwosedEditow', fawse, wocawize('canWeopenCwosedEditow', "Whetha it is possibwe to weopen the wast cwosed editow"))).bindTo(this.contextKeySewvice);
 
-	private updateContextKeys(): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.canNavigateBackContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex > 0);
-			this.canNavigateForwardContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex < this.navigationStack.length - 1);
-			this.canNavigateToLastEditLocationContextKey.set(!!this.lastEditLocation);
-			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+	pwivate updateContextKeys(): void {
+		this.contextKeySewvice.buffewChangeEvents(() => {
+			this.canNavigateBackContextKey.set(this.navigationStack.wength > 0 && this.navigationStackIndex > 0);
+			this.canNavigateFowwawdContextKey.set(this.navigationStack.wength > 0 && this.navigationStackIndex < this.navigationStack.wength - 1);
+			this.canNavigateToWastEditWocationContextKey.set(!!this.wastEditWocation);
+			this.canWeopenCwosedEditowContextKey.set(this.wecentwyCwosedEditows.wength > 0);
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region History
+	//#wegion Histowy
 
-	private static readonly MAX_HISTORY_ITEMS = 200;
-	private static readonly HISTORY_STORAGE_KEY = 'history.entries';
+	pwivate static weadonwy MAX_HISTOWY_ITEMS = 200;
+	pwivate static weadonwy HISTOWY_STOWAGE_KEY = 'histowy.entwies';
 
-	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
+	pwivate histowy: Awway<EditowInput | IWesouwceEditowInput> | undefined = undefined;
 
-	private readonly editorHistoryListeners = new Map();
+	pwivate weadonwy editowHistowyWistenews = new Map();
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
-		const matcher = this._register(this.instantiationService.createInstance(
-			ResourceGlobMatcher,
-			root => getExcludes(root ? this.configurationService.getValue<ISearchConfiguration>({ resource: root }) : this.configurationService.getValue<ISearchConfiguration>()) || Object.create(null),
-			event => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration(SEARCH_EXCLUDE_CONFIG)
+	pwivate weadonwy wesouwceExcwudeMatcha = this._wegista(new IdweVawue(() => {
+		const matcha = this._wegista(this.instantiationSewvice.cweateInstance(
+			WesouwceGwobMatcha,
+			woot => getExcwudes(woot ? this.configuwationSewvice.getVawue<ISeawchConfiguwation>({ wesouwce: woot }) : this.configuwationSewvice.getVawue<ISeawchConfiguwation>()) || Object.cweate(nuww),
+			event => event.affectsConfiguwation(FIWES_EXCWUDE_CONFIG) || event.affectsConfiguwation(SEAWCH_EXCWUDE_CONFIG)
 		));
 
-		this._register(matcher.onExpressionChange(() => this.removeExcludedFromHistory()));
+		this._wegista(matcha.onExpwessionChange(() => this.wemoveExcwudedFwomHistowy()));
 
-		return matcher;
+		wetuwn matcha;
 	}));
 
-	private handleEditorEventInHistory(editor?: IEditorPane): void {
+	pwivate handweEditowEventInHistowy(editow?: IEditowPane): void {
 
-		// Ensure we have not configured to exclude input and don't track invalid inputs
-		const input = editor?.input;
-		if (!input || input.isDisposed() || !this.includeInHistory(input)) {
-			return;
+		// Ensuwe we have not configuwed to excwude input and don't twack invawid inputs
+		const input = editow?.input;
+		if (!input || input.isDisposed() || !this.incwudeInHistowy(input)) {
+			wetuwn;
 		}
 
-		// Remove any existing entry and add to the beginning
-		this.removeFromHistory(input);
-		this.addToHistory(input);
+		// Wemove any existing entwy and add to the beginning
+		this.wemoveFwomHistowy(input);
+		this.addToHistowy(input);
 	}
 
-	private addToHistory(input: EditorInput | IResourceEditorInput, insertFirst = true): void {
-		this.ensureHistoryLoaded(this.history);
+	pwivate addToHistowy(input: EditowInput | IWesouwceEditowInput, insewtFiwst = twue): void {
+		this.ensuweHistowyWoaded(this.histowy);
 
-		const historyInput = this.preferResourceEditorInput(input);
-		if (!historyInput) {
-			return;
+		const histowyInput = this.pwefewWesouwceEditowInput(input);
+		if (!histowyInput) {
+			wetuwn;
 		}
 
-		// Insert based on preference
-		if (insertFirst) {
-			this.history.unshift(historyInput);
-		} else {
-			this.history.push(historyInput);
+		// Insewt based on pwefewence
+		if (insewtFiwst) {
+			this.histowy.unshift(histowyInput);
+		} ewse {
+			this.histowy.push(histowyInput);
 		}
 
-		// Respect max entries setting
-		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
-			this.clearOnEditorDispose(this.history.pop()!, this.editorHistoryListeners);
+		// Wespect max entwies setting
+		if (this.histowy.wength > HistowySewvice.MAX_HISTOWY_ITEMS) {
+			this.cweawOnEditowDispose(this.histowy.pop()!, this.editowHistowyWistenews);
 		}
 
-		// React to editor input disposing if this is a typed editor
-		if (isEditorInput(historyInput)) {
-			this.onEditorDispose(historyInput, () => this.updateHistoryOnEditorDispose(historyInput), this.editorHistoryListeners);
+		// Weact to editow input disposing if this is a typed editow
+		if (isEditowInput(histowyInput)) {
+			this.onEditowDispose(histowyInput, () => this.updateHistowyOnEditowDispose(histowyInput), this.editowHistowyWistenews);
 		}
 	}
 
-	private updateHistoryOnEditorDispose(historyInput: EditorInput): void {
+	pwivate updateHistowyOnEditowDispose(histowyInput: EditowInput): void {
 
-		// Any non side-by-side editor input gets removed directly on dispose
-		if (!isSideBySideEditorInput(historyInput)) {
-			this.removeFromHistory(historyInput);
+		// Any non side-by-side editow input gets wemoved diwectwy on dispose
+		if (!isSideBySideEditowInput(histowyInput)) {
+			this.wemoveFwomHistowy(histowyInput);
 		}
 
-		// Side-by-side editors get special treatment: we try to distill the
-		// possibly untyped resource inputs from both sides to be able to
-		// offer these entries from the history to the user still.
-		else {
-			const resourceInputs: IResourceEditorInput[] = [];
-			const sideInputs = historyInput.primary.matches(historyInput.secondary) ? [historyInput.primary] : [historyInput.primary, historyInput.secondary];
-			for (const sideInput of sideInputs) {
-				const candidateResourceInput = this.preferResourceEditorInput(sideInput);
-				if (isResourceEditorInput(candidateResourceInput)) {
-					resourceInputs.push(candidateResourceInput);
+		// Side-by-side editows get speciaw tweatment: we twy to distiww the
+		// possibwy untyped wesouwce inputs fwom both sides to be abwe to
+		// offa these entwies fwom the histowy to the usa stiww.
+		ewse {
+			const wesouwceInputs: IWesouwceEditowInput[] = [];
+			const sideInputs = histowyInput.pwimawy.matches(histowyInput.secondawy) ? [histowyInput.pwimawy] : [histowyInput.pwimawy, histowyInput.secondawy];
+			fow (const sideInput of sideInputs) {
+				const candidateWesouwceInput = this.pwefewWesouwceEditowInput(sideInput);
+				if (isWesouwceEditowInput(candidateWesouwceInput)) {
+					wesouwceInputs.push(candidateWesouwceInput);
 				}
 			}
 
-			// Insert the untyped resource inputs where our disposed
-			// side-by-side editor input is in the history stack
-			this.replaceInHistory(historyInput, ...resourceInputs);
+			// Insewt the untyped wesouwce inputs whewe ouw disposed
+			// side-by-side editow input is in the histowy stack
+			this.wepwaceInHistowy(histowyInput, ...wesouwceInputs);
 		}
 	}
 
-	private includeInHistory(input: EditorInput | IResourceEditorInput): boolean {
-		if (isEditorInput(input)) {
-			return true; // include any non files
+	pwivate incwudeInHistowy(input: EditowInput | IWesouwceEditowInput): boowean {
+		if (isEditowInput(input)) {
+			wetuwn twue; // incwude any non fiwes
 		}
 
-		return !this.resourceExcludeMatcher.value.matches(input.resource);
+		wetuwn !this.wesouwceExcwudeMatcha.vawue.matches(input.wesouwce);
 	}
 
-	private removeExcludedFromHistory(): void {
-		this.ensureHistoryLoaded(this.history);
+	pwivate wemoveExcwudedFwomHistowy(): void {
+		this.ensuweHistowyWoaded(this.histowy);
 
-		this.history = this.history.filter(entry => {
-			const include = this.includeInHistory(entry);
+		this.histowy = this.histowy.fiwta(entwy => {
+			const incwude = this.incwudeInHistowy(entwy);
 
-			// Cleanup any listeners associated with the input when removing from history
-			if (!include) {
-				this.clearOnEditorDispose(entry, this.editorHistoryListeners);
+			// Cweanup any wistenews associated with the input when wemoving fwom histowy
+			if (!incwude) {
+				this.cweawOnEditowDispose(entwy, this.editowHistowyWistenews);
 			}
 
-			return include;
+			wetuwn incwude;
 		});
 	}
 
-	private moveInHistory(event: FileOperationEvent): void {
-		const removed = this.removeFromHistory(event);
-		if (removed && event.target) {
-			this.addToHistory({ resource: event.target.resource });
+	pwivate moveInHistowy(event: FiweOpewationEvent): void {
+		const wemoved = this.wemoveFwomHistowy(event);
+		if (wemoved && event.tawget) {
+			this.addToHistowy({ wesouwce: event.tawget.wesouwce });
 		}
 	}
 
-	removeFromHistory(arg1: EditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): boolean {
-		let removed = false;
+	wemoveFwomHistowy(awg1: EditowInput | IWesouwceEditowInput | FiweChangesEvent | FiweOpewationEvent): boowean {
+		wet wemoved = fawse;
 
-		this.ensureHistoryLoaded(this.history);
+		this.ensuweHistowyWoaded(this.histowy);
 
-		this.history = this.history.filter(entry => {
-			const matches = this.matches(arg1, entry);
+		this.histowy = this.histowy.fiwta(entwy => {
+			const matches = this.matches(awg1, entwy);
 
-			// Cleanup any listeners associated with the input when removing from history
+			// Cweanup any wistenews associated with the input when wemoving fwom histowy
 			if (matches) {
-				this.clearOnEditorDispose(arg1, this.editorHistoryListeners);
-				removed = true;
+				this.cweawOnEditowDispose(awg1, this.editowHistowyWistenews);
+				wemoved = twue;
 			}
 
-			return !matches;
+			wetuwn !matches;
 		});
 
-		return removed;
+		wetuwn wemoved;
 	}
 
-	private replaceInHistory(editor: EditorInput | IResourceEditorInput, ...replacements: ReadonlyArray<EditorInput | IResourceEditorInput>): void {
-		this.ensureHistoryLoaded(this.history);
+	pwivate wepwaceInHistowy(editow: EditowInput | IWesouwceEditowInput, ...wepwacements: WeadonwyAwway<EditowInput | IWesouwceEditowInput>): void {
+		this.ensuweHistowyWoaded(this.histowy);
 
-		let replaced = false;
+		wet wepwaced = fawse;
 
-		const newHistory: Array<EditorInput | IResourceEditorInput> = [];
-		for (const entry of this.history) {
+		const newHistowy: Awway<EditowInput | IWesouwceEditowInput> = [];
+		fow (const entwy of this.histowy) {
 
-			// Entry matches and is going to be disposed + replaced
-			if (this.matches(editor, entry)) {
+			// Entwy matches and is going to be disposed + wepwaced
+			if (this.matches(editow, entwy)) {
 
-				// Cleanup any listeners associated with the input when replacing from history
-				this.clearOnEditorDispose(editor, this.editorHistoryListeners);
+				// Cweanup any wistenews associated with the input when wepwacing fwom histowy
+				this.cweawOnEditowDispose(editow, this.editowHistowyWistenews);
 
-				// Insert replacements but only once
-				if (!replaced) {
-					newHistory.push(...replacements);
-					replaced = true;
+				// Insewt wepwacements but onwy once
+				if (!wepwaced) {
+					newHistowy.push(...wepwacements);
+					wepwaced = twue;
 				}
 			}
 
-			// Entry does not match, but only add it if it didn't match
-			// our replacements already
-			else if (!replacements.some(replacement => this.matches(replacement, entry))) {
-				newHistory.push(entry);
+			// Entwy does not match, but onwy add it if it didn't match
+			// ouw wepwacements awweady
+			ewse if (!wepwacements.some(wepwacement => this.matches(wepwacement, entwy))) {
+				newHistowy.push(entwy);
 			}
 		}
 
-		// If the target editor to replace was not found, make sure to
-		// insert the replacements to the end to ensure we got them
-		if (!replaced) {
-			newHistory.push(...replacements);
+		// If the tawget editow to wepwace was not found, make suwe to
+		// insewt the wepwacements to the end to ensuwe we got them
+		if (!wepwaced) {
+			newHistowy.push(...wepwacements);
 		}
 
-		this.history = newHistory;
+		this.histowy = newHistowy;
 	}
 
-	clearRecentlyOpened(): void {
-		this.history = [];
+	cweawWecentwyOpened(): void {
+		this.histowy = [];
 
-		this.editorHistoryListeners.forEach(listeners => dispose(listeners));
-		this.editorHistoryListeners.clear();
+		this.editowHistowyWistenews.fowEach(wistenews => dispose(wistenews));
+		this.editowHistowyWistenews.cweaw();
 	}
 
-	getHistory(): readonly (EditorInput | IResourceEditorInput)[] {
-		this.ensureHistoryLoaded(this.history);
+	getHistowy(): weadonwy (EditowInput | IWesouwceEditowInput)[] {
+		this.ensuweHistowyWoaded(this.histowy);
 
-		return this.history;
+		wetuwn this.histowy;
 	}
 
-	private ensureHistoryLoaded(history: Array<EditorInput | IResourceEditorInput> | undefined): asserts history {
-		if (!this.history) {
+	pwivate ensuweHistowyWoaded(histowy: Awway<EditowInput | IWesouwceEditowInput> | undefined): assewts histowy {
+		if (!this.histowy) {
 
-			// Until history is loaded, it is just empty
-			this.history = [];
+			// Untiw histowy is woaded, it is just empty
+			this.histowy = [];
 
-			// We want to seed history from opened editors
-			// too as well as previous stored state, so we
-			// need to wait for the editor groups being ready
-			if (this.editorGroupService.isReady) {
-				this.loadHistory();
-			} else {
+			// We want to seed histowy fwom opened editows
+			// too as weww as pwevious stowed state, so we
+			// need to wait fow the editow gwoups being weady
+			if (this.editowGwoupSewvice.isWeady) {
+				this.woadHistowy();
+			} ewse {
 				(async () => {
-					await this.editorGroupService.whenReady;
+					await this.editowGwoupSewvice.whenWeady;
 
-					this.loadHistory();
+					this.woadHistowy();
 				})();
 			}
 		}
 	}
 
-	private loadHistory(): void {
+	pwivate woadHistowy(): void {
 
-		// Init as empty before adding - since we are about to
-		// populate the history from opened editors, we capture
-		// the right order here.
-		this.history = [];
+		// Init as empty befowe adding - since we awe about to
+		// popuwate the histowy fwom opened editows, we captuwe
+		// the wight owda hewe.
+		this.histowy = [];
 
-		// All stored editors from previous session
-		const storedEditorHistory = this.loadHistoryFromStorage();
+		// Aww stowed editows fwom pwevious session
+		const stowedEditowHistowy = this.woadHistowyFwomStowage();
 
-		// All restored editors from previous session
-		// in reverse editor from least to most recently
+		// Aww westowed editows fwom pwevious session
+		// in wevewse editow fwom weast to most wecentwy
 		// used.
-		const openedEditorsLru = [...this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse();
+		const openedEditowsWwu = [...this.editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)].wevewse();
 
-		// We want to merge the opened editors from the last
-		// session with the stored editors from the last
-		// session. Because not all editors can be serialised
-		// we want to make sure to include all opened editors
+		// We want to mewge the opened editows fwom the wast
+		// session with the stowed editows fwom the wast
+		// session. Because not aww editows can be sewiawised
+		// we want to make suwe to incwude aww opened editows
 		// too.
-		// Opened editors should always be first in the history
+		// Opened editows shouwd awways be fiwst in the histowy
 
-		const handledEditors = new Set<string /* resource + editorId */>();
+		const handwedEditows = new Set<stwing /* wesouwce + editowId */>();
 
-		// Add all opened editors first
-		for (const { editor } of openedEditorsLru) {
-			if (!this.includeInHistory(editor)) {
+		// Add aww opened editows fiwst
+		fow (const { editow } of openedEditowsWwu) {
+			if (!this.incwudeInHistowy(editow)) {
 				continue;
 			}
 
-			// Add into history
-			this.addToHistory(editor);
+			// Add into histowy
+			this.addToHistowy(editow);
 
-			// Remember as added
-			if (editor.resource) {
-				handledEditors.add(`${editor.resource.toString()}/${editor.editorId}`);
+			// Wememba as added
+			if (editow.wesouwce) {
+				handwedEditows.add(`${editow.wesouwce.toStwing()}/${editow.editowId}`);
 			}
 		}
 
-		// Add remaining from storage if not there already
-		// We check on resource and `editorId` (from `override`)
-		// to figure out if the editor has been already added.
-		for (const editor of storedEditorHistory) {
-			if (!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`)) {
-				this.addToHistory(editor, false /* at the end */);
+		// Add wemaining fwom stowage if not thewe awweady
+		// We check on wesouwce and `editowId` (fwom `ovewwide`)
+		// to figuwe out if the editow has been awweady added.
+		fow (const editow of stowedEditowHistowy) {
+			if (!handwedEditows.has(`${editow.wesouwce.toStwing()}/${editow.options?.ovewwide}`)) {
+				this.addToHistowy(editow, fawse /* at the end */);
 			}
 		}
 	}
 
-	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
-		let entries: ISerializedEditorHistoryEntry[] = [];
+	pwivate woadHistowyFwomStowage(): Awway<IWesouwceEditowInput> {
+		wet entwies: ISewiawizedEditowHistowyEntwy[] = [];
 
-		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		if (entriesRaw) {
-			try {
-				entries = coalesce(parse(entriesRaw));
-			} catch (error) {
-				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
+		const entwiesWaw = this.stowageSewvice.get(HistowySewvice.HISTOWY_STOWAGE_KEY, StowageScope.WOWKSPACE);
+		if (entwiesWaw) {
+			twy {
+				entwies = coawesce(pawse(entwiesWaw));
+			} catch (ewwow) {
+				onUnexpectedEwwow(ewwow); // https://github.com/micwosoft/vscode/issues/99075
 			}
 		}
 
-		return coalesce(entries.map(entry => entry.editor));
+		wetuwn coawesce(entwies.map(entwy => entwy.editow));
 	}
 
-	private saveState(): void {
-		if (!this.history) {
-			return; // nothing to save because history was not used
+	pwivate saveState(): void {
+		if (!this.histowy) {
+			wetuwn; // nothing to save because histowy was not used
 		}
 
-		const entries: ISerializedEditorHistoryEntry[] = [];
-		for (const editor of this.history) {
-			if (isEditorInput(editor) || !isResourceEditorInput(editor)) {
-				continue; // only save resource editor inputs
+		const entwies: ISewiawizedEditowHistowyEntwy[] = [];
+		fow (const editow of this.histowy) {
+			if (isEditowInput(editow) || !isWesouwceEditowInput(editow)) {
+				continue; // onwy save wesouwce editow inputs
 			}
 
-			entries.push({ editor });
+			entwies.push({ editow });
 		}
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.stowageSewvice.stowe(HistowySewvice.HISTOWY_STOWAGE_KEY, stwingify(entwies), StowageScope.WOWKSPACE, StowageTawget.MACHINE);
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Last Active Workspace/File
+	//#wegion Wast Active Wowkspace/Fiwe
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined {
+	getWastActiveWowkspaceWoot(schemeFiwta?: stwing): UWI | undefined {
 
-		// No Folder: return early
-		const folders = this.contextService.getWorkspace().folders;
-		if (folders.length === 0) {
-			return undefined;
+		// No Fowda: wetuwn eawwy
+		const fowdews = this.contextSewvice.getWowkspace().fowdews;
+		if (fowdews.wength === 0) {
+			wetuwn undefined;
 		}
 
-		// Single Folder: return early
-		if (folders.length === 1) {
-			const resource = folders[0].uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
-				return resource;
+		// Singwe Fowda: wetuwn eawwy
+		if (fowdews.wength === 1) {
+			const wesouwce = fowdews[0].uwi;
+			if (!schemeFiwta || wesouwce.scheme === schemeFiwta) {
+				wetuwn wesouwce;
 			}
 
-			return undefined;
+			wetuwn undefined;
 		}
 
-		// Multiple folders: find the last active one
-		for (const input of this.getHistory()) {
-			if (isEditorInput(input)) {
+		// Muwtipwe fowdews: find the wast active one
+		fow (const input of this.getHistowy()) {
+			if (isEditowInput(input)) {
 				continue;
 			}
 
-			if (schemeFilter && input.resource.scheme !== schemeFilter) {
+			if (schemeFiwta && input.wesouwce.scheme !== schemeFiwta) {
 				continue;
 			}
 
-			const resourceWorkspace = this.contextService.getWorkspaceFolder(input.resource);
-			if (resourceWorkspace) {
-				return resourceWorkspace.uri;
+			const wesouwceWowkspace = this.contextSewvice.getWowkspaceFowda(input.wesouwce);
+			if (wesouwceWowkspace) {
+				wetuwn wesouwceWowkspace.uwi;
 			}
 		}
 
-		// fallback to first workspace matching scheme filter if any
-		for (const folder of folders) {
-			const resource = folder.uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
-				return resource;
+		// fawwback to fiwst wowkspace matching scheme fiwta if any
+		fow (const fowda of fowdews) {
+			const wesouwce = fowda.uwi;
+			if (!schemeFiwta || wesouwce.scheme === schemeFiwta) {
+				wetuwn wesouwce;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getLastActiveFile(filterByScheme: string): URI | undefined {
-		for (const input of this.getHistory()) {
-			let resource: URI | undefined;
-			if (isEditorInput(input)) {
-				resource = EditorResourceAccessor.getOriginalUri(input, { filterByScheme });
-			} else {
-				resource = input.resource;
+	getWastActiveFiwe(fiwtewByScheme: stwing): UWI | undefined {
+		fow (const input of this.getHistowy()) {
+			wet wesouwce: UWI | undefined;
+			if (isEditowInput(input)) {
+				wesouwce = EditowWesouwceAccessow.getOwiginawUwi(input, { fiwtewByScheme });
+			} ewse {
+				wesouwce = input.wesouwce;
 			}
 
-			if (resource?.scheme === filterByScheme) {
-				return resource;
+			if (wesouwce?.scheme === fiwtewByScheme) {
+				wetuwn wesouwce;
 			}
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
-	//#endregion
+	//#endwegion
 
-	//#region Editor Most Recently Used History
+	//#wegion Editow Most Wecentwy Used Histowy
 
-	private recentlyUsedEditorsStack: readonly IEditorIdentifier[] | undefined = undefined;
-	private recentlyUsedEditorsStackIndex = 0;
+	pwivate wecentwyUsedEditowsStack: weadonwy IEditowIdentifia[] | undefined = undefined;
+	pwivate wecentwyUsedEditowsStackIndex = 0;
 
-	private recentlyUsedEditorsInGroupStack: readonly IEditorIdentifier[] | undefined = undefined;
-	private recentlyUsedEditorsInGroupStackIndex = 0;
+	pwivate wecentwyUsedEditowsInGwoupStack: weadonwy IEditowIdentifia[] | undefined = undefined;
+	pwivate wecentwyUsedEditowsInGwoupStackIndex = 0;
 
-	private navigatingInRecentlyUsedEditorsStack = false;
-	private navigatingInRecentlyUsedEditorsInGroupStack = false;
+	pwivate navigatingInWecentwyUsedEditowsStack = fawse;
+	pwivate navigatingInWecentwyUsedEditowsInGwoupStack = fawse;
 
-	openNextRecentlyUsedEditor(groupId?: GroupIdentifier): void {
-		const [stack, index] = this.ensureRecentlyUsedStack(index => index - 1, groupId);
+	openNextWecentwyUsedEditow(gwoupId?: GwoupIdentifia): void {
+		const [stack, index] = this.ensuweWecentwyUsedStack(index => index - 1, gwoupId);
 
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+		this.doNavigateInWecentwyUsedEditowsStack(stack[index], gwoupId);
 	}
 
-	openPreviouslyUsedEditor(groupId?: GroupIdentifier): void {
-		const [stack, index] = this.ensureRecentlyUsedStack(index => index + 1, groupId);
+	openPweviouswyUsedEditow(gwoupId?: GwoupIdentifia): void {
+		const [stack, index] = this.ensuweWecentwyUsedStack(index => index + 1, gwoupId);
 
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+		this.doNavigateInWecentwyUsedEditowsStack(stack[index], gwoupId);
 	}
 
-	private doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): void {
-		if (editorIdentifier) {
-			const acrossGroups = typeof groupId !== 'number' || !this.editorGroupService.getGroup(groupId);
+	pwivate doNavigateInWecentwyUsedEditowsStack(editowIdentifia: IEditowIdentifia | undefined, gwoupId?: GwoupIdentifia): void {
+		if (editowIdentifia) {
+			const acwossGwoups = typeof gwoupId !== 'numba' || !this.editowGwoupSewvice.getGwoup(gwoupId);
 
-			if (acrossGroups) {
-				this.navigatingInRecentlyUsedEditorsStack = true;
-			} else {
-				this.navigatingInRecentlyUsedEditorsInGroupStack = true;
+			if (acwossGwoups) {
+				this.navigatingInWecentwyUsedEditowsStack = twue;
+			} ewse {
+				this.navigatingInWecentwyUsedEditowsInGwoupStack = twue;
 			}
 
-			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
-			group.openEditor(editorIdentifier.editor).finally(() => {
-				if (acrossGroups) {
-					this.navigatingInRecentlyUsedEditorsStack = false;
-				} else {
-					this.navigatingInRecentlyUsedEditorsInGroupStack = false;
+			const gwoup = this.editowGwoupSewvice.getGwoup(editowIdentifia.gwoupId) ?? this.editowGwoupSewvice.activeGwoup;
+			gwoup.openEditow(editowIdentifia.editow).finawwy(() => {
+				if (acwossGwoups) {
+					this.navigatingInWecentwyUsedEditowsStack = fawse;
+				} ewse {
+					this.navigatingInWecentwyUsedEditowsInGwoupStack = fawse;
 				}
 			});
 		}
 	}
 
-	private ensureRecentlyUsedStack(indexModifier: (index: number) => number, groupId?: GroupIdentifier): [readonly IEditorIdentifier[], number] {
-		let editors: readonly IEditorIdentifier[];
-		let index: number;
+	pwivate ensuweWecentwyUsedStack(indexModifia: (index: numba) => numba, gwoupId?: GwoupIdentifia): [weadonwy IEditowIdentifia[], numba] {
+		wet editows: weadonwy IEditowIdentifia[];
+		wet index: numba;
 
-		const group = typeof groupId === 'number' ? this.editorGroupService.getGroup(groupId) : undefined;
+		const gwoup = typeof gwoupId === 'numba' ? this.editowGwoupSewvice.getGwoup(gwoupId) : undefined;
 
-		// Across groups
-		if (!group) {
-			editors = this.recentlyUsedEditorsStack || this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-			index = this.recentlyUsedEditorsStackIndex;
+		// Acwoss gwoups
+		if (!gwoup) {
+			editows = this.wecentwyUsedEditowsStack || this.editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE);
+			index = this.wecentwyUsedEditowsStackIndex;
 		}
 
-		// Within group
-		else {
-			editors = this.recentlyUsedEditorsInGroupStack || group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ groupId: group.id, editor }));
-			index = this.recentlyUsedEditorsInGroupStackIndex;
+		// Within gwoup
+		ewse {
+			editows = this.wecentwyUsedEditowsInGwoupStack || gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE).map(editow => ({ gwoupId: gwoup.id, editow }));
+			index = this.wecentwyUsedEditowsInGwoupStackIndex;
 		}
 
 		// Adjust index
-		let newIndex = indexModifier(index);
+		wet newIndex = indexModifia(index);
 		if (newIndex < 0) {
 			newIndex = 0;
-		} else if (newIndex > editors.length - 1) {
-			newIndex = editors.length - 1;
+		} ewse if (newIndex > editows.wength - 1) {
+			newIndex = editows.wength - 1;
 		}
 
-		// Remember index and editors
-		if (!group) {
-			this.recentlyUsedEditorsStack = editors;
-			this.recentlyUsedEditorsStackIndex = newIndex;
-		} else {
-			this.recentlyUsedEditorsInGroupStack = editors;
-			this.recentlyUsedEditorsInGroupStackIndex = newIndex;
+		// Wememba index and editows
+		if (!gwoup) {
+			this.wecentwyUsedEditowsStack = editows;
+			this.wecentwyUsedEditowsStackIndex = newIndex;
+		} ewse {
+			this.wecentwyUsedEditowsInGwoupStack = editows;
+			this.wecentwyUsedEditowsInGwoupStackIndex = newIndex;
 		}
 
-		return [editors, newIndex];
+		wetuwn [editows, newIndex];
 	}
 
-	private handleEditorEventInRecentEditorsStack(): void {
+	pwivate handweEditowEventInWecentEditowsStack(): void {
 
-		// Drop all-editors stack unless navigating in all editors
-		if (!this.navigatingInRecentlyUsedEditorsStack) {
-			this.recentlyUsedEditorsStack = undefined;
-			this.recentlyUsedEditorsStackIndex = 0;
+		// Dwop aww-editows stack unwess navigating in aww editows
+		if (!this.navigatingInWecentwyUsedEditowsStack) {
+			this.wecentwyUsedEditowsStack = undefined;
+			this.wecentwyUsedEditowsStackIndex = 0;
 		}
 
-		// Drop in-group-editors stack unless navigating in group
-		if (!this.navigatingInRecentlyUsedEditorsInGroupStack) {
-			this.recentlyUsedEditorsInGroupStack = undefined;
-			this.recentlyUsedEditorsInGroupStackIndex = 0;
+		// Dwop in-gwoup-editows stack unwess navigating in gwoup
+		if (!this.navigatingInWecentwyUsedEditowsInGwoupStack) {
+			this.wecentwyUsedEditowsInGwoupStack = undefined;
+			this.wecentwyUsedEditowsInGwoupStackIndex = 0;
 		}
 	}
 
-	//#endregion
+	//#endwegion
 }
 
-registerSingleton(IHistoryService, HistoryService);
+wegistewSingweton(IHistowySewvice, HistowySewvice);

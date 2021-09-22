@@ -1,970 +1,970 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CharCode } from 'vs/base/common/charCode';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
-import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { getStringIdentifierForProxy, IRPCProtocol, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as ewwows fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId, MawshawwedObject } fwom 'vs/base/common/mawshawwing';
+impowt { IUWITwansfowma, twansfowmIncomingUWIs } fwom 'vs/base/common/uwiIpc';
+impowt { IMessagePassingPwotocow } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { WazyPwomise } fwom 'vs/wowkbench/sewvices/extensions/common/wazyPwomise';
+impowt { getStwingIdentifiewFowPwoxy, IWPCPwotocow, PwoxyIdentifia, SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-export interface JSONStringifyReplacer {
-	(key: string, value: any): any;
+expowt intewface JSONStwingifyWepwaca {
+	(key: stwing, vawue: any): any;
 }
 
-function safeStringify(obj: any, replacer: JSONStringifyReplacer | null): string {
-	try {
-		return JSON.stringify(obj, <(key: string, value: any) => any>replacer);
-	} catch (err) {
-		return 'null';
+function safeStwingify(obj: any, wepwaca: JSONStwingifyWepwaca | nuww): stwing {
+	twy {
+		wetuwn JSON.stwingify(obj, <(key: stwing, vawue: any) => any>wepwaca);
+	} catch (eww) {
+		wetuwn 'nuww';
 	}
 }
 
-const refSymbolName = '$$ref$$';
-const undefinedRef = { [refSymbolName]: -1 } as const;
+const wefSymbowName = '$$wef$$';
+const undefinedWef = { [wefSymbowName]: -1 } as const;
 
-class StringifiedJsonWithBufferRefs {
-	constructor(
-		public readonly jsonString: string,
-		public readonly referencedBuffers: readonly VSBuffer[],
+cwass StwingifiedJsonWithBuffewWefs {
+	constwuctow(
+		pubwic weadonwy jsonStwing: stwing,
+		pubwic weadonwy wefewencedBuffews: weadonwy VSBuffa[],
 	) { }
 }
 
-export function stringifyJsonWithBufferRefs<T>(obj: T, replacer: JSONStringifyReplacer | null = null, useSafeStringify = false): StringifiedJsonWithBufferRefs {
-	const foundBuffers: VSBuffer[] = [];
-	const serialized = (useSafeStringify ? safeStringify : JSON.stringify)(obj, (key, value) => {
-		if (typeof value === 'undefined') {
-			return undefinedRef; // JSON.stringify normally converts 'undefined' to 'null'
-		} else if (typeof value === 'object') {
-			if (value instanceof VSBuffer) {
-				const bufferIndex = foundBuffers.push(value) - 1;
-				return { [refSymbolName]: bufferIndex };
+expowt function stwingifyJsonWithBuffewWefs<T>(obj: T, wepwaca: JSONStwingifyWepwaca | nuww = nuww, useSafeStwingify = fawse): StwingifiedJsonWithBuffewWefs {
+	const foundBuffews: VSBuffa[] = [];
+	const sewiawized = (useSafeStwingify ? safeStwingify : JSON.stwingify)(obj, (key, vawue) => {
+		if (typeof vawue === 'undefined') {
+			wetuwn undefinedWef; // JSON.stwingify nowmawwy convewts 'undefined' to 'nuww'
+		} ewse if (typeof vawue === 'object') {
+			if (vawue instanceof VSBuffa) {
+				const buffewIndex = foundBuffews.push(vawue) - 1;
+				wetuwn { [wefSymbowName]: buffewIndex };
 			}
-			if (replacer) {
-				return replacer(key, value);
+			if (wepwaca) {
+				wetuwn wepwaca(key, vawue);
 			}
 		}
-		return value;
+		wetuwn vawue;
 	});
-	return {
-		jsonString: serialized,
-		referencedBuffers: foundBuffers
+	wetuwn {
+		jsonStwing: sewiawized,
+		wefewencedBuffews: foundBuffews
 	};
 }
 
-export function parseJsonAndRestoreBufferRefs(jsonString: string, buffers: readonly VSBuffer[], uriTransformer: IURITransformer | null): any {
-	return JSON.parse(jsonString, (_key, value) => {
-		if (value) {
-			const ref = value[refSymbolName];
-			if (typeof ref === 'number') {
-				return buffers[ref];
+expowt function pawseJsonAndWestoweBuffewWefs(jsonStwing: stwing, buffews: weadonwy VSBuffa[], uwiTwansfowma: IUWITwansfowma | nuww): any {
+	wetuwn JSON.pawse(jsonStwing, (_key, vawue) => {
+		if (vawue) {
+			const wef = vawue[wefSymbowName];
+			if (typeof wef === 'numba') {
+				wetuwn buffews[wef];
 			}
 
-			if (uriTransformer && (<MarshalledObject>value).$mid === MarshalledId.Uri) {
-				return uriTransformer.transformIncoming(value);
+			if (uwiTwansfowma && (<MawshawwedObject>vawue).$mid === MawshawwedId.Uwi) {
+				wetuwn uwiTwansfowma.twansfowmIncoming(vawue);
 			}
 		}
-		return value;
+		wetuwn vawue;
 	});
 }
 
 
-function stringify(obj: any, replacer: JSONStringifyReplacer | null): string {
-	return JSON.stringify(obj, <(key: string, value: any) => any>replacer);
+function stwingify(obj: any, wepwaca: JSONStwingifyWepwaca | nuww): stwing {
+	wetuwn JSON.stwingify(obj, <(key: stwing, vawue: any) => any>wepwaca);
 }
 
-function createURIReplacer(transformer: IURITransformer | null): JSONStringifyReplacer | null {
-	if (!transformer) {
-		return null;
+function cweateUWIWepwaca(twansfowma: IUWITwansfowma | nuww): JSONStwingifyWepwaca | nuww {
+	if (!twansfowma) {
+		wetuwn nuww;
 	}
-	return (key: string, value: any): any => {
-		if (value && value.$mid === MarshalledId.Uri) {
-			return transformer.transformOutgoing(value);
+	wetuwn (key: stwing, vawue: any): any => {
+		if (vawue && vawue.$mid === MawshawwedId.Uwi) {
+			wetuwn twansfowma.twansfowmOutgoing(vawue);
 		}
-		return value;
+		wetuwn vawue;
 	};
 }
 
-export const enum RequestInitiator {
-	LocalSide = 0,
-	OtherSide = 1
+expowt const enum WequestInitiatow {
+	WocawSide = 0,
+	OthewSide = 1
 }
 
-export const enum ResponsiveState {
-	Responsive = 0,
-	Unresponsive = 1
+expowt const enum WesponsiveState {
+	Wesponsive = 0,
+	Unwesponsive = 1
 }
 
-export interface IRPCProtocolLogger {
-	logIncoming(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
-	logOutgoing(msgLength: number, req: number, initiator: RequestInitiator, str: string, data?: any): void;
+expowt intewface IWPCPwotocowWogga {
+	wogIncoming(msgWength: numba, weq: numba, initiatow: WequestInitiatow, stw: stwing, data?: any): void;
+	wogOutgoing(msgWength: numba, weq: numba, initiatow: WequestInitiatow, stw: stwing, data?: any): void;
 }
 
 const noop = () => { };
 
-const _RPCProtocolSymbol = Symbol.for('rpcProtocol');
-const _RPCProxySymbol = Symbol.for('rpcProxy');
+const _WPCPwotocowSymbow = Symbow.fow('wpcPwotocow');
+const _WPCPwoxySymbow = Symbow.fow('wpcPwoxy');
 
-export class RPCProtocol extends Disposable implements IRPCProtocol {
+expowt cwass WPCPwotocow extends Disposabwe impwements IWPCPwotocow {
 
-	[_RPCProtocolSymbol] = true;
+	[_WPCPwotocowSymbow] = twue;
 
-	private static readonly UNRESPONSIVE_TIME = 3 * 1000; // 3s
+	pwivate static weadonwy UNWESPONSIVE_TIME = 3 * 1000; // 3s
 
-	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
-	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
+	pwivate weadonwy _onDidChangeWesponsiveState: Emitta<WesponsiveState> = this._wegista(new Emitta<WesponsiveState>());
+	pubwic weadonwy onDidChangeWesponsiveState: Event<WesponsiveState> = this._onDidChangeWesponsiveState.event;
 
-	private readonly _protocol: IMessagePassingProtocol;
-	private readonly _logger: IRPCProtocolLogger | null;
-	private readonly _uriTransformer: IURITransformer | null;
-	private readonly _uriReplacer: JSONStringifyReplacer | null;
-	private _isDisposed: boolean;
-	private readonly _locals: any[];
-	private readonly _proxies: any[];
-	private _lastMessageId: number;
-	private readonly _cancelInvokedHandlers: { [req: string]: () => void; };
-	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
-	private _responsiveState: ResponsiveState;
-	private _unacknowledgedCount: number;
-	private _unresponsiveTime: number;
-	private _asyncCheckUresponsive: RunOnceScheduler;
+	pwivate weadonwy _pwotocow: IMessagePassingPwotocow;
+	pwivate weadonwy _wogga: IWPCPwotocowWogga | nuww;
+	pwivate weadonwy _uwiTwansfowma: IUWITwansfowma | nuww;
+	pwivate weadonwy _uwiWepwaca: JSONStwingifyWepwaca | nuww;
+	pwivate _isDisposed: boowean;
+	pwivate weadonwy _wocaws: any[];
+	pwivate weadonwy _pwoxies: any[];
+	pwivate _wastMessageId: numba;
+	pwivate weadonwy _cancewInvokedHandwews: { [weq: stwing]: () => void; };
+	pwivate weadonwy _pendingWPCWepwies: { [msgId: stwing]: WazyPwomise; };
+	pwivate _wesponsiveState: WesponsiveState;
+	pwivate _unacknowwedgedCount: numba;
+	pwivate _unwesponsiveTime: numba;
+	pwivate _asyncCheckUwesponsive: WunOnceScheduwa;
 
-	constructor(protocol: IMessagePassingProtocol, logger: IRPCProtocolLogger | null = null, transformer: IURITransformer | null = null) {
-		super();
-		this._protocol = protocol;
-		this._logger = logger;
-		this._uriTransformer = transformer;
-		this._uriReplacer = createURIReplacer(this._uriTransformer);
-		this._isDisposed = false;
-		this._locals = [];
-		this._proxies = [];
-		for (let i = 0, len = ProxyIdentifier.count; i < len; i++) {
-			this._locals[i] = null;
-			this._proxies[i] = null;
+	constwuctow(pwotocow: IMessagePassingPwotocow, wogga: IWPCPwotocowWogga | nuww = nuww, twansfowma: IUWITwansfowma | nuww = nuww) {
+		supa();
+		this._pwotocow = pwotocow;
+		this._wogga = wogga;
+		this._uwiTwansfowma = twansfowma;
+		this._uwiWepwaca = cweateUWIWepwaca(this._uwiTwansfowma);
+		this._isDisposed = fawse;
+		this._wocaws = [];
+		this._pwoxies = [];
+		fow (wet i = 0, wen = PwoxyIdentifia.count; i < wen; i++) {
+			this._wocaws[i] = nuww;
+			this._pwoxies[i] = nuww;
 		}
-		this._lastMessageId = 0;
-		this._cancelInvokedHandlers = Object.create(null);
-		this._pendingRPCReplies = {};
-		this._responsiveState = ResponsiveState.Responsive;
-		this._unacknowledgedCount = 0;
-		this._unresponsiveTime = 0;
-		this._asyncCheckUresponsive = this._register(new RunOnceScheduler(() => this._checkUnresponsive(), 1000));
-		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
+		this._wastMessageId = 0;
+		this._cancewInvokedHandwews = Object.cweate(nuww);
+		this._pendingWPCWepwies = {};
+		this._wesponsiveState = WesponsiveState.Wesponsive;
+		this._unacknowwedgedCount = 0;
+		this._unwesponsiveTime = 0;
+		this._asyncCheckUwesponsive = this._wegista(new WunOnceScheduwa(() => this._checkUnwesponsive(), 1000));
+		this._pwotocow.onMessage((msg) => this._weceiveOneMessage(msg));
 	}
 
-	public override dispose(): void {
-		this._isDisposed = true;
+	pubwic ovewwide dispose(): void {
+		this._isDisposed = twue;
 
-		// Release all outstanding promises with a canceled error
-		Object.keys(this._pendingRPCReplies).forEach((msgId) => {
-			const pending = this._pendingRPCReplies[msgId];
-			pending.resolveErr(errors.canceled());
+		// Wewease aww outstanding pwomises with a cancewed ewwow
+		Object.keys(this._pendingWPCWepwies).fowEach((msgId) => {
+			const pending = this._pendingWPCWepwies[msgId];
+			pending.wesowveEww(ewwows.cancewed());
 		});
 	}
 
-	public drain(): Promise<void> {
-		if (typeof this._protocol.drain === 'function') {
-			return this._protocol.drain();
+	pubwic dwain(): Pwomise<void> {
+		if (typeof this._pwotocow.dwain === 'function') {
+			wetuwn this._pwotocow.dwain();
 		}
-		return Promise.resolve();
+		wetuwn Pwomise.wesowve();
 	}
 
-	private _onWillSendRequest(req: number): void {
-		if (this._unacknowledgedCount === 0) {
-			// Since this is the first request we are sending in a while,
-			// mark this moment as the start for the countdown to unresponsive time
-			this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
+	pwivate _onWiwwSendWequest(weq: numba): void {
+		if (this._unacknowwedgedCount === 0) {
+			// Since this is the fiwst wequest we awe sending in a whiwe,
+			// mawk this moment as the stawt fow the countdown to unwesponsive time
+			this._unwesponsiveTime = Date.now() + WPCPwotocow.UNWESPONSIVE_TIME;
 		}
-		this._unacknowledgedCount++;
-		if (!this._asyncCheckUresponsive.isScheduled()) {
-			this._asyncCheckUresponsive.schedule();
-		}
-	}
-
-	private _onDidReceiveAcknowledge(req: number): void {
-		// The next possible unresponsive time is now + delta.
-		this._unresponsiveTime = Date.now() + RPCProtocol.UNRESPONSIVE_TIME;
-		this._unacknowledgedCount--;
-		if (this._unacknowledgedCount === 0) {
-			// No more need to check for unresponsive
-			this._asyncCheckUresponsive.cancel();
-		}
-		// The ext host is responsive!
-		this._setResponsiveState(ResponsiveState.Responsive);
-	}
-
-	private _checkUnresponsive(): void {
-		if (this._unacknowledgedCount === 0) {
-			// Not waiting for anything => cannot say if it is responsive or not
-			return;
-		}
-
-		if (Date.now() > this._unresponsiveTime) {
-			// Unresponsive!!
-			this._setResponsiveState(ResponsiveState.Unresponsive);
-		} else {
-			// Not (yet) unresponsive, be sure to check again soon
-			this._asyncCheckUresponsive.schedule();
+		this._unacknowwedgedCount++;
+		if (!this._asyncCheckUwesponsive.isScheduwed()) {
+			this._asyncCheckUwesponsive.scheduwe();
 		}
 	}
 
-	private _setResponsiveState(newResponsiveState: ResponsiveState): void {
-		if (this._responsiveState === newResponsiveState) {
+	pwivate _onDidWeceiveAcknowwedge(weq: numba): void {
+		// The next possibwe unwesponsive time is now + dewta.
+		this._unwesponsiveTime = Date.now() + WPCPwotocow.UNWESPONSIVE_TIME;
+		this._unacknowwedgedCount--;
+		if (this._unacknowwedgedCount === 0) {
+			// No mowe need to check fow unwesponsive
+			this._asyncCheckUwesponsive.cancew();
+		}
+		// The ext host is wesponsive!
+		this._setWesponsiveState(WesponsiveState.Wesponsive);
+	}
+
+	pwivate _checkUnwesponsive(): void {
+		if (this._unacknowwedgedCount === 0) {
+			// Not waiting fow anything => cannot say if it is wesponsive ow not
+			wetuwn;
+		}
+
+		if (Date.now() > this._unwesponsiveTime) {
+			// Unwesponsive!!
+			this._setWesponsiveState(WesponsiveState.Unwesponsive);
+		} ewse {
+			// Not (yet) unwesponsive, be suwe to check again soon
+			this._asyncCheckUwesponsive.scheduwe();
+		}
+	}
+
+	pwivate _setWesponsiveState(newWesponsiveState: WesponsiveState): void {
+		if (this._wesponsiveState === newWesponsiveState) {
 			// no change
-			return;
+			wetuwn;
 		}
-		this._responsiveState = newResponsiveState;
-		this._onDidChangeResponsiveState.fire(this._responsiveState);
+		this._wesponsiveState = newWesponsiveState;
+		this._onDidChangeWesponsiveState.fiwe(this._wesponsiveState);
 	}
 
-	public get responsiveState(): ResponsiveState {
-		return this._responsiveState;
+	pubwic get wesponsiveState(): WesponsiveState {
+		wetuwn this._wesponsiveState;
 	}
 
-	public transformIncomingURIs<T>(obj: T): T {
-		if (!this._uriTransformer) {
-			return obj;
+	pubwic twansfowmIncomingUWIs<T>(obj: T): T {
+		if (!this._uwiTwansfowma) {
+			wetuwn obj;
 		}
-		return transformIncomingURIs(obj, this._uriTransformer);
+		wetuwn twansfowmIncomingUWIs(obj, this._uwiTwansfowma);
 	}
 
-	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		const { nid: rpcId, sid } = identifier;
-		if (!this._proxies[rpcId]) {
-			this._proxies[rpcId] = this._createProxy(rpcId, sid);
+	pubwic getPwoxy<T>(identifia: PwoxyIdentifia<T>): T {
+		const { nid: wpcId, sid } = identifia;
+		if (!this._pwoxies[wpcId]) {
+			this._pwoxies[wpcId] = this._cweatePwoxy(wpcId, sid);
 		}
-		return this._proxies[rpcId];
+		wetuwn this._pwoxies[wpcId];
 	}
 
-	private _createProxy<T>(rpcId: number, debugName: string): T {
-		let handler = {
-			get: (target: any, name: PropertyKey) => {
-				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
-					target[name] = (...myArgs: any[]) => {
-						return this._remoteCall(rpcId, name, myArgs);
+	pwivate _cweatePwoxy<T>(wpcId: numba, debugName: stwing): T {
+		wet handwa = {
+			get: (tawget: any, name: PwopewtyKey) => {
+				if (typeof name === 'stwing' && !tawget[name] && name.chawCodeAt(0) === ChawCode.DowwawSign) {
+					tawget[name] = (...myAwgs: any[]) => {
+						wetuwn this._wemoteCaww(wpcId, name, myAwgs);
 					};
 				}
-				if (name === _RPCProxySymbol) {
-					return debugName;
+				if (name === _WPCPwoxySymbow) {
+					wetuwn debugName;
 				}
-				return target[name];
+				wetuwn tawget[name];
 			}
 		};
-		return new Proxy(Object.create(null), handler);
+		wetuwn new Pwoxy(Object.cweate(nuww), handwa);
 	}
 
-	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
-		this._locals[identifier.nid] = value;
-		return value;
+	pubwic set<T, W extends T>(identifia: PwoxyIdentifia<T>, vawue: W): W {
+		this._wocaws[identifia.nid] = vawue;
+		wetuwn vawue;
 	}
 
-	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
-		for (let i = 0, len = identifiers.length; i < len; i++) {
-			const identifier = identifiers[i];
-			if (!this._locals[identifier.nid]) {
-				throw new Error(`Missing actor ${identifier.sid} (isMain: ${identifier.isMain})`);
+	pubwic assewtWegistewed(identifiews: PwoxyIdentifia<any>[]): void {
+		fow (wet i = 0, wen = identifiews.wength; i < wen; i++) {
+			const identifia = identifiews[i];
+			if (!this._wocaws[identifia.nid]) {
+				thwow new Ewwow(`Missing actow ${identifia.sid} (isMain: ${identifia.isMain})`);
 			}
 		}
 	}
 
-	private _receiveOneMessage(rawmsg: VSBuffer): void {
+	pwivate _weceiveOneMessage(wawmsg: VSBuffa): void {
 		if (this._isDisposed) {
-			return;
+			wetuwn;
 		}
 
-		const msgLength = rawmsg.byteLength;
-		const buff = MessageBuffer.read(rawmsg, 0);
-		const messageType = <MessageType>buff.readUInt8();
-		const req = buff.readUInt32();
+		const msgWength = wawmsg.byteWength;
+		const buff = MessageBuffa.wead(wawmsg, 0);
+		const messageType = <MessageType>buff.weadUInt8();
+		const weq = buff.weadUInt32();
 
 		switch (messageType) {
-			case MessageType.RequestJSONArgs:
-			case MessageType.RequestJSONArgsWithCancellation: {
-				let { rpcId, method, args } = MessageIO.deserializeRequestJSONArgs(buff);
-				if (this._uriTransformer) {
-					args = transformIncomingURIs(args, this._uriTransformer);
+			case MessageType.WequestJSONAwgs:
+			case MessageType.WequestJSONAwgsWithCancewwation: {
+				wet { wpcId, method, awgs } = MessageIO.desewiawizeWequestJSONAwgs(buff);
+				if (this._uwiTwansfowma) {
+					awgs = twansfowmIncomingUWIs(awgs, this._uwiTwansfowma);
 				}
-				this._receiveRequest(msgLength, req, rpcId, method, args, (messageType === MessageType.RequestJSONArgsWithCancellation));
-				break;
+				this._weceiveWequest(msgWength, weq, wpcId, method, awgs, (messageType === MessageType.WequestJSONAwgsWithCancewwation));
+				bweak;
 			}
-			case MessageType.RequestMixedArgs:
-			case MessageType.RequestMixedArgsWithCancellation: {
-				let { rpcId, method, args } = MessageIO.deserializeRequestMixedArgs(buff);
-				if (this._uriTransformer) {
-					args = transformIncomingURIs(args, this._uriTransformer);
+			case MessageType.WequestMixedAwgs:
+			case MessageType.WequestMixedAwgsWithCancewwation: {
+				wet { wpcId, method, awgs } = MessageIO.desewiawizeWequestMixedAwgs(buff);
+				if (this._uwiTwansfowma) {
+					awgs = twansfowmIncomingUWIs(awgs, this._uwiTwansfowma);
 				}
-				this._receiveRequest(msgLength, req, rpcId, method, args, (messageType === MessageType.RequestMixedArgsWithCancellation));
-				break;
+				this._weceiveWequest(msgWength, weq, wpcId, method, awgs, (messageType === MessageType.WequestMixedAwgsWithCancewwation));
+				bweak;
 			}
-			case MessageType.Acknowledged: {
-				if (this._logger) {
-					this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `ack`);
+			case MessageType.Acknowwedged: {
+				if (this._wogga) {
+					this._wogga.wogIncoming(msgWength, weq, WequestInitiatow.WocawSide, `ack`);
 				}
-				this._onDidReceiveAcknowledge(req);
-				break;
+				this._onDidWeceiveAcknowwedge(weq);
+				bweak;
 			}
-			case MessageType.Cancel: {
-				this._receiveCancel(msgLength, req);
-				break;
+			case MessageType.Cancew: {
+				this._weceiveCancew(msgWength, weq);
+				bweak;
 			}
-			case MessageType.ReplyOKEmpty: {
-				this._receiveReply(msgLength, req, undefined);
-				break;
+			case MessageType.WepwyOKEmpty: {
+				this._weceiveWepwy(msgWength, weq, undefined);
+				bweak;
 			}
-			case MessageType.ReplyOKJSON: {
-				let value = MessageIO.deserializeReplyOKJSON(buff);
-				if (this._uriTransformer) {
-					value = transformIncomingURIs(value, this._uriTransformer);
+			case MessageType.WepwyOKJSON: {
+				wet vawue = MessageIO.desewiawizeWepwyOKJSON(buff);
+				if (this._uwiTwansfowma) {
+					vawue = twansfowmIncomingUWIs(vawue, this._uwiTwansfowma);
 				}
-				this._receiveReply(msgLength, req, value);
-				break;
+				this._weceiveWepwy(msgWength, weq, vawue);
+				bweak;
 			}
-			case MessageType.ReplyOKJSONWithBuffers: {
-				const value = MessageIO.deserializeReplyOKJSONWithBuffers(buff, this._uriTransformer);
-				this._receiveReply(msgLength, req, value);
-				break;
+			case MessageType.WepwyOKJSONWithBuffews: {
+				const vawue = MessageIO.desewiawizeWepwyOKJSONWithBuffews(buff, this._uwiTwansfowma);
+				this._weceiveWepwy(msgWength, weq, vawue);
+				bweak;
 			}
-			case MessageType.ReplyOKVSBuffer: {
-				let value = MessageIO.deserializeReplyOKVSBuffer(buff);
-				this._receiveReply(msgLength, req, value);
-				break;
+			case MessageType.WepwyOKVSBuffa: {
+				wet vawue = MessageIO.desewiawizeWepwyOKVSBuffa(buff);
+				this._weceiveWepwy(msgWength, weq, vawue);
+				bweak;
 			}
-			case MessageType.ReplyErrError: {
-				let err = MessageIO.deserializeReplyErrError(buff);
-				if (this._uriTransformer) {
-					err = transformIncomingURIs(err, this._uriTransformer);
+			case MessageType.WepwyEwwEwwow: {
+				wet eww = MessageIO.desewiawizeWepwyEwwEwwow(buff);
+				if (this._uwiTwansfowma) {
+					eww = twansfowmIncomingUWIs(eww, this._uwiTwansfowma);
 				}
-				this._receiveReplyErr(msgLength, req, err);
-				break;
+				this._weceiveWepwyEww(msgWength, weq, eww);
+				bweak;
 			}
-			case MessageType.ReplyErrEmpty: {
-				this._receiveReplyErr(msgLength, req, undefined);
-				break;
+			case MessageType.WepwyEwwEmpty: {
+				this._weceiveWepwyEww(msgWength, weq, undefined);
+				bweak;
 			}
-			default:
-				console.error(`received unexpected message`);
-				console.error(rawmsg);
+			defauwt:
+				consowe.ewwow(`weceived unexpected message`);
+				consowe.ewwow(wawmsg);
 		}
 	}
 
-	private _receiveRequest(msgLength: number, req: number, rpcId: number, method: string, args: any[], usesCancellationToken: boolean): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveRequest ${getStringIdentifierForProxy(rpcId)}.${method}(`, args);
+	pwivate _weceiveWequest(msgWength: numba, weq: numba, wpcId: numba, method: stwing, awgs: any[], usesCancewwationToken: boowean): void {
+		if (this._wogga) {
+			this._wogga.wogIncoming(msgWength, weq, WequestInitiatow.OthewSide, `weceiveWequest ${getStwingIdentifiewFowPwoxy(wpcId)}.${method}(`, awgs);
 		}
-		const callId = String(req);
+		const cawwId = Stwing(weq);
 
-		let promise: Promise<any>;
-		let cancel: () => void;
-		if (usesCancellationToken) {
-			const cancellationTokenSource = new CancellationTokenSource();
-			args.push(cancellationTokenSource.token);
-			promise = this._invokeHandler(rpcId, method, args);
-			cancel = () => cancellationTokenSource.cancel();
-		} else {
-			// cannot be cancelled
-			promise = this._invokeHandler(rpcId, method, args);
-			cancel = noop;
+		wet pwomise: Pwomise<any>;
+		wet cancew: () => void;
+		if (usesCancewwationToken) {
+			const cancewwationTokenSouwce = new CancewwationTokenSouwce();
+			awgs.push(cancewwationTokenSouwce.token);
+			pwomise = this._invokeHandwa(wpcId, method, awgs);
+			cancew = () => cancewwationTokenSouwce.cancew();
+		} ewse {
+			// cannot be cancewwed
+			pwomise = this._invokeHandwa(wpcId, method, awgs);
+			cancew = noop;
 		}
 
-		this._cancelInvokedHandlers[callId] = cancel;
+		this._cancewInvokedHandwews[cawwId] = cancew;
 
-		// Acknowledge the request
-		const msg = MessageIO.serializeAcknowledged(req);
-		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `ack`);
+		// Acknowwedge the wequest
+		const msg = MessageIO.sewiawizeAcknowwedged(weq);
+		if (this._wogga) {
+			this._wogga.wogOutgoing(msg.byteWength, weq, WequestInitiatow.OthewSide, `ack`);
 		}
-		this._protocol.send(msg);
+		this._pwotocow.send(msg);
 
-		promise.then((r) => {
-			delete this._cancelInvokedHandlers[callId];
-			const msg = MessageIO.serializeReplyOK(req, r, this._uriReplacer);
-			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `reply:`, r);
+		pwomise.then((w) => {
+			dewete this._cancewInvokedHandwews[cawwId];
+			const msg = MessageIO.sewiawizeWepwyOK(weq, w, this._uwiWepwaca);
+			if (this._wogga) {
+				this._wogga.wogOutgoing(msg.byteWength, weq, WequestInitiatow.OthewSide, `wepwy:`, w);
 			}
-			this._protocol.send(msg);
-		}, (err) => {
-			delete this._cancelInvokedHandlers[callId];
-			const msg = MessageIO.serializeReplyErr(req, err);
-			if (this._logger) {
-				this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.OtherSide, `replyErr:`, err);
+			this._pwotocow.send(msg);
+		}, (eww) => {
+			dewete this._cancewInvokedHandwews[cawwId];
+			const msg = MessageIO.sewiawizeWepwyEww(weq, eww);
+			if (this._wogga) {
+				this._wogga.wogOutgoing(msg.byteWength, weq, WequestInitiatow.OthewSide, `wepwyEww:`, eww);
 			}
-			this._protocol.send(msg);
+			this._pwotocow.send(msg);
 		});
 	}
 
-	private _receiveCancel(msgLength: number, req: number): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.OtherSide, `receiveCancel`);
+	pwivate _weceiveCancew(msgWength: numba, weq: numba): void {
+		if (this._wogga) {
+			this._wogga.wogIncoming(msgWength, weq, WequestInitiatow.OthewSide, `weceiveCancew`);
 		}
-		const callId = String(req);
-		if (this._cancelInvokedHandlers[callId]) {
-			this._cancelInvokedHandlers[callId]();
+		const cawwId = Stwing(weq);
+		if (this._cancewInvokedHandwews[cawwId]) {
+			this._cancewInvokedHandwews[cawwId]();
 		}
 	}
 
-	private _receiveReply(msgLength: number, req: number, value: any): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReply:`, value);
+	pwivate _weceiveWepwy(msgWength: numba, weq: numba, vawue: any): void {
+		if (this._wogga) {
+			this._wogga.wogIncoming(msgWength, weq, WequestInitiatow.WocawSide, `weceiveWepwy:`, vawue);
 		}
-		const callId = String(req);
-		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
-			return;
+		const cawwId = Stwing(weq);
+		if (!this._pendingWPCWepwies.hasOwnPwopewty(cawwId)) {
+			wetuwn;
 		}
 
-		const pendingReply = this._pendingRPCReplies[callId];
-		delete this._pendingRPCReplies[callId];
+		const pendingWepwy = this._pendingWPCWepwies[cawwId];
+		dewete this._pendingWPCWepwies[cawwId];
 
-		pendingReply.resolveOk(value);
+		pendingWepwy.wesowveOk(vawue);
 	}
 
-	private _receiveReplyErr(msgLength: number, req: number, value: any): void {
-		if (this._logger) {
-			this._logger.logIncoming(msgLength, req, RequestInitiator.LocalSide, `receiveReplyErr:`, value);
+	pwivate _weceiveWepwyEww(msgWength: numba, weq: numba, vawue: any): void {
+		if (this._wogga) {
+			this._wogga.wogIncoming(msgWength, weq, WequestInitiatow.WocawSide, `weceiveWepwyEww:`, vawue);
 		}
 
-		const callId = String(req);
-		if (!this._pendingRPCReplies.hasOwnProperty(callId)) {
-			return;
+		const cawwId = Stwing(weq);
+		if (!this._pendingWPCWepwies.hasOwnPwopewty(cawwId)) {
+			wetuwn;
 		}
 
-		const pendingReply = this._pendingRPCReplies[callId];
-		delete this._pendingRPCReplies[callId];
+		const pendingWepwy = this._pendingWPCWepwies[cawwId];
+		dewete this._pendingWPCWepwies[cawwId];
 
-		let err: any = undefined;
-		if (value) {
-			if (value.$isError) {
-				err = new Error();
-				err.name = value.name;
-				err.message = value.message;
-				err.stack = value.stack;
-			} else {
-				err = value;
+		wet eww: any = undefined;
+		if (vawue) {
+			if (vawue.$isEwwow) {
+				eww = new Ewwow();
+				eww.name = vawue.name;
+				eww.message = vawue.message;
+				eww.stack = vawue.stack;
+			} ewse {
+				eww = vawue;
 			}
 		}
-		pendingReply.resolveErr(err);
+		pendingWepwy.wesowveEww(eww);
 	}
 
-	private _invokeHandler(rpcId: number, methodName: string, args: any[]): Promise<any> {
-		try {
-			return Promise.resolve(this._doInvokeHandler(rpcId, methodName, args));
-		} catch (err) {
-			return Promise.reject(err);
+	pwivate _invokeHandwa(wpcId: numba, methodName: stwing, awgs: any[]): Pwomise<any> {
+		twy {
+			wetuwn Pwomise.wesowve(this._doInvokeHandwa(wpcId, methodName, awgs));
+		} catch (eww) {
+			wetuwn Pwomise.weject(eww);
 		}
 	}
 
-	private _doInvokeHandler(rpcId: number, methodName: string, args: any[]): any {
-		const actor = this._locals[rpcId];
-		if (!actor) {
-			throw new Error('Unknown actor ' + getStringIdentifierForProxy(rpcId));
+	pwivate _doInvokeHandwa(wpcId: numba, methodName: stwing, awgs: any[]): any {
+		const actow = this._wocaws[wpcId];
+		if (!actow) {
+			thwow new Ewwow('Unknown actow ' + getStwingIdentifiewFowPwoxy(wpcId));
 		}
-		let method = actor[methodName];
+		wet method = actow[methodName];
 		if (typeof method !== 'function') {
-			throw new Error('Unknown method ' + methodName + ' on actor ' + getStringIdentifierForProxy(rpcId));
+			thwow new Ewwow('Unknown method ' + methodName + ' on actow ' + getStwingIdentifiewFowPwoxy(wpcId));
 		}
-		return method.apply(actor, args);
+		wetuwn method.appwy(actow, awgs);
 	}
 
-	private _remoteCall(rpcId: number, methodName: string, args: any[]): Promise<any> {
+	pwivate _wemoteCaww(wpcId: numba, methodName: stwing, awgs: any[]): Pwomise<any> {
 		if (this._isDisposed) {
-			return Promise.reject<any>(errors.canceled());
+			wetuwn Pwomise.weject<any>(ewwows.cancewed());
 		}
-		let cancellationToken: CancellationToken | null = null;
-		if (args.length > 0 && CancellationToken.isCancellationToken(args[args.length - 1])) {
-			cancellationToken = args.pop();
+		wet cancewwationToken: CancewwationToken | nuww = nuww;
+		if (awgs.wength > 0 && CancewwationToken.isCancewwationToken(awgs[awgs.wength - 1])) {
+			cancewwationToken = awgs.pop();
 		}
 
-		if (cancellationToken && cancellationToken.isCancellationRequested) {
+		if (cancewwationToken && cancewwationToken.isCancewwationWequested) {
 			// No need to do anything...
-			return Promise.reject<any>(errors.canceled());
+			wetuwn Pwomise.weject<any>(ewwows.cancewed());
 		}
 
-		const serializedRequestArguments = MessageIO.serializeRequestArguments(args, this._uriReplacer);
+		const sewiawizedWequestAwguments = MessageIO.sewiawizeWequestAwguments(awgs, this._uwiWepwaca);
 
-		const req = ++this._lastMessageId;
-		const callId = String(req);
-		const result = new LazyPromise();
+		const weq = ++this._wastMessageId;
+		const cawwId = Stwing(weq);
+		const wesuwt = new WazyPwomise();
 
-		if (cancellationToken) {
-			cancellationToken.onCancellationRequested(() => {
-				const msg = MessageIO.serializeCancel(req);
-				if (this._logger) {
-					this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
+		if (cancewwationToken) {
+			cancewwationToken.onCancewwationWequested(() => {
+				const msg = MessageIO.sewiawizeCancew(weq);
+				if (this._wogga) {
+					this._wogga.wogOutgoing(msg.byteWength, weq, WequestInitiatow.WocawSide, `cancew`);
 				}
-				this._protocol.send(MessageIO.serializeCancel(req));
+				this._pwotocow.send(MessageIO.sewiawizeCancew(weq));
 			});
 		}
 
-		this._pendingRPCReplies[callId] = result;
-		this._onWillSendRequest(req);
-		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
-		if (this._logger) {
-			this._logger.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
+		this._pendingWPCWepwies[cawwId] = wesuwt;
+		this._onWiwwSendWequest(weq);
+		const msg = MessageIO.sewiawizeWequest(weq, wpcId, methodName, sewiawizedWequestAwguments, !!cancewwationToken);
+		if (this._wogga) {
+			this._wogga.wogOutgoing(msg.byteWength, weq, WequestInitiatow.WocawSide, `wequest: ${getStwingIdentifiewFowPwoxy(wpcId)}.${methodName}(`, awgs);
 		}
-		this._protocol.send(msg);
-		return result;
+		this._pwotocow.send(msg);
+		wetuwn wesuwt;
 	}
 }
 
-class MessageBuffer {
+cwass MessageBuffa {
 
-	public static alloc(type: MessageType, req: number, messageSize: number): MessageBuffer {
-		let result = new MessageBuffer(VSBuffer.alloc(messageSize + 1 /* type */ + 4 /* req */), 0);
-		result.writeUInt8(type);
-		result.writeUInt32(req);
-		return result;
+	pubwic static awwoc(type: MessageType, weq: numba, messageSize: numba): MessageBuffa {
+		wet wesuwt = new MessageBuffa(VSBuffa.awwoc(messageSize + 1 /* type */ + 4 /* weq */), 0);
+		wesuwt.wwiteUInt8(type);
+		wesuwt.wwiteUInt32(weq);
+		wetuwn wesuwt;
 	}
 
-	public static read(buff: VSBuffer, offset: number): MessageBuffer {
-		return new MessageBuffer(buff, offset);
+	pubwic static wead(buff: VSBuffa, offset: numba): MessageBuffa {
+		wetuwn new MessageBuffa(buff, offset);
 	}
 
-	private _buff: VSBuffer;
-	private _offset: number;
+	pwivate _buff: VSBuffa;
+	pwivate _offset: numba;
 
-	public get buffer(): VSBuffer {
-		return this._buff;
+	pubwic get buffa(): VSBuffa {
+		wetuwn this._buff;
 	}
 
-	private constructor(buff: VSBuffer, offset: number) {
+	pwivate constwuctow(buff: VSBuffa, offset: numba) {
 		this._buff = buff;
 		this._offset = offset;
 	}
 
-	public static sizeUInt8(): number {
-		return 1;
+	pubwic static sizeUInt8(): numba {
+		wetuwn 1;
 	}
 
-	public static readonly sizeUInt32 = 4;
+	pubwic static weadonwy sizeUInt32 = 4;
 
-	public writeUInt8(n: number): void {
-		this._buff.writeUInt8(n, this._offset); this._offset += 1;
+	pubwic wwiteUInt8(n: numba): void {
+		this._buff.wwiteUInt8(n, this._offset); this._offset += 1;
 	}
 
-	public readUInt8(): number {
-		const n = this._buff.readUInt8(this._offset); this._offset += 1;
-		return n;
+	pubwic weadUInt8(): numba {
+		const n = this._buff.weadUInt8(this._offset); this._offset += 1;
+		wetuwn n;
 	}
 
-	public writeUInt32(n: number): void {
-		this._buff.writeUInt32BE(n, this._offset); this._offset += 4;
+	pubwic wwiteUInt32(n: numba): void {
+		this._buff.wwiteUInt32BE(n, this._offset); this._offset += 4;
 	}
 
-	public readUInt32(): number {
-		const n = this._buff.readUInt32BE(this._offset); this._offset += 4;
-		return n;
+	pubwic weadUInt32(): numba {
+		const n = this._buff.weadUInt32BE(this._offset); this._offset += 4;
+		wetuwn n;
 	}
 
-	public static sizeShortString(str: VSBuffer): number {
-		return 1 /* string length */ + str.byteLength /* actual string */;
+	pubwic static sizeShowtStwing(stw: VSBuffa): numba {
+		wetuwn 1 /* stwing wength */ + stw.byteWength /* actuaw stwing */;
 	}
 
-	public writeShortString(str: VSBuffer): void {
-		this._buff.writeUInt8(str.byteLength, this._offset); this._offset += 1;
-		this._buff.set(str, this._offset); this._offset += str.byteLength;
+	pubwic wwiteShowtStwing(stw: VSBuffa): void {
+		this._buff.wwiteUInt8(stw.byteWength, this._offset); this._offset += 1;
+		this._buff.set(stw, this._offset); this._offset += stw.byteWength;
 	}
 
-	public readShortString(): string {
-		const strByteLength = this._buff.readUInt8(this._offset); this._offset += 1;
-		const strBuff = this._buff.slice(this._offset, this._offset + strByteLength);
-		const str = strBuff.toString(); this._offset += strByteLength;
-		return str;
+	pubwic weadShowtStwing(): stwing {
+		const stwByteWength = this._buff.weadUInt8(this._offset); this._offset += 1;
+		const stwBuff = this._buff.swice(this._offset, this._offset + stwByteWength);
+		const stw = stwBuff.toStwing(); this._offset += stwByteWength;
+		wetuwn stw;
 	}
 
-	public static sizeLongString(str: VSBuffer): number {
-		return 4 /* string length */ + str.byteLength /* actual string */;
+	pubwic static sizeWongStwing(stw: VSBuffa): numba {
+		wetuwn 4 /* stwing wength */ + stw.byteWength /* actuaw stwing */;
 	}
 
-	public writeLongString(str: VSBuffer): void {
-		this._buff.writeUInt32BE(str.byteLength, this._offset); this._offset += 4;
-		this._buff.set(str, this._offset); this._offset += str.byteLength;
+	pubwic wwiteWongStwing(stw: VSBuffa): void {
+		this._buff.wwiteUInt32BE(stw.byteWength, this._offset); this._offset += 4;
+		this._buff.set(stw, this._offset); this._offset += stw.byteWength;
 	}
 
-	public readLongString(): string {
-		const strByteLength = this._buff.readUInt32BE(this._offset); this._offset += 4;
-		const strBuff = this._buff.slice(this._offset, this._offset + strByteLength);
-		const str = strBuff.toString(); this._offset += strByteLength;
-		return str;
+	pubwic weadWongStwing(): stwing {
+		const stwByteWength = this._buff.weadUInt32BE(this._offset); this._offset += 4;
+		const stwBuff = this._buff.swice(this._offset, this._offset + stwByteWength);
+		const stw = stwBuff.toStwing(); this._offset += stwByteWength;
+		wetuwn stw;
 	}
 
-	public writeBuffer(buff: VSBuffer): void {
-		this._buff.writeUInt32BE(buff.byteLength, this._offset); this._offset += 4;
-		this._buff.set(buff, this._offset); this._offset += buff.byteLength;
+	pubwic wwiteBuffa(buff: VSBuffa): void {
+		this._buff.wwiteUInt32BE(buff.byteWength, this._offset); this._offset += 4;
+		this._buff.set(buff, this._offset); this._offset += buff.byteWength;
 	}
 
-	public static sizeVSBuffer(buff: VSBuffer): number {
-		return 4 /* buffer length */ + buff.byteLength /* actual buffer */;
+	pubwic static sizeVSBuffa(buff: VSBuffa): numba {
+		wetuwn 4 /* buffa wength */ + buff.byteWength /* actuaw buffa */;
 	}
 
-	public writeVSBuffer(buff: VSBuffer): void {
-		this._buff.writeUInt32BE(buff.byteLength, this._offset); this._offset += 4;
-		this._buff.set(buff, this._offset); this._offset += buff.byteLength;
+	pubwic wwiteVSBuffa(buff: VSBuffa): void {
+		this._buff.wwiteUInt32BE(buff.byteWength, this._offset); this._offset += 4;
+		this._buff.set(buff, this._offset); this._offset += buff.byteWength;
 	}
 
-	public readVSBuffer(): VSBuffer {
-		const buffLength = this._buff.readUInt32BE(this._offset); this._offset += 4;
-		const buff = this._buff.slice(this._offset, this._offset + buffLength); this._offset += buffLength;
-		return buff;
+	pubwic weadVSBuffa(): VSBuffa {
+		const buffWength = this._buff.weadUInt32BE(this._offset); this._offset += 4;
+		const buff = this._buff.swice(this._offset, this._offset + buffWength); this._offset += buffWength;
+		wetuwn buff;
 	}
 
-	public static sizeMixedArray(arr: readonly MixedArg[]): number {
-		let size = 0;
-		size += 1; // arr length
-		for (let i = 0, len = arr.length; i < len; i++) {
-			const el = arr[i];
-			size += 1; // arg type
-			switch (el.type) {
-				case ArgType.String:
-					size += this.sizeLongString(el.value);
-					break;
-				case ArgType.VSBuffer:
-					size += this.sizeVSBuffer(el.value);
-					break;
-				case ArgType.SerializedObjectWithBuffers:
-					size += this.sizeUInt32; // buffer count
-					size += this.sizeLongString(el.value);
-					for (let i = 0; i < el.buffers.length; ++i) {
-						size += this.sizeVSBuffer(el.buffers[i]);
+	pubwic static sizeMixedAwway(aww: weadonwy MixedAwg[]): numba {
+		wet size = 0;
+		size += 1; // aww wength
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			const ew = aww[i];
+			size += 1; // awg type
+			switch (ew.type) {
+				case AwgType.Stwing:
+					size += this.sizeWongStwing(ew.vawue);
+					bweak;
+				case AwgType.VSBuffa:
+					size += this.sizeVSBuffa(ew.vawue);
+					bweak;
+				case AwgType.SewiawizedObjectWithBuffews:
+					size += this.sizeUInt32; // buffa count
+					size += this.sizeWongStwing(ew.vawue);
+					fow (wet i = 0; i < ew.buffews.wength; ++i) {
+						size += this.sizeVSBuffa(ew.buffews[i]);
 					}
-					break;
-				case ArgType.Undefined:
+					bweak;
+				case AwgType.Undefined:
 					// empty...
-					break;
+					bweak;
 			}
 		}
-		return size;
+		wetuwn size;
 	}
 
-	public writeMixedArray(arr: readonly MixedArg[]): void {
-		this._buff.writeUInt8(arr.length, this._offset); this._offset += 1;
-		for (let i = 0, len = arr.length; i < len; i++) {
-			const el = arr[i];
-			switch (el.type) {
-				case ArgType.String:
-					this.writeUInt8(ArgType.String);
-					this.writeLongString(el.value);
-					break;
-				case ArgType.VSBuffer:
-					this.writeUInt8(ArgType.VSBuffer);
-					this.writeVSBuffer(el.value);
-					break;
-				case ArgType.SerializedObjectWithBuffers:
-					this.writeUInt8(ArgType.SerializedObjectWithBuffers);
-					this.writeUInt32(el.buffers.length);
-					this.writeLongString(el.value);
-					for (let i = 0; i < el.buffers.length; ++i) {
-						this.writeBuffer(el.buffers[i]);
+	pubwic wwiteMixedAwway(aww: weadonwy MixedAwg[]): void {
+		this._buff.wwiteUInt8(aww.wength, this._offset); this._offset += 1;
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			const ew = aww[i];
+			switch (ew.type) {
+				case AwgType.Stwing:
+					this.wwiteUInt8(AwgType.Stwing);
+					this.wwiteWongStwing(ew.vawue);
+					bweak;
+				case AwgType.VSBuffa:
+					this.wwiteUInt8(AwgType.VSBuffa);
+					this.wwiteVSBuffa(ew.vawue);
+					bweak;
+				case AwgType.SewiawizedObjectWithBuffews:
+					this.wwiteUInt8(AwgType.SewiawizedObjectWithBuffews);
+					this.wwiteUInt32(ew.buffews.wength);
+					this.wwiteWongStwing(ew.vawue);
+					fow (wet i = 0; i < ew.buffews.wength; ++i) {
+						this.wwiteBuffa(ew.buffews[i]);
 					}
-					break;
-				case ArgType.Undefined:
-					this.writeUInt8(ArgType.Undefined);
-					break;
+					bweak;
+				case AwgType.Undefined:
+					this.wwiteUInt8(AwgType.Undefined);
+					bweak;
 			}
 		}
 	}
 
-	public readMixedArray(): Array<string | VSBuffer | SerializableObjectWithBuffers<any> | undefined> {
-		const arrLen = this._buff.readUInt8(this._offset); this._offset += 1;
-		let arr: Array<string | VSBuffer | SerializableObjectWithBuffers<any> | undefined> = new Array(arrLen);
-		for (let i = 0; i < arrLen; i++) {
-			const argType = <ArgType>this.readUInt8();
-			switch (argType) {
-				case ArgType.String:
-					arr[i] = this.readLongString();
-					break;
-				case ArgType.VSBuffer:
-					arr[i] = this.readVSBuffer();
-					break;
-				case ArgType.SerializedObjectWithBuffers:
-					const bufferCount = this.readUInt32();
-					const jsonString = this.readLongString();
-					const buffers: VSBuffer[] = [];
-					for (let i = 0; i < bufferCount; ++i) {
-						buffers.push(this.readVSBuffer());
+	pubwic weadMixedAwway(): Awway<stwing | VSBuffa | SewiawizabweObjectWithBuffews<any> | undefined> {
+		const awwWen = this._buff.weadUInt8(this._offset); this._offset += 1;
+		wet aww: Awway<stwing | VSBuffa | SewiawizabweObjectWithBuffews<any> | undefined> = new Awway(awwWen);
+		fow (wet i = 0; i < awwWen; i++) {
+			const awgType = <AwgType>this.weadUInt8();
+			switch (awgType) {
+				case AwgType.Stwing:
+					aww[i] = this.weadWongStwing();
+					bweak;
+				case AwgType.VSBuffa:
+					aww[i] = this.weadVSBuffa();
+					bweak;
+				case AwgType.SewiawizedObjectWithBuffews:
+					const buffewCount = this.weadUInt32();
+					const jsonStwing = this.weadWongStwing();
+					const buffews: VSBuffa[] = [];
+					fow (wet i = 0; i < buffewCount; ++i) {
+						buffews.push(this.weadVSBuffa());
 					}
-					arr[i] = new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(jsonString, buffers, null));
-					break;
-				case ArgType.Undefined:
-					arr[i] = undefined;
-					break;
+					aww[i] = new SewiawizabweObjectWithBuffews(pawseJsonAndWestoweBuffewWefs(jsonStwing, buffews, nuww));
+					bweak;
+				case AwgType.Undefined:
+					aww[i] = undefined;
+					bweak;
 			}
 		}
-		return arr;
+		wetuwn aww;
 	}
 }
 
-const enum SerializedRequestArgumentType {
-	Simple,
+const enum SewiawizedWequestAwgumentType {
+	Simpwe,
 	Mixed,
 }
 
-type SerializedRequestArguments =
-	| { readonly type: SerializedRequestArgumentType.Simple; args: string; }
-	| { readonly type: SerializedRequestArgumentType.Mixed; args: MixedArg[] };
+type SewiawizedWequestAwguments =
+	| { weadonwy type: SewiawizedWequestAwgumentType.Simpwe; awgs: stwing; }
+	| { weadonwy type: SewiawizedWequestAwgumentType.Mixed; awgs: MixedAwg[] };
 
 
-class MessageIO {
+cwass MessageIO {
 
-	private static _useMixedArgSerialization(arr: any[]): boolean {
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i] instanceof VSBuffer) {
-				return true;
+	pwivate static _useMixedAwgSewiawization(aww: any[]): boowean {
+		fow (wet i = 0, wen = aww.wength; i < wen; i++) {
+			if (aww[i] instanceof VSBuffa) {
+				wetuwn twue;
 			}
-			if (arr[i] instanceof SerializableObjectWithBuffers) {
-				return true;
+			if (aww[i] instanceof SewiawizabweObjectWithBuffews) {
+				wetuwn twue;
 			}
-			if (typeof arr[i] === 'undefined') {
-				return true;
+			if (typeof aww[i] === 'undefined') {
+				wetuwn twue;
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	public static serializeRequestArguments(args: any[], replacer: JSONStringifyReplacer | null): SerializedRequestArguments {
-		if (this._useMixedArgSerialization(args)) {
-			const massagedArgs: MixedArg[] = [];
-			for (let i = 0, len = args.length; i < len; i++) {
-				const arg = args[i];
-				if (arg instanceof VSBuffer) {
-					massagedArgs[i] = { type: ArgType.VSBuffer, value: arg };
-				} else if (typeof arg === 'undefined') {
-					massagedArgs[i] = { type: ArgType.Undefined };
-				} else if (arg instanceof SerializableObjectWithBuffers) {
-					const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(arg.value, replacer);
-					massagedArgs[i] = { type: ArgType.SerializedObjectWithBuffers, value: VSBuffer.fromString(jsonString), buffers: referencedBuffers };
-				} else {
-					massagedArgs[i] = { type: ArgType.String, value: VSBuffer.fromString(stringify(arg, replacer)) };
+	pubwic static sewiawizeWequestAwguments(awgs: any[], wepwaca: JSONStwingifyWepwaca | nuww): SewiawizedWequestAwguments {
+		if (this._useMixedAwgSewiawization(awgs)) {
+			const massagedAwgs: MixedAwg[] = [];
+			fow (wet i = 0, wen = awgs.wength; i < wen; i++) {
+				const awg = awgs[i];
+				if (awg instanceof VSBuffa) {
+					massagedAwgs[i] = { type: AwgType.VSBuffa, vawue: awg };
+				} ewse if (typeof awg === 'undefined') {
+					massagedAwgs[i] = { type: AwgType.Undefined };
+				} ewse if (awg instanceof SewiawizabweObjectWithBuffews) {
+					const { jsonStwing, wefewencedBuffews } = stwingifyJsonWithBuffewWefs(awg.vawue, wepwaca);
+					massagedAwgs[i] = { type: AwgType.SewiawizedObjectWithBuffews, vawue: VSBuffa.fwomStwing(jsonStwing), buffews: wefewencedBuffews };
+				} ewse {
+					massagedAwgs[i] = { type: AwgType.Stwing, vawue: VSBuffa.fwomStwing(stwingify(awg, wepwaca)) };
 				}
 			}
-			return {
-				type: SerializedRequestArgumentType.Mixed,
-				args: massagedArgs,
+			wetuwn {
+				type: SewiawizedWequestAwgumentType.Mixed,
+				awgs: massagedAwgs,
 			};
 		}
-		return {
-			type: SerializedRequestArgumentType.Simple,
-			args: stringify(args, replacer)
+		wetuwn {
+			type: SewiawizedWequestAwgumentType.Simpwe,
+			awgs: stwingify(awgs, wepwaca)
 		};
 	}
 
-	public static serializeRequest(req: number, rpcId: number, method: string, serializedArgs: SerializedRequestArguments, usesCancellationToken: boolean): VSBuffer {
-		switch (serializedArgs.type) {
-			case SerializedRequestArgumentType.Simple:
-				return this._requestJSONArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
-			case SerializedRequestArgumentType.Mixed:
-				return this._requestMixedArgs(req, rpcId, method, serializedArgs.args, usesCancellationToken);
+	pubwic static sewiawizeWequest(weq: numba, wpcId: numba, method: stwing, sewiawizedAwgs: SewiawizedWequestAwguments, usesCancewwationToken: boowean): VSBuffa {
+		switch (sewiawizedAwgs.type) {
+			case SewiawizedWequestAwgumentType.Simpwe:
+				wetuwn this._wequestJSONAwgs(weq, wpcId, method, sewiawizedAwgs.awgs, usesCancewwationToken);
+			case SewiawizedWequestAwgumentType.Mixed:
+				wetuwn this._wequestMixedAwgs(weq, wpcId, method, sewiawizedAwgs.awgs, usesCancewwationToken);
 		}
 	}
 
-	private static _requestJSONArgs(req: number, rpcId: number, method: string, args: string, usesCancellationToken: boolean): VSBuffer {
-		const methodBuff = VSBuffer.fromString(method);
-		const argsBuff = VSBuffer.fromString(args);
+	pwivate static _wequestJSONAwgs(weq: numba, wpcId: numba, method: stwing, awgs: stwing, usesCancewwationToken: boowean): VSBuffa {
+		const methodBuff = VSBuffa.fwomStwing(method);
+		const awgsBuff = VSBuffa.fwomStwing(awgs);
 
-		let len = 0;
-		len += MessageBuffer.sizeUInt8();
-		len += MessageBuffer.sizeShortString(methodBuff);
-		len += MessageBuffer.sizeLongString(argsBuff);
+		wet wen = 0;
+		wen += MessageBuffa.sizeUInt8();
+		wen += MessageBuffa.sizeShowtStwing(methodBuff);
+		wen += MessageBuffa.sizeWongStwing(awgsBuff);
 
-		let result = MessageBuffer.alloc(usesCancellationToken ? MessageType.RequestJSONArgsWithCancellation : MessageType.RequestJSONArgs, req, len);
-		result.writeUInt8(rpcId);
-		result.writeShortString(methodBuff);
-		result.writeLongString(argsBuff);
-		return result.buffer;
+		wet wesuwt = MessageBuffa.awwoc(usesCancewwationToken ? MessageType.WequestJSONAwgsWithCancewwation : MessageType.WequestJSONAwgs, weq, wen);
+		wesuwt.wwiteUInt8(wpcId);
+		wesuwt.wwiteShowtStwing(methodBuff);
+		wesuwt.wwiteWongStwing(awgsBuff);
+		wetuwn wesuwt.buffa;
 	}
 
-	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
-		const rpcId = buff.readUInt8();
-		const method = buff.readShortString();
-		const args = buff.readLongString();
-		return {
-			rpcId: rpcId,
+	pubwic static desewiawizeWequestJSONAwgs(buff: MessageBuffa): { wpcId: numba; method: stwing; awgs: any[]; } {
+		const wpcId = buff.weadUInt8();
+		const method = buff.weadShowtStwing();
+		const awgs = buff.weadWongStwing();
+		wetuwn {
+			wpcId: wpcId,
 			method: method,
-			args: JSON.parse(args)
+			awgs: JSON.pawse(awgs)
 		};
 	}
 
-	private static _requestMixedArgs(req: number, rpcId: number, method: string, args: readonly MixedArg[], usesCancellationToken: boolean): VSBuffer {
-		const methodBuff = VSBuffer.fromString(method);
+	pwivate static _wequestMixedAwgs(weq: numba, wpcId: numba, method: stwing, awgs: weadonwy MixedAwg[], usesCancewwationToken: boowean): VSBuffa {
+		const methodBuff = VSBuffa.fwomStwing(method);
 
-		let len = 0;
-		len += MessageBuffer.sizeUInt8();
-		len += MessageBuffer.sizeShortString(methodBuff);
-		len += MessageBuffer.sizeMixedArray(args);
+		wet wen = 0;
+		wen += MessageBuffa.sizeUInt8();
+		wen += MessageBuffa.sizeShowtStwing(methodBuff);
+		wen += MessageBuffa.sizeMixedAwway(awgs);
 
-		let result = MessageBuffer.alloc(usesCancellationToken ? MessageType.RequestMixedArgsWithCancellation : MessageType.RequestMixedArgs, req, len);
-		result.writeUInt8(rpcId);
-		result.writeShortString(methodBuff);
-		result.writeMixedArray(args);
-		return result.buffer;
+		wet wesuwt = MessageBuffa.awwoc(usesCancewwationToken ? MessageType.WequestMixedAwgsWithCancewwation : MessageType.WequestMixedAwgs, weq, wen);
+		wesuwt.wwiteUInt8(wpcId);
+		wesuwt.wwiteShowtStwing(methodBuff);
+		wesuwt.wwiteMixedAwway(awgs);
+		wetuwn wesuwt.buffa;
 	}
 
-	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
-		const rpcId = buff.readUInt8();
-		const method = buff.readShortString();
-		const rawargs = buff.readMixedArray();
-		const args: any[] = new Array(rawargs.length);
-		for (let i = 0, len = rawargs.length; i < len; i++) {
-			const rawarg = rawargs[i];
-			if (typeof rawarg === 'string') {
-				args[i] = JSON.parse(rawarg);
-			} else {
-				args[i] = rawarg;
+	pubwic static desewiawizeWequestMixedAwgs(buff: MessageBuffa): { wpcId: numba; method: stwing; awgs: any[]; } {
+		const wpcId = buff.weadUInt8();
+		const method = buff.weadShowtStwing();
+		const wawawgs = buff.weadMixedAwway();
+		const awgs: any[] = new Awway(wawawgs.wength);
+		fow (wet i = 0, wen = wawawgs.wength; i < wen; i++) {
+			const wawawg = wawawgs[i];
+			if (typeof wawawg === 'stwing') {
+				awgs[i] = JSON.pawse(wawawg);
+			} ewse {
+				awgs[i] = wawawg;
 			}
 		}
-		return {
-			rpcId: rpcId,
+		wetuwn {
+			wpcId: wpcId,
 			method: method,
-			args: args
+			awgs: awgs
 		};
 	}
 
-	public static serializeAcknowledged(req: number): VSBuffer {
-		return MessageBuffer.alloc(MessageType.Acknowledged, req, 0).buffer;
+	pubwic static sewiawizeAcknowwedged(weq: numba): VSBuffa {
+		wetuwn MessageBuffa.awwoc(MessageType.Acknowwedged, weq, 0).buffa;
 	}
 
-	public static serializeCancel(req: number): VSBuffer {
-		return MessageBuffer.alloc(MessageType.Cancel, req, 0).buffer;
+	pubwic static sewiawizeCancew(weq: numba): VSBuffa {
+		wetuwn MessageBuffa.awwoc(MessageType.Cancew, weq, 0).buffa;
 	}
 
-	public static serializeReplyOK(req: number, res: any, replacer: JSONStringifyReplacer | null): VSBuffer {
-		if (typeof res === 'undefined') {
-			return this._serializeReplyOKEmpty(req);
-		} else if (res instanceof VSBuffer) {
-			return this._serializeReplyOKVSBuffer(req, res);
-		} else if (res instanceof SerializableObjectWithBuffers) {
-			const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(res.value, replacer, true);
-			return this._serializeReplyOKJSONWithBuffers(req, jsonString, referencedBuffers);
-		} else {
-			return this._serializeReplyOKJSON(req, safeStringify(res, replacer));
+	pubwic static sewiawizeWepwyOK(weq: numba, wes: any, wepwaca: JSONStwingifyWepwaca | nuww): VSBuffa {
+		if (typeof wes === 'undefined') {
+			wetuwn this._sewiawizeWepwyOKEmpty(weq);
+		} ewse if (wes instanceof VSBuffa) {
+			wetuwn this._sewiawizeWepwyOKVSBuffa(weq, wes);
+		} ewse if (wes instanceof SewiawizabweObjectWithBuffews) {
+			const { jsonStwing, wefewencedBuffews } = stwingifyJsonWithBuffewWefs(wes.vawue, wepwaca, twue);
+			wetuwn this._sewiawizeWepwyOKJSONWithBuffews(weq, jsonStwing, wefewencedBuffews);
+		} ewse {
+			wetuwn this._sewiawizeWepwyOKJSON(weq, safeStwingify(wes, wepwaca));
 		}
 	}
 
-	private static _serializeReplyOKEmpty(req: number): VSBuffer {
-		return MessageBuffer.alloc(MessageType.ReplyOKEmpty, req, 0).buffer;
+	pwivate static _sewiawizeWepwyOKEmpty(weq: numba): VSBuffa {
+		wetuwn MessageBuffa.awwoc(MessageType.WepwyOKEmpty, weq, 0).buffa;
 	}
 
-	private static _serializeReplyOKVSBuffer(req: number, res: VSBuffer): VSBuffer {
-		let len = 0;
-		len += MessageBuffer.sizeVSBuffer(res);
+	pwivate static _sewiawizeWepwyOKVSBuffa(weq: numba, wes: VSBuffa): VSBuffa {
+		wet wen = 0;
+		wen += MessageBuffa.sizeVSBuffa(wes);
 
-		let result = MessageBuffer.alloc(MessageType.ReplyOKVSBuffer, req, len);
-		result.writeVSBuffer(res);
-		return result.buffer;
+		wet wesuwt = MessageBuffa.awwoc(MessageType.WepwyOKVSBuffa, weq, wen);
+		wesuwt.wwiteVSBuffa(wes);
+		wetuwn wesuwt.buffa;
 	}
 
-	public static deserializeReplyOKVSBuffer(buff: MessageBuffer): VSBuffer {
-		return buff.readVSBuffer();
+	pubwic static desewiawizeWepwyOKVSBuffa(buff: MessageBuffa): VSBuffa {
+		wetuwn buff.weadVSBuffa();
 	}
 
-	private static _serializeReplyOKJSON(req: number, res: string): VSBuffer {
-		const resBuff = VSBuffer.fromString(res);
+	pwivate static _sewiawizeWepwyOKJSON(weq: numba, wes: stwing): VSBuffa {
+		const wesBuff = VSBuffa.fwomStwing(wes);
 
-		let len = 0;
-		len += MessageBuffer.sizeLongString(resBuff);
+		wet wen = 0;
+		wen += MessageBuffa.sizeWongStwing(wesBuff);
 
-		let result = MessageBuffer.alloc(MessageType.ReplyOKJSON, req, len);
-		result.writeLongString(resBuff);
-		return result.buffer;
+		wet wesuwt = MessageBuffa.awwoc(MessageType.WepwyOKJSON, weq, wen);
+		wesuwt.wwiteWongStwing(wesBuff);
+		wetuwn wesuwt.buffa;
 	}
 
-	private static _serializeReplyOKJSONWithBuffers(req: number, res: string, buffers: readonly VSBuffer[]): VSBuffer {
-		const resBuff = VSBuffer.fromString(res);
+	pwivate static _sewiawizeWepwyOKJSONWithBuffews(weq: numba, wes: stwing, buffews: weadonwy VSBuffa[]): VSBuffa {
+		const wesBuff = VSBuffa.fwomStwing(wes);
 
-		let len = 0;
-		len += MessageBuffer.sizeUInt32; // buffer count
-		len += MessageBuffer.sizeLongString(resBuff);
-		for (const buffer of buffers) {
-			len += MessageBuffer.sizeVSBuffer(buffer);
+		wet wen = 0;
+		wen += MessageBuffa.sizeUInt32; // buffa count
+		wen += MessageBuffa.sizeWongStwing(wesBuff);
+		fow (const buffa of buffews) {
+			wen += MessageBuffa.sizeVSBuffa(buffa);
 		}
 
-		let result = MessageBuffer.alloc(MessageType.ReplyOKJSONWithBuffers, req, len);
-		result.writeUInt32(buffers.length);
-		result.writeLongString(resBuff);
-		for (const buffer of buffers) {
-			result.writeBuffer(buffer);
+		wet wesuwt = MessageBuffa.awwoc(MessageType.WepwyOKJSONWithBuffews, weq, wen);
+		wesuwt.wwiteUInt32(buffews.wength);
+		wesuwt.wwiteWongStwing(wesBuff);
+		fow (const buffa of buffews) {
+			wesuwt.wwiteBuffa(buffa);
 		}
 
-		return result.buffer;
+		wetuwn wesuwt.buffa;
 	}
 
-	public static deserializeReplyOKJSON(buff: MessageBuffer): any {
-		const res = buff.readLongString();
-		return JSON.parse(res);
+	pubwic static desewiawizeWepwyOKJSON(buff: MessageBuffa): any {
+		const wes = buff.weadWongStwing();
+		wetuwn JSON.pawse(wes);
 	}
 
-	public static deserializeReplyOKJSONWithBuffers(buff: MessageBuffer, uriTransformer: IURITransformer | null): SerializableObjectWithBuffers<any> {
-		const bufferCount = buff.readUInt32();
-		const res = buff.readLongString();
+	pubwic static desewiawizeWepwyOKJSONWithBuffews(buff: MessageBuffa, uwiTwansfowma: IUWITwansfowma | nuww): SewiawizabweObjectWithBuffews<any> {
+		const buffewCount = buff.weadUInt32();
+		const wes = buff.weadWongStwing();
 
-		const buffers: VSBuffer[] = [];
-		for (let i = 0; i < bufferCount; ++i) {
-			buffers.push(buff.readVSBuffer());
+		const buffews: VSBuffa[] = [];
+		fow (wet i = 0; i < buffewCount; ++i) {
+			buffews.push(buff.weadVSBuffa());
 		}
 
-		return new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(res, buffers, uriTransformer));
+		wetuwn new SewiawizabweObjectWithBuffews(pawseJsonAndWestoweBuffewWefs(wes, buffews, uwiTwansfowma));
 	}
 
-	public static serializeReplyErr(req: number, err: any): VSBuffer {
-		if (err) {
-			return this._serializeReplyErrEror(req, err);
+	pubwic static sewiawizeWepwyEww(weq: numba, eww: any): VSBuffa {
+		if (eww) {
+			wetuwn this._sewiawizeWepwyEwwEwow(weq, eww);
 		}
-		return this._serializeReplyErrEmpty(req);
+		wetuwn this._sewiawizeWepwyEwwEmpty(weq);
 	}
 
-	private static _serializeReplyErrEror(req: number, _err: Error): VSBuffer {
-		const errBuff = VSBuffer.fromString(safeStringify(errors.transformErrorForSerialization(_err), null));
+	pwivate static _sewiawizeWepwyEwwEwow(weq: numba, _eww: Ewwow): VSBuffa {
+		const ewwBuff = VSBuffa.fwomStwing(safeStwingify(ewwows.twansfowmEwwowFowSewiawization(_eww), nuww));
 
-		let len = 0;
-		len += MessageBuffer.sizeLongString(errBuff);
+		wet wen = 0;
+		wen += MessageBuffa.sizeWongStwing(ewwBuff);
 
-		let result = MessageBuffer.alloc(MessageType.ReplyErrError, req, len);
-		result.writeLongString(errBuff);
-		return result.buffer;
+		wet wesuwt = MessageBuffa.awwoc(MessageType.WepwyEwwEwwow, weq, wen);
+		wesuwt.wwiteWongStwing(ewwBuff);
+		wetuwn wesuwt.buffa;
 	}
 
-	public static deserializeReplyErrError(buff: MessageBuffer): Error {
-		const err = buff.readLongString();
-		return JSON.parse(err);
+	pubwic static desewiawizeWepwyEwwEwwow(buff: MessageBuffa): Ewwow {
+		const eww = buff.weadWongStwing();
+		wetuwn JSON.pawse(eww);
 	}
 
-	private static _serializeReplyErrEmpty(req: number): VSBuffer {
-		return MessageBuffer.alloc(MessageType.ReplyErrEmpty, req, 0).buffer;
+	pwivate static _sewiawizeWepwyEwwEmpty(weq: numba): VSBuffa {
+		wetuwn MessageBuffa.awwoc(MessageType.WepwyEwwEmpty, weq, 0).buffa;
 	}
 }
 
 const enum MessageType {
-	RequestJSONArgs = 1,
-	RequestJSONArgsWithCancellation = 2,
-	RequestMixedArgs = 3,
-	RequestMixedArgsWithCancellation = 4,
-	Acknowledged = 5,
-	Cancel = 6,
-	ReplyOKEmpty = 7,
-	ReplyOKVSBuffer = 8,
-	ReplyOKJSON = 9,
-	ReplyOKJSONWithBuffers = 10,
-	ReplyErrError = 11,
-	ReplyErrEmpty = 12,
+	WequestJSONAwgs = 1,
+	WequestJSONAwgsWithCancewwation = 2,
+	WequestMixedAwgs = 3,
+	WequestMixedAwgsWithCancewwation = 4,
+	Acknowwedged = 5,
+	Cancew = 6,
+	WepwyOKEmpty = 7,
+	WepwyOKVSBuffa = 8,
+	WepwyOKJSON = 9,
+	WepwyOKJSONWithBuffews = 10,
+	WepwyEwwEwwow = 11,
+	WepwyEwwEmpty = 12,
 }
 
-const enum ArgType {
-	String = 1,
-	VSBuffer = 2,
-	SerializedObjectWithBuffers = 3,
+const enum AwgType {
+	Stwing = 1,
+	VSBuffa = 2,
+	SewiawizedObjectWithBuffews = 3,
 	Undefined = 4,
 }
 
 
-type MixedArg =
-	| { readonly type: ArgType.String, readonly value: VSBuffer }
-	| { readonly type: ArgType.VSBuffer, readonly value: VSBuffer }
-	| { readonly type: ArgType.SerializedObjectWithBuffers, readonly value: VSBuffer, readonly buffers: readonly VSBuffer[] }
-	| { readonly type: ArgType.Undefined }
+type MixedAwg =
+	| { weadonwy type: AwgType.Stwing, weadonwy vawue: VSBuffa }
+	| { weadonwy type: AwgType.VSBuffa, weadonwy vawue: VSBuffa }
+	| { weadonwy type: AwgType.SewiawizedObjectWithBuffews, weadonwy vawue: VSBuffa, weadonwy buffews: weadonwy VSBuffa[] }
+	| { weadonwy type: AwgType.Undefined }
 	;

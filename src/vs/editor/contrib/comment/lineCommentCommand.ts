@@ -1,473 +1,473 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import * as strings from 'vs/base/common/strings';
-import { Constants } from 'vs/base/common/uint';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { Constants } fwom 'vs/base/common/uint';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { BwockCommentCommand } fwom 'vs/editow/contwib/comment/bwockCommentCommand';
 
-export interface IInsertionPoint {
-	ignore: boolean;
-	commentStrOffset: number;
+expowt intewface IInsewtionPoint {
+	ignowe: boowean;
+	commentStwOffset: numba;
 }
 
-export interface ILinePreflightData {
-	ignore: boolean;
-	commentStr: string;
-	commentStrOffset: number;
-	commentStrLength: number;
+expowt intewface IWinePwefwightData {
+	ignowe: boowean;
+	commentStw: stwing;
+	commentStwOffset: numba;
+	commentStwWength: numba;
 }
 
-export interface IPreflightDataSupported {
-	supported: true;
-	shouldRemoveComments: boolean;
-	lines: ILinePreflightData[];
+expowt intewface IPwefwightDataSuppowted {
+	suppowted: twue;
+	shouwdWemoveComments: boowean;
+	wines: IWinePwefwightData[];
 }
-export interface IPreflightDataUnsupported {
-	supported: false;
+expowt intewface IPwefwightDataUnsuppowted {
+	suppowted: fawse;
 }
-export type IPreflightData = IPreflightDataSupported | IPreflightDataUnsupported;
+expowt type IPwefwightData = IPwefwightDataSuppowted | IPwefwightDataUnsuppowted;
 
-export interface ISimpleModel {
-	getLineContent(lineNumber: number): string;
-}
-
-export const enum Type {
-	Toggle = 0,
-	ForceAdd = 1,
-	ForceRemove = 2
+expowt intewface ISimpweModew {
+	getWineContent(wineNumba: numba): stwing;
 }
 
-export class LineCommentCommand implements ICommand {
+expowt const enum Type {
+	Toggwe = 0,
+	FowceAdd = 1,
+	FowceWemove = 2
+}
 
-	private readonly _selection: Selection;
-	private readonly _tabSize: number;
-	private readonly _type: Type;
-	private readonly _insertSpace: boolean;
-	private readonly _ignoreEmptyLines: boolean;
-	private _selectionId: string | null;
-	private _deltaColumn: number;
-	private _moveEndPositionDown: boolean;
-	private _ignoreFirstLine: boolean;
+expowt cwass WineCommentCommand impwements ICommand {
 
-	constructor(
-		selection: Selection,
-		tabSize: number,
+	pwivate weadonwy _sewection: Sewection;
+	pwivate weadonwy _tabSize: numba;
+	pwivate weadonwy _type: Type;
+	pwivate weadonwy _insewtSpace: boowean;
+	pwivate weadonwy _ignoweEmptyWines: boowean;
+	pwivate _sewectionId: stwing | nuww;
+	pwivate _dewtaCowumn: numba;
+	pwivate _moveEndPositionDown: boowean;
+	pwivate _ignoweFiwstWine: boowean;
+
+	constwuctow(
+		sewection: Sewection,
+		tabSize: numba,
 		type: Type,
-		insertSpace: boolean,
-		ignoreEmptyLines: boolean,
-		ignoreFirstLine?: boolean
+		insewtSpace: boowean,
+		ignoweEmptyWines: boowean,
+		ignoweFiwstWine?: boowean
 	) {
-		this._selection = selection;
+		this._sewection = sewection;
 		this._tabSize = tabSize;
 		this._type = type;
-		this._insertSpace = insertSpace;
-		this._selectionId = null;
-		this._deltaColumn = 0;
-		this._moveEndPositionDown = false;
-		this._ignoreEmptyLines = ignoreEmptyLines;
-		this._ignoreFirstLine = ignoreFirstLine || false;
+		this._insewtSpace = insewtSpace;
+		this._sewectionId = nuww;
+		this._dewtaCowumn = 0;
+		this._moveEndPositionDown = fawse;
+		this._ignoweEmptyWines = ignoweEmptyWines;
+		this._ignoweFiwstWine = ignoweFiwstWine || fawse;
 	}
 
 	/**
-	 * Do an initial pass over the lines and gather info about the line comment string.
-	 * Returns null if any of the lines doesn't support a line comment string.
+	 * Do an initiaw pass ova the wines and gatha info about the wine comment stwing.
+	 * Wetuwns nuww if any of the wines doesn't suppowt a wine comment stwing.
 	 */
-	public static _gatherPreflightCommentStrings(model: ITextModel, startLineNumber: number, endLineNumber: number): ILinePreflightData[] | null {
+	pubwic static _gathewPwefwightCommentStwings(modew: ITextModew, stawtWineNumba: numba, endWineNumba: numba): IWinePwefwightData[] | nuww {
 
-		model.tokenizeIfCheap(startLineNumber);
-		const languageId = model.getLanguageIdAtPosition(startLineNumber, 1);
+		modew.tokenizeIfCheap(stawtWineNumba);
+		const wanguageId = modew.getWanguageIdAtPosition(stawtWineNumba, 1);
 
-		const config = LanguageConfigurationRegistry.getComments(languageId);
-		const commentStr = (config ? config.lineCommentToken : null);
-		if (!commentStr) {
-			// Mode does not support line comments
-			return null;
+		const config = WanguageConfiguwationWegistwy.getComments(wanguageId);
+		const commentStw = (config ? config.wineCommentToken : nuww);
+		if (!commentStw) {
+			// Mode does not suppowt wine comments
+			wetuwn nuww;
 		}
 
-		let lines: ILinePreflightData[] = [];
-		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
-			lines[i] = {
-				ignore: false,
-				commentStr: commentStr,
-				commentStrOffset: 0,
-				commentStrLength: commentStr.length
+		wet wines: IWinePwefwightData[] = [];
+		fow (wet i = 0, wineCount = endWineNumba - stawtWineNumba + 1; i < wineCount; i++) {
+			wines[i] = {
+				ignowe: fawse,
+				commentStw: commentStw,
+				commentStwOffset: 0,
+				commentStwWength: commentStw.wength
 			};
 		}
 
-		return lines;
+		wetuwn wines;
 	}
 
 	/**
-	 * Analyze lines and decide which lines are relevant and what the toggle should do.
-	 * Also, build up several offsets and lengths useful in the generation of editor operations.
+	 * Anawyze wines and decide which wines awe wewevant and what the toggwe shouwd do.
+	 * Awso, buiwd up sevewaw offsets and wengths usefuw in the genewation of editow opewations.
 	 */
-	public static _analyzeLines(type: Type, insertSpace: boolean, model: ISimpleModel, lines: ILinePreflightData[], startLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean): IPreflightData {
-		let onlyWhitespaceLines = true;
+	pubwic static _anawyzeWines(type: Type, insewtSpace: boowean, modew: ISimpweModew, wines: IWinePwefwightData[], stawtWineNumba: numba, ignoweEmptyWines: boowean, ignoweFiwstWine: boowean): IPwefwightData {
+		wet onwyWhitespaceWines = twue;
 
-		let shouldRemoveComments: boolean;
-		if (type === Type.Toggle) {
-			shouldRemoveComments = true;
-		} else if (type === Type.ForceAdd) {
-			shouldRemoveComments = false;
-		} else {
-			shouldRemoveComments = true;
+		wet shouwdWemoveComments: boowean;
+		if (type === Type.Toggwe) {
+			shouwdWemoveComments = twue;
+		} ewse if (type === Type.FowceAdd) {
+			shouwdWemoveComments = fawse;
+		} ewse {
+			shouwdWemoveComments = twue;
 		}
 
-		for (let i = 0, lineCount = lines.length; i < lineCount; i++) {
-			const lineData = lines[i];
-			const lineNumber = startLineNumber + i;
+		fow (wet i = 0, wineCount = wines.wength; i < wineCount; i++) {
+			const wineData = wines[i];
+			const wineNumba = stawtWineNumba + i;
 
-			if (lineNumber === startLineNumber && ignoreFirstLine) {
-				// first line ignored
-				lineData.ignore = true;
+			if (wineNumba === stawtWineNumba && ignoweFiwstWine) {
+				// fiwst wine ignowed
+				wineData.ignowe = twue;
 				continue;
 			}
 
-			const lineContent = model.getLineContent(lineNumber);
-			const lineContentStartOffset = strings.firstNonWhitespaceIndex(lineContent);
+			const wineContent = modew.getWineContent(wineNumba);
+			const wineContentStawtOffset = stwings.fiwstNonWhitespaceIndex(wineContent);
 
-			if (lineContentStartOffset === -1) {
-				// Empty or whitespace only line
-				lineData.ignore = ignoreEmptyLines;
-				lineData.commentStrOffset = lineContent.length;
+			if (wineContentStawtOffset === -1) {
+				// Empty ow whitespace onwy wine
+				wineData.ignowe = ignoweEmptyWines;
+				wineData.commentStwOffset = wineContent.wength;
 				continue;
 			}
 
-			onlyWhitespaceLines = false;
-			lineData.ignore = false;
-			lineData.commentStrOffset = lineContentStartOffset;
+			onwyWhitespaceWines = fawse;
+			wineData.ignowe = fawse;
+			wineData.commentStwOffset = wineContentStawtOffset;
 
-			if (shouldRemoveComments && !BlockCommentCommand._haystackHasNeedleAtOffset(lineContent, lineData.commentStr, lineContentStartOffset)) {
-				if (type === Type.Toggle) {
-					// Every line so far has been a line comment, but this one is not
-					shouldRemoveComments = false;
-				} else if (type === Type.ForceAdd) {
-					// Will not happen
-				} else {
-					lineData.ignore = true;
+			if (shouwdWemoveComments && !BwockCommentCommand._haystackHasNeedweAtOffset(wineContent, wineData.commentStw, wineContentStawtOffset)) {
+				if (type === Type.Toggwe) {
+					// Evewy wine so faw has been a wine comment, but this one is not
+					shouwdWemoveComments = fawse;
+				} ewse if (type === Type.FowceAdd) {
+					// Wiww not happen
+				} ewse {
+					wineData.ignowe = twue;
 				}
 			}
 
-			if (shouldRemoveComments && insertSpace) {
-				// Remove a following space if present
-				const commentStrEndOffset = lineContentStartOffset + lineData.commentStrLength;
-				if (commentStrEndOffset < lineContent.length && lineContent.charCodeAt(commentStrEndOffset) === CharCode.Space) {
-					lineData.commentStrLength += 1;
+			if (shouwdWemoveComments && insewtSpace) {
+				// Wemove a fowwowing space if pwesent
+				const commentStwEndOffset = wineContentStawtOffset + wineData.commentStwWength;
+				if (commentStwEndOffset < wineContent.wength && wineContent.chawCodeAt(commentStwEndOffset) === ChawCode.Space) {
+					wineData.commentStwWength += 1;
 				}
 			}
 		}
 
-		if (type === Type.Toggle && onlyWhitespaceLines) {
-			// For only whitespace lines, we insert comments
-			shouldRemoveComments = false;
+		if (type === Type.Toggwe && onwyWhitespaceWines) {
+			// Fow onwy whitespace wines, we insewt comments
+			shouwdWemoveComments = fawse;
 
-			// Also, no longer ignore them
-			for (let i = 0, lineCount = lines.length; i < lineCount; i++) {
-				lines[i].ignore = false;
+			// Awso, no wonga ignowe them
+			fow (wet i = 0, wineCount = wines.wength; i < wineCount; i++) {
+				wines[i].ignowe = fawse;
 			}
 		}
 
-		return {
-			supported: true,
-			shouldRemoveComments: shouldRemoveComments,
-			lines: lines
+		wetuwn {
+			suppowted: twue,
+			shouwdWemoveComments: shouwdWemoveComments,
+			wines: wines
 		};
 	}
 
 	/**
-	 * Analyze all lines and decide exactly what to do => not supported | insert line comments | remove line comments
+	 * Anawyze aww wines and decide exactwy what to do => not suppowted | insewt wine comments | wemove wine comments
 	 */
-	public static _gatherPreflightData(type: Type, insertSpace: boolean, model: ITextModel, startLineNumber: number, endLineNumber: number, ignoreEmptyLines: boolean, ignoreFirstLine: boolean): IPreflightData {
-		const lines = LineCommentCommand._gatherPreflightCommentStrings(model, startLineNumber, endLineNumber);
-		if (lines === null) {
-			return {
-				supported: false
+	pubwic static _gathewPwefwightData(type: Type, insewtSpace: boowean, modew: ITextModew, stawtWineNumba: numba, endWineNumba: numba, ignoweEmptyWines: boowean, ignoweFiwstWine: boowean): IPwefwightData {
+		const wines = WineCommentCommand._gathewPwefwightCommentStwings(modew, stawtWineNumba, endWineNumba);
+		if (wines === nuww) {
+			wetuwn {
+				suppowted: fawse
 			};
 		}
 
-		return LineCommentCommand._analyzeLines(type, insertSpace, model, lines, startLineNumber, ignoreEmptyLines, ignoreFirstLine);
+		wetuwn WineCommentCommand._anawyzeWines(type, insewtSpace, modew, wines, stawtWineNumba, ignoweEmptyWines, ignoweFiwstWine);
 	}
 
 	/**
-	 * Given a successful analysis, execute either insert line comments, either remove line comments
+	 * Given a successfuw anawysis, execute eitha insewt wine comments, eitha wemove wine comments
 	 */
-	private _executeLineComments(model: ISimpleModel, builder: IEditOperationBuilder, data: IPreflightDataSupported, s: Selection): void {
+	pwivate _executeWineComments(modew: ISimpweModew, buiwda: IEditOpewationBuiwda, data: IPwefwightDataSuppowted, s: Sewection): void {
 
-		let ops: IIdentifiedSingleEditOperation[];
+		wet ops: IIdentifiedSingweEditOpewation[];
 
-		if (data.shouldRemoveComments) {
-			ops = LineCommentCommand._createRemoveLineCommentsOperations(data.lines, s.startLineNumber);
-		} else {
-			LineCommentCommand._normalizeInsertionPoint(model, data.lines, s.startLineNumber, this._tabSize);
-			ops = this._createAddLineCommentsOperations(data.lines, s.startLineNumber);
+		if (data.shouwdWemoveComments) {
+			ops = WineCommentCommand._cweateWemoveWineCommentsOpewations(data.wines, s.stawtWineNumba);
+		} ewse {
+			WineCommentCommand._nowmawizeInsewtionPoint(modew, data.wines, s.stawtWineNumba, this._tabSize);
+			ops = this._cweateAddWineCommentsOpewations(data.wines, s.stawtWineNumba);
 		}
 
-		const cursorPosition = new Position(s.positionLineNumber, s.positionColumn);
+		const cuwsowPosition = new Position(s.positionWineNumba, s.positionCowumn);
 
-		for (let i = 0, len = ops.length; i < len; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
-			if (Range.isEmpty(ops[i].range) && Range.getStartPosition(ops[i].range).equals(cursorPosition)) {
-				const lineContent = model.getLineContent(cursorPosition.lineNumber);
-				if (lineContent.length + 1 === cursorPosition.column) {
-					this._deltaColumn = (ops[i].text || '').length;
+		fow (wet i = 0, wen = ops.wength; i < wen; i++) {
+			buiwda.addEditOpewation(ops[i].wange, ops[i].text);
+			if (Wange.isEmpty(ops[i].wange) && Wange.getStawtPosition(ops[i].wange).equaws(cuwsowPosition)) {
+				const wineContent = modew.getWineContent(cuwsowPosition.wineNumba);
+				if (wineContent.wength + 1 === cuwsowPosition.cowumn) {
+					this._dewtaCowumn = (ops[i].text || '').wength;
 				}
 			}
 		}
 
-		this._selectionId = builder.trackSelection(s);
+		this._sewectionId = buiwda.twackSewection(s);
 	}
 
-	private _attemptRemoveBlockComment(model: ITextModel, s: Selection, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] | null {
-		let startLineNumber = s.startLineNumber;
-		let endLineNumber = s.endLineNumber;
+	pwivate _attemptWemoveBwockComment(modew: ITextModew, s: Sewection, stawtToken: stwing, endToken: stwing): IIdentifiedSingweEditOpewation[] | nuww {
+		wet stawtWineNumba = s.stawtWineNumba;
+		wet endWineNumba = s.endWineNumba;
 
-		let startTokenAllowedBeforeColumn = endToken.length + Math.max(
-			model.getLineFirstNonWhitespaceColumn(s.startLineNumber),
-			s.startColumn
+		wet stawtTokenAwwowedBefoweCowumn = endToken.wength + Math.max(
+			modew.getWineFiwstNonWhitespaceCowumn(s.stawtWineNumba),
+			s.stawtCowumn
 		);
 
-		let startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startTokenAllowedBeforeColumn - 1);
-		let endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, s.endColumn - 1 - startToken.length);
+		wet stawtTokenIndex = modew.getWineContent(stawtWineNumba).wastIndexOf(stawtToken, stawtTokenAwwowedBefoweCowumn - 1);
+		wet endTokenIndex = modew.getWineContent(endWineNumba).indexOf(endToken, s.endCowumn - 1 - stawtToken.wength);
 
-		if (startTokenIndex !== -1 && endTokenIndex === -1) {
-			endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
-			endLineNumber = startLineNumber;
+		if (stawtTokenIndex !== -1 && endTokenIndex === -1) {
+			endTokenIndex = modew.getWineContent(stawtWineNumba).indexOf(endToken, stawtTokenIndex + stawtToken.wength);
+			endWineNumba = stawtWineNumba;
 		}
 
-		if (startTokenIndex === -1 && endTokenIndex !== -1) {
-			startTokenIndex = model.getLineContent(endLineNumber).lastIndexOf(startToken, endTokenIndex);
-			startLineNumber = endLineNumber;
+		if (stawtTokenIndex === -1 && endTokenIndex !== -1) {
+			stawtTokenIndex = modew.getWineContent(endWineNumba).wastIndexOf(stawtToken, endTokenIndex);
+			stawtWineNumba = endWineNumba;
 		}
 
-		if (s.isEmpty() && (startTokenIndex === -1 || endTokenIndex === -1)) {
-			startTokenIndex = model.getLineContent(startLineNumber).indexOf(startToken);
-			if (startTokenIndex !== -1) {
-				endTokenIndex = model.getLineContent(startLineNumber).indexOf(endToken, startTokenIndex + startToken.length);
+		if (s.isEmpty() && (stawtTokenIndex === -1 || endTokenIndex === -1)) {
+			stawtTokenIndex = modew.getWineContent(stawtWineNumba).indexOf(stawtToken);
+			if (stawtTokenIndex !== -1) {
+				endTokenIndex = modew.getWineContent(stawtWineNumba).indexOf(endToken, stawtTokenIndex + stawtToken.wength);
 			}
 		}
 
-		// We have to adjust to possible inner white space.
-		// For Space after startToken, add Space to startToken - range math will work out.
-		if (startTokenIndex !== -1 && model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
-			startToken += ' ';
+		// We have to adjust to possibwe inna white space.
+		// Fow Space afta stawtToken, add Space to stawtToken - wange math wiww wowk out.
+		if (stawtTokenIndex !== -1 && modew.getWineContent(stawtWineNumba).chawCodeAt(stawtTokenIndex + stawtToken.wength) === ChawCode.Space) {
+			stawtToken += ' ';
 		}
 
-		// For Space before endToken, add Space before endToken and shift index one left.
-		if (endTokenIndex !== -1 && model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+		// Fow Space befowe endToken, add Space befowe endToken and shift index one weft.
+		if (endTokenIndex !== -1 && modew.getWineContent(endWineNumba).chawCodeAt(endTokenIndex - 1) === ChawCode.Space) {
 			endToken = ' ' + endToken;
 			endTokenIndex -= 1;
 		}
 
-		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			return BlockCommentCommand._createRemoveBlockCommentOperations(
-				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
+		if (stawtTokenIndex !== -1 && endTokenIndex !== -1) {
+			wetuwn BwockCommentCommand._cweateWemoveBwockCommentOpewations(
+				new Wange(stawtWineNumba, stawtTokenIndex + stawtToken.wength + 1, endWineNumba, endTokenIndex + 1), stawtToken, endToken
 			);
 		}
 
-		return null;
+		wetuwn nuww;
 	}
 
 	/**
-	 * Given an unsuccessful analysis, delegate to the block comment command
+	 * Given an unsuccessfuw anawysis, dewegate to the bwock comment command
 	 */
-	private _executeBlockComment(model: ITextModel, builder: IEditOperationBuilder, s: Selection): void {
-		model.tokenizeIfCheap(s.startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, 1);
-		let config = LanguageConfigurationRegistry.getComments(languageId);
-		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
-			// Mode does not support block comments
-			return;
+	pwivate _executeBwockComment(modew: ITextModew, buiwda: IEditOpewationBuiwda, s: Sewection): void {
+		modew.tokenizeIfCheap(s.stawtWineNumba);
+		wet wanguageId = modew.getWanguageIdAtPosition(s.stawtWineNumba, 1);
+		wet config = WanguageConfiguwationWegistwy.getComments(wanguageId);
+		if (!config || !config.bwockCommentStawtToken || !config.bwockCommentEndToken) {
+			// Mode does not suppowt bwock comments
+			wetuwn;
 		}
 
-		const startToken = config.blockCommentStartToken;
-		const endToken = config.blockCommentEndToken;
+		const stawtToken = config.bwockCommentStawtToken;
+		const endToken = config.bwockCommentEndToken;
 
-		let ops = this._attemptRemoveBlockComment(model, s, startToken, endToken);
+		wet ops = this._attemptWemoveBwockComment(modew, s, stawtToken, endToken);
 		if (!ops) {
 			if (s.isEmpty()) {
-				const lineContent = model.getLineContent(s.startLineNumber);
-				let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
-				if (firstNonWhitespaceIndex === -1) {
-					// Line is empty or contains only whitespace
-					firstNonWhitespaceIndex = lineContent.length;
+				const wineContent = modew.getWineContent(s.stawtWineNumba);
+				wet fiwstNonWhitespaceIndex = stwings.fiwstNonWhitespaceIndex(wineContent);
+				if (fiwstNonWhitespaceIndex === -1) {
+					// Wine is empty ow contains onwy whitespace
+					fiwstNonWhitespaceIndex = wineContent.wength;
 				}
-				ops = BlockCommentCommand._createAddBlockCommentOperations(
-					new Range(s.startLineNumber, firstNonWhitespaceIndex + 1, s.startLineNumber, lineContent.length + 1),
-					startToken,
+				ops = BwockCommentCommand._cweateAddBwockCommentOpewations(
+					new Wange(s.stawtWineNumba, fiwstNonWhitespaceIndex + 1, s.stawtWineNumba, wineContent.wength + 1),
+					stawtToken,
 					endToken,
-					this._insertSpace
+					this._insewtSpace
 				);
-			} else {
-				ops = BlockCommentCommand._createAddBlockCommentOperations(
-					new Range(s.startLineNumber, model.getLineFirstNonWhitespaceColumn(s.startLineNumber), s.endLineNumber, model.getLineMaxColumn(s.endLineNumber)),
-					startToken,
+			} ewse {
+				ops = BwockCommentCommand._cweateAddBwockCommentOpewations(
+					new Wange(s.stawtWineNumba, modew.getWineFiwstNonWhitespaceCowumn(s.stawtWineNumba), s.endWineNumba, modew.getWineMaxCowumn(s.endWineNumba)),
+					stawtToken,
 					endToken,
-					this._insertSpace
+					this._insewtSpace
 				);
 			}
 
-			if (ops.length === 1) {
-				// Leave cursor after token and Space
-				this._deltaColumn = startToken.length + 1;
+			if (ops.wength === 1) {
+				// Weave cuwsow afta token and Space
+				this._dewtaCowumn = stawtToken.wength + 1;
 			}
 		}
-		this._selectionId = builder.trackSelection(s);
-		for (const op of ops) {
-			builder.addEditOperation(op.range, op.text);
+		this._sewectionId = buiwda.twackSewection(s);
+		fow (const op of ops) {
+			buiwda.addEditOpewation(op.wange, op.text);
 		}
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
 
-		let s = this._selection;
-		this._moveEndPositionDown = false;
+		wet s = this._sewection;
+		this._moveEndPositionDown = fawse;
 
-		if (s.startLineNumber === s.endLineNumber && this._ignoreFirstLine) {
-			builder.addEditOperation(new Range(s.startLineNumber, model.getLineMaxColumn(s.startLineNumber), s.startLineNumber + 1, 1), s.startLineNumber === model.getLineCount() ? '' : '\n');
-			this._selectionId = builder.trackSelection(s);
-			return;
+		if (s.stawtWineNumba === s.endWineNumba && this._ignoweFiwstWine) {
+			buiwda.addEditOpewation(new Wange(s.stawtWineNumba, modew.getWineMaxCowumn(s.stawtWineNumba), s.stawtWineNumba + 1, 1), s.stawtWineNumba === modew.getWineCount() ? '' : '\n');
+			this._sewectionId = buiwda.twackSewection(s);
+			wetuwn;
 		}
 
-		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
-			this._moveEndPositionDown = true;
-			s = s.setEndPosition(s.endLineNumber - 1, model.getLineMaxColumn(s.endLineNumber - 1));
+		if (s.stawtWineNumba < s.endWineNumba && s.endCowumn === 1) {
+			this._moveEndPositionDown = twue;
+			s = s.setEndPosition(s.endWineNumba - 1, modew.getWineMaxCowumn(s.endWineNumba - 1));
 		}
 
-		const data = LineCommentCommand._gatherPreflightData(
+		const data = WineCommentCommand._gathewPwefwightData(
 			this._type,
-			this._insertSpace,
-			model,
-			s.startLineNumber,
-			s.endLineNumber,
-			this._ignoreEmptyLines,
-			this._ignoreFirstLine
+			this._insewtSpace,
+			modew,
+			s.stawtWineNumba,
+			s.endWineNumba,
+			this._ignoweEmptyWines,
+			this._ignoweFiwstWine
 		);
 
-		if (data.supported) {
-			return this._executeLineComments(model, builder, data, s);
+		if (data.suppowted) {
+			wetuwn this._executeWineComments(modew, buiwda, data, s);
 		}
 
-		return this._executeBlockComment(model, builder, s);
+		wetuwn this._executeBwockComment(modew, buiwda, s);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		let result = helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wet wesuwt = hewpa.getTwackedSewection(this._sewectionId!);
 
 		if (this._moveEndPositionDown) {
-			result = result.setEndPosition(result.endLineNumber + 1, 1);
+			wesuwt = wesuwt.setEndPosition(wesuwt.endWineNumba + 1, 1);
 		}
 
-		return new Selection(
-			result.selectionStartLineNumber,
-			result.selectionStartColumn + this._deltaColumn,
-			result.positionLineNumber,
-			result.positionColumn + this._deltaColumn
+		wetuwn new Sewection(
+			wesuwt.sewectionStawtWineNumba,
+			wesuwt.sewectionStawtCowumn + this._dewtaCowumn,
+			wesuwt.positionWineNumba,
+			wesuwt.positionCowumn + this._dewtaCowumn
 		);
 	}
 
 	/**
-	 * Generate edit operations in the remove line comment case
+	 * Genewate edit opewations in the wemove wine comment case
 	 */
-	public static _createRemoveLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
+	pubwic static _cweateWemoveWineCommentsOpewations(wines: IWinePwefwightData[], stawtWineNumba: numba): IIdentifiedSingweEditOpewation[] {
+		wet wes: IIdentifiedSingweEditOpewation[] = [];
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			const lineData = lines[i];
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			const wineData = wines[i];
 
-			if (lineData.ignore) {
+			if (wineData.ignowe) {
 				continue;
 			}
 
-			res.push(EditOperation.delete(new Range(
-				startLineNumber + i, lineData.commentStrOffset + 1,
-				startLineNumber + i, lineData.commentStrOffset + lineData.commentStrLength + 1
+			wes.push(EditOpewation.dewete(new Wange(
+				stawtWineNumba + i, wineData.commentStwOffset + 1,
+				stawtWineNumba + i, wineData.commentStwOffset + wineData.commentStwWength + 1
 			)));
 		}
 
-		return res;
+		wetuwn wes;
 	}
 
 	/**
-	 * Generate edit operations in the add line comment case
+	 * Genewate edit opewations in the add wine comment case
 	 */
-	private _createAddLineCommentsOperations(lines: ILinePreflightData[], startLineNumber: number): IIdentifiedSingleEditOperation[] {
-		let res: IIdentifiedSingleEditOperation[] = [];
-		const afterCommentStr = this._insertSpace ? ' ' : '';
+	pwivate _cweateAddWineCommentsOpewations(wines: IWinePwefwightData[], stawtWineNumba: numba): IIdentifiedSingweEditOpewation[] {
+		wet wes: IIdentifiedSingweEditOpewation[] = [];
+		const aftewCommentStw = this._insewtSpace ? ' ' : '';
 
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			const lineData = lines[i];
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			const wineData = wines[i];
 
-			if (lineData.ignore) {
+			if (wineData.ignowe) {
 				continue;
 			}
 
-			res.push(EditOperation.insert(new Position(startLineNumber + i, lineData.commentStrOffset + 1), lineData.commentStr + afterCommentStr));
+			wes.push(EditOpewation.insewt(new Position(stawtWineNumba + i, wineData.commentStwOffset + 1), wineData.commentStw + aftewCommentStw));
 		}
 
-		return res;
+		wetuwn wes;
 	}
 
-	private static nextVisibleColumn(currentVisibleColumn: number, tabSize: number, isTab: boolean, columnSize: number): number {
+	pwivate static nextVisibweCowumn(cuwwentVisibweCowumn: numba, tabSize: numba, isTab: boowean, cowumnSize: numba): numba {
 		if (isTab) {
-			return currentVisibleColumn + (tabSize - (currentVisibleColumn % tabSize));
+			wetuwn cuwwentVisibweCowumn + (tabSize - (cuwwentVisibweCowumn % tabSize));
 		}
-		return currentVisibleColumn + columnSize;
+		wetuwn cuwwentVisibweCowumn + cowumnSize;
 	}
 
 	/**
-	 * Adjust insertion points to have them vertically aligned in the add line comment case
+	 * Adjust insewtion points to have them vewticawwy awigned in the add wine comment case
 	 */
-	public static _normalizeInsertionPoint(model: ISimpleModel, lines: IInsertionPoint[], startLineNumber: number, tabSize: number): void {
-		let minVisibleColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let j: number;
-		let lenJ: number;
+	pubwic static _nowmawizeInsewtionPoint(modew: ISimpweModew, wines: IInsewtionPoint[], stawtWineNumba: numba, tabSize: numba): void {
+		wet minVisibweCowumn = Constants.MAX_SAFE_SMAWW_INTEGa;
+		wet j: numba;
+		wet wenJ: numba;
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			if (lines[i].ignore) {
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			if (wines[i].ignowe) {
 				continue;
 			}
 
-			const lineContent = model.getLineContent(startLineNumber + i);
+			const wineContent = modew.getWineContent(stawtWineNumba + i);
 
-			let currentVisibleColumn = 0;
-			for (let j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+			wet cuwwentVisibweCowumn = 0;
+			fow (wet j = 0, wenJ = wines[i].commentStwOffset; cuwwentVisibweCowumn < minVisibweCowumn && j < wenJ; j++) {
+				cuwwentVisibweCowumn = WineCommentCommand.nextVisibweCowumn(cuwwentVisibweCowumn, tabSize, wineContent.chawCodeAt(j) === ChawCode.Tab, 1);
 			}
 
-			if (currentVisibleColumn < minVisibleColumn) {
-				minVisibleColumn = currentVisibleColumn;
+			if (cuwwentVisibweCowumn < minVisibweCowumn) {
+				minVisibweCowumn = cuwwentVisibweCowumn;
 			}
 		}
 
-		minVisibleColumn = Math.floor(minVisibleColumn / tabSize) * tabSize;
+		minVisibweCowumn = Math.fwoow(minVisibweCowumn / tabSize) * tabSize;
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			if (lines[i].ignore) {
+		fow (wet i = 0, wen = wines.wength; i < wen; i++) {
+			if (wines[i].ignowe) {
 				continue;
 			}
 
-			const lineContent = model.getLineContent(startLineNumber + i);
+			const wineContent = modew.getWineContent(stawtWineNumba + i);
 
-			let currentVisibleColumn = 0;
-			for (j = 0, lenJ = lines[i].commentStrOffset; currentVisibleColumn < minVisibleColumn && j < lenJ; j++) {
-				currentVisibleColumn = LineCommentCommand.nextVisibleColumn(currentVisibleColumn, tabSize, lineContent.charCodeAt(j) === CharCode.Tab, 1);
+			wet cuwwentVisibweCowumn = 0;
+			fow (j = 0, wenJ = wines[i].commentStwOffset; cuwwentVisibweCowumn < minVisibweCowumn && j < wenJ; j++) {
+				cuwwentVisibweCowumn = WineCommentCommand.nextVisibweCowumn(cuwwentVisibweCowumn, tabSize, wineContent.chawCodeAt(j) === ChawCode.Tab, 1);
 			}
 
-			if (currentVisibleColumn > minVisibleColumn) {
-				lines[i].commentStrOffset = j - 1;
-			} else {
-				lines[i].commentStrOffset = j;
+			if (cuwwentVisibweCowumn > minVisibweCowumn) {
+				wines[i].commentStwOffset = j - 1;
+			} ewse {
+				wines[i].commentStwOffset = j;
 			}
 		}
 	}

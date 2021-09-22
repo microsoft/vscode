@@ -1,149 +1,149 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
+impowt * as assewt fwom 'assewt';
+impowt { Quewy } fwom 'vs/wowkbench/contwib/extensions/common/extensionQuewy';
 
-suite('Extension query', () => {
-	test('parse', () => {
-		let query = Query.parse('');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, '');
+suite('Extension quewy', () => {
+	test('pawse', () => {
+		wet quewy = Quewy.pawse('');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('hello');
-		assert.strictEqual(query.value, 'hello');
-		assert.strictEqual(query.sortBy, '');
+		quewy = Quewy.pawse('hewwo');
+		assewt.stwictEquaw(quewy.vawue, 'hewwo');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('   hello world ');
-		assert.strictEqual(query.value, 'hello world');
-		assert.strictEqual(query.sortBy, '');
+		quewy = Quewy.pawse('   hewwo wowwd ');
+		assewt.stwictEquaw(quewy.vawue, 'hewwo wowwd');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('@sort');
-		assert.strictEqual(query.value, '@sort');
-		assert.strictEqual(query.sortBy, '');
+		quewy = Quewy.pawse('@sowt');
+		assewt.stwictEquaw(quewy.vawue, '@sowt');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('@sort:');
-		assert.strictEqual(query.value, '@sort:');
-		assert.strictEqual(query.sortBy, '');
+		quewy = Quewy.pawse('@sowt:');
+		assewt.stwictEquaw(quewy.vawue, '@sowt:');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('  @sort:  ');
-		assert.strictEqual(query.value, '@sort:');
-		assert.strictEqual(query.sortBy, '');
+		quewy = Quewy.pawse('  @sowt:  ');
+		assewt.stwictEquaw(quewy.vawue, '@sowt:');
+		assewt.stwictEquaw(quewy.sowtBy, '');
 
-		query = Query.parse('@sort:installs');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('@sowt:instawws');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('   @sort:installs   ');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('   @sowt:instawws   ');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('@sort:installs-');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('@sowt:instawws-');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('@sort:installs-foo');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('@sowt:instawws-foo');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('@sort:installs');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('@sowt:instawws');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('@sort:installs');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('@sowt:instawws');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('vs @sort:installs');
-		assert.strictEqual(query.value, 'vs');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('vs @sowt:instawws');
+		assewt.stwictEquaw(quewy.vawue, 'vs');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('vs @sort:installs code');
-		assert.strictEqual(query.value, 'vs  code');
-		assert.strictEqual(query.sortBy, 'installs');
+		quewy = Quewy.pawse('vs @sowt:instawws code');
+		assewt.stwictEquaw(quewy.vawue, 'vs  code');
+		assewt.stwictEquaw(quewy.sowtBy, 'instawws');
 
-		query = Query.parse('@sort:installs @sort:ratings');
-		assert.strictEqual(query.value, '');
-		assert.strictEqual(query.sortBy, 'ratings');
+		quewy = Quewy.pawse('@sowt:instawws @sowt:watings');
+		assewt.stwictEquaw(quewy.vawue, '');
+		assewt.stwictEquaw(quewy.sowtBy, 'watings');
 	});
 
-	test('toString', () => {
-		let query = new Query('hello', '', '');
-		assert.strictEqual(query.toString(), 'hello');
+	test('toStwing', () => {
+		wet quewy = new Quewy('hewwo', '', '');
+		assewt.stwictEquaw(quewy.toStwing(), 'hewwo');
 
-		query = new Query('hello world', '', '');
-		assert.strictEqual(query.toString(), 'hello world');
+		quewy = new Quewy('hewwo wowwd', '', '');
+		assewt.stwictEquaw(quewy.toStwing(), 'hewwo wowwd');
 
-		query = new Query('  hello    ', '', '');
-		assert.strictEqual(query.toString(), 'hello');
+		quewy = new Quewy('  hewwo    ', '', '');
+		assewt.stwictEquaw(quewy.toStwing(), 'hewwo');
 
-		query = new Query('', 'installs', '');
-		assert.strictEqual(query.toString(), '@sort:installs');
+		quewy = new Quewy('', 'instawws', '');
+		assewt.stwictEquaw(quewy.toStwing(), '@sowt:instawws');
 
-		query = new Query('', 'installs', '');
-		assert.strictEqual(query.toString(), '@sort:installs');
+		quewy = new Quewy('', 'instawws', '');
+		assewt.stwictEquaw(quewy.toStwing(), '@sowt:instawws');
 
-		query = new Query('', 'installs', '');
-		assert.strictEqual(query.toString(), '@sort:installs');
+		quewy = new Quewy('', 'instawws', '');
+		assewt.stwictEquaw(quewy.toStwing(), '@sowt:instawws');
 
-		query = new Query('hello', 'installs', '');
-		assert.strictEqual(query.toString(), 'hello @sort:installs');
+		quewy = new Quewy('hewwo', 'instawws', '');
+		assewt.stwictEquaw(quewy.toStwing(), 'hewwo @sowt:instawws');
 
-		query = new Query('  hello      ', 'installs', '');
-		assert.strictEqual(query.toString(), 'hello @sort:installs');
+		quewy = new Quewy('  hewwo      ', 'instawws', '');
+		assewt.stwictEquaw(quewy.toStwing(), 'hewwo @sowt:instawws');
 	});
 
-	test('isValid', () => {
-		let query = new Query('hello', '', '');
-		assert(query.isValid());
+	test('isVawid', () => {
+		wet quewy = new Quewy('hewwo', '', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('hello world', '', '');
-		assert(query.isValid());
+		quewy = new Quewy('hewwo wowwd', '', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('  hello    ', '', '');
-		assert(query.isValid());
+		quewy = new Quewy('  hewwo    ', '', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('', 'instawws', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('', 'instawws', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('', 'instawws', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('', 'instawws', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('hello', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('hewwo', 'instawws', '');
+		assewt(quewy.isVawid());
 
-		query = new Query('  hello      ', 'installs', '');
-		assert(query.isValid());
+		quewy = new Quewy('  hewwo      ', 'instawws', '');
+		assewt(quewy.isVawid());
 	});
 
-	test('equals', () => {
-		let query1 = new Query('hello', '', '');
-		let query2 = new Query('hello', '', '');
-		assert(query1.equals(query2));
+	test('equaws', () => {
+		wet quewy1 = new Quewy('hewwo', '', '');
+		wet quewy2 = new Quewy('hewwo', '', '');
+		assewt(quewy1.equaws(quewy2));
 
-		query2 = new Query('hello world', '', '');
-		assert(!query1.equals(query2));
+		quewy2 = new Quewy('hewwo wowwd', '', '');
+		assewt(!quewy1.equaws(quewy2));
 
-		query2 = new Query('hello', 'installs', '');
-		assert(!query1.equals(query2));
+		quewy2 = new Quewy('hewwo', 'instawws', '');
+		assewt(!quewy1.equaws(quewy2));
 
-		query2 = new Query('hello', 'installs', '');
-		assert(!query1.equals(query2));
+		quewy2 = new Quewy('hewwo', 'instawws', '');
+		assewt(!quewy1.equaws(quewy2));
 	});
 
-	test('autocomplete', () => {
-		Query.suggestions('@sort:in').some(x => x === '@sort:installs ');
-		Query.suggestions('@sort:installs').every(x => x !== '@sort:rating ');
+	test('autocompwete', () => {
+		Quewy.suggestions('@sowt:in').some(x => x === '@sowt:instawws ');
+		Quewy.suggestions('@sowt:instawws').evewy(x => x !== '@sowt:wating ');
 
-		Query.suggestions('@category:blah').some(x => x === '@category:"extension packs" ');
-		Query.suggestions('@category:"extension packs"').every(x => x !== '@category:formatters ');
+		Quewy.suggestions('@categowy:bwah').some(x => x === '@categowy:"extension packs" ');
+		Quewy.suggestions('@categowy:"extension packs"').evewy(x => x !== '@categowy:fowmattews ');
 	});
 });

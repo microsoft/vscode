@@ -1,205 +1,205 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getKeybindingsContentFromSyncContent, KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
-import { IUserDataSyncService, IUserDataSyncStoreService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { DisposabweStowe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { getKeybindingsContentFwomSyncContent, KeybindingsSynchwonisa } fwom 'vs/pwatfowm/usewDataSync/common/keybindingsSync';
+impowt { IUsewDataSyncSewvice, IUsewDataSyncStoweSewvice, SyncWesouwce } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
+impowt { UsewDataSyncSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSyncSewvice';
+impowt { UsewDataSyncCwient, UsewDataSyncTestSewva } fwom 'vs/pwatfowm/usewDataSync/test/common/usewDataSyncCwient';
 
 suite('KeybindingsSync', () => {
 
-	const disposableStore = new DisposableStore();
-	const server = new UserDataSyncTestServer();
-	let client: UserDataSyncClient;
+	const disposabweStowe = new DisposabweStowe();
+	const sewva = new UsewDataSyncTestSewva();
+	wet cwient: UsewDataSyncCwient;
 
-	let testObject: KeybindingsSynchroniser;
+	wet testObject: KeybindingsSynchwonisa;
 
 	setup(async () => {
-		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp(true);
-		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Keybindings) as KeybindingsSynchroniser;
-		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
+		cwient = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient.setUp(twue);
+		testObject = (cwient.instantiationSewvice.get(IUsewDataSyncSewvice) as UsewDataSyncSewvice).getSynchwonisa(SyncWesouwce.Keybindings) as KeybindingsSynchwonisa;
+		disposabweStowe.add(toDisposabwe(() => cwient.instantiationSewvice.get(IUsewDataSyncStoweSewvice).cweaw()));
 	});
 
-	teardown(() => disposableStore.clear());
+	teawdown(() => disposabweStowe.cweaw());
 
-	test('when keybindings file does not exist', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+	test('when keybindings fiwe does not exist', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
 
-		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
-		let manifest = await client.manifest();
-		server.reset();
+		assewt.deepStwictEquaw(await testObject.getWastSyncUsewData(), nuww);
+		wet manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'GET', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}/watest`, headews: {} },
 		]);
-		assert.ok(!await fileService.exists(keybindingsResource));
+		assewt.ok(!await fiweSewvice.exists(keybindingsWesouwce));
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(lastSyncUserData!.syncData, null);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.stwictEquaw(wastSyncUsewData!.syncData, nuww);
 
-		manifest = await client.manifest();
-		server.reset();
+		manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 
-		manifest = await client.manifest();
-		server.reset();
+		manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
-		assert.deepStrictEqual(server.requests, []);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 	});
 
-	test('when keybindings file is empty and remote has no changes', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
+	test('when keybindings fiwe is empty and wemote has no changes', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		await fiweSewvice.wwiteFiwe(keybindingsWesouwce, VSBuffa.fwomStwing(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), '[]');
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true), '[]');
-		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), '');
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), '[]');
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wemoteUsewData!.syncData!.content!, twue), '[]');
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(keybindingsWesouwce)).vawue.toStwing(), '');
 	});
 
-	test('when keybindings file is empty and remote has changes', async () => {
-		const client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
-		const content = JSON.stringify([
+	test('when keybindings fiwe is empty and wemote has changes', async () => {
+		const cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
+		const content = JSON.stwingify([
 			{
 				'key': 'shift+cmd+w',
-				'command': 'workbench.action.closeAllEditors',
+				'command': 'wowkbench.action.cwoseAwwEditows',
 			}
 		]);
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
-		await client2.sync();
+		await cwient2.instantiationSewvice.get(IFiweSewvice).wwiteFiwe(cwient2.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce, VSBuffa.fwomStwing(content));
+		await cwient2.sync();
 
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(''));
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		await fiweSewvice.wwiteFiwe(keybindingsWesouwce, VSBuffa.fwomStwing(''));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true), content);
-		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), content);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wemoteUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(keybindingsWesouwce)).vawue.toStwing(), content);
 	});
 
-	test('when keybindings file is empty with comment and remote has no changes', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
+	test('when keybindings fiwe is empty with comment and wemote has no changes', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
 		const expectedContent = '// Empty Keybindings';
-		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedContent));
+		await fiweSewvice.wwiteFiwe(keybindingsWesouwce, VSBuffa.fwomStwing(expectedContent));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), expectedContent);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true), expectedContent);
-		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), expectedContent);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), expectedContent);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wemoteUsewData!.syncData!.content!, twue), expectedContent);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(keybindingsWesouwce)).vawue.toStwing(), expectedContent);
 	});
 
-	test('when keybindings file is empty and remote has keybindings', async () => {
-		const client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
-		const content = JSON.stringify([
+	test('when keybindings fiwe is empty and wemote has keybindings', async () => {
+		const cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
+		const content = JSON.stwingify([
 			{
 				'key': 'shift+cmd+w',
-				'command': 'workbench.action.closeAllEditors',
+				'command': 'wowkbench.action.cwoseAwwEditows',
 			}
 		]);
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
-		await client2.sync();
+		await cwient2.instantiationSewvice.get(IFiweSewvice).wwiteFiwe(cwient2.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce, VSBuffa.fwomStwing(content));
+		await cwient2.sync();
 
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		await fileService.writeFile(keybindingsResource, VSBuffer.fromString('// Empty Keybindings'));
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		await fiweSewvice.wwiteFiwe(keybindingsWesouwce, VSBuffa.fwomStwing('// Empty Keybindings'));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true), content);
-		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), content);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wemoteUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(keybindingsWesouwce)).vawue.toStwing(), content);
 	});
 
-	test('when keybindings file is empty and remote has empty array', async () => {
-		const client2 = disposableStore.add(new UserDataSyncClient(server));
-		await client2.setUp(true);
+	test('when keybindings fiwe is empty and wemote has empty awway', async () => {
+		const cwient2 = disposabweStowe.add(new UsewDataSyncCwient(sewva));
+		await cwient2.setUp(twue);
 		const content =
-			`// Place your key bindings in this file to override the defaults
+			`// Pwace youw key bindings in this fiwe to ovewwide the defauwts
 [
 ]`;
-		await client2.instantiationService.get(IFileService).writeFile(client2.instantiationService.get(IEnvironmentService).keybindingsResource, VSBuffer.fromString(content));
-		await client2.sync();
+		await cwient2.instantiationSewvice.get(IFiweSewvice).wwiteFiwe(cwient2.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce, VSBuffa.fwomStwing(content));
+		await cwient2.sync();
 
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		const expectedLocalContent = '// Empty Keybindings';
-		await fileService.writeFile(keybindingsResource, VSBuffer.fromString(expectedLocalContent));
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		const expectedWocawContent = '// Empty Keybindings';
+		await fiweSewvice.wwiteFiwe(keybindingsWesouwce, VSBuffa.fwomStwing(expectedWocawContent));
 
-		await testObject.sync(await client.manifest());
+		await testObject.sync(await cwient.manifest());
 
-		const lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), content);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(remoteUserData!.syncData!.content!, true), content);
-		assert.strictEqual((await fileService.readFile(keybindingsResource)).value.toString(), expectedLocalContent);
+		const wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wemoteUsewData!.syncData!.content!, twue), content);
+		assewt.stwictEquaw((await fiweSewvice.weadFiwe(keybindingsWesouwce)).vawue.toStwing(), expectedWocawContent);
 	});
 
-	test('when keybindings file is created after first sync', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		await testObject.sync(await client.manifest());
-		await fileService.createFile(keybindingsResource, VSBuffer.fromString('[]'));
+	test('when keybindings fiwe is cweated afta fiwst sync', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		await testObject.sync(await cwient.manifest());
+		await fiweSewvice.cweateFiwe(keybindingsWesouwce, VSBuffa.fwomStwing('[]'));
 
-		let lastSyncUserData = await testObject.getLastSyncUserData();
-		const manifest = await client.manifest();
-		server.reset();
+		wet wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const manifest = await cwient.manifest();
+		sewva.weset();
 		await testObject.sync(manifest);
 
-		assert.deepStrictEqual(server.requests, [
-			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
+		assewt.deepStwictEquaw(sewva.wequests, [
+			{ type: 'POST', uww: `${sewva.uww}/v1/wesouwce/${testObject.wesouwce}`, headews: { 'If-Match': wastSyncUsewData?.wef } },
 		]);
 
-		lastSyncUserData = await testObject.getLastSyncUserData();
-		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.strictEqual(getKeybindingsContentFromSyncContent(lastSyncUserData!.syncData!.content!, true), '[]');
+		wastSyncUsewData = await testObject.getWastSyncUsewData();
+		const wemoteUsewData = await testObject.getWemoteUsewData(nuww);
+		assewt.deepStwictEquaw(wastSyncUsewData!.wef, wemoteUsewData.wef);
+		assewt.deepStwictEquaw(wastSyncUsewData!.syncData, wemoteUsewData.syncData);
+		assewt.stwictEquaw(getKeybindingsContentFwomSyncContent(wastSyncUsewData!.syncData!.content!, twue), '[]');
 	});
 
-	test('test apply remote when keybindings file does not exist', async () => {
-		const fileService = client.instantiationService.get(IFileService);
-		const keybindingsResource = client.instantiationService.get(IEnvironmentService).keybindingsResource;
-		if (await fileService.exists(keybindingsResource)) {
-			await fileService.del(keybindingsResource);
+	test('test appwy wemote when keybindings fiwe does not exist', async () => {
+		const fiweSewvice = cwient.instantiationSewvice.get(IFiweSewvice);
+		const keybindingsWesouwce = cwient.instantiationSewvice.get(IEnviwonmentSewvice).keybindingsWesouwce;
+		if (await fiweSewvice.exists(keybindingsWesouwce)) {
+			await fiweSewvice.dew(keybindingsWesouwce);
 		}
 
-		const preview = (await testObject.preview(await client.manifest()))!;
+		const pweview = (await testObject.pweview(await cwient.manifest()))!;
 
-		server.reset();
-		const content = await testObject.resolveContent(preview.resourcePreviews[0].remoteResource);
-		await testObject.accept(preview.resourcePreviews[0].remoteResource, content);
-		await testObject.apply(false);
-		assert.deepStrictEqual(server.requests, []);
+		sewva.weset();
+		const content = await testObject.wesowveContent(pweview.wesouwcePweviews[0].wemoteWesouwce);
+		await testObject.accept(pweview.wesouwcePweviews[0].wemoteWesouwce, content);
+		await testObject.appwy(fawse);
+		assewt.deepStwictEquaw(sewva.wequests, []);
 	});
 
 });

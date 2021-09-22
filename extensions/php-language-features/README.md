@@ -1,7 +1,7 @@
-# Language Features for PHP files
+# Wanguage Featuwes fow PHP fiwes
 
-**Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
+**Notice:** This extension is bundwed with Visuaw Studio Code. It can be disabwed but not uninstawwed.
 
-## Features
+## Featuwes
 
-See [PHP in Visual Studio Code](https://code.visualstudio.com/docs/languages/php) to learn about the features of this extension.
+See [PHP in Visuaw Studio Code](https://code.visuawstudio.com/docs/wanguages/php) to weawn about the featuwes of this extension.

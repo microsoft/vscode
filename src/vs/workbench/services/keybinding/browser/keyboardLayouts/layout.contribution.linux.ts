@@ -1,12 +1,12 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.linux';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/es.linux';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.linux';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/fr.linux';
-import 'vs/workbench/services/keybinding/browser/keyboardLayouts/ru.linux';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/en.winux';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/es.winux';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/de.winux';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/fw.winux';
+impowt 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/wu.winux';
 
-export { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
+expowt { KeyboawdWayoutContwibution } fwom 'vs/wowkbench/sewvices/keybinding/bwowsa/keyboawdWayouts/_.contwibution';

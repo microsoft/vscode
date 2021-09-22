@@ -1,188 +1,188 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
-import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { DefauwtEndOfWine, ITextBuffa, ITextBuffewBuiwda, ITextBuffewFactowy } fwom 'vs/editow/common/modew';
+impowt { StwingBuffa, cweateWineStawts, cweateWineStawtsFast } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeBase';
+impowt { PieceTweeTextBuffa } fwom 'vs/editow/common/modew/pieceTweeTextBuffa/pieceTweeTextBuffa';
 
-export class PieceTreeTextBufferFactory implements ITextBufferFactory {
+expowt cwass PieceTweeTextBuffewFactowy impwements ITextBuffewFactowy {
 
-	constructor(
-		private readonly _chunks: StringBuffer[],
-		private readonly _bom: string,
-		private readonly _cr: number,
-		private readonly _lf: number,
-		private readonly _crlf: number,
-		private readonly _containsRTL: boolean,
-		private readonly _containsUnusualLineTerminators: boolean,
-		private readonly _isBasicASCII: boolean,
-		private readonly _normalizeEOL: boolean
+	constwuctow(
+		pwivate weadonwy _chunks: StwingBuffa[],
+		pwivate weadonwy _bom: stwing,
+		pwivate weadonwy _cw: numba,
+		pwivate weadonwy _wf: numba,
+		pwivate weadonwy _cwwf: numba,
+		pwivate weadonwy _containsWTW: boowean,
+		pwivate weadonwy _containsUnusuawWineTewminatows: boowean,
+		pwivate weadonwy _isBasicASCII: boowean,
+		pwivate weadonwy _nowmawizeEOW: boowean
 	) { }
 
-	private _getEOL(defaultEOL: DefaultEndOfLine): '\r\n' | '\n' {
-		const totalEOLCount = this._cr + this._lf + this._crlf;
-		const totalCRCount = this._cr + this._crlf;
-		if (totalEOLCount === 0) {
-			// This is an empty file or a file with precisely one line
-			return (defaultEOL === DefaultEndOfLine.LF ? '\n' : '\r\n');
+	pwivate _getEOW(defauwtEOW: DefauwtEndOfWine): '\w\n' | '\n' {
+		const totawEOWCount = this._cw + this._wf + this._cwwf;
+		const totawCWCount = this._cw + this._cwwf;
+		if (totawEOWCount === 0) {
+			// This is an empty fiwe ow a fiwe with pwecisewy one wine
+			wetuwn (defauwtEOW === DefauwtEndOfWine.WF ? '\n' : '\w\n');
 		}
-		if (totalCRCount > totalEOLCount / 2) {
-			// More than half of the file contains \r\n ending lines
-			return '\r\n';
+		if (totawCWCount > totawEOWCount / 2) {
+			// Mowe than hawf of the fiwe contains \w\n ending wines
+			wetuwn '\w\n';
 		}
-		// At least one line more ends in \n
-		return '\n';
+		// At weast one wine mowe ends in \n
+		wetuwn '\n';
 	}
 
-	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; } {
-		const eol = this._getEOL(defaultEOL);
-		let chunks = this._chunks;
+	pubwic cweate(defauwtEOW: DefauwtEndOfWine): { textBuffa: ITextBuffa; disposabwe: IDisposabwe; } {
+		const eow = this._getEOW(defauwtEOW);
+		wet chunks = this._chunks;
 
-		if (this._normalizeEOL &&
-			((eol === '\r\n' && (this._cr > 0 || this._lf > 0))
-				|| (eol === '\n' && (this._cr > 0 || this._crlf > 0)))
+		if (this._nowmawizeEOW &&
+			((eow === '\w\n' && (this._cw > 0 || this._wf > 0))
+				|| (eow === '\n' && (this._cw > 0 || this._cwwf > 0)))
 		) {
-			// Normalize pieces
-			for (let i = 0, len = chunks.length; i < len; i++) {
-				let str = chunks[i].buffer.replace(/\r\n|\r|\n/g, eol);
-				let newLineStart = createLineStartsFast(str);
-				chunks[i] = new StringBuffer(str, newLineStart);
+			// Nowmawize pieces
+			fow (wet i = 0, wen = chunks.wength; i < wen; i++) {
+				wet stw = chunks[i].buffa.wepwace(/\w\n|\w|\n/g, eow);
+				wet newWineStawt = cweateWineStawtsFast(stw);
+				chunks[i] = new StwingBuffa(stw, newWineStawt);
 			}
 		}
 
-		const textBuffer = new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._containsUnusualLineTerminators, this._isBasicASCII, this._normalizeEOL);
-		return { textBuffer: textBuffer, disposable: textBuffer };
+		const textBuffa = new PieceTweeTextBuffa(chunks, this._bom, eow, this._containsWTW, this._containsUnusuawWineTewminatows, this._isBasicASCII, this._nowmawizeEOW);
+		wetuwn { textBuffa: textBuffa, disposabwe: textBuffa };
 	}
 
-	public getFirstLineText(lengthLimit: number): string {
-		return this._chunks[0].buffer.substr(0, lengthLimit).split(/\r\n|\r|\n/)[0];
+	pubwic getFiwstWineText(wengthWimit: numba): stwing {
+		wetuwn this._chunks[0].buffa.substw(0, wengthWimit).spwit(/\w\n|\w|\n/)[0];
 	}
 }
 
-export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
-	private readonly chunks: StringBuffer[];
-	private BOM: string;
+expowt cwass PieceTweeTextBuffewBuiwda impwements ITextBuffewBuiwda {
+	pwivate weadonwy chunks: StwingBuffa[];
+	pwivate BOM: stwing;
 
-	private _hasPreviousChar: boolean;
-	private _previousChar: number;
-	private readonly _tmpLineStarts: number[];
+	pwivate _hasPweviousChaw: boowean;
+	pwivate _pweviousChaw: numba;
+	pwivate weadonwy _tmpWineStawts: numba[];
 
-	private cr: number;
-	private lf: number;
-	private crlf: number;
-	private containsRTL: boolean;
-	private containsUnusualLineTerminators: boolean;
-	private isBasicASCII: boolean;
+	pwivate cw: numba;
+	pwivate wf: numba;
+	pwivate cwwf: numba;
+	pwivate containsWTW: boowean;
+	pwivate containsUnusuawWineTewminatows: boowean;
+	pwivate isBasicASCII: boowean;
 
-	constructor() {
+	constwuctow() {
 		this.chunks = [];
 		this.BOM = '';
 
-		this._hasPreviousChar = false;
-		this._previousChar = 0;
-		this._tmpLineStarts = [];
+		this._hasPweviousChaw = fawse;
+		this._pweviousChaw = 0;
+		this._tmpWineStawts = [];
 
-		this.cr = 0;
-		this.lf = 0;
-		this.crlf = 0;
-		this.containsRTL = false;
-		this.containsUnusualLineTerminators = false;
-		this.isBasicASCII = true;
+		this.cw = 0;
+		this.wf = 0;
+		this.cwwf = 0;
+		this.containsWTW = fawse;
+		this.containsUnusuawWineTewminatows = fawse;
+		this.isBasicASCII = twue;
 	}
 
-	public acceptChunk(chunk: string): void {
-		if (chunk.length === 0) {
-			return;
+	pubwic acceptChunk(chunk: stwing): void {
+		if (chunk.wength === 0) {
+			wetuwn;
 		}
 
-		if (this.chunks.length === 0) {
-			if (strings.startsWithUTF8BOM(chunk)) {
-				this.BOM = strings.UTF8_BOM_CHARACTER;
-				chunk = chunk.substr(1);
+		if (this.chunks.wength === 0) {
+			if (stwings.stawtsWithUTF8BOM(chunk)) {
+				this.BOM = stwings.UTF8_BOM_CHAWACTa;
+				chunk = chunk.substw(1);
 			}
 		}
 
-		const lastChar = chunk.charCodeAt(chunk.length - 1);
-		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
-			// last character is \r or a high surrogate => keep it back
-			this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
-			this._hasPreviousChar = true;
-			this._previousChar = lastChar;
-		} else {
-			this._acceptChunk1(chunk, false);
-			this._hasPreviousChar = false;
-			this._previousChar = lastChar;
+		const wastChaw = chunk.chawCodeAt(chunk.wength - 1);
+		if (wastChaw === ChawCode.CawwiageWetuwn || (wastChaw >= 0xD800 && wastChaw <= 0xDBFF)) {
+			// wast chawacta is \w ow a high suwwogate => keep it back
+			this._acceptChunk1(chunk.substw(0, chunk.wength - 1), fawse);
+			this._hasPweviousChaw = twue;
+			this._pweviousChaw = wastChaw;
+		} ewse {
+			this._acceptChunk1(chunk, fawse);
+			this._hasPweviousChaw = fawse;
+			this._pweviousChaw = wastChaw;
 		}
 	}
 
-	private _acceptChunk1(chunk: string, allowEmptyStrings: boolean): void {
-		if (!allowEmptyStrings && chunk.length === 0) {
+	pwivate _acceptChunk1(chunk: stwing, awwowEmptyStwings: boowean): void {
+		if (!awwowEmptyStwings && chunk.wength === 0) {
 			// Nothing to do
-			return;
+			wetuwn;
 		}
 
-		if (this._hasPreviousChar) {
-			this._acceptChunk2(String.fromCharCode(this._previousChar) + chunk);
-		} else {
+		if (this._hasPweviousChaw) {
+			this._acceptChunk2(Stwing.fwomChawCode(this._pweviousChaw) + chunk);
+		} ewse {
 			this._acceptChunk2(chunk);
 		}
 	}
 
-	private _acceptChunk2(chunk: string): void {
-		const lineStarts = createLineStarts(this._tmpLineStarts, chunk);
+	pwivate _acceptChunk2(chunk: stwing): void {
+		const wineStawts = cweateWineStawts(this._tmpWineStawts, chunk);
 
-		this.chunks.push(new StringBuffer(chunk, lineStarts.lineStarts));
-		this.cr += lineStarts.cr;
-		this.lf += lineStarts.lf;
-		this.crlf += lineStarts.crlf;
+		this.chunks.push(new StwingBuffa(chunk, wineStawts.wineStawts));
+		this.cw += wineStawts.cw;
+		this.wf += wineStawts.wf;
+		this.cwwf += wineStawts.cwwf;
 
 		if (this.isBasicASCII) {
-			this.isBasicASCII = lineStarts.isBasicASCII;
+			this.isBasicASCII = wineStawts.isBasicASCII;
 		}
-		if (!this.isBasicASCII && !this.containsRTL) {
+		if (!this.isBasicASCII && !this.containsWTW) {
 			// No need to check if it is basic ASCII
-			this.containsRTL = strings.containsRTL(chunk);
+			this.containsWTW = stwings.containsWTW(chunk);
 		}
-		if (!this.isBasicASCII && !this.containsUnusualLineTerminators) {
+		if (!this.isBasicASCII && !this.containsUnusuawWineTewminatows) {
 			// No need to check if it is basic ASCII
-			this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
+			this.containsUnusuawWineTewminatows = stwings.containsUnusuawWineTewminatows(chunk);
 		}
 	}
 
-	public finish(normalizeEOL: boolean = true): PieceTreeTextBufferFactory {
+	pubwic finish(nowmawizeEOW: boowean = twue): PieceTweeTextBuffewFactowy {
 		this._finish();
-		return new PieceTreeTextBufferFactory(
+		wetuwn new PieceTweeTextBuffewFactowy(
 			this.chunks,
 			this.BOM,
-			this.cr,
-			this.lf,
-			this.crlf,
-			this.containsRTL,
-			this.containsUnusualLineTerminators,
+			this.cw,
+			this.wf,
+			this.cwwf,
+			this.containsWTW,
+			this.containsUnusuawWineTewminatows,
 			this.isBasicASCII,
-			normalizeEOL
+			nowmawizeEOW
 		);
 	}
 
-	private _finish(): void {
-		if (this.chunks.length === 0) {
-			this._acceptChunk1('', true);
+	pwivate _finish(): void {
+		if (this.chunks.wength === 0) {
+			this._acceptChunk1('', twue);
 		}
 
-		if (this._hasPreviousChar) {
-			this._hasPreviousChar = false;
-			// recreate last chunk
-			let lastChunk = this.chunks[this.chunks.length - 1];
-			lastChunk.buffer += String.fromCharCode(this._previousChar);
-			let newLineStarts = createLineStartsFast(lastChunk.buffer);
-			lastChunk.lineStarts = newLineStarts;
-			if (this._previousChar === CharCode.CarriageReturn) {
-				this.cr++;
+		if (this._hasPweviousChaw) {
+			this._hasPweviousChaw = fawse;
+			// wecweate wast chunk
+			wet wastChunk = this.chunks[this.chunks.wength - 1];
+			wastChunk.buffa += Stwing.fwomChawCode(this._pweviousChaw);
+			wet newWineStawts = cweateWineStawtsFast(wastChunk.buffa);
+			wastChunk.wineStawts = newWineStawts;
+			if (this._pweviousChaw === ChawCode.CawwiageWetuwn) {
+				this.cw++;
 			}
 		}
 	}

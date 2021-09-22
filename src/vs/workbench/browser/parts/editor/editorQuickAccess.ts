@@ -1,272 +1,272 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorquickaccess';
-import { localize } from 'vs/nls';
-import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
-import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorsOrder, IEditorIdentifier, EditorResourceAccessor, SideBySideEditor, GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { prepareQuery, scoreItemFuzzy, compareItemsByFuzzyScore, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/common/codicons';
+impowt 'vs/css!./media/editowquickaccess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IQuickPickSepawatow, quickPickItemScowewAccessow, IQuickPickItemWithWesouwce, IQuickPick } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { PickewQuickAccessPwovida, IPickewQuickAccessItem, TwiggewAction } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
+impowt { IEditowGwoupsSewvice, GwoupsOwda } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { EditowsOwda, IEditowIdentifia, EditowWesouwceAccessow, SideBySideEditow, GwoupIdentifia } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { getIconCwasses } fwom 'vs/editow/common/sewvices/getIconCwasses';
+impowt { pwepaweQuewy, scoweItemFuzzy, compaweItemsByFuzzyScowe, FuzzyScowewCache } fwom 'vs/base/common/fuzzyScowa';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { Codicon } fwom 'vs/base/common/codicons';
 
-interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
-	groupId: GroupIdentifier;
+intewface IEditowQuickPickItem extends IQuickPickItemWithWesouwce, IPickewQuickAccessItem {
+	gwoupId: GwoupIdentifia;
 }
 
-export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessProvider<IEditorQuickPickItem> {
+expowt abstwact cwass BaseEditowQuickAccessPwovida extends PickewQuickAccessPwovida<IEditowQuickPickItem> {
 
-	private readonly pickState = new class {
+	pwivate weadonwy pickState = new cwass {
 
-		scorerCache: FuzzyScorerCache = Object.create(null);
-		isQuickNavigating: boolean | undefined = undefined;
+		scowewCache: FuzzyScowewCache = Object.cweate(nuww);
+		isQuickNavigating: boowean | undefined = undefined;
 
-		reset(isQuickNavigating: boolean): void {
+		weset(isQuickNavigating: boowean): void {
 
 			// Caches
 			if (!isQuickNavigating) {
-				this.scorerCache = Object.create(null);
+				this.scowewCache = Object.cweate(nuww);
 			}
 
-			// Other
+			// Otha
 			this.isQuickNavigating = isQuickNavigating;
 		}
 	};
 
-	constructor(
-		prefix: string,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
-		@IEditorService protected readonly editorService: IEditorService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+	constwuctow(
+		pwefix: stwing,
+		@IEditowGwoupsSewvice pwotected weadonwy editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice pwotected weadonwy editowSewvice: IEditowSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice
 	) {
-		super(prefix,
+		supa(pwefix,
 			{
-				canAcceptInBackground: true,
-				noResultsPick: {
-					label: localize('noViewResults', "No matching editors"),
-					groupId: -1
+				canAcceptInBackgwound: twue,
+				noWesuwtsPick: {
+					wabew: wocawize('noViewWesuwts', "No matching editows"),
+					gwoupId: -1
 				}
 			}
 		);
 	}
 
-	override provide(picker: IQuickPick<IEditorQuickPickItem>, token: CancellationToken): IDisposable {
+	ovewwide pwovide(picka: IQuickPick<IEditowQuickPickItem>, token: CancewwationToken): IDisposabwe {
 
-		// Reset the pick state for this run
-		this.pickState.reset(!!picker.quickNavigate);
+		// Weset the pick state fow this wun
+		this.pickState.weset(!!picka.quickNavigate);
 
-		// Start picker
-		return super.provide(picker, token);
+		// Stawt picka
+		wetuwn supa.pwovide(picka, token);
 	}
 
-	protected _getPicks(filter: string): Array<IEditorQuickPickItem | IQuickPickSeparator> {
-		const query = prepareQuery(filter);
+	pwotected _getPicks(fiwta: stwing): Awway<IEditowQuickPickItem | IQuickPickSepawatow> {
+		const quewy = pwepaweQuewy(fiwta);
 
-		// Filtering
-		const filteredEditorEntries = this.doGetEditorPickItems().filter(entry => {
-			if (!query.normalized) {
-				return true;
+		// Fiwtewing
+		const fiwtewedEditowEntwies = this.doGetEditowPickItems().fiwta(entwy => {
+			if (!quewy.nowmawized) {
+				wetuwn twue;
 			}
 
-			// Score on label and description
-			const itemScore = scoreItemFuzzy(entry, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
-			if (!itemScore.score) {
-				return false;
+			// Scowe on wabew and descwiption
+			const itemScowe = scoweItemFuzzy(entwy, quewy, twue, quickPickItemScowewAccessow, this.pickState.scowewCache);
+			if (!itemScowe.scowe) {
+				wetuwn fawse;
 			}
 
-			// Apply highlights
-			entry.highlights = { label: itemScore.labelMatch, description: itemScore.descriptionMatch };
+			// Appwy highwights
+			entwy.highwights = { wabew: itemScowe.wabewMatch, descwiption: itemScowe.descwiptionMatch };
 
-			return true;
+			wetuwn twue;
 		});
 
-		// Sorting
-		if (query.normalized) {
-			const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).map(group => group.id);
-			filteredEditorEntries.sort((entryA, entryB) => {
-				if (entryA.groupId !== entryB.groupId) {
-					return groups.indexOf(entryA.groupId) - groups.indexOf(entryB.groupId); // older groups first
+		// Sowting
+		if (quewy.nowmawized) {
+			const gwoups = this.editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE).map(gwoup => gwoup.id);
+			fiwtewedEditowEntwies.sowt((entwyA, entwyB) => {
+				if (entwyA.gwoupId !== entwyB.gwoupId) {
+					wetuwn gwoups.indexOf(entwyA.gwoupId) - gwoups.indexOf(entwyB.gwoupId); // owda gwoups fiwst
 				}
 
-				return compareItemsByFuzzyScore(entryA, entryB, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				wetuwn compaweItemsByFuzzyScowe(entwyA, entwyB, quewy, twue, quickPickItemScowewAccessow, this.pickState.scowewCache);
 			});
 		}
 
-		// Grouping (for more than one group)
-		const filteredEditorEntriesWithSeparators: Array<IEditorQuickPickItem | IQuickPickSeparator> = [];
-		if (this.editorGroupService.count > 1) {
-			let lastGroupId: number | undefined = undefined;
-			for (const entry of filteredEditorEntries) {
-				if (typeof lastGroupId !== 'number' || lastGroupId !== entry.groupId) {
-					const group = this.editorGroupService.getGroup(entry.groupId);
-					if (group) {
-						filteredEditorEntriesWithSeparators.push({ type: 'separator', label: group.label });
+		// Gwouping (fow mowe than one gwoup)
+		const fiwtewedEditowEntwiesWithSepawatows: Awway<IEditowQuickPickItem | IQuickPickSepawatow> = [];
+		if (this.editowGwoupSewvice.count > 1) {
+			wet wastGwoupId: numba | undefined = undefined;
+			fow (const entwy of fiwtewedEditowEntwies) {
+				if (typeof wastGwoupId !== 'numba' || wastGwoupId !== entwy.gwoupId) {
+					const gwoup = this.editowGwoupSewvice.getGwoup(entwy.gwoupId);
+					if (gwoup) {
+						fiwtewedEditowEntwiesWithSepawatows.push({ type: 'sepawatow', wabew: gwoup.wabew });
 					}
-					lastGroupId = entry.groupId;
+					wastGwoupId = entwy.gwoupId;
 				}
 
-				filteredEditorEntriesWithSeparators.push(entry);
+				fiwtewedEditowEntwiesWithSepawatows.push(entwy);
 			}
-		} else {
-			filteredEditorEntriesWithSeparators.push(...filteredEditorEntries);
+		} ewse {
+			fiwtewedEditowEntwiesWithSepawatows.push(...fiwtewedEditowEntwies);
 		}
 
-		return filteredEditorEntriesWithSeparators;
+		wetuwn fiwtewedEditowEntwiesWithSepawatows;
 	}
 
-	private doGetEditorPickItems(): Array<IEditorQuickPickItem> {
-		const editors = this.doGetEditors();
+	pwivate doGetEditowPickItems(): Awway<IEditowQuickPickItem> {
+		const editows = this.doGetEditows();
 
-		const mapGroupIdToGroupAriaLabel = new Map<GroupIdentifier, string>();
-		for (const { groupId } of editors) {
-			if (!mapGroupIdToGroupAriaLabel.has(groupId)) {
-				const group = this.editorGroupService.getGroup(groupId);
-				if (group) {
-					mapGroupIdToGroupAriaLabel.set(groupId, group.ariaLabel);
+		const mapGwoupIdToGwoupAwiaWabew = new Map<GwoupIdentifia, stwing>();
+		fow (const { gwoupId } of editows) {
+			if (!mapGwoupIdToGwoupAwiaWabew.has(gwoupId)) {
+				const gwoup = this.editowGwoupSewvice.getGwoup(gwoupId);
+				if (gwoup) {
+					mapGwoupIdToGwoupAwiaWabew.set(gwoupId, gwoup.awiaWabew);
 				}
 			}
 		}
 
-		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
-			const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			const isDirty = editor.isDirty() && !editor.isSaving();
-			const description = editor.getDescription();
-			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
+		wetuwn this.doGetEditows().map(({ editow, gwoupId }): IEditowQuickPickItem => {
+			const wesouwce = EditowWesouwceAccessow.getOwiginawUwi(editow, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+			const isDiwty = editow.isDiwty() && !editow.isSaving();
+			const descwiption = editow.getDescwiption();
+			const nameAndDescwiption = descwiption ? `${editow.getName()} ${descwiption}` : editow.getName();
 
-			return {
-				groupId,
-				resource,
-				label: editor.getName(),
-				ariaLabel: (() => {
-					if (mapGroupIdToGroupAriaLabel.size > 1) {
-						return isDirty ?
-							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId)) :
-							localize('entryAriaLabelWithGroup', "{0}, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId));
+			wetuwn {
+				gwoupId,
+				wesouwce,
+				wabew: editow.getName(),
+				awiaWabew: (() => {
+					if (mapGwoupIdToGwoupAwiaWabew.size > 1) {
+						wetuwn isDiwty ?
+							wocawize('entwyAwiaWabewWithGwoupDiwty', "{0}, diwty, {1}", nameAndDescwiption, mapGwoupIdToGwoupAwiaWabew.get(gwoupId)) :
+							wocawize('entwyAwiaWabewWithGwoup', "{0}, {1}", nameAndDescwiption, mapGwoupIdToGwoupAwiaWabew.get(gwoupId));
 					}
 
-					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", nameAndDescription) : nameAndDescription;
+					wetuwn isDiwty ? wocawize('entwyAwiaWabewDiwty', "{0}, diwty", nameAndDescwiption) : nameAndDescwiption;
 				})(),
-				description,
-				iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(editor.getLabelExtraClasses()),
-				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
+				descwiption,
+				iconCwasses: getIconCwasses(this.modewSewvice, this.modeSewvice, wesouwce).concat(editow.getWabewExtwaCwasses()),
+				itawic: !this.editowGwoupSewvice.getGwoup(gwoupId)?.isPinned(editow),
 				buttons: (() => {
-					return [
+					wetuwn [
 						{
-							iconClass: isDirty ? ('dirty-editor ' + Codicon.closeDirty.classNames) : Codicon.close.classNames,
-							tooltip: localize('closeEditor', "Close Editor"),
-							alwaysVisible: isDirty
+							iconCwass: isDiwty ? ('diwty-editow ' + Codicon.cwoseDiwty.cwassNames) : Codicon.cwose.cwassNames,
+							toowtip: wocawize('cwoseEditow', "Cwose Editow"),
+							awwaysVisibwe: isDiwty
 						}
 					];
 				})(),
-				trigger: async () => {
-					const group = this.editorGroupService.getGroup(groupId);
-					if (group) {
-						await group.closeEditor(editor, { preserveFocus: true });
+				twigga: async () => {
+					const gwoup = this.editowGwoupSewvice.getGwoup(gwoupId);
+					if (gwoup) {
+						await gwoup.cwoseEditow(editow, { pwesewveFocus: twue });
 
-						if (!group.contains(editor)) {
-							return TriggerAction.REMOVE_ITEM;
+						if (!gwoup.contains(editow)) {
+							wetuwn TwiggewAction.WEMOVE_ITEM;
 						}
 					}
 
-					return TriggerAction.NO_ACTION;
+					wetuwn TwiggewAction.NO_ACTION;
 				},
-				accept: (keyMods, event) => this.editorGroupService.getGroup(groupId)?.openEditor(editor, { preserveFocus: event.inBackground }),
+				accept: (keyMods, event) => this.editowGwoupSewvice.getGwoup(gwoupId)?.openEditow(editow, { pwesewveFocus: event.inBackgwound }),
 			};
 		});
 	}
 
-	protected abstract doGetEditors(): IEditorIdentifier[];
+	pwotected abstwact doGetEditows(): IEditowIdentifia[];
 }
 
-//#region Active Editor Group Editors by Most Recently Used
+//#wegion Active Editow Gwoup Editows by Most Wecentwy Used
 
-export class ActiveGroupEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQuickAccessProvider {
+expowt cwass ActiveGwoupEditowsByMostWecentwyUsedQuickAccess extends BaseEditowQuickAccessPwovida {
 
-	static PREFIX = 'edt active ';
+	static PWEFIX = 'edt active ';
 
-	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+	constwuctow(
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice
 	) {
-		super(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		supa(ActiveGwoupEditowsByMostWecentwyUsedQuickAccess.PWEFIX, editowGwoupSewvice, editowSewvice, modewSewvice, modeSewvice);
 	}
 
-	protected doGetEditors(): IEditorIdentifier[] {
-		const group = this.editorGroupService.activeGroup;
+	pwotected doGetEditows(): IEditowIdentifia[] {
+		const gwoup = this.editowGwoupSewvice.activeGwoup;
 
-		return group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId: group.id }));
+		wetuwn gwoup.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE).map(editow => ({ editow, gwoupId: gwoup.id }));
 	}
 }
 
-//#endregion
+//#endwegion
 
 
-//#region All Editors by Appearance
+//#wegion Aww Editows by Appeawance
 
-export class AllEditorsByAppearanceQuickAccess extends BaseEditorQuickAccessProvider {
+expowt cwass AwwEditowsByAppeawanceQuickAccess extends BaseEditowQuickAccessPwovida {
 
-	static PREFIX = 'edt ';
+	static PWEFIX = 'edt ';
 
-	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+	constwuctow(
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice
 	) {
-		super(AllEditorsByAppearanceQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		supa(AwwEditowsByAppeawanceQuickAccess.PWEFIX, editowGwoupSewvice, editowSewvice, modewSewvice, modeSewvice);
 	}
 
-	protected doGetEditors(): IEditorIdentifier[] {
-		const entries: IEditorIdentifier[] = [];
+	pwotected doGetEditows(): IEditowIdentifia[] {
+		const entwies: IEditowIdentifia[] = [];
 
-		for (const group of this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-			for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
-				entries.push({ editor, groupId: group.id });
+		fow (const gwoup of this.editowGwoupSewvice.getGwoups(GwoupsOwda.GWID_APPEAWANCE)) {
+			fow (const editow of gwoup.getEditows(EditowsOwda.SEQUENTIAW)) {
+				entwies.push({ editow, gwoupId: gwoup.id });
 			}
 		}
 
-		return entries;
+		wetuwn entwies;
 	}
 }
 
-//#endregion
+//#endwegion
 
 
-//#region All Editors by Most Recently Used
+//#wegion Aww Editows by Most Wecentwy Used
 
-export class AllEditorsByMostRecentlyUsedQuickAccess extends BaseEditorQuickAccessProvider {
+expowt cwass AwwEditowsByMostWecentwyUsedQuickAccess extends BaseEditowQuickAccessPwovida {
 
-	static PREFIX = 'edt mru ';
+	static PWEFIX = 'edt mwu ';
 
-	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
-		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+	constwuctow(
+		@IEditowGwoupsSewvice editowGwoupSewvice: IEditowGwoupsSewvice,
+		@IEditowSewvice editowSewvice: IEditowSewvice,
+		@IModewSewvice modewSewvice: IModewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice
 	) {
-		super(AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, editorGroupService, editorService, modelService, modeService);
+		supa(AwwEditowsByMostWecentwyUsedQuickAccess.PWEFIX, editowGwoupSewvice, editowSewvice, modewSewvice, modeSewvice);
 	}
 
-	protected doGetEditors(): IEditorIdentifier[] {
-		const entries: IEditorIdentifier[] = [];
+	pwotected doGetEditows(): IEditowIdentifia[] {
+		const entwies: IEditowIdentifia[] = [];
 
-		for (const editor of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-			entries.push(editor);
+		fow (const editow of this.editowSewvice.getEditows(EditowsOwda.MOST_WECENTWY_ACTIVE)) {
+			entwies.push(editow);
 		}
 
-		return entries;
+		wetuwn entwies;
 	}
 }
 
-//#endregion
+//#endwegion

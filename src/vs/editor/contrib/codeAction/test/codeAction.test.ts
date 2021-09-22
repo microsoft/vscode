@@ -1,24 +1,24 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { CodeActionItem, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { Progress } from 'vs/platform/progress/common/progress';
+impowt * as assewt fwom 'assewt';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt * as modes fwom 'vs/editow/common/modes';
+impowt { CodeActionItem, getCodeActions } fwom 'vs/editow/contwib/codeAction/codeAction';
+impowt { CodeActionKind } fwom 'vs/editow/contwib/codeAction/types';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { IMawkewData, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
 
-function staticCodeActionProvider(...actions: modes.CodeAction[]): modes.CodeActionProvider {
-	return new class implements modes.CodeActionProvider {
-		provideCodeActions(): modes.CodeActionList {
-			return {
+function staticCodeActionPwovida(...actions: modes.CodeAction[]): modes.CodeActionPwovida {
+	wetuwn new cwass impwements modes.CodeActionPwovida {
+		pwovideCodeActions(): modes.CodeActionWist {
+			wetuwn {
 				actions: actions,
 				dispose: () => { }
 			};
@@ -29,217 +29,217 @@ function staticCodeActionProvider(...actions: modes.CodeAction[]): modes.CodeAct
 
 suite('CodeAction', () => {
 
-	let langId = new modes.LanguageIdentifier('fooLang', 17);
-	let uri = URI.parse('untitled:path');
-	let model: TextModel;
-	const disposables = new DisposableStore();
-	let testData = {
+	wet wangId = new modes.WanguageIdentifia('fooWang', 17);
+	wet uwi = UWI.pawse('untitwed:path');
+	wet modew: TextModew;
+	const disposabwes = new DisposabweStowe();
+	wet testData = {
 		diagnostics: {
 			abc: {
-				title: 'bTitle',
+				titwe: 'bTitwe',
 				diagnostics: [{
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 2,
-					endColumn: 1,
-					severity: MarkerSeverity.Error,
+					stawtWineNumba: 1,
+					stawtCowumn: 1,
+					endWineNumba: 2,
+					endCowumn: 1,
+					sevewity: MawkewSevewity.Ewwow,
 					message: 'abc'
 				}]
 			},
 			bcd: {
-				title: 'aTitle',
+				titwe: 'aTitwe',
 				diagnostics: [{
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 2,
-					endColumn: 1,
-					severity: MarkerSeverity.Error,
+					stawtWineNumba: 1,
+					stawtCowumn: 1,
+					endWineNumba: 2,
+					endCowumn: 1,
+					sevewity: MawkewSevewity.Ewwow,
 					message: 'bcd'
 				}]
 			}
 		},
 		command: {
 			abc: {
-				command: new class implements modes.Command {
+				command: new cwass impwements modes.Command {
 					id!: '1';
-					title!: 'abc';
+					titwe!: 'abc';
 				},
-				title: 'Extract to inner function in function "test"'
+				titwe: 'Extwact to inna function in function "test"'
 			}
 		},
-		spelling: {
+		spewwing: {
 			bcd: {
-				diagnostics: <IMarkerData[]>[],
-				edit: new class implements modes.WorkspaceEdit {
-					edits!: modes.WorkspaceTextEdit[];
+				diagnostics: <IMawkewData[]>[],
+				edit: new cwass impwements modes.WowkspaceEdit {
+					edits!: modes.WowkspaceTextEdit[];
 				},
-				title: 'abc'
+				titwe: 'abc'
 			}
 		},
-		tsLint: {
+		tsWint: {
 			abc: {
 				$ident: 57,
-				arguments: <IMarkerData[]>[],
-				id: '_internal_command_delegation',
-				title: 'abc'
+				awguments: <IMawkewData[]>[],
+				id: '_intewnaw_command_dewegation',
+				titwe: 'abc'
 			},
 			bcd: {
 				$ident: 47,
-				arguments: <IMarkerData[]>[],
-				id: '_internal_command_delegation',
-				title: 'bcd'
+				awguments: <IMawkewData[]>[],
+				id: '_intewnaw_command_dewegation',
+				titwe: 'bcd'
 			}
 		}
 	};
 
 	setup(function () {
-		disposables.clear();
-		model = createTextModel('test1\ntest2\ntest3', undefined, langId, uri);
-		disposables.add(model);
+		disposabwes.cweaw();
+		modew = cweateTextModew('test1\ntest2\ntest3', undefined, wangId, uwi);
+		disposabwes.add(modew);
 	});
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 
-	test('CodeActions are sorted by type, #38623', async function () {
+	test('CodeActions awe sowted by type, #38623', async function () {
 
-		const provider = staticCodeActionProvider(
+		const pwovida = staticCodeActionPwovida(
 			testData.command.abc,
 			testData.diagnostics.bcd,
-			testData.spelling.bcd,
-			testData.tsLint.bcd,
-			testData.tsLint.abc,
+			testData.spewwing.bcd,
+			testData.tsWint.bcd,
+			testData.tsWint.abc,
 			testData.diagnostics.abc
 		);
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
 		const expected = [
-			// CodeActions with a diagnostics array are shown first ordered by diagnostics.message
-			new CodeActionItem(testData.diagnostics.abc, provider),
-			new CodeActionItem(testData.diagnostics.bcd, provider),
+			// CodeActions with a diagnostics awway awe shown fiwst owdewed by diagnostics.message
+			new CodeActionItem(testData.diagnostics.abc, pwovida),
+			new CodeActionItem(testData.diagnostics.bcd, pwovida),
 
-			// CodeActions without diagnostics are shown in the given order without any further sorting
-			new CodeActionItem(testData.command.abc, provider),
-			new CodeActionItem(testData.spelling.bcd, provider), // empty diagnostics array
-			new CodeActionItem(testData.tsLint.bcd, provider),
-			new CodeActionItem(testData.tsLint.abc, provider)
+			// CodeActions without diagnostics awe shown in the given owda without any fuwtha sowting
+			new CodeActionItem(testData.command.abc, pwovida),
+			new CodeActionItem(testData.spewwing.bcd, pwovida), // empty diagnostics awway
+			new CodeActionItem(testData.tsWint.bcd, pwovida),
+			new CodeActionItem(testData.tsWint.abc, pwovida)
 		];
 
-		const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 6);
-		assert.deepStrictEqual(actions, expected);
+		const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Invoke }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 6);
+		assewt.deepStwictEquaw(actions, expected);
 	});
 
-	test('getCodeActions should filter by scope', async function () {
-		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: 'a' },
-			{ title: 'b', kind: 'b' },
-			{ title: 'a.b', kind: 'a.b' }
+	test('getCodeActions shouwd fiwta by scope', async function () {
+		const pwovida = staticCodeActionPwovida(
+			{ titwe: 'a', kind: 'a' },
+			{ titwe: 'b', kind: 'b' },
+			{ titwe: 'a.b', kind: 'a.b' }
 		);
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 2);
-			assert.strictEqual(actions[0].action.title, 'a');
-			assert.strictEqual(actions[1].action.title, 'a.b');
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto, fiwta: { incwude: new CodeActionKind('a') } }, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 2);
+			assewt.stwictEquaw(actions[0].action.titwe, 'a');
+			assewt.stwictEquaw(actions[1].action.titwe, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto, filter: { include: new CodeActionKind('a.b') } }, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].action.title, 'a.b');
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto, fiwta: { incwude: new CodeActionKind('a.b') } }, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 1);
+			assewt.stwictEquaw(actions[0].action.titwe, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto, filter: { include: new CodeActionKind('a.b.c') } }, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 0);
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto, fiwta: { incwude: new CodeActionKind('a.b.c') } }, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 0);
 		}
 	});
 
-	test('getCodeActions should forward requested scope to providers', async function () {
-		const provider = new class implements modes.CodeActionProvider {
-			provideCodeActions(_model: any, _range: Range, context: modes.CodeActionContext, _token: any): modes.CodeActionList {
-				return {
+	test('getCodeActions shouwd fowwawd wequested scope to pwovidews', async function () {
+		const pwovida = new cwass impwements modes.CodeActionPwovida {
+			pwovideCodeActions(_modew: any, _wange: Wange, context: modes.CodeActionContext, _token: any): modes.CodeActionWist {
+				wetuwn {
 					actions: [
-						{ title: context.only || '', kind: context.only }
+						{ titwe: context.onwy || '', kind: context.onwy }
 					],
 					dispose: () => { }
 				};
 			}
 		};
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
-		const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 1);
-		assert.strictEqual(actions[0].action.title, 'a');
+		const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto, fiwta: { incwude: new CodeActionKind('a') } }, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 1);
+		assewt.stwictEquaw(actions[0].action.titwe, 'a');
 	});
 
-	test('getCodeActions should not return source code action by default', async function () {
-		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: CodeActionKind.Source.value },
-			{ title: 'b', kind: 'b' }
+	test('getCodeActions shouwd not wetuwn souwce code action by defauwt', async function () {
+		const pwovida = staticCodeActionPwovida(
+			{ titwe: 'a', kind: CodeActionKind.Souwce.vawue },
+			{ titwe: 'b', kind: 'b' }
 		);
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto }, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].action.title, 'b');
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto }, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 1);
+			assewt.stwictEquaw(actions[0].action.titwe, 'b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Auto, filter: { include: CodeActionKind.Source, includeSourceActions: true } }, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].action.title, 'a');
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), { type: modes.CodeActionTwiggewType.Auto, fiwta: { incwude: CodeActionKind.Souwce, incwudeSouwceActions: twue } }, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 1);
+			assewt.stwictEquaw(actions[0].action.titwe, 'a');
 		}
 	});
 
-	test('getCodeActions should support filtering out some requested source code actions #84602', async function () {
-		const provider = staticCodeActionProvider(
-			{ title: 'a', kind: CodeActionKind.Source.value },
-			{ title: 'b', kind: CodeActionKind.Source.append('test').value },
-			{ title: 'c', kind: 'c' }
+	test('getCodeActions shouwd suppowt fiwtewing out some wequested souwce code actions #84602', async function () {
+		const pwovida = staticCodeActionPwovida(
+			{ titwe: 'a', kind: CodeActionKind.Souwce.vawue },
+			{ titwe: 'b', kind: CodeActionKind.Souwce.append('test').vawue },
+			{ titwe: 'c', kind: 'c' }
 		);
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
-				type: modes.CodeActionTriggerType.Auto, filter: {
-					include: CodeActionKind.Source.append('test'),
-					excludes: [CodeActionKind.Source],
-					includeSourceActions: true,
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), {
+				type: modes.CodeActionTwiggewType.Auto, fiwta: {
+					incwude: CodeActionKind.Souwce.append('test'),
+					excwudes: [CodeActionKind.Souwce],
+					incwudeSouwceActions: twue,
 				}
-			}, Progress.None, CancellationToken.None);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].action.title, 'b');
+			}, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(actions.wength, 1);
+			assewt.stwictEquaw(actions[0].action.titwe, 'b');
 		}
 	});
 
-	test('getCodeActions no invoke a provider that has been excluded #84602', async function () {
-		const baseType = CodeActionKind.Refactor;
-		const subType = CodeActionKind.Refactor.append('sub');
+	test('getCodeActions no invoke a pwovida that has been excwuded #84602', async function () {
+		const baseType = CodeActionKind.Wefactow;
+		const subType = CodeActionKind.Wefactow.append('sub');
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', staticCodeActionProvider(
-			{ title: 'a', kind: baseType.value }
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', staticCodeActionPwovida(
+			{ titwe: 'a', kind: baseType.vawue }
 		)));
 
-		let didInvoke = false;
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', new class implements modes.CodeActionProvider {
+		wet didInvoke = fawse;
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', new cwass impwements modes.CodeActionPwovida {
 
-			providedCodeActionKinds = [subType.value];
+			pwovidedCodeActionKinds = [subType.vawue];
 
-			provideCodeActions(): modes.ProviderResult<modes.CodeActionList> {
-				didInvoke = true;
-				return {
+			pwovideCodeActions(): modes.PwovidewWesuwt<modes.CodeActionWist> {
+				didInvoke = twue;
+				wetuwn {
 					actions: [
-						{ title: 'x', kind: subType.value }
+						{ titwe: 'x', kind: subType.vawue }
 					],
 					dispose: () => { }
 				};
@@ -247,38 +247,38 @@ suite('CodeAction', () => {
 		}));
 
 		{
-			const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
-				type: modes.CodeActionTriggerType.Auto, filter: {
-					include: baseType,
-					excludes: [subType],
+			const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), {
+				type: modes.CodeActionTwiggewType.Auto, fiwta: {
+					incwude: baseType,
+					excwudes: [subType],
 				}
-			}, Progress.None, CancellationToken.None);
-			assert.strictEqual(didInvoke, false);
-			assert.strictEqual(actions.length, 1);
-			assert.strictEqual(actions[0].action.title, 'a');
+			}, Pwogwess.None, CancewwationToken.None);
+			assewt.stwictEquaw(didInvoke, fawse);
+			assewt.stwictEquaw(actions.wength, 1);
+			assewt.stwictEquaw(actions[0].action.titwe, 'a');
 		}
 	});
 
-	test('getCodeActions should not invoke code action providers filtered out by providedCodeActionKinds', async function () {
-		let wasInvoked = false;
-		const provider = new class implements modes.CodeActionProvider {
-			provideCodeActions(): modes.CodeActionList {
-				wasInvoked = true;
-				return { actions: [], dispose: () => { } };
+	test('getCodeActions shouwd not invoke code action pwovidews fiwtewed out by pwovidedCodeActionKinds', async function () {
+		wet wasInvoked = fawse;
+		const pwovida = new cwass impwements modes.CodeActionPwovida {
+			pwovideCodeActions(): modes.CodeActionWist {
+				wasInvoked = twue;
+				wetuwn { actions: [], dispose: () => { } };
 			}
 
-			providedCodeActionKinds = [CodeActionKind.Refactor.value];
+			pwovidedCodeActionKinds = [CodeActionKind.Wefactow.vawue];
 		};
 
-		disposables.add(modes.CodeActionProviderRegistry.register('fooLang', provider));
+		disposabwes.add(modes.CodeActionPwovidewWegistwy.wegista('fooWang', pwovida));
 
-		const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), {
-			type: modes.CodeActionTriggerType.Auto,
-			filter: {
-				include: CodeActionKind.QuickFix
+		const { vawidActions: actions } = await getCodeActions(modew, new Wange(1, 1, 2, 1), {
+			type: modes.CodeActionTwiggewType.Auto,
+			fiwta: {
+				incwude: CodeActionKind.QuickFix
 			}
-		}, Progress.None, CancellationToken.None);
-		assert.strictEqual(actions.length, 0);
-		assert.strictEqual(wasInvoked, false);
+		}, Pwogwess.None, CancewwationToken.None);
+		assewt.stwictEquaw(actions.wength, 0);
+		assewt.stwictEquaw(wasInvoked, fawse);
 	});
 });

@@ -1,224 +1,224 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
-import { IframeUtils } from 'vs/base/browser/iframe';
-import * as platform from 'vs/base/common/platform';
+impowt * as bwowsa fwom 'vs/base/bwowsa/bwowsa';
+impowt { IfwameUtiws } fwom 'vs/base/bwowsa/ifwame';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
 
-export interface IMouseEvent {
-	readonly browserEvent: MouseEvent;
-	readonly leftButton: boolean;
-	readonly middleButton: boolean;
-	readonly rightButton: boolean;
-	readonly buttons: number;
-	readonly target: HTMLElement;
-	readonly detail: number;
-	readonly posx: number;
-	readonly posy: number;
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
-	readonly timestamp: number;
+expowt intewface IMouseEvent {
+	weadonwy bwowsewEvent: MouseEvent;
+	weadonwy weftButton: boowean;
+	weadonwy middweButton: boowean;
+	weadonwy wightButton: boowean;
+	weadonwy buttons: numba;
+	weadonwy tawget: HTMWEwement;
+	weadonwy detaiw: numba;
+	weadonwy posx: numba;
+	weadonwy posy: numba;
+	weadonwy ctwwKey: boowean;
+	weadonwy shiftKey: boowean;
+	weadonwy awtKey: boowean;
+	weadonwy metaKey: boowean;
+	weadonwy timestamp: numba;
 
-	preventDefault(): void;
-	stopPropagation(): void;
+	pweventDefauwt(): void;
+	stopPwopagation(): void;
 }
 
-export class StandardMouseEvent implements IMouseEvent {
+expowt cwass StandawdMouseEvent impwements IMouseEvent {
 
-	public readonly browserEvent: MouseEvent;
+	pubwic weadonwy bwowsewEvent: MouseEvent;
 
-	public readonly leftButton: boolean;
-	public readonly middleButton: boolean;
-	public readonly rightButton: boolean;
-	public readonly buttons: number;
-	public readonly target: HTMLElement;
-	public detail: number;
-	public readonly posx: number;
-	public readonly posy: number;
-	public readonly ctrlKey: boolean;
-	public readonly shiftKey: boolean;
-	public readonly altKey: boolean;
-	public readonly metaKey: boolean;
-	public readonly timestamp: number;
+	pubwic weadonwy weftButton: boowean;
+	pubwic weadonwy middweButton: boowean;
+	pubwic weadonwy wightButton: boowean;
+	pubwic weadonwy buttons: numba;
+	pubwic weadonwy tawget: HTMWEwement;
+	pubwic detaiw: numba;
+	pubwic weadonwy posx: numba;
+	pubwic weadonwy posy: numba;
+	pubwic weadonwy ctwwKey: boowean;
+	pubwic weadonwy shiftKey: boowean;
+	pubwic weadonwy awtKey: boowean;
+	pubwic weadonwy metaKey: boowean;
+	pubwic weadonwy timestamp: numba;
 
-	constructor(e: MouseEvent) {
+	constwuctow(e: MouseEvent) {
 		this.timestamp = Date.now();
-		this.browserEvent = e;
-		this.leftButton = e.button === 0;
-		this.middleButton = e.button === 1;
-		this.rightButton = e.button === 2;
+		this.bwowsewEvent = e;
+		this.weftButton = e.button === 0;
+		this.middweButton = e.button === 1;
+		this.wightButton = e.button === 2;
 		this.buttons = e.buttons;
 
-		this.target = <HTMLElement>e.target;
+		this.tawget = <HTMWEwement>e.tawget;
 
-		this.detail = e.detail || 1;
-		if (e.type === 'dblclick') {
-			this.detail = 2;
+		this.detaiw = e.detaiw || 1;
+		if (e.type === 'dbwcwick') {
+			this.detaiw = 2;
 		}
-		this.ctrlKey = e.ctrlKey;
+		this.ctwwKey = e.ctwwKey;
 		this.shiftKey = e.shiftKey;
-		this.altKey = e.altKey;
+		this.awtKey = e.awtKey;
 		this.metaKey = e.metaKey;
 
-		if (typeof e.pageX === 'number') {
+		if (typeof e.pageX === 'numba') {
 			this.posx = e.pageX;
 			this.posy = e.pageY;
-		} else {
-			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + document.body.scrollLeft + document.documentElement!.scrollLeft;
-			this.posy = e.clientY + document.body.scrollTop + document.documentElement!.scrollTop;
+		} ewse {
+			// Pwobabwy hit by MSGestuweEvent
+			this.posx = e.cwientX + document.body.scwowwWeft + document.documentEwement!.scwowwWeft;
+			this.posy = e.cwientY + document.body.scwowwTop + document.documentEwement!.scwowwTop;
 		}
 
-		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		let iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(self, e.view);
-		this.posx -= iframeOffsets.left;
-		this.posy -= iframeOffsets.top;
+		// Find the position of the ifwame this code is executing in wewative to the ifwame whewe the event was captuwed.
+		wet ifwameOffsets = IfwameUtiws.getPositionOfChiwdWindowWewativeToAncestowWindow(sewf, e.view);
+		this.posx -= ifwameOffsets.weft;
+		this.posy -= ifwameOffsets.top;
 	}
 
-	public preventDefault(): void {
-		this.browserEvent.preventDefault();
+	pubwic pweventDefauwt(): void {
+		this.bwowsewEvent.pweventDefauwt();
 	}
 
-	public stopPropagation(): void {
-		this.browserEvent.stopPropagation();
+	pubwic stopPwopagation(): void {
+		this.bwowsewEvent.stopPwopagation();
 	}
 }
 
-export interface IDataTransfer {
-	dropEffect: string;
-	effectAllowed: string;
+expowt intewface IDataTwansfa {
+	dwopEffect: stwing;
+	effectAwwowed: stwing;
 	types: any[];
-	files: any[];
+	fiwes: any[];
 
-	setData(type: string, data: string): void;
-	setDragImage(image: any, x: number, y: number): void;
+	setData(type: stwing, data: stwing): void;
+	setDwagImage(image: any, x: numba, y: numba): void;
 
-	getData(type: string): string;
-	clearData(types?: string[]): void;
+	getData(type: stwing): stwing;
+	cweawData(types?: stwing[]): void;
 }
 
-export class DragMouseEvent extends StandardMouseEvent {
+expowt cwass DwagMouseEvent extends StandawdMouseEvent {
 
-	public readonly dataTransfer: IDataTransfer;
+	pubwic weadonwy dataTwansfa: IDataTwansfa;
 
-	constructor(e: MouseEvent) {
-		super(e);
-		this.dataTransfer = (<any>e).dataTransfer;
+	constwuctow(e: MouseEvent) {
+		supa(e);
+		this.dataTwansfa = (<any>e).dataTwansfa;
 	}
 
 }
 
-export interface IMouseWheelEvent extends MouseEvent {
-	readonly wheelDelta: number;
-	readonly wheelDeltaX: number;
-	readonly wheelDeltaY: number;
+expowt intewface IMouseWheewEvent extends MouseEvent {
+	weadonwy wheewDewta: numba;
+	weadonwy wheewDewtaX: numba;
+	weadonwy wheewDewtaY: numba;
 
-	readonly deltaX: number;
-	readonly deltaY: number;
-	readonly deltaZ: number;
-	readonly deltaMode: number;
+	weadonwy dewtaX: numba;
+	weadonwy dewtaY: numba;
+	weadonwy dewtaZ: numba;
+	weadonwy dewtaMode: numba;
 }
 
-interface IWebKitMouseWheelEvent {
-	wheelDeltaY: number;
-	wheelDeltaX: number;
+intewface IWebKitMouseWheewEvent {
+	wheewDewtaY: numba;
+	wheewDewtaX: numba;
 }
 
-interface IGeckoMouseWheelEvent {
-	HORIZONTAL_AXIS: number;
-	VERTICAL_AXIS: number;
-	axis: number;
-	detail: number;
+intewface IGeckoMouseWheewEvent {
+	HOWIZONTAW_AXIS: numba;
+	VEWTICAW_AXIS: numba;
+	axis: numba;
+	detaiw: numba;
 }
 
-export class StandardWheelEvent {
+expowt cwass StandawdWheewEvent {
 
-	public readonly browserEvent: IMouseWheelEvent | null;
-	public readonly deltaY: number;
-	public readonly deltaX: number;
-	public readonly target: Node;
+	pubwic weadonwy bwowsewEvent: IMouseWheewEvent | nuww;
+	pubwic weadonwy dewtaY: numba;
+	pubwic weadonwy dewtaX: numba;
+	pubwic weadonwy tawget: Node;
 
-	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
+	constwuctow(e: IMouseWheewEvent | nuww, dewtaX: numba = 0, dewtaY: numba = 0) {
 
-		this.browserEvent = e || null;
-		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
+		this.bwowsewEvent = e || nuww;
+		this.tawget = e ? (e.tawget || (<any>e).tawgetNode || e.swcEwement) : nuww;
 
-		this.deltaY = deltaY;
-		this.deltaX = deltaX;
+		this.dewtaY = dewtaY;
+		this.dewtaX = dewtaX;
 
 		if (e) {
-			// Old (deprecated) wheel events
-			let e1 = <IWebKitMouseWheelEvent><any>e;
-			let e2 = <IGeckoMouseWheelEvent><any>e;
+			// Owd (depwecated) wheew events
+			wet e1 = <IWebKitMouseWheewEvent><any>e;
+			wet e2 = <IGeckoMouseWheewEvent><any>e;
 
-			// vertical delta scroll
-			if (typeof e1.wheelDeltaY !== 'undefined') {
-				this.deltaY = e1.wheelDeltaY / 120;
-			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
-				this.deltaY = -e2.detail / 3;
-			} else if (e.type === 'wheel') {
-				// Modern wheel event
-				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
-				const ev = <WheelEvent><unknown>e;
+			// vewticaw dewta scwoww
+			if (typeof e1.wheewDewtaY !== 'undefined') {
+				this.dewtaY = e1.wheewDewtaY / 120;
+			} ewse if (typeof e2.VEWTICAW_AXIS !== 'undefined' && e2.axis === e2.VEWTICAW_AXIS) {
+				this.dewtaY = -e2.detaiw / 3;
+			} ewse if (e.type === 'wheew') {
+				// Modewn wheew event
+				// https://devewopa.moziwwa.owg/en-US/docs/Web/API/WheewEvent
+				const ev = <WheewEvent><unknown>e;
 
-				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
-					// the deltas are expressed in lines
-					if (browser.isFirefox && !platform.isMacintosh) {
-						this.deltaY = -e.deltaY / 3;
-					} else {
-						this.deltaY = -e.deltaY;
+				if (ev.dewtaMode === ev.DOM_DEWTA_WINE) {
+					// the dewtas awe expwessed in wines
+					if (bwowsa.isFiwefox && !pwatfowm.isMacintosh) {
+						this.dewtaY = -e.dewtaY / 3;
+					} ewse {
+						this.dewtaY = -e.dewtaY;
 					}
-				} else {
-					this.deltaY = -e.deltaY / 40;
+				} ewse {
+					this.dewtaY = -e.dewtaY / 40;
 				}
 			}
 
-			// horizontal delta scroll
-			if (typeof e1.wheelDeltaX !== 'undefined') {
-				if (browser.isSafari && platform.isWindows) {
-					this.deltaX = - (e1.wheelDeltaX / 120);
-				} else {
-					this.deltaX = e1.wheelDeltaX / 120;
+			// howizontaw dewta scwoww
+			if (typeof e1.wheewDewtaX !== 'undefined') {
+				if (bwowsa.isSafawi && pwatfowm.isWindows) {
+					this.dewtaX = - (e1.wheewDewtaX / 120);
+				} ewse {
+					this.dewtaX = e1.wheewDewtaX / 120;
 				}
-			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
-				this.deltaX = -e.detail / 3;
-			} else if (e.type === 'wheel') {
-				// Modern wheel event
-				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
-				const ev = <WheelEvent><unknown>e;
+			} ewse if (typeof e2.HOWIZONTAW_AXIS !== 'undefined' && e2.axis === e2.HOWIZONTAW_AXIS) {
+				this.dewtaX = -e.detaiw / 3;
+			} ewse if (e.type === 'wheew') {
+				// Modewn wheew event
+				// https://devewopa.moziwwa.owg/en-US/docs/Web/API/WheewEvent
+				const ev = <WheewEvent><unknown>e;
 
-				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
-					// the deltas are expressed in lines
-					if (browser.isFirefox && !platform.isMacintosh) {
-						this.deltaX = -e.deltaX / 3;
-					} else {
-						this.deltaX = -e.deltaX;
+				if (ev.dewtaMode === ev.DOM_DEWTA_WINE) {
+					// the dewtas awe expwessed in wines
+					if (bwowsa.isFiwefox && !pwatfowm.isMacintosh) {
+						this.dewtaX = -e.dewtaX / 3;
+					} ewse {
+						this.dewtaX = -e.dewtaX;
 					}
-				} else {
-					this.deltaX = -e.deltaX / 40;
+				} ewse {
+					this.dewtaX = -e.dewtaX / 40;
 				}
 			}
 
-			// Assume a vertical scroll if nothing else worked
-			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-				this.deltaY = e.wheelDelta / 120;
+			// Assume a vewticaw scwoww if nothing ewse wowked
+			if (this.dewtaY === 0 && this.dewtaX === 0 && e.wheewDewta) {
+				this.dewtaY = e.wheewDewta / 120;
 			}
 		}
 	}
 
-	public preventDefault(): void {
-		if (this.browserEvent) {
-			this.browserEvent.preventDefault();
+	pubwic pweventDefauwt(): void {
+		if (this.bwowsewEvent) {
+			this.bwowsewEvent.pweventDefauwt();
 		}
 	}
 
-	public stopPropagation(): void {
-		if (this.browserEvent) {
-			this.browserEvent.stopPropagation();
+	pubwic stopPwopagation(): void {
+		if (this.bwowsewEvent) {
+			this.bwowsewEvent.stopPwopagation();
 		}
 	}
 }

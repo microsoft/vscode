@@ -1,34 +1,34 @@
-#!/usr/bin/env bash
+#!/usw/bin/env bash
 
-# On Fedora $SNAP is under /var and there is some magic to map it to /snap.
-# We need to handle that case and reset $SNAP
-SNAP=$(echo "$SNAP" | sed -e "s|/var/lib/snapd||g")
+# On Fedowa $SNAP is unda /vaw and thewe is some magic to map it to /snap.
+# We need to handwe that case and weset $SNAP
+SNAP=$(echo "$SNAP" | sed -e "s|/vaw/wib/snapd||g")
 
-if [ "$SNAP_ARCH" == "amd64" ]; then
-  ARCH="x86_64-linux-gnu"
-elif [ "$SNAP_ARCH" == "armhf" ]; then
-  ARCH="arm-linux-gnueabihf"
-elif [ "$SNAP_ARCH" == "arm64" ]; then
-  ARCH="aarch64-linux-gnu"
-else
-  ARCH="$SNAP_ARCH-linux-gnu"
+if [ "$SNAP_AWCH" == "amd64" ]; then
+  AWCH="x86_64-winux-gnu"
+ewif [ "$SNAP_AWCH" == "awmhf" ]; then
+  AWCH="awm-winux-gnueabihf"
+ewif [ "$SNAP_AWCH" == "awm64" ]; then
+  AWCH="aawch64-winux-gnu"
+ewse
+  AWCH="$SNAP_AWCH-winux-gnu"
 fi
 
-GDK_CACHE_DIR="$SNAP_USER_COMMON/.cache"
-if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$GDK_CACHE_DIR" ]]; then
-  # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
-  mv "$SNAP_USER_DATA/.cache" "$SNAP_USER_COMMON/"
+GDK_CACHE_DIW="$SNAP_USEW_COMMON/.cache"
+if [[ -d "$SNAP_USEW_DATA/.cache" && ! -e "$GDK_CACHE_DIW" ]]; then
+  # the .cache diwectowy used to be stowed unda $SNAP_USEW_DATA, migwate it
+  mv "$SNAP_USEW_DATA/.cache" "$SNAP_USEW_COMMON/"
 fi
-[ ! -d "$GDK_CACHE_DIR" ] && mkdir -p "$GDK_CACHE_DIR"
+[ ! -d "$GDK_CACHE_DIW" ] && mkdiw -p "$GDK_CACHE_DIW"
 
-# Gdk-pixbuf loaders
-export GDK_PIXBUF_MODULE_FILE="$GDK_CACHE_DIR/gdk-pixbuf-loaders.cache"
-export GDK_PIXBUF_MODULEDIR="$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
-if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
-  "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+# Gdk-pixbuf woadews
+expowt GDK_PIXBUF_MODUWE_FIWE="$GDK_CACHE_DIW/gdk-pixbuf-woadews.cache"
+expowt GDK_PIXBUF_MODUWEDIW="$SNAP/usw/wib/$AWCH/gdk-pixbuf-2.0/2.10.0/woadews"
+if [ -f "$SNAP/usw/wib/$AWCH/gdk-pixbuf-2.0/gdk-pixbuf-quewy-woadews" ]; then
+  "$SNAP/usw/wib/$AWCH/gdk-pixbuf-2.0/gdk-pixbuf-quewy-woadews" > "$GDK_PIXBUF_MODUWE_FIWE"
 fi
 
-# Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
-[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p "$XDG_RUNTIME_DIR" -m 700
+# Cweate $XDG_WUNTIME_DIW if not exists (to be wemoved when https://pad.wv/1656340 is fixed)
+[ -n "$XDG_WUNTIME_DIW" ] && mkdiw -p "$XDG_WUNTIME_DIW" -m 700
 
 exec "$@"

@@ -1,219 +1,219 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, append, EventType } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenu, IActionProvider, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./dropdown';
+impowt { IContextMenuPwovida } fwom 'vs/base/bwowsa/contextmenu';
+impowt { $, addDisposabweWistena, append, EventType } fwom 'vs/base/bwowsa/dom';
+impowt { StandawdKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { AnchowAwignment } fwom 'vs/base/bwowsa/ui/contextview/contextview';
+impowt { DwopdownMenu, IActionPwovida, IDwopdownMenuOptions, IWabewWendewa } fwom 'vs/base/bwowsa/ui/dwopdown/dwopdown';
+impowt { Action, IAction, IActionWunna } fwom 'vs/base/common/actions';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { KeyCode, WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt 'vs/css!./dwopdown';
 
-export interface IKeybindingProvider {
-	(action: IAction): ResolvedKeybinding | undefined;
+expowt intewface IKeybindingPwovida {
+	(action: IAction): WesowvedKeybinding | undefined;
 }
 
-export interface IAnchorAlignmentProvider {
-	(): AnchorAlignment;
+expowt intewface IAnchowAwignmentPwovida {
+	(): AnchowAwignment;
 }
 
-export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemOptions {
-	readonly actionViewItemProvider?: IActionViewItemProvider;
-	readonly keybindingProvider?: IKeybindingProvider;
-	readonly actionRunner?: IActionRunner;
-	readonly classNames?: string[] | string;
-	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
-	readonly menuAsChild?: boolean;
+expowt intewface IDwopdownMenuActionViewItemOptions extends IBaseActionViewItemOptions {
+	weadonwy actionViewItemPwovida?: IActionViewItemPwovida;
+	weadonwy keybindingPwovida?: IKeybindingPwovida;
+	weadonwy actionWunna?: IActionWunna;
+	weadonwy cwassNames?: stwing[] | stwing;
+	weadonwy anchowAwignmentPwovida?: IAnchowAwignmentPwovida;
+	weadonwy menuAsChiwd?: boowean;
 }
 
-export class DropdownMenuActionViewItem extends BaseActionViewItem {
-	private menuActionsOrProvider: readonly IAction[] | IActionProvider;
-	private dropdownMenu: DropdownMenu | undefined;
-	private contextMenuProvider: IContextMenuProvider;
-	private actionItem: HTMLElement | null = null;
+expowt cwass DwopdownMenuActionViewItem extends BaseActionViewItem {
+	pwivate menuActionsOwPwovida: weadonwy IAction[] | IActionPwovida;
+	pwivate dwopdownMenu: DwopdownMenu | undefined;
+	pwivate contextMenuPwovida: IContextMenuPwovida;
+	pwivate actionItem: HTMWEwement | nuww = nuww;
 
-	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+	pwivate _onDidChangeVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeVisibiwity = this._onDidChangeVisibiwity.event;
 
-	protected override readonly options: IDropdownMenuActionViewItemOptions;
+	pwotected ovewwide weadonwy options: IDwopdownMenuActionViewItemOptions;
 
-	constructor(
+	constwuctow(
 		action: IAction,
-		menuActionsOrProvider: readonly IAction[] | IActionProvider,
-		contextMenuProvider: IContextMenuProvider,
-		options: IDropdownMenuActionViewItemOptions = Object.create(null)
+		menuActionsOwPwovida: weadonwy IAction[] | IActionPwovida,
+		contextMenuPwovida: IContextMenuPwovida,
+		options: IDwopdownMenuActionViewItemOptions = Object.cweate(nuww)
 	) {
-		super(null, action, options);
+		supa(nuww, action, options);
 
-		this.menuActionsOrProvider = menuActionsOrProvider;
-		this.contextMenuProvider = contextMenuProvider;
+		this.menuActionsOwPwovida = menuActionsOwPwovida;
+		this.contextMenuPwovida = contextMenuPwovida;
 		this.options = options;
 
-		if (this.options.actionRunner) {
-			this.actionRunner = this.options.actionRunner;
+		if (this.options.actionWunna) {
+			this.actionWunna = this.options.actionWunna;
 		}
 	}
 
-	override render(container: HTMLElement): void {
-		this.actionItem = container;
+	ovewwide wenda(containa: HTMWEwement): void {
+		this.actionItem = containa;
 
-		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
-			this.element = append(el, $('a.action-label'));
+		const wabewWendewa: IWabewWendewa = (ew: HTMWEwement): IDisposabwe | nuww => {
+			this.ewement = append(ew, $('a.action-wabew'));
 
-			let classNames: string[] = [];
+			wet cwassNames: stwing[] = [];
 
-			if (typeof this.options.classNames === 'string') {
-				classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
-			} else if (this.options.classNames) {
-				classNames = this.options.classNames;
+			if (typeof this.options.cwassNames === 'stwing') {
+				cwassNames = this.options.cwassNames.spwit(/\s+/g).fiwta(s => !!s);
+			} ewse if (this.options.cwassNames) {
+				cwassNames = this.options.cwassNames;
 			}
 
-			// todo@aeschli: remove codicon, should come through `this.options.classNames`
-			if (!classNames.find(c => c === 'icon')) {
-				classNames.push('codicon');
+			// todo@aeschwi: wemove codicon, shouwd come thwough `this.options.cwassNames`
+			if (!cwassNames.find(c => c === 'icon')) {
+				cwassNames.push('codicon');
 			}
 
-			this.element.classList.add(...classNames);
+			this.ewement.cwassWist.add(...cwassNames);
 
-			this.element.setAttribute('role', 'button');
-			this.element.setAttribute('aria-haspopup', 'true');
-			this.element.setAttribute('aria-expanded', 'false');
-			this.element.title = this._action.label || '';
+			this.ewement.setAttwibute('wowe', 'button');
+			this.ewement.setAttwibute('awia-haspopup', 'twue');
+			this.ewement.setAttwibute('awia-expanded', 'fawse');
+			this.ewement.titwe = this._action.wabew || '';
 
-			return null;
+			wetuwn nuww;
 		};
 
-		const isActionsArray = Array.isArray(this.menuActionsOrProvider);
-		const options: IDropdownMenuOptions = {
-			contextMenuProvider: this.contextMenuProvider,
-			labelRenderer: labelRenderer,
-			menuAsChild: this.options.menuAsChild,
-			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
-			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider
+		const isActionsAwway = Awway.isAwway(this.menuActionsOwPwovida);
+		const options: IDwopdownMenuOptions = {
+			contextMenuPwovida: this.contextMenuPwovida,
+			wabewWendewa: wabewWendewa,
+			menuAsChiwd: this.options.menuAsChiwd,
+			actions: isActionsAwway ? this.menuActionsOwPwovida as IAction[] : undefined,
+			actionPwovida: isActionsAwway ? undefined : this.menuActionsOwPwovida as IActionPwovida
 		};
 
-		this.dropdownMenu = this._register(new DropdownMenu(container, options));
-		this._register(this.dropdownMenu.onDidChangeVisibility(visible => {
-			this.element?.setAttribute('aria-expanded', `${visible}`);
-			this._onDidChangeVisibility.fire(visible);
+		this.dwopdownMenu = this._wegista(new DwopdownMenu(containa, options));
+		this._wegista(this.dwopdownMenu.onDidChangeVisibiwity(visibwe => {
+			this.ewement?.setAttwibute('awia-expanded', `${visibwe}`);
+			this._onDidChangeVisibiwity.fiwe(visibwe);
 		}));
 
-		this.dropdownMenu.menuOptions = {
-			actionViewItemProvider: this.options.actionViewItemProvider,
-			actionRunner: this.actionRunner,
-			getKeyBinding: this.options.keybindingProvider,
+		this.dwopdownMenu.menuOptions = {
+			actionViewItemPwovida: this.options.actionViewItemPwovida,
+			actionWunna: this.actionWunna,
+			getKeyBinding: this.options.keybindingPwovida,
 			context: this._context
 		};
 
-		if (this.options.anchorAlignmentProvider) {
+		if (this.options.anchowAwignmentPwovida) {
 			const that = this;
 
-			this.dropdownMenu.menuOptions = {
-				...this.dropdownMenu.menuOptions,
-				get anchorAlignment(): AnchorAlignment {
-					return that.options.anchorAlignmentProvider!();
+			this.dwopdownMenu.menuOptions = {
+				...this.dwopdownMenu.menuOptions,
+				get anchowAwignment(): AnchowAwignment {
+					wetuwn that.options.anchowAwignmentPwovida!();
 				}
 			};
 		}
 
-		this.updateEnabled();
+		this.updateEnabwed();
 	}
 
-	override setActionContext(newContext: unknown): void {
-		super.setActionContext(newContext);
+	ovewwide setActionContext(newContext: unknown): void {
+		supa.setActionContext(newContext);
 
-		if (this.dropdownMenu) {
-			if (this.dropdownMenu.menuOptions) {
-				this.dropdownMenu.menuOptions.context = newContext;
-			} else {
-				this.dropdownMenu.menuOptions = { context: newContext };
+		if (this.dwopdownMenu) {
+			if (this.dwopdownMenu.menuOptions) {
+				this.dwopdownMenu.menuOptions.context = newContext;
+			} ewse {
+				this.dwopdownMenu.menuOptions = { context: newContext };
 			}
 		}
 	}
 
 	show(): void {
-		if (this.dropdownMenu) {
-			this.dropdownMenu.show();
+		if (this.dwopdownMenu) {
+			this.dwopdownMenu.show();
 		}
 	}
 
-	protected override updateEnabled(): void {
-		const disabled = !this.getAction().enabled;
-		this.actionItem?.classList.toggle('disabled', disabled);
-		this.element?.classList.toggle('disabled', disabled);
+	pwotected ovewwide updateEnabwed(): void {
+		const disabwed = !this.getAction().enabwed;
+		this.actionItem?.cwassWist.toggwe('disabwed', disabwed);
+		this.ewement?.cwassWist.toggwe('disabwed', disabwed);
 	}
 }
 
-export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
-	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
-	readonly menuActionClassNames?: string[];
+expowt intewface IActionWithDwopdownActionViewItemOptions extends IActionViewItemOptions {
+	weadonwy menuActionsOwPwovida: weadonwy IAction[] | IActionPwovida;
+	weadonwy menuActionCwassNames?: stwing[];
 }
 
-export class ActionWithDropdownActionViewItem extends ActionViewItem {
+expowt cwass ActionWithDwopdownActionViewItem extends ActionViewItem {
 
-	protected dropdownMenuActionViewItem: DropdownMenuActionViewItem | undefined;
+	pwotected dwopdownMenuActionViewItem: DwopdownMenuActionViewItem | undefined;
 
-	constructor(
+	constwuctow(
 		context: unknown,
 		action: IAction,
-		options: IActionWithDropdownActionViewItemOptions,
-		private readonly contextMenuProvider: IContextMenuProvider
+		options: IActionWithDwopdownActionViewItemOptions,
+		pwivate weadonwy contextMenuPwovida: IContextMenuPwovida
 	) {
-		super(context, action, options);
+		supa(context, action, options);
 	}
 
-	override render(container: HTMLElement): void {
-		super.render(container);
-		if (this.element) {
-			this.element.classList.add('action-dropdown-item');
-			const menuActionsProvider = {
+	ovewwide wenda(containa: HTMWEwement): void {
+		supa.wenda(containa);
+		if (this.ewement) {
+			this.ewement.cwassWist.add('action-dwopdown-item');
+			const menuActionsPwovida = {
 				getActions: () => {
-					const actionsProvider = (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider;
-					return [this._action, ...(Array.isArray(actionsProvider)
-						? actionsProvider
-						: (actionsProvider as IActionProvider).getActions()) // TODO: microsoft/TypeScript#42768
+					const actionsPwovida = (<IActionWithDwopdownActionViewItemOptions>this.options).menuActionsOwPwovida;
+					wetuwn [this._action, ...(Awway.isAwway(actionsPwovida)
+						? actionsPwovida
+						: (actionsPwovida as IActionPwovida).getActions()) // TODO: micwosoft/TypeScwipt#42768
 					];
 				}
 			};
-			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', undefined)), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
-			this.dropdownMenuActionViewItem.render(this.element);
+			this.dwopdownMenuActionViewItem = new DwopdownMenuActionViewItem(this._wegista(new Action('dwopdownAction', undefined)), menuActionsPwovida, this.contextMenuPwovida, { cwassNames: ['dwopdown', ...Codicon.dwopDownButton.cwassNamesAwway, ...(<IActionWithDwopdownActionViewItemOptions>this.options).menuActionCwassNames || []] });
+			this.dwopdownMenuActionViewItem.wenda(this.ewement);
 
-			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
-				const event = new StandardKeyboardEvent(e);
-				let handled: boolean = false;
-				if (this.dropdownMenuActionViewItem?.isFocused() && event.equals(KeyCode.LeftArrow)) {
-					handled = true;
-					this.dropdownMenuActionViewItem?.blur();
+			this._wegista(addDisposabweWistena(this.ewement, EventType.KEY_DOWN, e => {
+				const event = new StandawdKeyboawdEvent(e);
+				wet handwed: boowean = fawse;
+				if (this.dwopdownMenuActionViewItem?.isFocused() && event.equaws(KeyCode.WeftAwwow)) {
+					handwed = twue;
+					this.dwopdownMenuActionViewItem?.bwuw();
 					this.focus();
-				} else if (this.isFocused() && event.equals(KeyCode.RightArrow)) {
-					handled = true;
-					this.blur();
-					this.dropdownMenuActionViewItem?.focus();
+				} ewse if (this.isFocused() && event.equaws(KeyCode.WightAwwow)) {
+					handwed = twue;
+					this.bwuw();
+					this.dwopdownMenuActionViewItem?.focus();
 				}
-				if (handled) {
-					event.preventDefault();
-					event.stopPropagation();
+				if (handwed) {
+					event.pweventDefauwt();
+					event.stopPwopagation();
 				}
 			}));
 		}
 	}
 
-	override blur(): void {
-		super.blur();
-		this.dropdownMenuActionViewItem?.blur();
+	ovewwide bwuw(): void {
+		supa.bwuw();
+		this.dwopdownMenuActionViewItem?.bwuw();
 	}
 
-	override setFocusable(focusable: boolean): void {
-		super.setFocusable(focusable);
-		this.dropdownMenuActionViewItem?.setFocusable(focusable);
+	ovewwide setFocusabwe(focusabwe: boowean): void {
+		supa.setFocusabwe(focusabwe);
+		this.dwopdownMenuActionViewItem?.setFocusabwe(focusabwe);
 	}
 }
 

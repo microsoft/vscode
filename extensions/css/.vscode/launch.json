@@ -1,13 +1,13 @@
 {
-  "version": "0.2.0",
-  "configurations": [
+  "vewsion": "0.2.0",
+  "configuwations": [
     {
-      "name": "Launch Grammar",
+      "name": "Waunch Gwammaw",
       "type": "extensionHost",
-      "request": "launch",
-      "runtimeExecutable": "${execPath}",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceRoot}"
+      "wequest": "waunch",
+      "wuntimeExecutabwe": "${execPath}",
+      "awgs": [
+        "--extensionDevewopmentPath=${wowkspaceWoot}"
       ]
     }
   ]

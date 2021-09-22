@@ -1,53 +1,53 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/contrib/preferences/browser/preferencesRenderers';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IPwefewencesWendewa, UsewSettingsWendewa, WowkspaceSettingsWendewa } fwom 'vs/wowkbench/contwib/pwefewences/bwowsa/pwefewencesWendewews';
+impowt { IPwefewencesSewvice } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewences';
+impowt { SettingsEditowModew } fwom 'vs/wowkbench/sewvices/pwefewences/common/pwefewencesModews';
 
-export class SettingsEditorContribution extends Disposable {
-	static readonly ID: string = 'editor.contrib.settings';
+expowt cwass SettingsEditowContwibution extends Disposabwe {
+	static weadonwy ID: stwing = 'editow.contwib.settings';
 
-	private _currentRenderer: IPreferencesRenderer | undefined;
+	pwivate _cuwwentWendewa: IPwefewencesWendewa | undefined;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	constwuctow(
+		pwivate weadonwy editow: ICodeEditow,
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IPwefewencesSewvice pwivate weadonwy pwefewencesSewvice: IPwefewencesSewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice
 	) {
-		super();
-		this._createPreferencesRenderer();
-		this._register(this.editor.onDidChangeModel(e => this._createPreferencesRenderer()));
-		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this._createPreferencesRenderer()));
+		supa();
+		this._cweatePwefewencesWendewa();
+		this._wegista(this.editow.onDidChangeModew(e => this._cweatePwefewencesWendewa()));
+		this._wegista(this.wowkspaceContextSewvice.onDidChangeWowkbenchState(() => this._cweatePwefewencesWendewa()));
 	}
 
-	private async _createPreferencesRenderer(): Promise<void> {
-		this._currentRenderer?.dispose();
-		this._currentRenderer = undefined;
+	pwivate async _cweatePwefewencesWendewa(): Pwomise<void> {
+		this._cuwwentWendewa?.dispose();
+		this._cuwwentWendewa = undefined;
 
-		const model = this.editor.getModel();
-		if (model) {
-			const settingsModel = await this.preferencesService.createPreferencesEditorModel(model.uri);
-			if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
-				switch (settingsModel.configurationTarget) {
-					case ConfigurationTarget.WORKSPACE:
-						this._currentRenderer = this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
-						break;
-					default:
-						this._currentRenderer = this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
-						break;
+		const modew = this.editow.getModew();
+		if (modew) {
+			const settingsModew = await this.pwefewencesSewvice.cweatePwefewencesEditowModew(modew.uwi);
+			if (settingsModew instanceof SettingsEditowModew && this.editow.getModew()) {
+				switch (settingsModew.configuwationTawget) {
+					case ConfiguwationTawget.WOWKSPACE:
+						this._cuwwentWendewa = this.instantiationSewvice.cweateInstance(WowkspaceSettingsWendewa, this.editow, settingsModew);
+						bweak;
+					defauwt:
+						this._cuwwentWendewa = this.instantiationSewvice.cweateInstance(UsewSettingsWendewa, this.editow, settingsModew);
+						bweak;
 				}
 			}
 
-			this._currentRenderer?.render();
+			this._cuwwentWendewa?.wenda();
 		}
 	}
 }

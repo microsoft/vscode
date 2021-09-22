@@ -1,144 +1,144 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
-import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentGroups } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+impowt { IViewwetViewOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewsViewwet';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice, WawContextKey, IContextKey, ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDebugSewvice, CONTEXT_DEBUGGEWS_AVAIWABWE } fwom 'vs/wowkbench/contwib/debug/common/debug';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { ViewPane } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IViewDescwiptowSewvice, IViewsWegistwy, Extensions, ViewContentGwoups } fwom 'vs/wowkbench/common/views';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { WowkbenchStateContext } fwom 'vs/wowkbench/bwowsa/contextkeys';
+impowt { OpenFowdewAction, OpenFiweAction, OpenFiweFowdewAction } fwom 'vs/wowkbench/bwowsa/actions/wowkspaceActions';
+impowt { isMacintosh, isWeb } fwom 'vs/base/common/pwatfowm';
+impowt { isCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { SEWECT_AND_STAWT_ID, DEBUG_CONFIGUWE_COMMAND_ID, DEBUG_STAWT_COMMAND_ID } fwom 'vs/wowkbench/contwib/debug/bwowsa/debugCommands';
 
-const debugStartLanguageKey = 'debugStartLanguage';
-const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
-const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>('debuggerInterestedInActiveEditor', false);
+const debugStawtWanguageKey = 'debugStawtWanguage';
+const CONTEXT_DEBUG_STAWT_WANGUAGE = new WawContextKey<stwing>(debugStawtWanguageKey, undefined);
+const CONTEXT_DEBUGGEW_INTEWESTED_IN_ACTIVE_EDITOW = new WawContextKey<boowean>('debuggewIntewestedInActiveEditow', fawse);
 
-export class WelcomeView extends ViewPane {
+expowt cwass WewcomeView extends ViewPane {
 
-	static readonly ID = 'workbench.debug.welcome';
-	static readonly LABEL = localize('run', "Run");
+	static weadonwy ID = 'wowkbench.debug.wewcome';
+	static weadonwy WABEW = wocawize('wun', "Wun");
 
-	private debugStartLanguageContext: IContextKey<string | undefined>;
-	private debuggerInterestedContext: IContextKey<boolean>;
+	pwivate debugStawtWanguageContext: IContextKey<stwing | undefined>;
+	pwivate debuggewIntewestedContext: IContextKey<boowean>;
 
-	constructor(
-		options: IViewletViewOptions,
-		@IThemeService themeService: IThemeService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDebugService private readonly debugService: IDebugService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IOpenerService openerService: IOpenerService,
-		@IStorageService storageSevice: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
+	constwuctow(
+		options: IViewwetViewOptions,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IDebugSewvice pwivate weadonwy debugSewvice: IDebugSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IStowageSewvice stowageSevice: IStowageSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
 
-		this.debugStartLanguageContext = CONTEXT_DEBUG_START_LANGUAGE.bindTo(contextKeyService);
-		this.debuggerInterestedContext = CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.bindTo(contextKeyService);
-		const lastSetLanguage = storageSevice.get(debugStartLanguageKey, StorageScope.WORKSPACE);
-		this.debugStartLanguageContext.set(lastSetLanguage);
+		this.debugStawtWanguageContext = CONTEXT_DEBUG_STAWT_WANGUAGE.bindTo(contextKeySewvice);
+		this.debuggewIntewestedContext = CONTEXT_DEBUGGEW_INTEWESTED_IN_ACTIVE_EDITOW.bindTo(contextKeySewvice);
+		const wastSetWanguage = stowageSevice.get(debugStawtWanguageKey, StowageScope.WOWKSPACE);
+		this.debugStawtWanguageContext.set(wastSetWanguage);
 
 		const setContextKey = () => {
-			const editorControl = this.editorService.activeTextEditorControl;
-			if (isCodeEditor(editorControl)) {
-				const model = editorControl.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
-				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
-					this.debugStartLanguageContext.set(language);
-					this.debuggerInterestedContext.set(true);
-					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-					return;
+			const editowContwow = this.editowSewvice.activeTextEditowContwow;
+			if (isCodeEditow(editowContwow)) {
+				const modew = editowContwow.getModew();
+				const wanguage = modew ? modew.getWanguageIdentifia().wanguage : undefined;
+				if (wanguage && this.debugSewvice.getAdaptewManaga().isDebuggewIntewestedInWanguage(wanguage)) {
+					this.debugStawtWanguageContext.set(wanguage);
+					this.debuggewIntewestedContext.set(twue);
+					stowageSevice.stowe(debugStawtWanguageKey, wanguage, StowageScope.WOWKSPACE, StowageTawget.MACHINE);
+					wetuwn;
 				}
 			}
-			this.debuggerInterestedContext.set(false);
+			this.debuggewIntewestedContext.set(fawse);
 		};
 
-		const disposables = new DisposableStore();
-		this._register(disposables);
+		const disposabwes = new DisposabweStowe();
+		this._wegista(disposabwes);
 
-		this._register(editorService.onDidActiveEditorChange(() => {
-			disposables.clear();
+		this._wegista(editowSewvice.onDidActiveEditowChange(() => {
+			disposabwes.cweaw();
 
-			const editorControl = this.editorService.activeTextEditorControl;
-			if (isCodeEditor(editorControl)) {
-				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
+			const editowContwow = this.editowSewvice.activeTextEditowContwow;
+			if (isCodeEditow(editowContwow)) {
+				disposabwes.add(editowContwow.onDidChangeModewWanguage(setContextKey));
 			}
 
 			setContextKey();
 		}));
-		this._register(this.debugService.getAdapterManager().onDidRegisterDebugger(setContextKey));
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible) {
+		this._wegista(this.debugSewvice.getAdaptewManaga().onDidWegistewDebugga(setContextKey));
+		this._wegista(this.onDidChangeBodyVisibiwity(visibwe => {
+			if (visibwe) {
 				setContextKey();
 			}
 		}));
 		setContextKey();
 
-		const debugKeybinding = this.keybindingService.lookupKeybinding(DEBUG_START_COMMAND_ID);
-		debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
+		const debugKeybinding = this.keybindingSewvice.wookupKeybinding(DEBUG_STAWT_COMMAND_ID);
+		debugKeybindingWabew = debugKeybinding ? ` (${debugKeybinding.getWabew()})` : '';
 	}
 
-	override shouldShowWelcome(): boolean {
-		return true;
+	ovewwide shouwdShowWewcome(): boowean {
+		wetuwn twue;
 	}
 }
 
-const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'openAFileWhichCanBeDebugged', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID),
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()),
-	group: ViewContentGroups.Open
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(Extensions.ViewsWegistwy);
+viewsWegistwy.wegistewViewWewcomeContent(WewcomeView.ID, {
+	content: wocawize({ key: 'openAFiweWhichCanBeDebugged', comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'] },
+		"[Open a fiwe](command:{0}) which can be debugged ow wun.", (isMacintosh && !isWeb) ? OpenFiweFowdewAction.ID : OpenFiweAction.ID),
+	when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, CONTEXT_DEBUGGEW_INTEWESTED_IN_ACTIVE_EDITOW.toNegated()),
+	gwoup: ViewContentGwoups.Open
 });
 
-let debugKeybindingLabel = '';
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
-	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug
+wet debugKeybindingWabew = '';
+viewsWegistwy.wegistewViewWewcomeContent(WewcomeView.ID, {
+	content: wocawize({ key: 'wunAndDebugAction', comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'] },
+		"[Wun and Debug{0}](command:{1})", debugKeybindingWabew, DEBUG_STAWT_COMMAND_ID),
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE,
+	gwoup: ViewContentGwoups.Debug
 });
 
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Show all automatic debug configurations](command:{0}).", SELECT_AND_START_ID),
-	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug,
-	order: 10
+viewsWegistwy.wegistewViewWewcomeContent(WewcomeView.ID, {
+	content: wocawize({ key: 'detectThenWunAndDebug', comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'] },
+		"[Show aww automatic debug configuwations](command:{0}).", SEWECT_AND_STAWT_ID),
+	when: CONTEXT_DEBUGGEWS_AVAIWABWE,
+	gwoup: ViewContentGwoups.Debug,
+	owda: 10
 });
 
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"To customize Run and Debug [create a launch.json file](command:{0}).", DEBUG_CONFIGURE_COMMAND_ID),
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
-	group: ViewContentGroups.Debug
+viewsWegistwy.wegistewViewWewcomeContent(WewcomeView.ID, {
+	content: wocawize({ key: 'customizeWunAndDebug', comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'] },
+		"To customize Wun and Debug [cweate a waunch.json fiwe](command:{0}).", DEBUG_CONFIGUWE_COMMAND_ID),
+	when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, WowkbenchStateContext.notEquawsTo('empty')),
+	gwoup: ViewContentGwoups.Debug
 });
 
-viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebugOpenFolder', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
-	group: ViewContentGroups.Debug
+viewsWegistwy.wegistewViewWewcomeContent(WewcomeView.ID, {
+	content: wocawize({ key: 'customizeWunAndDebugOpenFowda', comment: ['Pwease do not twanswate the wowd "commmand", it is pawt of ouw intewnaw syntax which must not change'] },
+		"To customize Wun and Debug, [open a fowda](command:{0}) and cweate a waunch.json fiwe.", (isMacintosh && !isWeb) ? OpenFiweFowdewAction.ID : OpenFowdewAction.ID),
+	when: ContextKeyExpw.and(CONTEXT_DEBUGGEWS_AVAIWABWE, WowkbenchStateContext.isEquawTo('empty')),
+	gwoup: ViewContentGwoups.Debug
 });

@@ -1,70 +1,70 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .hover-language-status {
-	display: flex;
+.monaco-wowkbench .hova-wanguage-status {
+	dispway: fwex;
 	padding: 4px 8px;
 }
 
-.monaco-workbench .hover-language-status:not(:last-child) {
-	border-bottom: 1px solid var(--code-notifications-border);
+.monaco-wowkbench .hova-wanguage-status:not(:wast-chiwd) {
+	bowda-bottom: 1px sowid vaw(--code-notifications-bowda);
 }
 
-.monaco-workbench .hover-language-status > .severity {
-	padding-right: 8px;
-	flex: 1;
-	margin: auto;
-	display: none;
+.monaco-wowkbench .hova-wanguage-status > .sevewity {
+	padding-wight: 8px;
+	fwex: 1;
+	mawgin: auto;
+	dispway: none;
 }
 
-.monaco-workbench .hover-language-status > .severity.sev3 {
-	color: var(--code-language-status-error-color)
+.monaco-wowkbench .hova-wanguage-status > .sevewity.sev3 {
+	cowow: vaw(--code-wanguage-status-ewwow-cowow)
 }
 
-.monaco-workbench .hover-language-status > .severity.sev2 {
-	color: var(--code-language-status-warning-color)
+.monaco-wowkbench .hova-wanguage-status > .sevewity.sev2 {
+	cowow: vaw(--code-wanguage-status-wawning-cowow)
 }
 
-.monaco-workbench .hover-language-status > .severity.show {
-	display: inherit;
+.monaco-wowkbench .hova-wanguage-status > .sevewity.show {
+	dispway: inhewit;
 }
 
-.monaco-workbench .hover-language-status > .element {
-	display: flex;
+.monaco-wowkbench .hova-wanguage-status > .ewement {
+	dispway: fwex;
 	justify-content: space-between;
-	vertical-align: middle;
-	flex-grow: 100;
+	vewticaw-awign: middwe;
+	fwex-gwow: 100;
 }
 
-.monaco-workbench .hover-language-status > .element > .left > .detail:not(:empty)::before {
+.monaco-wowkbench .hova-wanguage-status > .ewement > .weft > .detaiw:not(:empty)::befowe {
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;
 }
 
-.monaco-workbench .hover-language-status > .element > .left > .label:empty {
-	display: none;
+.monaco-wowkbench .hova-wanguage-status > .ewement > .weft > .wabew:empty {
+	dispway: none;
 }
 
-.monaco-workbench .hover-language-status > .element .left {
-	margin: auto 0;
+.monaco-wowkbench .hova-wanguage-status > .ewement .weft {
+	mawgin: auto 0;
 }
 
-.monaco-workbench .hover-language-status > .element .right {
-	margin: auto 0;
-	display: flex;
+.monaco-wowkbench .hova-wanguage-status > .ewement .wight {
+	mawgin: auto 0;
+	dispway: fwex;
 }
 
-.monaco-workbench .hover-language-status > .element .right:not(:empty) {
-	padding-left: 16px;
+.monaco-wowkbench .hova-wanguage-status > .ewement .wight:not(:empty) {
+	padding-weft: 16px;
 }
 
-.monaco-workbench .hover-language-status > .element .right .monaco-link {
-	margin: auto 0;
+.monaco-wowkbench .hova-wanguage-status > .ewement .wight .monaco-wink {
+	mawgin: auto 0;
 }
 
-.monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {
-	padding-left: 8px;
+.monaco-wowkbench .hova-wanguage-status > .ewement .wight .monaco-action-baw:not(:fiwst-chiwd) {
+	padding-weft: 8px;
 }

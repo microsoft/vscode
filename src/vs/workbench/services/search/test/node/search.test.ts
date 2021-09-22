@@ -1,903 +1,903 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
-import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+impowt * as assewt fwom 'assewt';
+impowt * as path fwom 'vs/base/common/path';
+impowt * as pwatfowm fwom 'vs/base/common/pwatfowm';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IFowdewQuewy, QuewyType, IWawFiweMatch } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { Engine as FiweSeawchEngine, FiweWawka } fwom 'vs/wowkbench/sewvices/seawch/node/fiweSeawch';
+impowt { fwakySuite, getPathFwomAmdModuwe } fwom 'vs/base/test/node/testUtiws';
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
-const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
-const MORE_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'more'));
-const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
-const ROOT_FOLDER_QUERY: IFolderQuery[] = [
-	TEST_ROOT_FOLDER
+const TEST_FIXTUWES = path.nowmawize(getPathFwomAmdModuwe(wequiwe, './fixtuwes'));
+const EXAMPWES_FIXTUWES = UWI.fiwe(path.join(TEST_FIXTUWES, 'exampwes'));
+const MOWE_FIXTUWES = UWI.fiwe(path.join(TEST_FIXTUWES, 'mowe'));
+const TEST_WOOT_FOWDa: IFowdewQuewy = { fowda: UWI.fiwe(TEST_FIXTUWES) };
+const WOOT_FOWDEW_QUEWY: IFowdewQuewy[] = [
+	TEST_WOOT_FOWDa
 ];
 
-const ROOT_FOLDER_QUERY_36438: IFolderQuery[] = [
-	{ folder: URI.file(path.normalize(getPathFromAmdModule(require, './fixtures2/36438'))) }
+const WOOT_FOWDEW_QUEWY_36438: IFowdewQuewy[] = [
+	{ fowda: UWI.fiwe(path.nowmawize(getPathFwomAmdModuwe(wequiwe, './fixtuwes2/36438'))) }
 ];
 
-const MULTIROOT_QUERIES: IFolderQuery[] = [
-	{ folder: EXAMPLES_FIXTURES },
-	{ folder: MORE_FIXTURES }
+const MUWTIWOOT_QUEWIES: IFowdewQuewy[] = [
+	{ fowda: EXAMPWES_FIXTUWES },
+	{ fowda: MOWE_FIXTUWES }
 ];
 
-flakySuite('FileSearchEngine', () => {
+fwakySuite('FiweSeawchEngine', () => {
 
-	test('Files: *.js', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.js'
+	test('Fiwes: *.js', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.js'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 4);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 4);
 			done();
 		});
 	});
 
-	test('Files: maxResults', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			maxResults: 1
+	test('Fiwes: maxWesuwts', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			maxWesuwts: 1
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: maxResults without Ripgrep', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			maxResults: 1,
+	test('Fiwes: maxWesuwts without Wipgwep', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			maxWesuwts: 1,
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: exists', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			includePattern: { '**/file.txt': true },
-			exists: true
+	test('Fiwes: exists', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			incwudePattewn: { '**/fiwe.txt': twue },
+			exists: twue
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
-			assert.ok(complete.limitHit);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
+			assewt.ok(compwete.wimitHit);
 			done();
 		});
 	});
 
-	test('Files: not exists', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			includePattern: { '**/nofile.txt': true },
-			exists: true
+	test('Fiwes: not exists', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			incwudePattewn: { '**/nofiwe.txt': twue },
+			exists: twue
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
-			assert.ok(!complete.limitHit);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
+			assewt.ok(!compwete.wimitHit);
 			done();
 		});
 	});
 
-	test('Files: exists without Ripgrep', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			includePattern: { '**/file.txt': true },
-			exists: true,
+	test('Fiwes: exists without Wipgwep', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			incwudePattewn: { '**/fiwe.txt': twue },
+			exists: twue,
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
-			assert.ok(complete.limitHit);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
+			assewt.ok(compwete.wimitHit);
 			done();
 		});
 	});
 
-	test('Files: not exists without Ripgrep', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			includePattern: { '**/nofile.txt': true },
-			exists: true,
+	test('Fiwes: not exists without Wipgwep', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			incwudePattewn: { '**/nofiwe.txt': twue },
+			exists: twue,
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
-			assert.ok(!complete.limitHit);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
+			assewt.ok(!compwete.wimitHit);
 			done();
 		});
 	});
 
-	test('Files: examples/com*', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: path.join('examples', 'com*')
+	test('Fiwes: exampwes/com*', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: path.join('exampwes', 'com*')
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: examples (fuzzy)', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'xl'
+	test('Fiwes: exampwes (fuzzy)', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'xw'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 7);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 7);
 			done();
 		});
 	});
 
-	test('Files: multiroot', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			filePattern: 'file'
+	test('Fiwes: muwtiwoot', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			fiwePattewn: 'fiwe'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 3);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 3);
 			done();
 		});
 	});
 
-	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			maxResults: 1,
-			includePattern: {
-				'*.txt': true,
-				'*.js': true
+	test('Fiwes: muwtiwoot with incwudePattewn and maxWesuwts', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			maxWesuwts: 1,
+			incwudePattewn: {
+				'*.txt': twue,
+				'*.js': twue
 			},
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: multiroot with includePattern and exists', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: MULTIROOT_QUERIES,
-			exists: true,
-			includePattern: {
-				'*.txt': true,
-				'*.js': true
+	test('Fiwes: muwtiwoot with incwudePattewn and exists', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: MUWTIWOOT_QUEWIES,
+			exists: twue,
+			incwudePattewn: {
+				'*.txt': twue,
+				'*.js': twue
 			},
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
-			assert.ok(complete.limitHit);
+		}, () => { }, (ewwow, compwete) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
+			assewt.ok(compwete.wimitHit);
 			done();
 		});
 	});
 
-	test('Files: NPE (CamelCase)', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'NullPE'
+	test('Fiwes: NPE (CamewCase)', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'NuwwPE'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: *.*', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*'
+	test('Fiwes: *.*', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 14);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 14);
 			done();
 		});
 	});
 
-	test('Files: *.as', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.as'
+	test('Fiwes: *.as', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.as'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
 			done();
 		});
 	});
 
-	test('Files: *.* without derived', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'site.*',
-			excludePattern: { '**/*.css': { 'when': '$(basename).less' } }
+	test('Fiwes: *.* without dewived', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'site.*',
+			excwudePattewn: { '**/*.css': { 'when': '$(basename).wess' } }
 		});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		wet wes: IWawFiweMatch;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), 'site.less');
+			wes = wesuwt;
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
+			assewt.stwictEquaw(path.basename(wes.wewativePath), 'site.wess');
 			done();
 		});
 	});
 
-	test('Files: *.* exclude folder without wildcard', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			excludePattern: { 'examples': true }
+	test('Fiwes: *.* excwude fowda without wiwdcawd', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*',
+			excwudePattewn: { 'exampwes': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 8);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 8);
 			done();
 		});
 	});
 
-	test('Files: exclude folder without wildcard #36438', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY_36438,
-			excludePattern: { 'modules': true }
+	test('Fiwes: excwude fowda without wiwdcawd #36438', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY_36438,
+			excwudePattewn: { 'moduwes': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: include folder without wildcard #36438', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY_36438,
-			includePattern: { 'modules/**': true }
+	test('Fiwes: incwude fowda without wiwdcawd #36438', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY_36438,
+			incwudePattewn: { 'moduwes/**': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: *.* exclude folder with leading wildcard', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			excludePattern: { '**/examples': true }
+	test('Fiwes: *.* excwude fowda with weading wiwdcawd', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*',
+			excwudePattewn: { '**/exampwes': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 8);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 8);
 			done();
 		});
 	});
 
-	test('Files: *.* exclude folder with trailing wildcard', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			excludePattern: { 'examples/**': true }
+	test('Fiwes: *.* excwude fowda with twaiwing wiwdcawd', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*',
+			excwudePattewn: { 'exampwes/**': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 8);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 8);
 			done();
 		});
 	});
 
-	test('Files: *.* exclude with unicode', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			excludePattern: { '**/üm laut汉语': true }
+	test('Fiwes: *.* excwude with unicode', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*',
+			excwudePattewn: { '**/üm waut汉语': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 13);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 13);
 			done();
 		});
 	});
 
-	test('Files: *.* include with unicode', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '*.*',
-			includePattern: { '**/üm laut汉语/*': true }
+	test('Fiwes: *.* incwude with unicode', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '*.*',
+			incwudePattewn: { '**/üm waut汉语/*': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 
-	test('Files: multiroot with exclude', function (done: () => void) {
-		const folderQueries: IFolderQuery[] = [
+	test('Fiwes: muwtiwoot with excwude', function (done: () => void) {
+		const fowdewQuewies: IFowdewQuewy[] = [
 			{
-				folder: EXAMPLES_FIXTURES,
-				excludePattern: {
-					'**/anotherfile.txt': true
+				fowda: EXAMPWES_FIXTUWES,
+				excwudePattewn: {
+					'**/anothewfiwe.txt': twue
 				}
 			},
 			{
-				folder: MORE_FIXTURES,
-				excludePattern: {
-					'**/file.txt': true
+				fowda: MOWE_FIXTUWES,
+				excwudePattewn: {
+					'**/fiwe.txt': twue
 				}
 			}
 		];
 
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries,
-			filePattern: '*'
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies,
+			fiwePattewn: '*'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 5);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 5);
 			done();
 		});
 	});
 
-	test('Files: Unicode and Spaces', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: '汉语'
+	test('Fiwes: Unicode and Spaces', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: '汉语'
 		});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		wet wes: IWawFiweMatch;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), '汉语.txt');
+			wes = wesuwt;
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
+			assewt.stwictEquaw(path.basename(wes.wewativePath), '汉语.txt');
 			done();
 		});
 	});
 
-	test('Files: no results', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: 'nofilematch'
+	test('Fiwes: no wesuwts', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: 'nofiwematch'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 0);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 0);
 			done();
 		});
 	});
 
-	test('Files: relative path matched once', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: path.normalize(path.join('examples', 'company.js'))
+	test('Fiwes: wewative path matched once', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			fiwePattewn: path.nowmawize(path.join('exampwes', 'company.js'))
 		});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		wet wes: IWawFiweMatch;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), 'company.js');
+			wes = wesuwt;
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
+			assewt.stwictEquaw(path.basename(wes.wewativePath), 'company.js');
 			done();
 		});
 	});
 
-	test('Files: Include pattern, single files', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			includePattern: {
-				'site.css': true,
-				'examples/company.js': true,
-				'examples/subfolder/subfile.txt': true
+	test('Fiwes: Incwude pattewn, singwe fiwes', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			incwudePattewn: {
+				'site.css': twue,
+				'exampwes/company.js': twue,
+				'exampwes/subfowda/subfiwe.txt': twue
 			}
 		});
 
-		const res: IRawFileMatch[] = [];
-		engine.search((result) => {
-			res.push(result);
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			const basenames = res.map(r => path.basename(r.relativePath));
-			assert.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stringify(basenames)}`);
-			assert.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stringify(basenames)}`);
-			assert.ok(basenames.indexOf('subfile.txt') !== -1, `subfile.txt missing in ${JSON.stringify(basenames)}`);
+		const wes: IWawFiweMatch[] = [];
+		engine.seawch((wesuwt) => {
+			wes.push(wesuwt);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			const basenames = wes.map(w => path.basename(w.wewativePath));
+			assewt.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stwingify(basenames)}`);
+			assewt.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stwingify(basenames)}`);
+			assewt.ok(basenames.indexOf('subfiwe.txt') !== -1, `subfiwe.txt missing in ${JSON.stwingify(basenames)}`);
 			done();
 		});
 	});
 
-	test('Files: extraFiles only', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: [],
-			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+	test('Fiwes: extwaFiwes onwy', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: [],
+			extwaFiweWesouwces: [
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'site.css'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'exampwes', 'company.js'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'index.htmw')))
 			],
-			filePattern: '*.js'
+			fiwePattewn: '*.js'
 		});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		wet wes: IWawFiweMatch;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), 'company.js');
+			wes = wesuwt;
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
+			assewt.stwictEquaw(path.basename(wes.wewativePath), 'company.js');
 			done();
 		});
 	});
 
-	test('Files: extraFiles only (with include)', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: [],
-			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+	test('Fiwes: extwaFiwes onwy (with incwude)', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: [],
+			extwaFiweWesouwces: [
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'site.css'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'exampwes', 'company.js'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'index.htmw')))
 			],
-			filePattern: '*.*',
-			includePattern: { '**/*.css': true }
+			fiwePattewn: '*.*',
+			incwudePattewn: { '**/*.css': twue }
 		});
 
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		wet wes: IWawFiweMatch;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), 'site.css');
+			wes = wesuwt;
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
+			assewt.stwictEquaw(path.basename(wes.wewativePath), 'site.css');
 			done();
 		});
 	});
 
-	test('Files: extraFiles only (with exclude)', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: [],
-			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+	test('Fiwes: extwaFiwes onwy (with excwude)', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: [],
+			extwaFiweWesouwces: [
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'site.css'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'exampwes', 'company.js'))),
+				UWI.fiwe(path.nowmawize(path.join(getPathFwomAmdModuwe(wequiwe, './fixtuwes'), 'index.htmw')))
 			],
-			filePattern: '*.*',
-			excludePattern: { '**/*.css': true }
+			fiwePattewn: '*.*',
+			excwudePattewn: { '**/*.css': twue }
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 2);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 2);
 			done();
 		});
 	});
 
-	test('Files: no dupes in nested folders', function (done: () => void) {
-		const engine = new FileSearchEngine({
-			type: QueryType.File,
-			folderQueries: [
-				{ folder: EXAMPLES_FIXTURES },
-				{ folder: joinPath(EXAMPLES_FIXTURES, 'subfolder') }
+	test('Fiwes: no dupes in nested fowdews', function (done: () => void) {
+		const engine = new FiweSeawchEngine({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: [
+				{ fowda: EXAMPWES_FIXTUWES },
+				{ fowda: joinPath(EXAMPWES_FIXTUWES, 'subfowda') }
 			],
-			filePattern: 'subfile.txt'
+			fiwePattewn: 'subfiwe.txt'
 		});
 
-		let count = 0;
-		engine.search((result) => {
-			if (result) {
+		wet count = 0;
+		engine.seawch((wesuwt) => {
+			if (wesuwt) {
 				count++;
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.strictEqual(count, 1);
+		}, () => { }, (ewwow) => {
+			assewt.ok(!ewwow);
+			assewt.stwictEquaw(count, 1);
 			done();
 		});
 	});
 });
 
-flakySuite('FileWalker', () => {
+fwakySuite('FiweWawka', () => {
 
-	(platform.isWindows ? test.skip : test)('Find: exclude subfolder', function (done: () => void) {
-		const file0 = './more/file.txt';
-		const file1 = './examples/subfolder/subfile.txt';
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude subfowda', function (done: () => void) {
+		const fiwe0 = './mowe/fiwe.txt';
+		const fiwe1 = './exampwes/subfowda/subfiwe.txt';
 
-		const walker = new FileWalker({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			excludePattern: { '**/something': true }
+		const wawka = new FiweWawka({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			excwudePattewn: { '**/something': twue }
 		});
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe1), -1, stdout1);
 
-			const walker = new FileWalker({
-				type: QueryType.File,
-				folderQueries: ROOT_FOLDER_QUERY,
-				excludePattern: { '**/subfolder': true }
+			const wawka = new FiweWawka({
+				type: QuewyType.Fiwe,
+				fowdewQuewies: WOOT_FOWDEW_QUEWY,
+				excwudePattewn: { '**/subfowda': twue }
 			});
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
-				assert.strictEqual(err2, null);
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+			const cmd2 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+			wawka.weadStdout(cmd2, 'utf8', (eww2, stdout2) => {
+				assewt.stwictEquaw(eww2, nuww);
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe1), -1, stdout2);
 				done();
 			});
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: folder excludes', function (done: () => void) {
-		const folderQueries: IFolderQuery[] = [
+	(pwatfowm.isWindows ? test.skip : test)('Find: fowda excwudes', function (done: () => void) {
+		const fowdewQuewies: IFowdewQuewy[] = [
 			{
-				folder: URI.file(TEST_FIXTURES),
-				excludePattern: { '**/subfolder': true }
+				fowda: UWI.fiwe(TEST_FIXTUWES),
+				excwudePattewn: { '**/subfowda': twue }
 			}
 		];
 
-		const file0 = './more/file.txt';
-		const file1 = './examples/subfolder/subfile.txt';
+		const fiwe0 = './mowe/fiwe.txt';
+		const fiwe1 = './exampwes/subfowda/subfiwe.txt';
 
-		const walker = new FileWalker({ type: QueryType.File, folderQueries });
-		const cmd1 = walker.spawnFindCmd(folderQueries[0]);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert(outputContains(stdout1!, file0), stdout1);
-			assert(!outputContains(stdout1!, file1), stdout1);
+		const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies });
+		const cmd1 = wawka.spawnFindCmd(fowdewQuewies[0]);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt(outputContains(stdout1!, fiwe0), stdout1);
+			assewt(!outputContains(stdout1!, fiwe1), stdout1);
 			done();
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude multiple folders', function (done: () => void) {
-		const file0 = './index.html';
-		const file1 = './examples/small.js';
-		const file2 = './more/file.txt';
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude muwtipwe fowdews', function (done: () => void) {
+		const fiwe0 = './index.htmw';
+		const fiwe1 = './exampwes/smaww.js';
+		const fiwe2 = './mowe/fiwe.txt';
 
-		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/something': true } });
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file2), -1, stdout1);
+		const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '**/something': twue } });
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe1), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe2), -1, stdout1);
 
-			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '{**/examples,**/more}': true } });
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
-				assert.strictEqual(err2, null);
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file2), -1, stdout2);
+			const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '{**/exampwes,**/mowe}': twue } });
+			const cmd2 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+			wawka.weadStdout(cmd2, 'utf8', (eww2, stdout2) => {
+				assewt.stwictEquaw(eww2, nuww);
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe1), -1, stdout2);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe2), -1, stdout2);
 				done();
 			});
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude folder path suffix', function (done: () => void) {
-		const file0 = './examples/company.js';
-		const file1 = './examples/subfolder/subfile.txt';
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude fowda path suffix', function (done: () => void) {
+		const fiwe0 = './exampwes/company.js';
+		const fiwe1 = './exampwes/subfowda/subfiwe.txt';
 
-		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/something': true } });
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+		const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '**/exampwes/something': twue } });
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe1), -1, stdout1);
 
-			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/examples/subfolder': true } });
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
-				assert.strictEqual(err2, null);
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+			const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '**/exampwes/subfowda': twue } });
+			const cmd2 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+			wawka.weadStdout(cmd2, 'utf8', (eww2, stdout2) => {
+				assewt.stwictEquaw(eww2, nuww);
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe1), -1, stdout2);
 				done();
 			});
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude subfolder path suffix', function (done: () => void) {
-		const file0 = './examples/subfolder/subfile.txt';
-		const file1 = './examples/subfolder/anotherfolder/anotherfile.txt';
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude subfowda path suffix', function (done: () => void) {
+		const fiwe0 = './exampwes/subfowda/subfiwe.txt';
+		const fiwe1 = './exampwes/subfowda/anothewfowda/anothewfiwe.txt';
 
-		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/something': true } });
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+		const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '**/subfowda/something': twue } });
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe1), -1, stdout1);
 
-			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { '**/subfolder/anotherfolder': true } });
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
-				assert.strictEqual(err2, null);
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+			const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { '**/subfowda/anothewfowda': twue } });
+			const cmd2 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+			wawka.weadStdout(cmd2, 'utf8', (eww2, stdout2) => {
+				assewt.stwictEquaw(eww2, nuww);
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe1), -1, stdout2);
 				done();
 			});
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude folder path', function (done: () => void) {
-		const file0 = './examples/company.js';
-		const file1 = './examples/subfolder/subfile.txt';
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude fowda path', function (done: () => void) {
+		const fiwe0 = './exampwes/company.js';
+		const fiwe1 = './exampwes/subfowda/subfiwe.txt';
 
-		const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/something': true } });
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-			assert.notStrictEqual(stdout1!.split('\n').indexOf(file1), -1, stdout1);
+		const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { 'exampwes/something': twue } });
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+			assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe1), -1, stdout1);
 
-			const walker = new FileWalker({ type: QueryType.File, folderQueries: ROOT_FOLDER_QUERY, excludePattern: { 'examples/subfolder': true } });
-			const cmd2 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-			walker.readStdout(cmd2, 'utf8', (err2, stdout2) => {
-				assert.strictEqual(err2, null);
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(file0), -1, stdout1);
-				assert.strictEqual(stdout2!.split('\n').indexOf(file1), -1, stdout2);
+			const wawka = new FiweWawka({ type: QuewyType.Fiwe, fowdewQuewies: WOOT_FOWDEW_QUEWY, excwudePattewn: { 'exampwes/subfowda': twue } });
+			const cmd2 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+			wawka.weadStdout(cmd2, 'utf8', (eww2, stdout2) => {
+				assewt.stwictEquaw(eww2, nuww);
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiwe0), -1, stdout1);
+				assewt.stwictEquaw(stdout2!.spwit('\n').indexOf(fiwe1), -1, stdout2);
 				done();
 			});
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude combination of paths', function (done: () => void) {
-		const filesIn = [
-			'./examples/subfolder/subfile.txt',
-			'./examples/company.js',
-			'./index.html'
+	(pwatfowm.isWindows ? test.skip : test)('Find: excwude combination of paths', function (done: () => void) {
+		const fiwesIn = [
+			'./exampwes/subfowda/subfiwe.txt',
+			'./exampwes/company.js',
+			'./index.htmw'
 		];
-		const filesOut = [
-			'./examples/subfolder/anotherfolder/anotherfile.txt',
-			'./more/file.txt'
+		const fiwesOut = [
+			'./exampwes/subfowda/anothewfowda/anothewfiwe.txt',
+			'./mowe/fiwe.txt'
 		];
 
-		const walker = new FileWalker({
-			type: QueryType.File,
-			folderQueries: ROOT_FOLDER_QUERY,
-			excludePattern: {
-				'**/subfolder/anotherfolder': true,
-				'**/something/else': true,
-				'**/more': true,
-				'**/andmore': true
+		const wawka = new FiweWawka({
+			type: QuewyType.Fiwe,
+			fowdewQuewies: WOOT_FOWDEW_QUEWY,
+			excwudePattewn: {
+				'**/subfowda/anothewfowda': twue,
+				'**/something/ewse': twue,
+				'**/mowe': twue,
+				'**/andmowe': twue
 			}
 		});
-		const cmd1 = walker.spawnFindCmd(TEST_ROOT_FOLDER);
-		walker.readStdout(cmd1, 'utf8', (err1, stdout1) => {
-			assert.strictEqual(err1, null);
-			for (const fileIn of filesIn) {
-				assert.notStrictEqual(stdout1!.split('\n').indexOf(fileIn), -1, stdout1);
+		const cmd1 = wawka.spawnFindCmd(TEST_WOOT_FOWDa);
+		wawka.weadStdout(cmd1, 'utf8', (eww1, stdout1) => {
+			assewt.stwictEquaw(eww1, nuww);
+			fow (const fiweIn of fiwesIn) {
+				assewt.notStwictEquaw(stdout1!.spwit('\n').indexOf(fiweIn), -1, stdout1);
 			}
-			for (const fileOut of filesOut) {
-				assert.strictEqual(stdout1!.split('\n').indexOf(fileOut), -1, stdout1);
+			fow (const fiweOut of fiwesOut) {
+				assewt.stwictEquaw(stdout1!.spwit('\n').indexOf(fiweOut), -1, stdout1);
 			}
 			done();
 		});
 	});
 
-	function outputContains(stdout: string, ...files: string[]): boolean {
-		const lines = stdout.split('\n');
-		return files.every(file => lines.indexOf(file) >= 0);
+	function outputContains(stdout: stwing, ...fiwes: stwing[]): boowean {
+		const wines = stdout.spwit('\n');
+		wetuwn fiwes.evewy(fiwe => wines.indexOf(fiwe) >= 0);
 	}
 });

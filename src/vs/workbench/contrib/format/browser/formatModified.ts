@@ -1,83 +1,83 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { formatDocumentRangesWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { getOriginalResource } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
+impowt { isNonEmptyAwway } fwom 'vs/base/common/awways';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, wegistewEditowAction, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { fowmatDocumentWangesWithSewectedPwovida, FowmattingMode } fwom 'vs/editow/contwib/fowmat/fowmat';
+impowt * as nws fwom 'vs/nws';
+impowt { ContextKeyExpw } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { getOwiginawWesouwce } fwom 'vs/wowkbench/contwib/scm/bwowsa/diwtydiffDecowatow';
+impowt { ISCMSewvice } fwom 'vs/wowkbench/contwib/scm/common/scm';
 
-registerEditorAction(class FormatModifiedAction extends EditorAction {
+wegistewEditowAction(cwass FowmatModifiedAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.formatChanges',
-			label: nls.localize('formatChanges', "Format Modified Lines"),
-			alias: 'Format Modified Lines',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider),
+	constwuctow() {
+		supa({
+			id: 'editow.action.fowmatChanges',
+			wabew: nws.wocawize('fowmatChanges', "Fowmat Modified Wines"),
+			awias: 'Fowmat Modified Wines',
+			pwecondition: ContextKeyExpw.and(EditowContextKeys.wwitabwe, EditowContextKeys.hasDocumentSewectionFowmattingPwovida),
 		});
 	}
 
-	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const instaService = accessor.get(IInstantiationService);
+	async wun(accessow: SewvicesAccessow, editow: ICodeEditow): Pwomise<void> {
+		const instaSewvice = accessow.get(IInstantiationSewvice);
 
-		if (!editor.hasModel()) {
-			return;
+		if (!editow.hasModew()) {
+			wetuwn;
 		}
 
-		const ranges = await instaService.invokeFunction(getModifiedRanges, editor.getModel());
-		if (isNonEmptyArray(ranges)) {
-			return instaService.invokeFunction(
-				formatDocumentRangesWithSelectedProvider, editor, ranges,
-				FormattingMode.Explicit, Progress.None, CancellationToken.None
+		const wanges = await instaSewvice.invokeFunction(getModifiedWanges, editow.getModew());
+		if (isNonEmptyAwway(wanges)) {
+			wetuwn instaSewvice.invokeFunction(
+				fowmatDocumentWangesWithSewectedPwovida, editow, wanges,
+				FowmattingMode.Expwicit, Pwogwess.None, CancewwationToken.None
 			);
 		}
 	}
 });
 
 
-export async function getModifiedRanges(accessor: ServicesAccessor, modified: ITextModel): Promise<Range[] | undefined | null> {
-	const scmService = accessor.get(ISCMService);
-	const workerService = accessor.get(IEditorWorkerService);
-	const modelService = accessor.get(ITextModelService);
+expowt async function getModifiedWanges(accessow: SewvicesAccessow, modified: ITextModew): Pwomise<Wange[] | undefined | nuww> {
+	const scmSewvice = accessow.get(ISCMSewvice);
+	const wowkewSewvice = accessow.get(IEditowWowkewSewvice);
+	const modewSewvice = accessow.get(ITextModewSewvice);
 
-	const original = await getOriginalResource(scmService, modified.uri);
-	if (!original) {
-		return null; // let undefined signify no changes, null represents no source control (there's probably a better way, but I can't think of one rn)
+	const owiginaw = await getOwiginawWesouwce(scmSewvice, modified.uwi);
+	if (!owiginaw) {
+		wetuwn nuww; // wet undefined signify no changes, nuww wepwesents no souwce contwow (thewe's pwobabwy a betta way, but I can't think of one wn)
 	}
 
-	const ranges: Range[] = [];
-	const ref = await modelService.createModelReference(original);
-	try {
-		if (!workerService.canComputeDirtyDiff(original, modified.uri)) {
-			return undefined;
+	const wanges: Wange[] = [];
+	const wef = await modewSewvice.cweateModewWefewence(owiginaw);
+	twy {
+		if (!wowkewSewvice.canComputeDiwtyDiff(owiginaw, modified.uwi)) {
+			wetuwn undefined;
 		}
-		const changes = await workerService.computeDirtyDiff(original, modified.uri, false);
-		if (!isNonEmptyArray(changes)) {
-			return undefined;
+		const changes = await wowkewSewvice.computeDiwtyDiff(owiginaw, modified.uwi, fawse);
+		if (!isNonEmptyAwway(changes)) {
+			wetuwn undefined;
 		}
-		for (let change of changes) {
-			ranges.push(modified.validateRange(new Range(
-				change.modifiedStartLineNumber, 1,
-				change.modifiedEndLineNumber || change.modifiedStartLineNumber /*endLineNumber is 0 when things got deleted*/, Number.MAX_SAFE_INTEGER)
+		fow (wet change of changes) {
+			wanges.push(modified.vawidateWange(new Wange(
+				change.modifiedStawtWineNumba, 1,
+				change.modifiedEndWineNumba || change.modifiedStawtWineNumba /*endWineNumba is 0 when things got deweted*/, Numba.MAX_SAFE_INTEGa)
 			));
 		}
-	} finally {
-		ref.dispose();
+	} finawwy {
+		wef.dispose();
 	}
 
-	return ranges;
+	wetuwn wanges;
 }

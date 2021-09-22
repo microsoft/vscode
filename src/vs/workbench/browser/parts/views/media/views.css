@@ -1,183 +1,183 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icons in trees */
+/* Fiwe icons in twees */
 
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
-.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
-.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie),
-.file-icon-themable-tree .monaco-tl-twistie.force-no-twistie {
-	background-image: none !important;
-	width: 0 !important;
-	padding-right: 0 !important;
-	visibility: hidden;
+.fiwe-icon-themabwe-twee.awign-icons-and-twisties .monaco-tw-twistie:not(.fowce-twistie):not(.cowwapsibwe),
+.fiwe-icon-themabwe-twee .awign-icon-with-twisty .monaco-tw-twistie:not(.fowce-twistie):not(.cowwapsibwe),
+.fiwe-icon-themabwe-twee.hide-awwows .monaco-tw-twistie:not(.fowce-twistie),
+.fiwe-icon-themabwe-twee .monaco-tw-twistie.fowce-no-twistie {
+	backgwound-image: none !impowtant;
+	width: 0 !impowtant;
+	padding-wight: 0 !impowtant;
+	visibiwity: hidden;
 }
 
 /* Misc */
 
-.monaco-workbench .tree-explorer-viewlet-tree-view {
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view {
 	height: 100%;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message {
-	display: flex;
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .message {
+	dispway: fwex;
 	padding: 4px 12px 4px 18px;
-	user-select: text;
-	-webkit-user-select: text;
+	usa-sewect: text;
+	-webkit-usa-sewect: text;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message p {
-	margin-top: 0px;
-	margin-bottom: 0px;
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .message p {
+	mawgin-top: 0px;
+	mawgin-bottom: 0px;
 	padding-bottom: 4px;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message ul {
-	padding-left: 24px;
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .message uw {
+	padding-weft: 24px;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
-	display: none;
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .message.hide {
+	dispway: none;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree {
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .customview-twee {
 	height: 100%;
 }
 
-.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree.hide {
-	display: none;
+.monaco-wowkbench .twee-expwowa-viewwet-twee-view .customview-twee.hide {
+	dispway: none;
 }
 
-.monaco-workbench .pane > .pane-body > .welcome-view {
+.monaco-wowkbench .pane > .pane-body > .wewcome-view {
 	width: 100%;
 	height: 100%;
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
+	box-sizing: bowda-box;
+	dispway: fwex;
+	fwex-diwection: cowumn;
 }
 
-.monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,
-.monaco-workbench .pane > .pane-body.welcome > :not(.welcome-view) {
-	display: none;
+.monaco-wowkbench .pane > .pane-body:not(.wewcome) > .wewcome-view,
+.monaco-wowkbench .pane > .pane-body.wewcome > :not(.wewcome-view) {
+	dispway: none;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content {
-	display: flex;
-	flex-direction: column;
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content {
+	dispway: fwex;
+	fwex-diwection: cowumn;
 	padding: 0 20px 1em 20px;
-	box-sizing: border-box;
-	align-items: center;
+	box-sizing: bowda-box;
+	awign-items: centa;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content > .button-containa {
 	width: 100%;
 	max-width: 300px;
-	transition: 0.2s max-width ease-out;
+	twansition: 0.2s max-width ease-out;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content.wide > .button-container {
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content.wide > .button-containa {
 	max-width: 100%;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button {
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content > .button-containa > .monaco-button {
 	max-width: 300px;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > p {
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content > p {
 	width: 100%;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > * {
-	margin-block-start: 1em;
-	margin-block-end: 0;
-	margin-inline-start: 0px;
-	margin-inline-end: 0px;
+.monaco-wowkbench .pane > .pane-body .wewcome-view-content > * {
+	mawgin-bwock-stawt: 1em;
+	mawgin-bwock-end: 0;
+	mawgin-inwine-stawt: 0px;
+	mawgin-inwine-end: 0px;
 }
 
-.customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
-	display: none;
+.customview-twee .monaco-wist-wow .monaco-tw-contents.awign-icon-with-twisty::befowe {
+	dispway: none;
 }
 
-.customview-tree .monaco-list-row .monaco-tl-contents:not(.align-icon-with-twisty)::before {
-	display: inline-block;
+.customview-twee .monaco-wist-wow .monaco-tw-contents:not(.awign-icon-with-twisty)::befowe {
+	dispway: inwine-bwock;
 }
 
-.customview-tree .monaco-list .monaco-list-row {
-	padding-right: 12px;
-	padding-left: 0px;
+.customview-twee .monaco-wist .monaco-wist-wow {
+	padding-wight: 12px;
+	padding-weft: 0px;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
-	display: flex;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item {
+	dispway: fwex;
 	height: 22px;
-	line-height: 22px;
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	flex-wrap: nowrap;
-	padding-left: 3px;
+	wine-height: 22px;
+	fwex: 1;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
+	fwex-wwap: nowwap;
+	padding-weft: 3px;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
-	line-height: normal;
-	flex: 1;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .monaco-inputbox {
+	wine-height: nowmaw;
+	fwex: 1;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
-	flex: 1;
-	text-overflow: ellipsis;
-	overflow: hidden;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .custom-view-twee-node-item-wesouwceWabew {
+	fwex: 1;
+	text-ovewfwow: ewwipsis;
+	ovewfwow: hidden;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-icon-label-container::after {
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .monaco-icon-wabew-containa::afta {
 	content: '';
-	display: block;
+	dispway: bwock;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-	padding-right: 6px;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item > .custom-view-twee-node-item-icon {
+	backgwound-size: 16px;
+	backgwound-position: weft centa;
+	backgwound-wepeat: no-wepeat;
+	padding-wight: 6px;
 	width: 16px;
 	height: 22px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
 }
 
-/* makes spinning icons square */
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
-	padding-left: 6px;
-	margin-left: -6px;
+/* makes spinning icons squawe */
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item > .custom-view-twee-node-item-icon.codicon.codicon-modifia-spin {
+	padding-weft: 6px;
+	mawgin-weft: -6px;
 }
 
-.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
-	color: currentColor !important;
+.customview-twee .monaco-wist .monaco-wist-wow.sewected .custom-view-twee-node-item > .custom-view-twee-node-item-icon.codicon {
+	cowow: cuwwentCowow !impowtant;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
-	flex: 1;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .custom-view-twee-node-item-wesouwceWabew .monaco-icon-wabew-containa > .monaco-icon-name-containa {
+	fwex: 1;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
-	padding-right: 0px;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .custom-view-twee-node-item-wesouwceWabew::afta {
+	padding-wight: 0px;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
-	display: none;
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .actions {
+	dispway: none;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions .action-label {
+.customview-twee .monaco-wist .monaco-wist-wow .custom-view-twee-node-item .actions .action-wabew {
 	padding: 2px;
 }
 
-.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
-.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
-.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
-	display: block;
+.customview-twee .monaco-wist .monaco-wist-wow:hova .custom-view-twee-node-item .actions,
+.customview-twee .monaco-wist .monaco-wist-wow.sewected .custom-view-twee-node-item .actions,
+.customview-twee .monaco-wist .monaco-wist-wow.focused .custom-view-twee-node-item .actions {
+	dispway: bwock;
 }

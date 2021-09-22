@@ -1,369 +1,369 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
-import {
-	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
-	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
-	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
-	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext
-} from './languageModes';
-import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
-import { HTMLDocumentRegions } from './embeddedSupport';
+impowt { WanguageModewCache, getWanguageModewCache } fwom '../wanguageModewCache';
+impowt {
+	SymbowInfowmation, SymbowKind, CompwetionItem, Wocation, SignatuweHewp, SignatuweInfowmation, PawametewInfowmation,
+	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSevewity, Wange, CompwetionItemKind, Hova,
+	DocumentHighwight, DocumentHighwightKind, CompwetionWist, Position, FowmattingOptions, FowdingWange, FowdingWangeKind, SewectionWange,
+	WanguageMode, Settings, SemanticTokenData, Wowkspace, DocumentContext
+} fwom './wanguageModes';
+impowt { getWowdAtText, isWhitespaceOnwy, wepeat } fwom '../utiws/stwings';
+impowt { HTMWDocumentWegions } fwom './embeddedSuppowt';
 
-import * as ts from 'typescript';
-import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+impowt * as ts fwom 'typescwipt';
+impowt { getSemanticTokens, getSemanticTokenWegend } fwom './javascwiptSemanticTokens';
 
-const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+const JS_WOWD_WEGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
-function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
-	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+function getWanguageSewviceHost(scwiptKind: ts.ScwiptKind) {
+	const compiwewOptions: ts.CompiwewOptions = { awwowNonTsExtensions: twue, awwowJs: twue, wib: ['wib.es6.d.ts'], tawget: ts.ScwiptTawget.Watest, moduweWesowution: ts.ModuweWesowutionKind.Cwassic, expewimentawDecowatows: fawse };
 
-	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
-	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
-		const host: ts.LanguageServiceHost = {
-			getCompilationSettings: () => compilerOptions,
-			getScriptFileNames: () => [currentTextDocument.uri, 'jquery'],
-			getScriptKind: (fileName) => {
-				if (fileName === currentTextDocument.uri) {
-					return scriptKind;
+	wet cuwwentTextDocument = TextDocument.cweate('init', 'javascwipt', 1, '');
+	const jsWanguageSewvice = impowt(/* webpackChunkName: "javascwiptWibs" */ './javascwiptWibs').then(wibs => {
+		const host: ts.WanguageSewviceHost = {
+			getCompiwationSettings: () => compiwewOptions,
+			getScwiptFiweNames: () => [cuwwentTextDocument.uwi, 'jquewy'],
+			getScwiptKind: (fiweName) => {
+				if (fiweName === cuwwentTextDocument.uwi) {
+					wetuwn scwiptKind;
 				}
-				return fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+				wetuwn fiweName.substw(fiweName.wength - 2) === 'ts' ? ts.ScwiptKind.TS : ts.ScwiptKind.JS;
 			},
-			getScriptVersion: (fileName: string) => {
-				if (fileName === currentTextDocument.uri) {
-					return String(currentTextDocument.version);
+			getScwiptVewsion: (fiweName: stwing) => {
+				if (fiweName === cuwwentTextDocument.uwi) {
+					wetuwn Stwing(cuwwentTextDocument.vewsion);
 				}
-				return '1'; // default lib an jquery.d.ts are static
+				wetuwn '1'; // defauwt wib an jquewy.d.ts awe static
 			},
-			getScriptSnapshot: (fileName: string) => {
-				let text = '';
-				if (fileName === currentTextDocument.uri) {
-					text = currentTextDocument.getText();
-				} else {
-					text = libs.loadLibrary(fileName);
+			getScwiptSnapshot: (fiweName: stwing) => {
+				wet text = '';
+				if (fiweName === cuwwentTextDocument.uwi) {
+					text = cuwwentTextDocument.getText();
+				} ewse {
+					text = wibs.woadWibwawy(fiweName);
 				}
-				return {
-					getText: (start, end) => text.substring(start, end),
-					getLength: () => text.length,
-					getChangeRange: () => undefined
+				wetuwn {
+					getText: (stawt, end) => text.substwing(stawt, end),
+					getWength: () => text.wength,
+					getChangeWange: () => undefined
 				};
 			},
-			getCurrentDirectory: () => '',
-			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6'
+			getCuwwentDiwectowy: () => '',
+			getDefauwtWibFiweName: (_options: ts.CompiwewOptions) => 'es6'
 		};
-		return ts.createLanguageService(host);
+		wetuwn ts.cweateWanguageSewvice(host);
 	});
-	return {
-		async getLanguageService(jsDocument: TextDocument): Promise<ts.LanguageService> {
-			currentTextDocument = jsDocument;
-			return jsLanguageService;
+	wetuwn {
+		async getWanguageSewvice(jsDocument: TextDocument): Pwomise<ts.WanguageSewvice> {
+			cuwwentTextDocument = jsDocument;
+			wetuwn jsWanguageSewvice;
 		},
-		getCompilationSettings() {
-			return compilerOptions;
+		getCompiwationSettings() {
+			wetuwn compiwewOptions;
 		},
 		dispose() {
-			jsLanguageService.then(s => s.dispose());
+			jsWanguageSewvice.then(s => s.dispose());
 		}
 	};
 }
 
 
-export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocumentRegions>, languageId: 'javascript' | 'typescript', workspace: Workspace): LanguageMode {
-	let jsDocuments = getLanguageModelCache<TextDocument>(10, 60, document => documentRegions.get(document).getEmbeddedDocument(languageId));
+expowt function getJavaScwiptMode(documentWegions: WanguageModewCache<HTMWDocumentWegions>, wanguageId: 'javascwipt' | 'typescwipt', wowkspace: Wowkspace): WanguageMode {
+	wet jsDocuments = getWanguageModewCache<TextDocument>(10, 60, document => documentWegions.get(document).getEmbeddedDocument(wanguageId));
 
-	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
-	let globalSettings: Settings = {};
+	const host = getWanguageSewviceHost(wanguageId === 'javascwipt' ? ts.ScwiptKind.JS : ts.ScwiptKind.TS);
+	wet gwobawSettings: Settings = {};
 
-	return {
+	wetuwn {
 		getId() {
-			return languageId;
+			wetuwn wanguageId;
 		},
-		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
-			host.getCompilationSettings()['experimentalDecorators'] = settings && settings.javascript && settings.javascript.implicitProjectConfig.experimentalDecorators;
+		async doVawidation(document: TextDocument, settings = wowkspace.settings): Pwomise<Diagnostic[]> {
+			host.getCompiwationSettings()['expewimentawDecowatows'] = settings && settings.javascwipt && settings.javascwipt.impwicitPwojectConfig.expewimentawDecowatows;
 			const jsDocument = jsDocuments.get(document);
-			const languageService = await host.getLanguageService(jsDocument);
-			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
-			const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
-			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
-				return {
-					range: convertRange(jsDocument, diag),
-					severity: DiagnosticSeverity.Error,
-					source: languageId,
-					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
+			const wanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			const syntaxDiagnostics: ts.Diagnostic[] = wanguageSewvice.getSyntacticDiagnostics(jsDocument.uwi);
+			const semanticDiagnostics = wanguageSewvice.getSemanticDiagnostics(jsDocument.uwi);
+			wetuwn syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
+				wetuwn {
+					wange: convewtWange(jsDocument, diag),
+					sevewity: DiagnosticSevewity.Ewwow,
+					souwce: wanguageId,
+					message: ts.fwattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
 		},
-		async doComplete(document: TextDocument, position: Position, _documentContext: DocumentContext): Promise<CompletionList> {
+		async doCompwete(document: TextDocument, position: Position, _documentContext: DocumentContext): Pwomise<CompwetionWist> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let offset = jsDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(jsDocument.uri, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
-			if (!completions) {
-				return { isIncomplete: false, items: [] };
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet offset = jsDocument.offsetAt(position);
+			wet compwetions = jsWanguageSewvice.getCompwetionsAtPosition(jsDocument.uwi, offset, { incwudeExtewnawModuweExpowts: fawse, incwudeInsewtTextCompwetions: fawse });
+			if (!compwetions) {
+				wetuwn { isIncompwete: fawse, items: [] };
 			}
-			let replaceRange = convertRange(jsDocument, getWordAtText(jsDocument.getText(), offset, JS_WORD_REGEX));
-			return {
-				isIncomplete: false,
-				items: completions.entries.map(entry => {
-					return {
-						uri: document.uri,
+			wet wepwaceWange = convewtWange(jsDocument, getWowdAtText(jsDocument.getText(), offset, JS_WOWD_WEGEX));
+			wetuwn {
+				isIncompwete: fawse,
+				items: compwetions.entwies.map(entwy => {
+					wetuwn {
+						uwi: document.uwi,
 						position: position,
-						label: entry.name,
-						sortText: entry.sortText,
-						kind: convertKind(entry.kind),
-						textEdit: TextEdit.replace(replaceRange, entry.name),
-						data: { // data used for resolving item details (see 'doResolve')
-							languageId,
-							uri: document.uri,
+						wabew: entwy.name,
+						sowtText: entwy.sowtText,
+						kind: convewtKind(entwy.kind),
+						textEdit: TextEdit.wepwace(wepwaceWange, entwy.name),
+						data: { // data used fow wesowving item detaiws (see 'doWesowve')
+							wanguageId,
+							uwi: document.uwi,
 							offset: offset
 						}
 					};
 				})
 			};
 		},
-		async doResolve(document: TextDocument, item: CompletionItem): Promise<CompletionItem> {
+		async doWesowve(document: TextDocument, item: CompwetionItem): Pwomise<CompwetionItem> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let details = jsLanguageService.getCompletionEntryDetails(jsDocument.uri, item.data.offset, item.label, undefined, undefined, undefined, undefined);
-			if (details) {
-				item.detail = ts.displayPartsToString(details.displayParts);
-				item.documentation = ts.displayPartsToString(details.documentation);
-				delete item.data;
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet detaiws = jsWanguageSewvice.getCompwetionEntwyDetaiws(jsDocument.uwi, item.data.offset, item.wabew, undefined, undefined, undefined, undefined);
+			if (detaiws) {
+				item.detaiw = ts.dispwayPawtsToStwing(detaiws.dispwayPawts);
+				item.documentation = ts.dispwayPawtsToStwing(detaiws.documentation);
+				dewete item.data;
 			}
-			return item;
+			wetuwn item;
 		},
-		async doHover(document: TextDocument, position: Position): Promise<Hover | null> {
+		async doHova(document: TextDocument, position: Position): Pwomise<Hova | nuww> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet info = jsWanguageSewvice.getQuickInfoAtPosition(jsDocument.uwi, jsDocument.offsetAt(position));
 			if (info) {
-				const contents = ts.displayPartsToString(info.displayParts);
-				return {
-					range: convertRange(jsDocument, info.textSpan),
-					contents: ['```typescript', contents, '```'].join('\n')
+				const contents = ts.dispwayPawtsToStwing(info.dispwayPawts);
+				wetuwn {
+					wange: convewtWange(jsDocument, info.textSpan),
+					contents: ['```typescwipt', contents, '```'].join('\n')
 				};
 			}
-			return null;
+			wetuwn nuww;
 		},
-		async doSignatureHelp(document: TextDocument, position: Position): Promise<SignatureHelp | null> {
+		async doSignatuweHewp(document: TextDocument, position: Position): Pwomise<SignatuweHewp | nuww> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let signHelp = jsLanguageService.getSignatureHelpItems(jsDocument.uri, jsDocument.offsetAt(position), undefined);
-			if (signHelp) {
-				let ret: SignatureHelp = {
-					activeSignature: signHelp.selectedItemIndex,
-					activeParameter: signHelp.argumentIndex,
-					signatures: []
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet signHewp = jsWanguageSewvice.getSignatuweHewpItems(jsDocument.uwi, jsDocument.offsetAt(position), undefined);
+			if (signHewp) {
+				wet wet: SignatuweHewp = {
+					activeSignatuwe: signHewp.sewectedItemIndex,
+					activePawameta: signHewp.awgumentIndex,
+					signatuwes: []
 				};
-				signHelp.items.forEach(item => {
+				signHewp.items.fowEach(item => {
 
-					let signature: SignatureInformation = {
-						label: '',
+					wet signatuwe: SignatuweInfowmation = {
+						wabew: '',
 						documentation: undefined,
-						parameters: []
+						pawametews: []
 					};
 
-					signature.label += ts.displayPartsToString(item.prefixDisplayParts);
-					item.parameters.forEach((p, i, a) => {
-						let label = ts.displayPartsToString(p.displayParts);
-						let parameter: ParameterInformation = {
-							label: label,
-							documentation: ts.displayPartsToString(p.documentation)
+					signatuwe.wabew += ts.dispwayPawtsToStwing(item.pwefixDispwayPawts);
+					item.pawametews.fowEach((p, i, a) => {
+						wet wabew = ts.dispwayPawtsToStwing(p.dispwayPawts);
+						wet pawameta: PawametewInfowmation = {
+							wabew: wabew,
+							documentation: ts.dispwayPawtsToStwing(p.documentation)
 						};
-						signature.label += label;
-						signature.parameters!.push(parameter);
-						if (i < a.length - 1) {
-							signature.label += ts.displayPartsToString(item.separatorDisplayParts);
+						signatuwe.wabew += wabew;
+						signatuwe.pawametews!.push(pawameta);
+						if (i < a.wength - 1) {
+							signatuwe.wabew += ts.dispwayPawtsToStwing(item.sepawatowDispwayPawts);
 						}
 					});
-					signature.label += ts.displayPartsToString(item.suffixDisplayParts);
-					ret.signatures.push(signature);
+					signatuwe.wabew += ts.dispwayPawtsToStwing(item.suffixDispwayPawts);
+					wet.signatuwes.push(signatuwe);
 				});
-				return ret;
+				wetuwn wet;
 			}
-			return null;
+			wetuwn nuww;
 		},
-		async doRename(document: TextDocument, position: Position, newName: string) {
+		async doWename(document: TextDocument, position: Position, newName: stwing) {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
 			const jsDocumentPosition = jsDocument.offsetAt(position);
-			const { canRename } = jsLanguageService.getRenameInfo(jsDocument.uri, jsDocumentPosition);
-			if (!canRename) {
-				return null;
+			const { canWename } = jsWanguageSewvice.getWenameInfo(jsDocument.uwi, jsDocumentPosition);
+			if (!canWename) {
+				wetuwn nuww;
 			}
-			const renameInfos = jsLanguageService.findRenameLocations(jsDocument.uri, jsDocumentPosition, false, false);
+			const wenameInfos = jsWanguageSewvice.findWenameWocations(jsDocument.uwi, jsDocumentPosition, fawse, fawse);
 
 			const edits: TextEdit[] = [];
-			renameInfos?.map(renameInfo => {
+			wenameInfos?.map(wenameInfo => {
 				edits.push({
-					range: convertRange(jsDocument, renameInfo.textSpan),
+					wange: convewtWange(jsDocument, wenameInfo.textSpan),
 					newText: newName,
 				});
 			});
 
-			return {
-				changes: { [document.uri]: edits },
+			wetuwn {
+				changes: { [document.uwi]: edits },
 			};
 		},
-		async findDocumentHighlight(document: TextDocument, position: Position): Promise<DocumentHighlight[]> {
+		async findDocumentHighwight(document: TextDocument, position: Position): Pwomise<DocumentHighwight[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			const highlights = jsLanguageService.getDocumentHighlights(jsDocument.uri, jsDocument.offsetAt(position), [jsDocument.uri]);
-			const out: DocumentHighlight[] = [];
-			for (const entry of highlights || []) {
-				for (const highlight of entry.highlightSpans) {
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			const highwights = jsWanguageSewvice.getDocumentHighwights(jsDocument.uwi, jsDocument.offsetAt(position), [jsDocument.uwi]);
+			const out: DocumentHighwight[] = [];
+			fow (const entwy of highwights || []) {
+				fow (const highwight of entwy.highwightSpans) {
 					out.push({
-						range: convertRange(jsDocument, highlight.textSpan),
-						kind: highlight.kind === 'writtenReference' ? DocumentHighlightKind.Write : DocumentHighlightKind.Text
+						wange: convewtWange(jsDocument, highwight.textSpan),
+						kind: highwight.kind === 'wwittenWefewence' ? DocumentHighwightKind.Wwite : DocumentHighwightKind.Text
 					});
 				}
 			}
-			return out;
+			wetuwn out;
 		},
-		async findDocumentSymbols(document: TextDocument): Promise<SymbolInformation[]> {
+		async findDocumentSymbows(document: TextDocument): Pwomise<SymbowInfowmation[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let items = jsLanguageService.getNavigationBarItems(jsDocument.uri);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet items = jsWanguageSewvice.getNavigationBawItems(jsDocument.uwi);
 			if (items) {
-				let result: SymbolInformation[] = [];
-				let existing = Object.create(null);
-				let collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
-					let sig = item.text + item.kind + item.spans[0].start;
-					if (item.kind !== 'script' && !existing[sig]) {
-						let symbol: SymbolInformation = {
+				wet wesuwt: SymbowInfowmation[] = [];
+				wet existing = Object.cweate(nuww);
+				wet cowwectSymbows = (item: ts.NavigationBawItem, containewWabew?: stwing) => {
+					wet sig = item.text + item.kind + item.spans[0].stawt;
+					if (item.kind !== 'scwipt' && !existing[sig]) {
+						wet symbow: SymbowInfowmation = {
 							name: item.text,
-							kind: convertSymbolKind(item.kind),
-							location: {
-								uri: document.uri,
-								range: convertRange(jsDocument, item.spans[0])
+							kind: convewtSymbowKind(item.kind),
+							wocation: {
+								uwi: document.uwi,
+								wange: convewtWange(jsDocument, item.spans[0])
 							},
-							containerName: containerLabel
+							containewName: containewWabew
 						};
-						existing[sig] = true;
-						result.push(symbol);
-						containerLabel = item.text;
+						existing[sig] = twue;
+						wesuwt.push(symbow);
+						containewWabew = item.text;
 					}
 
-					if (item.childItems && item.childItems.length > 0) {
-						for (let child of item.childItems) {
-							collectSymbols(child, containerLabel);
+					if (item.chiwdItems && item.chiwdItems.wength > 0) {
+						fow (wet chiwd of item.chiwdItems) {
+							cowwectSymbows(chiwd, containewWabew);
 						}
 					}
 
 				};
 
-				items.forEach(item => collectSymbols(item));
-				return result;
+				items.fowEach(item => cowwectSymbows(item));
+				wetuwn wesuwt;
 			}
-			return [];
+			wetuwn [];
 		},
-		async findDefinition(document: TextDocument, position: Position): Promise<Definition | null> {
+		async findDefinition(document: TextDocument, position: Position): Pwomise<Definition | nuww> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let definition = jsLanguageService.getDefinitionAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet definition = jsWanguageSewvice.getDefinitionAtPosition(jsDocument.uwi, jsDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === jsDocument.uri).map(d => {
-					return {
-						uri: document.uri,
-						range: convertRange(jsDocument, d.textSpan)
+				wetuwn definition.fiwta(d => d.fiweName === jsDocument.uwi).map(d => {
+					wetuwn {
+						uwi: document.uwi,
+						wange: convewtWange(jsDocument, d.textSpan)
 					};
 				});
 			}
-			return null;
+			wetuwn nuww;
 		},
-		async findReferences(document: TextDocument, position: Position): Promise<Location[]> {
+		async findWefewences(document: TextDocument, position: Position): Pwomise<Wocation[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let references = jsLanguageService.getReferencesAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
-			if (references) {
-				return references.filter(d => d.fileName === jsDocument.uri).map(d => {
-					return {
-						uri: document.uri,
-						range: convertRange(jsDocument, d.textSpan)
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet wefewences = jsWanguageSewvice.getWefewencesAtPosition(jsDocument.uwi, jsDocument.offsetAt(position));
+			if (wefewences) {
+				wetuwn wefewences.fiwta(d => d.fiweName === jsDocument.uwi).map(d => {
+					wetuwn {
+						uwi: document.uwi,
+						wange: convewtWange(jsDocument, d.textSpan)
 					};
 				});
 			}
-			return [];
+			wetuwn [];
 		},
-		async getSelectionRange(document: TextDocument, position: Position): Promise<SelectionRange> {
+		async getSewectionWange(document: TextDocument, position: Position): Pwomise<SewectionWange> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			function convertSelectionRange(selectionRange: ts.SelectionRange): SelectionRange {
-				const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
-				return SelectionRange.create(convertRange(jsDocument, selectionRange.textSpan), parent);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			function convewtSewectionWange(sewectionWange: ts.SewectionWange): SewectionWange {
+				const pawent = sewectionWange.pawent ? convewtSewectionWange(sewectionWange.pawent) : undefined;
+				wetuwn SewectionWange.cweate(convewtWange(jsDocument, sewectionWange.textSpan), pawent);
 			}
-			const range = jsLanguageService.getSmartSelectionRange(jsDocument.uri, jsDocument.offsetAt(position));
-			return convertSelectionRange(range);
+			const wange = jsWanguageSewvice.getSmawtSewectionWange(jsDocument.uwi, jsDocument.offsetAt(position));
+			wetuwn convewtSewectionWange(wange);
 		},
-		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): Promise<TextEdit[]> {
-			const jsDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+		async fowmat(document: TextDocument, wange: Wange, fowmatPawams: FowmattingOptions, settings: Settings = gwobawSettings): Pwomise<TextEdit[]> {
+			const jsDocument = documentWegions.get(document).getEmbeddedDocument('javascwipt', twue);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
 
-			let formatterSettings = settings && settings.javascript && settings.javascript.format;
+			wet fowmattewSettings = settings && settings.javascwipt && settings.javascwipt.fowmat;
 
-			let initialIndentLevel = computeInitialIndent(document, range, formatParams);
-			let formatSettings = convertOptions(formatParams, formatterSettings, initialIndentLevel + 1);
-			let start = jsDocument.offsetAt(range.start);
-			let end = jsDocument.offsetAt(range.end);
-			let lastLineRange = null;
-			if (range.end.line > range.start.line && (range.end.character === 0 || isWhitespaceOnly(jsDocument.getText().substr(end - range.end.character, range.end.character)))) {
-				end -= range.end.character;
-				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
+			wet initiawIndentWevew = computeInitiawIndent(document, wange, fowmatPawams);
+			wet fowmatSettings = convewtOptions(fowmatPawams, fowmattewSettings, initiawIndentWevew + 1);
+			wet stawt = jsDocument.offsetAt(wange.stawt);
+			wet end = jsDocument.offsetAt(wange.end);
+			wet wastWineWange = nuww;
+			if (wange.end.wine > wange.stawt.wine && (wange.end.chawacta === 0 || isWhitespaceOnwy(jsDocument.getText().substw(end - wange.end.chawacta, wange.end.chawacta)))) {
+				end -= wange.end.chawacta;
+				wastWineWange = Wange.cweate(Position.cweate(wange.end.wine, 0), wange.end);
 			}
-			let edits = jsLanguageService.getFormattingEditsForRange(jsDocument.uri, start, end, formatSettings);
+			wet edits = jsWanguageSewvice.getFowmattingEditsFowWange(jsDocument.uwi, stawt, end, fowmatSettings);
 			if (edits) {
-				let result = [];
-				for (let edit of edits) {
-					if (edit.span.start >= start && edit.span.start + edit.span.length <= end) {
-						result.push({
-							range: convertRange(jsDocument, edit.span),
+				wet wesuwt = [];
+				fow (wet edit of edits) {
+					if (edit.span.stawt >= stawt && edit.span.stawt + edit.span.wength <= end) {
+						wesuwt.push({
+							wange: convewtWange(jsDocument, edit.span),
 							newText: edit.newText
 						});
 					}
 				}
-				if (lastLineRange) {
-					result.push({
-						range: lastLineRange,
-						newText: generateIndent(initialIndentLevel, formatParams)
+				if (wastWineWange) {
+					wesuwt.push({
+						wange: wastWineWange,
+						newText: genewateIndent(initiawIndentWevew, fowmatPawams)
 					});
 				}
-				return result;
+				wetuwn wesuwt;
 			}
-			return [];
+			wetuwn [];
 		},
-		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
+		async getFowdingWanges(document: TextDocument): Pwomise<FowdingWange[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let spans = jsLanguageService.getOutliningSpans(jsDocument.uri);
-			let ranges: FoldingRange[] = [];
-			for (let span of spans) {
-				let curr = convertRange(jsDocument, span.textSpan);
-				let startLine = curr.start.line;
-				let endLine = curr.end.line;
-				if (startLine < endLine) {
-					let foldingRange: FoldingRange = { startLine, endLine };
-					let match = document.getText(curr).match(/^\s*\/(?:(\/\s*#(?:end)?region\b)|(\*|\/))/);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wet spans = jsWanguageSewvice.getOutwiningSpans(jsDocument.uwi);
+			wet wanges: FowdingWange[] = [];
+			fow (wet span of spans) {
+				wet cuww = convewtWange(jsDocument, span.textSpan);
+				wet stawtWine = cuww.stawt.wine;
+				wet endWine = cuww.end.wine;
+				if (stawtWine < endWine) {
+					wet fowdingWange: FowdingWange = { stawtWine, endWine };
+					wet match = document.getText(cuww).match(/^\s*\/(?:(\/\s*#(?:end)?wegion\b)|(\*|\/))/);
 					if (match) {
-						foldingRange.kind = match[1] ? FoldingRangeKind.Region : FoldingRangeKind.Comment;
+						fowdingWange.kind = match[1] ? FowdingWangeKind.Wegion : FowdingWangeKind.Comment;
 					}
-					ranges.push(foldingRange);
+					wanges.push(fowdingWange);
 				}
 			}
-			return ranges;
+			wetuwn wanges;
 		},
-		onDocumentRemoved(document: TextDocument) {
-			jsDocuments.onDocumentRemoved(document);
+		onDocumentWemoved(document: TextDocument) {
+			jsDocuments.onDocumentWemoved(document);
 		},
-		async getSemanticTokens(document: TextDocument): Promise<SemanticTokenData[]> {
+		async getSemanticTokens(document: TextDocument): Pwomise<SemanticTokenData[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			return getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri);
+			const jsWanguageSewvice = await host.getWanguageSewvice(jsDocument);
+			wetuwn getSemanticTokens(jsWanguageSewvice, jsDocument, jsDocument.uwi);
 		},
-		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
-			return getSemanticTokenLegend();
+		getSemanticTokenWegend(): { types: stwing[], modifiews: stwing[] } {
+			wetuwn getSemanticTokenWegend();
 		},
 		dispose() {
 			host.dispose();
@@ -375,123 +375,123 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 
 
-function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
-	if (typeof span.start === 'undefined') {
+function convewtWange(document: TextDocument, span: { stawt: numba | undefined, wength: numba | undefined }): Wange {
+	if (typeof span.stawt === 'undefined') {
 		const pos = document.positionAt(0);
-		return Range.create(pos, pos);
+		wetuwn Wange.cweate(pos, pos);
 	}
-	const startPosition = document.positionAt(span.start);
-	const endPosition = document.positionAt(span.start + (span.length || 0));
-	return Range.create(startPosition, endPosition);
+	const stawtPosition = document.positionAt(span.stawt);
+	const endPosition = document.positionAt(span.stawt + (span.wength || 0));
+	wetuwn Wange.cweate(stawtPosition, endPosition);
 }
 
-function convertKind(kind: string): CompletionItemKind {
+function convewtKind(kind: stwing): CompwetionItemKind {
 	switch (kind) {
-		case 'primitive type':
-		case 'keyword':
-			return CompletionItemKind.Keyword;
-		case 'var':
-		case 'local var':
-			return CompletionItemKind.Variable;
-		case 'property':
-		case 'getter':
-		case 'setter':
-			return CompletionItemKind.Field;
+		case 'pwimitive type':
+		case 'keywowd':
+			wetuwn CompwetionItemKind.Keywowd;
+		case 'vaw':
+		case 'wocaw vaw':
+			wetuwn CompwetionItemKind.Vawiabwe;
+		case 'pwopewty':
+		case 'getta':
+		case 'setta':
+			wetuwn CompwetionItemKind.Fiewd;
 		case 'function':
 		case 'method':
-		case 'construct':
-		case 'call':
+		case 'constwuct':
+		case 'caww':
 		case 'index':
-			return CompletionItemKind.Function;
+			wetuwn CompwetionItemKind.Function;
 		case 'enum':
-			return CompletionItemKind.Enum;
-		case 'module':
-			return CompletionItemKind.Module;
-		case 'class':
-			return CompletionItemKind.Class;
-		case 'interface':
-			return CompletionItemKind.Interface;
-		case 'warning':
-			return CompletionItemKind.File;
+			wetuwn CompwetionItemKind.Enum;
+		case 'moduwe':
+			wetuwn CompwetionItemKind.Moduwe;
+		case 'cwass':
+			wetuwn CompwetionItemKind.Cwass;
+		case 'intewface':
+			wetuwn CompwetionItemKind.Intewface;
+		case 'wawning':
+			wetuwn CompwetionItemKind.Fiwe;
 	}
 
-	return CompletionItemKind.Property;
+	wetuwn CompwetionItemKind.Pwopewty;
 }
 
-function convertSymbolKind(kind: string): SymbolKind {
+function convewtSymbowKind(kind: stwing): SymbowKind {
 	switch (kind) {
-		case 'var':
-		case 'local var':
+		case 'vaw':
+		case 'wocaw vaw':
 		case 'const':
-			return SymbolKind.Variable;
+			wetuwn SymbowKind.Vawiabwe;
 		case 'function':
-		case 'local function':
-			return SymbolKind.Function;
+		case 'wocaw function':
+			wetuwn SymbowKind.Function;
 		case 'enum':
-			return SymbolKind.Enum;
-		case 'module':
-			return SymbolKind.Module;
-		case 'class':
-			return SymbolKind.Class;
-		case 'interface':
-			return SymbolKind.Interface;
+			wetuwn SymbowKind.Enum;
+		case 'moduwe':
+			wetuwn SymbowKind.Moduwe;
+		case 'cwass':
+			wetuwn SymbowKind.Cwass;
+		case 'intewface':
+			wetuwn SymbowKind.Intewface;
 		case 'method':
-			return SymbolKind.Method;
-		case 'property':
-		case 'getter':
-		case 'setter':
-			return SymbolKind.Property;
+			wetuwn SymbowKind.Method;
+		case 'pwopewty':
+		case 'getta':
+		case 'setta':
+			wetuwn SymbowKind.Pwopewty;
 	}
-	return SymbolKind.Variable;
+	wetuwn SymbowKind.Vawiabwe;
 }
 
-function convertOptions(options: FormattingOptions, formatSettings: any, initialIndentLevel: number): ts.FormatCodeOptions {
-	return {
-		ConvertTabsToSpaces: options.insertSpaces,
+function convewtOptions(options: FowmattingOptions, fowmatSettings: any, initiawIndentWevew: numba): ts.FowmatCodeOptions {
+	wetuwn {
+		ConvewtTabsToSpaces: options.insewtSpaces,
 		TabSize: options.tabSize,
 		IndentSize: options.tabSize,
-		IndentStyle: ts.IndentStyle.Smart,
-		NewLineCharacter: '\n',
-		BaseIndentSize: options.tabSize * initialIndentLevel,
-		InsertSpaceAfterCommaDelimiter: Boolean(!formatSettings || formatSettings.insertSpaceAfterCommaDelimiter),
-		InsertSpaceAfterSemicolonInForStatements: Boolean(!formatSettings || formatSettings.insertSpaceAfterSemicolonInForStatements),
-		InsertSpaceBeforeAndAfterBinaryOperators: Boolean(!formatSettings || formatSettings.insertSpaceBeforeAndAfterBinaryOperators),
-		InsertSpaceAfterKeywordsInControlFlowStatements: Boolean(!formatSettings || formatSettings.insertSpaceAfterKeywordsInControlFlowStatements),
-		InsertSpaceAfterFunctionKeywordForAnonymousFunctions: Boolean(!formatSettings || formatSettings.insertSpaceAfterFunctionKeywordForAnonymousFunctions),
-		InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis),
-		InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets),
-		InsertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces),
-		InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: Boolean(formatSettings && formatSettings.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces),
-		PlaceOpenBraceOnNewLineForControlBlocks: Boolean(formatSettings && formatSettings.placeOpenBraceOnNewLineForFunctions),
-		PlaceOpenBraceOnNewLineForFunctions: Boolean(formatSettings && formatSettings.placeOpenBraceOnNewLineForControlBlocks)
+		IndentStywe: ts.IndentStywe.Smawt,
+		NewWineChawacta: '\n',
+		BaseIndentSize: options.tabSize * initiawIndentWevew,
+		InsewtSpaceAftewCommaDewimita: Boowean(!fowmatSettings || fowmatSettings.insewtSpaceAftewCommaDewimita),
+		InsewtSpaceAftewSemicowonInFowStatements: Boowean(!fowmatSettings || fowmatSettings.insewtSpaceAftewSemicowonInFowStatements),
+		InsewtSpaceBefoweAndAftewBinawyOpewatows: Boowean(!fowmatSettings || fowmatSettings.insewtSpaceBefoweAndAftewBinawyOpewatows),
+		InsewtSpaceAftewKeywowdsInContwowFwowStatements: Boowean(!fowmatSettings || fowmatSettings.insewtSpaceAftewKeywowdsInContwowFwowStatements),
+		InsewtSpaceAftewFunctionKeywowdFowAnonymousFunctions: Boowean(!fowmatSettings || fowmatSettings.insewtSpaceAftewFunctionKeywowdFowAnonymousFunctions),
+		InsewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis: Boowean(fowmatSettings && fowmatSettings.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyPawenthesis),
+		InsewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets: Boowean(fowmatSettings && fowmatSettings.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwackets),
+		InsewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces: Boowean(fowmatSettings && fowmatSettings.insewtSpaceAftewOpeningAndBefoweCwosingNonemptyBwaces),
+		InsewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces: Boowean(fowmatSettings && fowmatSettings.insewtSpaceAftewOpeningAndBefoweCwosingTempwateStwingBwaces),
+		PwaceOpenBwaceOnNewWineFowContwowBwocks: Boowean(fowmatSettings && fowmatSettings.pwaceOpenBwaceOnNewWineFowFunctions),
+		PwaceOpenBwaceOnNewWineFowFunctions: Boowean(fowmatSettings && fowmatSettings.pwaceOpenBwaceOnNewWineFowContwowBwocks)
 	};
 }
 
-function computeInitialIndent(document: TextDocument, range: Range, options: FormattingOptions) {
-	let lineStart = document.offsetAt(Position.create(range.start.line, 0));
-	let content = document.getText();
+function computeInitiawIndent(document: TextDocument, wange: Wange, options: FowmattingOptions) {
+	wet wineStawt = document.offsetAt(Position.cweate(wange.stawt.wine, 0));
+	wet content = document.getText();
 
-	let i = lineStart;
-	let nChars = 0;
-	let tabSize = options.tabSize || 4;
-	while (i < content.length) {
-		let ch = content.charAt(i);
+	wet i = wineStawt;
+	wet nChaws = 0;
+	wet tabSize = options.tabSize || 4;
+	whiwe (i < content.wength) {
+		wet ch = content.chawAt(i);
 		if (ch === ' ') {
-			nChars++;
-		} else if (ch === '\t') {
-			nChars += tabSize;
-		} else {
-			break;
+			nChaws++;
+		} ewse if (ch === '\t') {
+			nChaws += tabSize;
+		} ewse {
+			bweak;
 		}
 		i++;
 	}
-	return Math.floor(nChars / tabSize);
+	wetuwn Math.fwoow(nChaws / tabSize);
 }
 
-function generateIndent(level: number, options: FormattingOptions) {
-	if (options.insertSpaces) {
-		return repeat(' ', level * options.tabSize);
-	} else {
-		return repeat('\t', level);
+function genewateIndent(wevew: numba, options: FowmattingOptions) {
+	if (options.insewtSpaces) {
+		wetuwn wepeat(' ', wevew * options.tabSize);
+	} ewse {
+		wetuwn wepeat('\t', wevew);
 	}
 }

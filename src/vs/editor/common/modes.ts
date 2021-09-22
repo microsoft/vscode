@@ -1,1613 +1,1613 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
-import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { iconRegistry, Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { TokenizationWesuwt, TokenizationWesuwt2 } fwom 'vs/editow/common/cowe/token';
+impowt * as modew fwom 'vs/editow/common/modew';
+impowt { WanguageFeatuweWegistwy } fwom 'vs/editow/common/modes/wanguageFeatuweWegistwy';
+impowt { TokenizationWegistwyImpw } fwom 'vs/editow/common/modes/tokenizationWegistwy';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { IMawkewData } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { iconWegistwy, Codicon } fwom 'vs/base/common/codicons';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 /**
- * Open ended enum at runtime
- * @internal
+ * Open ended enum at wuntime
+ * @intewnaw
  */
-export const enum LanguageId {
-	Null = 0,
-	PlainText = 1
+expowt const enum WanguageId {
+	Nuww = 0,
+	PwainText = 1
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class LanguageIdentifier {
+expowt cwass WanguageIdentifia {
 
 	/**
-	 * A string identifier. Unique across languages. e.g. 'javascript'.
+	 * A stwing identifia. Unique acwoss wanguages. e.g. 'javascwipt'.
 	 */
-	public readonly language: string;
+	pubwic weadonwy wanguage: stwing;
 
 	/**
-	 * A numeric identifier. Unique across languages. e.g. 5
-	 * Will vary at runtime based on registration order, etc.
+	 * A numewic identifia. Unique acwoss wanguages. e.g. 5
+	 * Wiww vawy at wuntime based on wegistwation owda, etc.
 	 */
-	public readonly id: LanguageId;
+	pubwic weadonwy id: WanguageId;
 
-	constructor(language: string, id: LanguageId) {
-		this.language = language;
+	constwuctow(wanguage: stwing, id: WanguageId) {
+		this.wanguage = wanguage;
 		this.id = id;
 	}
 }
 
 /**
- * A mode. Will soon be obsolete.
- * @internal
+ * A mode. Wiww soon be obsowete.
+ * @intewnaw
  */
-export interface IMode {
+expowt intewface IMode {
 
-	getId(): string;
+	getId(): stwing;
 
-	getLanguageIdentifier(): LanguageIdentifier;
+	getWanguageIdentifia(): WanguageIdentifia;
 
 }
 
 /**
- * A font style. Values are 2^x such that a bit mask can be used.
- * @internal
+ * A font stywe. Vawues awe 2^x such that a bit mask can be used.
+ * @intewnaw
  */
-export const enum FontStyle {
+expowt const enum FontStywe {
 	NotSet = -1,
 	None = 0,
-	Italic = 1,
-	Bold = 2,
-	Underline = 4
+	Itawic = 1,
+	Bowd = 2,
+	Undewwine = 4
 }
 
 /**
- * Open ended enum at runtime
- * @internal
+ * Open ended enum at wuntime
+ * @intewnaw
  */
-export const enum ColorId {
+expowt const enum CowowId {
 	None = 0,
-	DefaultForeground = 1,
-	DefaultBackground = 2
+	DefauwtFowegwound = 1,
+	DefauwtBackgwound = 2
 }
 
 /**
- * A standard token type. Values are 2^x such that a bit mask can be used.
- * @internal
+ * A standawd token type. Vawues awe 2^x such that a bit mask can be used.
+ * @intewnaw
  */
-export const enum StandardTokenType {
-	Other = 0,
+expowt const enum StandawdTokenType {
+	Otha = 0,
 	Comment = 1,
-	String = 2,
-	RegEx = 4
+	Stwing = 2,
+	WegEx = 4
 }
 
 /**
- * Helpers to manage the "collapsed" metadata of an entire StackElement stack.
- * The following assumptions have been made:
- *  - languageId < 256 => needs 8 bits
- *  - unique color count < 512 => needs 9 bits
+ * Hewpews to manage the "cowwapsed" metadata of an entiwe StackEwement stack.
+ * The fowwowing assumptions have been made:
+ *  - wanguageId < 256 => needs 8 bits
+ *  - unique cowow count < 512 => needs 9 bits
  *
- * The binary format is:
+ * The binawy fowmat is:
  * - -------------------------------------------
  *     3322 2222 2222 1111 1111 1100 0000 0000
  *     1098 7654 3210 9876 5432 1098 7654 3210
  * - -------------------------------------------
  *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
- *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+ *     bbbb bbbb bfff ffff ffFF FTTT WWWW WWWW
  * - -------------------------------------------
- *  - L = LanguageId (8 bits)
- *  - T = StandardTokenType (3 bits)
- *  - F = FontStyle (3 bits)
- *  - f = foreground color (9 bits)
- *  - b = background color (9 bits)
+ *  - W = WanguageId (8 bits)
+ *  - T = StandawdTokenType (3 bits)
+ *  - F = FontStywe (3 bits)
+ *  - f = fowegwound cowow (9 bits)
+ *  - b = backgwound cowow (9 bits)
  *
- * @internal
+ * @intewnaw
  */
-export const enum MetadataConsts {
-	LANGUAGEID_MASK = 0b00000000000000000000000011111111,
+expowt const enum MetadataConsts {
+	WANGUAGEID_MASK = 0b00000000000000000000000011111111,
 	TOKEN_TYPE_MASK = 0b00000000000000000000011100000000,
-	FONT_STYLE_MASK = 0b00000000000000000011100000000000,
-	FOREGROUND_MASK = 0b00000000011111111100000000000000,
-	BACKGROUND_MASK = 0b11111111100000000000000000000000,
+	FONT_STYWE_MASK = 0b00000000000000000011100000000000,
+	FOWEGWOUND_MASK = 0b00000000011111111100000000000000,
+	BACKGWOUND_MASK = 0b11111111100000000000000000000000,
 
-	ITALIC_MASK = 0b00000000000000000000100000000000,
-	BOLD_MASK = 0b00000000000000000001000000000000,
-	UNDERLINE_MASK = 0b00000000000000000010000000000000,
+	ITAWIC_MASK = 0b00000000000000000000100000000000,
+	BOWD_MASK = 0b00000000000000000001000000000000,
+	UNDEWWINE_MASK = 0b00000000000000000010000000000000,
 
-	SEMANTIC_USE_ITALIC = 0b00000000000000000000000000000001,
-	SEMANTIC_USE_BOLD = 0b00000000000000000000000000000010,
-	SEMANTIC_USE_UNDERLINE = 0b00000000000000000000000000000100,
-	SEMANTIC_USE_FOREGROUND = 0b00000000000000000000000000001000,
-	SEMANTIC_USE_BACKGROUND = 0b00000000000000000000000000010000,
+	SEMANTIC_USE_ITAWIC = 0b00000000000000000000000000000001,
+	SEMANTIC_USE_BOWD = 0b00000000000000000000000000000010,
+	SEMANTIC_USE_UNDEWWINE = 0b00000000000000000000000000000100,
+	SEMANTIC_USE_FOWEGWOUND = 0b00000000000000000000000000001000,
+	SEMANTIC_USE_BACKGWOUND = 0b00000000000000000000000000010000,
 
-	LANGUAGEID_OFFSET = 0,
+	WANGUAGEID_OFFSET = 0,
 	TOKEN_TYPE_OFFSET = 8,
-	FONT_STYLE_OFFSET = 11,
-	FOREGROUND_OFFSET = 14,
-	BACKGROUND_OFFSET = 23
+	FONT_STYWE_OFFSET = 11,
+	FOWEGWOUND_OFFSET = 14,
+	BACKGWOUND_OFFSET = 23
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export class TokenMetadata {
+expowt cwass TokenMetadata {
 
-	public static getLanguageId(metadata: number): LanguageId {
-		return (metadata & MetadataConsts.LANGUAGEID_MASK) >>> MetadataConsts.LANGUAGEID_OFFSET;
+	pubwic static getWanguageId(metadata: numba): WanguageId {
+		wetuwn (metadata & MetadataConsts.WANGUAGEID_MASK) >>> MetadataConsts.WANGUAGEID_OFFSET;
 	}
 
-	public static getTokenType(metadata: number): StandardTokenType {
-		return (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
+	pubwic static getTokenType(metadata: numba): StandawdTokenType {
+		wetuwn (metadata & MetadataConsts.TOKEN_TYPE_MASK) >>> MetadataConsts.TOKEN_TYPE_OFFSET;
 	}
 
-	public static getFontStyle(metadata: number): FontStyle {
-		return (metadata & MetadataConsts.FONT_STYLE_MASK) >>> MetadataConsts.FONT_STYLE_OFFSET;
+	pubwic static getFontStywe(metadata: numba): FontStywe {
+		wetuwn (metadata & MetadataConsts.FONT_STYWE_MASK) >>> MetadataConsts.FONT_STYWE_OFFSET;
 	}
 
-	public static getForeground(metadata: number): ColorId {
-		return (metadata & MetadataConsts.FOREGROUND_MASK) >>> MetadataConsts.FOREGROUND_OFFSET;
+	pubwic static getFowegwound(metadata: numba): CowowId {
+		wetuwn (metadata & MetadataConsts.FOWEGWOUND_MASK) >>> MetadataConsts.FOWEGWOUND_OFFSET;
 	}
 
-	public static getBackground(metadata: number): ColorId {
-		return (metadata & MetadataConsts.BACKGROUND_MASK) >>> MetadataConsts.BACKGROUND_OFFSET;
+	pubwic static getBackgwound(metadata: numba): CowowId {
+		wetuwn (metadata & MetadataConsts.BACKGWOUND_MASK) >>> MetadataConsts.BACKGWOUND_OFFSET;
 	}
 
-	public static getClassNameFromMetadata(metadata: number): string {
-		let foreground = this.getForeground(metadata);
-		let className = 'mtk' + foreground;
+	pubwic static getCwassNameFwomMetadata(metadata: numba): stwing {
+		wet fowegwound = this.getFowegwound(metadata);
+		wet cwassName = 'mtk' + fowegwound;
 
-		let fontStyle = this.getFontStyle(metadata);
-		if (fontStyle & FontStyle.Italic) {
-			className += ' mtki';
+		wet fontStywe = this.getFontStywe(metadata);
+		if (fontStywe & FontStywe.Itawic) {
+			cwassName += ' mtki';
 		}
-		if (fontStyle & FontStyle.Bold) {
-			className += ' mtkb';
+		if (fontStywe & FontStywe.Bowd) {
+			cwassName += ' mtkb';
 		}
-		if (fontStyle & FontStyle.Underline) {
-			className += ' mtku';
+		if (fontStywe & FontStywe.Undewwine) {
+			cwassName += ' mtku';
 		}
 
-		return className;
+		wetuwn cwassName;
 	}
 
-	public static getInlineStyleFromMetadata(metadata: number, colorMap: string[]): string {
-		const foreground = this.getForeground(metadata);
-		const fontStyle = this.getFontStyle(metadata);
+	pubwic static getInwineStyweFwomMetadata(metadata: numba, cowowMap: stwing[]): stwing {
+		const fowegwound = this.getFowegwound(metadata);
+		const fontStywe = this.getFontStywe(metadata);
 
-		let result = `color: ${colorMap[foreground]};`;
-		if (fontStyle & FontStyle.Italic) {
-			result += 'font-style: italic;';
+		wet wesuwt = `cowow: ${cowowMap[fowegwound]};`;
+		if (fontStywe & FontStywe.Itawic) {
+			wesuwt += 'font-stywe: itawic;';
 		}
-		if (fontStyle & FontStyle.Bold) {
-			result += 'font-weight: bold;';
+		if (fontStywe & FontStywe.Bowd) {
+			wesuwt += 'font-weight: bowd;';
 		}
-		if (fontStyle & FontStyle.Underline) {
-			result += 'text-decoration: underline;';
+		if (fontStywe & FontStywe.Undewwine) {
+			wesuwt += 'text-decowation: undewwine;';
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITokenizationSupport {
+expowt intewface ITokenizationSuppowt {
 
-	getInitialState(): IState;
+	getInitiawState(): IState;
 
-	// add offsetDelta to each of the returned indices
-	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult;
+	// add offsetDewta to each of the wetuwned indices
+	tokenize(wine: stwing, hasEOW: boowean, state: IState, offsetDewta: numba): TokenizationWesuwt;
 
-	tokenize2(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult2;
+	tokenize2(wine: stwing, hasEOW: boowean, state: IState, offsetDewta: numba): TokenizationWesuwt2;
 }
 
 /**
- * The state of the tokenizer between two lines.
- * It is useful to store flags such as in multiline comment, etc.
- * The model will clone the previous line's state and pass it in to tokenize the next line.
+ * The state of the tokeniza between two wines.
+ * It is usefuw to stowe fwags such as in muwtiwine comment, etc.
+ * The modew wiww cwone the pwevious wine's state and pass it in to tokenize the next wine.
  */
-export interface IState {
-	clone(): IState;
-	equals(other: IState): boolean;
+expowt intewface IState {
+	cwone(): IState;
+	equaws(otha: IState): boowean;
 }
 
 /**
- * A provider result represents the values a provider, like the {@link HoverProvider},
- * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
- * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
- * thenable.
+ * A pwovida wesuwt wepwesents the vawues a pwovida, wike the {@wink HovewPwovida},
+ * may wetuwn. Fow once this is the actuaw wesuwt type `T`, wike `Hova`, ow a thenabwe that wesowves
+ * to that type `T`. In addition, `nuww` and `undefined` can be wetuwned - eitha diwectwy ow fwom a
+ * thenabwe.
  */
-export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
+expowt type PwovidewWesuwt<T> = T | undefined | nuww | Thenabwe<T | undefined | nuww>;
 
 /**
- * A hover represents additional information for a symbol or word. Hovers are
- * rendered in a tooltip-like widget.
+ * A hova wepwesents additionaw infowmation fow a symbow ow wowd. Hovews awe
+ * wendewed in a toowtip-wike widget.
  */
-export interface Hover {
+expowt intewface Hova {
 	/**
-	 * The contents of this hover.
+	 * The contents of this hova.
 	 */
-	contents: IMarkdownString[];
+	contents: IMawkdownStwing[];
 
 	/**
-	 * The range to which this hover applies. When missing, the
-	 * editor will use the range at the current position or the
-	 * current position itself.
+	 * The wange to which this hova appwies. When missing, the
+	 * editow wiww use the wange at the cuwwent position ow the
+	 * cuwwent position itsewf.
 	 */
-	range?: IRange;
+	wange?: IWange;
 }
 
 /**
- * The hover provider interface defines the contract between extensions and
- * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * The hova pwovida intewface defines the contwact between extensions and
+ * the [hova](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
  */
-export interface HoverProvider {
+expowt intewface HovewPwovida {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
-	 * position will be merged by the editor. A hover can have a range which defaults
-	 * to the word range at the position when omitted.
+	 * Pwovide a hova fow the given position and document. Muwtipwe hovews at the same
+	 * position wiww be mewged by the editow. A hova can have a wange which defauwts
+	 * to the wowd wange at the position when omitted.
 	 */
-	provideHover(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
+	pwovideHova(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Hova>;
 }
 
 /**
- * An evaluatable expression represents additional information for an expression in a document. Evaluatable expressions are
- * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
- * @internal
+ * An evawuatabwe expwession wepwesents additionaw infowmation fow an expwession in a document. Evawuatabwe expwessions awe
+ * evawuated by a debugga ow wuntime and theiw wesuwt is wendewed in a toowtip-wike widget.
+ * @intewnaw
  */
-export interface EvaluatableExpression {
+expowt intewface EvawuatabweExpwession {
 	/**
-	 * The range to which this expression applies.
+	 * The wange to which this expwession appwies.
 	 */
-	range: IRange;
+	wange: IWange;
 	/**
-	 * This expression overrides the expression extracted from the range.
+	 * This expwession ovewwides the expwession extwacted fwom the wange.
 	 */
-	expression?: string;
+	expwession?: stwing;
 }
 
 
 /**
- * The evaluatable expression provider interface defines the contract between extensions and
- * the debug hover.
- * @internal
+ * The evawuatabwe expwession pwovida intewface defines the contwact between extensions and
+ * the debug hova.
+ * @intewnaw
  */
-export interface EvaluatableExpressionProvider {
+expowt intewface EvawuatabweExpwessionPwovida {
 	/**
-	 * Provide a hover for the given position and document. Multiple hovers at the same
-	 * position will be merged by the editor. A hover can have a range which defaults
-	 * to the word range at the position when omitted.
+	 * Pwovide a hova fow the given position and document. Muwtipwe hovews at the same
+	 * position wiww be mewged by the editow. A hova can have a wange which defauwts
+	 * to the wowd wange at the position when omitted.
 	 */
-	provideEvaluatableExpression(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+	pwovideEvawuatabweExpwession(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<EvawuatabweExpwession>;
 }
 
 /**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
- * @internal
+	 * A vawue-object that contains contextuaw infowmation when wequesting inwine vawues fwom a InwineVawuesPwovida.
+ * @intewnaw
  */
-export interface InlineValueContext {
-	frameId: number;
-	stoppedLocation: Range;
+expowt intewface InwineVawueContext {
+	fwameId: numba;
+	stoppedWocation: Wange;
 }
 
 /**
- * Provide inline value as text.
- * @internal
+ * Pwovide inwine vawue as text.
+ * @intewnaw
  */
-export interface InlineValueText {
+expowt intewface InwineVawueText {
 	type: 'text';
-	range: IRange;
-	text: string;
+	wange: IWange;
+	text: stwing;
 }
 
 /**
- * Provide inline value through a variable lookup.
- * @internal
+ * Pwovide inwine vawue thwough a vawiabwe wookup.
+ * @intewnaw
  */
-export interface InlineValueVariableLookup {
-	type: 'variable';
-	range: IRange;
-	variableName?: string;
-	caseSensitiveLookup: boolean;
+expowt intewface InwineVawueVawiabweWookup {
+	type: 'vawiabwe';
+	wange: IWange;
+	vawiabweName?: stwing;
+	caseSensitiveWookup: boowean;
 }
 
 /**
- * Provide inline value through an expression evaluation.
- * @internal
+ * Pwovide inwine vawue thwough an expwession evawuation.
+ * @intewnaw
  */
-export interface InlineValueExpression {
-	type: 'expression';
-	range: IRange;
-	expression?: string;
+expowt intewface InwineVawueExpwession {
+	type: 'expwession';
+	wange: IWange;
+	expwession?: stwing;
 }
 
 /**
- * Inline value information can be provided by different means:
- * - directly as a text value (class InlineValueText).
- * - as a name to use for a variable lookup (class InlineValueVariableLookup)
- * - as an evaluatable expression (class InlineValueEvaluatableExpression)
- * The InlineValue types combines all inline value types into one type.
- * @internal
+ * Inwine vawue infowmation can be pwovided by diffewent means:
+ * - diwectwy as a text vawue (cwass InwineVawueText).
+ * - as a name to use fow a vawiabwe wookup (cwass InwineVawueVawiabweWookup)
+ * - as an evawuatabwe expwession (cwass InwineVawueEvawuatabweExpwession)
+ * The InwineVawue types combines aww inwine vawue types into one type.
+ * @intewnaw
  */
-export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueExpression;
+expowt type InwineVawue = InwineVawueText | InwineVawueVawiabweWookup | InwineVawueExpwession;
 
 /**
- * The inline values provider interface defines the contract between extensions and
- * the debugger's inline values feature.
- * @internal
+ * The inwine vawues pwovida intewface defines the contwact between extensions and
+ * the debugga's inwine vawues featuwe.
+ * @intewnaw
  */
-export interface InlineValuesProvider {
+expowt intewface InwineVawuesPwovida {
 	/**
 	 */
-	onDidChangeInlineValues?: Event<void> | undefined;
+	onDidChangeInwineVawues?: Event<void> | undefined;
 	/**
-	 * Provide the "inline values" for the given range and document. Multiple hovers at the same
-	 * position will be merged by the editor. A hover can have a range which defaults
-	 * to the word range at the position when omitted.
+	 * Pwovide the "inwine vawues" fow the given wange and document. Muwtipwe hovews at the same
+	 * position wiww be mewged by the editow. A hova can have a wange which defauwts
+	 * to the wowd wange at the position when omitted.
 	 */
-	provideInlineValues(model: model.ITextModel, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
+	pwovideInwineVawues(modew: modew.ITextModew, viewPowt: Wange, context: InwineVawueContext, token: CancewwationToken): PwovidewWesuwt<InwineVawue[]>;
 }
 
-export const enum CompletionItemKind {
+expowt const enum CompwetionItemKind {
 	Method,
 	Function,
-	Constructor,
-	Field,
-	Variable,
-	Class,
-	Struct,
-	Interface,
-	Module,
-	Property,
+	Constwuctow,
+	Fiewd,
+	Vawiabwe,
+	Cwass,
+	Stwuct,
+	Intewface,
+	Moduwe,
+	Pwopewty,
 	Event,
-	Operator,
+	Opewatow,
 	Unit,
-	Value,
+	Vawue,
 	Constant,
 	Enum,
-	EnumMember,
-	Keyword,
+	EnumMemba,
+	Keywowd,
 	Text,
-	Color,
-	File,
-	Reference,
-	Customcolor,
-	Folder,
-	TypeParameter,
-	User,
+	Cowow,
+	Fiwe,
+	Wefewence,
+	Customcowow,
+	Fowda,
+	TypePawameta,
+	Usa,
 	Issue,
-	Snippet, // <- highest value (used for compare!)
+	Snippet, // <- highest vawue (used fow compawe!)
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const completionKindToCssClass = (function () {
-	let data = Object.create(null);
-	data[CompletionItemKind.Method] = 'symbol-method';
-	data[CompletionItemKind.Function] = 'symbol-function';
-	data[CompletionItemKind.Constructor] = 'symbol-constructor';
-	data[CompletionItemKind.Field] = 'symbol-field';
-	data[CompletionItemKind.Variable] = 'symbol-variable';
-	data[CompletionItemKind.Class] = 'symbol-class';
-	data[CompletionItemKind.Struct] = 'symbol-struct';
-	data[CompletionItemKind.Interface] = 'symbol-interface';
-	data[CompletionItemKind.Module] = 'symbol-module';
-	data[CompletionItemKind.Property] = 'symbol-property';
-	data[CompletionItemKind.Event] = 'symbol-event';
-	data[CompletionItemKind.Operator] = 'symbol-operator';
-	data[CompletionItemKind.Unit] = 'symbol-unit';
-	data[CompletionItemKind.Value] = 'symbol-value';
-	data[CompletionItemKind.Constant] = 'symbol-constant';
-	data[CompletionItemKind.Enum] = 'symbol-enum';
-	data[CompletionItemKind.EnumMember] = 'symbol-enum-member';
-	data[CompletionItemKind.Keyword] = 'symbol-keyword';
-	data[CompletionItemKind.Snippet] = 'symbol-snippet';
-	data[CompletionItemKind.Text] = 'symbol-text';
-	data[CompletionItemKind.Color] = 'symbol-color';
-	data[CompletionItemKind.File] = 'symbol-file';
-	data[CompletionItemKind.Reference] = 'symbol-reference';
-	data[CompletionItemKind.Customcolor] = 'symbol-customcolor';
-	data[CompletionItemKind.Folder] = 'symbol-folder';
-	data[CompletionItemKind.TypeParameter] = 'symbol-type-parameter';
-	data[CompletionItemKind.User] = 'account';
-	data[CompletionItemKind.Issue] = 'issues';
+expowt const compwetionKindToCssCwass = (function () {
+	wet data = Object.cweate(nuww);
+	data[CompwetionItemKind.Method] = 'symbow-method';
+	data[CompwetionItemKind.Function] = 'symbow-function';
+	data[CompwetionItemKind.Constwuctow] = 'symbow-constwuctow';
+	data[CompwetionItemKind.Fiewd] = 'symbow-fiewd';
+	data[CompwetionItemKind.Vawiabwe] = 'symbow-vawiabwe';
+	data[CompwetionItemKind.Cwass] = 'symbow-cwass';
+	data[CompwetionItemKind.Stwuct] = 'symbow-stwuct';
+	data[CompwetionItemKind.Intewface] = 'symbow-intewface';
+	data[CompwetionItemKind.Moduwe] = 'symbow-moduwe';
+	data[CompwetionItemKind.Pwopewty] = 'symbow-pwopewty';
+	data[CompwetionItemKind.Event] = 'symbow-event';
+	data[CompwetionItemKind.Opewatow] = 'symbow-opewatow';
+	data[CompwetionItemKind.Unit] = 'symbow-unit';
+	data[CompwetionItemKind.Vawue] = 'symbow-vawue';
+	data[CompwetionItemKind.Constant] = 'symbow-constant';
+	data[CompwetionItemKind.Enum] = 'symbow-enum';
+	data[CompwetionItemKind.EnumMemba] = 'symbow-enum-memba';
+	data[CompwetionItemKind.Keywowd] = 'symbow-keywowd';
+	data[CompwetionItemKind.Snippet] = 'symbow-snippet';
+	data[CompwetionItemKind.Text] = 'symbow-text';
+	data[CompwetionItemKind.Cowow] = 'symbow-cowow';
+	data[CompwetionItemKind.Fiwe] = 'symbow-fiwe';
+	data[CompwetionItemKind.Wefewence] = 'symbow-wefewence';
+	data[CompwetionItemKind.Customcowow] = 'symbow-customcowow';
+	data[CompwetionItemKind.Fowda] = 'symbow-fowda';
+	data[CompwetionItemKind.TypePawameta] = 'symbow-type-pawameta';
+	data[CompwetionItemKind.Usa] = 'account';
+	data[CompwetionItemKind.Issue] = 'issues';
 
-	return function (kind: CompletionItemKind): string {
+	wetuwn function (kind: CompwetionItemKind): stwing {
 		const name = data[kind];
-		let codicon = name && iconRegistry.get(name);
+		wet codicon = name && iconWegistwy.get(name);
 		if (!codicon) {
-			console.info('No codicon found for CompletionItemKind ' + kind);
-			codicon = Codicon.symbolProperty;
+			consowe.info('No codicon found fow CompwetionItemKind ' + kind);
+			codicon = Codicon.symbowPwopewty;
 		}
-		return codicon.classNames;
+		wetuwn codicon.cwassNames;
 	};
 })();
 
 /**
- * @internal
+ * @intewnaw
  */
-export let completionKindFromString: {
-	(value: string): CompletionItemKind;
-	(value: string, strict: true): CompletionItemKind | undefined;
+expowt wet compwetionKindFwomStwing: {
+	(vawue: stwing): CompwetionItemKind;
+	(vawue: stwing, stwict: twue): CompwetionItemKind | undefined;
 } = (function () {
-	let data: Record<string, CompletionItemKind> = Object.create(null);
-	data['method'] = CompletionItemKind.Method;
-	data['function'] = CompletionItemKind.Function;
-	data['constructor'] = <any>CompletionItemKind.Constructor;
-	data['field'] = CompletionItemKind.Field;
-	data['variable'] = CompletionItemKind.Variable;
-	data['class'] = CompletionItemKind.Class;
-	data['struct'] = CompletionItemKind.Struct;
-	data['interface'] = CompletionItemKind.Interface;
-	data['module'] = CompletionItemKind.Module;
-	data['property'] = CompletionItemKind.Property;
-	data['event'] = CompletionItemKind.Event;
-	data['operator'] = CompletionItemKind.Operator;
-	data['unit'] = CompletionItemKind.Unit;
-	data['value'] = CompletionItemKind.Value;
-	data['constant'] = CompletionItemKind.Constant;
-	data['enum'] = CompletionItemKind.Enum;
-	data['enum-member'] = CompletionItemKind.EnumMember;
-	data['enumMember'] = CompletionItemKind.EnumMember;
-	data['keyword'] = CompletionItemKind.Keyword;
-	data['snippet'] = CompletionItemKind.Snippet;
-	data['text'] = CompletionItemKind.Text;
-	data['color'] = CompletionItemKind.Color;
-	data['file'] = CompletionItemKind.File;
-	data['reference'] = CompletionItemKind.Reference;
-	data['customcolor'] = CompletionItemKind.Customcolor;
-	data['folder'] = CompletionItemKind.Folder;
-	data['type-parameter'] = CompletionItemKind.TypeParameter;
-	data['typeParameter'] = CompletionItemKind.TypeParameter;
-	data['account'] = CompletionItemKind.User;
-	data['issue'] = CompletionItemKind.Issue;
-	return function (value: string, strict?: true) {
-		let res = data[value];
-		if (typeof res === 'undefined' && !strict) {
-			res = CompletionItemKind.Property;
+	wet data: Wecowd<stwing, CompwetionItemKind> = Object.cweate(nuww);
+	data['method'] = CompwetionItemKind.Method;
+	data['function'] = CompwetionItemKind.Function;
+	data['constwuctow'] = <any>CompwetionItemKind.Constwuctow;
+	data['fiewd'] = CompwetionItemKind.Fiewd;
+	data['vawiabwe'] = CompwetionItemKind.Vawiabwe;
+	data['cwass'] = CompwetionItemKind.Cwass;
+	data['stwuct'] = CompwetionItemKind.Stwuct;
+	data['intewface'] = CompwetionItemKind.Intewface;
+	data['moduwe'] = CompwetionItemKind.Moduwe;
+	data['pwopewty'] = CompwetionItemKind.Pwopewty;
+	data['event'] = CompwetionItemKind.Event;
+	data['opewatow'] = CompwetionItemKind.Opewatow;
+	data['unit'] = CompwetionItemKind.Unit;
+	data['vawue'] = CompwetionItemKind.Vawue;
+	data['constant'] = CompwetionItemKind.Constant;
+	data['enum'] = CompwetionItemKind.Enum;
+	data['enum-memba'] = CompwetionItemKind.EnumMemba;
+	data['enumMemba'] = CompwetionItemKind.EnumMemba;
+	data['keywowd'] = CompwetionItemKind.Keywowd;
+	data['snippet'] = CompwetionItemKind.Snippet;
+	data['text'] = CompwetionItemKind.Text;
+	data['cowow'] = CompwetionItemKind.Cowow;
+	data['fiwe'] = CompwetionItemKind.Fiwe;
+	data['wefewence'] = CompwetionItemKind.Wefewence;
+	data['customcowow'] = CompwetionItemKind.Customcowow;
+	data['fowda'] = CompwetionItemKind.Fowda;
+	data['type-pawameta'] = CompwetionItemKind.TypePawameta;
+	data['typePawameta'] = CompwetionItemKind.TypePawameta;
+	data['account'] = CompwetionItemKind.Usa;
+	data['issue'] = CompwetionItemKind.Issue;
+	wetuwn function (vawue: stwing, stwict?: twue) {
+		wet wes = data[vawue];
+		if (typeof wes === 'undefined' && !stwict) {
+			wes = CompwetionItemKind.Pwopewty;
 		}
-		return res;
+		wetuwn wes;
 	};
 })();
 
-export interface CompletionItemLabel {
-	label: string;
-	detail?: string;
-	description?: string;
+expowt intewface CompwetionItemWabew {
+	wabew: stwing;
+	detaiw?: stwing;
+	descwiption?: stwing;
 }
 
-export const enum CompletionItemTag {
-	Deprecated = 1
+expowt const enum CompwetionItemTag {
+	Depwecated = 1
 }
 
-export const enum CompletionItemInsertTextRule {
+expowt const enum CompwetionItemInsewtTextWuwe {
 	/**
-	 * Adjust whitespace/indentation of multiline insert texts to
-	 * match the current line indentation.
+	 * Adjust whitespace/indentation of muwtiwine insewt texts to
+	 * match the cuwwent wine indentation.
 	 */
 	KeepWhitespace = 0b001,
 
 	/**
-	 * `insertText` is a snippet.
+	 * `insewtText` is a snippet.
 	 */
-	InsertAsSnippet = 0b100,
+	InsewtAsSnippet = 0b100,
 }
 
 /**
- * A completion item represents a text snippet that is
- * proposed to complete text that is being typed.
+ * A compwetion item wepwesents a text snippet that is
+ * pwoposed to compwete text that is being typed.
  */
-export interface CompletionItem {
+expowt intewface CompwetionItem {
 	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
+	 * The wabew of this compwetion item. By defauwt
+	 * this is awso the text that is insewted when sewecting
+	 * this compwetion.
 	 */
-	label: string | CompletionItemLabel;
+	wabew: stwing | CompwetionItemWabew;
 	/**
-	 * The kind of this completion item. Based on the kind
-	 * an icon is chosen by the editor.
+	 * The kind of this compwetion item. Based on the kind
+	 * an icon is chosen by the editow.
 	 */
-	kind: CompletionItemKind;
+	kind: CompwetionItemKind;
 	/**
-	 * A modifier to the `kind` which affect how the item
-	 * is rendered, e.g. Deprecated is rendered with a strikeout
+	 * A modifia to the `kind` which affect how the item
+	 * is wendewed, e.g. Depwecated is wendewed with a stwikeout
 	 */
-	tags?: ReadonlyArray<CompletionItemTag>;
+	tags?: WeadonwyAwway<CompwetionItemTag>;
 	/**
-	 * A human-readable string with additional information
-	 * about this item, like type or symbol information.
+	 * A human-weadabwe stwing with additionaw infowmation
+	 * about this item, wike type ow symbow infowmation.
 	 */
-	detail?: string;
+	detaiw?: stwing;
 	/**
-	 * A human-readable string that represents a doc-comment.
+	 * A human-weadabwe stwing that wepwesents a doc-comment.
 	 */
-	documentation?: string | IMarkdownString;
+	documentation?: stwing | IMawkdownStwing;
 	/**
-	 * A string that should be used when comparing this item
-	 * with other items. When `falsy` the {@link CompletionItem.label label}
+	 * A stwing that shouwd be used when compawing this item
+	 * with otha items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 	 * is used.
 	 */
-	sortText?: string;
+	sowtText?: stwing;
 	/**
-	 * A string that should be used when filtering a set of
-	 * completion items. When `falsy` the {@link CompletionItem.label label}
+	 * A stwing that shouwd be used when fiwtewing a set of
+	 * compwetion items. When `fawsy` the {@wink CompwetionItem.wabew wabew}
 	 * is used.
 	 */
-	filterText?: string;
+	fiwtewText?: stwing;
 	/**
-	 * Select this item when showing. *Note* that only one completion item can be selected and
-	 * that the editor decides which item that is. The rule is that the *first* item of those
-	 * that match best is selected.
+	 * Sewect this item when showing. *Note* that onwy one compwetion item can be sewected and
+	 * that the editow decides which item that is. The wuwe is that the *fiwst* item of those
+	 * that match best is sewected.
 	 */
-	preselect?: boolean;
+	pwesewect?: boowean;
 	/**
-	 * A string or snippet that should be inserted in a document when selecting
-	 * this completion.
+	 * A stwing ow snippet that shouwd be insewted in a document when sewecting
+	 * this compwetion.
 	 * is used.
 	 */
-	insertText: string;
+	insewtText: stwing;
 	/**
-	 * Addition rules (as bitmask) that should be applied when inserting
-	 * this completion.
+	 * Addition wuwes (as bitmask) that shouwd be appwied when insewting
+	 * this compwetion.
 	 */
-	insertTextRules?: CompletionItemInsertTextRule;
+	insewtTextWuwes?: CompwetionItemInsewtTextWuwe;
 	/**
-	 * A range of text that should be replaced by this completion item.
+	 * A wange of text that shouwd be wepwaced by this compwetion item.
 	 *
-	 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
-	 * current position.
+	 * Defauwts to a wange fwom the stawt of the {@wink TextDocument.getWowdWangeAtPosition cuwwent wowd} to the
+	 * cuwwent position.
 	 *
-	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
-	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
+	 * *Note:* The wange must be a {@wink Wange.isSingweWine singwe wine} and it must
+	 * {@wink Wange.contains contain} the position at which compwetion has been {@wink CompwetionItemPwovida.pwovideCompwetionItems wequested}.
 	 */
-	range: IRange | { insert: IRange, replace: IRange };
+	wange: IWange | { insewt: IWange, wepwace: IWange };
 	/**
-	 * An optional set of characters that when pressed while this completion is active will accept it first and
-	 * then type that character. *Note* that all commit characters should have `length=1` and that superfluous
-	 * characters will be ignored.
+	 * An optionaw set of chawactews that when pwessed whiwe this compwetion is active wiww accept it fiwst and
+	 * then type that chawacta. *Note* that aww commit chawactews shouwd have `wength=1` and that supewfwuous
+	 * chawactews wiww be ignowed.
 	 */
-	commitCharacters?: string[];
+	commitChawactews?: stwing[];
 	/**
-	 * An optional array of additional text edits that are applied when
-	 * selecting this completion. Edits must not overlap with the main edit
-	 * nor with themselves.
+	 * An optionaw awway of additionaw text edits that awe appwied when
+	 * sewecting this compwetion. Edits must not ovewwap with the main edit
+	 * now with themsewves.
 	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
+	additionawTextEdits?: modew.ISingweEditOpewation[];
 	/**
-	 * A command that should be run upon acceptance of this item.
+	 * A command that shouwd be wun upon acceptance of this item.
 	 */
 	command?: Command;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_id?: [number, number];
+	_id?: [numba, numba];
 }
 
-export interface CompletionList {
-	suggestions: CompletionItem[];
-	incomplete?: boolean;
+expowt intewface CompwetionWist {
+	suggestions: CompwetionItem[];
+	incompwete?: boowean;
 	dispose?(): void;
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	duration?: number;
+	duwation?: numba;
 }
 
 /**
- * How a suggest provider was triggered.
+ * How a suggest pwovida was twiggewed.
  */
-export const enum CompletionTriggerKind {
+expowt const enum CompwetionTwiggewKind {
 	Invoke = 0,
-	TriggerCharacter = 1,
-	TriggerForIncompleteCompletions = 2
+	TwiggewChawacta = 1,
+	TwiggewFowIncompweteCompwetions = 2
 }
 /**
- * Contains additional information about the context in which
- * {@link CompletionItemProvider.provideCompletionItems completion provider} is triggered.
+ * Contains additionaw infowmation about the context in which
+ * {@wink CompwetionItemPwovida.pwovideCompwetionItems compwetion pwovida} is twiggewed.
  */
-export interface CompletionContext {
+expowt intewface CompwetionContext {
 	/**
-	 * How the completion was triggered.
+	 * How the compwetion was twiggewed.
 	 */
-	triggerKind: CompletionTriggerKind;
+	twiggewKind: CompwetionTwiggewKind;
 	/**
-	 * Character that triggered the completion item provider.
+	 * Chawacta that twiggewed the compwetion item pwovida.
 	 *
-	 * `undefined` if provider was not triggered by a character.
+	 * `undefined` if pwovida was not twiggewed by a chawacta.
 	 */
-	triggerCharacter?: string;
+	twiggewChawacta?: stwing;
 }
 /**
- * The completion item provider interface defines the contract between extensions and
- * the [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
+ * The compwetion item pwovida intewface defines the contwact between extensions and
+ * the [IntewwiSense](https://code.visuawstudio.com/docs/editow/intewwisense).
  *
- * When computing *complete* completion items is expensive, providers can optionally implement
- * the `resolveCompletionItem`-function. In that case it is enough to return completion
- * items with a {@link CompletionItem.label label} from the
- * {@link CompletionItemProvider.provideCompletionItems provideCompletionItems}-function. Subsequently,
- * when a completion item is shown in the UI and gains focus this provider is asked to resolve
- * the item, like adding {@link CompletionItem.documentation doc-comment} or {@link CompletionItem.detail details}.
+ * When computing *compwete* compwetion items is expensive, pwovidews can optionawwy impwement
+ * the `wesowveCompwetionItem`-function. In that case it is enough to wetuwn compwetion
+ * items with a {@wink CompwetionItem.wabew wabew} fwom the
+ * {@wink CompwetionItemPwovida.pwovideCompwetionItems pwovideCompwetionItems}-function. Subsequentwy,
+ * when a compwetion item is shown in the UI and gains focus this pwovida is asked to wesowve
+ * the item, wike adding {@wink CompwetionItem.documentation doc-comment} ow {@wink CompwetionItem.detaiw detaiws}.
  */
-export interface CompletionItemProvider {
+expowt intewface CompwetionItemPwovida {
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	_debugDisplayName?: string;
+	_debugDispwayName?: stwing;
 
-	triggerCharacters?: string[];
+	twiggewChawactews?: stwing[];
 	/**
-	 * Provide completion items for the given position and document.
+	 * Pwovide compwetion items fow the given position and document.
 	 */
-	provideCompletionItems(model: model.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
+	pwovideCompwetionItems(modew: modew.ITextModew, position: Position, context: CompwetionContext, token: CancewwationToken): PwovidewWesuwt<CompwetionWist>;
 
 	/**
-	 * Given a completion item fill in more data, like {@link CompletionItem.documentation doc-comment}
-	 * or {@link CompletionItem.detail details}.
+	 * Given a compwetion item fiww in mowe data, wike {@wink CompwetionItem.documentation doc-comment}
+	 * ow {@wink CompwetionItem.detaiw detaiws}.
 	 *
-	 * The editor will only resolve a completion item once.
+	 * The editow wiww onwy wesowve a compwetion item once.
 	 */
-	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	wesowveCompwetionItem?(item: CompwetionItem, token: CancewwationToken): PwovidewWesuwt<CompwetionItem>;
 }
 
 /**
- * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+ * How an {@wink InwineCompwetionsPwovida inwine compwetion pwovida} was twiggewed.
  */
-export enum InlineCompletionTriggerKind {
+expowt enum InwineCompwetionTwiggewKind {
 	/**
-	 * Completion was triggered automatically while editing.
-	 * It is sufficient to return a single completion item in this case.
+	 * Compwetion was twiggewed automaticawwy whiwe editing.
+	 * It is sufficient to wetuwn a singwe compwetion item in this case.
 	 */
 	Automatic = 0,
 
 	/**
-	 * Completion was triggered explicitly by a user gesture.
-	 * Return multiple completion items to enable cycling through them.
+	 * Compwetion was twiggewed expwicitwy by a usa gestuwe.
+	 * Wetuwn muwtipwe compwetion items to enabwe cycwing thwough them.
 	 */
-	Explicit = 1,
+	Expwicit = 1,
 }
 
-export interface InlineCompletionContext {
+expowt intewface InwineCompwetionContext {
 	/**
-	 * How the completion was triggered.
+	 * How the compwetion was twiggewed.
 	 */
-	readonly triggerKind: InlineCompletionTriggerKind;
+	weadonwy twiggewKind: InwineCompwetionTwiggewKind;
 
-	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	weadonwy sewectedSuggestionInfo: SewectedSuggestionInfo | undefined;
 }
 
-export interface SelectedSuggestionInfo {
-	range: IRange;
-	text: string;
+expowt intewface SewectedSuggestionInfo {
+	wange: IWange;
+	text: stwing;
 }
 
-export interface InlineCompletion {
+expowt intewface InwineCompwetion {
 	/**
-	 * The text to insert.
-	 * If the text contains a line break, the range must end at the end of a line.
-	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	 * The text to insewt.
+	 * If the text contains a wine bweak, the wange must end at the end of a wine.
+	 * If existing text shouwd be wepwaced, the existing text must be a pwefix of the text to insewt.
 	*/
-	readonly text: string;
-
-	/**
-	 * The range to replace.
-	 * Must begin and end on the same line.
-	*/
-	readonly range?: IRange;
-
-	readonly command?: Command;
-}
-
-export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
-	readonly items: readonly TItem[];
-}
-
-export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
-	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+	weadonwy text: stwing;
 
 	/**
-	 * Will be called when an item is shown.
+	 * The wange to wepwace.
+	 * Must begin and end on the same wine.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+	weadonwy wange?: IWange;
 
-	/**
-	 * Will be called when a completions list is no longer in use and can be garbage-collected.
-	*/
-	freeInlineCompletions(completions: T): void;
+	weadonwy command?: Command;
 }
 
-export interface CodeAction {
-	title: string;
+expowt intewface InwineCompwetions<TItem extends InwineCompwetion = InwineCompwetion> {
+	weadonwy items: weadonwy TItem[];
+}
+
+expowt intewface InwineCompwetionsPwovida<T extends InwineCompwetions = InwineCompwetions> {
+	pwovideInwineCompwetions(modew: modew.ITextModew, position: Position, context: InwineCompwetionContext, token: CancewwationToken): PwovidewWesuwt<T>;
+
+	/**
+	 * Wiww be cawwed when an item is shown.
+	*/
+	handweItemDidShow?(compwetions: T, item: T['items'][numba]): void;
+
+	/**
+	 * Wiww be cawwed when a compwetions wist is no wonga in use and can be gawbage-cowwected.
+	*/
+	fweeInwineCompwetions(compwetions: T): void;
+}
+
+expowt intewface CodeAction {
+	titwe: stwing;
 	command?: Command;
-	edit?: WorkspaceEdit;
-	diagnostics?: IMarkerData[];
-	kind?: string;
-	isPreferred?: boolean;
-	disabled?: string;
+	edit?: WowkspaceEdit;
+	diagnostics?: IMawkewData[];
+	kind?: stwing;
+	isPwefewwed?: boowean;
+	disabwed?: stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const enum CodeActionTriggerType {
+expowt const enum CodeActionTwiggewType {
 	Invoke = 1,
 	Auto = 2,
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CodeActionContext {
-	only?: string;
-	trigger: CodeActionTriggerType;
+expowt intewface CodeActionContext {
+	onwy?: stwing;
+	twigga: CodeActionTwiggewType;
 }
 
-export interface CodeActionList extends IDisposable {
-	readonly actions: ReadonlyArray<CodeAction>;
-}
-
-/**
- * The code action interface defines the contract between extensions and
- * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
- * @internal
- */
-export interface CodeActionProvider {
-
-	displayName?: string
-
-	/**
-	 * Provide commands for the given document and range.
-	 */
-	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
-
-	/**
-	 * Given a code action fill in the edit. Will only invoked when missing.
-	 */
-	resolveCodeAction?(codeAction: CodeAction, token: CancellationToken): ProviderResult<CodeAction>;
-
-	/**
-	 * Optional list of CodeActionKinds that this provider returns.
-	 */
-	readonly providedCodeActionKinds?: ReadonlyArray<string>;
-
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
-
-	/**
-	 * @internal
-	 */
-	_getAdditionalMenuItems?(context: CodeActionContext, actions: readonly CodeAction[]): Command[];
+expowt intewface CodeActionWist extends IDisposabwe {
+	weadonwy actions: WeadonwyAwway<CodeAction>;
 }
 
 /**
- * Represents a parameter of a callable-signature. A parameter can
- * have a label and a doc-comment.
+ * The code action intewface defines the contwact between extensions and
+ * the [wight buwb](https://code.visuawstudio.com/docs/editow/editingevowved#_code-action) featuwe.
+ * @intewnaw
  */
-export interface ParameterInformation {
+expowt intewface CodeActionPwovida {
+
+	dispwayName?: stwing
+
 	/**
-	 * The label of this signature. Will be shown in
+	 * Pwovide commands fow the given document and wange.
+	 */
+	pwovideCodeActions(modew: modew.ITextModew, wange: Wange | Sewection, context: CodeActionContext, token: CancewwationToken): PwovidewWesuwt<CodeActionWist>;
+
+	/**
+	 * Given a code action fiww in the edit. Wiww onwy invoked when missing.
+	 */
+	wesowveCodeAction?(codeAction: CodeAction, token: CancewwationToken): PwovidewWesuwt<CodeAction>;
+
+	/**
+	 * Optionaw wist of CodeActionKinds that this pwovida wetuwns.
+	 */
+	weadonwy pwovidedCodeActionKinds?: WeadonwyAwway<stwing>;
+
+	weadonwy documentation?: WeadonwyAwway<{ weadonwy kind: stwing, weadonwy command: Command }>;
+
+	/**
+	 * @intewnaw
+	 */
+	_getAdditionawMenuItems?(context: CodeActionContext, actions: weadonwy CodeAction[]): Command[];
+}
+
+/**
+ * Wepwesents a pawameta of a cawwabwe-signatuwe. A pawameta can
+ * have a wabew and a doc-comment.
+ */
+expowt intewface PawametewInfowmation {
+	/**
+	 * The wabew of this signatuwe. Wiww be shown in
 	 * the UI.
 	 */
-	label: string | [number, number];
+	wabew: stwing | [numba, numba];
 	/**
-	 * The human-readable doc-comment of this signature. Will be shown
+	 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string | IMarkdownString;
+	documentation?: stwing | IMawkdownStwing;
 }
 /**
- * Represents the signature of something callable. A signature
- * can have a label, like a function-name, a doc-comment, and
- * a set of parameters.
+ * Wepwesents the signatuwe of something cawwabwe. A signatuwe
+ * can have a wabew, wike a function-name, a doc-comment, and
+ * a set of pawametews.
  */
-export interface SignatureInformation {
+expowt intewface SignatuweInfowmation {
 	/**
-	 * The label of this signature. Will be shown in
+	 * The wabew of this signatuwe. Wiww be shown in
 	 * the UI.
 	 */
-	label: string;
+	wabew: stwing;
 	/**
-	 * The human-readable doc-comment of this signature. Will be shown
+	 * The human-weadabwe doc-comment of this signatuwe. Wiww be shown
 	 * in the UI but can be omitted.
 	 */
-	documentation?: string | IMarkdownString;
+	documentation?: stwing | IMawkdownStwing;
 	/**
-	 * The parameters of this signature.
+	 * The pawametews of this signatuwe.
 	 */
-	parameters: ParameterInformation[];
+	pawametews: PawametewInfowmation[];
 	/**
-	 * Index of the active parameter.
+	 * Index of the active pawameta.
 	 *
-	 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+	 * If pwovided, this is used in pwace of `SignatuweHewp.activeSignatuwe`.
 	 */
-	activeParameter?: number;
+	activePawameta?: numba;
 }
 /**
- * Signature help represents the signature of something
- * callable. There can be multiple signatures but only one
- * active and only one active parameter.
+ * Signatuwe hewp wepwesents the signatuwe of something
+ * cawwabwe. Thewe can be muwtipwe signatuwes but onwy one
+ * active and onwy one active pawameta.
  */
-export interface SignatureHelp {
+expowt intewface SignatuweHewp {
 	/**
-	 * One or more signatures.
+	 * One ow mowe signatuwes.
 	 */
-	signatures: SignatureInformation[];
+	signatuwes: SignatuweInfowmation[];
 	/**
-	 * The active signature.
+	 * The active signatuwe.
 	 */
-	activeSignature: number;
+	activeSignatuwe: numba;
 	/**
-	 * The active parameter of the active signature.
+	 * The active pawameta of the active signatuwe.
 	 */
-	activeParameter: number;
+	activePawameta: numba;
 }
 
-export interface SignatureHelpResult extends IDisposable {
-	value: SignatureHelp;
+expowt intewface SignatuweHewpWesuwt extends IDisposabwe {
+	vawue: SignatuweHewp;
 }
 
-export enum SignatureHelpTriggerKind {
+expowt enum SignatuweHewpTwiggewKind {
 	Invoke = 1,
-	TriggerCharacter = 2,
+	TwiggewChawacta = 2,
 	ContentChange = 3,
 }
 
-export interface SignatureHelpContext {
-	readonly triggerKind: SignatureHelpTriggerKind;
-	readonly triggerCharacter?: string;
-	readonly isRetrigger: boolean;
-	readonly activeSignatureHelp?: SignatureHelp;
+expowt intewface SignatuweHewpContext {
+	weadonwy twiggewKind: SignatuweHewpTwiggewKind;
+	weadonwy twiggewChawacta?: stwing;
+	weadonwy isWetwigga: boowean;
+	weadonwy activeSignatuweHewp?: SignatuweHewp;
 }
 
 /**
- * The signature help provider interface defines the contract between extensions and
- * the [parameter hints](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * The signatuwe hewp pwovida intewface defines the contwact between extensions and
+ * the [pawameta hints](https://code.visuawstudio.com/docs/editow/intewwisense)-featuwe.
  */
-export interface SignatureHelpProvider {
+expowt intewface SignatuweHewpPwovida {
 
-	readonly signatureHelpTriggerCharacters?: ReadonlyArray<string>;
-	readonly signatureHelpRetriggerCharacters?: ReadonlyArray<string>;
+	weadonwy signatuweHewpTwiggewChawactews?: WeadonwyAwway<stwing>;
+	weadonwy signatuweHewpWetwiggewChawactews?: WeadonwyAwway<stwing>;
 
 	/**
-	 * Provide help for the signature at the given position and document.
+	 * Pwovide hewp fow the signatuwe at the given position and document.
 	 */
-	provideSignatureHelp(model: model.ITextModel, position: Position, token: CancellationToken, context: SignatureHelpContext): ProviderResult<SignatureHelpResult>;
+	pwovideSignatuweHewp(modew: modew.ITextModew, position: Position, token: CancewwationToken, context: SignatuweHewpContext): PwovidewWesuwt<SignatuweHewpWesuwt>;
 }
 
 /**
- * A document highlight kind.
+ * A document highwight kind.
  */
-export enum DocumentHighlightKind {
+expowt enum DocumentHighwightKind {
 	/**
-	 * A textual occurrence.
+	 * A textuaw occuwwence.
 	 */
 	Text,
 	/**
-	 * Read-access of a symbol, like reading a variable.
+	 * Wead-access of a symbow, wike weading a vawiabwe.
 	 */
-	Read,
+	Wead,
 	/**
-	 * Write-access of a symbol, like writing to a variable.
+	 * Wwite-access of a symbow, wike wwiting to a vawiabwe.
 	 */
-	Write
+	Wwite
 }
 /**
- * A document highlight is a range inside a text document which deserves
- * special attention. Usually a document highlight is visualized by changing
- * the background color of its range.
+ * A document highwight is a wange inside a text document which desewves
+ * speciaw attention. Usuawwy a document highwight is visuawized by changing
+ * the backgwound cowow of its wange.
  */
-export interface DocumentHighlight {
+expowt intewface DocumentHighwight {
 	/**
-	 * The range this highlight applies to.
+	 * The wange this highwight appwies to.
 	 */
-	range: IRange;
+	wange: IWange;
 	/**
-	 * The highlight kind, default is {@link DocumentHighlightKind.Text text}.
+	 * The highwight kind, defauwt is {@wink DocumentHighwightKind.Text text}.
 	 */
-	kind?: DocumentHighlightKind;
+	kind?: DocumentHighwightKind;
 }
 /**
- * The document highlight provider interface defines the contract between extensions and
- * the word-highlight-feature.
+ * The document highwight pwovida intewface defines the contwact between extensions and
+ * the wowd-highwight-featuwe.
  */
-export interface DocumentHighlightProvider {
+expowt intewface DocumentHighwightPwovida {
 	/**
-	 * Provide a set of document highlights, like all occurrences of a variable or
-	 * all exit-points of a function.
+	 * Pwovide a set of document highwights, wike aww occuwwences of a vawiabwe ow
+	 * aww exit-points of a function.
 	 */
-	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
-}
-
-/**
- * The linked editing range provider interface defines the contract between extensions and
- * the linked editing feature.
- */
-export interface LinkedEditingRangeProvider {
-
-	/**
-	 * Provide a list of ranges that can be edited together.
-	 */
-	provideLinkedEditingRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<LinkedEditingRanges>;
+	pwovideDocumentHighwights(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<DocumentHighwight[]>;
 }
 
 /**
- * Represents a list of ranges that can be edited together along with a word pattern to describe valid contents.
+ * The winked editing wange pwovida intewface defines the contwact between extensions and
+ * the winked editing featuwe.
  */
-export interface LinkedEditingRanges {
-	/**
-	 * A list of ranges that can be edited together. The ranges must have
-	 * identical length and text content. The ranges cannot overlap
-	 */
-	ranges: IRange[];
+expowt intewface WinkedEditingWangePwovida {
 
 	/**
-	 * An optional word pattern that describes valid contents for the given ranges.
-	 * If no pattern is provided, the language configuration's word pattern will be used.
+	 * Pwovide a wist of wanges that can be edited togetha.
 	 */
-	wordPattern?: RegExp;
+	pwovideWinkedEditingWanges(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<WinkedEditingWanges>;
 }
 
 /**
- * Value-object that contains additional information when
- * requesting references.
+ * Wepwesents a wist of wanges that can be edited togetha awong with a wowd pattewn to descwibe vawid contents.
  */
-export interface ReferenceContext {
+expowt intewface WinkedEditingWanges {
 	/**
-	 * Include the declaration of the current symbol.
+	 * A wist of wanges that can be edited togetha. The wanges must have
+	 * identicaw wength and text content. The wanges cannot ovewwap
 	 */
-	includeDeclaration: boolean;
-}
-/**
- * The reference provider interface defines the contract between extensions and
- * the [find references](https://code.visualstudio.com/docs/editor/editingevolved#_peek)-feature.
- */
-export interface ReferenceProvider {
+	wanges: IWange[];
+
 	/**
-	 * Provide a set of project-wide references for the given position and document.
+	 * An optionaw wowd pattewn that descwibes vawid contents fow the given wanges.
+	 * If no pattewn is pwovided, the wanguage configuwation's wowd pattewn wiww be used.
 	 */
-	provideReferences(model: model.ITextModel, position: Position, context: ReferenceContext, token: CancellationToken): ProviderResult<Location[]>;
+	wowdPattewn?: WegExp;
 }
 
 /**
- * Represents a location inside a resource, such as a line
- * inside a text file.
+ * Vawue-object that contains additionaw infowmation when
+ * wequesting wefewences.
  */
-export interface Location {
+expowt intewface WefewenceContext {
 	/**
-	 * The resource identifier of this location.
+	 * Incwude the decwawation of the cuwwent symbow.
 	 */
-	uri: URI;
-	/**
-	 * The document range of this locations.
-	 */
-	range: IRange;
+	incwudeDecwawation: boowean;
 }
-
-export interface LocationLink {
+/**
+ * The wefewence pwovida intewface defines the contwact between extensions and
+ * the [find wefewences](https://code.visuawstudio.com/docs/editow/editingevowved#_peek)-featuwe.
+ */
+expowt intewface WefewencePwovida {
 	/**
-	 * A range to select where this link originates from.
+	 * Pwovide a set of pwoject-wide wefewences fow the given position and document.
 	 */
-	originSelectionRange?: IRange;
-
-	/**
-	 * The target uri this link points to.
-	 */
-	uri: URI;
-
-	/**
-	 * The full range this link points to.
-	 */
-	range: IRange;
-
-	/**
-	 * A range to select this link points to. Must be contained
-	 * in `LocationLink.range`.
-	 */
-	targetSelectionRange?: IRange;
+	pwovideWefewences(modew: modew.ITextModew, position: Position, context: WefewenceContext, token: CancewwationToken): PwovidewWesuwt<Wocation[]>;
 }
 
 /**
- * @internal
+ * Wepwesents a wocation inside a wesouwce, such as a wine
+ * inside a text fiwe.
  */
-export function isLocationLink(thing: any): thing is LocationLink {
-	return thing
-		&& URI.isUri((thing as LocationLink).uri)
-		&& Range.isIRange((thing as LocationLink).range)
-		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
-}
-
-export type Definition = Location | Location[] | LocationLink[];
-
-/**
- * The definition provider interface defines the contract between extensions and
- * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
- * and peek definition features.
- */
-export interface DefinitionProvider {
+expowt intewface Wocation {
 	/**
-	 * Provide the definition of the symbol at the given position and document.
+	 * The wesouwce identifia of this wocation.
 	 */
-	provideDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
-}
-
-/**
- * The definition provider interface defines the contract between extensions and
- * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
- * and peek definition features.
- */
-export interface DeclarationProvider {
+	uwi: UWI;
 	/**
-	 * Provide the declaration of the symbol at the given position and document.
+	 * The document wange of this wocations.
 	 */
-	provideDeclaration(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+	wange: IWange;
 }
 
-/**
- * The implementation provider interface defines the contract between extensions and
- * the go to implementation feature.
- */
-export interface ImplementationProvider {
+expowt intewface WocationWink {
 	/**
-	 * Provide the implementation of the symbol at the given position and document.
+	 * A wange to sewect whewe this wink owiginates fwom.
 	 */
-	provideImplementation(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
-}
+	owiginSewectionWange?: IWange;
 
-/**
- * The type definition provider interface defines the contract between extensions and
- * the go to type definition feature.
- */
-export interface TypeDefinitionProvider {
 	/**
-	 * Provide the type definition of the symbol at the given position and document.
+	 * The tawget uwi this wink points to.
 	 */
-	provideTypeDefinition(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<Definition | LocationLink[]>;
+	uwi: UWI;
+
+	/**
+	 * The fuww wange this wink points to.
+	 */
+	wange: IWange;
+
+	/**
+	 * A wange to sewect this wink points to. Must be contained
+	 * in `WocationWink.wange`.
+	 */
+	tawgetSewectionWange?: IWange;
 }
 
 /**
- * A symbol kind.
+ * @intewnaw
  */
-export const enum SymbolKind {
-	File = 0,
-	Module = 1,
+expowt function isWocationWink(thing: any): thing is WocationWink {
+	wetuwn thing
+		&& UWI.isUwi((thing as WocationWink).uwi)
+		&& Wange.isIWange((thing as WocationWink).wange)
+		&& (Wange.isIWange((thing as WocationWink).owiginSewectionWange) || Wange.isIWange((thing as WocationWink).tawgetSewectionWange));
+}
+
+expowt type Definition = Wocation | Wocation[] | WocationWink[];
+
+/**
+ * The definition pwovida intewface defines the contwact between extensions and
+ * the [go to definition](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-definition)
+ * and peek definition featuwes.
+ */
+expowt intewface DefinitionPwovida {
+	/**
+	 * Pwovide the definition of the symbow at the given position and document.
+	 */
+	pwovideDefinition(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
+}
+
+/**
+ * The definition pwovida intewface defines the contwact between extensions and
+ * the [go to definition](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-definition)
+ * and peek definition featuwes.
+ */
+expowt intewface DecwawationPwovida {
+	/**
+	 * Pwovide the decwawation of the symbow at the given position and document.
+	 */
+	pwovideDecwawation(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
+}
+
+/**
+ * The impwementation pwovida intewface defines the contwact between extensions and
+ * the go to impwementation featuwe.
+ */
+expowt intewface ImpwementationPwovida {
+	/**
+	 * Pwovide the impwementation of the symbow at the given position and document.
+	 */
+	pwovideImpwementation(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
+}
+
+/**
+ * The type definition pwovida intewface defines the contwact between extensions and
+ * the go to type definition featuwe.
+ */
+expowt intewface TypeDefinitionPwovida {
+	/**
+	 * Pwovide the type definition of the symbow at the given position and document.
+	 */
+	pwovideTypeDefinition(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<Definition | WocationWink[]>;
+}
+
+/**
+ * A symbow kind.
+ */
+expowt const enum SymbowKind {
+	Fiwe = 0,
+	Moduwe = 1,
 	Namespace = 2,
 	Package = 3,
-	Class = 4,
+	Cwass = 4,
 	Method = 5,
-	Property = 6,
-	Field = 7,
-	Constructor = 8,
+	Pwopewty = 6,
+	Fiewd = 7,
+	Constwuctow = 8,
 	Enum = 9,
-	Interface = 10,
+	Intewface = 10,
 	Function = 11,
-	Variable = 12,
+	Vawiabwe = 12,
 	Constant = 13,
-	String = 14,
-	Number = 15,
-	Boolean = 16,
-	Array = 17,
+	Stwing = 14,
+	Numba = 15,
+	Boowean = 16,
+	Awway = 17,
 	Object = 18,
 	Key = 19,
-	Null = 20,
-	EnumMember = 21,
-	Struct = 22,
+	Nuww = 20,
+	EnumMemba = 21,
+	Stwuct = 22,
 	Event = 23,
-	Operator = 24,
-	TypeParameter = 25
+	Opewatow = 24,
+	TypePawameta = 25
 }
 
-export const enum SymbolTag {
-	Deprecated = 1,
+expowt const enum SymbowTag {
+	Depwecated = 1,
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export namespace SymbolKinds {
+expowt namespace SymbowKinds {
 
-	const byName = new Map<string, SymbolKind>();
-	byName.set('file', SymbolKind.File);
-	byName.set('module', SymbolKind.Module);
-	byName.set('namespace', SymbolKind.Namespace);
-	byName.set('package', SymbolKind.Package);
-	byName.set('class', SymbolKind.Class);
-	byName.set('method', SymbolKind.Method);
-	byName.set('property', SymbolKind.Property);
-	byName.set('field', SymbolKind.Field);
-	byName.set('constructor', SymbolKind.Constructor);
-	byName.set('enum', SymbolKind.Enum);
-	byName.set('interface', SymbolKind.Interface);
-	byName.set('function', SymbolKind.Function);
-	byName.set('variable', SymbolKind.Variable);
-	byName.set('constant', SymbolKind.Constant);
-	byName.set('string', SymbolKind.String);
-	byName.set('number', SymbolKind.Number);
-	byName.set('boolean', SymbolKind.Boolean);
-	byName.set('array', SymbolKind.Array);
-	byName.set('object', SymbolKind.Object);
-	byName.set('key', SymbolKind.Key);
-	byName.set('null', SymbolKind.Null);
-	byName.set('enum-member', SymbolKind.EnumMember);
-	byName.set('struct', SymbolKind.Struct);
-	byName.set('event', SymbolKind.Event);
-	byName.set('operator', SymbolKind.Operator);
-	byName.set('type-parameter', SymbolKind.TypeParameter);
+	const byName = new Map<stwing, SymbowKind>();
+	byName.set('fiwe', SymbowKind.Fiwe);
+	byName.set('moduwe', SymbowKind.Moduwe);
+	byName.set('namespace', SymbowKind.Namespace);
+	byName.set('package', SymbowKind.Package);
+	byName.set('cwass', SymbowKind.Cwass);
+	byName.set('method', SymbowKind.Method);
+	byName.set('pwopewty', SymbowKind.Pwopewty);
+	byName.set('fiewd', SymbowKind.Fiewd);
+	byName.set('constwuctow', SymbowKind.Constwuctow);
+	byName.set('enum', SymbowKind.Enum);
+	byName.set('intewface', SymbowKind.Intewface);
+	byName.set('function', SymbowKind.Function);
+	byName.set('vawiabwe', SymbowKind.Vawiabwe);
+	byName.set('constant', SymbowKind.Constant);
+	byName.set('stwing', SymbowKind.Stwing);
+	byName.set('numba', SymbowKind.Numba);
+	byName.set('boowean', SymbowKind.Boowean);
+	byName.set('awway', SymbowKind.Awway);
+	byName.set('object', SymbowKind.Object);
+	byName.set('key', SymbowKind.Key);
+	byName.set('nuww', SymbowKind.Nuww);
+	byName.set('enum-memba', SymbowKind.EnumMemba);
+	byName.set('stwuct', SymbowKind.Stwuct);
+	byName.set('event', SymbowKind.Event);
+	byName.set('opewatow', SymbowKind.Opewatow);
+	byName.set('type-pawameta', SymbowKind.TypePawameta);
 
-	const byKind = new Map<SymbolKind, string>();
-	byKind.set(SymbolKind.File, 'file');
-	byKind.set(SymbolKind.Module, 'module');
-	byKind.set(SymbolKind.Namespace, 'namespace');
-	byKind.set(SymbolKind.Package, 'package');
-	byKind.set(SymbolKind.Class, 'class');
-	byKind.set(SymbolKind.Method, 'method');
-	byKind.set(SymbolKind.Property, 'property');
-	byKind.set(SymbolKind.Field, 'field');
-	byKind.set(SymbolKind.Constructor, 'constructor');
-	byKind.set(SymbolKind.Enum, 'enum');
-	byKind.set(SymbolKind.Interface, 'interface');
-	byKind.set(SymbolKind.Function, 'function');
-	byKind.set(SymbolKind.Variable, 'variable');
-	byKind.set(SymbolKind.Constant, 'constant');
-	byKind.set(SymbolKind.String, 'string');
-	byKind.set(SymbolKind.Number, 'number');
-	byKind.set(SymbolKind.Boolean, 'boolean');
-	byKind.set(SymbolKind.Array, 'array');
-	byKind.set(SymbolKind.Object, 'object');
-	byKind.set(SymbolKind.Key, 'key');
-	byKind.set(SymbolKind.Null, 'null');
-	byKind.set(SymbolKind.EnumMember, 'enum-member');
-	byKind.set(SymbolKind.Struct, 'struct');
-	byKind.set(SymbolKind.Event, 'event');
-	byKind.set(SymbolKind.Operator, 'operator');
-	byKind.set(SymbolKind.TypeParameter, 'type-parameter');
+	const byKind = new Map<SymbowKind, stwing>();
+	byKind.set(SymbowKind.Fiwe, 'fiwe');
+	byKind.set(SymbowKind.Moduwe, 'moduwe');
+	byKind.set(SymbowKind.Namespace, 'namespace');
+	byKind.set(SymbowKind.Package, 'package');
+	byKind.set(SymbowKind.Cwass, 'cwass');
+	byKind.set(SymbowKind.Method, 'method');
+	byKind.set(SymbowKind.Pwopewty, 'pwopewty');
+	byKind.set(SymbowKind.Fiewd, 'fiewd');
+	byKind.set(SymbowKind.Constwuctow, 'constwuctow');
+	byKind.set(SymbowKind.Enum, 'enum');
+	byKind.set(SymbowKind.Intewface, 'intewface');
+	byKind.set(SymbowKind.Function, 'function');
+	byKind.set(SymbowKind.Vawiabwe, 'vawiabwe');
+	byKind.set(SymbowKind.Constant, 'constant');
+	byKind.set(SymbowKind.Stwing, 'stwing');
+	byKind.set(SymbowKind.Numba, 'numba');
+	byKind.set(SymbowKind.Boowean, 'boowean');
+	byKind.set(SymbowKind.Awway, 'awway');
+	byKind.set(SymbowKind.Object, 'object');
+	byKind.set(SymbowKind.Key, 'key');
+	byKind.set(SymbowKind.Nuww, 'nuww');
+	byKind.set(SymbowKind.EnumMemba, 'enum-memba');
+	byKind.set(SymbowKind.Stwuct, 'stwuct');
+	byKind.set(SymbowKind.Event, 'event');
+	byKind.set(SymbowKind.Opewatow, 'opewatow');
+	byKind.set(SymbowKind.TypePawameta, 'type-pawameta');
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	export function fromString(value: string): SymbolKind | undefined {
-		return byName.get(value);
+	expowt function fwomStwing(vawue: stwing): SymbowKind | undefined {
+		wetuwn byName.get(vawue);
 	}
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	export function toString(kind: SymbolKind): string | undefined {
-		return byKind.get(kind);
+	expowt function toStwing(kind: SymbowKind): stwing | undefined {
+		wetuwn byKind.get(kind);
 	}
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		const symbolName = byKind.get(kind);
-		let codicon = symbolName && iconRegistry.get('symbol-' + symbolName);
+	expowt function toCssCwassName(kind: SymbowKind, inwine?: boowean): stwing {
+		const symbowName = byKind.get(kind);
+		wet codicon = symbowName && iconWegistwy.get('symbow-' + symbowName);
 		if (!codicon) {
-			console.info('No codicon found for SymbolKind ' + kind);
-			codicon = Codicon.symbolProperty;
+			consowe.info('No codicon found fow SymbowKind ' + kind);
+			codicon = Codicon.symbowPwopewty;
 		}
-		return `${inline ? 'inline' : 'block'} ${codicon.classNames}`;
+		wetuwn `${inwine ? 'inwine' : 'bwock'} ${codicon.cwassNames}`;
 	}
 }
 
-export interface DocumentSymbol {
-	name: string;
-	detail: string;
-	kind: SymbolKind;
-	tags: ReadonlyArray<SymbolTag>;
-	containerName?: string;
-	range: IRange;
-	selectionRange: IRange;
-	children?: DocumentSymbol[];
+expowt intewface DocumentSymbow {
+	name: stwing;
+	detaiw: stwing;
+	kind: SymbowKind;
+	tags: WeadonwyAwway<SymbowTag>;
+	containewName?: stwing;
+	wange: IWange;
+	sewectionWange: IWange;
+	chiwdwen?: DocumentSymbow[];
 }
 
 /**
- * The document symbol provider interface defines the contract between extensions and
- * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
+ * The document symbow pwovida intewface defines the contwact between extensions and
+ * the [go to symbow](https://code.visuawstudio.com/docs/editow/editingevowved#_go-to-symbow)-featuwe.
  */
-export interface DocumentSymbolProvider {
+expowt intewface DocumentSymbowPwovida {
 
-	displayName?: string;
+	dispwayName?: stwing;
 
 	/**
-	 * Provide symbol information for the given document.
+	 * Pwovide symbow infowmation fow the given document.
 	 */
-	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
+	pwovideDocumentSymbows(modew: modew.ITextModew, token: CancewwationToken): PwovidewWesuwt<DocumentSymbow[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
+expowt type TextEdit = { wange: IWange; text: stwing; eow?: modew.EndOfWineSequence; };
 
 /**
- * Interface used to format a model
+ * Intewface used to fowmat a modew
  */
-export interface FormattingOptions {
+expowt intewface FowmattingOptions {
 	/**
 	 * Size of a tab in spaces.
 	 */
-	tabSize: number;
+	tabSize: numba;
 	/**
-	 * Prefer spaces over tabs.
+	 * Pwefa spaces ova tabs.
 	 */
-	insertSpaces: boolean;
+	insewtSpaces: boowean;
 }
 /**
- * The document formatting provider interface defines the contract between extensions and
- * the formatting-feature.
+ * The document fowmatting pwovida intewface defines the contwact between extensions and
+ * the fowmatting-featuwe.
  */
-export interface DocumentFormattingEditProvider {
+expowt intewface DocumentFowmattingEditPwovida {
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	readonly extensionId?: ExtensionIdentifier;
+	weadonwy extensionId?: ExtensionIdentifia;
 
-	readonly displayName?: string;
+	weadonwy dispwayName?: stwing;
 
 	/**
-	 * Provide formatting edits for a whole document.
+	 * Pwovide fowmatting edits fow a whowe document.
 	 */
-	provideDocumentFormattingEdits(model: model.ITextModel, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	pwovideDocumentFowmattingEdits(modew: modew.ITextModew, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 }
 /**
- * The document formatting provider interface defines the contract between extensions and
- * the formatting-feature.
+ * The document fowmatting pwovida intewface defines the contwact between extensions and
+ * the fowmatting-featuwe.
  */
-export interface DocumentRangeFormattingEditProvider {
+expowt intewface DocumentWangeFowmattingEditPwovida {
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	readonly extensionId?: ExtensionIdentifier;
+	weadonwy extensionId?: ExtensionIdentifia;
 
-	readonly displayName?: string;
+	weadonwy dispwayName?: stwing;
 
 	/**
-	 * Provide formatting edits for a range in a document.
+	 * Pwovide fowmatting edits fow a wange in a document.
 	 *
-	 * The given range is a hint and providers can decide to format a smaller
-	 * or larger range. Often this is done by adjusting the start and end
-	 * of the range to full syntax nodes.
+	 * The given wange is a hint and pwovidews can decide to fowmat a smawwa
+	 * ow wawga wange. Often this is done by adjusting the stawt and end
+	 * of the wange to fuww syntax nodes.
 	 */
-	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	pwovideDocumentWangeFowmattingEdits(modew: modew.ITextModew, wange: Wange, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 }
 /**
- * The document formatting provider interface defines the contract between extensions and
- * the formatting-feature.
+ * The document fowmatting pwovida intewface defines the contwact between extensions and
+ * the fowmatting-featuwe.
  */
-export interface OnTypeFormattingEditProvider {
+expowt intewface OnTypeFowmattingEditPwovida {
 
 
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	readonly extensionId?: ExtensionIdentifier;
+	weadonwy extensionId?: ExtensionIdentifia;
 
-	autoFormatTriggerCharacters: string[];
+	autoFowmatTwiggewChawactews: stwing[];
 
 	/**
-	 * Provide formatting edits after a character has been typed.
+	 * Pwovide fowmatting edits afta a chawacta has been typed.
 	 *
-	 * The given position and character should hint to the provider
-	 * what range the position to expand to, like find the matching `{`
-	 * when `}` has been entered.
+	 * The given position and chawacta shouwd hint to the pwovida
+	 * what wange the position to expand to, wike find the matching `{`
+	 * when `}` has been entewed.
 	 */
-	provideOnTypeFormattingEdits(model: model.ITextModel, position: Position, ch: string, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+	pwovideOnTypeFowmattingEdits(modew: modew.ITextModew, position: Position, ch: stwing, options: FowmattingOptions, token: CancewwationToken): PwovidewWesuwt<TextEdit[]>;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface IInplaceReplaceSupportResult {
-	value: string;
-	range: IRange;
+expowt intewface IInpwaceWepwaceSuppowtWesuwt {
+	vawue: stwing;
+	wange: IWange;
 }
 
 /**
- * A link inside the editor.
+ * A wink inside the editow.
  */
-export interface ILink {
-	range: IRange;
-	url?: URI | string;
-	tooltip?: string;
+expowt intewface IWink {
+	wange: IWange;
+	uww?: UWI | stwing;
+	toowtip?: stwing;
 }
 
-export interface ILinksList {
-	links: ILink[];
+expowt intewface IWinksWist {
+	winks: IWink[];
 	dispose?(): void;
 }
 /**
- * A provider of links.
+ * A pwovida of winks.
  */
-export interface LinkProvider {
-	provideLinks(model: model.ITextModel, token: CancellationToken): ProviderResult<ILinksList>;
-	resolveLink?: (link: ILink, token: CancellationToken) => ProviderResult<ILink>;
+expowt intewface WinkPwovida {
+	pwovideWinks(modew: modew.ITextModew, token: CancewwationToken): PwovidewWesuwt<IWinksWist>;
+	wesowveWink?: (wink: IWink, token: CancewwationToken) => PwovidewWesuwt<IWink>;
 }
 
 /**
- * A color in RGBA format.
+ * A cowow in WGBA fowmat.
  */
-export interface IColor {
+expowt intewface ICowow {
 
 	/**
-	 * The red component in the range [0-1].
+	 * The wed component in the wange [0-1].
 	 */
-	readonly red: number;
+	weadonwy wed: numba;
 
 	/**
-	 * The green component in the range [0-1].
+	 * The gween component in the wange [0-1].
 	 */
-	readonly green: number;
+	weadonwy gween: numba;
 
 	/**
-	 * The blue component in the range [0-1].
+	 * The bwue component in the wange [0-1].
 	 */
-	readonly blue: number;
+	weadonwy bwue: numba;
 
 	/**
-	 * The alpha component in the range [0-1].
+	 * The awpha component in the wange [0-1].
 	 */
-	readonly alpha: number;
+	weadonwy awpha: numba;
 }
 
 /**
- * String representations for a color
+ * Stwing wepwesentations fow a cowow
  */
-export interface IColorPresentation {
+expowt intewface ICowowPwesentation {
 	/**
-	 * The label of this color presentation. It will be shown on the color
-	 * picker header. By default this is also the text that is inserted when selecting
-	 * this color presentation.
+	 * The wabew of this cowow pwesentation. It wiww be shown on the cowow
+	 * picka heada. By defauwt this is awso the text that is insewted when sewecting
+	 * this cowow pwesentation.
 	 */
-	label: string;
+	wabew: stwing;
 	/**
-	 * An {@link TextEdit edit} which is applied to a document when selecting
-	 * this presentation for the color.
+	 * An {@wink TextEdit edit} which is appwied to a document when sewecting
+	 * this pwesentation fow the cowow.
 	 */
 	textEdit?: TextEdit;
 	/**
-	 * An optional array of additional {@link TextEdit text edits} that are applied when
-	 * selecting this color presentation.
+	 * An optionaw awway of additionaw {@wink TextEdit text edits} that awe appwied when
+	 * sewecting this cowow pwesentation.
 	 */
-	additionalTextEdits?: TextEdit[];
+	additionawTextEdits?: TextEdit[];
 }
 
 /**
- * A color range is a range in a text model which represents a color.
+ * A cowow wange is a wange in a text modew which wepwesents a cowow.
  */
-export interface IColorInformation {
+expowt intewface ICowowInfowmation {
 
 	/**
-	 * The range within the model.
+	 * The wange within the modew.
 	 */
-	range: IRange;
+	wange: IWange;
 
 	/**
-	 * The color represented in this range.
+	 * The cowow wepwesented in this wange.
 	 */
-	color: IColor;
+	cowow: ICowow;
 }
 
 /**
- * A provider of colors for editor models.
+ * A pwovida of cowows fow editow modews.
  */
-export interface DocumentColorProvider {
+expowt intewface DocumentCowowPwovida {
 	/**
-	 * Provides the color ranges for a specific model.
+	 * Pwovides the cowow wanges fow a specific modew.
 	 */
-	provideDocumentColors(model: model.ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]>;
+	pwovideDocumentCowows(modew: modew.ITextModew, token: CancewwationToken): PwovidewWesuwt<ICowowInfowmation[]>;
 	/**
-	 * Provide the string representations for a color.
+	 * Pwovide the stwing wepwesentations fow a cowow.
 	 */
-	provideColorPresentations(model: model.ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]>;
+	pwovideCowowPwesentations(modew: modew.ITextModew, cowowInfo: ICowowInfowmation, token: CancewwationToken): PwovidewWesuwt<ICowowPwesentation[]>;
 }
 
-export interface SelectionRange {
-	range: IRange;
+expowt intewface SewectionWange {
+	wange: IWange;
 }
 
-export interface SelectionRangeProvider {
+expowt intewface SewectionWangePwovida {
 	/**
-	 * Provide ranges that should be selected from the given position.
+	 * Pwovide wanges that shouwd be sewected fwom the given position.
 	 */
-	provideSelectionRanges(model: model.ITextModel, positions: Position[], token: CancellationToken): ProviderResult<SelectionRange[][]>;
+	pwovideSewectionWanges(modew: modew.ITextModew, positions: Position[], token: CancewwationToken): PwovidewWesuwt<SewectionWange[][]>;
 }
 
-export interface FoldingContext {
+expowt intewface FowdingContext {
 }
 /**
- * A provider of folding ranges for editor models.
+ * A pwovida of fowding wanges fow editow modews.
  */
-export interface FoldingRangeProvider {
+expowt intewface FowdingWangePwovida {
 
 	/**
-	 * An optional event to signal that the folding ranges from this provider have changed.
+	 * An optionaw event to signaw that the fowding wanges fwom this pwovida have changed.
 	 */
 	onDidChange?: Event<this>;
 
 	/**
-	 * Provides the folding ranges for a specific model.
+	 * Pwovides the fowding wanges fow a specific modew.
 	 */
-	provideFoldingRanges(model: model.ITextModel, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRange[]>;
+	pwovideFowdingWanges(modew: modew.ITextModew, context: FowdingContext, token: CancewwationToken): PwovidewWesuwt<FowdingWange[]>;
 }
 
-export interface FoldingRange {
+expowt intewface FowdingWange {
 
 	/**
-	 * The one-based start line of the range to fold. The folded area starts after the line's last character.
+	 * The one-based stawt wine of the wange to fowd. The fowded awea stawts afta the wine's wast chawacta.
 	 */
-	start: number;
+	stawt: numba;
 
 	/**
-	 * The one-based end line of the range to fold. The folded area ends with the line's last character.
+	 * The one-based end wine of the wange to fowd. The fowded awea ends with the wine's wast chawacta.
 	 */
-	end: number;
+	end: numba;
 
 	/**
-	 * Describes the {@link FoldingRangeKind Kind} of the folding range such as {@link FoldingRangeKind.Comment Comment} or
-	 * {@link FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges and used by commands
-	 * like 'Fold all comments'. See
-	 * {@link FoldingRangeKind} for an enumeration of standardized kinds.
+	 * Descwibes the {@wink FowdingWangeKind Kind} of the fowding wange such as {@wink FowdingWangeKind.Comment Comment} ow
+	 * {@wink FowdingWangeKind.Wegion Wegion}. The kind is used to categowize fowding wanges and used by commands
+	 * wike 'Fowd aww comments'. See
+	 * {@wink FowdingWangeKind} fow an enumewation of standawdized kinds.
 	 */
-	kind?: FoldingRangeKind;
+	kind?: FowdingWangeKind;
 }
-export class FoldingRangeKind {
+expowt cwass FowdingWangeKind {
 	/**
-	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+	 * Kind fow fowding wange wepwesenting a comment. The vawue of the kind is 'comment'.
 	 */
-	static readonly Comment = new FoldingRangeKind('comment');
+	static weadonwy Comment = new FowdingWangeKind('comment');
 	/**
-	 * Kind for folding range representing a import. The value of the kind is 'imports'.
+	 * Kind fow fowding wange wepwesenting a impowt. The vawue of the kind is 'impowts'.
 	 */
-	static readonly Imports = new FoldingRangeKind('imports');
+	static weadonwy Impowts = new FowdingWangeKind('impowts');
 	/**
-	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
-	 * The value of the kind is 'region'.
+	 * Kind fow fowding wange wepwesenting wegions (fow exampwe mawked by `#wegion`, `#endwegion`).
+	 * The vawue of the kind is 'wegion'.
 	 */
-	static readonly Region = new FoldingRangeKind('region');
+	static weadonwy Wegion = new FowdingWangeKind('wegion');
 
 	/**
-	 * Creates a new {@link FoldingRangeKind}.
+	 * Cweates a new {@wink FowdingWangeKind}.
 	 *
-	 * @param value of the kind.
+	 * @pawam vawue of the kind.
 	 */
-	public constructor(public value: string) {
+	pubwic constwuctow(pubwic vawue: stwing) {
 	}
 }
 
 
-export interface WorkspaceEditMetadata {
-	needsConfirmation: boolean;
-	label: string;
-	description?: string;
+expowt intewface WowkspaceEditMetadata {
+	needsConfiwmation: boowean;
+	wabew: stwing;
+	descwiption?: stwing;
 	/**
-	 * @internal
+	 * @intewnaw
 	 */
-	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
+	iconPath?: ThemeIcon | UWI | { wight: UWI, dawk: UWI };
 }
 
-export interface WorkspaceFileEditOptions {
-	overwrite?: boolean;
-	ignoreIfNotExists?: boolean;
-	ignoreIfExists?: boolean;
-	recursive?: boolean;
-	copy?: boolean;
-	folder?: boolean;
-	skipTrashBin?: boolean;
-	maxSize?: number;
+expowt intewface WowkspaceFiweEditOptions {
+	ovewwwite?: boowean;
+	ignoweIfNotExists?: boowean;
+	ignoweIfExists?: boowean;
+	wecuwsive?: boowean;
+	copy?: boowean;
+	fowda?: boowean;
+	skipTwashBin?: boowean;
+	maxSize?: numba;
 }
 
-export interface WorkspaceFileEdit {
-	oldUri?: URI;
-	newUri?: URI;
-	options?: WorkspaceFileEditOptions;
-	metadata?: WorkspaceEditMetadata;
+expowt intewface WowkspaceFiweEdit {
+	owdUwi?: UWI;
+	newUwi?: UWI;
+	options?: WowkspaceFiweEditOptions;
+	metadata?: WowkspaceEditMetadata;
 }
 
-export interface WorkspaceTextEdit {
-	resource: URI;
+expowt intewface WowkspaceTextEdit {
+	wesouwce: UWI;
 	edit: TextEdit;
-	modelVersionId?: number;
-	metadata?: WorkspaceEditMetadata;
+	modewVewsionId?: numba;
+	metadata?: WowkspaceEditMetadata;
 }
 
-export interface WorkspaceEdit {
-	edits: Array<WorkspaceTextEdit | WorkspaceFileEdit>;
+expowt intewface WowkspaceEdit {
+	edits: Awway<WowkspaceTextEdit | WowkspaceFiweEdit>;
 }
 
-export interface Rejection {
-	rejectReason?: string;
+expowt intewface Wejection {
+	wejectWeason?: stwing;
 }
-export interface RenameLocation {
-	range: IRange;
-	text: string;
+expowt intewface WenameWocation {
+	wange: IWange;
+	text: stwing;
 }
 
-export interface RenameProvider {
-	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
-	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
+expowt intewface WenamePwovida {
+	pwovideWenameEdits(modew: modew.ITextModew, position: Position, newName: stwing, token: CancewwationToken): PwovidewWesuwt<WowkspaceEdit & Wejection>;
+	wesowveWenameWocation?(modew: modew.ITextModew, position: Position, token: CancewwationToken): PwovidewWesuwt<WenameWocation & Wejection>;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface AuthenticationSession {
-	id: string;
-	accessToken: string;
+expowt intewface AuthenticationSession {
+	id: stwing;
+	accessToken: stwing;
 	account: {
-		label: string;
-		id: string;
+		wabew: stwing;
+		id: stwing;
 	}
-	scopes: ReadonlyArray<string>;
-	idToken?: string;
+	scopes: WeadonwyAwway<stwing>;
+	idToken?: stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
+expowt intewface AuthenticationSessionsChangeEvent {
+	added: WeadonwyAwway<AuthenticationSession>;
+	wemoved: WeadonwyAwway<AuthenticationSession>;
+	changed: WeadonwyAwway<AuthenticationSession>;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface AuthenticationProviderInformation {
-	id: string;
-	label: string;
+expowt intewface AuthenticationPwovidewInfowmation {
+	id: stwing;
+	wabew: stwing;
 }
 
-export interface Command {
-	id: string;
-	title: string;
-	tooltip?: string;
-	arguments?: any[];
+expowt intewface Command {
+	id: stwing;
+	titwe: stwing;
+	toowtip?: stwing;
+	awguments?: any[];
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentThreadTemplate {
-	controllerHandle: number;
-	label: string;
+expowt intewface CommentThweadTempwate {
+	contwowwewHandwe: numba;
+	wabew: stwing;
 	acceptInputCommand?: Command;
-	additionalCommands?: Command[];
-	deleteCommand?: Command;
+	additionawCommands?: Command[];
+	deweteCommand?: Command;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentInfo {
-	extensionId?: string;
-	threads: CommentThread[];
-	commentingRanges: CommentingRanges;
+expowt intewface CommentInfo {
+	extensionId?: stwing;
+	thweads: CommentThwead[];
+	commentingWanges: CommentingWanges;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export enum CommentThreadCollapsibleState {
+expowt enum CommentThweadCowwapsibweState {
 	/**
-	 * Determines an item is collapsed
+	 * Detewmines an item is cowwapsed
 	 */
-	Collapsed = 0,
+	Cowwapsed = 0,
 	/**
-	 * Determines an item is expanded
+	 * Detewmines an item is expanded
 	 */
 	Expanded = 1
 }
@@ -1615,402 +1615,402 @@ export enum CommentThreadCollapsibleState {
 
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentWidget {
-	commentThread: CommentThread;
+expowt intewface CommentWidget {
+	commentThwead: CommentThwead;
 	comment?: Comment;
-	input: string;
-	onDidChangeInput: Event<string>;
+	input: stwing;
+	onDidChangeInput: Event<stwing>;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentInput {
-	value: string;
-	uri: URI;
+expowt intewface CommentInput {
+	vawue: stwing;
+	uwi: UWI;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentThread {
-	commentThreadHandle: number;
-	controllerHandle: number;
-	extensionId?: string;
-	threadId: string;
-	resource: string | null;
-	range: IRange;
-	label: string | undefined;
-	contextValue: string | undefined;
+expowt intewface CommentThwead {
+	commentThweadHandwe: numba;
+	contwowwewHandwe: numba;
+	extensionId?: stwing;
+	thweadId: stwing;
+	wesouwce: stwing | nuww;
+	wange: IWange;
+	wabew: stwing | undefined;
+	contextVawue: stwing | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
-	collapsibleState?: CommentThreadCollapsibleState;
-	canReply: boolean;
+	cowwapsibweState?: CommentThweadCowwapsibweState;
+	canWepwy: boowean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<IRange>;
-	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
-	onDidChangeCanReply: Event<boolean>;
-	isDisposed: boolean;
+	onDidChangeWange: Event<IWange>;
+	onDidChangeWabew: Event<stwing | undefined>;
+	onDidChangeCowwasibweState: Event<CommentThweadCowwapsibweState | undefined>;
+	onDidChangeCanWepwy: Event<boowean>;
+	isDisposed: boowean;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
 
-export interface CommentingRanges {
-	readonly resource: URI;
-	ranges: IRange[];
+expowt intewface CommentingWanges {
+	weadonwy wesouwce: UWI;
+	wanges: IWange[];
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentReaction {
-	readonly label?: string;
-	readonly iconPath?: UriComponents;
-	readonly count?: number;
-	readonly hasReacted?: boolean;
-	readonly canEdit?: boolean;
+expowt intewface CommentWeaction {
+	weadonwy wabew?: stwing;
+	weadonwy iconPath?: UwiComponents;
+	weadonwy count?: numba;
+	weadonwy hasWeacted?: boowean;
+	weadonwy canEdit?: boowean;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentOptions {
+expowt intewface CommentOptions {
 	/**
-	 * An optional string to show on the comment input box when it's collapsed.
+	 * An optionaw stwing to show on the comment input box when it's cowwapsed.
 	 */
-	prompt?: string;
+	pwompt?: stwing;
 
 	/**
-	 * An optional string to show as placeholder in the comment input box when it's focused.
+	 * An optionaw stwing to show as pwacehowda in the comment input box when it's focused.
 	 */
-	placeHolder?: string;
+	pwaceHowda?: stwing;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export enum CommentMode {
+expowt enum CommentMode {
 	Editing = 0,
-	Preview = 1
+	Pweview = 1
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface Comment {
-	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
-	readonly userName: string;
-	readonly userIconPath?: string;
-	readonly contextValue?: string;
-	readonly commentReactions?: CommentReaction[];
-	readonly label?: string;
-	readonly mode?: CommentMode;
+expowt intewface Comment {
+	weadonwy uniqueIdInThwead: numba;
+	weadonwy body: IMawkdownStwing;
+	weadonwy usewName: stwing;
+	weadonwy usewIconPath?: stwing;
+	weadonwy contextVawue?: stwing;
+	weadonwy commentWeactions?: CommentWeaction[];
+	weadonwy wabew?: stwing;
+	weadonwy mode?: CommentMode;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface CommentThreadChangedEvent {
+expowt intewface CommentThweadChangedEvent {
 	/**
-	 * Added comment threads.
+	 * Added comment thweads.
 	 */
-	readonly added: CommentThread[];
+	weadonwy added: CommentThwead[];
 
 	/**
-	 * Removed comment threads.
+	 * Wemoved comment thweads.
 	 */
-	readonly removed: CommentThread[];
+	weadonwy wemoved: CommentThwead[];
 
 	/**
-	 * Changed comment threads.
+	 * Changed comment thweads.
 	 */
-	readonly changed: CommentThread[];
+	weadonwy changed: CommentThwead[];
 }
 
-export interface CodeLens {
-	range: IRange;
-	id?: string;
+expowt intewface CodeWens {
+	wange: IWange;
+	id?: stwing;
 	command?: Command;
 }
 
-export interface CodeLensList {
-	lenses: CodeLens[];
+expowt intewface CodeWensWist {
+	wenses: CodeWens[];
 	dispose(): void;
 }
 
-export interface CodeLensProvider {
+expowt intewface CodeWensPwovida {
 	onDidChange?: Event<this>;
-	provideCodeLenses(model: model.ITextModel, token: CancellationToken): ProviderResult<CodeLensList>;
-	resolveCodeLens?(model: model.ITextModel, codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+	pwovideCodeWenses(modew: modew.ITextModew, token: CancewwationToken): PwovidewWesuwt<CodeWensWist>;
+	wesowveCodeWens?(modew: modew.ITextModew, codeWens: CodeWens, token: CancewwationToken): PwovidewWesuwt<CodeWens>;
 }
 
 
-export enum InlayHintKind {
-	Other = 0,
+expowt enum InwayHintKind {
+	Otha = 0,
 	Type = 1,
-	Parameter = 2,
+	Pawameta = 2,
 }
 
-export interface InlayHint {
-	text: string;
+expowt intewface InwayHint {
+	text: stwing;
 	position: IPosition;
-	kind: InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	kind: InwayHintKind;
+	whitespaceBefowe?: boowean;
+	whitespaceAfta?: boowean;
 }
 
-export interface InlayHintsProvider {
-	onDidChangeInlayHints?: Event<void> | undefined;
-	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
+expowt intewface InwayHintsPwovida {
+	onDidChangeInwayHints?: Event<void> | undefined;
+	pwovideInwayHints(modew: modew.ITextModew, wange: Wange, token: CancewwationToken): PwovidewWesuwt<InwayHint[]>;
 }
 
-export interface SemanticTokensLegend {
-	readonly tokenTypes: string[];
-	readonly tokenModifiers: string[];
+expowt intewface SemanticTokensWegend {
+	weadonwy tokenTypes: stwing[];
+	weadonwy tokenModifiews: stwing[];
 }
 
-export interface SemanticTokens {
-	readonly resultId?: string;
-	readonly data: Uint32Array;
+expowt intewface SemanticTokens {
+	weadonwy wesuwtId?: stwing;
+	weadonwy data: Uint32Awway;
 }
 
-export interface SemanticTokensEdit {
-	readonly start: number;
-	readonly deleteCount: number;
-	readonly data?: Uint32Array;
+expowt intewface SemanticTokensEdit {
+	weadonwy stawt: numba;
+	weadonwy deweteCount: numba;
+	weadonwy data?: Uint32Awway;
 }
 
-export interface SemanticTokensEdits {
-	readonly resultId?: string;
-	readonly edits: SemanticTokensEdit[];
+expowt intewface SemanticTokensEdits {
+	weadonwy wesuwtId?: stwing;
+	weadonwy edits: SemanticTokensEdit[];
 }
 
-export interface DocumentSemanticTokensProvider {
+expowt intewface DocumentSemanticTokensPwovida {
 	onDidChange?: Event<void>;
-	getLegend(): SemanticTokensLegend;
-	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-	releaseDocumentSemanticTokens(resultId: string | undefined): void;
+	getWegend(): SemanticTokensWegend;
+	pwovideDocumentSemanticTokens(modew: modew.ITextModew, wastWesuwtId: stwing | nuww, token: CancewwationToken): PwovidewWesuwt<SemanticTokens | SemanticTokensEdits>;
+	weweaseDocumentSemanticTokens(wesuwtId: stwing | undefined): void;
 }
 
-export interface DocumentRangeSemanticTokensProvider {
-	getLegend(): SemanticTokensLegend;
-	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+expowt intewface DocumentWangeSemanticTokensPwovida {
+	getWegend(): SemanticTokensWegend;
+	pwovideDocumentWangeSemanticTokens(modew: modew.ITextModew, wange: Wange, token: CancewwationToken): PwovidewWesuwt<SemanticTokens>;
 }
 
-// --- feature registries ------
+// --- featuwe wegistwies ------
 
 /**
- * @internal
+ * @intewnaw
  */
-export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
+expowt const WefewencePwovidewWegistwy = new WanguageFeatuweWegistwy<WefewencePwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
+expowt const WenamePwovidewWegistwy = new WanguageFeatuweWegistwy<WenamePwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
+expowt const CompwetionPwovidewWegistwy = new WanguageFeatuweWegistwy<CompwetionItemPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
+expowt const InwineCompwetionsPwovidewWegistwy = new WanguageFeatuweWegistwy<InwineCompwetionsPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
+expowt const SignatuweHewpPwovidewWegistwy = new WanguageFeatuweWegistwy<SignatuweHewpPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
+expowt const HovewPwovidewWegistwy = new WanguageFeatuweWegistwy<HovewPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
+expowt const EvawuatabweExpwessionPwovidewWegistwy = new WanguageFeatuweWegistwy<EvawuatabweExpwessionPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
+expowt const InwineVawuesPwovidewWegistwy = new WanguageFeatuweWegistwy<InwineVawuesPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
+expowt const DocumentSymbowPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentSymbowPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
+expowt const DocumentHighwightPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentHighwightPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
+expowt const WinkedEditingWangePwovidewWegistwy = new WanguageFeatuweWegistwy<WinkedEditingWangePwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
+expowt const DefinitionPwovidewWegistwy = new WanguageFeatuweWegistwy<DefinitionPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
+expowt const DecwawationPwovidewWegistwy = new WanguageFeatuweWegistwy<DecwawationPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
+expowt const ImpwementationPwovidewWegistwy = new WanguageFeatuweWegistwy<ImpwementationPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
+expowt const TypeDefinitionPwovidewWegistwy = new WanguageFeatuweWegistwy<TypeDefinitionPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
+expowt const CodeWensPwovidewWegistwy = new WanguageFeatuweWegistwy<CodeWensPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
+expowt const InwayHintsPwovidewWegistwy = new WanguageFeatuweWegistwy<InwayHintsPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
+expowt const CodeActionPwovidewWegistwy = new WanguageFeatuweWegistwy<CodeActionPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
+expowt const DocumentFowmattingEditPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentFowmattingEditPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
+expowt const DocumentWangeFowmattingEditPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentWangeFowmattingEditPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
+expowt const OnTypeFowmattingEditPwovidewWegistwy = new WanguageFeatuweWegistwy<OnTypeFowmattingEditPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
+expowt const WinkPwovidewWegistwy = new WanguageFeatuweWegistwy<WinkPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
+expowt const CowowPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentCowowPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
+expowt const SewectionWangeWegistwy = new WanguageFeatuweWegistwy<SewectionWangePwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
+expowt const FowdingWangePwovidewWegistwy = new WanguageFeatuweWegistwy<FowdingWangePwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
+expowt const DocumentSemanticTokensPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentSemanticTokensPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
+expowt const DocumentWangeSemanticTokensPwovidewWegistwy = new WanguageFeatuweWegistwy<DocumentWangeSemanticTokensPwovida>();
 
 /**
- * @internal
+ * @intewnaw
  */
-export interface ITokenizationSupportChangedEvent {
-	changedLanguages: string[];
-	changedColorMap: boolean;
-}
-
-/**
- * @internal
- */
-export interface ITokenizationRegistry {
-
-	/**
-	 * An event triggered when:
-	 *  - a tokenization support is registered, unregistered or changed.
-	 *  - the color map is changed.
-	 */
-	onDidChange: Event<ITokenizationSupportChangedEvent>;
-
-	/**
-	 * Fire a change event for a language.
-	 * This is useful for languages that embed other languages.
-	 */
-	fire(languages: string[]): void;
-
-	/**
-	 * Register a tokenization support.
-	 */
-	register(language: string, support: ITokenizationSupport): IDisposable;
-
-	/**
-	 * Register a promise for a tokenization support.
-	 */
-	registerPromise(language: string, promise: Thenable<ITokenizationSupport>): IDisposable;
-
-	/**
-	 * Get the tokenization support for a language.
-	 * Returns `null` if not found.
-	 */
-	get(language: string): ITokenizationSupport | null;
-
-	/**
-	 * Get the promise of a tokenization support for a language.
-	 * `null` is returned if no support is available and no promise for the support has been registered yet.
-	 */
-	getPromise(language: string): Thenable<ITokenizationSupport> | null;
-
-	/**
-	 * Set the new color map that all tokens will use in their ColorId binary encoded bits for foreground and background.
-	 */
-	setColorMap(colorMap: Color[]): void;
-
-	getColorMap(): Color[] | null;
-
-	getDefaultBackground(): Color | null;
+expowt intewface ITokenizationSuppowtChangedEvent {
+	changedWanguages: stwing[];
+	changedCowowMap: boowean;
 }
 
 /**
- * @internal
+ * @intewnaw
  */
-export const TokenizationRegistry = new TokenizationRegistryImpl();
+expowt intewface ITokenizationWegistwy {
+
+	/**
+	 * An event twiggewed when:
+	 *  - a tokenization suppowt is wegistewed, unwegistewed ow changed.
+	 *  - the cowow map is changed.
+	 */
+	onDidChange: Event<ITokenizationSuppowtChangedEvent>;
+
+	/**
+	 * Fiwe a change event fow a wanguage.
+	 * This is usefuw fow wanguages that embed otha wanguages.
+	 */
+	fiwe(wanguages: stwing[]): void;
+
+	/**
+	 * Wegista a tokenization suppowt.
+	 */
+	wegista(wanguage: stwing, suppowt: ITokenizationSuppowt): IDisposabwe;
+
+	/**
+	 * Wegista a pwomise fow a tokenization suppowt.
+	 */
+	wegistewPwomise(wanguage: stwing, pwomise: Thenabwe<ITokenizationSuppowt>): IDisposabwe;
+
+	/**
+	 * Get the tokenization suppowt fow a wanguage.
+	 * Wetuwns `nuww` if not found.
+	 */
+	get(wanguage: stwing): ITokenizationSuppowt | nuww;
+
+	/**
+	 * Get the pwomise of a tokenization suppowt fow a wanguage.
+	 * `nuww` is wetuwned if no suppowt is avaiwabwe and no pwomise fow the suppowt has been wegistewed yet.
+	 */
+	getPwomise(wanguage: stwing): Thenabwe<ITokenizationSuppowt> | nuww;
+
+	/**
+	 * Set the new cowow map that aww tokens wiww use in theiw CowowId binawy encoded bits fow fowegwound and backgwound.
+	 */
+	setCowowMap(cowowMap: Cowow[]): void;
+
+	getCowowMap(): Cowow[] | nuww;
+
+	getDefauwtBackgwound(): Cowow | nuww;
+}
+
+/**
+ * @intewnaw
+ */
+expowt const TokenizationWegistwy = new TokenizationWegistwyImpw();
 
 
 /**
- * @internal
+ * @intewnaw
  */
-export enum ExternalUriOpenerPriority {
+expowt enum ExtewnawUwiOpenewPwiowity {
 	None = 0,
 	Option = 1,
-	Default = 2,
-	Preferred = 3,
+	Defauwt = 2,
+	Pwefewwed = 3,
 }

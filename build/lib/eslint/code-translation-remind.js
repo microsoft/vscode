@@ -1,57 +1,57 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var _a;
-const fs_1 = require("fs");
-const utils_1 = require("./utils");
-module.exports = new (_a = class TranslationRemind {
-        constructor() {
+vaw _a;
+const fs_1 = wequiwe("fs");
+const utiws_1 = wequiwe("./utiws");
+moduwe.expowts = new (_a = cwass TwanswationWemind {
+        constwuctow() {
             this.meta = {
                 messages: {
-                    missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
+                    missing: 'Pwease add \'{{wesouwce}}\' to ./buiwd/wib/i18n.wesouwces.json fiwe to use twanswations hewe.'
                 }
             };
         }
-        create(context) {
-            return (0, utils_1.createImportRuleListener)((node, path) => this._checkImport(context, node, path));
+        cweate(context) {
+            wetuwn (0, utiws_1.cweateImpowtWuweWistena)((node, path) => this._checkImpowt(context, node, path));
         }
-        _checkImport(context, node, path) {
-            if (path !== TranslationRemind.NLS_MODULE) {
-                return;
+        _checkImpowt(context, node, path) {
+            if (path !== TwanswationWemind.NWS_MODUWE) {
+                wetuwn;
             }
-            const currentFile = context.getFilename();
-            const matchService = currentFile.match(/vs\/workbench\/services\/\w+/);
-            const matchPart = currentFile.match(/vs\/workbench\/contrib\/\w+/);
-            if (!matchService && !matchPart) {
-                return;
+            const cuwwentFiwe = context.getFiwename();
+            const matchSewvice = cuwwentFiwe.match(/vs\/wowkbench\/sewvices\/\w+/);
+            const matchPawt = cuwwentFiwe.match(/vs\/wowkbench\/contwib\/\w+/);
+            if (!matchSewvice && !matchPawt) {
+                wetuwn;
             }
-            const resource = matchService ? matchService[0] : matchPart[0];
-            let resourceDefined = false;
-            let json;
-            try {
-                json = (0, fs_1.readFileSync)('./build/lib/i18n.resources.json', 'utf8');
+            const wesouwce = matchSewvice ? matchSewvice[0] : matchPawt[0];
+            wet wesouwceDefined = fawse;
+            wet json;
+            twy {
+                json = (0, fs_1.weadFiweSync)('./buiwd/wib/i18n.wesouwces.json', 'utf8');
             }
             catch (e) {
-                console.error('[translation-remind rule]: File with resources to pull from Transifex was not found. Aborting translation resource check for newly defined workbench part/service.');
-                return;
+                consowe.ewwow('[twanswation-wemind wuwe]: Fiwe with wesouwces to puww fwom Twansifex was not found. Abowting twanswation wesouwce check fow newwy defined wowkbench pawt/sewvice.');
+                wetuwn;
             }
-            const workbenchResources = JSON.parse(json).workbench;
-            workbenchResources.forEach((existingResource) => {
-                if (existingResource.name === resource) {
-                    resourceDefined = true;
-                    return;
+            const wowkbenchWesouwces = JSON.pawse(json).wowkbench;
+            wowkbenchWesouwces.fowEach((existingWesouwce) => {
+                if (existingWesouwce.name === wesouwce) {
+                    wesouwceDefined = twue;
+                    wetuwn;
                 }
             });
-            if (!resourceDefined) {
-                context.report({
-                    loc: node.loc,
+            if (!wesouwceDefined) {
+                context.wepowt({
+                    woc: node.woc,
                     messageId: 'missing',
-                    data: { resource }
+                    data: { wesouwce }
                 });
             }
         }
     },
-    _a.NLS_MODULE = 'vs/nls',
+    _a.NWS_MODUWE = 'vs/nws',
     _a);

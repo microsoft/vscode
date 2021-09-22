@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.extensions-viewlet {
-	position: relative;
+.extensions-viewwet {
+	position: wewative;
 	height: 100%;
 }
 
-.extensions-viewlet > .overlay {
-	position: absolute;
+.extensions-viewwet > .ovewway {
+	position: absowute;
 	top: 0;
-	right: 0;
+	wight: 0;
 	bottom: 0;
-	left: 0;
+	weft: 0;
 	z-index: 2;
 }
 
-.extensions-viewlet > .header {
+.extensions-viewwet > .heada {
 	height: 41px;
-	box-sizing: border-box;
+	box-sizing: bowda-box;
 	padding: 5px 12px 6px 16px;
 }
 
-.extensions-viewlet > .header > .search-box {
+.extensions-viewwet > .heada > .seawch-box {
 	width: 100%;
 	height: 28px;
-	line-height: 18px;
-	box-sizing: border-box;
+	wine-height: 18px;
+	box-sizing: bowda-box;
 	padding: 4px;
-	border: 1px solid transparent;
-	-webkit-appearance: textfield;
-	-moz-appearance: textfield;
+	bowda: 1px sowid twanspawent;
+	-webkit-appeawance: textfiewd;
+	-moz-appeawance: textfiewd;
 }
 
-.extensions-viewlet > .extensions {
-	height: calc(100% - 41px);
+.extensions-viewwet > .extensions {
+	height: cawc(100% - 41px);
 }
 
-.extensions-viewlet > .extensions .extension-view-header .count-badge-wrapper,
-.extensions-viewlet > .extensions .extension-list-item .monaco-action-bar,
-.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar {
-	margin-right: 4px;
+.extensions-viewwet > .extensions .extension-view-heada .count-badge-wwappa,
+.extensions-viewwet > .extensions .extension-wist-item .monaco-action-baw,
+.extensions-viewwet > .extensions .extension-view-heada .monaco-action-baw {
+	mawgin-wight: 4px;
 }
 
-.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item > .action-label.icon.codicon {
-	vertical-align: middle;
-	line-height: 22px;
+.extensions-viewwet > .extensions .extension-view-heada .monaco-action-baw .action-item > .action-wabew.icon.codicon {
+	vewticaw-awign: middwe;
+	wine-height: 22px;
 }
 
-.extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item.disabled  {
-	display: none;
+.extensions-viewwet > .extensions .extension-view-heada .monaco-action-baw .action-item.disabwed  {
+	dispway: none;
 }
 
-.extensions-viewlet > .extensions .extensions-list.hidden,
-.extensions-viewlet > .extensions .message-container.hidden {
-	display: none;
-	visibility: hidden;
+.extensions-viewwet > .extensions .extensions-wist.hidden,
+.extensions-viewwet > .extensions .message-containa.hidden {
+	dispway: none;
+	visibiwity: hidden;
 }
 
-.extensions-viewlet > .extensions .panel-header {
-	padding-right: 12px;
+.extensions-viewwet > .extensions .panew-heada {
+	padding-wight: 12px;
 }
 
-.extensions-viewlet > .extensions .panel-header > .title {
-	flex: 1;
+.extensions-viewwet > .extensions .panew-heada > .titwe {
+	fwex: 1;
 }
 
-.extensions-viewlet > .extensions .panel-header > .actions.show {
-	flex: inherit;
+.extensions-viewwet > .extensions .panew-heada > .actions.show {
+	fwex: inhewit;
 }
 
-.extensions-viewlet > .extensions .message-container {
+.extensions-viewwet > .extensions .message-containa {
 	padding: 5px 9px 5px 16px;
-	cursor: default;
-	display: flex;
+	cuwsow: defauwt;
+	dispway: fwex;
 }
 
-.extensions-viewlet > .extensions .message-container .message {
-	padding-left: 5px;
+.extensions-viewwet > .extensions .message-containa .message {
+	padding-weft: 5px;
 }
 
-.extensions-viewlet > .extensions .message-container .severity-icon {
-	flex-shrink: 0;
+.extensions-viewwet > .extensions .message-containa .sevewity-icon {
+	fwex-shwink: 0;
 }
 
-.extensions-viewlet > .extensions .extension-list-item {
-	position: absolute;
+.extensions-viewwet > .extensions .extension-wist-item {
+	position: absowute;
 }
 
-.extensions-viewlet > .extensions .extension-list-item.loading {
-	background: url('loading.svg') center center no-repeat;
+.extensions-viewwet > .extensions .extension-wist-item.woading {
+	backgwound: uww('woading.svg') centa centa no-wepeat;
 }
 
-.extensions-viewlet > .extensions .extension-list-item.loading > .icon-container {
-	display: none;
+.extensions-viewwet > .extensions .extension-wist-item.woading > .icon-containa {
+	dispway: none;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container > .icon {
+.extensions-viewwet.nawwow > .extensions .extension-wist-item > .icon-containa > .icon {
 	width: 24px;
 	height: 24px;
 	padding-top: 8px;
-	padding-right: 6px;
+	padding-wight: 6px;
 }
 
-.extensions-viewlet:not(.narrow) > .extensions .extension-list-item > .details > .header-container > .header > .extension-remote-badge-container,
-.extensions-viewlet.narrow > .extensions .extension-list-item > .icon-container .extension-badge,
-.extensions-viewlet.mini > .extensions .extension-list-item > .icon-container > .icon,
-.extensions-viewlet.mini > .extensions .extension-list-item > .details > .header-container > .header > .ratings,
-.extensions-viewlet.mini > .extensions .extension-bookmark-container {
-	display: none;
+.extensions-viewwet:not(.nawwow) > .extensions .extension-wist-item > .detaiws > .heada-containa > .heada > .extension-wemote-badge-containa,
+.extensions-viewwet.nawwow > .extensions .extension-wist-item > .icon-containa .extension-badge,
+.extensions-viewwet.mini > .extensions .extension-wist-item > .icon-containa > .icon,
+.extensions-viewwet.mini > .extensions .extension-wist-item > .detaiws > .heada-containa > .heada > .watings,
+.extensions-viewwet.mini > .extensions .extension-bookmawk-containa {
+	dispway: none;
 }
 
-.extensions-viewlet.narrow > .extensions .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action {
+.extensions-viewwet.nawwow > .extensions .extension-wist-item > .detaiws > .foota > .monaco-action-baw > .actions-containa .extension-action {
 	max-width: 100px;
 }
 
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon,
-.monaco-workbench.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension-list-item > .details > .header-container .codicon {
+.monaco-wowkbench.vs .extensions-viewwet > .extensions .monaco-wist-wow.disabwed > .extension-wist-item > .icon-containa > .icon,
+.monaco-wowkbench.vs-dawk .extensions-viewwet > .extensions .monaco-wist-wow.disabwed > .extension-wist-item > .icon-containa > .icon,
+.monaco-wowkbench.vs .extensions-viewwet > .extensions .monaco-wist-wow.disabwed > .extension-wist-item > .detaiws > .heada-containa .codicon,
+.monaco-wowkbench.vs-dawk .extensions-viewwet > .extensions .monaco-wist-wow.disabwed > .extension-wist-item > .detaiws > .heada-containa .codicon {
 	opacity: 0.5;
 }
 
-.extensions-badge.progress-badge > .badge-content {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
-	background-position: center center;
-	background-repeat: no-repeat;
+.extensions-badge.pwogwess-badge > .badge-content {
+	backgwound-image: uww("data:image/svg+xmw;base64,PHN2ZyB4bWxucz0iaHW0cDovW3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHWoPSIxNCIgaGVpZ2h0PSIxNCIgdmwwd0JveD0iMiAyIDE0IDE0IiBwbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmwsbD0iI2ZmZiIgZD0iTTkgMTZjWTMuODYgMC03WTMuMTQtNy03czMuMTQtNyA3WTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01WjYgMi41MTMtNS42IDUuNnMyWjUxMiA1WjYgNS42IDUuNiA1WjYtMi41MTIgNS42WTUuNi0yWjUxMi01WjYtNS42WTUuNnptMy44NiA3WjFsWTMuMTYtMS44OTZ2WTMuODA0aC0xWjW2NC41OTZsMy44NCAyWjMwNS43Mi0xWjIwMXoiWz48W3N2Zz4=");
+	backgwound-position: centa centa;
+	backgwound-wepeat: no-wepeat;
 }

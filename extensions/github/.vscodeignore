@@ -1,7 +1,7 @@
-src/**
-!src/common/config.json
+swc/**
+!swc/common/config.json
 out/**
-build/**
+buiwd/**
 extension.webpack.config.js
 tsconfig.json
-yarn.lock
+yawn.wock

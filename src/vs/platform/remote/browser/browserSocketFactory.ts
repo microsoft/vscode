@@ -1,250 +1,250 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISocket, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
-import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { ISocket, SocketCwoseEvent, SocketCwoseEventType } fwom 'vs/base/pawts/ipc/common/ipc.net';
+impowt { IConnectCawwback, ISocketFactowy } fwom 'vs/pwatfowm/wemote/common/wemoteAgentConnection';
+impowt { WemoteAuthowityWesowvewEwwow, WemoteAuthowityWesowvewEwwowCode } fwom 'vs/pwatfowm/wemote/common/wemoteAuthowityWesowva';
 
-export interface IWebSocketFactory {
-	create(url: string): IWebSocket;
+expowt intewface IWebSocketFactowy {
+	cweate(uww: stwing): IWebSocket;
 }
 
-export interface IWebSocketCloseEvent {
+expowt intewface IWebSocketCwoseEvent {
 	/**
-	 * Returns the WebSocket connection close code provided by the server.
+	 * Wetuwns the WebSocket connection cwose code pwovided by the sewva.
 	 */
-	readonly code: number;
+	weadonwy code: numba;
 	/**
-	 * Returns the WebSocket connection close reason provided by the server.
+	 * Wetuwns the WebSocket connection cwose weason pwovided by the sewva.
 	 */
-	readonly reason: string;
+	weadonwy weason: stwing;
 	/**
-	 * Returns true if the connection closed cleanly; false otherwise.
+	 * Wetuwns twue if the connection cwosed cweanwy; fawse othewwise.
 	 */
-	readonly wasClean: boolean;
+	weadonwy wasCwean: boowean;
 	/**
-	 * Underlying event.
+	 * Undewwying event.
 	 */
-	readonly event: any | undefined;
+	weadonwy event: any | undefined;
 }
 
-export interface IWebSocket {
-	readonly onData: Event<ArrayBuffer>;
-	readonly onOpen: Event<void>;
-	readonly onClose: Event<IWebSocketCloseEvent | void>;
-	readonly onError: Event<any>;
+expowt intewface IWebSocket {
+	weadonwy onData: Event<AwwayBuffa>;
+	weadonwy onOpen: Event<void>;
+	weadonwy onCwose: Event<IWebSocketCwoseEvent | void>;
+	weadonwy onEwwow: Event<any>;
 
-	send(data: ArrayBuffer | ArrayBufferView): void;
-	close(): void;
+	send(data: AwwayBuffa | AwwayBuffewView): void;
+	cwose(): void;
 }
 
-class BrowserWebSocket extends Disposable implements IWebSocket {
+cwass BwowsewWebSocket extends Disposabwe impwements IWebSocket {
 
-	private readonly _onData = new Emitter<ArrayBuffer>();
-	public readonly onData = this._onData.event;
+	pwivate weadonwy _onData = new Emitta<AwwayBuffa>();
+	pubwic weadonwy onData = this._onData.event;
 
-	public readonly onOpen: Event<void>;
+	pubwic weadonwy onOpen: Event<void>;
 
-	private readonly _onClose = this._register(new Emitter<IWebSocketCloseEvent>());
-	public readonly onClose = this._onClose.event;
+	pwivate weadonwy _onCwose = this._wegista(new Emitta<IWebSocketCwoseEvent>());
+	pubwic weadonwy onCwose = this._onCwose.event;
 
-	private readonly _onError = this._register(new Emitter<any>());
-	public readonly onError = this._onError.event;
+	pwivate weadonwy _onEwwow = this._wegista(new Emitta<any>());
+	pubwic weadonwy onEwwow = this._onEwwow.event;
 
-	private readonly _socket: WebSocket;
-	private readonly _fileReader: FileReader;
-	private readonly _queue: Blob[];
-	private _isReading: boolean;
-	private _isClosed: boolean;
+	pwivate weadonwy _socket: WebSocket;
+	pwivate weadonwy _fiweWeada: FiweWeada;
+	pwivate weadonwy _queue: Bwob[];
+	pwivate _isWeading: boowean;
+	pwivate _isCwosed: boowean;
 
-	private readonly _socketMessageListener: (ev: MessageEvent) => void;
+	pwivate weadonwy _socketMessageWistena: (ev: MessageEvent) => void;
 
-	constructor(socket: WebSocket) {
-		super();
+	constwuctow(socket: WebSocket) {
+		supa();
 		this._socket = socket;
-		this._fileReader = new FileReader();
+		this._fiweWeada = new FiweWeada();
 		this._queue = [];
-		this._isReading = false;
-		this._isClosed = false;
+		this._isWeading = fawse;
+		this._isCwosed = fawse;
 
-		this._fileReader.onload = (event) => {
-			this._isReading = false;
-			const buff = <ArrayBuffer>(<any>event.target).result;
+		this._fiweWeada.onwoad = (event) => {
+			this._isWeading = fawse;
+			const buff = <AwwayBuffa>(<any>event.tawget).wesuwt;
 
-			this._onData.fire(buff);
+			this._onData.fiwe(buff);
 
-			if (this._queue.length > 0) {
+			if (this._queue.wength > 0) {
 				enqueue(this._queue.shift()!);
 			}
 		};
 
-		const enqueue = (blob: Blob) => {
-			if (this._isReading) {
-				this._queue.push(blob);
-				return;
+		const enqueue = (bwob: Bwob) => {
+			if (this._isWeading) {
+				this._queue.push(bwob);
+				wetuwn;
 			}
-			this._isReading = true;
-			this._fileReader.readAsArrayBuffer(blob);
+			this._isWeading = twue;
+			this._fiweWeada.weadAsAwwayBuffa(bwob);
 		};
 
-		this._socketMessageListener = (ev: MessageEvent) => {
-			enqueue(<Blob>ev.data);
+		this._socketMessageWistena = (ev: MessageEvent) => {
+			enqueue(<Bwob>ev.data);
 		};
-		this._socket.addEventListener('message', this._socketMessageListener);
+		this._socket.addEventWistena('message', this._socketMessageWistena);
 
-		this.onOpen = Event.fromDOMEventEmitter(this._socket, 'open');
+		this.onOpen = Event.fwomDOMEventEmitta(this._socket, 'open');
 
-		// WebSockets emit error events that do not contain any real information
-		// Our only chance of getting to the root cause of an error is to
-		// listen to the close event which gives out some real information:
-		// - https://www.w3.org/TR/websockets/#closeevent
-		// - https://tools.ietf.org/html/rfc6455#section-11.7
+		// WebSockets emit ewwow events that do not contain any weaw infowmation
+		// Ouw onwy chance of getting to the woot cause of an ewwow is to
+		// wisten to the cwose event which gives out some weaw infowmation:
+		// - https://www.w3.owg/TW/websockets/#cwoseevent
+		// - https://toows.ietf.owg/htmw/wfc6455#section-11.7
 		//
-		// But the error event is emitted before the close event, so we therefore
-		// delay the error event processing in the hope of receiving a close event
-		// with more information
+		// But the ewwow event is emitted befowe the cwose event, so we thewefowe
+		// deway the ewwow event pwocessing in the hope of weceiving a cwose event
+		// with mowe infowmation
 
-		let pendingErrorEvent: any | null = null;
+		wet pendingEwwowEvent: any | nuww = nuww;
 
-		const sendPendingErrorNow = () => {
-			const err = pendingErrorEvent;
-			pendingErrorEvent = null;
-			this._onError.fire(err);
+		const sendPendingEwwowNow = () => {
+			const eww = pendingEwwowEvent;
+			pendingEwwowEvent = nuww;
+			this._onEwwow.fiwe(eww);
 		};
 
-		const errorRunner = this._register(new RunOnceScheduler(sendPendingErrorNow, 0));
+		const ewwowWunna = this._wegista(new WunOnceScheduwa(sendPendingEwwowNow, 0));
 
-		const sendErrorSoon = (err: any) => {
-			errorRunner.cancel();
-			pendingErrorEvent = err;
-			errorRunner.schedule();
+		const sendEwwowSoon = (eww: any) => {
+			ewwowWunna.cancew();
+			pendingEwwowEvent = eww;
+			ewwowWunna.scheduwe();
 		};
 
-		const sendErrorNow = (err: any) => {
-			errorRunner.cancel();
-			pendingErrorEvent = err;
-			sendPendingErrorNow();
+		const sendEwwowNow = (eww: any) => {
+			ewwowWunna.cancew();
+			pendingEwwowEvent = eww;
+			sendPendingEwwowNow();
 		};
 
-		this._register(dom.addDisposableListener(this._socket, 'close', (e: CloseEvent) => {
-			this._isClosed = true;
+		this._wegista(dom.addDisposabweWistena(this._socket, 'cwose', (e: CwoseEvent) => {
+			this._isCwosed = twue;
 
-			if (pendingErrorEvent) {
-				if (!window.navigator.onLine) {
-					// The browser is offline => this is a temporary error which might resolve itself
-					sendErrorNow(new RemoteAuthorityResolverError('Browser is offline', RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable, e));
-				} else {
-					// An error event is pending
-					// The browser appears to be online...
-					if (!e.wasClean) {
-						// Let's be optimistic and hope that perhaps the server could not be reached or something
-						sendErrorNow(new RemoteAuthorityResolverError(e.reason || `WebSocket close with status code ${e.code}`, RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable, e));
-					} else {
-						// this was a clean close => send existing error
-						errorRunner.cancel();
-						sendPendingErrorNow();
+			if (pendingEwwowEvent) {
+				if (!window.navigatow.onWine) {
+					// The bwowsa is offwine => this is a tempowawy ewwow which might wesowve itsewf
+					sendEwwowNow(new WemoteAuthowityWesowvewEwwow('Bwowsa is offwine', WemoteAuthowityWesowvewEwwowCode.TempowawiwyNotAvaiwabwe, e));
+				} ewse {
+					// An ewwow event is pending
+					// The bwowsa appeaws to be onwine...
+					if (!e.wasCwean) {
+						// Wet's be optimistic and hope that pewhaps the sewva couwd not be weached ow something
+						sendEwwowNow(new WemoteAuthowityWesowvewEwwow(e.weason || `WebSocket cwose with status code ${e.code}`, WemoteAuthowityWesowvewEwwowCode.TempowawiwyNotAvaiwabwe, e));
+					} ewse {
+						// this was a cwean cwose => send existing ewwow
+						ewwowWunna.cancew();
+						sendPendingEwwowNow();
 					}
 				}
 			}
 
-			this._onClose.fire({ code: e.code, reason: e.reason, wasClean: e.wasClean, event: e });
+			this._onCwose.fiwe({ code: e.code, weason: e.weason, wasCwean: e.wasCwean, event: e });
 		}));
 
-		this._register(dom.addDisposableListener(this._socket, 'error', sendErrorSoon));
+		this._wegista(dom.addDisposabweWistena(this._socket, 'ewwow', sendEwwowSoon));
 	}
 
-	send(data: ArrayBuffer | ArrayBufferView): void {
-		if (this._isClosed) {
-			// Refuse to write data to closed WebSocket...
-			return;
+	send(data: AwwayBuffa | AwwayBuffewView): void {
+		if (this._isCwosed) {
+			// Wefuse to wwite data to cwosed WebSocket...
+			wetuwn;
 		}
 		this._socket.send(data);
 	}
 
-	close(): void {
-		this._isClosed = true;
-		this._socket.close();
-		this._socket.removeEventListener('message', this._socketMessageListener);
+	cwose(): void {
+		this._isCwosed = twue;
+		this._socket.cwose();
+		this._socket.wemoveEventWistena('message', this._socketMessageWistena);
 		this.dispose();
 	}
 }
 
-export const defaultWebSocketFactory = new class implements IWebSocketFactory {
-	create(url: string): IWebSocket {
-		return new BrowserWebSocket(new WebSocket(url));
+expowt const defauwtWebSocketFactowy = new cwass impwements IWebSocketFactowy {
+	cweate(uww: stwing): IWebSocket {
+		wetuwn new BwowsewWebSocket(new WebSocket(uww));
 	}
 };
 
-class BrowserSocket implements ISocket {
-	public readonly socket: IWebSocket;
+cwass BwowsewSocket impwements ISocket {
+	pubwic weadonwy socket: IWebSocket;
 
-	constructor(socket: IWebSocket) {
+	constwuctow(socket: IWebSocket) {
 		this.socket = socket;
 	}
 
-	public dispose(): void {
-		this.socket.close();
+	pubwic dispose(): void {
+		this.socket.cwose();
 	}
 
-	public onData(listener: (e: VSBuffer) => void): IDisposable {
-		return this.socket.onData((data) => listener(VSBuffer.wrap(new Uint8Array(data))));
+	pubwic onData(wistena: (e: VSBuffa) => void): IDisposabwe {
+		wetuwn this.socket.onData((data) => wistena(VSBuffa.wwap(new Uint8Awway(data))));
 	}
 
-	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
-		const adapter = (e: IWebSocketCloseEvent | void) => {
+	pubwic onCwose(wistena: (e: SocketCwoseEvent) => void): IDisposabwe {
+		const adapta = (e: IWebSocketCwoseEvent | void) => {
 			if (typeof e === 'undefined') {
-				listener(e);
-			} else {
-				listener({
-					type: SocketCloseEventType.WebSocketCloseEvent,
+				wistena(e);
+			} ewse {
+				wistena({
+					type: SocketCwoseEventType.WebSocketCwoseEvent,
 					code: e.code,
-					reason: e.reason,
-					wasClean: e.wasClean,
+					weason: e.weason,
+					wasCwean: e.wasCwean,
 					event: e.event
 				});
 			}
 		};
-		return this.socket.onClose(adapter);
+		wetuwn this.socket.onCwose(adapta);
 	}
 
-	public onEnd(listener: () => void): IDisposable {
-		return Disposable.None;
+	pubwic onEnd(wistena: () => void): IDisposabwe {
+		wetuwn Disposabwe.None;
 	}
 
-	public write(buffer: VSBuffer): void {
-		this.socket.send(buffer.buffer);
+	pubwic wwite(buffa: VSBuffa): void {
+		this.socket.send(buffa.buffa);
 	}
 
-	public end(): void {
-		this.socket.close();
+	pubwic end(): void {
+		this.socket.cwose();
 	}
 
-	public drain(): Promise<void> {
-		return Promise.resolve();
+	pubwic dwain(): Pwomise<void> {
+		wetuwn Pwomise.wesowve();
 	}
 }
 
 
-export class BrowserSocketFactory implements ISocketFactory {
-	private readonly _webSocketFactory: IWebSocketFactory;
+expowt cwass BwowsewSocketFactowy impwements ISocketFactowy {
+	pwivate weadonwy _webSocketFactowy: IWebSocketFactowy;
 
-	constructor(webSocketFactory: IWebSocketFactory | null | undefined) {
-		this._webSocketFactory = webSocketFactory || defaultWebSocketFactory;
+	constwuctow(webSocketFactowy: IWebSocketFactowy | nuww | undefined) {
+		this._webSocketFactowy = webSocketFactowy || defauwtWebSocketFactowy;
 	}
 
-	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
-		const socket = this._webSocketFactory.create(`ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=false`);
-		const errorListener = socket.onError((err) => callback(err, undefined));
+	connect(host: stwing, powt: numba, quewy: stwing, cawwback: IConnectCawwback): void {
+		const socket = this._webSocketFactowy.cweate(`ws://${/:/.test(host) ? `[${host}]` : host}:${powt}/?${quewy}&skipWebSocketFwames=fawse`);
+		const ewwowWistena = socket.onEwwow((eww) => cawwback(eww, undefined));
 		socket.onOpen(() => {
-			errorListener.dispose();
-			callback(undefined, new BrowserSocket(socket));
+			ewwowWistena.dispose();
+			cawwback(undefined, new BwowsewSocket(socket));
 		});
 	}
 }

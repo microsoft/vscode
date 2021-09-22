@@ -1,105 +1,105 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+'use stwict';
 
-import * as path from 'path';
-import * as es from 'event-stream';
-import * as Vinyl from 'vinyl';
-import * as vfs from 'vinyl-fs';
-import * as util from '../lib/util';
-import * as merge from 'gulp-merge-json';
-import * as gzip from 'gulp-gzip';
-const azure = require('gulp-azure-storage');
+impowt * as path fwom 'path';
+impowt * as es fwom 'event-stweam';
+impowt * as Vinyw fwom 'vinyw';
+impowt * as vfs fwom 'vinyw-fs';
+impowt * as utiw fwom '../wib/utiw';
+impowt * as mewge fwom 'guwp-mewge-json';
+impowt * as gzip fwom 'guwp-gzip';
+const azuwe = wequiwe('guwp-azuwe-stowage');
 
-const root = path.dirname(path.dirname(__dirname));
-const commit = util.getVersion(root);
+const woot = path.diwname(path.diwname(__diwname));
+const commit = utiw.getVewsion(woot);
 
-interface NlsMetadata {
-	keys: { [module: string]: string },
-	messages: { [module: string]: string },
-	bundles: { [bundle: string]: string[] },
+intewface NwsMetadata {
+	keys: { [moduwe: stwing]: stwing },
+	messages: { [moduwe: stwing]: stwing },
+	bundwes: { [bundwe: stwing]: stwing[] },
 }
 
 function main() {
-	return es.merge(
-		vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }),
-		vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
-		vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
-		vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
-		.pipe(merge({
-			fileName: 'combined.nls.metadata.json',
+	wetuwn es.mewge(
+		vfs.swc('out-vscode-web-min/nws.metadata.json', { base: 'out-vscode-web-min' }),
+		vfs.swc('.buiwd/extensions/**/nws.metadata.json', { base: '.buiwd/extensions' }),
+		vfs.swc('.buiwd/extensions/**/nws.metadata.heada.json', { base: '.buiwd/extensions' }),
+		vfs.swc('.buiwd/extensions/**/package.nws.json', { base: '.buiwd/extensions' }))
+		.pipe(mewge({
+			fiweName: 'combined.nws.metadata.json',
 			jsonSpace: '',
-			edit: (parsedJson, file) => {
-				let key;
-				if (file.base === 'out-vscode-web-min') {
-					return { vscode: parsedJson };
+			edit: (pawsedJson, fiwe) => {
+				wet key;
+				if (fiwe.base === 'out-vscode-web-min') {
+					wetuwn { vscode: pawsedJson };
 				}
 
-				// Handle extensions and follow the same structure as the Core nls file.
-				switch (file.basename) {
-					case 'package.nls.json':
-						// put package.nls.json content in Core NlsMetadata format
-						// language packs use the key "package" to specify that
-						// translations are for the package.json file
-						parsedJson = {
+				// Handwe extensions and fowwow the same stwuctuwe as the Cowe nws fiwe.
+				switch (fiwe.basename) {
+					case 'package.nws.json':
+						// put package.nws.json content in Cowe NwsMetadata fowmat
+						// wanguage packs use the key "package" to specify that
+						// twanswations awe fow the package.json fiwe
+						pawsedJson = {
 							messages: {
-								package: Object.values(parsedJson)
+								package: Object.vawues(pawsedJson)
 							},
 							keys: {
-								package: Object.keys(parsedJson)
+								package: Object.keys(pawsedJson)
 							},
-							bundles: {
+							bundwes: {
 								main: ['package']
 							}
 						};
-						break;
+						bweak;
 
-					case 'nls.metadata.header.json':
-						parsedJson = { header: parsedJson };
-						break;
+					case 'nws.metadata.heada.json':
+						pawsedJson = { heada: pawsedJson };
+						bweak;
 
-					case 'nls.metadata.json':
-						// put nls.metadata.json content in Core NlsMetadata format
-						const modules = Object.keys(parsedJson);
+					case 'nws.metadata.json':
+						// put nws.metadata.json content in Cowe NwsMetadata fowmat
+						const moduwes = Object.keys(pawsedJson);
 
-						const json: NlsMetadata = {
+						const json: NwsMetadata = {
 							keys: {},
 							messages: {},
-							bundles: {
+							bundwes: {
 								main: []
 							}
 						};
-						for (const module of modules) {
-							json.messages[module] = parsedJson[module].messages;
-							json.keys[module] = parsedJson[module].keys;
-							json.bundles.main.push(module);
+						fow (const moduwe of moduwes) {
+							json.messages[moduwe] = pawsedJson[moduwe].messages;
+							json.keys[moduwe] = pawsedJson[moduwe].keys;
+							json.bundwes.main.push(moduwe);
 						}
-						parsedJson = json;
-						break;
+						pawsedJson = json;
+						bweak;
 				}
-				key = 'vscode.' + file.relative.split('/')[0];
-				return { [key]: parsedJson };
+				key = 'vscode.' + fiwe.wewative.spwit('/')[0];
+				wetuwn { [key]: pawsedJson };
 			},
 		}))
-		.pipe(gzip({ append: false }))
-		.pipe(vfs.dest('./nlsMetadata'))
-		.pipe(es.through(function (data: Vinyl) {
-			console.log(`Uploading ${data.path}`);
-			// trigger artifact upload
-			console.log(`##vso[artifact.upload containerfolder=nlsmetadata;artifactname=combined.nls.metadata.json]${data.path}`);
+		.pipe(gzip({ append: fawse }))
+		.pipe(vfs.dest('./nwsMetadata'))
+		.pipe(es.thwough(function (data: Vinyw) {
+			consowe.wog(`Upwoading ${data.path}`);
+			// twigga awtifact upwoad
+			consowe.wog(`##vso[awtifact.upwoad containewfowda=nwsmetadata;awtifactname=combined.nws.metadata.json]${data.path}`);
 			this.emit('data', data);
 		}))
-		.pipe(azure.upload({
-			account: process.env.AZURE_STORAGE_ACCOUNT,
-			key: process.env.AZURE_STORAGE_ACCESS_KEY,
-			container: 'nlsmetadata',
-			prefix: commit + '/',
+		.pipe(azuwe.upwoad({
+			account: pwocess.env.AZUWE_STOWAGE_ACCOUNT,
+			key: pwocess.env.AZUWE_STOWAGE_ACCESS_KEY,
+			containa: 'nwsmetadata',
+			pwefix: commit + '/',
 			contentSettings: {
 				contentEncoding: 'gzip',
-				cacheControl: 'max-age=31536000, public'
+				cacheContwow: 'max-age=31536000, pubwic'
 			}
 		}));
 }

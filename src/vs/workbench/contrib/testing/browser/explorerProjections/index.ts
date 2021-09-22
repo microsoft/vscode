@@ -1,187 +1,187 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
+impowt { ObjectTwee } fwom 'vs/base/bwowsa/ui/twee/objectTwee';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { FuzzyScowe } fwom 'vs/base/common/fiwtews';
+impowt { IMawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { MawshawwedId } fwom 'vs/base/common/mawshawwing';
+impowt { IntewnawTestItem, ITestItemContext, TestWesuwtState } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
 
 /**
- * Describes a rendering of tests in the explorer view. Different
- * implementations of this are used for trees and lists, and groupings.
- * Originally this was implemented as inline logic within the ViewModel and
- * using a single IncrementalTestChangeCollector, but this became hairy
- * with status projections.
+ * Descwibes a wendewing of tests in the expwowa view. Diffewent
+ * impwementations of this awe used fow twees and wists, and gwoupings.
+ * Owiginawwy this was impwemented as inwine wogic within the ViewModew and
+ * using a singwe IncwementawTestChangeCowwectow, but this became haiwy
+ * with status pwojections.
  */
-export interface ITestTreeProjection extends IDisposable {
+expowt intewface ITestTweePwojection extends IDisposabwe {
 	/**
-	 * Event that fires when the projection changes.
+	 * Event that fiwes when the pwojection changes.
 	 */
 	onUpdate: Event<void>;
 
 	/**
-	 * Fired when an element in the tree is expanded.
+	 * Fiwed when an ewement in the twee is expanded.
 	 */
-	expandElement(element: TestItemTreeElement, depth: number): void;
+	expandEwement(ewement: TestItemTweeEwement, depth: numba): void;
 
 	/**
-	 * Gets an element by its extension-assigned ID.
+	 * Gets an ewement by its extension-assigned ID.
 	 */
-	getElementByTestId(testId: string): TestItemTreeElement | undefined;
+	getEwementByTestId(testId: stwing): TestItemTweeEwement | undefined;
 
 	/**
-	 * Applies pending update to the tree.
+	 * Appwies pending update to the twee.
 	 */
-	applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>): void;
+	appwyTo(twee: ObjectTwee<TestExpwowewTweeEwement, FuzzyScowe>): void;
 }
 
 /**
- * Interface describing the workspace folder and test item tree elements.
+ * Intewface descwibing the wowkspace fowda and test item twee ewements.
  */
-export interface IActionableTestTreeElement {
+expowt intewface IActionabweTestTweeEwement {
 	/**
-	 * Parent tree item.
+	 * Pawent twee item.
 	 */
-	parent: IActionableTestTreeElement | null;
+	pawent: IActionabweTestTweeEwement | nuww;
 
 	/**
-	 * Unique ID of the element in the tree.
+	 * Unique ID of the ewement in the twee.
 	 */
-	treeId: string;
+	tweeId: stwing;
 
 	/**
-	 * Test children of this item.
+	 * Test chiwdwen of this item.
 	 */
-	children: Set<TestExplorerTreeElement>;
+	chiwdwen: Set<TestExpwowewTweeEwement>;
 
 	/**
-	 * Depth of the element in the tree.
+	 * Depth of the ewement in the twee.
 	 */
-	depth: number;
+	depth: numba;
 
 	/**
-	 * Iterable of the tests this element contains.
+	 * Itewabwe of the tests this ewement contains.
 	 */
-	tests: Iterable<InternalTestItem>;
+	tests: Itewabwe<IntewnawTestItem>;
 
 	/**
-	 * State to show on the item. This is generally the item's computed state
-	 * from its children.
+	 * State to show on the item. This is genewawwy the item's computed state
+	 * fwom its chiwdwen.
 	 */
-	state: TestResultState;
+	state: TestWesuwtState;
 
 	/**
-	 * Time it took this test/item to run.
+	 * Time it took this test/item to wun.
 	 */
-	duration: number | undefined;
+	duwation: numba | undefined;
 
 	/**
-	 * Label for the item.
+	 * Wabew fow the item.
 	 */
-	label: string;
+	wabew: stwing;
 }
 
-let idCounter = 0;
+wet idCounta = 0;
 
-const getId = () => String(idCounter++);
+const getId = () => Stwing(idCounta++);
 
-export class TestItemTreeElement implements IActionableTestTreeElement {
+expowt cwass TestItemTweeEwement impwements IActionabweTestTweeEwement {
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public readonly children = new Set<TestExplorerTreeElement>();
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly treeId = getId();
+	pubwic weadonwy chiwdwen = new Set<TestExpwowewTweeEwement>();
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public depth: number = this.parent ? this.parent.depth + 1 : 0;
+	pubwic weadonwy tweeId = getId();
 
-	public get tests() {
-		return Iterable.single(this.test);
+	/**
+	 * @inhewitdoc
+	 */
+	pubwic depth: numba = this.pawent ? this.pawent.depth + 1 : 0;
+
+	pubwic get tests() {
+		wetuwn Itewabwe.singwe(this.test);
 	}
 
-	public get description() {
-		return this.test.item.description;
+	pubwic get descwiption() {
+		wetuwn this.test.item.descwiption;
 	}
 
 	/**
-	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 * Whetha the node's test wesuwt is 'wetiwed' -- fwom an outdated test wun.
 	 */
-	public retired = false;
+	pubwic wetiwed = fawse;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public state = TestResultState.Unset;
+	pubwic state = TestWesuwtState.Unset;
 
 	/**
 	 * Own, non-computed state.
 	 */
-	public ownState = TestResultState.Unset;
+	pubwic ownState = TestWesuwtState.Unset;
 
 	/**
-	 * Own, non-computed duration.
+	 * Own, non-computed duwation.
 	 */
-	public ownDuration: number | undefined;
+	pubwic ownDuwation: numba | undefined;
 
 	/**
-	 * Time it took this test/item to run.
+	 * Time it took this test/item to wun.
 	 */
-	public duration: number | undefined;
+	pubwic duwation: numba | undefined;
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public get label() {
-		return this.test.item.label;
+	pubwic get wabew() {
+		wetuwn this.test.item.wabew;
 	}
 
-	constructor(
-		public readonly test: InternalTestItem,
-		public readonly parent: TestItemTreeElement | null = null,
+	constwuctow(
+		pubwic weadonwy test: IntewnawTestItem,
+		pubwic weadonwy pawent: TestItemTweeEwement | nuww = nuww,
 	) { }
 
-	public toJSON() {
+	pubwic toJSON() {
 		if (this.depth === 0) {
-			return { controllerId: this.test.controllerId };
+			wetuwn { contwowwewId: this.test.contwowwewId };
 		}
 
 		const context: ITestItemContext = {
-			$mid: MarshalledId.TestItemContext,
+			$mid: MawshawwedId.TestItemContext,
 			tests: [this.test],
 		};
 
-		for (let p = this.parent; p && p.depth > 0; p = p.parent) {
+		fow (wet p = this.pawent; p && p.depth > 0; p = p.pawent) {
 			context.tests.unshift(p.test);
 		}
 
-		return context;
+		wetuwn context;
 	}
 }
 
-export class TestTreeErrorMessage {
-	public readonly treeId = getId();
-	public readonly children = new Set<never>();
+expowt cwass TestTweeEwwowMessage {
+	pubwic weadonwy tweeId = getId();
+	pubwic weadonwy chiwdwen = new Set<neva>();
 
-	public get description() {
-		return typeof this.message === 'string' ? this.message : this.message.value;
+	pubwic get descwiption() {
+		wetuwn typeof this.message === 'stwing' ? this.message : this.message.vawue;
 	}
 
-	constructor(
-		public readonly message: string | IMarkdownString,
-		public readonly parent: TestExplorerTreeElement,
+	constwuctow(
+		pubwic weadonwy message: stwing | IMawkdownStwing,
+		pubwic weadonwy pawent: TestExpwowewTweeEwement,
 	) { }
 }
 
-export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage;
+expowt type TestExpwowewTweeEwement = TestItemTweeEwement | TestTweeEwwowMessage;

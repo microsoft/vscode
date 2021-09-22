@@ -1,540 +1,540 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
-import { Position } from 'vs/editor/common/core/position';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { CompletionContext, CompletionTriggerKind } from 'vs/editor/common/modes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+impowt * as assewt fwom 'assewt';
+impowt { SnippetCompwetionPwovida } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetCompwetionPwovida';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { ModesWegistwy } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { cweateTextModew } fwom 'vs/editow/test/common/editowTestUtiws';
+impowt { ISnippetsSewvice } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippets.contwibution';
+impowt { Snippet, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { CompwetionContext, CompwetionTwiggewKind } fwom 'vs/editow/common/modes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
 
-class SimpleSnippetService implements ISnippetsService {
-	declare readonly _serviceBrand: undefined;
-	constructor(readonly snippets: Snippet[]) { }
+cwass SimpweSnippetSewvice impwements ISnippetsSewvice {
+	decwawe weadonwy _sewviceBwand: undefined;
+	constwuctow(weadonwy snippets: Snippet[]) { }
 	getSnippets() {
-		return Promise.resolve(this.getSnippetsSync());
+		wetuwn Pwomise.wesowve(this.getSnippetsSync());
 	}
 	getSnippetsSync(): Snippet[] {
-		return this.snippets;
+		wetuwn this.snippets;
 	}
-	getSnippetFiles(): any {
-		throw new Error();
+	getSnippetFiwes(): any {
+		thwow new Ewwow();
 	}
-	isEnabled(): boolean {
-		throw new Error();
+	isEnabwed(): boowean {
+		thwow new Ewwow();
 	}
-	updateEnablement(): void {
-		throw new Error();
+	updateEnabwement(): void {
+		thwow new Ewwow();
 	}
 }
 
-suite('SnippetsService', function () {
-	const disposableStore: DisposableStore = new DisposableStore();
-	const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
+suite('SnippetsSewvice', function () {
+	const disposabweStowe: DisposabweStowe = new DisposabweStowe();
+	const context: CompwetionContext = { twiggewKind: CompwetionTwiggewKind.Invoke };
 
 	suiteSetup(function () {
-		ModesRegistry.registerLanguage({
-			id: 'fooLang',
-			extensions: ['.fooLang',]
+		ModesWegistwy.wegistewWanguage({
+			id: 'fooWang',
+			extensions: ['.fooWang',]
 		});
 	});
 
-	suiteTeardown(function () {
-		disposableStore.dispose();
+	suiteTeawdown(function () {
+		disposabweStowe.dispose();
 	});
 
-	let modeService: ModeServiceImpl;
-	let snippetService: ISnippetsService;
+	wet modeSewvice: ModeSewviceImpw;
+	wet snippetSewvice: ISnippetsSewvice;
 
 	setup(function () {
-		modeService = new ModeServiceImpl();
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
-			'barTest',
-			'bar',
+		modeSewvice = new ModeSewviceImpw();
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
+			'bawTest',
+			'baw',
 			'',
-			'barCodeSnippet',
+			'bawCodeSnippet',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		), new Snippet(
-			['fooLang'],
+			['fooWang'],
 			'bazzTest',
 			'bazz',
 			'',
 			'bazzCodeSnippet',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 	});
 
-	test('snippet completions - simple', function () {
+	test('snippet compwetions - simpwe', function () {
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
+		const modew = cweateTextModew('', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 2);
+		wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 1), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.incompwete, undefined);
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 2);
 		});
 	});
 
-	test('snippet completions - with prefix', function () {
+	test('snippet compwetions - with pwefix', function () {
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = createTextModel('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
+		const modew = cweateTextModew('baw', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
 
-		return provider.provideCompletionItems(model, new Position(1, 4), context)!.then(result => {
-			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 1);
-			assert.deepStrictEqual(result.suggestions[0].label, {
-				label: 'bar',
-				description: 'barTest'
+		wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 4), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.incompwete, undefined);
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			assewt.deepStwictEquaw(wesuwt.suggestions[0].wabew, {
+				wabew: 'baw',
+				descwiption: 'bawTest'
 			});
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
-			assert.strictEqual(result.suggestions[0].insertText, 'barCodeSnippet');
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 1);
+			assewt.stwictEquaw(wesuwt.suggestions[0].insewtText, 'bawCodeSnippet');
 		});
 	});
 
-	test('snippet completions - with different prefixes', async function () {
+	test('snippet compwetions - with diffewent pwefixes', async function () {
 
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
-			'barTest',
-			'bar',
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
+			'bawTest',
+			'baw',
 			'',
 			's1',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		), new Snippet(
-			['fooLang'],
+			['fooWang'],
 			'name',
-			'bar-bar',
+			'baw-baw',
 			'',
 			's2',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
-		const model = createTextModel('bar-bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
+		const modew = cweateTextModew('baw-baw', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
 
-		await provider.provideCompletionItems(model, new Position(1, 3), context)!.then(result => {
-			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 2);
-			assert.deepStrictEqual(result.suggestions[0].label, {
-				label: 'bar',
-				description: 'barTest'
+		await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.incompwete, undefined);
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 2);
+			assewt.deepStwictEquaw(wesuwt.suggestions[0].wabew, {
+				wabew: 'baw',
+				descwiption: 'bawTest'
 			});
-			assert.strictEqual(result.suggestions[0].insertText, 's1');
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
-			assert.deepStrictEqual(result.suggestions[1].label, {
-				label: 'bar-bar',
-				description: 'name'
+			assewt.stwictEquaw(wesuwt.suggestions[0].insewtText, 's1');
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 1);
+			assewt.deepStwictEquaw(wesuwt.suggestions[1].wabew, {
+				wabew: 'baw-baw',
+				descwiption: 'name'
 			});
-			assert.strictEqual(result.suggestions[1].insertText, 's2');
-			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
+			assewt.stwictEquaw(wesuwt.suggestions[1].insewtText, 's2');
+			assewt.stwictEquaw((wesuwt.suggestions[1].wange as any).insewt.stawtCowumn, 1);
 		});
 
-		await provider.provideCompletionItems(model, new Position(1, 5), context)!.then(result => {
-			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 1);
-			assert.deepStrictEqual(result.suggestions[0].label, {
-				label: 'bar-bar',
-				description: 'name'
+		await pwovida.pwovideCompwetionItems(modew, new Position(1, 5), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.incompwete, undefined);
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			assewt.deepStwictEquaw(wesuwt.suggestions[0].wabew, {
+				wabew: 'baw-baw',
+				descwiption: 'name'
 			});
-			assert.strictEqual(result.suggestions[0].insertText, 's2');
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 1);
+			assewt.stwictEquaw(wesuwt.suggestions[0].insewtText, 's2');
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 1);
 		});
 
-		await provider.provideCompletionItems(model, new Position(1, 6), context)!.then(result => {
-			assert.strictEqual(result.incomplete, undefined);
-			assert.strictEqual(result.suggestions.length, 2);
-			assert.deepStrictEqual(result.suggestions[0].label, {
-				label: 'bar',
-				description: 'barTest'
+		await pwovida.pwovideCompwetionItems(modew, new Position(1, 6), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.incompwete, undefined);
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 2);
+			assewt.deepStwictEquaw(wesuwt.suggestions[0].wabew, {
+				wabew: 'baw',
+				descwiption: 'bawTest'
 			});
-			assert.strictEqual(result.suggestions[0].insertText, 's1');
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 5);
-			assert.deepStrictEqual(result.suggestions[1].label, {
-				label: 'bar-bar',
-				description: 'name'
+			assewt.stwictEquaw(wesuwt.suggestions[0].insewtText, 's1');
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 5);
+			assewt.deepStwictEquaw(wesuwt.suggestions[1].wabew, {
+				wabew: 'baw-baw',
+				descwiption: 'name'
 			});
-			assert.strictEqual(result.suggestions[1].insertText, 's2');
-			assert.strictEqual((result.suggestions[1].range as any).insert.startColumn, 1);
+			assewt.stwictEquaw(wesuwt.suggestions[1].insewtText, 's2');
+			assewt.stwictEquaw((wesuwt.suggestions[1].wange as any).insewt.stawtCowumn, 1);
 		});
 	});
 
-	test('Cannot use "<?php" as user snippet prefix anymore, #26275', function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('Cannot use "<?php" as usa snippet pwefix anymowe, #26275', function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'',
 			'<?php',
 			'',
-			'insert me',
+			'insewt me',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 7), context)!.then(result => {
-			assert.strictEqual(result.suggestions.length, 1);
-			model.dispose();
+		wet modew = cweateTextModew('\t<?php', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 7), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			modew.dispose();
 
-			model = createTextModel('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
-			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
-		}).then(result => {
-			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
-			model.dispose();
+			modew = cweateTextModew('\t<?', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+			wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 4), context)!;
+		}).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 2);
+			modew.dispose();
 
-			model = createTextModel('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
-			return provider.provideCompletionItems(model, new Position(1, 4), context)!;
-		}).then(result => {
-			assert.strictEqual(result.suggestions.length, 1);
-			assert.strictEqual((result.suggestions[0].range as any).insert.startColumn, 2);
-			model.dispose();
+			modew = cweateTextModew('a<?', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+			wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 4), context)!;
+		}).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			assewt.stwictEquaw((wesuwt.suggestions[0].wange as any).insewt.stawtCowumn, 2);
+			modew.dispose();
 		});
 	});
 
-	test('No user snippets in suggestions, when inside the code, #30508', function () {
+	test('No usa snippets in suggestions, when inside the code, #30508', function () {
 
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'',
 			'foo',
 			'',
 			'<foo>$0</foo>',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.strictEqual(result.suggestions.length, 1);
-			return provider.provideCompletionItems(model, new Position(2, 2), context)!;
-		}).then(result => {
-			assert.strictEqual(result.suggestions.length, 1);
+		wet modew = cweateTextModew('<head>\n\t\n>/head>', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 1), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+			wetuwn pwovida.pwovideCompwetionItems(modew, new Position(2, 2), context)!;
+		}).then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 		});
 	});
 
-	test('SnippetSuggest - ensure extension snippets come last ', function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('SnippetSuggest - ensuwe extension snippets come wast ', function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'second',
 			'second',
 			'',
 			'second',
 			'',
-			SnippetSource.Extension
+			SnippetSouwce.Extension
 		), new Snippet(
-			['fooLang'],
-			'first',
-			'first',
+			['fooWang'],
+			'fiwst',
+			'fiwst',
 			'',
-			'first',
+			'fiwst',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('', undefined, modeService.getLanguageIdentifier('fooLang'));
-		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
-			assert.strictEqual(result.suggestions.length, 2);
-			let [first, second] = result.suggestions;
-			assert.deepStrictEqual(first.label, {
-				label: 'first',
-				description: 'first'
+		wet modew = cweateTextModew('', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wetuwn pwovida.pwovideCompwetionItems(modew, new Position(1, 1), context)!.then(wesuwt => {
+			assewt.stwictEquaw(wesuwt.suggestions.wength, 2);
+			wet [fiwst, second] = wesuwt.suggestions;
+			assewt.deepStwictEquaw(fiwst.wabew, {
+				wabew: 'fiwst',
+				descwiption: 'fiwst'
 			});
-			assert.deepStrictEqual(second.label, {
-				label: 'second',
-				description: 'second'
+			assewt.deepStwictEquaw(second.wabew, {
+				wabew: 'second',
+				descwiption: 'second'
 			});
 		});
 	});
 
-	test('Dash in snippets prefix broken #53945', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('Dash in snippets pwefix bwoken #53945', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'p-a',
 			'p-a',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('p-', undefined, modeService.getLanguageIdentifier('fooLang'));
+		wet modew = cweateTextModew('p-', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
 
-		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
-		assert.strictEqual(result.suggestions.length, 1);
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 2), context)!;
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 
-		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
-		assert.strictEqual(result.suggestions.length, 1);
+		wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 
-		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
-		assert.strictEqual(result.suggestions.length, 1);
+		wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 	});
 
-	test('No snippets suggestion on long lines beyond character 100 #58807', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('No snippets suggestion on wong wines beyond chawacta 100 #58807', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'bug',
 			'bug',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
+		wet modew = cweateTextModew('Thisisavewywongwinegoingwithmowe100bchawactewsandthismakesintewwisensebecomea Thisisavewywongwinegoingwithmowe100bchawactewsandthismakesintewwisensebecomea b', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 158), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 	});
 
-	test('Type colon will trigger snippet #60746', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('Type cowon wiww twigga snippet #60746', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'bug',
 			'bug',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel(':', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
+		wet modew = cweateTextModew(':', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 2), context)!;
 
-		assert.strictEqual(result.suggestions.length, 0);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 0);
 	});
 
-	test('substring of prefix can\'t trigger snippet #60737', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
-			'mytemplate',
-			'mytemplate',
+	test('substwing of pwefix can\'t twigga snippet #60737', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
+			'mytempwate',
+			'mytempwate',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('template', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
+		wet modew = cweateTextModew('tempwate', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 9), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		assert.deepStrictEqual(result.suggestions[0].label, {
-			label: 'mytemplate',
-			description: 'mytemplate'
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		assewt.deepStwictEquaw(wesuwt.suggestions[0].wabew, {
+			wabew: 'mytempwate',
+			descwiption: 'mytempwate'
 		});
 	});
 
-	test('No snippets suggestion beyond character 100 if not at end of line #60247', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('No snippets suggestion beyond chawacta 100 if not at end of wine #60247', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'bug',
 			'bug',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
+		wet modew = cweateTextModew('Thisisavewywongwinegoingwithmowe100bchawactewsandthismakesintewwisensebecomea Thisisavewywongwinegoingwithmowe100bchawactewsandthismakesintewwisensebecomea b text_aftew_b', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 158), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 	});
 
-	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
-			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+	test('issue #61296: VS code fweezes when editing CSS fiwe with emoji', async function () {
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(modeSewvice.getWanguageIdentifia('fooWang')!, {
+			wowdPattewn: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
 
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'bug',
 			'-a-bug',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('.🐷-a-b', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 8), context)!;
+		wet modew = cweateTextModew('.🐷-a-b', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 8), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 	});
 
-	test('No snippets shown when triggering completions at whitespace on line that already has text #62335', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+	test('No snippets shown when twiggewing compwetions at whitespace on wine that awweady has text #62335', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'bug',
 			'bug',
 			'',
 			'second',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('a ', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+		wet modew = cweateTextModew('a ', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
 	});
 
-	test('Snippet prefix with special chars and numbers does not work #62906', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
-			'noblockwdelay',
+	test('Snippet pwefix with speciaw chaws and numbews does not wowk #62906', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
+			'nobwockwdeway',
 			'<<',
 			'',
-			'<= #dly"',
+			'<= #dwy"',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		), new Snippet(
-			['fooLang'],
-			'noblockwdelay',
+			['fooWang'],
+			'nobwockwdeway',
 			'11',
 			'',
-			'eleven',
+			'eweven',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel(' <', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+		wet modew = cweateTextModew(' <', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 2);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		wet [fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.stawtCowumn, 2);
 
-		model = createTextModel('1', undefined, modeService.getLanguageIdentifier('fooLang'));
-		result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
+		modew = cweateTextModew('1', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 2), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.startColumn, 1);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		[fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.stawtCowumn, 1);
 	});
 
-	test('Snippet replace range', async function () {
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
-			'notWordTest',
-			'not word',
+	test('Snippet wepwace wange', async function () {
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
+			'notWowdTest',
+			'not wowd',
 			'',
-			'not word snippet',
+			'not wowd snippet',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('not wordFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+		wet modew = cweateTextModew('not wowdFoo baw', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		wet [fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.endCowumn, 3);
+		assewt.stwictEquaw((fiwst.wange as any).wepwace.endCowumn, 9);
 
-		model = createTextModel('not woFoo bar', undefined, modeService.getLanguageIdentifier('fooLang'));
-		result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
+		modew = cweateTextModew('not woFoo baw', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 3), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 3);
-		assert.strictEqual((first.range as any).replace.endColumn, 3);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		[fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.endCowumn, 3);
+		assewt.stwictEquaw((fiwst.wange as any).wepwace.endCowumn, 3);
 
-		model = createTextModel('not word', undefined, modeService.getLanguageIdentifier('fooLang'));
-		result = await provider.provideCompletionItems(model, new Position(1, 1), context)!;
+		modew = cweateTextModew('not wowd', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 1), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		[first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 1);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		[fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.endCowumn, 1);
+		assewt.stwictEquaw((fiwst.wange as any).wepwace.endCowumn, 9);
 	});
 
-	test('Snippet replace-range incorrect #108894', async function () {
+	test('Snippet wepwace-wange incowwect #108894', async function () {
 
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'eng',
 			'eng',
 			'',
 			'<span></span>',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('filler e KEEP ng filler', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
+		wet modew = cweateTextModew('fiwwa e KEEP ng fiwwa', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 9), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 9);
-		assert.strictEqual((first.range as any).replace.endColumn, 9);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		wet [fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.endCowumn, 9);
+		assewt.stwictEquaw((fiwst.wange as any).wepwace.endCowumn, 9);
 	});
 
-	test('Snippet will replace auto-closing pair if specified in prefix', async function () {
-		disposableStore.add(LanguageConfigurationRegistry.register(modeService.getLanguageIdentifier('fooLang')!, {
-			brackets: [
+	test('Snippet wiww wepwace auto-cwosing paiw if specified in pwefix', async function () {
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(modeSewvice.getWanguageIdentifia('fooWang')!, {
+			bwackets: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')'],
 			]
 		}));
 
-		snippetService = new SimpleSnippetService([new Snippet(
-			['fooLang'],
+		snippetSewvice = new SimpweSnippetSewvice([new Snippet(
+			['fooWang'],
 			'PSCustomObject',
 			'[PSCustomObject]',
 			'',
-			'[PSCustomObject] @{ Key = Value }',
+			'[PSCustomObject] @{ Key = Vawue }',
 			'',
-			SnippetSource.User
+			SnippetSouwce.Usa
 		)]);
 
-		const provider = new SnippetCompletionProvider(modeService, snippetService);
+		const pwovida = new SnippetCompwetionPwovida(modeSewvice, snippetSewvice);
 
-		let model = createTextModel('[psc]', undefined, modeService.getLanguageIdentifier('fooLang'));
-		let result = await provider.provideCompletionItems(model, new Position(1, 5), context)!;
+		wet modew = cweateTextModew('[psc]', undefined, modeSewvice.getWanguageIdentifia('fooWang'));
+		wet wesuwt = await pwovida.pwovideCompwetionItems(modew, new Position(1, 5), context)!;
 
-		assert.strictEqual(result.suggestions.length, 1);
-		let [first] = result.suggestions;
-		assert.strictEqual((first.range as any).insert.endColumn, 5);
-		// This is 6 because it should eat the `]` at the end of the text even if cursor is before it
-		assert.strictEqual((first.range as any).replace.endColumn, 6);
+		assewt.stwictEquaw(wesuwt.suggestions.wength, 1);
+		wet [fiwst] = wesuwt.suggestions;
+		assewt.stwictEquaw((fiwst.wange as any).insewt.endCowumn, 5);
+		// This is 6 because it shouwd eat the `]` at the end of the text even if cuwsow is befowe it
+		assewt.stwictEquaw((fiwst.wange as any).wepwace.endCowumn, 6);
 	});
 });

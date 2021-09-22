@@ -1,130 +1,130 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+impowt { wocawize } fwom 'vs/nws';
 
 const minute = 60;
-const hour = minute * 60;
-const day = hour * 24;
+const houw = minute * 60;
+const day = houw * 24;
 const week = day * 7;
 const month = day * 30;
-const year = day * 365;
+const yeaw = day * 365;
 
-export function fromNow(date: number | Date, appendAgoLabel?: boolean): string {
-	if (typeof date !== 'number') {
+expowt function fwomNow(date: numba | Date, appendAgoWabew?: boowean): stwing {
+	if (typeof date !== 'numba') {
 		date = date.getTime();
 	}
 
-	const seconds = Math.round((new Date().getTime() - date) / 1000);
+	const seconds = Math.wound((new Date().getTime() - date) / 1000);
 	if (seconds < -30) {
-		return localize('date.fromNow.in', 'in {0}', fromNow(new Date().getTime() + seconds * 1000, false));
+		wetuwn wocawize('date.fwomNow.in', 'in {0}', fwomNow(new Date().getTime() + seconds * 1000, fawse));
 	}
 
 	if (seconds < 30) {
-		return localize('date.fromNow.now', 'now');
+		wetuwn wocawize('date.fwomNow.now', 'now');
 	}
 
-	let value: number;
+	wet vawue: numba;
 	if (seconds < minute) {
-		value = seconds;
+		vawue = seconds;
 
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.seconds.singular.ago', '{0} sec ago', value)
-				: localize('date.fromNow.seconds.plural.ago', '{0} secs ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.seconds.singular', '{0} sec', value)
-				: localize('date.fromNow.seconds.plural', '{0} secs', value);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.seconds.singuwaw.ago', '{0} sec ago', vawue)
+				: wocawize('date.fwomNow.seconds.pwuwaw.ago', '{0} secs ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.seconds.singuwaw', '{0} sec', vawue)
+				: wocawize('date.fwomNow.seconds.pwuwaw', '{0} secs', vawue);
 		}
 	}
 
-	if (seconds < hour) {
-		value = Math.floor(seconds / minute);
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.minutes.singular.ago', '{0} min ago', value)
-				: localize('date.fromNow.minutes.plural.ago', '{0} mins ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.minutes.singular', '{0} min', value)
-				: localize('date.fromNow.minutes.plural', '{0} mins', value);
+	if (seconds < houw) {
+		vawue = Math.fwoow(seconds / minute);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.minutes.singuwaw.ago', '{0} min ago', vawue)
+				: wocawize('date.fwomNow.minutes.pwuwaw.ago', '{0} mins ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.minutes.singuwaw', '{0} min', vawue)
+				: wocawize('date.fwomNow.minutes.pwuwaw', '{0} mins', vawue);
 		}
 	}
 
 	if (seconds < day) {
-		value = Math.floor(seconds / hour);
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.hours.singular.ago', '{0} hr ago', value)
-				: localize('date.fromNow.hours.plural.ago', '{0} hrs ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.hours.singular', '{0} hr', value)
-				: localize('date.fromNow.hours.plural', '{0} hrs', value);
+		vawue = Math.fwoow(seconds / houw);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.houws.singuwaw.ago', '{0} hw ago', vawue)
+				: wocawize('date.fwomNow.houws.pwuwaw.ago', '{0} hws ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.houws.singuwaw', '{0} hw', vawue)
+				: wocawize('date.fwomNow.houws.pwuwaw', '{0} hws', vawue);
 		}
 	}
 
 	if (seconds < week) {
-		value = Math.floor(seconds / day);
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.days.singular.ago', '{0} day ago', value)
-				: localize('date.fromNow.days.plural.ago', '{0} days ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.days.singular', '{0} day', value)
-				: localize('date.fromNow.days.plural', '{0} days', value);
+		vawue = Math.fwoow(seconds / day);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.days.singuwaw.ago', '{0} day ago', vawue)
+				: wocawize('date.fwomNow.days.pwuwaw.ago', '{0} days ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.days.singuwaw', '{0} day', vawue)
+				: wocawize('date.fwomNow.days.pwuwaw', '{0} days', vawue);
 		}
 	}
 
 	if (seconds < month) {
-		value = Math.floor(seconds / week);
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.weeks.singular.ago', '{0} wk ago', value)
-				: localize('date.fromNow.weeks.plural.ago', '{0} wks ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.weeks.singular', '{0} wk', value)
-				: localize('date.fromNow.weeks.plural', '{0} wks', value);
+		vawue = Math.fwoow(seconds / week);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.weeks.singuwaw.ago', '{0} wk ago', vawue)
+				: wocawize('date.fwomNow.weeks.pwuwaw.ago', '{0} wks ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.weeks.singuwaw', '{0} wk', vawue)
+				: wocawize('date.fwomNow.weeks.pwuwaw', '{0} wks', vawue);
 		}
 	}
 
-	if (seconds < year) {
-		value = Math.floor(seconds / month);
-		if (appendAgoLabel) {
-			return value === 1
-				? localize('date.fromNow.months.singular.ago', '{0} mo ago', value)
-				: localize('date.fromNow.months.plural.ago', '{0} mos ago', value);
-		} else {
-			return value === 1
-				? localize('date.fromNow.months.singular', '{0} mo', value)
-				: localize('date.fromNow.months.plural', '{0} mos', value);
+	if (seconds < yeaw) {
+		vawue = Math.fwoow(seconds / month);
+		if (appendAgoWabew) {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.months.singuwaw.ago', '{0} mo ago', vawue)
+				: wocawize('date.fwomNow.months.pwuwaw.ago', '{0} mos ago', vawue);
+		} ewse {
+			wetuwn vawue === 1
+				? wocawize('date.fwomNow.months.singuwaw', '{0} mo', vawue)
+				: wocawize('date.fwomNow.months.pwuwaw', '{0} mos', vawue);
 		}
 	}
 
-	value = Math.floor(seconds / year);
-	if (appendAgoLabel) {
-		return value === 1
-			? localize('date.fromNow.years.singular.ago', '{0} yr ago', value)
-			: localize('date.fromNow.years.plural.ago', '{0} yrs ago', value);
-	} else {
-		return value === 1
-			? localize('date.fromNow.years.singular', '{0} yr', value)
-			: localize('date.fromNow.years.plural', '{0} yrs', value);
+	vawue = Math.fwoow(seconds / yeaw);
+	if (appendAgoWabew) {
+		wetuwn vawue === 1
+			? wocawize('date.fwomNow.yeaws.singuwaw.ago', '{0} yw ago', vawue)
+			: wocawize('date.fwomNow.yeaws.pwuwaw.ago', '{0} yws ago', vawue);
+	} ewse {
+		wetuwn vawue === 1
+			? wocawize('date.fwomNow.yeaws.singuwaw', '{0} yw', vawue)
+			: wocawize('date.fwomNow.yeaws.pwuwaw', '{0} yws', vawue);
 	}
 }
 
-export function toLocalISOString(date: Date): string {
-	return date.getFullYear() +
-		'-' + String(date.getMonth() + 1).padStart(2, '0') +
-		'-' + String(date.getDate()).padStart(2, '0') +
-		'T' + String(date.getHours()).padStart(2, '0') +
-		':' + String(date.getMinutes()).padStart(2, '0') +
-		':' + String(date.getSeconds()).padStart(2, '0') +
-		'.' + (date.getMilliseconds() / 1000).toFixed(3).slice(2, 5) +
+expowt function toWocawISOStwing(date: Date): stwing {
+	wetuwn date.getFuwwYeaw() +
+		'-' + Stwing(date.getMonth() + 1).padStawt(2, '0') +
+		'-' + Stwing(date.getDate()).padStawt(2, '0') +
+		'T' + Stwing(date.getHouws()).padStawt(2, '0') +
+		':' + Stwing(date.getMinutes()).padStawt(2, '0') +
+		':' + Stwing(date.getSeconds()).padStawt(2, '0') +
+		'.' + (date.getMiwwiseconds() / 1000).toFixed(3).swice(2, 5) +
 		'Z';
 }

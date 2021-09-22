@@ -1,684 +1,684 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { TimeoutTimer } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CompletionModel } from './completionModel';
-import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, SnippetSortOrder } from './suggest';
+impowt { TimeoutTima } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe, dispose, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { getWeadingWhitespace, isHighSuwwogate, isWowSuwwogate } fwom 'vs/base/common/stwings';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { CuwsowChangeWeason, ICuwsowSewectionChangedEvent } fwom 'vs/editow/common/contwowwa/cuwsowEvents';
+impowt { IPosition, Position } fwom 'vs/editow/common/cowe/position';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ITextModew, IWowdAtPosition } fwom 'vs/editow/common/modew';
+impowt { CompwetionContext, CompwetionItemKind, CompwetionItemPwovida, CompwetionPwovidewWegistwy, CompwetionTwiggewKind, StandawdTokenType } fwom 'vs/editow/common/modes';
+impowt { IEditowWowkewSewvice } fwom 'vs/editow/common/sewvices/editowWowkewSewvice';
+impowt { SnippetContwowwew2 } fwom 'vs/editow/contwib/snippet/snippetContwowwew2';
+impowt { WowdDistance } fwom 'vs/editow/contwib/suggest/wowdDistance';
+impowt { ICwipboawdSewvice } fwom 'vs/pwatfowm/cwipboawd/common/cwipboawdSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { CompwetionModew } fwom './compwetionModew';
+impowt { CompwetionDuwations, CompwetionItem, CompwetionOptions, getSnippetSuggestSuppowt, getSuggestionCompawatow, pwovideSuggestionItems, SnippetSowtOwda } fwom './suggest';
 
-export interface ICancelEvent {
-	readonly retrigger: boolean;
+expowt intewface ICancewEvent {
+	weadonwy wetwigga: boowean;
 }
 
-export interface ITriggerEvent {
-	readonly auto: boolean;
-	readonly shy: boolean;
-	readonly position: IPosition;
+expowt intewface ITwiggewEvent {
+	weadonwy auto: boowean;
+	weadonwy shy: boowean;
+	weadonwy position: IPosition;
 }
 
-export interface ISuggestEvent {
-	readonly completionModel: CompletionModel;
-	readonly isFrozen: boolean;
-	readonly auto: boolean;
-	readonly shy: boolean;
+expowt intewface ISuggestEvent {
+	weadonwy compwetionModew: CompwetionModew;
+	weadonwy isFwozen: boowean;
+	weadonwy auto: boowean;
+	weadonwy shy: boowean;
 }
 
-export interface SuggestTriggerContext {
-	readonly auto: boolean;
-	readonly shy: boolean;
-	readonly triggerKind?: CompletionTriggerKind;
-	readonly triggerCharacter?: string;
+expowt intewface SuggestTwiggewContext {
+	weadonwy auto: boowean;
+	weadonwy shy: boowean;
+	weadonwy twiggewKind?: CompwetionTwiggewKind;
+	weadonwy twiggewChawacta?: stwing;
 }
 
-export class LineContext {
+expowt cwass WineContext {
 
-	static shouldAutoTrigger(editor: ICodeEditor): boolean {
-		if (!editor.hasModel()) {
-			return false;
+	static shouwdAutoTwigga(editow: ICodeEditow): boowean {
+		if (!editow.hasModew()) {
+			wetuwn fawse;
 		}
-		const model = editor.getModel();
-		const pos = editor.getPosition();
-		model.tokenizeIfCheap(pos.lineNumber);
+		const modew = editow.getModew();
+		const pos = editow.getPosition();
+		modew.tokenizeIfCheap(pos.wineNumba);
 
-		const word = model.getWordAtPosition(pos);
-		if (!word) {
-			return false;
+		const wowd = modew.getWowdAtPosition(pos);
+		if (!wowd) {
+			wetuwn fawse;
 		}
-		if (word.endColumn !== pos.column) {
-			return false;
+		if (wowd.endCowumn !== pos.cowumn) {
+			wetuwn fawse;
 		}
-		if (!isNaN(Number(word.word))) {
-			return false;
+		if (!isNaN(Numba(wowd.wowd))) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	}
 
-	readonly lineNumber: number;
-	readonly column: number;
-	readonly leadingLineContent: string;
-	readonly leadingWord: IWordAtPosition;
-	readonly auto: boolean;
-	readonly shy: boolean;
+	weadonwy wineNumba: numba;
+	weadonwy cowumn: numba;
+	weadonwy weadingWineContent: stwing;
+	weadonwy weadingWowd: IWowdAtPosition;
+	weadonwy auto: boowean;
+	weadonwy shy: boowean;
 
-	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
-		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
-		this.leadingWord = model.getWordUntilPosition(position);
-		this.lineNumber = position.lineNumber;
-		this.column = position.column;
+	constwuctow(modew: ITextModew, position: Position, auto: boowean, shy: boowean) {
+		this.weadingWineContent = modew.getWineContent(position.wineNumba).substw(0, position.cowumn - 1);
+		this.weadingWowd = modew.getWowdUntiwPosition(position);
+		this.wineNumba = position.wineNumba;
+		this.cowumn = position.cowumn;
 		this.auto = auto;
 		this.shy = shy;
 	}
 }
 
-export const enum State {
-	Idle = 0,
-	Manual = 1,
+expowt const enum State {
+	Idwe = 0,
+	Manuaw = 1,
 	Auto = 2
 }
 
-function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
-	return editor.getOption(EditorOption.suggest).preview;
+function isSuggestPweviewEnabwed(editow: ICodeEditow): boowean {
+	wetuwn editow.getOption(EditowOption.suggest).pweview;
 }
 
-function shouldPreventQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	return (
-		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions') ?? isSuggestPreviewEnabled(editor))
+function shouwdPweventQuickSuggest(editow: ICodeEditow, contextKeySewvice: IContextKeySewvice, configuwationSewvice: IConfiguwationSewvice): boowean {
+	wetuwn (
+		Boowean(contextKeySewvice.getContextKeyVawue('inwineSuggestionVisibwe'))
+		&& !Boowean(configuwationSewvice.getVawue('editow.inwineSuggest.awwowQuickSuggestions') ?? isSuggestPweviewEnabwed(editow))
 	);
 }
 
-function shouldPreventSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	return (
-		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters') ?? isSuggestPreviewEnabled(editor))
+function shouwdPweventSuggestOnTwiggewChawactews(editow: ICodeEditow, contextKeySewvice: IContextKeySewvice, configuwationSewvice: IConfiguwationSewvice): boowean {
+	wetuwn (
+		Boowean(contextKeySewvice.getContextKeyVawue('inwineSuggestionVisibwe'))
+		&& !Boowean(configuwationSewvice.getVawue('editow.inwineSuggest.awwowSuggestOnTwiggewChawactews') ?? isSuggestPweviewEnabwed(editow))
 	);
 }
 
-export class SuggestModel implements IDisposable {
+expowt cwass SuggestModew impwements IDisposabwe {
 
-	private readonly _toDispose = new DisposableStore();
-	private _quickSuggestDelay: number = 10;
-	private readonly _triggerCharacterListener = new DisposableStore();
-	private readonly _triggerQuickSuggest = new TimeoutTimer();
-	private _state: State = State.Idle;
+	pwivate weadonwy _toDispose = new DisposabweStowe();
+	pwivate _quickSuggestDeway: numba = 10;
+	pwivate weadonwy _twiggewChawactewWistena = new DisposabweStowe();
+	pwivate weadonwy _twiggewQuickSuggest = new TimeoutTima();
+	pwivate _state: State = State.Idwe;
 
-	private _requestToken?: CancellationTokenSource;
-	private _context?: LineContext;
-	private _currentSelection: Selection;
+	pwivate _wequestToken?: CancewwationTokenSouwce;
+	pwivate _context?: WineContext;
+	pwivate _cuwwentSewection: Sewection;
 
-	private _completionModel: CompletionModel | undefined;
-	private readonly _completionDisposables = new DisposableStore();
-	private readonly _onDidCancel = new Emitter<ICancelEvent>();
-	private readonly _onDidTrigger = new Emitter<ITriggerEvent>();
-	private readonly _onDidSuggest = new Emitter<ISuggestEvent>();
+	pwivate _compwetionModew: CompwetionModew | undefined;
+	pwivate weadonwy _compwetionDisposabwes = new DisposabweStowe();
+	pwivate weadonwy _onDidCancew = new Emitta<ICancewEvent>();
+	pwivate weadonwy _onDidTwigga = new Emitta<ITwiggewEvent>();
+	pwivate weadonwy _onDidSuggest = new Emitta<ISuggestEvent>();
 
-	readonly onDidCancel: Event<ICancelEvent> = this._onDidCancel.event;
-	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
-	readonly onDidSuggest: Event<ISuggestEvent> = this._onDidSuggest.event;
+	weadonwy onDidCancew: Event<ICancewEvent> = this._onDidCancew.event;
+	weadonwy onDidTwigga: Event<ITwiggewEvent> = this._onDidTwigga.event;
+	weadonwy onDidSuggest: Event<ISuggestEvent> = this._onDidSuggest.event;
 
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ILogService private readonly _logService: ILogService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+	constwuctow(
+		pwivate weadonwy _editow: ICodeEditow,
+		@IEditowWowkewSewvice pwivate weadonwy _editowWowkewSewvice: IEditowWowkewSewvice,
+		@ICwipboawdSewvice pwivate weadonwy _cwipboawdSewvice: ICwipboawdSewvice,
+		@ITewemetwySewvice pwivate weadonwy _tewemetwySewvice: ITewemetwySewvice,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice,
+		@IContextKeySewvice pwivate weadonwy _contextKeySewvice: IContextKeySewvice,
+		@IConfiguwationSewvice pwivate weadonwy _configuwationSewvice: IConfiguwationSewvice,
 	) {
-		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
+		this._cuwwentSewection = this._editow.getSewection() || new Sewection(1, 1, 1, 1);
 
-		// wire up various listeners
-		this._toDispose.add(this._editor.onDidChangeModel(() => {
-			this._updateTriggerCharacters();
-			this.cancel();
+		// wiwe up vawious wistenews
+		this._toDispose.add(this._editow.onDidChangeModew(() => {
+			this._updateTwiggewChawactews();
+			this.cancew();
 		}));
-		this._toDispose.add(this._editor.onDidChangeModelLanguage(() => {
-			this._updateTriggerCharacters();
-			this.cancel();
+		this._toDispose.add(this._editow.onDidChangeModewWanguage(() => {
+			this._updateTwiggewChawactews();
+			this.cancew();
 		}));
-		this._toDispose.add(this._editor.onDidChangeConfiguration(() => {
-			this._updateTriggerCharacters();
+		this._toDispose.add(this._editow.onDidChangeConfiguwation(() => {
+			this._updateTwiggewChawactews();
 			this._updateQuickSuggest();
 		}));
-		this._toDispose.add(CompletionProviderRegistry.onDidChange(() => {
-			this._updateTriggerCharacters();
+		this._toDispose.add(CompwetionPwovidewWegistwy.onDidChange(() => {
+			this._updateTwiggewChawactews();
 			this._updateActiveSuggestSession();
 		}));
-		this._toDispose.add(this._editor.onDidChangeCursorSelection(e => {
-			this._onCursorChange(e);
+		this._toDispose.add(this._editow.onDidChangeCuwsowSewection(e => {
+			this._onCuwsowChange(e);
 		}));
 
-		let editorIsComposing = false;
-		this._toDispose.add(this._editor.onDidCompositionStart(() => {
-			editorIsComposing = true;
+		wet editowIsComposing = fawse;
+		this._toDispose.add(this._editow.onDidCompositionStawt(() => {
+			editowIsComposing = twue;
 		}));
-		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
-			// refilter when composition ends
-			editorIsComposing = false;
-			this._refilterCompletionItems();
+		this._toDispose.add(this._editow.onDidCompositionEnd(() => {
+			// wefiwta when composition ends
+			editowIsComposing = fawse;
+			this._wefiwtewCompwetionItems();
 		}));
-		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
-			// only filter completions when the editor isn't
-			// composing a character, e.g. ¨ + u makes ü but just
-			// ¨ cannot be used for filtering
-			if (!editorIsComposing) {
-				this._refilterCompletionItems();
+		this._toDispose.add(this._editow.onDidChangeModewContent(() => {
+			// onwy fiwta compwetions when the editow isn't
+			// composing a chawacta, e.g. ¨ + u makes ü but just
+			// ¨ cannot be used fow fiwtewing
+			if (!editowIsComposing) {
+				this._wefiwtewCompwetionItems();
 			}
 		}));
 
-		this._updateTriggerCharacters();
+		this._updateTwiggewChawactews();
 		this._updateQuickSuggest();
 	}
 
 	dispose(): void {
-		dispose(this._triggerCharacterListener);
-		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this._triggerQuickSuggest]);
+		dispose(this._twiggewChawactewWistena);
+		dispose([this._onDidCancew, this._onDidSuggest, this._onDidTwigga, this._twiggewQuickSuggest]);
 		this._toDispose.dispose();
-		this._completionDisposables.dispose();
-		this.cancel();
+		this._compwetionDisposabwes.dispose();
+		this.cancew();
 	}
 
-	// --- handle configuration & precondition changes
+	// --- handwe configuwation & pwecondition changes
 
-	private _updateQuickSuggest(): void {
-		this._quickSuggestDelay = this._editor.getOption(EditorOption.quickSuggestionsDelay);
+	pwivate _updateQuickSuggest(): void {
+		this._quickSuggestDeway = this._editow.getOption(EditowOption.quickSuggestionsDeway);
 
-		if (isNaN(this._quickSuggestDelay) || (!this._quickSuggestDelay && this._quickSuggestDelay !== 0) || this._quickSuggestDelay < 0) {
-			this._quickSuggestDelay = 10;
+		if (isNaN(this._quickSuggestDeway) || (!this._quickSuggestDeway && this._quickSuggestDeway !== 0) || this._quickSuggestDeway < 0) {
+			this._quickSuggestDeway = 10;
 		}
 	}
 
-	private _updateTriggerCharacters(): void {
-		this._triggerCharacterListener.clear();
+	pwivate _updateTwiggewChawactews(): void {
+		this._twiggewChawactewWistena.cweaw();
 
-		if (this._editor.getOption(EditorOption.readOnly)
-			|| !this._editor.hasModel()
-			|| !this._editor.getOption(EditorOption.suggestOnTriggerCharacters)) {
+		if (this._editow.getOption(EditowOption.weadOnwy)
+			|| !this._editow.hasModew()
+			|| !this._editow.getOption(EditowOption.suggestOnTwiggewChawactews)) {
 
-			return;
+			wetuwn;
 		}
 
-		const supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
-		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
-			for (const ch of support.triggerCharacters || []) {
-				let set = supportsByTriggerCharacter.get(ch);
+		const suppowtsByTwiggewChawacta = new Map<stwing, Set<CompwetionItemPwovida>>();
+		fow (const suppowt of CompwetionPwovidewWegistwy.aww(this._editow.getModew())) {
+			fow (const ch of suppowt.twiggewChawactews || []) {
+				wet set = suppowtsByTwiggewChawacta.get(ch);
 				if (!set) {
 					set = new Set();
-					set.add(getSnippetSuggestSupport());
-					supportsByTriggerCharacter.set(ch, set);
+					set.add(getSnippetSuggestSuppowt());
+					suppowtsByTwiggewChawacta.set(ch, set);
 				}
-				set.add(support);
+				set.add(suppowt);
 			}
 		}
 
 
-		const checkTriggerCharacter = (text?: string) => {
+		const checkTwiggewChawacta = (text?: stwing) => {
 
-			if (shouldPreventSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)) {
-				return;
+			if (shouwdPweventSuggestOnTwiggewChawactews(this._editow, this._contextKeySewvice, this._configuwationSewvice)) {
+				wetuwn;
 			}
 
-			if (LineContext.shouldAutoTrigger(this._editor)) {
-				// don't trigger by trigger characters when this is a case for quick suggest
-				return;
+			if (WineContext.shouwdAutoTwigga(this._editow)) {
+				// don't twigga by twigga chawactews when this is a case fow quick suggest
+				wetuwn;
 			}
 
 			if (!text) {
-				// came here from the compositionEnd-event
-				const position = this._editor.getPosition()!;
-				const model = this._editor.getModel()!;
-				text = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+				// came hewe fwom the compositionEnd-event
+				const position = this._editow.getPosition()!;
+				const modew = this._editow.getModew()!;
+				text = modew.getWineContent(position.wineNumba).substw(0, position.cowumn - 1);
 			}
 
-			let lastChar = '';
-			if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
-				if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
-					lastChar = text.substr(text.length - 2);
+			wet wastChaw = '';
+			if (isWowSuwwogate(text.chawCodeAt(text.wength - 1))) {
+				if (isHighSuwwogate(text.chawCodeAt(text.wength - 2))) {
+					wastChaw = text.substw(text.wength - 2);
 				}
-			} else {
-				lastChar = text.charAt(text.length - 1);
+			} ewse {
+				wastChaw = text.chawAt(text.wength - 1);
 			}
 
-			const supports = supportsByTriggerCharacter.get(lastChar);
-			if (supports) {
-				// keep existing items that where not computed by the
-				// supports/providers that want to trigger now
-				const existing = this._completionModel
-					? { items: this._completionModel.adopt(supports), clipboardText: this._completionModel.clipboardText }
+			const suppowts = suppowtsByTwiggewChawacta.get(wastChaw);
+			if (suppowts) {
+				// keep existing items that whewe not computed by the
+				// suppowts/pwovidews that want to twigga now
+				const existing = this._compwetionModew
+					? { items: this._compwetionModew.adopt(suppowts), cwipboawdText: this._compwetionModew.cwipboawdText }
 					: undefined;
-				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, existing);
+				this.twigga({ auto: twue, shy: fawse, twiggewChawacta: wastChaw }, Boowean(this._compwetionModew), suppowts, existing);
 			}
 		};
 
-		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
-		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
+		this._twiggewChawactewWistena.add(this._editow.onDidType(checkTwiggewChawacta));
+		this._twiggewChawactewWistena.add(this._editow.onDidCompositionEnd(checkTwiggewChawacta));
 	}
 
-	// --- trigger/retrigger/cancel suggest
+	// --- twigga/wetwigga/cancew suggest
 
 	get state(): State {
-		return this._state;
+		wetuwn this._state;
 	}
 
-	cancel(retrigger: boolean = false): void {
-		if (this._state !== State.Idle) {
-			this._triggerQuickSuggest.cancel();
-			this._requestToken?.cancel();
-			this._requestToken = undefined;
-			this._state = State.Idle;
-			this._completionModel = undefined;
+	cancew(wetwigga: boowean = fawse): void {
+		if (this._state !== State.Idwe) {
+			this._twiggewQuickSuggest.cancew();
+			this._wequestToken?.cancew();
+			this._wequestToken = undefined;
+			this._state = State.Idwe;
+			this._compwetionModew = undefined;
 			this._context = undefined;
-			this._onDidCancel.fire({ retrigger });
+			this._onDidCancew.fiwe({ wetwigga });
 		}
 	}
 
-	clear() {
-		this._completionDisposables.clear();
+	cweaw() {
+		this._compwetionDisposabwes.cweaw();
 	}
 
-	private _updateActiveSuggestSession(): void {
-		if (this._state !== State.Idle) {
-			if (!this._editor.hasModel() || !CompletionProviderRegistry.has(this._editor.getModel())) {
-				this.cancel();
-			} else {
-				this.trigger({ auto: this._state === State.Auto, shy: false }, true);
+	pwivate _updateActiveSuggestSession(): void {
+		if (this._state !== State.Idwe) {
+			if (!this._editow.hasModew() || !CompwetionPwovidewWegistwy.has(this._editow.getModew())) {
+				this.cancew();
+			} ewse {
+				this.twigga({ auto: this._state === State.Auto, shy: fawse }, twue);
 			}
 		}
 	}
 
-	private _onCursorChange(e: ICursorSelectionChangedEvent): void {
+	pwivate _onCuwsowChange(e: ICuwsowSewectionChangedEvent): void {
 
-		if (!this._editor.hasModel()) {
-			return;
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = this._editor.getModel();
-		const prevSelection = this._currentSelection;
-		this._currentSelection = this._editor.getSelection();
+		const modew = this._editow.getModew();
+		const pwevSewection = this._cuwwentSewection;
+		this._cuwwentSewection = this._editow.getSewection();
 
-		if (!e.selection.isEmpty()
-			|| (e.reason !== CursorChangeReason.NotSet && e.reason !== CursorChangeReason.Explicit)
-			|| (e.source !== 'keyboard' && e.source !== 'deleteLeft')
+		if (!e.sewection.isEmpty()
+			|| (e.weason !== CuwsowChangeWeason.NotSet && e.weason !== CuwsowChangeWeason.Expwicit)
+			|| (e.souwce !== 'keyboawd' && e.souwce !== 'deweteWeft')
 		) {
-			// Early exit if nothing needs to be done!
-			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-			this.cancel();
-			return;
+			// Eawwy exit if nothing needs to be done!
+			// Weave some fowm of eawwy exit check hewe if you wish to continue being a cuwsow position change wistena ;)
+			this.cancew();
+			wetuwn;
 		}
 
-		if (!CompletionProviderRegistry.has(model)) {
-			return;
+		if (!CompwetionPwovidewWegistwy.has(modew)) {
+			wetuwn;
 		}
 
-		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
+		if (this._state === State.Idwe && e.weason === CuwsowChangeWeason.NotSet) {
 
-			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
-				// not enabled
-				return;
+			if (this._editow.getOption(EditowOption.quickSuggestions) === fawse) {
+				// not enabwed
+				wetuwn;
 			}
 
-			if (!prevSelection.containsRange(this._currentSelection) && !prevSelection.getEndPosition().isBeforeOrEqual(this._currentSelection.getPosition())) {
-				// cursor didn't move RIGHT
-				return;
+			if (!pwevSewection.containsWange(this._cuwwentSewection) && !pwevSewection.getEndPosition().isBefoweOwEquaw(this._cuwwentSewection.getPosition())) {
+				// cuwsow didn't move WIGHT
+				wetuwn;
 			}
 
-			if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor).isInSnippet()) {
+			if (this._editow.getOption(EditowOption.suggest).snippetsPweventQuickSuggestions && SnippetContwowwew2.get(this._editow).isInSnippet()) {
 				// no quick suggestion when in snippet mode
-				return;
+				wetuwn;
 			}
 
-			this.cancel();
+			this.cancew();
 
-			this._triggerQuickSuggest.cancelAndSet(() => {
-				if (this._state !== State.Idle) {
-					return;
+			this._twiggewQuickSuggest.cancewAndSet(() => {
+				if (this._state !== State.Idwe) {
+					wetuwn;
 				}
-				if (!LineContext.shouldAutoTrigger(this._editor)) {
-					return;
+				if (!WineContext.shouwdAutoTwigga(this._editow)) {
+					wetuwn;
 				}
-				if (!this._editor.hasModel()) {
-					return;
+				if (!this._editow.hasModew()) {
+					wetuwn;
 				}
-				const model = this._editor.getModel();
-				const pos = this._editor.getPosition();
-				// validate enabled now
-				const quickSuggestions = this._editor.getOption(EditorOption.quickSuggestions);
-				if (quickSuggestions === false) {
-					return;
-				} else if (quickSuggestions === true) {
-					// all good
-				} else {
-					// Check the type of the token that triggered this
-					model.tokenizeIfCheap(pos.lineNumber);
-					const lineTokens = model.getLineTokens(pos.lineNumber);
-					const tokenType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(Math.max(pos.column - 1 - 1, 0)));
-					const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
-						|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
-						|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+				const modew = this._editow.getModew();
+				const pos = this._editow.getPosition();
+				// vawidate enabwed now
+				const quickSuggestions = this._editow.getOption(EditowOption.quickSuggestions);
+				if (quickSuggestions === fawse) {
+					wetuwn;
+				} ewse if (quickSuggestions === twue) {
+					// aww good
+				} ewse {
+					// Check the type of the token that twiggewed this
+					modew.tokenizeIfCheap(pos.wineNumba);
+					const wineTokens = modew.getWineTokens(pos.wineNumba);
+					const tokenType = wineTokens.getStandawdTokenType(wineTokens.findTokenIndexAtOffset(Math.max(pos.cowumn - 1 - 1, 0)));
+					const inVawidScope = quickSuggestions.otha && tokenType === StandawdTokenType.Otha
+						|| quickSuggestions.comments && tokenType === StandawdTokenType.Comment
+						|| quickSuggestions.stwings && tokenType === StandawdTokenType.Stwing;
 
-					if (!inValidScope) {
-						return;
+					if (!inVawidScope) {
+						wetuwn;
 					}
 				}
 
-				if (shouldPreventQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
-					// do not trigger quick suggestions if inline suggestions are shown
-					return;
+				if (shouwdPweventQuickSuggest(this._editow, this._contextKeySewvice, this._configuwationSewvice)) {
+					// do not twigga quick suggestions if inwine suggestions awe shown
+					wetuwn;
 				}
 
-				// we made it till here -> trigger now
-				this.trigger({ auto: true, shy: false });
+				// we made it tiww hewe -> twigga now
+				this.twigga({ auto: twue, shy: fawse });
 
-			}, this._quickSuggestDelay);
+			}, this._quickSuggestDeway);
 
 
-		} else if (this._state !== State.Idle && e.reason === CursorChangeReason.Explicit) {
-			// suggest is active and something like cursor keys are used to move
-			// the cursor. this means we can refilter at the new position
-			this._refilterCompletionItems();
+		} ewse if (this._state !== State.Idwe && e.weason === CuwsowChangeWeason.Expwicit) {
+			// suggest is active and something wike cuwsow keys awe used to move
+			// the cuwsow. this means we can wefiwta at the new position
+			this._wefiwtewCompwetionItems();
 		}
 	}
 
-	private _refilterCompletionItems(): void {
-		// Re-filter suggestions. This MUST run async because filtering/scoring
-		// uses the model content AND the cursor position. The latter is NOT
-		// updated when the document has changed (the event which drives this method)
-		// and therefore a little pause (next mirco task) is needed. See:
-		// https://stackoverflow.com/questions/25915634/difference-between-microtask-and-macrotask-within-an-event-loop-context#25933985
-		Promise.resolve().then(() => {
-			if (this._state === State.Idle) {
-				return;
+	pwivate _wefiwtewCompwetionItems(): void {
+		// We-fiwta suggestions. This MUST wun async because fiwtewing/scowing
+		// uses the modew content AND the cuwsow position. The watta is NOT
+		// updated when the document has changed (the event which dwives this method)
+		// and thewefowe a wittwe pause (next miwco task) is needed. See:
+		// https://stackovewfwow.com/questions/25915634/diffewence-between-micwotask-and-macwotask-within-an-event-woop-context#25933985
+		Pwomise.wesowve().then(() => {
+			if (this._state === State.Idwe) {
+				wetuwn;
 			}
-			if (!this._editor.hasModel()) {
-				return;
+			if (!this._editow.hasModew()) {
+				wetuwn;
 			}
-			const model = this._editor.getModel();
-			const position = this._editor.getPosition();
-			const ctx = new LineContext(model, position, this._state === State.Auto, false);
+			const modew = this._editow.getModew();
+			const position = this._editow.getPosition();
+			const ctx = new WineContext(modew, position, this._state === State.Auto, fawse);
 			this._onNewContext(ctx);
 		});
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[], clipboardText: string | undefined }): void {
-		if (!this._editor.hasModel()) {
-			return;
+	twigga(context: SuggestTwiggewContext, wetwigga: boowean = fawse, onwyFwom?: Set<CompwetionItemPwovida>, existing?: { items: CompwetionItem[], cwipboawdText: stwing | undefined }): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		const model = this._editor.getModel();
+		const modew = this._editow.getModew();
 		const auto = context.auto;
-		const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
+		const ctx = new WineContext(modew, this._editow.getPosition(), auto, context.shy);
 
-		// Cancel previous requests, change state & update UI
-		this.cancel(retrigger);
-		this._state = auto ? State.Auto : State.Manual;
-		this._onDidTrigger.fire({ auto, shy: context.shy, position: this._editor.getPosition() });
+		// Cancew pwevious wequests, change state & update UI
+		this.cancew(wetwigga);
+		this._state = auto ? State.Auto : State.Manuaw;
+		this._onDidTwigga.fiwe({ auto, shy: context.shy, position: this._editow.getPosition() });
 
-		// Capture context when request was sent
+		// Captuwe context when wequest was sent
 		this._context = ctx;
 
-		// Build context for request
-		let suggestCtx: CompletionContext = { triggerKind: context.triggerKind ?? CompletionTriggerKind.Invoke };
-		if (context.triggerCharacter) {
+		// Buiwd context fow wequest
+		wet suggestCtx: CompwetionContext = { twiggewKind: context.twiggewKind ?? CompwetionTwiggewKind.Invoke };
+		if (context.twiggewChawacta) {
 			suggestCtx = {
-				triggerKind: CompletionTriggerKind.TriggerCharacter,
-				triggerCharacter: context.triggerCharacter
+				twiggewKind: CompwetionTwiggewKind.TwiggewChawacta,
+				twiggewChawacta: context.twiggewChawacta
 			};
 		}
 
-		this._requestToken = new CancellationTokenSource();
+		this._wequestToken = new CancewwationTokenSouwce();
 
-		// kind filter and snippet sort rules
-		const snippetSuggestions = this._editor.getOption(EditorOption.snippetSuggestions);
-		let snippetSortOrder = SnippetSortOrder.Inline;
+		// kind fiwta and snippet sowt wuwes
+		const snippetSuggestions = this._editow.getOption(EditowOption.snippetSuggestions);
+		wet snippetSowtOwda = SnippetSowtOwda.Inwine;
 		switch (snippetSuggestions) {
 			case 'top':
-				snippetSortOrder = SnippetSortOrder.Top;
-				break;
-			// 	↓ that's the default anyways...
-			// case 'inline':
-			// 	snippetSortOrder = SnippetSortOrder.Inline;
-			// 	break;
+				snippetSowtOwda = SnippetSowtOwda.Top;
+				bweak;
+			// 	↓ that's the defauwt anyways...
+			// case 'inwine':
+			// 	snippetSowtOwda = SnippetSowtOwda.Inwine;
+			// 	bweak;
 			case 'bottom':
-				snippetSortOrder = SnippetSortOrder.Bottom;
-				break;
+				snippetSowtOwda = SnippetSowtOwda.Bottom;
+				bweak;
 		}
 
-		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
-		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
+		const { itemKind: itemKindFiwta, showDepwecated } = SuggestModew._cweateSuggestFiwta(this._editow);
+		const wowdDistance = WowdDistance.cweate(this._editowWowkewSewvice, this._editow);
 
-		const completions = provideSuggestionItems(
-			model,
-			this._editor.getPosition(),
-			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
+		const compwetions = pwovideSuggestionItems(
+			modew,
+			this._editow.getPosition(),
+			new CompwetionOptions(snippetSowtOwda, itemKindFiwta, onwyFwom, showDepwecated),
 			suggestCtx,
-			this._requestToken.token
+			this._wequestToken.token
 		);
 
-		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
+		Pwomise.aww([compwetions, wowdDistance]).then(async ([compwetions, wowdDistance]) => {
 
-			this._requestToken?.dispose();
+			this._wequestToken?.dispose();
 
-			if (!this._editor.hasModel()) {
-				return;
+			if (!this._editow.hasModew()) {
+				wetuwn;
 			}
 
-			let clipboardText = existing?.clipboardText;
-			if (!clipboardText && completions.needsClipboard) {
-				clipboardText = await this._clipboardService.readText();
+			wet cwipboawdText = existing?.cwipboawdText;
+			if (!cwipboawdText && compwetions.needsCwipboawd) {
+				cwipboawdText = await this._cwipboawdSewvice.weadText();
 			}
 
-			if (this._state === State.Idle) {
-				return;
+			if (this._state === State.Idwe) {
+				wetuwn;
 			}
 
-			const model = this._editor.getModel();
-			let items = completions.items;
+			const modew = this._editow.getModew();
+			wet items = compwetions.items;
 
 			if (existing) {
-				const cmpFn = getSuggestionComparator(snippetSortOrder);
-				items = items.concat(existing.items).sort(cmpFn);
+				const cmpFn = getSuggestionCompawatow(snippetSowtOwda);
+				items = items.concat(existing.items).sowt(cmpFn);
 			}
 
-			const ctx = new LineContext(model, this._editor.getPosition(), auto, context.shy);
-			this._completionModel = new CompletionModel(items, this._context!.column, {
-				leadingLineContent: ctx.leadingLineContent,
-				characterCountDelta: ctx.column - this._context!.column
+			const ctx = new WineContext(modew, this._editow.getPosition(), auto, context.shy);
+			this._compwetionModew = new CompwetionModew(items, this._context!.cowumn, {
+				weadingWineContent: ctx.weadingWineContent,
+				chawactewCountDewta: ctx.cowumn - this._context!.cowumn
 			},
-				wordDistance,
-				this._editor.getOption(EditorOption.suggest),
-				this._editor.getOption(EditorOption.snippetSuggestions),
-				clipboardText
+				wowdDistance,
+				this._editow.getOption(EditowOption.suggest),
+				this._editow.getOption(EditowOption.snippetSuggestions),
+				cwipboawdText
 			);
 
-			// store containers so that they can be disposed later
-			this._completionDisposables.add(completions.disposable);
+			// stowe containews so that they can be disposed wata
+			this._compwetionDisposabwes.add(compwetions.disposabwe);
 
 			this._onNewContext(ctx);
 
-			// finally report telemetry about durations
-			this._reportDurationsTelemetry(completions.durations);
+			// finawwy wepowt tewemetwy about duwations
+			this._wepowtDuwationsTewemetwy(compwetions.duwations);
 
-		}).catch(onUnexpectedError);
+		}).catch(onUnexpectedEwwow);
 	}
 
-	private _telemetryGate: number = 0;
+	pwivate _tewemetwyGate: numba = 0;
 
-	private _reportDurationsTelemetry(durations: CompletionDurations): void {
+	pwivate _wepowtDuwationsTewemetwy(duwations: CompwetionDuwations): void {
 
-		if (this._telemetryGate++ % 230 !== 0) {
-			return;
+		if (this._tewemetwyGate++ % 230 !== 0) {
+			wetuwn;
 		}
 
 		setTimeout(() => {
-			type Durations = { data: string; };
-			type DurationsClassification = { data: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
-			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
-			this._logService.debug('suggest.durations.json', durations);
+			type Duwations = { data: stwing; };
+			type DuwationsCwassification = { data: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' } };
+			this._tewemetwySewvice.pubwicWog2<Duwations, DuwationsCwassification>('suggest.duwations.json', { data: JSON.stwingify(duwations) });
+			this._wogSewvice.debug('suggest.duwations.json', duwations);
 		});
 	}
 
-	private static _createSuggestFilter(editor: ICodeEditor): { itemKind: Set<CompletionItemKind>; showDeprecated: boolean } {
-		// kind filter and snippet sort rules
-		const result = new Set<CompletionItemKind>();
+	pwivate static _cweateSuggestFiwta(editow: ICodeEditow): { itemKind: Set<CompwetionItemKind>; showDepwecated: boowean } {
+		// kind fiwta and snippet sowt wuwes
+		const wesuwt = new Set<CompwetionItemKind>();
 
 		// snippet setting
-		const snippetSuggestions = editor.getOption(EditorOption.snippetSuggestions);
+		const snippetSuggestions = editow.getOption(EditowOption.snippetSuggestions);
 		if (snippetSuggestions === 'none') {
-			result.add(CompletionItemKind.Snippet);
+			wesuwt.add(CompwetionItemKind.Snippet);
 		}
 
 		// type setting
-		const suggestOptions = editor.getOption(EditorOption.suggest);
-		if (!suggestOptions.showMethods) { result.add(CompletionItemKind.Method); }
-		if (!suggestOptions.showFunctions) { result.add(CompletionItemKind.Function); }
-		if (!suggestOptions.showConstructors) { result.add(CompletionItemKind.Constructor); }
-		if (!suggestOptions.showFields) { result.add(CompletionItemKind.Field); }
-		if (!suggestOptions.showVariables) { result.add(CompletionItemKind.Variable); }
-		if (!suggestOptions.showClasses) { result.add(CompletionItemKind.Class); }
-		if (!suggestOptions.showStructs) { result.add(CompletionItemKind.Struct); }
-		if (!suggestOptions.showInterfaces) { result.add(CompletionItemKind.Interface); }
-		if (!suggestOptions.showModules) { result.add(CompletionItemKind.Module); }
-		if (!suggestOptions.showProperties) { result.add(CompletionItemKind.Property); }
-		if (!suggestOptions.showEvents) { result.add(CompletionItemKind.Event); }
-		if (!suggestOptions.showOperators) { result.add(CompletionItemKind.Operator); }
-		if (!suggestOptions.showUnits) { result.add(CompletionItemKind.Unit); }
-		if (!suggestOptions.showValues) { result.add(CompletionItemKind.Value); }
-		if (!suggestOptions.showConstants) { result.add(CompletionItemKind.Constant); }
-		if (!suggestOptions.showEnums) { result.add(CompletionItemKind.Enum); }
-		if (!suggestOptions.showEnumMembers) { result.add(CompletionItemKind.EnumMember); }
-		if (!suggestOptions.showKeywords) { result.add(CompletionItemKind.Keyword); }
-		if (!suggestOptions.showWords) { result.add(CompletionItemKind.Text); }
-		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Color); }
-		if (!suggestOptions.showFiles) { result.add(CompletionItemKind.File); }
-		if (!suggestOptions.showReferences) { result.add(CompletionItemKind.Reference); }
-		if (!suggestOptions.showColors) { result.add(CompletionItemKind.Customcolor); }
-		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
-		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
-		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
-		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
-		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
+		const suggestOptions = editow.getOption(EditowOption.suggest);
+		if (!suggestOptions.showMethods) { wesuwt.add(CompwetionItemKind.Method); }
+		if (!suggestOptions.showFunctions) { wesuwt.add(CompwetionItemKind.Function); }
+		if (!suggestOptions.showConstwuctows) { wesuwt.add(CompwetionItemKind.Constwuctow); }
+		if (!suggestOptions.showFiewds) { wesuwt.add(CompwetionItemKind.Fiewd); }
+		if (!suggestOptions.showVawiabwes) { wesuwt.add(CompwetionItemKind.Vawiabwe); }
+		if (!suggestOptions.showCwasses) { wesuwt.add(CompwetionItemKind.Cwass); }
+		if (!suggestOptions.showStwucts) { wesuwt.add(CompwetionItemKind.Stwuct); }
+		if (!suggestOptions.showIntewfaces) { wesuwt.add(CompwetionItemKind.Intewface); }
+		if (!suggestOptions.showModuwes) { wesuwt.add(CompwetionItemKind.Moduwe); }
+		if (!suggestOptions.showPwopewties) { wesuwt.add(CompwetionItemKind.Pwopewty); }
+		if (!suggestOptions.showEvents) { wesuwt.add(CompwetionItemKind.Event); }
+		if (!suggestOptions.showOpewatows) { wesuwt.add(CompwetionItemKind.Opewatow); }
+		if (!suggestOptions.showUnits) { wesuwt.add(CompwetionItemKind.Unit); }
+		if (!suggestOptions.showVawues) { wesuwt.add(CompwetionItemKind.Vawue); }
+		if (!suggestOptions.showConstants) { wesuwt.add(CompwetionItemKind.Constant); }
+		if (!suggestOptions.showEnums) { wesuwt.add(CompwetionItemKind.Enum); }
+		if (!suggestOptions.showEnumMembews) { wesuwt.add(CompwetionItemKind.EnumMemba); }
+		if (!suggestOptions.showKeywowds) { wesuwt.add(CompwetionItemKind.Keywowd); }
+		if (!suggestOptions.showWowds) { wesuwt.add(CompwetionItemKind.Text); }
+		if (!suggestOptions.showCowows) { wesuwt.add(CompwetionItemKind.Cowow); }
+		if (!suggestOptions.showFiwes) { wesuwt.add(CompwetionItemKind.Fiwe); }
+		if (!suggestOptions.showWefewences) { wesuwt.add(CompwetionItemKind.Wefewence); }
+		if (!suggestOptions.showCowows) { wesuwt.add(CompwetionItemKind.Customcowow); }
+		if (!suggestOptions.showFowdews) { wesuwt.add(CompwetionItemKind.Fowda); }
+		if (!suggestOptions.showTypePawametews) { wesuwt.add(CompwetionItemKind.TypePawameta); }
+		if (!suggestOptions.showSnippets) { wesuwt.add(CompwetionItemKind.Snippet); }
+		if (!suggestOptions.showUsews) { wesuwt.add(CompwetionItemKind.Usa); }
+		if (!suggestOptions.showIssues) { wesuwt.add(CompwetionItemKind.Issue); }
 
-		return { itemKind: result, showDeprecated: suggestOptions.showDeprecated };
+		wetuwn { itemKind: wesuwt, showDepwecated: suggestOptions.showDepwecated };
 	}
 
-	private _onNewContext(ctx: LineContext): void {
+	pwivate _onNewContext(ctx: WineContext): void {
 
 		if (!this._context) {
-			// happens when 24x7 IntelliSense is enabled and still in its delay
-			return;
+			// happens when 24x7 IntewwiSense is enabwed and stiww in its deway
+			wetuwn;
 		}
 
-		if (ctx.lineNumber !== this._context.lineNumber) {
-			// e.g. happens when pressing Enter while IntelliSense is computed
-			this.cancel();
-			return;
+		if (ctx.wineNumba !== this._context.wineNumba) {
+			// e.g. happens when pwessing Enta whiwe IntewwiSense is computed
+			this.cancew();
+			wetuwn;
 		}
 
-		if (getLeadingWhitespace(ctx.leadingLineContent) !== getLeadingWhitespace(this._context.leadingLineContent)) {
-			// cancel IntelliSense when line start changes
-			// happens when the current word gets outdented
-			this.cancel();
-			return;
+		if (getWeadingWhitespace(ctx.weadingWineContent) !== getWeadingWhitespace(this._context.weadingWineContent)) {
+			// cancew IntewwiSense when wine stawt changes
+			// happens when the cuwwent wowd gets outdented
+			this.cancew();
+			wetuwn;
 		}
 
-		if (ctx.column < this._context.column) {
-			// typed -> moved cursor LEFT -> retrigger if still on a word
-			if (ctx.leadingWord.word) {
-				this.trigger({ auto: this._context.auto, shy: false }, true);
-			} else {
-				this.cancel();
+		if (ctx.cowumn < this._context.cowumn) {
+			// typed -> moved cuwsow WEFT -> wetwigga if stiww on a wowd
+			if (ctx.weadingWowd.wowd) {
+				this.twigga({ auto: this._context.auto, shy: fawse }, twue);
+			} ewse {
+				this.cancew();
 			}
-			return;
+			wetuwn;
 		}
 
-		if (!this._completionModel) {
-			// happens when IntelliSense is not yet computed
-			return;
+		if (!this._compwetionModew) {
+			// happens when IntewwiSense is not yet computed
+			wetuwn;
 		}
 
-		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
-			// started a new word while IntelliSense shows -> retrigger
+		if (ctx.weadingWowd.wowd.wength !== 0 && ctx.weadingWowd.stawtCowumn > this._context.weadingWowd.stawtCowumn) {
+			// stawted a new wowd whiwe IntewwiSense shows -> wetwigga
 
-			// Select those providers have not contributed to this completion model and re-trigger completions for
-			// them. Also adopt the existing items and merge them into the new completion model
-			const inactiveProvider = new Set(CompletionProviderRegistry.all(this._editor.getModel()!));
-			for (let provider of this._completionModel.allProvider) {
-				inactiveProvider.delete(provider);
+			// Sewect those pwovidews have not contwibuted to this compwetion modew and we-twigga compwetions fow
+			// them. Awso adopt the existing items and mewge them into the new compwetion modew
+			const inactivePwovida = new Set(CompwetionPwovidewWegistwy.aww(this._editow.getModew()!));
+			fow (wet pwovida of this._compwetionModew.awwPwovida) {
+				inactivePwovida.dewete(pwovida);
 			}
-			const items = this._completionModel.adopt(new Set());
-			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, { items, clipboardText: this._completionModel.clipboardText });
-			return;
+			const items = this._compwetionModew.adopt(new Set());
+			this.twigga({ auto: this._context.auto, shy: fawse }, twue, inactivePwovida, { items, cwipboawdText: this._compwetionModew.cwipboawdText });
+			wetuwn;
 		}
 
-		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
-			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
-			const { incomplete } = this._completionModel;
-			const items = this._completionModel.adopt(incomplete);
-			this.trigger({ auto: this._state === State.Auto, shy: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, { items, clipboardText: this._completionModel.clipboardText });
+		if (ctx.cowumn > this._context.cowumn && this._compwetionModew.incompwete.size > 0 && ctx.weadingWowd.wowd.wength !== 0) {
+			// typed -> moved cuwsow WIGHT & incompwe modew & stiww on a wowd -> wetwigga
+			const { incompwete } = this._compwetionModew;
+			const items = this._compwetionModew.adopt(incompwete);
+			this.twigga({ auto: this._state === State.Auto, shy: fawse, twiggewKind: CompwetionTwiggewKind.TwiggewFowIncompweteCompwetions }, twue, incompwete, { items, cwipboawdText: this._compwetionModew.cwipboawdText });
 
-		} else {
-			// typed -> moved cursor RIGHT -> update UI
-			let oldLineContext = this._completionModel.lineContext;
-			let isFrozen = false;
+		} ewse {
+			// typed -> moved cuwsow WIGHT -> update UI
+			wet owdWineContext = this._compwetionModew.wineContext;
+			wet isFwozen = fawse;
 
-			this._completionModel.lineContext = {
-				leadingLineContent: ctx.leadingLineContent,
-				characterCountDelta: ctx.column - this._context.column
+			this._compwetionModew.wineContext = {
+				weadingWineContent: ctx.weadingWineContent,
+				chawactewCountDewta: ctx.cowumn - this._context.cowumn
 			};
 
-			if (this._completionModel.items.length === 0) {
+			if (this._compwetionModew.items.wength === 0) {
 
-				if (LineContext.shouldAutoTrigger(this._editor) && this._context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
-					// retrigger when heading into a new word
-					this.trigger({ auto: this._context.auto, shy: false }, true);
-					return;
+				if (WineContext.shouwdAutoTwigga(this._editow) && this._context.weadingWowd.endCowumn < ctx.weadingWowd.stawtCowumn) {
+					// wetwigga when heading into a new wowd
+					this.twigga({ auto: this._context.auto, shy: fawse }, twue);
+					wetuwn;
 				}
 
 				if (!this._context.auto) {
-					// freeze when IntelliSense was manually requested
-					this._completionModel.lineContext = oldLineContext;
-					isFrozen = this._completionModel.items.length > 0;
+					// fweeze when IntewwiSense was manuawwy wequested
+					this._compwetionModew.wineContext = owdWineContext;
+					isFwozen = this._compwetionModew.items.wength > 0;
 
-					if (isFrozen && ctx.leadingWord.word.length === 0) {
-						// there were results before but now there aren't
-						// and also we are not on a word anymore -> cancel
-						this.cancel();
-						return;
+					if (isFwozen && ctx.weadingWowd.wowd.wength === 0) {
+						// thewe wewe wesuwts befowe but now thewe awen't
+						// and awso we awe not on a wowd anymowe -> cancew
+						this.cancew();
+						wetuwn;
 					}
 
-				} else {
-					// nothing left
-					this.cancel();
-					return;
+				} ewse {
+					// nothing weft
+					this.cancew();
+					wetuwn;
 				}
 			}
 
-			this._onDidSuggest.fire({
-				completionModel: this._completionModel,
+			this._onDidSuggest.fiwe({
+				compwetionModew: this._compwetionModew,
 				auto: this._context.auto,
 				shy: this._context.shy,
-				isFrozen,
+				isFwozen,
 			});
 		}
 	}

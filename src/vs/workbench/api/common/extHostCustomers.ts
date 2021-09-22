@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConstructorSignature1, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConstwuctowSignatuwe1, BwandedSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IExtHostContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { PwoxyIdentifia } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
+expowt type IExtHostNamedCustoma<T extends IDisposabwe> = [PwoxyIdentifia<T>, IExtHostCustomewCtow<T>];
 
-export type IExtHostCustomerCtor<T extends IDisposable> = IConstructorSignature1<IExtHostContext, T>;
+expowt type IExtHostCustomewCtow<T extends IDisposabwe> = IConstwuctowSignatuwe1<IExtHostContext, T>;
 
-export function extHostNamedCustomer<T extends IDisposable>(id: ProxyIdentifier<T>) {
-	return function <Services extends BrandedService[]>(ctor: { new(context: IExtHostContext, ...services: Services): T }): void {
-		ExtHostCustomersRegistryImpl.INSTANCE.registerNamedCustomer(id, ctor as IExtHostCustomerCtor<T>);
+expowt function extHostNamedCustoma<T extends IDisposabwe>(id: PwoxyIdentifia<T>) {
+	wetuwn function <Sewvices extends BwandedSewvice[]>(ctow: { new(context: IExtHostContext, ...sewvices: Sewvices): T }): void {
+		ExtHostCustomewsWegistwyImpw.INSTANCE.wegistewNamedCustoma(id, ctow as IExtHostCustomewCtow<T>);
 	};
 }
 
-export function extHostCustomer<T extends IDisposable, Services extends BrandedService[]>(ctor: { new(context: IExtHostContext, ...services: Services): T }): void {
-	ExtHostCustomersRegistryImpl.INSTANCE.registerCustomer(ctor as IExtHostCustomerCtor<T>);
+expowt function extHostCustoma<T extends IDisposabwe, Sewvices extends BwandedSewvice[]>(ctow: { new(context: IExtHostContext, ...sewvices: Sewvices): T }): void {
+	ExtHostCustomewsWegistwyImpw.INSTANCE.wegistewCustoma(ctow as IExtHostCustomewCtow<T>);
 }
 
-export namespace ExtHostCustomersRegistry {
+expowt namespace ExtHostCustomewsWegistwy {
 
-	export function getNamedCustomers(): IExtHostNamedCustomer<IDisposable>[] {
-		return ExtHostCustomersRegistryImpl.INSTANCE.getNamedCustomers();
+	expowt function getNamedCustomews(): IExtHostNamedCustoma<IDisposabwe>[] {
+		wetuwn ExtHostCustomewsWegistwyImpw.INSTANCE.getNamedCustomews();
 	}
 
-	export function getCustomers(): IExtHostCustomerCtor<IDisposable>[] {
-		return ExtHostCustomersRegistryImpl.INSTANCE.getCustomers();
+	expowt function getCustomews(): IExtHostCustomewCtow<IDisposabwe>[] {
+		wetuwn ExtHostCustomewsWegistwyImpw.INSTANCE.getCustomews();
 	}
 }
 
-class ExtHostCustomersRegistryImpl {
+cwass ExtHostCustomewsWegistwyImpw {
 
-	public static readonly INSTANCE = new ExtHostCustomersRegistryImpl();
+	pubwic static weadonwy INSTANCE = new ExtHostCustomewsWegistwyImpw();
 
-	private _namedCustomers: IExtHostNamedCustomer<any>[];
-	private _customers: IExtHostCustomerCtor<any>[];
+	pwivate _namedCustomews: IExtHostNamedCustoma<any>[];
+	pwivate _customews: IExtHostCustomewCtow<any>[];
 
-	constructor() {
-		this._namedCustomers = [];
-		this._customers = [];
+	constwuctow() {
+		this._namedCustomews = [];
+		this._customews = [];
 	}
 
-	public registerNamedCustomer<T extends IDisposable>(id: ProxyIdentifier<T>, ctor: IExtHostCustomerCtor<T>): void {
-		const entry: IExtHostNamedCustomer<T> = [id, ctor];
-		this._namedCustomers.push(entry);
+	pubwic wegistewNamedCustoma<T extends IDisposabwe>(id: PwoxyIdentifia<T>, ctow: IExtHostCustomewCtow<T>): void {
+		const entwy: IExtHostNamedCustoma<T> = [id, ctow];
+		this._namedCustomews.push(entwy);
 	}
-	public getNamedCustomers(): IExtHostNamedCustomer<any>[] {
-		return this._namedCustomers;
+	pubwic getNamedCustomews(): IExtHostNamedCustoma<any>[] {
+		wetuwn this._namedCustomews;
 	}
 
-	public registerCustomer<T extends IDisposable>(ctor: IExtHostCustomerCtor<T>): void {
-		this._customers.push(ctor);
+	pubwic wegistewCustoma<T extends IDisposabwe>(ctow: IExtHostCustomewCtow<T>): void {
+		this._customews.push(ctow);
 	}
-	public getCustomers(): IExtHostCustomerCtor<any>[] {
-		return this._customers;
+	pubwic getCustomews(): IExtHostCustomewCtow<any>[] {
+		wetuwn this._customews;
 	}
 }

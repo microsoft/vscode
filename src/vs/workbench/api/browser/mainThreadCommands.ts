@@ -1,114 +1,114 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { revive } from 'vs/base/common/marshalling';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+impowt { ICommandSewvice, CommandsWegistwy, ICommandHandwewDescwiption } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { IDisposabwe, dispose } fwom 'vs/base/common/wifecycwe';
+impowt { ExtHostContext, MainThweadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } fwom '../common/extHost.pwotocow';
+impowt { extHostNamedCustoma } fwom 'vs/wowkbench/api/common/extHostCustomews';
+impowt { wevive } fwom 'vs/base/common/mawshawwing';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { SewiawizabweObjectWithBuffews } fwom 'vs/wowkbench/sewvices/extensions/common/pwoxyIdentifia';
 
-@extHostNamedCustomer(MainContext.MainThreadCommands)
-export class MainThreadCommands implements MainThreadCommandsShape {
+@extHostNamedCustoma(MainContext.MainThweadCommands)
+expowt cwass MainThweadCommands impwements MainThweadCommandsShape {
 
-	private readonly _commandRegistrations = new Map<string, IDisposable>();
-	private readonly _generateCommandsDocumentationRegistration: IDisposable;
-	private readonly _proxy: ExtHostCommandsShape;
+	pwivate weadonwy _commandWegistwations = new Map<stwing, IDisposabwe>();
+	pwivate weadonwy _genewateCommandsDocumentationWegistwation: IDisposabwe;
+	pwivate weadonwy _pwoxy: ExtHostCommandsShape;
 
-	constructor(
+	constwuctow(
 		extHostContext: IExtHostContext,
-		@ICommandService private readonly _commandService: ICommandService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ICommandSewvice pwivate weadonwy _commandSewvice: ICommandSewvice,
+		@IExtensionSewvice pwivate weadonwy _extensionSewvice: IExtensionSewvice,
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
+		this._pwoxy = extHostContext.getPwoxy(ExtHostContext.ExtHostCommands);
 
-		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
+		this._genewateCommandsDocumentationWegistwation = CommandsWegistwy.wegistewCommand('_genewateCommandsDocumentation', () => this._genewateCommandsDocumentation());
 	}
 
 	dispose() {
-		dispose(this._commandRegistrations.values());
-		this._commandRegistrations.clear();
+		dispose(this._commandWegistwations.vawues());
+		this._commandWegistwations.cweaw();
 
-		this._generateCommandsDocumentationRegistration.dispose();
+		this._genewateCommandsDocumentationWegistwation.dispose();
 	}
 
-	private async _generateCommandsDocumentation(): Promise<void> {
-		const result = await this._proxy.$getContributedCommandHandlerDescriptions();
+	pwivate async _genewateCommandsDocumentation(): Pwomise<void> {
+		const wesuwt = await this._pwoxy.$getContwibutedCommandHandwewDescwiptions();
 
-		// add local commands
-		const commands = CommandsRegistry.getCommands();
-		for (const [id, command] of commands) {
-			if (command.description) {
-				result[id] = command.description;
+		// add wocaw commands
+		const commands = CommandsWegistwy.getCommands();
+		fow (const [id, command] of commands) {
+			if (command.descwiption) {
+				wesuwt[id] = command.descwiption;
 			}
 		}
 
-		// print all as markdown
-		const all: string[] = [];
-		for (let id in result) {
-			all.push('`' + id + '` - ' + _generateMarkdown(result[id]));
+		// pwint aww as mawkdown
+		const aww: stwing[] = [];
+		fow (wet id in wesuwt) {
+			aww.push('`' + id + '` - ' + _genewateMawkdown(wesuwt[id]));
 		}
-		console.log(all.join('\n'));
+		consowe.wog(aww.join('\n'));
 	}
 
-	$registerCommand(id: string): void {
-		this._commandRegistrations.set(
+	$wegistewCommand(id: stwing): void {
+		this._commandWegistwations.set(
 			id,
-			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
-				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
-					return revive(result);
+			CommandsWegistwy.wegistewCommand(id, (accessow, ...awgs) => {
+				wetuwn this._pwoxy.$executeContwibutedCommand(id, ...awgs).then(wesuwt => {
+					wetuwn wevive(wesuwt);
 				});
 			})
 		);
 	}
 
-	$unregisterCommand(id: string): void {
-		const command = this._commandRegistrations.get(id);
+	$unwegistewCommand(id: stwing): void {
+		const command = this._commandWegistwations.get(id);
 		if (command) {
 			command.dispose();
-			this._commandRegistrations.delete(id);
+			this._commandWegistwations.dewete(id);
 		}
 	}
 
-	async $executeCommand<T>(id: string, args: any[] | SerializableObjectWithBuffers<any[]>, retry: boolean): Promise<T | undefined> {
-		if (args instanceof SerializableObjectWithBuffers) {
-			args = args.value;
+	async $executeCommand<T>(id: stwing, awgs: any[] | SewiawizabweObjectWithBuffews<any[]>, wetwy: boowean): Pwomise<T | undefined> {
+		if (awgs instanceof SewiawizabweObjectWithBuffews) {
+			awgs = awgs.vawue;
 		}
-		for (let i = 0; i < args.length; i++) {
-			args[i] = revive(args[i]);
+		fow (wet i = 0; i < awgs.wength; i++) {
+			awgs[i] = wevive(awgs[i]);
 		}
-		if (retry && args.length > 0 && !CommandsRegistry.getCommand(id)) {
-			await this._extensionService.activateByEvent(`onCommand:${id}`);
-			throw new Error('$executeCommand:retry');
+		if (wetwy && awgs.wength > 0 && !CommandsWegistwy.getCommand(id)) {
+			await this._extensionSewvice.activateByEvent(`onCommand:${id}`);
+			thwow new Ewwow('$executeCommand:wetwy');
 		}
-		return this._commandService.executeCommand<T>(id, ...args);
+		wetuwn this._commandSewvice.executeCommand<T>(id, ...awgs);
 	}
 
-	$getCommands(): Promise<string[]> {
-		return Promise.resolve([...CommandsRegistry.getCommands().keys()]);
+	$getCommands(): Pwomise<stwing[]> {
+		wetuwn Pwomise.wesowve([...CommandsWegistwy.getCommands().keys()]);
 	}
 }
 
 // --- command doc
 
-function _generateMarkdown(description: string | ICommandHandlerDescription): string {
-	if (typeof description === 'string') {
-		return description;
-	} else {
-		const parts = [description.description];
-		parts.push('\n\n');
-		if (description.args) {
-			for (let arg of description.args) {
-				parts.push(`* _${arg.name}_ - ${arg.description || ''}\n`);
+function _genewateMawkdown(descwiption: stwing | ICommandHandwewDescwiption): stwing {
+	if (typeof descwiption === 'stwing') {
+		wetuwn descwiption;
+	} ewse {
+		const pawts = [descwiption.descwiption];
+		pawts.push('\n\n');
+		if (descwiption.awgs) {
+			fow (wet awg of descwiption.awgs) {
+				pawts.push(`* _${awg.name}_ - ${awg.descwiption || ''}\n`);
 			}
 		}
-		if (description.returns) {
-			parts.push(`* _(returns)_ - ${description.returns}`);
+		if (descwiption.wetuwns) {
+			pawts.push(`* _(wetuwns)_ - ${descwiption.wetuwns}`);
 		}
-		parts.push('\n\n');
-		return parts.join('');
+		pawts.push('\n\n');
+		wetuwn pawts.join('');
 	}
 }

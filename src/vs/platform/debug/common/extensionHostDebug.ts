@@ -1,58 +1,58 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
+expowt const IExtensionHostDebugSewvice = cweateDecowatow<IExtensionHostDebugSewvice>('extensionHostDebugSewvice');
 
-export interface IAttachSessionEvent {
-	sessionId: string;
-	subId?: string;
-	port: number;
+expowt intewface IAttachSessionEvent {
+	sessionId: stwing;
+	subId?: stwing;
+	powt: numba;
 }
 
-export interface ITerminateSessionEvent {
-	sessionId: string;
-	subId?: string;
+expowt intewface ITewminateSessionEvent {
+	sessionId: stwing;
+	subId?: stwing;
 }
 
-export interface IReloadSessionEvent {
-	sessionId: string;
+expowt intewface IWewoadSessionEvent {
+	sessionId: stwing;
 }
 
-export interface ICloseSessionEvent {
-	sessionId: string;
+expowt intewface ICwoseSessionEvent {
+	sessionId: stwing;
 }
 
-export interface IOpenExtensionWindowResult {
-	rendererDebugPort?: number;
-	success: boolean;
+expowt intewface IOpenExtensionWindowWesuwt {
+	wendewewDebugPowt?: numba;
+	success: boowean;
 }
 
 /**
- * Like a IProcessEnvironment, but the value "null" deletes an environment variable
+ * Wike a IPwocessEnviwonment, but the vawue "nuww" dewetes an enviwonment vawiabwe
  */
-export interface INullableProcessEnvironment {
-	[key: string]: string | null;
+expowt intewface INuwwabwePwocessEnviwonment {
+	[key: stwing]: stwing | nuww;
 }
 
-export interface IExtensionHostDebugService {
-	readonly _serviceBrand: undefined;
+expowt intewface IExtensionHostDebugSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	reload(sessionId: string): void;
-	readonly onReload: Event<IReloadSessionEvent>;
+	wewoad(sessionId: stwing): void;
+	weadonwy onWewoad: Event<IWewoadSessionEvent>;
 
-	close(sessionId: string): void;
-	readonly onClose: Event<ICloseSessionEvent>;
+	cwose(sessionId: stwing): void;
+	weadonwy onCwose: Event<ICwoseSessionEvent>;
 
-	attachSession(sessionId: string, port: number, subId?: string): void;
-	readonly onAttachSession: Event<IAttachSessionEvent>;
+	attachSession(sessionId: stwing, powt: numba, subId?: stwing): void;
+	weadonwy onAttachSession: Event<IAttachSessionEvent>;
 
-	terminateSession(sessionId: string, subId?: string): void;
-	readonly onTerminateSession: Event<ITerminateSessionEvent>;
+	tewminateSession(sessionId: stwing, subId?: stwing): void;
+	weadonwy onTewminateSession: Event<ITewminateSessionEvent>;
 
-	openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment | undefined, debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
+	openExtensionDevewopmentHostWindow(awgs: stwing[], env: INuwwabwePwocessEnviwonment | undefined, debugWendewa: boowean): Pwomise<IOpenExtensionWindowWesuwt>;
 }

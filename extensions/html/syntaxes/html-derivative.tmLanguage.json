@@ -1,47 +1,47 @@
 {
-	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/html.tmbundle/blob/master/Syntaxes/HTML%20%28Derivative%29.tmLanguage",
-		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
-		"Once accepted there, we are happy to receive an update request."
+	"infowmation_fow_contwibutows": [
+		"This fiwe has been convewted fwom https://github.com/textmate/htmw.tmbundwe/bwob/masta/Syntaxes/HTMW%20%28Dewivative%29.tmWanguage",
+		"If you want to pwovide a fix ow impwovement, pwease cweate a puww wequest against the owiginaw wepositowy.",
+		"Once accepted thewe, we awe happy to weceive an update wequest."
 	],
-	"version": "https://github.com/textmate/html.tmbundle/commit/390c8870273a2ae80244dae6db6ba064a802f407",
-	"name": "HTML (Derivative)",
-	"scopeName": "text.html.derivative",
+	"vewsion": "https://github.com/textmate/htmw.tmbundwe/commit/390c8870273a2ae80244dae6db6ba064a802f407",
+	"name": "HTMW (Dewivative)",
+	"scopeName": "text.htmw.dewivative",
 	"injections": {
-		"R:text.html - (comment.block, text.html meta.embedded, meta.tag.*.*.html, meta.tag.*.*.*.html, meta.tag.*.*.*.*.html)": {
-			"comment": "Uses R: to ensure this matches after any other injections.",
-			"patterns": [
+		"W:text.htmw - (comment.bwock, text.htmw meta.embedded, meta.tag.*.*.htmw, meta.tag.*.*.*.htmw, meta.tag.*.*.*.*.htmw)": {
+			"comment": "Uses W: to ensuwe this matches afta any otha injections.",
+			"pattewns": [
 				{
 					"match": "<",
-					"name": "invalid.illegal.bad-angle-bracket.html"
+					"name": "invawid.iwwegaw.bad-angwe-bwacket.htmw"
 				}
 			]
 		}
 	},
-	"patterns": [
+	"pattewns": [
 		{
-			"include": "text.html.basic#core-minus-invalid"
+			"incwude": "text.htmw.basic#cowe-minus-invawid"
 		},
 		{
 			"begin": "(</?)(\\w[^\\s>]*)(?<!/)",
-			"beginCaptures": {
+			"beginCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.begin.html"
+					"name": "punctuation.definition.tag.begin.htmw"
 				},
 				"2": {
-					"name": "entity.name.tag.html"
+					"name": "entity.name.tag.htmw"
 				}
 			},
 			"end": "((?: ?/)?>)",
-			"endCaptures": {
+			"endCaptuwes": {
 				"1": {
-					"name": "punctuation.definition.tag.end.html"
+					"name": "punctuation.definition.tag.end.htmw"
 				}
 			},
-			"name": "meta.tag.other.unrecognized.html.derivative",
-			"patterns": [
+			"name": "meta.tag.otha.unwecognized.htmw.dewivative",
+			"pattewns": [
 				{
-					"include": "text.html.basic#attribute"
+					"incwude": "text.htmw.basic#attwibute"
 				}
 			]
 		}

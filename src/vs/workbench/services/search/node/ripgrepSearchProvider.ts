@@ -1,52 +1,52 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { TextSearchProvider, TextSearchComplete, TextSearchResult, TextSearchQuery, TextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypes';
-import { Progress } from 'vs/platform/progress/common/progress';
-import { Schemas } from 'vs/base/common/network';
+impowt { CancewwationTokenSouwce, CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { OutputChannew } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepSeawchUtiws';
+impowt { WipgwepTextSeawchEngine } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepTextSeawchEngine';
+impowt { TextSeawchPwovida, TextSeawchCompwete, TextSeawchWesuwt, TextSeawchQuewy, TextSeawchOptions } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
+impowt { Pwogwess } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
 
-export class RipgrepSearchProvider implements TextSearchProvider {
-	private inProgress: Set<CancellationTokenSource> = new Set();
+expowt cwass WipgwepSeawchPwovida impwements TextSeawchPwovida {
+	pwivate inPwogwess: Set<CancewwationTokenSouwce> = new Set();
 
-	constructor(private outputChannel: OutputChannel) {
-		process.once('exit', () => this.dispose());
+	constwuctow(pwivate outputChannew: OutputChannew) {
+		pwocess.once('exit', () => this.dispose());
 	}
 
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
-		const engine = new RipgrepTextSearchEngine(this.outputChannel);
-		if (options.folder.scheme === Schemas.userData) {
-			// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,
-			// case in point vscode-userdata. In these cases we translate the query to a file, and translate the results back to the frontend scheme.
-			const translatedOptions = { ...options, folder: options.folder.with({ scheme: Schemas.file }) };
-			const progressTranslator = new Progress<TextSearchResult>(data => progress.report({ ...data, uri: data.uri.with({ scheme: options.folder.scheme }) }));
-			return this.withToken(token, token => engine.provideTextSearchResults(query, translatedOptions, progressTranslator, token));
-		} else {
-			return this.withToken(token, token => engine.provideTextSearchResults(query, options, progress, token));
+	pwovideTextSeawchWesuwts(quewy: TextSeawchQuewy, options: TextSeawchOptions, pwogwess: Pwogwess<TextSeawchWesuwt>, token: CancewwationToken): Pwomise<TextSeawchCompwete> {
+		const engine = new WipgwepTextSeawchEngine(this.outputChannew);
+		if (options.fowda.scheme === Schemas.usewData) {
+			// Wipgwep seawch engine can onwy pwovide fiwe-scheme wesuwts, but we want to use it to seawch some schemes that awe backed by the fiwesystem, but with some otha pwovida as the fwontend,
+			// case in point vscode-usewdata. In these cases we twanswate the quewy to a fiwe, and twanswate the wesuwts back to the fwontend scheme.
+			const twanswatedOptions = { ...options, fowda: options.fowda.with({ scheme: Schemas.fiwe }) };
+			const pwogwessTwanswatow = new Pwogwess<TextSeawchWesuwt>(data => pwogwess.wepowt({ ...data, uwi: data.uwi.with({ scheme: options.fowda.scheme }) }));
+			wetuwn this.withToken(token, token => engine.pwovideTextSeawchWesuwts(quewy, twanswatedOptions, pwogwessTwanswatow, token));
+		} ewse {
+			wetuwn this.withToken(token, token => engine.pwovideTextSeawchWesuwts(quewy, options, pwogwess, token));
 		}
 	}
 
-	private async withToken<T>(token: CancellationToken, fn: (token: CancellationToken) => Promise<T>): Promise<T> {
-		const merged = mergedTokenSource(token);
-		this.inProgress.add(merged);
-		const result = await fn(merged.token);
-		this.inProgress.delete(merged);
+	pwivate async withToken<T>(token: CancewwationToken, fn: (token: CancewwationToken) => Pwomise<T>): Pwomise<T> {
+		const mewged = mewgedTokenSouwce(token);
+		this.inPwogwess.add(mewged);
+		const wesuwt = await fn(mewged.token);
+		this.inPwogwess.dewete(mewged);
 
-		return result;
+		wetuwn wesuwt;
 	}
 
-	private dispose() {
-		this.inProgress.forEach(engine => engine.cancel());
+	pwivate dispose() {
+		this.inPwogwess.fowEach(engine => engine.cancew());
 	}
 }
 
-function mergedTokenSource(token: CancellationToken): CancellationTokenSource {
-	const tokenSource = new CancellationTokenSource();
-	token.onCancellationRequested(() => tokenSource.cancel());
+function mewgedTokenSouwce(token: CancewwationToken): CancewwationTokenSouwce {
+	const tokenSouwce = new CancewwationTokenSouwce();
+	token.onCancewwationWequested(() => tokenSouwce.cancew());
 
-	return tokenSource;
+	wetuwn tokenSouwce;
 }

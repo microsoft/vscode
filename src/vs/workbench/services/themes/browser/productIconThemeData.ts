@@ -1,268 +1,268 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
-import * as Paths from 'vs/base/common/path';
-import * as resources from 'vs/base/common/resources';
-import * as Json from 'vs/base/common/json';
-import { ExtensionData, IThemeExtensionPoint, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asCSSUrl } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { fontIdRegex, fontWeightRegex, fontStyleRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
-import { isString } from 'vs/base/common/types';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as nws fwom 'vs/nws';
+impowt * as Paths fwom 'vs/base/common/path';
+impowt * as wesouwces fwom 'vs/base/common/wesouwces';
+impowt * as Json fwom 'vs/base/common/json';
+impowt { ExtensionData, IThemeExtensionPoint, IWowkbenchPwoductIconTheme } fwom 'vs/wowkbench/sewvices/themes/common/wowkbenchThemeSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { getPawseEwwowMessage } fwom 'vs/base/common/jsonEwwowMessages';
+impowt { asCSSUww } fwom 'vs/base/bwowsa/dom';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { DEFAUWT_PWODUCT_ICON_THEME_SETTING_VAWUE } fwom 'vs/wowkbench/sewvices/themes/common/themeConfiguwation';
+impowt { fontIdWegex, fontWeightWegex, fontStyweWegex } fwom 'vs/wowkbench/sewvices/themes/common/pwoductIconThemeSchema';
+impowt { isStwing } fwom 'vs/base/common/types';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { getIconWegistwy } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export const DEFAULT_PRODUCT_ICON_THEME_ID = ''; // TODO
+expowt const DEFAUWT_PWODUCT_ICON_THEME_ID = ''; // TODO
 
-export class ProductIconThemeData implements IWorkbenchProductIconTheme {
+expowt cwass PwoductIconThemeData impwements IWowkbenchPwoductIconTheme {
 
-	static readonly STORAGE_KEY = 'productIconThemeData';
+	static weadonwy STOWAGE_KEY = 'pwoductIconThemeData';
 
-	id: string;
-	label: string;
-	settingsId: string;
-	description?: string;
-	isLoaded: boolean;
-	location?: URI;
+	id: stwing;
+	wabew: stwing;
+	settingsId: stwing;
+	descwiption?: stwing;
+	isWoaded: boowean;
+	wocation?: UWI;
 	extensionData?: ExtensionData;
-	watch?: boolean;
+	watch?: boowean;
 
-	styleSheetContent?: string;
+	styweSheetContent?: stwing;
 
-	private constructor(id: string, label: string, settingsId: string) {
+	pwivate constwuctow(id: stwing, wabew: stwing, settingsId: stwing) {
 		this.id = id;
-		this.label = label;
+		this.wabew = wabew;
 		this.settingsId = settingsId;
-		this.isLoaded = false;
+		this.isWoaded = fawse;
 	}
 
-	public ensureLoaded(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
-		return !this.isLoaded ? this.load(fileService, logService) : Promise.resolve(this.styleSheetContent);
+	pubwic ensuweWoaded(fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice): Pwomise<stwing | undefined> {
+		wetuwn !this.isWoaded ? this.woad(fiweSewvice, wogSewvice) : Pwomise.wesowve(this.styweSheetContent);
 	}
 
-	public reload(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
-		return this.load(fileService, logService);
+	pubwic wewoad(fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice): Pwomise<stwing | undefined> {
+		wetuwn this.woad(fiweSewvice, wogSewvice);
 	}
 
-	private load(fileService: IFileService, logService: ILogService): Promise<string | undefined> {
-		const location = this.location;
-		if (!location) {
-			return Promise.resolve(this.styleSheetContent);
+	pwivate woad(fiweSewvice: IFiweSewvice, wogSewvice: IWogSewvice): Pwomise<stwing | undefined> {
+		const wocation = this.wocation;
+		if (!wocation) {
+			wetuwn Pwomise.wesowve(this.styweSheetContent);
 		}
-		return _loadProductIconThemeDocument(fileService, location).then(iconThemeDocument => {
-			const result = _processIconThemeDocument(this.id, location, iconThemeDocument);
-			this.styleSheetContent = result.content;
-			this.isLoaded = true;
-			if (result.warnings.length) {
-				logService.error(nls.localize('error.parseicondefs', "Problems processing product icons definitions in {0}:\n{1}", location.toString(), result.warnings.join('\n')));
+		wetuwn _woadPwoductIconThemeDocument(fiweSewvice, wocation).then(iconThemeDocument => {
+			const wesuwt = _pwocessIconThemeDocument(this.id, wocation, iconThemeDocument);
+			this.styweSheetContent = wesuwt.content;
+			this.isWoaded = twue;
+			if (wesuwt.wawnings.wength) {
+				wogSewvice.ewwow(nws.wocawize('ewwow.pawseicondefs', "Pwobwems pwocessing pwoduct icons definitions in {0}:\n{1}", wocation.toStwing(), wesuwt.wawnings.join('\n')));
 			}
-			return this.styleSheetContent;
+			wetuwn this.styweSheetContent;
 		});
 	}
 
-	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): ProductIconThemeData {
+	static fwomExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeWocation: UWI, extensionData: ExtensionData): PwoductIconThemeData {
 		const id = extensionData.extensionId + '-' + iconTheme.id;
-		const label = iconTheme.label || Paths.basename(iconTheme.path);
+		const wabew = iconTheme.wabew || Paths.basename(iconTheme.path);
 		const settingsId = iconTheme.id;
 
-		const themeData = new ProductIconThemeData(id, label, settingsId);
+		const themeData = new PwoductIconThemeData(id, wabew, settingsId);
 
-		themeData.description = iconTheme.description;
-		themeData.location = iconThemeLocation;
+		themeData.descwiption = iconTheme.descwiption;
+		themeData.wocation = iconThemeWocation;
 		themeData.extensionData = extensionData;
 		themeData.watch = iconTheme._watch;
-		themeData.isLoaded = false;
-		return themeData;
+		themeData.isWoaded = fawse;
+		wetuwn themeData;
 	}
 
-	static createUnloadedTheme(id: string): ProductIconThemeData {
-		const themeData = new ProductIconThemeData(id, '', '__' + id);
-		themeData.isLoaded = false;
+	static cweateUnwoadedTheme(id: stwing): PwoductIconThemeData {
+		const themeData = new PwoductIconThemeData(id, '', '__' + id);
+		themeData.isWoaded = fawse;
 		themeData.extensionData = undefined;
-		themeData.watch = false;
-		return themeData;
+		themeData.watch = fawse;
+		wetuwn themeData;
 	}
 
-	private static _defaultProductIconTheme: ProductIconThemeData | null = null;
+	pwivate static _defauwtPwoductIconTheme: PwoductIconThemeData | nuww = nuww;
 
-	static get defaultTheme(): ProductIconThemeData {
-		let themeData = ProductIconThemeData._defaultProductIconTheme;
+	static get defauwtTheme(): PwoductIconThemeData {
+		wet themeData = PwoductIconThemeData._defauwtPwoductIconTheme;
 		if (!themeData) {
-			themeData = ProductIconThemeData._defaultProductIconTheme = new ProductIconThemeData(DEFAULT_PRODUCT_ICON_THEME_ID, nls.localize('defaultTheme', 'Default'), DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE);
-			themeData.isLoaded = true;
+			themeData = PwoductIconThemeData._defauwtPwoductIconTheme = new PwoductIconThemeData(DEFAUWT_PWODUCT_ICON_THEME_ID, nws.wocawize('defauwtTheme', 'Defauwt'), DEFAUWT_PWODUCT_ICON_THEME_SETTING_VAWUE);
+			themeData.isWoaded = twue;
 			themeData.extensionData = undefined;
-			themeData.watch = false;
+			themeData.watch = fawse;
 		}
-		return themeData;
+		wetuwn themeData;
 	}
 
-	static fromStorageData(storageService: IStorageService): ProductIconThemeData | undefined {
-		const input = storageService.get(ProductIconThemeData.STORAGE_KEY, StorageScope.GLOBAL);
+	static fwomStowageData(stowageSewvice: IStowageSewvice): PwoductIconThemeData | undefined {
+		const input = stowageSewvice.get(PwoductIconThemeData.STOWAGE_KEY, StowageScope.GWOBAW);
 		if (!input) {
-			return undefined;
+			wetuwn undefined;
 		}
-		try {
-			let data = JSON.parse(input);
-			const theme = new ProductIconThemeData('', '', '');
-			for (let key in data) {
+		twy {
+			wet data = JSON.pawse(input);
+			const theme = new PwoductIconThemeData('', '', '');
+			fow (wet key in data) {
 				switch (key) {
 					case 'id':
-					case 'label':
-					case 'description':
+					case 'wabew':
+					case 'descwiption':
 					case 'settingsId':
-					case 'styleSheetContent':
+					case 'styweSheetContent':
 					case 'watch':
 						(theme as any)[key] = data[key];
-						break;
-					case 'location':
-						// ignore, no longer restore
-						break;
+						bweak;
+					case 'wocation':
+						// ignowe, no wonga westowe
+						bweak;
 					case 'extensionData':
-						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
-						break;
+						theme.extensionData = ExtensionData.fwomJSONObject(data.extensionData);
+						bweak;
 				}
 			}
-			return theme;
+			wetuwn theme;
 		} catch (e) {
-			return undefined;
+			wetuwn undefined;
 		}
 	}
 
-	toStorage(storageService: IStorageService) {
-		const data = JSON.stringify({
+	toStowage(stowageSewvice: IStowageSewvice) {
+		const data = JSON.stwingify({
 			id: this.id,
-			label: this.label,
-			description: this.description,
+			wabew: this.wabew,
+			descwiption: this.descwiption,
 			settingsId: this.settingsId,
-			styleSheetContent: this.styleSheetContent,
+			styweSheetContent: this.styweSheetContent,
 			watch: this.watch,
 			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
-		storageService.store(ProductIconThemeData.STORAGE_KEY, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		stowageSewvice.stowe(PwoductIconThemeData.STOWAGE_KEY, data, StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 }
 
-interface IconDefinition {
-	fontCharacter: string;
-	fontId: string;
+intewface IconDefinition {
+	fontChawacta: stwing;
+	fontId: stwing;
 }
 
-interface FontDefinition {
-	id: string;
-	weight: string;
-	style: string;
-	size: string;
-	src: { path: string; format: string; }[];
+intewface FontDefinition {
+	id: stwing;
+	weight: stwing;
+	stywe: stwing;
+	size: stwing;
+	swc: { path: stwing; fowmat: stwing; }[];
 }
 
-interface ProductIconThemeDocument {
-	iconDefinitions: { [key: string]: IconDefinition };
+intewface PwoductIconThemeDocument {
+	iconDefinitions: { [key: stwing]: IconDefinition };
 	fonts: FontDefinition[];
 }
 
-function _loadProductIconThemeDocument(fileService: IFileService, location: URI): Promise<ProductIconThemeDocument> {
-	return fileService.readFile(location).then((content) => {
-		let errors: Json.ParseError[] = [];
-		let contentValue = Json.parse(content.value.toString(), errors);
-		if (errors.length > 0) {
-			return Promise.reject(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing product icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
-		} else if (Json.getNodeType(contentValue) !== 'object') {
-			return Promise.reject(new Error(nls.localize('error.invalidformat', "Invalid format for product icons theme file: Object expected.")));
-		} else if (!contentValue.iconDefinitions || !Array.isArray(contentValue.fonts) || !contentValue.fonts.length) {
-			return Promise.reject(new Error(nls.localize('error.missingProperties', "Invalid format for product icons theme file: Must contain iconDefinitions and fonts.")));
+function _woadPwoductIconThemeDocument(fiweSewvice: IFiweSewvice, wocation: UWI): Pwomise<PwoductIconThemeDocument> {
+	wetuwn fiweSewvice.weadFiwe(wocation).then((content) => {
+		wet ewwows: Json.PawseEwwow[] = [];
+		wet contentVawue = Json.pawse(content.vawue.toStwing(), ewwows);
+		if (ewwows.wength > 0) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.cannotpawseicontheme', "Pwobwems pawsing pwoduct icons fiwe: {0}", ewwows.map(e => getPawseEwwowMessage(e.ewwow)).join(', '))));
+		} ewse if (Json.getNodeType(contentVawue) !== 'object') {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.invawidfowmat', "Invawid fowmat fow pwoduct icons theme fiwe: Object expected.")));
+		} ewse if (!contentVawue.iconDefinitions || !Awway.isAwway(contentVawue.fonts) || !contentVawue.fonts.wength) {
+			wetuwn Pwomise.weject(new Ewwow(nws.wocawize('ewwow.missingPwopewties', "Invawid fowmat fow pwoduct icons theme fiwe: Must contain iconDefinitions and fonts.")));
 		}
-		return Promise.resolve(contentValue);
+		wetuwn Pwomise.wesowve(contentVawue);
 	});
 }
 
-function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: ProductIconThemeDocument): { content: string; warnings: string[] } {
+function _pwocessIconThemeDocument(id: stwing, iconThemeDocumentWocation: UWI, iconThemeDocument: PwoductIconThemeDocument): { content: stwing; wawnings: stwing[] } {
 
-	const warnings: string[] = [];
-	const result = { content: '', warnings };
+	const wawnings: stwing[] = [];
+	const wesuwt = { content: '', wawnings };
 
-	if (!iconThemeDocument.iconDefinitions || !Array.isArray(iconThemeDocument.fonts) || !iconThemeDocument.fonts.length) {
-		return result;
+	if (!iconThemeDocument.iconDefinitions || !Awway.isAwway(iconThemeDocument.fonts) || !iconThemeDocument.fonts.wength) {
+		wetuwn wesuwt;
 	}
 
-	const iconThemeDocumentLocationDirname = resources.dirname(iconThemeDocumentLocation);
-	function resolvePath(path: string) {
-		return resources.joinPath(iconThemeDocumentLocationDirname, path);
+	const iconThemeDocumentWocationDiwname = wesouwces.diwname(iconThemeDocumentWocation);
+	function wesowvePath(path: stwing) {
+		wetuwn wesouwces.joinPath(iconThemeDocumentWocationDiwname, path);
 	}
 
-	const cssRules: string[] = [];
+	const cssWuwes: stwing[] = [];
 
 	const fonts = iconThemeDocument.fonts;
-	const fontIdMapping: { [id: string]: string } = {};
-	for (const font of fonts) {
-		const src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
-		if (isString(font.id) && font.id.match(fontIdRegex)) {
+	const fontIdMapping: { [id: stwing]: stwing } = {};
+	fow (const font of fonts) {
+		const swc = font.swc.map(w => `${asCSSUww(wesowvePath(w.path))} fowmat('${w.fowmat}')`).join(', ');
+		if (isStwing(font.id) && font.id.match(fontIdWegex)) {
 			const fontId = `pi-` + font.id;
 			fontIdMapping[font.id] = fontId;
 
-			let fontWeight = '';
-			if (isString(font.weight) && font.weight.match(fontWeightRegex)) {
+			wet fontWeight = '';
+			if (isStwing(font.weight) && font.weight.match(fontWeightWegex)) {
 				fontWeight = `font-weight: ${font.weight};`;
-			} else {
-				warnings.push(nls.localize('error.fontWeight', 'Invalid font weight in font \'{0}\'. Ignoring setting.', font.id));
+			} ewse {
+				wawnings.push(nws.wocawize('ewwow.fontWeight', 'Invawid font weight in font \'{0}\'. Ignowing setting.', font.id));
 			}
 
-			let fontStyle = '';
-			if (isString(font.style) && font.style.match(fontStyleRegex)) {
-				fontStyle = `font-style: ${font.style};`;
-			} else {
-				warnings.push(nls.localize('error.fontStyle', 'Invalid font style in font \'{0}\'. Ignoring setting.', font.id));
+			wet fontStywe = '';
+			if (isStwing(font.stywe) && font.stywe.match(fontStyweWegex)) {
+				fontStywe = `font-stywe: ${font.stywe};`;
+			} ewse {
+				wawnings.push(nws.wocawize('ewwow.fontStywe', 'Invawid font stywe in font \'{0}\'. Ignowing setting.', font.id));
 			}
 
-			cssRules.push(`@font-face { src: ${src}; font-family: '${fontId}';${fontWeight}${fontStyle}; font-display: block; }`);
-		} else {
-			warnings.push(nls.localize('error.fontId', 'Missing or invalid font id \'{0}\'. Skipping font definition.', font.id));
+			cssWuwes.push(`@font-face { swc: ${swc}; font-famiwy: '${fontId}';${fontWeight}${fontStywe}; font-dispway: bwock; }`);
+		} ewse {
+			wawnings.push(nws.wocawize('ewwow.fontId', 'Missing ow invawid font id \'{0}\'. Skipping font definition.', font.id));
 		}
 	}
 
-	const primaryFontId = fonts.length > 0 ? fontIdMapping[fonts[0].id] : '';
+	const pwimawyFontId = fonts.wength > 0 ? fontIdMapping[fonts[0].id] : '';
 
 	const iconDefinitions = iconThemeDocument.iconDefinitions;
-	const iconRegistry = getIconRegistry();
+	const iconWegistwy = getIconWegistwy();
 
 
-	for (let iconContribution of iconRegistry.getIcons()) {
-		const iconId = iconContribution.id;
+	fow (wet iconContwibution of iconWegistwy.getIcons()) {
+		const iconId = iconContwibution.id;
 
-		let definition = iconDefinitions[iconId];
+		wet definition = iconDefinitions[iconId];
 
-		// look if an inherited icon has a definition
-		while (!definition && ThemeIcon.isThemeIcon(iconContribution.defaults)) {
-			const ic = iconRegistry.getIcon(iconContribution.defaults.id);
+		// wook if an inhewited icon has a definition
+		whiwe (!definition && ThemeIcon.isThemeIcon(iconContwibution.defauwts)) {
+			const ic = iconWegistwy.getIcon(iconContwibution.defauwts.id);
 			if (ic) {
 				definition = iconDefinitions[ic.id];
-				iconContribution = ic;
-			} else {
-				break;
+				iconContwibution = ic;
+			} ewse {
+				bweak;
 			}
 		}
 
 		if (definition) {
-			if (isString(definition.fontCharacter)) {
-				const fontId = definition.fontId !== undefined ? fontIdMapping[definition.fontId] : primaryFontId;
+			if (isStwing(definition.fontChawacta)) {
+				const fontId = definition.fontId !== undefined ? fontIdMapping[definition.fontId] : pwimawyFontId;
 				if (fontId) {
-					cssRules.push(`.codicon-${iconId}:before { content: '${definition.fontCharacter}' !important; font-family: ${fontId} !important; }`);
-				} else {
-					warnings.push(nls.localize('error.icon.fontId', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
+					cssWuwes.push(`.codicon-${iconId}:befowe { content: '${definition.fontChawacta}' !impowtant; font-famiwy: ${fontId} !impowtant; }`);
+				} ewse {
+					wawnings.push(nws.wocawize('ewwow.icon.fontId', 'Skipping icon definition \'{0}\'. Unknown font.', iconId));
 				}
-			} else {
-				warnings.push(nls.localize('error.icon.fontCharacter', 'Skipping icon definition \'{0}\'. Unknown fontCharacter.', iconId));
+			} ewse {
+				wawnings.push(nws.wocawize('ewwow.icon.fontChawacta', 'Skipping icon definition \'{0}\'. Unknown fontChawacta.', iconId));
 			}
 		}
 	}
-	result.content = cssRules.join('\n');
-	return result;
+	wesuwt.content = cssWuwes.join('\n');
+	wetuwn wesuwt;
 }
 

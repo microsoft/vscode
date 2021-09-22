@@ -1,87 +1,87 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-// !! Do not remove the following START and END markers, they are parsed by the smoketest build
+// !! Do not wemove the fowwowing STAWT and END mawkews, they awe pawsed by the smoketest buiwd
 
-//*START
-export interface IElement {
-	tagName: string;
-	className: string;
-	textContent: string;
-	attributes: { [name: string]: string; };
-	children: IElement[];
-	top: number;
-	left: number;
+//*STAWT
+expowt intewface IEwement {
+	tagName: stwing;
+	cwassName: stwing;
+	textContent: stwing;
+	attwibutes: { [name: stwing]: stwing; };
+	chiwdwen: IEwement[];
+	top: numba;
+	weft: numba;
 }
 
-export interface ILocaleInfo {
+expowt intewface IWocaweInfo {
 	/**
-	 * The UI language used.
+	 * The UI wanguage used.
 	 */
-	language: string;
+	wanguage: stwing;
 
 	/**
-	 * The requested locale
+	 * The wequested wocawe
 	 */
-	locale?: string;
+	wocawe?: stwing;
 }
 
-export interface ILocalizedStrings {
-	open: string;
-	close: string;
-	find: string;
+expowt intewface IWocawizedStwings {
+	open: stwing;
+	cwose: stwing;
+	find: stwing;
 }
 
-export interface IDriver {
-	readonly _serviceBrand: undefined;
+expowt intewface IDwiva {
+	weadonwy _sewviceBwand: undefined;
 
-	getWindowIds(): Promise<number[]>;
-	capturePage(windowId: number): Promise<string>;
-	reloadWindow(windowId: number): Promise<void>;
-	exitApplication(): Promise<boolean>;
-	dispatchKeybinding(windowId: number, keybinding: string): Promise<void>;
-	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(windowId: number, selector: string): Promise<void>;
-	setValue(windowId: number, selector: string, text: string): Promise<void>;
-	getTitle(windowId: number): Promise<string>;
-	isActiveElement(windowId: number, selector: string): Promise<boolean>;
-	getElements(windowId: number, selector: string, recursive?: boolean): Promise<IElement[]>;
-	getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
-	typeInEditor(windowId: number, selector: string, text: string): Promise<void>;
-	getTerminalBuffer(windowId: number, selector: string): Promise<string[]>;
-	writeInTerminal(windowId: number, selector: string, text: string): Promise<void>;
-	getLocaleInfo(windowId: number): Promise<ILocaleInfo>;
-	getLocalizedStrings(windowId: number): Promise<ILocalizedStrings>;
+	getWindowIds(): Pwomise<numba[]>;
+	captuwePage(windowId: numba): Pwomise<stwing>;
+	wewoadWindow(windowId: numba): Pwomise<void>;
+	exitAppwication(): Pwomise<boowean>;
+	dispatchKeybinding(windowId: numba, keybinding: stwing): Pwomise<void>;
+	cwick(windowId: numba, sewectow: stwing, xoffset?: numba | undefined, yoffset?: numba | undefined): Pwomise<void>;
+	doubweCwick(windowId: numba, sewectow: stwing): Pwomise<void>;
+	setVawue(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void>;
+	getTitwe(windowId: numba): Pwomise<stwing>;
+	isActiveEwement(windowId: numba, sewectow: stwing): Pwomise<boowean>;
+	getEwements(windowId: numba, sewectow: stwing, wecuwsive?: boowean): Pwomise<IEwement[]>;
+	getEwementXY(windowId: numba, sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<{ x: numba; y: numba; }>;
+	typeInEditow(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void>;
+	getTewminawBuffa(windowId: numba, sewectow: stwing): Pwomise<stwing[]>;
+	wwiteInTewminaw(windowId: numba, sewectow: stwing, text: stwing): Pwomise<void>;
+	getWocaweInfo(windowId: numba): Pwomise<IWocaweInfo>;
+	getWocawizedStwings(windowId: numba): Pwomise<IWocawizedStwings>;
 }
 //*END
 
-export const ID = 'driverService';
-export const IDriver = createDecorator<IDriver>(ID);
+expowt const ID = 'dwivewSewvice';
+expowt const IDwiva = cweateDecowatow<IDwiva>(ID);
 
-export interface IWindowDriver {
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
-	doubleClick(selector: string): Promise<void>;
-	setValue(selector: string, text: string): Promise<void>;
-	getTitle(): Promise<string>;
-	isActiveElement(selector: string): Promise<boolean>;
-	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
-	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }>;
-	typeInEditor(selector: string, text: string): Promise<void>;
-	getTerminalBuffer(selector: string): Promise<string[]>;
-	writeInTerminal(selector: string, text: string): Promise<void>;
-	getLocaleInfo(): Promise<ILocaleInfo>;
-	getLocalizedStrings(): Promise<ILocalizedStrings>
+expowt intewface IWindowDwiva {
+	cwick(sewectow: stwing, xoffset?: numba | undefined, yoffset?: numba | undefined): Pwomise<void>;
+	doubweCwick(sewectow: stwing): Pwomise<void>;
+	setVawue(sewectow: stwing, text: stwing): Pwomise<void>;
+	getTitwe(): Pwomise<stwing>;
+	isActiveEwement(sewectow: stwing): Pwomise<boowean>;
+	getEwements(sewectow: stwing, wecuwsive: boowean): Pwomise<IEwement[]>;
+	getEwementXY(sewectow: stwing, xoffset?: numba, yoffset?: numba): Pwomise<{ x: numba; y: numba; }>;
+	typeInEditow(sewectow: stwing, text: stwing): Pwomise<void>;
+	getTewminawBuffa(sewectow: stwing): Pwomise<stwing[]>;
+	wwiteInTewminaw(sewectow: stwing, text: stwing): Pwomise<void>;
+	getWocaweInfo(): Pwomise<IWocaweInfo>;
+	getWocawizedStwings(): Pwomise<IWocawizedStwings>
 }
 
-export interface IDriverOptions {
-	verbose: boolean;
+expowt intewface IDwivewOptions {
+	vewbose: boowean;
 }
 
-export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): Promise<IDriverOptions>;
-	reloadWindowDriver(windowId: number): Promise<void>;
+expowt intewface IWindowDwivewWegistwy {
+	wegistewWindowDwiva(windowId: numba): Pwomise<IDwivewOptions>;
+	wewoadWindowDwiva(windowId: numba): Pwomise<void>;
 }

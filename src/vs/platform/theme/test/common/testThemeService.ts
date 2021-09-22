@@ -1,85 +1,85 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IFileIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
+impowt { Cowow } fwom 'vs/base/common/cowow';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { CowowScheme } fwom 'vs/pwatfowm/theme/common/theme';
+impowt { ICowowTheme, IFiweIconTheme, IThemeSewvice, ITokenStywe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export class TestColorTheme implements IColorTheme {
+expowt cwass TestCowowTheme impwements ICowowTheme {
 
-	public readonly label = 'test';
+	pubwic weadonwy wabew = 'test';
 
-	constructor(
-		private colors: { [id: string]: string; } = {},
-		public type = ColorScheme.DARK,
-		public readonly semanticHighlighting = false
+	constwuctow(
+		pwivate cowows: { [id: stwing]: stwing; } = {},
+		pubwic type = CowowScheme.DAWK,
+		pubwic weadonwy semanticHighwighting = fawse
 	) { }
 
-	getColor(color: string, useDefault?: boolean): Color | undefined {
-		let value = this.colors[color];
-		if (value) {
-			return Color.fromHex(value);
+	getCowow(cowow: stwing, useDefauwt?: boowean): Cowow | undefined {
+		wet vawue = this.cowows[cowow];
+		if (vawue) {
+			wetuwn Cowow.fwomHex(vawue);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	defines(color: string): boolean {
-		throw new Error('Method not implemented.');
+	defines(cowow: stwing): boowean {
+		thwow new Ewwow('Method not impwemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
-		return undefined;
+	getTokenStyweMetadata(type: stwing, modifiews: stwing[], modewWanguage: stwing): ITokenStywe | undefined {
+		wetuwn undefined;
 	}
 
-	get tokenColorMap(): string[] {
-		return [];
+	get tokenCowowMap(): stwing[] {
+		wetuwn [];
 	}
 }
 
-export class TestFileIconTheme implements IFileIconTheme {
-	hasFileIcons = false;
-	hasFolderIcons = false;
-	hidesExplorerArrows = false;
+expowt cwass TestFiweIconTheme impwements IFiweIconTheme {
+	hasFiweIcons = fawse;
+	hasFowdewIcons = fawse;
+	hidesExpwowewAwwows = fawse;
 }
 
-export class TestThemeService implements IThemeService {
+expowt cwass TestThemeSewvice impwements IThemeSewvice {
 
-	declare readonly _serviceBrand: undefined;
-	_colorTheme: IColorTheme;
-	_fileIconTheme: IFileIconTheme;
-	_onThemeChange = new Emitter<IColorTheme>();
-	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
+	decwawe weadonwy _sewviceBwand: undefined;
+	_cowowTheme: ICowowTheme;
+	_fiweIconTheme: IFiweIconTheme;
+	_onThemeChange = new Emitta<ICowowTheme>();
+	_onFiweIconThemeChange = new Emitta<IFiweIconTheme>();
 
-	constructor(theme = new TestColorTheme(), iconTheme = new TestFileIconTheme()) {
-		this._colorTheme = theme;
-		this._fileIconTheme = iconTheme;
+	constwuctow(theme = new TestCowowTheme(), iconTheme = new TestFiweIconTheme()) {
+		this._cowowTheme = theme;
+		this._fiweIconTheme = iconTheme;
 	}
 
-	getColorTheme(): IColorTheme {
-		return this._colorTheme;
+	getCowowTheme(): ICowowTheme {
+		wetuwn this._cowowTheme;
 	}
 
-	setTheme(theme: IColorTheme) {
-		this._colorTheme = theme;
-		this.fireThemeChange();
+	setTheme(theme: ICowowTheme) {
+		this._cowowTheme = theme;
+		this.fiweThemeChange();
 	}
 
-	fireThemeChange() {
-		this._onThemeChange.fire(this._colorTheme);
+	fiweThemeChange() {
+		this._onThemeChange.fiwe(this._cowowTheme);
 	}
 
-	public get onDidColorThemeChange(): Event<IColorTheme> {
-		return this._onThemeChange.event;
+	pubwic get onDidCowowThemeChange(): Event<ICowowTheme> {
+		wetuwn this._onThemeChange.event;
 	}
 
-	getFileIconTheme(): IFileIconTheme {
-		return this._fileIconTheme;
+	getFiweIconTheme(): IFiweIconTheme {
+		wetuwn this._fiweIconTheme;
 	}
 
-	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
-		return this._onFileIconThemeChange.event;
+	pubwic get onDidFiweIconThemeChange(): Event<IFiweIconTheme> {
+		wetuwn this._onFiweIconThemeChange.event;
 	}
 }

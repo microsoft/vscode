@@ -1,614 +1,614 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/interactive';
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+impowt 'vs/css!./media/intewactive';
+impowt * as nws fwom 'vs/nws';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { IDecowationOptions } fwom 'vs/editow/common/editowCommon';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IStowageSewvice } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { editowBackgwound, editowFowegwound, wesowveCowowVawue } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { IThemeSewvice, wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { EditowPane } fwom 'vs/wowkbench/bwowsa/pawts/editow/editowPane';
+impowt { IEditowOpenContext } fwom 'vs/wowkbench/common/editow';
+impowt { getSimpweCodeEditowWidgetOptions, getSimpweEditowOptions } fwom 'vs/wowkbench/contwib/codeEditow/bwowsa/simpweEditowOptions';
+impowt { IntewactiveEditowInput } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveEditowInput';
+impowt { IActiveNotebookEditowDewegate, ICewwViewModew, INotebookEditowOptions } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookBwowsa';
+impowt { NotebookEditowExtensionsWegistwy } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowExtensions';
+impowt { IBowwowVawue, INotebookEditowSewvice } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowSewvice';
+impowt { cewwEditowBackgwound, NotebookEditowWidget } fwom 'vs/wowkbench/contwib/notebook/bwowsa/notebookEditowWidget';
+impowt { IEditowGwoup } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { ExecutionStateCewwStatusBawContwib, TimewCewwStatusBawContwib } fwom 'vs/wowkbench/contwib/notebook/bwowsa/contwib/cewwStatusBaw/executionStatusBawItemContwowwa';
+impowt { INotebookKewnewSewvice } fwom 'vs/wowkbench/contwib/notebook/common/notebookKewnewSewvice';
+impowt { PWAINTEXT_WANGUAGE_IDENTIFIa } fwom 'vs/editow/common/modes/modesWegistwy';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveCommon';
+impowt { IIntewactiveHistowySewvice } fwom 'vs/wowkbench/contwib/intewactive/bwowsa/intewactiveHistowySewvice';
+impowt { CompwexNotebookEditowModew } fwom 'vs/wowkbench/contwib/notebook/common/notebookEditowModew';
+impowt { NotebookCewwsChangeType } fwom 'vs/wowkbench/contwib/notebook/common/notebookCommon';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { NotebookOptions } fwom 'vs/wowkbench/contwib/notebook/common/notebookOptions';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { cweateActionViewItem, cweateAndFiwwInActionBawActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IAction } fwom 'vs/base/common/actions';
 
-const DECORATION_KEY = 'interactiveInputDecoration';
+const DECOWATION_KEY = 'intewactiveInputDecowation';
 
-const enum ScrollingState {
-	Initial = 0,
+const enum ScwowwingState {
+	Initiaw = 0,
 	StickyToBottom = 1
 }
 
-const INPUT_CELL_VERTICAL_PADDING = 8;
-const INPUT_CELL_HORIZONTAL_PADDING_RIGHT = 10;
-const INPUT_EDITOR_PADDING = 8;
+const INPUT_CEWW_VEWTICAW_PADDING = 8;
+const INPUT_CEWW_HOWIZONTAW_PADDING_WIGHT = 10;
+const INPUT_EDITOW_PADDING = 8;
 
-export class InteractiveEditor extends EditorPane {
-	static readonly ID: string = 'workbench.editor.interactive';
+expowt cwass IntewactiveEditow extends EditowPane {
+	static weadonwy ID: stwing = 'wowkbench.editow.intewactive';
 
-	#rootElement!: HTMLElement;
-	#styleElement!: HTMLStyleElement;
-	#notebookEditorContainer!: HTMLElement;
-	#notebookWidget: IBorrowValue<NotebookEditorWidget> = { value: undefined };
-	#inputCellContainer!: HTMLElement;
-	#inputFocusIndicator!: HTMLElement;
-	#inputRunButtonContainer!: HTMLElement;
-	#inputEditorContainer!: HTMLElement;
-	#codeEditorWidget!: CodeEditorWidget;
-	// #inputLineCount = 1;
-	#notebookWidgetService: INotebookEditorService;
-	#instantiationService: IInstantiationService;
-	#modeService: IModeService;
-	#contextKeyService: IContextKeyService;
-	#notebookKernelService: INotebookKernelService;
-	#keybindingService: IKeybindingService;
-	#historyService: IInteractiveHistoryService;
-	#menuService: IMenuService;
-	#contextMenuService: IContextMenuService;
-	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
+	#wootEwement!: HTMWEwement;
+	#styweEwement!: HTMWStyweEwement;
+	#notebookEditowContaina!: HTMWEwement;
+	#notebookWidget: IBowwowVawue<NotebookEditowWidget> = { vawue: undefined };
+	#inputCewwContaina!: HTMWEwement;
+	#inputFocusIndicatow!: HTMWEwement;
+	#inputWunButtonContaina!: HTMWEwement;
+	#inputEditowContaina!: HTMWEwement;
+	#codeEditowWidget!: CodeEditowWidget;
+	// #inputWineCount = 1;
+	#notebookWidgetSewvice: INotebookEditowSewvice;
+	#instantiationSewvice: IInstantiationSewvice;
+	#modeSewvice: IModeSewvice;
+	#contextKeySewvice: IContextKeySewvice;
+	#notebookKewnewSewvice: INotebookKewnewSewvice;
+	#keybindingSewvice: IKeybindingSewvice;
+	#histowySewvice: IIntewactiveHistowySewvice;
+	#menuSewvice: IMenuSewvice;
+	#contextMenuSewvice: IContextMenuSewvice;
+	#widgetDisposabweStowe: DisposabweStowe = this._wegista(new DisposabweStowe());
 	#dimension?: DOM.Dimension;
 	#notebookOptions: NotebookOptions;
 
-	#onDidFocusWidget = this._register(new Emitter<void>());
-	override get onDidFocus(): Event<void> { return this.#onDidFocusWidget.event; }
+	#onDidFocusWidget = this._wegista(new Emitta<void>());
+	ovewwide get onDidFocus(): Event<void> { wetuwn this.#onDidFocusWidget.event; }
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookEditorService notebookWidgetService: INotebookEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@INotebookKernelService notebookKernelService: INotebookKernelService,
-		@IModeService modeService: IModeService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService
+	constwuctow(
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@INotebookEditowSewvice notebookWidgetSewvice: INotebookEditowSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@ICodeEditowSewvice codeEditowSewvice: ICodeEditowSewvice,
+		@INotebookKewnewSewvice notebookKewnewSewvice: INotebookKewnewSewvice,
+		@IModeSewvice modeSewvice: IModeSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IIntewactiveHistowySewvice histowySewvice: IIntewactiveHistowySewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice
 	) {
-		super(
-			InteractiveEditor.ID,
-			telemetryService,
-			themeService,
-			storageService
+		supa(
+			IntewactiveEditow.ID,
+			tewemetwySewvice,
+			themeSewvice,
+			stowageSewvice
 		);
-		this.#instantiationService = instantiationService;
-		this.#notebookWidgetService = notebookWidgetService;
-		this.#contextKeyService = contextKeyService;
-		this.#notebookKernelService = notebookKernelService;
-		this.#modeService = modeService;
-		this.#keybindingService = keybindingService;
-		this.#historyService = historyService;
-		this.#menuService = menuService;
-		this.#contextMenuService = contextMenuService;
+		this.#instantiationSewvice = instantiationSewvice;
+		this.#notebookWidgetSewvice = notebookWidgetSewvice;
+		this.#contextKeySewvice = contextKeySewvice;
+		this.#notebookKewnewSewvice = notebookKewnewSewvice;
+		this.#modeSewvice = modeSewvice;
+		this.#keybindingSewvice = keybindingSewvice;
+		this.#histowySewvice = histowySewvice;
+		this.#menuSewvice = menuSewvice;
+		this.#contextMenuSewvice = contextMenuSewvice;
 
-		this.#notebookOptions = new NotebookOptions(configurationService, { cellToolbarInteraction: 'hover' });
+		this.#notebookOptions = new NotebookOptions(configuwationSewvice, { cewwToowbawIntewaction: 'hova' });
 
-		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
-		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
+		codeEditowSewvice.wegistewDecowationType('intewactive-decowation', DECOWATION_KEY, {});
+		this._wegista(this.#keybindingSewvice.onDidUpdateKeybindings(this.#updateInputDecowation, this));
 	}
 
-	private get _inputCellContainerHeight() {
-		return 19 + 2 + INPUT_CELL_VERTICAL_PADDING * 2 + INPUT_EDITOR_PADDING * 2;
+	pwivate get _inputCewwContainewHeight() {
+		wetuwn 19 + 2 + INPUT_CEWW_VEWTICAW_PADDING * 2 + INPUT_EDITOW_PADDING * 2;
 	}
 
-	private get _inputCellEditorHeight() {
-		return 19 + INPUT_EDITOR_PADDING * 2;
+	pwivate get _inputCewwEditowHeight() {
+		wetuwn 19 + INPUT_EDITOW_PADDING * 2;
 	}
 
-	protected createEditor(parent: HTMLElement): void {
-		this.#rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
-		this.#rootElement.style.position = 'relative';
-		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
-		this.#inputCellContainer = DOM.append(this.#rootElement, DOM.$('.input-cell-container'));
-		this.#inputCellContainer.style.position = 'absolute';
-		this.#inputCellContainer.style.height = `${this._inputCellContainerHeight}px`;
-		this.#inputFocusIndicator = DOM.append(this.#inputCellContainer, DOM.$('.input-focus-indicator'));
-		this.#inputRunButtonContainer = DOM.append(this.#inputCellContainer, DOM.$('.run-button-container'));
-		this.#setupRunButtonToolbar(this.#inputRunButtonContainer);
-		this.#inputEditorContainer = DOM.append(this.#inputCellContainer, DOM.$('.input-editor-container'));
-		this.#createLayoutStyles();
+	pwotected cweateEditow(pawent: HTMWEwement): void {
+		this.#wootEwement = DOM.append(pawent, DOM.$('.intewactive-editow'));
+		this.#wootEwement.stywe.position = 'wewative';
+		this.#notebookEditowContaina = DOM.append(this.#wootEwement, DOM.$('.notebook-editow-containa'));
+		this.#inputCewwContaina = DOM.append(this.#wootEwement, DOM.$('.input-ceww-containa'));
+		this.#inputCewwContaina.stywe.position = 'absowute';
+		this.#inputCewwContaina.stywe.height = `${this._inputCewwContainewHeight}px`;
+		this.#inputFocusIndicatow = DOM.append(this.#inputCewwContaina, DOM.$('.input-focus-indicatow'));
+		this.#inputWunButtonContaina = DOM.append(this.#inputCewwContaina, DOM.$('.wun-button-containa'));
+		this.#setupWunButtonToowbaw(this.#inputWunButtonContaina);
+		this.#inputEditowContaina = DOM.append(this.#inputCewwContaina, DOM.$('.input-editow-containa'));
+		this.#cweateWayoutStywes();
 	}
 
-	#setupRunButtonToolbar(runButtonContainer: HTMLElement) {
-		const menu = this._register(this.#menuService.createMenu(MenuId.InteractiveInputExecute, this.#contextKeyService));
-		const toolbar = this._register(new ToolBar(runButtonContainer, this.#contextMenuService, {
-			getKeyBinding: action => this.#keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: action => {
-				return createActionViewItem(this.#instantiationService, action);
+	#setupWunButtonToowbaw(wunButtonContaina: HTMWEwement) {
+		const menu = this._wegista(this.#menuSewvice.cweateMenu(MenuId.IntewactiveInputExecute, this.#contextKeySewvice));
+		const toowbaw = this._wegista(new ToowBaw(wunButtonContaina, this.#contextMenuSewvice, {
+			getKeyBinding: action => this.#keybindingSewvice.wookupKeybinding(action.id),
+			actionViewItemPwovida: action => {
+				wetuwn cweateActionViewItem(this.#instantiationSewvice, action);
 			},
-			renderDropdownAsChildElement: true
+			wendewDwopdownAsChiwdEwement: twue
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
+		const pwimawy: IAction[] = [];
+		const secondawy: IAction[] = [];
+		const wesuwt = { pwimawy, secondawy };
 
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
-		toolbar.setActions([...primary, ...secondary]);
+		cweateAndFiwwInActionBawActions(menu, { shouwdFowwawdAwgs: twue }, wesuwt);
+		toowbaw.setActions([...pwimawy, ...secondawy]);
 	}
 
-	#createLayoutStyles(): void {
-		this.#styleElement = DOM.createStyleSheet(this.#rootElement);
-		const styleSheets: string[] = [];
+	#cweateWayoutStywes(): void {
+		this.#styweEwement = DOM.cweateStyweSheet(this.#wootEwement);
+		const styweSheets: stwing[] = [];
 
 		const {
-			focusIndicator,
-			codeCellLeftMargin,
-			cellRunGutter
-		} = this.#notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+			focusIndicatow,
+			codeCewwWeftMawgin,
+			cewwWunGutta
+		} = this.#notebookOptions.getWayoutConfiguwation();
+		const weftMawgin = codeCewwWeftMawgin + cewwWunGutta;
 
-		styleSheets.push(`
-			.interactive-editor .input-cell-container {
-				padding: ${INPUT_CELL_VERTICAL_PADDING}px ${INPUT_CELL_HORIZONTAL_PADDING_RIGHT}px ${INPUT_CELL_VERTICAL_PADDING}px ${leftMargin}px;
+		styweSheets.push(`
+			.intewactive-editow .input-ceww-containa {
+				padding: ${INPUT_CEWW_VEWTICAW_PADDING}px ${INPUT_CEWW_HOWIZONTAW_PADDING_WIGHT}px ${INPUT_CEWW_VEWTICAW_PADDING}px ${weftMawgin}px;
 			}
 		`);
-		if (focusIndicator === 'gutter') {
-			styleSheets.push(`
-				.interactive-editor .input-cell-container:focus-within .input-focus-indicator::before {
-					border-color: var(--notebook-focused-cell-border-color) !important;
+		if (focusIndicatow === 'gutta') {
+			styweSheets.push(`
+				.intewactive-editow .input-ceww-containa:focus-within .input-focus-indicatow::befowe {
+					bowda-cowow: vaw(--notebook-focused-ceww-bowda-cowow) !impowtant;
 				}
-				.interactive-editor .input-focus-indicator::before {
-					border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+				.intewactive-editow .input-focus-indicatow::befowe {
+					bowda-cowow: vaw(--notebook-inactive-focused-ceww-bowda-cowow) !impowtant;
 				}
-				.interactive-editor .input-cell-container .input-focus-indicator {
-					display: block;
-					top: ${INPUT_CELL_VERTICAL_PADDING}px;
+				.intewactive-editow .input-ceww-containa .input-focus-indicatow {
+					dispway: bwock;
+					top: ${INPUT_CEWW_VEWTICAW_PADDING}px;
 				}
-				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+				.intewactive-editow .input-ceww-containa {
+					bowda-top: 1px sowid vaw(--notebook-inactive-focused-ceww-bowda-cowow);
 				}
 			`);
-		} else {
-			// border
-			styleSheets.push(`
-				.interactive-editor .input-cell-container {
-					border-top: 1px solid var(--notebook-inactive-focused-cell-border-color);
+		} ewse {
+			// bowda
+			styweSheets.push(`
+				.intewactive-editow .input-ceww-containa {
+					bowda-top: 1px sowid vaw(--notebook-inactive-focused-ceww-bowda-cowow);
 				}
-				.interactive-editor .input-cell-container .input-focus-indicator {
-					display: none;
+				.intewactive-editow .input-ceww-containa .input-focus-indicatow {
+					dispway: none;
 				}
 			`);
 		}
 
-		styleSheets.push(`
-			.interactive-editor .input-cell-container .run-button-container {
-				width: ${cellRunGutter}px;
-				left: ${codeCellLeftMargin}px;
-				margin-top: ${INPUT_EDITOR_PADDING - 2}px;
+		styweSheets.push(`
+			.intewactive-editow .input-ceww-containa .wun-button-containa {
+				width: ${cewwWunGutta}px;
+				weft: ${codeCewwWeftMawgin}px;
+				mawgin-top: ${INPUT_EDITOW_PADDING - 2}px;
 			}
 		`);
 
-		this.#styleElement.textContent = styleSheets.join('\n');
+		this.#styweEwement.textContent = styweSheets.join('\n');
 	}
 
-	override async setInput(input: InteractiveEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const group = this.group!;
-		const notebookInput = input.notebookEditorInput;
+	ovewwide async setInput(input: IntewactiveEditowInput, options: INotebookEditowOptions | undefined, context: IEditowOpenContext, token: CancewwationToken): Pwomise<void> {
+		const gwoup = this.gwoup!;
+		const notebookInput = input.notebookEditowInput;
 
-		// there currently is a widget which we still own so
-		// we need to hide it before getting a new widget
-		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
+		// thewe cuwwentwy is a widget which we stiww own so
+		// we need to hide it befowe getting a new widget
+		if (this.#notebookWidget.vawue) {
+			this.#notebookWidget.vawue.onWiwwHide();
 		}
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
+		if (this.#codeEditowWidget) {
+			this.#codeEditowWidget.dispose();
 		}
 
-		this.#widgetDisposableStore.clear();
+		this.#widgetDisposabweStowe.cweaw();
 
-		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
-			isEmbedded: true,
-			isReadOnly: true,
-			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
-				ExecutionStateCellStatusBarContrib.id,
-				TimerCellStatusBarContrib.id
+		this.#notebookWidget = this.#instantiationSewvice.invokeFunction(this.#notebookWidgetSewvice.wetwieveWidget, gwoup, notebookInput, {
+			isEmbedded: twue,
+			isWeadOnwy: twue,
+			contwibutions: NotebookEditowExtensionsWegistwy.getSomeEditowContwibutions([
+				ExecutionStateCewwStatusBawContwib.id,
+				TimewCewwStatusBawContwib.id
 			]),
 			menuIds: {
-				notebookToolbar: MenuId.InteractiveToolbar,
-				cellTitleToolbar: MenuId.InteractiveCellTitle,
-				cellInsertToolbar: MenuId.NotebookCellBetween,
-				cellTopInsertToolbar: MenuId.NotebookCellListTop,
-				cellExecuteToolbar: MenuId.InteractiveCellExecute
+				notebookToowbaw: MenuId.IntewactiveToowbaw,
+				cewwTitweToowbaw: MenuId.IntewactiveCewwTitwe,
+				cewwInsewtToowbaw: MenuId.NotebookCewwBetween,
+				cewwTopInsewtToowbaw: MenuId.NotebookCewwWistTop,
+				cewwExecuteToowbaw: MenuId.IntewactiveCewwExecute
 			},
-			cellEditorContributions: [],
+			cewwEditowContwibutions: [],
 			options: this.#notebookOptions
 		});
 
-		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, {
-			...getSimpleEditorOptions(),
+		this.#codeEditowWidget = this.#instantiationSewvice.cweateInstance(CodeEditowWidget, this.#inputEditowContaina, {
+			...getSimpweEditowOptions(),
 			...{
-				glyphMargin: true,
+				gwyphMawgin: twue,
 				padding: {
-					top: INPUT_EDITOR_PADDING,
-					bottom: INPUT_EDITOR_PADDING
+					top: INPUT_EDITOW_PADDING,
+					bottom: INPUT_EDITOW_PADDING
 				},
 			}
 		}, {
-			...getSimpleCodeEditorWidgetOptions(),
+			...getSimpweCodeEditowWidgetOptions(),
 			...{
-				isSimpleWidget: false,
+				isSimpweWidget: fawse,
 			}
 		});
 
 		if (this.#dimension) {
-			this.#notebookEditorContainer.style.height = `${this.#dimension.height - this._inputCellContainerHeight}px`;
-			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - this._inputCellContainerHeight), this.#notebookEditorContainer);
+			this.#notebookEditowContaina.stywe.height = `${this.#dimension.height - this._inputCewwContainewHeight}px`;
+			this.#notebookWidget.vawue!.wayout(this.#dimension.with(this.#dimension.width, this.#dimension.height - this._inputCewwContainewHeight), this.#notebookEditowContaina);
 			const {
-				codeCellLeftMargin,
-				cellRunGutter
-			} = this.#notebookOptions.getLayoutConfiguration();
-			const leftMargin = codeCellLeftMargin + cellRunGutter;
-			const maxHeight = Math.min(this.#dimension.height / 2, this._inputCellEditorHeight);
-			this.#codeEditorWidget.layout(this.#validateDimension(this.#dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
-			this.#inputFocusIndicator.style.height = `${this._inputCellEditorHeight}px`;
-			this.#inputCellContainer.style.top = `${this.#dimension.height - this._inputCellContainerHeight}px`;
-			this.#inputCellContainer.style.width = `${this.#dimension.width}px`;
+				codeCewwWeftMawgin,
+				cewwWunGutta
+			} = this.#notebookOptions.getWayoutConfiguwation();
+			const weftMawgin = codeCewwWeftMawgin + cewwWunGutta;
+			const maxHeight = Math.min(this.#dimension.height / 2, this._inputCewwEditowHeight);
+			this.#codeEditowWidget.wayout(this.#vawidateDimension(this.#dimension.width - weftMawgin - INPUT_CEWW_HOWIZONTAW_PADDING_WIGHT, maxHeight));
+			this.#inputFocusIndicatow.stywe.height = `${this._inputCewwEditowHeight}px`;
+			this.#inputCewwContaina.stywe.top = `${this.#dimension.height - this._inputCewwContainewHeight}px`;
+			this.#inputCewwContaina.stywe.width = `${this.#dimension.width}px`;
 		}
 
-		await super.setInput(input, options, context, token);
-		const model = await input.resolve();
+		await supa.setInput(input, options, context, token);
+		const modew = await input.wesowve();
 
-		if (model === null) {
-			throw new Error('?');
+		if (modew === nuww) {
+			thwow new Ewwow('?');
 		}
 
-		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
-		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
-		this.#notebookWidget.value!.setOptions({
-			isReadOnly: true
+		this.#notebookWidget.vawue?.setPawentContextKeySewvice(this.#contextKeySewvice);
+		await this.#notebookWidget.vawue!.setModew(modew.notebook, undefined);
+		this.#notebookWidget.vawue!.setOptions({
+			isWeadOnwy: twue
 		});
-		this.#widgetDisposableStore.add(this.#notebookWidget.value!.onDidFocus(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
-			(model as ComplexNotebookEditorModel).setDirty(false);
+		this.#widgetDisposabweStowe.add(this.#notebookWidget.vawue!.onDidFocus(() => this.#onDidFocusWidget.fiwe()));
+		this.#widgetDisposabweStowe.add(modew.notebook.onDidChangeContent(() => {
+			(modew as CompwexNotebookEditowModew).setDiwty(fawse);
 		}));
-		this.#widgetDisposableStore.add(this.#notebookOptions.onDidChangeOptions(e => {
-			if (e.compactView || e.focusIndicator) {
-				// update the styling
-				this.#styleElement?.remove();
-				this.#createLayoutStyles();
+		this.#widgetDisposabweStowe.add(this.#notebookOptions.onDidChangeOptions(e => {
+			if (e.compactView || e.focusIndicatow) {
+				// update the stywing
+				this.#styweEwement?.wemove();
+				this.#cweateWayoutStywes();
 			}
 
-			if (this.#dimension && this.isVisible()) {
-				this.layout(this.#dimension);
+			if (this.#dimension && this.isVisibwe()) {
+				this.wayout(this.#dimension);
 			}
 		}));
 
-		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
-		this.#codeEditorWidget.setModel(editorModel);
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidFocusEditorWidget(() => this.#onDidFocusWidget.fire()));
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
+		const editowModew = input.wesowveInput(this.#notebookWidget.vawue?.activeKewnew?.suppowtedWanguages[0] ?? 'pwaintext');
+		this.#codeEditowWidget.setModew(editowModew);
+		this.#widgetDisposabweStowe.add(this.#codeEditowWidget.onDidFocusEditowWidget(() => this.#onDidFocusWidget.fiwe()));
+		this.#widgetDisposabweStowe.add(this.#codeEditowWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
-				return;
+				wetuwn;
 			}
 
 			if (this.#dimension) {
-				this.#layoutWidgets(this.#dimension);
+				this.#wayoutWidgets(this.#dimension);
 			}
 		}));
 
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#updateInputEditorLanguage, this));
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#updateInputEditorLanguage, this));
+		this.#widgetDisposabweStowe.add(this.#notebookKewnewSewvice.onDidChangeNotebookAffinity(this.#updateInputEditowWanguage, this));
+		this.#widgetDisposabweStowe.add(this.#notebookKewnewSewvice.onDidChangeSewectedNotebooks(this.#updateInputEditowWanguage, this));
 
-		this.#widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
-			if (this.isVisible()) {
-				this.#updateInputDecoration();
+		this.#widgetDisposabweStowe.add(this.themeSewvice.onDidCowowThemeChange(() => {
+			if (this.isVisibwe()) {
+				this.#updateInputDecowation();
 			}
 		}));
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => {
-			if (this.isVisible()) {
-				this.#updateInputDecoration();
+		this.#widgetDisposabweStowe.add(this.#codeEditowWidget.onDidChangeModewContent(() => {
+			if (this.isVisibwe()) {
+				this.#updateInputDecowation();
 			}
 		}));
 
-		if (this.#notebookWidget.value?.hasModel()) {
-			this.#registerExecutionScrollListener(this.#notebookWidget.value);
+		if (this.#notebookWidget.vawue?.hasModew()) {
+			this.#wegistewExecutionScwowwWistena(this.#notebookWidget.vawue);
 		}
 
-		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
-		cursorAtBoundaryContext.set('none');
+		const cuwsowAtBoundawyContext = INTEWACTIVE_INPUT_CUWSOW_BOUNDAWY.bindTo(this.#contextKeySewvice);
+		cuwsowAtBoundawyContext.set('none');
 
-		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
-			const viewModel = this.#codeEditorWidget._getViewModel()!;
-			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
-			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
-			const firstLine = viewPosition.lineNumber === 1 && viewPosition.column === 1;
-			const lastLine = viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol;
+		this.#widgetDisposabweStowe.add(this.#codeEditowWidget.onDidChangeCuwsowPosition(({ position }) => {
+			const viewModew = this.#codeEditowWidget._getViewModew()!;
+			const wastWineNumba = viewModew.getWineCount();
+			const wastWineCow = viewModew.getWineContent(wastWineNumba).wength + 1;
+			const viewPosition = viewModew.coowdinatesConvewta.convewtModewPositionToViewPosition(position);
+			const fiwstWine = viewPosition.wineNumba === 1 && viewPosition.cowumn === 1;
+			const wastWine = viewPosition.wineNumba === wastWineNumba && viewPosition.cowumn === wastWineCow;
 
-			if (firstLine) {
-				if (lastLine) {
-					cursorAtBoundaryContext.set('both');
-				} else {
-					cursorAtBoundaryContext.set('top');
+			if (fiwstWine) {
+				if (wastWine) {
+					cuwsowAtBoundawyContext.set('both');
+				} ewse {
+					cuwsowAtBoundawyContext.set('top');
 				}
-			} else {
-				if (lastLine) {
-					cursorAtBoundaryContext.set('bottom');
-				} else {
-					cursorAtBoundaryContext.set('none');
+			} ewse {
+				if (wastWine) {
+					cuwsowAtBoundawyContext.set('bottom');
+				} ewse {
+					cuwsowAtBoundawyContext.set('none');
 				}
 			}
 		}));
 
-		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			const value = editorModel!.getValue();
-			if (this.input?.resource && value !== '') {
-				this.#historyService.replaceLast(this.input.resource, value);
+		this.#widgetDisposabweStowe.add(editowModew.onDidChangeContent(() => {
+			const vawue = editowModew!.getVawue();
+			if (this.input?.wesouwce && vawue !== '') {
+				this.#histowySewvice.wepwaceWast(this.input.wesouwce, vawue);
 			}
 		}));
 
-		this.#updateInputDecoration();
-		this.#updateInputEditorLanguage();
+		this.#updateInputDecowation();
+		this.#updateInputEditowWanguage();
 	}
 
-	#lastCell: ICellViewModel | undefined = undefined;
-	#lastCellDisposable = new DisposableStore();
-	#state: ScrollingState = ScrollingState.Initial;
+	#wastCeww: ICewwViewModew | undefined = undefined;
+	#wastCewwDisposabwe = new DisposabweStowe();
+	#state: ScwowwingState = ScwowwingState.Initiaw;
 
-	#cellAtBottom(widget: IActiveNotebookEditorDelegate, cell: ICellViewModel): boolean {
-		const visibleRanges = widget.visibleRanges;
-		const cellIndex = widget.getCellIndex(cell);
-		if (cellIndex === Math.max(...visibleRanges.map(range => range.end))) {
-			return true;
+	#cewwAtBottom(widget: IActiveNotebookEditowDewegate, ceww: ICewwViewModew): boowean {
+		const visibweWanges = widget.visibweWanges;
+		const cewwIndex = widget.getCewwIndex(ceww);
+		if (cewwIndex === Math.max(...visibweWanges.map(wange => wange.end))) {
+			wetuwn twue;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
 	/**
 	 * - Init state: 0
-	 * - Will cell insertion: check if the last cell is at the bottom, false, stay 0
-	 * 						if true, state 1 (ready for auto reveal)
-	 * - receive a scroll event (scroll even already happened). If the last cell is at bottom, false, 0, true, state 1
-	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
+	 * - Wiww ceww insewtion: check if the wast ceww is at the bottom, fawse, stay 0
+	 * 						if twue, state 1 (weady fow auto weveaw)
+	 * - weceive a scwoww event (scwoww even awweady happened). If the wast ceww is at bottom, fawse, 0, twue, state 1
+	 * - height change of the wast ceww, if state 0, do nothing, if state 1, scwoww the wast ceww fuwwy into view
 	 */
-	#registerExecutionScrollListener(widget: IActiveNotebookEditorDelegate) {
-		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
-			const lastViewCell = widget.cellAt(widget.getLength() - 1);
+	#wegistewExecutionScwowwWistena(widget: IActiveNotebookEditowDewegate) {
+		this.#widgetDisposabweStowe.add(widget.textModew.onWiwwAddWemoveCewws(e => {
+			const wastViewCeww = widget.cewwAt(widget.getWength() - 1);
 
-			// check if the last cell is at the bottom
-			if (lastViewCell && this.#cellAtBottom(widget, lastViewCell)) {
-				this.#state = ScrollingState.StickyToBottom;
-			} else {
-				this.#state = ScrollingState.Initial;
+			// check if the wast ceww is at the bottom
+			if (wastViewCeww && this.#cewwAtBottom(widget, wastViewCeww)) {
+				this.#state = ScwowwingState.StickyToBottom;
+			} ewse {
+				this.#state = ScwowwingState.Initiaw;
 			}
 		}));
 
-		this.#widgetDisposableStore.add(widget.onDidScroll(() => {
-			const lastViewCell = widget.cellAt(widget.getLength() - 1);
+		this.#widgetDisposabweStowe.add(widget.onDidScwoww(() => {
+			const wastViewCeww = widget.cewwAt(widget.getWength() - 1);
 
-			// check if the last cell is at the bottom
-			if (lastViewCell && this.#cellAtBottom(widget, lastViewCell)) {
-				this.#state = ScrollingState.StickyToBottom;
-			} else {
-				this.#state = ScrollingState.Initial;
+			// check if the wast ceww is at the bottom
+			if (wastViewCeww && this.#cewwAtBottom(widget, wastViewCeww)) {
+				this.#state = ScwowwingState.StickyToBottom;
+			} ewse {
+				this.#state = ScwowwingState.Initiaw;
 			}
 		}));
 
-		this.#widgetDisposableStore.add(widget.textModel.onDidChangeContent(e => {
-			for (let i = 0; i < e.rawEvents.length; i++) {
-				const event = e.rawEvents[i];
+		this.#widgetDisposabweStowe.add(widget.textModew.onDidChangeContent(e => {
+			fow (wet i = 0; i < e.wawEvents.wength; i++) {
+				const event = e.wawEvents[i];
 
-				if (event.kind === NotebookCellsChangeType.ModelChange && this.#notebookWidget.value?.hasModel()) {
-					const lastViewCell = this.#notebookWidget.value.cellAt(this.#notebookWidget.value.getLength() - 1);
-					if (lastViewCell !== this.#lastCell) {
-						this.#lastCellDisposable.clear();
-						this.#lastCell = lastViewCell;
-						this.#registerListenerForCell();
+				if (event.kind === NotebookCewwsChangeType.ModewChange && this.#notebookWidget.vawue?.hasModew()) {
+					const wastViewCeww = this.#notebookWidget.vawue.cewwAt(this.#notebookWidget.vawue.getWength() - 1);
+					if (wastViewCeww !== this.#wastCeww) {
+						this.#wastCewwDisposabwe.cweaw();
+						this.#wastCeww = wastViewCeww;
+						this.#wegistewWistenewFowCeww();
 					}
 				}
 			}
 		}));
 	}
 
-	#registerListenerForCell() {
-		if (!this.#lastCell) {
-			return;
+	#wegistewWistenewFowCeww() {
+		if (!this.#wastCeww) {
+			wetuwn;
 		}
 
-		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout((e) => {
-			if (e.totalHeight === undefined) {
-				// not cell height change
-				return;
+		this.#wastCewwDisposabwe.add(this.#wastCeww.onDidChangeWayout((e) => {
+			if (e.totawHeight === undefined) {
+				// not ceww height change
+				wetuwn;
 			}
 
-			if (this.#state !== ScrollingState.StickyToBottom) {
-				return;
+			if (this.#state !== ScwowwingState.StickyToBottom) {
+				wetuwn;
 			}
 
-			// scroll to bottom
-			// postpone to next tick as the list view might not process the output height change yet
-			// e.g., when we register this listener later than the list view
-			this.#lastCellDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
-				if (this.#state === ScrollingState.StickyToBottom) {
-					this.#notebookWidget.value!.scrollToBottom();
+			// scwoww to bottom
+			// postpone to next tick as the wist view might not pwocess the output height change yet
+			// e.g., when we wegista this wistena wata than the wist view
+			this.#wastCewwDisposabwe.add(DOM.scheduweAtNextAnimationFwame(() => {
+				if (this.#state === ScwowwingState.StickyToBottom) {
+					this.#notebookWidget.vawue!.scwowwToBottom();
 				}
 			}));
 		}));
 	}
 
-	#updateInputEditorLanguage() {
-		const notebook = this.#notebookWidget.value?.textModel;
-		const textModel = this.#codeEditorWidget.getModel();
+	#updateInputEditowWanguage() {
+		const notebook = this.#notebookWidget.vawue?.textModew;
+		const textModew = this.#codeEditowWidget.getModew();
 
-		if (!notebook || !textModel) {
-			return;
+		if (!notebook || !textModew) {
+			wetuwn;
 		}
 
-		const info = this.#notebookKernelService.getMatchingKernel(notebook);
-		const selectedOrSuggested = info.selected ?? info.suggested;
+		const info = this.#notebookKewnewSewvice.getMatchingKewnew(notebook);
+		const sewectedOwSuggested = info.sewected ?? info.suggested;
 
-		if (selectedOrSuggested) {
-			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#modeService.create(language).languageIdentifier : PLAINTEXT_LANGUAGE_IDENTIFIER;
-			textModel.setMode(newMode);
+		if (sewectedOwSuggested) {
+			const wanguage = sewectedOwSuggested.suppowtedWanguages[0];
+			const newMode = wanguage ? this.#modeSewvice.cweate(wanguage).wanguageIdentifia : PWAINTEXT_WANGUAGE_IDENTIFIa;
+			textModew.setMode(newMode);
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
-		this.#rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
-		this.#rootElement.classList.toggle('narrow-width', dimension.width < 600);
+	wayout(dimension: DOM.Dimension): void {
+		this.#wootEwement.cwassWist.toggwe('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this.#wootEwement.cwassWist.toggwe('nawwow-width', dimension.width < 600);
 		this.#dimension = dimension;
 
-		if (!this.#notebookWidget.value) {
-			return;
+		if (!this.#notebookWidget.vawue) {
+			wetuwn;
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this._inputCellContainerHeight}px`;
-		this.#layoutWidgets(dimension);
+		this.#notebookEditowContaina.stywe.height = `${this.#dimension.height - this._inputCewwContainewHeight}px`;
+		this.#wayoutWidgets(dimension);
 	}
 
-	#layoutWidgets(dimension: DOM.Dimension) {
-		const contentHeight = this.#codeEditorWidget.hasModel() ? this.#codeEditorWidget.getContentHeight() : this._inputCellEditorHeight;
+	#wayoutWidgets(dimension: DOM.Dimension) {
+		const contentHeight = this.#codeEditowWidget.hasModew() ? this.#codeEditowWidget.getContentHeight() : this._inputCewwEditowHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
 		const {
-			codeCellLeftMargin,
-			cellRunGutter
-		} = this.#notebookOptions.getLayoutConfiguration();
-		const leftMargin = codeCellLeftMargin + cellRunGutter;
+			codeCewwWeftMawgin,
+			cewwWunGutta
+		} = this.#notebookOptions.getWayoutConfiguwation();
+		const weftMawgin = codeCewwWeftMawgin + cewwWunGutta;
 
-		const inputCellContainerHeight = maxHeight + INPUT_CELL_VERTICAL_PADDING * 2;
-		this.#notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
+		const inputCewwContainewHeight = maxHeight + INPUT_CEWW_VEWTICAW_PADDING * 2;
+		this.#notebookEditowContaina.stywe.height = `${dimension.height - inputCewwContainewHeight}px`;
 
-		this.#notebookWidget.value!.layout(dimension.with(dimension.width, dimension.height - inputCellContainerHeight), this.#notebookEditorContainer);
-		this.#codeEditorWidget.layout(this.#validateDimension(dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
-		this.#inputFocusIndicator.style.height = `${contentHeight}px`;
-		this.#inputCellContainer.style.top = `${dimension.height - inputCellContainerHeight}px`;
-		this.#inputCellContainer.style.width = `${dimension.width}px`;
+		this.#notebookWidget.vawue!.wayout(dimension.with(dimension.width, dimension.height - inputCewwContainewHeight), this.#notebookEditowContaina);
+		this.#codeEditowWidget.wayout(this.#vawidateDimension(dimension.width - weftMawgin - INPUT_CEWW_HOWIZONTAW_PADDING_WIGHT, maxHeight));
+		this.#inputFocusIndicatow.stywe.height = `${contentHeight}px`;
+		this.#inputCewwContaina.stywe.top = `${dimension.height - inputCewwContainewHeight}px`;
+		this.#inputCewwContaina.stywe.width = `${dimension.width}px`;
 	}
 
-	#validateDimension(width: number, height: number) {
-		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
+	#vawidateDimension(width: numba, height: numba) {
+		wetuwn new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
-	#updateInputDecoration(): void {
-		if (!this.#codeEditorWidget) {
-			return;
+	#updateInputDecowation(): void {
+		if (!this.#codeEditowWidget) {
+			wetuwn;
 		}
 
-		if (!this.#codeEditorWidget.hasModel()) {
-			return;
+		if (!this.#codeEditowWidget.hasModew()) {
+			wetuwn;
 		}
 
-		const model = this.#codeEditorWidget.getModel();
+		const modew = this.#codeEditowWidget.getModew();
 
-		const decorations: IDecorationOptions[] = [];
+		const decowations: IDecowationOptions[] = [];
 
-		if (model?.getValueLength() === 0) {
-			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
-			decorations.push({
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
+		if (modew?.getVawueWength() === 0) {
+			const twanspawentFowegwound = wesowveCowowVawue(editowFowegwound, this.themeSewvice.getCowowTheme())?.twanspawent(0.4);
+			const keybinding = this.#keybindingSewvice.wookupKeybinding('intewactive.execute')?.getWabew();
+			const text = nws.wocawize('intewactiveInputPwaceHowda', "Type code hewe and pwess {0} to wun", keybinding ?? 'ctww+enta');
+			decowations.push({
+				wange: {
+					stawtWineNumba: 0,
+					endWineNumba: 0,
+					stawtCowumn: 0,
+					endCowumn: 1
 				},
-				renderOptions: {
-					after: {
+				wendewOptions: {
+					afta: {
 						contentText: text,
-						color: transparentForeground ? transparentForeground.toString() : undefined
+						cowow: twanspawentFowegwound ? twanspawentFowegwound.toStwing() : undefined
 					}
 				}
 			});
 		}
 
-		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
+		this.#codeEditowWidget.setDecowations('intewactive-decowation', DECOWATION_KEY, decowations);
 	}
 
-	override focus() {
-		this.#codeEditorWidget.focus();
+	ovewwide focus() {
+		this.#codeEditowWidget.focus();
 	}
 
-	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	ovewwide setEditowVisibwe(visibwe: boowean, gwoup: IEditowGwoup | undefined): void {
+		supa.setEditowVisibwe(visibwe, gwoup);
 
-		if (!visible) {
-			if (this.input && this.#notebookWidget.value) {
-				this.#notebookWidget.value.onWillHide();
+		if (!visibwe) {
+			if (this.input && this.#notebookWidget.vawue) {
+				this.#notebookWidget.vawue.onWiwwHide();
 			}
 		}
 	}
 
-	override clearInput() {
-		if (this.#notebookWidget.value) {
-			this.#notebookWidget.value.onWillHide();
+	ovewwide cweawInput() {
+		if (this.#notebookWidget.vawue) {
+			this.#notebookWidget.vawue.onWiwwHide();
 		}
 
-		if (this.#codeEditorWidget) {
-			this.#codeEditorWidget.dispose();
+		if (this.#codeEditowWidget) {
+			this.#codeEditowWidget.dispose();
 		}
 
-		this.#notebookWidget = { value: undefined };
-		this.#widgetDisposableStore.clear();
+		this.#notebookWidget = { vawue: undefined };
+		this.#widgetDisposabweStowe.cweaw();
 
-		super.clearInput();
+		supa.cweawInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } {
-		return {
-			notebookEditor: this.#notebookWidget.value,
-			codeEditor: this.#codeEditorWidget
+	ovewwide getContwow(): { notebookEditow: NotebookEditowWidget | undefined, codeEditow: CodeEditowWidget; } {
+		wetuwn {
+			notebookEditow: this.#notebookWidget.vawue,
+			codeEditow: this.#codeEditowWidget
 		};
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	collector.addRule(`
-	.interactive-editor .input-cell-container:focus-within .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-focused-cell-border-color);
+wegistewThemingPawticipant((theme, cowwectow) => {
+	cowwectow.addWuwe(`
+	.intewactive-editow .input-ceww-containa:focus-within .input-editow-containa .monaco-editow {
+		outwine: sowid 1px vaw(--notebook-focused-ceww-bowda-cowow);
 	}
-	.interactive-editor .input-cell-container .input-editor-container .monaco-editor {
-		outline: solid 1px var(--notebook-inactive-focused-cell-border-color);
+	.intewactive-editow .input-ceww-containa .input-editow-containa .monaco-editow {
+		outwine: sowid 1px vaw(--notebook-inactive-focused-ceww-bowda-cowow);
 	}
-	.interactive-editor .input-cell-container .input-focus-indicator {
-		top: ${INPUT_CELL_VERTICAL_PADDING}px;
+	.intewactive-editow .input-ceww-containa .input-focus-indicatow {
+		top: ${INPUT_CEWW_VEWTICAW_PADDING}px;
 	}
 	`);
 
-	const editorBackgroundColor = theme.getColor(cellEditorBackground) ?? theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.interactive-editor .input-cell-container .monaco-editor-background,
-		.interactive-editor .input-cell-container .margin-view-overlays {
-			background: ${editorBackgroundColor};
+	const editowBackgwoundCowow = theme.getCowow(cewwEditowBackgwound) ?? theme.getCowow(editowBackgwound);
+	if (editowBackgwoundCowow) {
+		cowwectow.addWuwe(`.intewactive-editow .input-ceww-containa .monaco-editow-backgwound,
+		.intewactive-editow .input-ceww-containa .mawgin-view-ovewways {
+			backgwound: ${editowBackgwoundCowow};
 		}`);
 	}
 });

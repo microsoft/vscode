@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
-import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { WunOnceScheduwa } fwom 'vs/base/common/async';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { join } fwom 'vs/base/common/path';
+impowt { Pwomises } fwom 'vs/base/node/pfs';
+impowt { IBackupWowkspacesFowmat } fwom 'vs/pwatfowm/backup/node/backup';
+impowt { INativeEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class StorageDataCleaner extends Disposable {
+expowt cwass StowageDataCweana extends Disposabwe {
 
-	// Workspace/Folder storage names are MD5 hashes (128bits / 4 due to hex presentation)
-	private static readonly NON_EMPTY_WORKSPACE_ID_LENGTH = 128 / 4;
+	// Wowkspace/Fowda stowage names awe MD5 hashes (128bits / 4 due to hex pwesentation)
+	pwivate static weadonwy NON_EMPTY_WOWKSPACE_ID_WENGTH = 128 / 4;
 
-	constructor(
-		private readonly backupWorkspacesPath: string,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+	constwuctow(
+		pwivate weadonwy backupWowkspacesPath: stwing,
+		@INativeEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: INativeEnviwonmentSewvice,
+		@IWogSewvice pwivate weadonwy wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 
-		const scheduler = this._register(new RunOnceScheduler(() => {
-			this.cleanUpStorage();
-		}, 30 * 1000 /* after 30s */));
-		scheduler.schedule();
+		const scheduwa = this._wegista(new WunOnceScheduwa(() => {
+			this.cweanUpStowage();
+		}, 30 * 1000 /* afta 30s */));
+		scheduwa.scheduwe();
 	}
 
-	private async cleanUpStorage(): Promise<void> {
-		this.logService.info('[storage cleanup]: Starting to clean up storage folders.');
+	pwivate async cweanUpStowage(): Pwomise<void> {
+		this.wogSewvice.info('[stowage cweanup]: Stawting to cwean up stowage fowdews.');
 
-		try {
+		twy {
 
-			// Leverage the backup workspace file to find out which empty workspace is currently in use to
-			// determine which empty workspace storage can safely be deleted
-			const contents = await Promises.readFile(this.backupWorkspacesPath, 'utf8');
+			// Wevewage the backup wowkspace fiwe to find out which empty wowkspace is cuwwentwy in use to
+			// detewmine which empty wowkspace stowage can safewy be deweted
+			const contents = await Pwomises.weadFiwe(this.backupWowkspacesPath, 'utf8');
 
-			const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
-			const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(emptyWorkspace => emptyWorkspace.backupFolder);
+			const wowkspaces = JSON.pawse(contents) as IBackupWowkspacesFowmat;
+			const emptyWowkspaces = wowkspaces.emptyWowkspaceInfos.map(emptyWowkspace => emptyWowkspace.backupFowda);
 
-			// Read all workspace storage folders that exist
-			const storageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
-			await Promise.all(storageFolders.map(async storageFolder => {
-				if (storageFolder.length === StorageDataCleaner.NON_EMPTY_WORKSPACE_ID_LENGTH) {
-					return;
+			// Wead aww wowkspace stowage fowdews that exist
+			const stowageFowdews = await Pwomises.weaddiw(this.enviwonmentSewvice.wowkspaceStowageHome.fsPath);
+			await Pwomise.aww(stowageFowdews.map(async stowageFowda => {
+				if (stowageFowda.wength === StowageDataCweana.NON_EMPTY_WOWKSPACE_ID_WENGTH) {
+					wetuwn;
 				}
 
-				if (emptyWorkspaces.indexOf(storageFolder) === -1) {
-					this.logService.info(`[storage cleanup]: Deleting storage folder ${storageFolder}.`);
+				if (emptyWowkspaces.indexOf(stowageFowda) === -1) {
+					this.wogSewvice.info(`[stowage cweanup]: Deweting stowage fowda ${stowageFowda}.`);
 
-					await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, storageFolder));
+					await Pwomises.wm(join(this.enviwonmentSewvice.wowkspaceStowageHome.fsPath, stowageFowda));
 				}
 			}));
-		} catch (error) {
-			onUnexpectedError(error);
+		} catch (ewwow) {
+			onUnexpectedEwwow(ewwow);
 		}
 	}
 }

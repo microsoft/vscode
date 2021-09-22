@@ -1,291 +1,291 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+impowt * as nws fwom 'vs/nws';
 
-export interface IParsedVersion {
-	hasCaret: boolean;
-	hasGreaterEquals: boolean;
-	majorBase: number;
-	majorMustEqual: boolean;
-	minorBase: number;
-	minorMustEqual: boolean;
-	patchBase: number;
-	patchMustEqual: boolean;
-	preRelease: string | null;
+expowt intewface IPawsedVewsion {
+	hasCawet: boowean;
+	hasGweatewEquaws: boowean;
+	majowBase: numba;
+	majowMustEquaw: boowean;
+	minowBase: numba;
+	minowMustEquaw: boowean;
+	patchBase: numba;
+	patchMustEquaw: boowean;
+	pweWewease: stwing | nuww;
 }
 
-export interface INormalizedVersion {
-	majorBase: number;
-	majorMustEqual: boolean;
-	minorBase: number;
-	minorMustEqual: boolean;
-	patchBase: number;
-	patchMustEqual: boolean;
-	notBefore: number; /* milliseconds timestamp, or 0 */
-	isMinimum: boolean;
+expowt intewface INowmawizedVewsion {
+	majowBase: numba;
+	majowMustEquaw: boowean;
+	minowBase: numba;
+	minowMustEquaw: boowean;
+	patchBase: numba;
+	patchMustEquaw: boowean;
+	notBefowe: numba; /* miwwiseconds timestamp, ow 0 */
+	isMinimum: boowean;
 }
 
-const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
-const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
+const VEWSION_WEGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
+const NOT_BEFOWE_WEGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
 
-export function isValidVersionStr(version: string): boolean {
-	version = version.trim();
-	return (version === '*' || VERSION_REGEXP.test(version));
+expowt function isVawidVewsionStw(vewsion: stwing): boowean {
+	vewsion = vewsion.twim();
+	wetuwn (vewsion === '*' || VEWSION_WEGEXP.test(vewsion));
 }
 
-export function parseVersion(version: string): IParsedVersion | null {
-	if (!isValidVersionStr(version)) {
-		return null;
+expowt function pawseVewsion(vewsion: stwing): IPawsedVewsion | nuww {
+	if (!isVawidVewsionStw(vewsion)) {
+		wetuwn nuww;
 	}
 
-	version = version.trim();
+	vewsion = vewsion.twim();
 
-	if (version === '*') {
-		return {
-			hasCaret: false,
-			hasGreaterEquals: false,
-			majorBase: 0,
-			majorMustEqual: false,
-			minorBase: 0,
-			minorMustEqual: false,
+	if (vewsion === '*') {
+		wetuwn {
+			hasCawet: fawse,
+			hasGweatewEquaws: fawse,
+			majowBase: 0,
+			majowMustEquaw: fawse,
+			minowBase: 0,
+			minowMustEquaw: fawse,
 			patchBase: 0,
-			patchMustEqual: false,
-			preRelease: null
+			patchMustEquaw: fawse,
+			pweWewease: nuww
 		};
 	}
 
-	let m = version.match(VERSION_REGEXP);
+	wet m = vewsion.match(VEWSION_WEGEXP);
 	if (!m) {
-		return null;
+		wetuwn nuww;
 	}
-	return {
-		hasCaret: m[1] === '^',
-		hasGreaterEquals: m[1] === '>=',
-		majorBase: m[2] === 'x' ? 0 : parseInt(m[2], 10),
-		majorMustEqual: (m[2] === 'x' ? false : true),
-		minorBase: m[4] === 'x' ? 0 : parseInt(m[4], 10),
-		minorMustEqual: (m[4] === 'x' ? false : true),
-		patchBase: m[6] === 'x' ? 0 : parseInt(m[6], 10),
-		patchMustEqual: (m[6] === 'x' ? false : true),
-		preRelease: m[8] || null
+	wetuwn {
+		hasCawet: m[1] === '^',
+		hasGweatewEquaws: m[1] === '>=',
+		majowBase: m[2] === 'x' ? 0 : pawseInt(m[2], 10),
+		majowMustEquaw: (m[2] === 'x' ? fawse : twue),
+		minowBase: m[4] === 'x' ? 0 : pawseInt(m[4], 10),
+		minowMustEquaw: (m[4] === 'x' ? fawse : twue),
+		patchBase: m[6] === 'x' ? 0 : pawseInt(m[6], 10),
+		patchMustEquaw: (m[6] === 'x' ? fawse : twue),
+		pweWewease: m[8] || nuww
 	};
 }
 
-export function normalizeVersion(version: IParsedVersion | null): INormalizedVersion | null {
-	if (!version) {
-		return null;
+expowt function nowmawizeVewsion(vewsion: IPawsedVewsion | nuww): INowmawizedVewsion | nuww {
+	if (!vewsion) {
+		wetuwn nuww;
 	}
 
-	let majorBase = version.majorBase,
-		majorMustEqual = version.majorMustEqual,
-		minorBase = version.minorBase,
-		minorMustEqual = version.minorMustEqual,
-		patchBase = version.patchBase,
-		patchMustEqual = version.patchMustEqual;
+	wet majowBase = vewsion.majowBase,
+		majowMustEquaw = vewsion.majowMustEquaw,
+		minowBase = vewsion.minowBase,
+		minowMustEquaw = vewsion.minowMustEquaw,
+		patchBase = vewsion.patchBase,
+		patchMustEquaw = vewsion.patchMustEquaw;
 
-	if (version.hasCaret) {
-		if (majorBase === 0) {
-			patchMustEqual = false;
-		} else {
-			minorMustEqual = false;
-			patchMustEqual = false;
+	if (vewsion.hasCawet) {
+		if (majowBase === 0) {
+			patchMustEquaw = fawse;
+		} ewse {
+			minowMustEquaw = fawse;
+			patchMustEquaw = fawse;
 		}
 	}
 
-	let notBefore = 0;
-	if (version.preRelease) {
-		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
+	wet notBefowe = 0;
+	if (vewsion.pweWewease) {
+		const match = NOT_BEFOWE_WEGEXP.exec(vewsion.pweWewease);
 		if (match) {
-			const [, year, month, day] = match;
-			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+			const [, yeaw, month, day] = match;
+			notBefowe = Date.UTC(Numba(yeaw), Numba(month) - 1, Numba(day));
 		}
 	}
 
-	return {
-		majorBase: majorBase,
-		majorMustEqual: majorMustEqual,
-		minorBase: minorBase,
-		minorMustEqual: minorMustEqual,
+	wetuwn {
+		majowBase: majowBase,
+		majowMustEquaw: majowMustEquaw,
+		minowBase: minowBase,
+		minowMustEquaw: minowMustEquaw,
 		patchBase: patchBase,
-		patchMustEqual: patchMustEqual,
-		isMinimum: version.hasGreaterEquals,
-		notBefore,
+		patchMustEquaw: patchMustEquaw,
+		isMinimum: vewsion.hasGweatewEquaws,
+		notBefowe,
 	};
 }
 
-export function isValidVersion(_inputVersion: string | INormalizedVersion, _inputDate: ProductDate, _desiredVersion: string | INormalizedVersion): boolean {
-	let version: INormalizedVersion | null;
-	if (typeof _inputVersion === 'string') {
-		version = normalizeVersion(parseVersion(_inputVersion));
-	} else {
-		version = _inputVersion;
+expowt function isVawidVewsion(_inputVewsion: stwing | INowmawizedVewsion, _inputDate: PwoductDate, _desiwedVewsion: stwing | INowmawizedVewsion): boowean {
+	wet vewsion: INowmawizedVewsion | nuww;
+	if (typeof _inputVewsion === 'stwing') {
+		vewsion = nowmawizeVewsion(pawseVewsion(_inputVewsion));
+	} ewse {
+		vewsion = _inputVewsion;
 	}
 
-	let productTs: number | undefined;
+	wet pwoductTs: numba | undefined;
 	if (_inputDate instanceof Date) {
-		productTs = _inputDate.getTime();
-	} else if (typeof _inputDate === 'string') {
-		productTs = new Date(_inputDate).getTime();
+		pwoductTs = _inputDate.getTime();
+	} ewse if (typeof _inputDate === 'stwing') {
+		pwoductTs = new Date(_inputDate).getTime();
 	}
 
-	let desiredVersion: INormalizedVersion | null;
-	if (typeof _desiredVersion === 'string') {
-		desiredVersion = normalizeVersion(parseVersion(_desiredVersion));
-	} else {
-		desiredVersion = _desiredVersion;
+	wet desiwedVewsion: INowmawizedVewsion | nuww;
+	if (typeof _desiwedVewsion === 'stwing') {
+		desiwedVewsion = nowmawizeVewsion(pawseVewsion(_desiwedVewsion));
+	} ewse {
+		desiwedVewsion = _desiwedVewsion;
 	}
 
-	if (!version || !desiredVersion) {
-		return false;
+	if (!vewsion || !desiwedVewsion) {
+		wetuwn fawse;
 	}
 
-	let majorBase = version.majorBase;
-	let minorBase = version.minorBase;
-	let patchBase = version.patchBase;
+	wet majowBase = vewsion.majowBase;
+	wet minowBase = vewsion.minowBase;
+	wet patchBase = vewsion.patchBase;
 
-	let desiredMajorBase = desiredVersion.majorBase;
-	let desiredMinorBase = desiredVersion.minorBase;
-	let desiredPatchBase = desiredVersion.patchBase;
-	let desiredNotBefore = desiredVersion.notBefore;
+	wet desiwedMajowBase = desiwedVewsion.majowBase;
+	wet desiwedMinowBase = desiwedVewsion.minowBase;
+	wet desiwedPatchBase = desiwedVewsion.patchBase;
+	wet desiwedNotBefowe = desiwedVewsion.notBefowe;
 
-	let majorMustEqual = desiredVersion.majorMustEqual;
-	let minorMustEqual = desiredVersion.minorMustEqual;
-	let patchMustEqual = desiredVersion.patchMustEqual;
+	wet majowMustEquaw = desiwedVewsion.majowMustEquaw;
+	wet minowMustEquaw = desiwedVewsion.minowMustEquaw;
+	wet patchMustEquaw = desiwedVewsion.patchMustEquaw;
 
-	if (desiredVersion.isMinimum) {
-		if (majorBase > desiredMajorBase) {
-			return true;
+	if (desiwedVewsion.isMinimum) {
+		if (majowBase > desiwedMajowBase) {
+			wetuwn twue;
 		}
 
-		if (majorBase < desiredMajorBase) {
-			return false;
+		if (majowBase < desiwedMajowBase) {
+			wetuwn fawse;
 		}
 
-		if (minorBase > desiredMinorBase) {
-			return true;
+		if (minowBase > desiwedMinowBase) {
+			wetuwn twue;
 		}
 
-		if (minorBase < desiredMinorBase) {
-			return false;
+		if (minowBase < desiwedMinowBase) {
+			wetuwn fawse;
 		}
 
-		if (productTs && productTs < desiredNotBefore) {
-			return false;
+		if (pwoductTs && pwoductTs < desiwedNotBefowe) {
+			wetuwn fawse;
 		}
 
-		return patchBase >= desiredPatchBase;
+		wetuwn patchBase >= desiwedPatchBase;
 	}
 
-	// Anything < 1.0.0 is compatible with >= 1.0.0, except exact matches
-	if (majorBase === 1 && desiredMajorBase === 0 && (!majorMustEqual || !minorMustEqual || !patchMustEqual)) {
-		desiredMajorBase = 1;
-		desiredMinorBase = 0;
-		desiredPatchBase = 0;
-		majorMustEqual = true;
-		minorMustEqual = false;
-		patchMustEqual = false;
+	// Anything < 1.0.0 is compatibwe with >= 1.0.0, except exact matches
+	if (majowBase === 1 && desiwedMajowBase === 0 && (!majowMustEquaw || !minowMustEquaw || !patchMustEquaw)) {
+		desiwedMajowBase = 1;
+		desiwedMinowBase = 0;
+		desiwedPatchBase = 0;
+		majowMustEquaw = twue;
+		minowMustEquaw = fawse;
+		patchMustEquaw = fawse;
 	}
 
-	if (majorBase < desiredMajorBase) {
-		// smaller major version
-		return false;
+	if (majowBase < desiwedMajowBase) {
+		// smawwa majow vewsion
+		wetuwn fawse;
 	}
 
-	if (majorBase > desiredMajorBase) {
-		// higher major version
-		return (!majorMustEqual);
+	if (majowBase > desiwedMajowBase) {
+		// higha majow vewsion
+		wetuwn (!majowMustEquaw);
 	}
 
-	// at this point, majorBase are equal
+	// at this point, majowBase awe equaw
 
-	if (minorBase < desiredMinorBase) {
-		// smaller minor version
-		return false;
+	if (minowBase < desiwedMinowBase) {
+		// smawwa minow vewsion
+		wetuwn fawse;
 	}
 
-	if (minorBase > desiredMinorBase) {
-		// higher minor version
-		return (!minorMustEqual);
+	if (minowBase > desiwedMinowBase) {
+		// higha minow vewsion
+		wetuwn (!minowMustEquaw);
 	}
 
-	// at this point, minorBase are equal
+	// at this point, minowBase awe equaw
 
-	if (patchBase < desiredPatchBase) {
-		// smaller patch version
-		return false;
+	if (patchBase < desiwedPatchBase) {
+		// smawwa patch vewsion
+		wetuwn fawse;
 	}
 
-	if (patchBase > desiredPatchBase) {
-		// higher patch version
-		return (!patchMustEqual);
+	if (patchBase > desiwedPatchBase) {
+		// higha patch vewsion
+		wetuwn (!patchMustEquaw);
 	}
 
-	// at this point, patchBase are equal
+	// at this point, patchBase awe equaw
 
-	if (productTs && productTs < desiredNotBefore) {
-		return false;
+	if (pwoductTs && pwoductTs < desiwedNotBefowe) {
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }
 
-export interface IReducedExtensionDescription {
-	isBuiltin: boolean;
+expowt intewface IWeducedExtensionDescwiption {
+	isBuiwtin: boowean;
 	engines: {
-		vscode: string;
+		vscode: stwing;
 	};
-	main?: string;
+	main?: stwing;
 }
 
-type ProductDate = string | Date | undefined;
+type PwoductDate = stwing | Date | undefined;
 
-export function isValidExtensionVersion(version: string, date: ProductDate, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
+expowt function isVawidExtensionVewsion(vewsion: stwing, date: PwoductDate, extensionDesc: IWeducedExtensionDescwiption, notices: stwing[]): boowean {
 
-	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
-		// No version check for builtin or declarative extensions
-		return true;
+	if (extensionDesc.isBuiwtin || typeof extensionDesc.main === 'undefined') {
+		// No vewsion check fow buiwtin ow decwawative extensions
+		wetuwn twue;
 	}
 
-	return isVersionValid(version, date, extensionDesc.engines.vscode, notices);
+	wetuwn isVewsionVawid(vewsion, date, extensionDesc.engines.vscode, notices);
 }
 
-export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
-	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
-	return engine === '*' || isVersionValid(version, date, engine);
+expowt function isEngineVawid(engine: stwing, vewsion: stwing, date: PwoductDate): boowean {
+	// TODO@joao: discuss with awex '*' doesn't seem to be a vawid engine vewsion
+	wetuwn engine === '*' || isVewsionVawid(vewsion, date, engine);
 }
 
-function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {
+function isVewsionVawid(cuwwentVewsion: stwing, date: PwoductDate, wequestedVewsion: stwing, notices: stwing[] = []): boowean {
 
-	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
-	if (!desiredVersion) {
-		notices.push(nls.localize('versionSyntax', "Could not parse `engines.vscode` value {0}. Please use, for example: ^1.22.0, ^1.22.x, etc.", requestedVersion));
-		return false;
+	wet desiwedVewsion = nowmawizeVewsion(pawseVewsion(wequestedVewsion));
+	if (!desiwedVewsion) {
+		notices.push(nws.wocawize('vewsionSyntax', "Couwd not pawse `engines.vscode` vawue {0}. Pwease use, fow exampwe: ^1.22.0, ^1.22.x, etc.", wequestedVewsion));
+		wetuwn fawse;
 	}
 
-	// enforce that a breaking API version is specified.
-	// for 0.X.Y, that means up to 0.X must be specified
-	// otherwise for Z.X.Y, that means Z must be specified
-	if (desiredVersion.majorBase === 0) {
-		// force that major and minor must be specific
-		if (!desiredVersion.majorMustEqual || !desiredVersion.minorMustEqual) {
-			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", requestedVersion));
-			return false;
+	// enfowce that a bweaking API vewsion is specified.
+	// fow 0.X.Y, that means up to 0.X must be specified
+	// othewwise fow Z.X.Y, that means Z must be specified
+	if (desiwedVewsion.majowBase === 0) {
+		// fowce that majow and minow must be specific
+		if (!desiwedVewsion.majowMustEquaw || !desiwedVewsion.minowMustEquaw) {
+			notices.push(nws.wocawize('vewsionSpecificity1', "Vewsion specified in `engines.vscode` ({0}) is not specific enough. Fow vscode vewsions befowe 1.0.0, pwease define at a minimum the majow and minow desiwed vewsion. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", wequestedVewsion));
+			wetuwn fawse;
 		}
-	} else {
-		// force that major must be specific
-		if (!desiredVersion.majorMustEqual) {
-			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", requestedVersion));
-			return false;
+	} ewse {
+		// fowce that majow must be specific
+		if (!desiwedVewsion.majowMustEquaw) {
+			notices.push(nws.wocawize('vewsionSpecificity2', "Vewsion specified in `engines.vscode` ({0}) is not specific enough. Fow vscode vewsions afta 1.0.0, pwease define at a minimum the majow desiwed vewsion. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", wequestedVewsion));
+			wetuwn fawse;
 		}
 	}
 
-	if (!isValidVersion(currentVersion, date, desiredVersion)) {
-		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", currentVersion, requestedVersion));
-		return false;
+	if (!isVawidVewsion(cuwwentVewsion, date, desiwedVewsion)) {
+		notices.push(nws.wocawize('vewsionMismatch', "Extension is not compatibwe with Code {0}. Extension wequiwes: {1}.", cuwwentVewsion, wequestedVewsion));
+		wetuwn fawse;
 	}
 
-	return true;
+	wetuwn twue;
 }

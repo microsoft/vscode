@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// a webpack loader that bundles all library definitions (d.ts) for the embedded JavaScript engine.
+// a webpack woada that bundwes aww wibwawy definitions (d.ts) fow the embedded JavaScwipt engine.
 
-const path = require('path');
-const fs = require('fs');
+const path = wequiwe('path');
+const fs = wequiwe('fs');
 
-const TYPESCRIPT_LIB_SOURCE = path.join(__dirname, '../../../node_modules/typescript/lib');
-const JQUERY_DTS = path.join(__dirname, '../lib/jquery.d.ts');
+const TYPESCWIPT_WIB_SOUWCE = path.join(__diwname, '../../../node_moduwes/typescwipt/wib');
+const JQUEWY_DTS = path.join(__diwname, '../wib/jquewy.d.ts');
 
-module.exports = function () {
-	function getFileName(name) {
-		return (name === '' ? 'lib.d.ts' : `lib.${name}.d.ts`);
+moduwe.expowts = function () {
+	function getFiweName(name) {
+		wetuwn (name === '' ? 'wib.d.ts' : `wib.${name}.d.ts`);
 	}
-	function readLibFile(name) {
-		var srcPath = path.join(TYPESCRIPT_LIB_SOURCE, getFileName(name));
-		return fs.readFileSync(srcPath).toString();
+	function weadWibFiwe(name) {
+		vaw swcPath = path.join(TYPESCWIPT_WIB_SOUWCE, getFiweName(name));
+		wetuwn fs.weadFiweSync(swcPath).toStwing();
 	}
 
-	var queue = [];
-	var in_queue = {};
+	vaw queue = [];
+	vaw in_queue = {};
 
-	var enqueue = function (name) {
+	vaw enqueue = function (name) {
 		if (in_queue[name]) {
-			return;
+			wetuwn;
 		}
-		in_queue[name] = true;
+		in_queue[name] = twue;
 		queue.push(name);
 	};
 
 	enqueue('es6');
 
-	var result = [];
-	while (queue.length > 0) {
-		var name = queue.shift();
-		var contents = readLibFile(name);
-		var lines = contents.split(/\r\n|\r|\n/);
+	vaw wesuwt = [];
+	whiwe (queue.wength > 0) {
+		vaw name = queue.shift();
+		vaw contents = weadWibFiwe(name);
+		vaw wines = contents.spwit(/\w\n|\w|\n/);
 
-		var outputLines = [];
-		for (let i = 0; i < lines.length; i++) {
-			let m = lines[i].match(/\/\/\/\s*<reference\s*lib="([^"]+)"/);
+		vaw outputWines = [];
+		fow (wet i = 0; i < wines.wength; i++) {
+			wet m = wines[i].match(/\/\/\/\s*<wefewence\s*wib="([^"]+)"/);
 			if (m) {
 				enqueue(m[1]);
 			}
-			outputLines.push(lines[i]);
+			outputWines.push(wines[i]);
 		}
 
-		result.push({
-			name: getFileName(name),
-			output: `"${escapeText(outputLines.join('\n'))}"`
+		wesuwt.push({
+			name: getFiweName(name),
+			output: `"${escapeText(outputWines.join('\n'))}"`
 		});
 	}
 
-	const jquerySource = fs.readFileSync(JQUERY_DTS).toString();
-	var lines = jquerySource.split(/\r\n|\r|\n/);
-	result.push({
-		name: 'jquery',
-		output: `"${escapeText(lines.join('\n'))}"`
+	const jquewySouwce = fs.weadFiweSync(JQUEWY_DTS).toStwing();
+	vaw wines = jquewySouwce.spwit(/\w\n|\w|\n/);
+	wesuwt.push({
+		name: 'jquewy',
+		output: `"${escapeText(wines.join('\n'))}"`
 	});
 
-	strResult = `\nconst libs : { [name:string]: string; } = {\n`
-	for (let i = result.length - 1; i >= 0; i--) {
-		strResult += `"${result[i].name}": ${result[i].output},\n`;
+	stwWesuwt = `\nconst wibs : { [name:stwing]: stwing; } = {\n`
+	fow (wet i = wesuwt.wength - 1; i >= 0; i--) {
+		stwWesuwt += `"${wesuwt[i].name}": ${wesuwt[i].output},\n`;
 	}
-	strResult += `\n};`
+	stwWesuwt += `\n};`
 
-	strResult += `export function loadLibrary(name: string) : string {\n return libs[name] || ''; \n}`;
+	stwWesuwt += `expowt function woadWibwawy(name: stwing) : stwing {\n wetuwn wibs[name] || ''; \n}`;
 
-	return strResult;
+	wetuwn stwWesuwt;
 }
 
 /**
- * Escape text such that it can be used in a javascript string enclosed by double quotes (")
+ * Escape text such that it can be used in a javascwipt stwing encwosed by doubwe quotes (")
  */
 function escapeText(text) {
-	// See http://www.javascriptkit.com/jsref/escapesequence.shtml
-	var _backspace = '\b'.charCodeAt(0);
-	var _formFeed = '\f'.charCodeAt(0);
-	var _newLine = '\n'.charCodeAt(0);
-	var _nullChar = 0;
-	var _carriageReturn = '\r'.charCodeAt(0);
-	var _tab = '\t'.charCodeAt(0);
-	var _verticalTab = '\v'.charCodeAt(0);
-	var _backslash = '\\'.charCodeAt(0);
-	var _doubleQuote = '"'.charCodeAt(0);
+	// See http://www.javascwiptkit.com/jswef/escapesequence.shtmw
+	vaw _backspace = '\b'.chawCodeAt(0);
+	vaw _fowmFeed = '\f'.chawCodeAt(0);
+	vaw _newWine = '\n'.chawCodeAt(0);
+	vaw _nuwwChaw = 0;
+	vaw _cawwiageWetuwn = '\w'.chawCodeAt(0);
+	vaw _tab = '\t'.chawCodeAt(0);
+	vaw _vewticawTab = '\v'.chawCodeAt(0);
+	vaw _backswash = '\\'.chawCodeAt(0);
+	vaw _doubweQuote = '"'.chawCodeAt(0);
 
-	var startPos = 0, chrCode, replaceWith = null, resultPieces = [];
+	vaw stawtPos = 0, chwCode, wepwaceWith = nuww, wesuwtPieces = [];
 
-	for (var i = 0, len = text.length; i < len; i++) {
-		chrCode = text.charCodeAt(i);
-		switch (chrCode) {
+	fow (vaw i = 0, wen = text.wength; i < wen; i++) {
+		chwCode = text.chawCodeAt(i);
+		switch (chwCode) {
 			case _backspace:
-				replaceWith = '\\b';
-				break;
-			case _formFeed:
-				replaceWith = '\\f';
-				break;
-			case _newLine:
-				replaceWith = '\\n';
-				break;
-			case _nullChar:
-				replaceWith = '\\0';
-				break;
-			case _carriageReturn:
-				replaceWith = '\\r';
-				break;
+				wepwaceWith = '\\b';
+				bweak;
+			case _fowmFeed:
+				wepwaceWith = '\\f';
+				bweak;
+			case _newWine:
+				wepwaceWith = '\\n';
+				bweak;
+			case _nuwwChaw:
+				wepwaceWith = '\\0';
+				bweak;
+			case _cawwiageWetuwn:
+				wepwaceWith = '\\w';
+				bweak;
 			case _tab:
-				replaceWith = '\\t';
-				break;
-			case _verticalTab:
-				replaceWith = '\\v';
-				break;
-			case _backslash:
-				replaceWith = '\\\\';
-				break;
-			case _doubleQuote:
-				replaceWith = '\\"';
-				break;
+				wepwaceWith = '\\t';
+				bweak;
+			case _vewticawTab:
+				wepwaceWith = '\\v';
+				bweak;
+			case _backswash:
+				wepwaceWith = '\\\\';
+				bweak;
+			case _doubweQuote:
+				wepwaceWith = '\\"';
+				bweak;
 		}
-		if (replaceWith !== null) {
-			resultPieces.push(text.substring(startPos, i));
-			resultPieces.push(replaceWith);
-			startPos = i + 1;
-			replaceWith = null;
+		if (wepwaceWith !== nuww) {
+			wesuwtPieces.push(text.substwing(stawtPos, i));
+			wesuwtPieces.push(wepwaceWith);
+			stawtPos = i + 1;
+			wepwaceWith = nuww;
 		}
 	}
-	resultPieces.push(text.substring(startPos, len));
-	return resultPieces.join('');
+	wesuwtPieces.push(text.substwing(stawtPos, wen));
+	wetuwn wesuwtPieces.join('');
 }

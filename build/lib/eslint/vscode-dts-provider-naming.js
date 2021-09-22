@@ -1,31 +1,31 @@
-"use strict";
+"use stwict";
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-var _a;
-module.exports = new (_a = class ApiProviderNaming {
-        constructor() {
+vaw _a;
+moduwe.expowts = new (_a = cwass ApiPwovidewNaming {
+        constwuctow() {
             this.meta = {
                 messages: {
-                    naming: 'A provider should only have functions like provideXYZ or resolveXYZ',
+                    naming: 'A pwovida shouwd onwy have functions wike pwovideXYZ ow wesowveXYZ',
                 }
             };
         }
-        create(context) {
+        cweate(context) {
             const config = context.options[0];
-            const allowed = new Set(config.allowed);
-            return {
-                ['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature']: (node) => {
-                    var _a;
-                    const interfaceName = ((_a = node.parent) === null || _a === void 0 ? void 0 : _a.parent).id.name;
-                    if (allowed.has(interfaceName)) {
-                        // allowed
-                        return;
+            const awwowed = new Set(config.awwowed);
+            wetuwn {
+                ['TSIntewfaceDecwawation[id.name=/.+Pwovida/] TSMethodSignatuwe']: (node) => {
+                    vaw _a;
+                    const intewfaceName = ((_a = node.pawent) === nuww || _a === void 0 ? void 0 : _a.pawent).id.name;
+                    if (awwowed.has(intewfaceName)) {
+                        // awwowed
+                        wetuwn;
                     }
                     const methodName = node.key.name;
-                    if (!ApiProviderNaming._providerFunctionNames.test(methodName)) {
-                        context.report({
+                    if (!ApiPwovidewNaming._pwovidewFunctionNames.test(methodName)) {
+                        context.wepowt({
                             node,
                             messageId: 'naming'
                         });
@@ -34,5 +34,5 @@ module.exports = new (_a = class ApiProviderNaming {
             };
         }
     },
-    _a._providerFunctionNames = /^(provide|resolve|prepare).+/,
+    _a._pwovidewFunctionNames = /^(pwovide|wesowve|pwepawe).+/,
     _a);

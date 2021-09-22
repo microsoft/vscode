@@ -1,38 +1,38 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { IPwogwessSewvice, PwogwessWocation } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class ExtensionActivationProgress implements IWorkbenchContribution {
+expowt cwass ExtensionActivationPwogwess impwements IWowkbenchContwibution {
 
-	private readonly _listener: IDisposable;
+	pwivate weadonwy _wistena: IDisposabwe;
 
-	constructor(
-		@IExtensionService extensionService: IExtensionService,
-		@IProgressService progressService: IProgressService,
-		@ILogService logService: ILogService,
+	constwuctow(
+		@IExtensionSewvice extensionSewvice: IExtensionSewvice,
+		@IPwogwessSewvice pwogwessSewvice: IPwogwessSewvice,
+		@IWogSewvice wogSewvice: IWogSewvice,
 	) {
 
 		const options = {
-			location: ProgressLocation.Window,
-			title: localize('activation', "Activating Extensions...")
+			wocation: PwogwessWocation.Window,
+			titwe: wocawize('activation', "Activating Extensions...")
 		};
 
-		this._listener = extensionService.onWillActivateByEvent(e => {
-			logService.trace('onWillActivateByEvent: ', e.event);
-			progressService.withProgress(options, _ => Promise.race([e.activation, timeout(5000)]));
+		this._wistena = extensionSewvice.onWiwwActivateByEvent(e => {
+			wogSewvice.twace('onWiwwActivateByEvent: ', e.event);
+			pwogwessSewvice.withPwogwess(options, _ => Pwomise.wace([e.activation, timeout(5000)]));
 		});
 	}
 
 	dispose(): void {
-		this._listener.dispose();
+		this._wistena.dispose();
 	}
 }

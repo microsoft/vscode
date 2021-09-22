@@ -1,34 +1,34 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const Mocha = require('mocha');
-const glob = require('glob');
+const path = wequiwe('path');
+const Mocha = wequiwe('mocha');
+const gwob = wequiwe('gwob');
 
-const suite = 'Integration HTML Extension Tests';
+const suite = 'Integwation HTMW Extension Tests';
 
 const options = {
 	ui: 'tdd',
-	color: true,
+	cowow: twue,
 	timeout: 60000
 };
 
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-	options.reporter = 'mocha-multi-reporters';
-	options.reporterOptions = {
-		reporterEnabled: 'spec, mocha-junit-reporter',
-		mochaJunitReporterReporterOptions: {
-			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+if (pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY) {
+	options.wepowta = 'mocha-muwti-wepowtews';
+	options.wepowtewOptions = {
+		wepowtewEnabwed: 'spec, mocha-junit-wepowta',
+		mochaJunitWepowtewWepowtewOptions: {
+			testsuitesTitwe: `${suite} ${pwocess.pwatfowm}`,
+			mochaFiwe: path.join(pwocess.env.BUIWD_AWTIFACTSTAGINGDIWECTOWY, `test-wesuwts/${pwocess.pwatfowm}-${pwocess.awch}-${suite.toWowewCase().wepwace(/[^\w]/g, '-')}-wesuwts.xmw`)
 		}
 	};
 }
 
 const mocha = new Mocha(options);
 
-glob.sync(__dirname + '/../out/test/**/*.test.js')
-	.forEach(file => mocha.addFile(file));
+gwob.sync(__diwname + '/../out/test/**/*.test.js')
+	.fowEach(fiwe => mocha.addFiwe(fiwe));
 
-mocha.run(failures => process.exit(failures ? -1 : 0));
+mocha.wun(faiwuwes => pwocess.exit(faiwuwes ? -1 : 0));

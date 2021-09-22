@@ -1,232 +1,232 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as sinon from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MainThreadConfiguration } from 'vs/workbench/api/browser/mainThreadConfiguration';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+impowt * as assewt fwom 'assewt';
+impowt * as sinon fwom 'sinon';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { Extensions, IConfiguwationWegistwy, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { IWowkspaceContextSewvice, WowkbenchState } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { MainThweadConfiguwation } fwom 'vs/wowkbench/api/bwowsa/mainThweadConfiguwation';
+impowt { SingwePwoxyWPCPwotocow } fwom './testWPCPwotocow';
+impowt { IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { WowkspaceSewvice } fwom 'vs/wowkbench/sewvices/configuwation/bwowsa/configuwationSewvice';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
 
-suite('MainThreadConfiguration', function () {
+suite('MainThweadConfiguwation', function () {
 
-	let proxy = {
-		$initializeConfiguration: () => { }
+	wet pwoxy = {
+		$initiawizeConfiguwation: () => { }
 	};
-	let instantiationService: TestInstantiationService;
-	let target: sinon.SinonSpy;
+	wet instantiationSewvice: TestInstantiationSewvice;
+	wet tawget: sinon.SinonSpy;
 
 	suiteSetup(() => {
-		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-			'id': 'extHostConfiguration',
-			'title': 'a',
+		Wegistwy.as<IConfiguwationWegistwy>(Extensions.Configuwation).wegistewConfiguwation({
+			'id': 'extHostConfiguwation',
+			'titwe': 'a',
 			'type': 'object',
-			'properties': {
-				'extHostConfiguration.resource': {
-					'description': 'extHostConfiguration.resource',
-					'type': 'boolean',
-					'default': true,
-					'scope': ConfigurationScope.RESOURCE
+			'pwopewties': {
+				'extHostConfiguwation.wesouwce': {
+					'descwiption': 'extHostConfiguwation.wesouwce',
+					'type': 'boowean',
+					'defauwt': twue,
+					'scope': ConfiguwationScope.WESOUWCE
 				},
-				'extHostConfiguration.window': {
-					'description': 'extHostConfiguration.resource',
-					'type': 'boolean',
-					'default': true,
-					'scope': ConfigurationScope.WINDOW
+				'extHostConfiguwation.window': {
+					'descwiption': 'extHostConfiguwation.wesouwce',
+					'type': 'boowean',
+					'defauwt': twue,
+					'scope': ConfiguwationScope.WINDOW
 				}
 			}
 		});
 	});
 
 	setup(() => {
-		target = sinon.spy();
+		tawget = sinon.spy();
 
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IConfigurationService, WorkspaceService);
-		instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', sinon.mock());
-		instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', sinon.mock());
-		instantiationService.stub(IConfigurationService, 'updateValue', target);
-		instantiationService.stub(IEnvironmentService, {
-			isBuilt: false
+		instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(IConfiguwationSewvice, WowkspaceSewvice);
+		instantiationSewvice.stub(IConfiguwationSewvice, 'onDidUpdateConfiguwation', sinon.mock());
+		instantiationSewvice.stub(IConfiguwationSewvice, 'onDidChangeConfiguwation', sinon.mock());
+		instantiationSewvice.stub(IConfiguwationSewvice, 'updateVawue', tawget);
+		instantiationSewvice.stub(IEnviwonmentSewvice, {
+			isBuiwt: fawse
 		});
 	});
 
-	test('update resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update wesouwce configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when no wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', undefined, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', 'vawue', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update resource configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update wesouwce configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update resource configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update wesouwce configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when no wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', undefined, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', 'vawue', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update window configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update window configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when no wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', undefined, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.window', 'vawue', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update window configuration without configuration target defaults to workspace in multi root workspace when resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update window configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.window', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update window configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update window configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.window', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update window configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update window configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when no wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.window', 'value', undefined, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.window', 'vawue', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update resource configuration without configuration target defaults to folder', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update wesouwce configuwation without configuwation tawget defauwts to fowda', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(null, 'extHostConfiguration.resource', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE_FOLDER, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE_FOWDa, tawget.awgs[0][3]);
 	});
 
-	test('update configuration with user configuration target', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update configuwation with usa configuwation tawget', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(ConfigurationTarget.USER, 'extHostConfiguration.window', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(ConfiguwationTawget.USa, 'extHostConfiguwation.window', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.USER, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.USa, tawget.awgs[0][3]);
 	});
 
-	test('update configuration with workspace configuration target', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update configuwation with wowkspace configuwation tawget', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(ConfigurationTarget.WORKSPACE, 'extHostConfiguration.window', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(ConfiguwationTawget.WOWKSPACE, 'extHostConfiguwation.window', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('update configuration with folder configuration target', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('update configuwation with fowda configuwation tawget', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$updateConfigurationOption(ConfigurationTarget.WORKSPACE_FOLDER, 'extHostConfiguration.window', 'value', { resource: URI.file('abc') }, undefined);
+		testObject.$updateConfiguwationOption(ConfiguwationTawget.WOWKSPACE_FOWDa, 'extHostConfiguwation.window', 'vawue', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE_FOLDER, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE_FOWDa, tawget.awgs[0][3]);
 	});
 
-	test('remove resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove wesouwce configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when no wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', undefined, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove resource configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove wesouwce configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', { resource: URI.file('abc') }, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove resource configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove wesouwce configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when no wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', undefined, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove window configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove window configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when no wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', undefined, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.window', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove window configuration without configuration target defaults to workspace in multi root workspace when resource is provided', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove window configuwation without configuwation tawget defauwts to wowkspace in muwti woot wowkspace when wesouwce is pwovided', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', { resource: URI.file('abc') }, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.window', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove window configuration without configuration target defaults to workspace in folder workspace when resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove window configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', { resource: URI.file('abc') }, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.window', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove window configuration without configuration target defaults to workspace in folder workspace when no resource is provider', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.FOLDER });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove window configuwation without configuwation tawget defauwts to wowkspace in fowda wowkspace when no wesouwce is pwovida', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.FOWDa });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.window', undefined, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.window', undefined, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE, tawget.awgs[0][3]);
 	});
 
-	test('remove configuration without configuration target defaults to folder', function () {
-		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
-		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));
+	test('wemove configuwation without configuwation tawget defauwts to fowda', function () {
+		instantiationSewvice.stub(IWowkspaceContextSewvice, <IWowkspaceContextSewvice>{ getWowkbenchState: () => WowkbenchState.WOWKSPACE });
+		const testObject: MainThweadConfiguwation = instantiationSewvice.cweateInstance(MainThweadConfiguwation, SingwePwoxyWPCPwotocow(pwoxy));
 
-		testObject.$removeConfigurationOption(null, 'extHostConfiguration.resource', { resource: URI.file('abc') }, undefined);
+		testObject.$wemoveConfiguwationOption(nuww, 'extHostConfiguwation.wesouwce', { wesouwce: UWI.fiwe('abc') }, undefined);
 
-		assert.strictEqual(ConfigurationTarget.WORKSPACE_FOLDER, target.args[0][3]);
+		assewt.stwictEquaw(ConfiguwationTawget.WOWKSPACE_FOWDa, tawget.awgs[0][3]);
 	});
 });

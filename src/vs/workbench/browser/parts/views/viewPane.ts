@@ -1,602 +1,602 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/paneviewlet';
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, IMenuService } from 'vs/platform/actions/common/actions';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Link } from 'vs/platform/opener/browser/link';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+impowt 'vs/css!./media/paneviewwet';
+impowt * as nws fwom 'vs/nws';
+impowt { Event, Emitta } fwom 'vs/base/common/event';
+impowt { fowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { attachButtonStywa, attachPwogwessBawStywa } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { PANEW_BACKGWOUND, SIDE_BAW_BACKGWOUND } fwom 'vs/wowkbench/common/theme';
+impowt { afta, append, $, twackFocus, EventType, addDisposabweWistena, cweateCSSWuwe, asCSSUww } fwom 'vs/base/bwowsa/dom';
+impowt { IDisposabwe, Disposabwe, DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { ActionsOwientation, IActionViewItem, pwepaweActions } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IThemeSewvice, ThemeIcon } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IPaneOptions, Pane, IPaneStywes } fwom 'vs/base/bwowsa/ui/spwitview/paneview';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions as ViewContainewExtensions, IView, IViewDescwiptowSewvice, ViewContainewWocation, IViewsWegistwy, IViewContentDescwiptow, defauwtViewIcon, IViewsSewvice, ViewContainewWocationToStwing } fwom 'vs/wowkbench/common/views';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { assewtIsDefined } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MenuId, Action2, IAction2Options, IMenuSewvice } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { cweateActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { pawseWinkedText } fwom 'vs/base/common/winkedText';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Button } fwom 'vs/base/bwowsa/ui/button/button';
+impowt { Wink } fwom 'vs/pwatfowm/opena/bwowsa/wink';
+impowt { Owientation } fwom 'vs/base/bwowsa/ui/sash/sash';
+impowt { PwogwessBaw } fwom 'vs/base/bwowsa/ui/pwogwessbaw/pwogwessbaw';
+impowt { CompositePwogwessIndicatow } fwom 'vs/wowkbench/sewvices/pwogwess/bwowsa/pwogwessIndicatow';
+impowt { IPwogwessIndicatow } fwom 'vs/pwatfowm/pwogwess/common/pwogwess';
+impowt { DomScwowwabweEwement } fwom 'vs/base/bwowsa/ui/scwowwbaw/scwowwabweEwement';
+impowt { ScwowwbawVisibiwity } fwom 'vs/base/common/scwowwabwe';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { CompositeMenuActions } fwom 'vs/wowkbench/bwowsa/actions';
 
-export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+expowt intewface IViewPaneOptions extends IPaneOptions {
+	id: stwing;
+	showActionsAwways?: boowean;
+	titweMenuId?: MenuId;
+	donotFowwawdAwgs?: boowean;
 }
 
-type WelcomeActionClassification = {
-	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+type WewcomeActionCwassification = {
+	viewId: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
+	uwi: { cwassification: 'SystemMetaData', puwpose: 'FeatuweInsight' };
 };
 
-const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));
-const viewPaneContainerCollapsedIcon = registerIcon('view-pane-container-collapsed', Codicon.chevronRight, nls.localize('viewPaneContainerCollapsedIcon', 'Icon for a collapsed view pane container.'));
+const viewPaneContainewExpandedIcon = wegistewIcon('view-pane-containa-expanded', Codicon.chevwonDown, nws.wocawize('viewPaneContainewExpandedIcon', 'Icon fow an expanded view pane containa.'));
+const viewPaneContainewCowwapsedIcon = wegistewIcon('view-pane-containa-cowwapsed', Codicon.chevwonWight, nws.wocawize('viewPaneContainewCowwapsedIcon', 'Icon fow a cowwapsed view pane containa.'));
 
-const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+const viewsWegistwy = Wegistwy.as<IViewsWegistwy>(ViewContainewExtensions.ViewsWegistwy);
 
-interface IItem {
-	readonly descriptor: IViewContentDescriptor;
-	visible: boolean;
+intewface IItem {
+	weadonwy descwiptow: IViewContentDescwiptow;
+	visibwe: boowean;
 }
 
-class ViewWelcomeController {
+cwass ViewWewcomeContwowwa {
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
+	pwivate _onDidChange = new Emitta<void>();
+	weadonwy onDidChange = this._onDidChange.event;
 
-	private defaultItem: IItem | undefined;
-	private items: IItem[] = [];
-	get contents(): IViewContentDescriptor[] {
-		const visibleItems = this.items.filter(v => v.visible);
+	pwivate defauwtItem: IItem | undefined;
+	pwivate items: IItem[] = [];
+	get contents(): IViewContentDescwiptow[] {
+		const visibweItems = this.items.fiwta(v => v.visibwe);
 
-		if (visibleItems.length === 0 && this.defaultItem) {
-			return [this.defaultItem.descriptor];
+		if (visibweItems.wength === 0 && this.defauwtItem) {
+			wetuwn [this.defauwtItem.descwiptow];
 		}
 
-		return visibleItems.map(v => v.descriptor);
+		wetuwn visibweItems.map(v => v.descwiptow);
 	}
 
-	private disposables = new DisposableStore();
+	pwivate disposabwes = new DisposabweStowe();
 
-	constructor(
-		private id: string,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+	constwuctow(
+		pwivate id: stwing,
+		@IContextKeySewvice pwivate contextKeySewvice: IContextKeySewvice,
 	) {
-		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
-		this.onDidChangeViewWelcomeContent();
+		contextKeySewvice.onDidChangeContext(this.onDidChangeContext, this, this.disposabwes);
+		Event.fiwta(viewsWegistwy.onDidChangeViewWewcomeContent, id => id === this.id)(this.onDidChangeViewWewcomeContent, this, this.disposabwes);
+		this.onDidChangeViewWewcomeContent();
 	}
 
-	private onDidChangeViewWelcomeContent(): void {
-		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+	pwivate onDidChangeViewWewcomeContent(): void {
+		const descwiptows = viewsWegistwy.getViewWewcomeContent(this.id);
 
 		this.items = [];
 
-		for (const descriptor of descriptors) {
-			if (descriptor.when === 'default') {
-				this.defaultItem = { descriptor, visible: true };
-			} else {
-				const visible = descriptor.when ? this.contextKeyService.contextMatchesRules(descriptor.when) : true;
-				this.items.push({ descriptor, visible });
+		fow (const descwiptow of descwiptows) {
+			if (descwiptow.when === 'defauwt') {
+				this.defauwtItem = { descwiptow, visibwe: twue };
+			} ewse {
+				const visibwe = descwiptow.when ? this.contextKeySewvice.contextMatchesWuwes(descwiptow.when) : twue;
+				this.items.push({ descwiptow, visibwe });
 			}
 		}
 
-		this._onDidChange.fire();
+		this._onDidChange.fiwe();
 	}
 
-	private onDidChangeContext(): void {
-		let didChange = false;
+	pwivate onDidChangeContext(): void {
+		wet didChange = fawse;
 
-		for (const item of this.items) {
-			if (!item.descriptor.when || item.descriptor.when === 'default') {
+		fow (const item of this.items) {
+			if (!item.descwiptow.when || item.descwiptow.when === 'defauwt') {
 				continue;
 			}
 
-			const visible = this.contextKeyService.contextMatchesRules(item.descriptor.when);
+			const visibwe = this.contextKeySewvice.contextMatchesWuwes(item.descwiptow.when);
 
-			if (item.visible === visible) {
+			if (item.visibwe === visibwe) {
 				continue;
 			}
 
-			item.visible = visible;
-			didChange = true;
+			item.visibwe = visibwe;
+			didChange = twue;
 		}
 
 		if (didChange) {
-			this._onDidChange.fire();
+			this._onDidChange.fiwe();
 		}
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.disposabwes.dispose();
 	}
 }
 
-class ViewMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewId: string,
+cwass ViewMenuActions extends CompositeMenuActions {
+	constwuctow(
+		ewement: HTMWEwement,
+		viewId: stwing,
 		menuId: MenuId,
 		contextMenuId: MenuId,
-		donotForwardArgs: boolean,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		donotFowwawdAwgs: boowean,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IMenuSewvice menuSewvice: IMenuSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
 	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('view', viewId);
-		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, { shouldForwardArgs: !donotForwardArgs }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
+		const scopedContextKeySewvice = contextKeySewvice.cweateScoped(ewement);
+		scopedContextKeySewvice.cweateKey('view', viewId);
+		const viewWocationKey = scopedContextKeySewvice.cweateKey('viewWocation', ViewContainewWocationToStwing(viewDescwiptowSewvice.getViewWocationById(viewId)!));
+		supa(menuId, contextMenuId, { shouwdFowwawdAwgs: !donotFowwawdAwgs }, scopedContextKeySewvice, menuSewvice);
+		this._wegista(scopedContextKeySewvice);
+		this._wegista(Event.fiwta(viewDescwiptowSewvice.onDidChangeWocation, e => e.views.some(view => view.id === viewId))(() => viewWocationKey.set(ViewContainewWocationToStwing(viewDescwiptowSewvice.getViewWocationById(viewId)!))));
 	}
 
 }
 
-export abstract class ViewPane extends Pane implements IView {
+expowt abstwact cwass ViewPane extends Pane impwements IView {
 
-	private static readonly AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
+	pwivate static weadonwy AwwaysShowActionsConfig = 'wowkbench.view.awwaysShowHeadewActions';
 
-	private _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	pwivate _onDidFocus = this._wegista(new Emitta<void>());
+	weadonwy onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	pwivate _onDidBwuw = this._wegista(new Emitta<void>());
+	weadonwy onDidBwuw: Event<void> = this._onDidBwuw.event;
 
-	private _onDidChangeBodyVisibility = this._register(new Emitter<boolean>());
-	readonly onDidChangeBodyVisibility: Event<boolean> = this._onDidChangeBodyVisibility.event;
+	pwivate _onDidChangeBodyVisibiwity = this._wegista(new Emitta<boowean>());
+	weadonwy onDidChangeBodyVisibiwity: Event<boowean> = this._onDidChangeBodyVisibiwity.event;
 
-	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
-	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+	pwotected _onDidChangeTitweAwea = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeTitweAwea: Event<void> = this._onDidChangeTitweAwea.event;
 
-	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
-	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
+	pwotected _onDidChangeViewWewcomeState = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeViewWewcomeState: Event<void> = this._onDidChangeViewWewcomeState.event;
 
-	private _isVisible: boolean = false;
-	readonly id: string;
+	pwivate _isVisibwe: boowean = fawse;
+	weadonwy id: stwing;
 
-	private _title: string;
-	public get title(): string {
-		return this._title;
+	pwivate _titwe: stwing;
+	pubwic get titwe(): stwing {
+		wetuwn this._titwe;
 	}
 
-	private _titleDescription: string | undefined;
-	public get titleDescription(): string | undefined {
-		return this._titleDescription;
+	pwivate _titweDescwiption: stwing | undefined;
+	pubwic get titweDescwiption(): stwing | undefined {
+		wetuwn this._titweDescwiption;
 	}
 
-	readonly menuActions: ViewMenuActions;
+	weadonwy menuActions: ViewMenuActions;
 
-	private progressBar!: ProgressBar;
-	private progressIndicator!: IProgressIndicator;
+	pwivate pwogwessBaw!: PwogwessBaw;
+	pwivate pwogwessIndicatow!: IPwogwessIndicatow;
 
-	private toolbar?: ToolBar;
-	private readonly showActionsAlways: boolean = false;
-	private headerContainer?: HTMLElement;
-	private titleContainer?: HTMLElement;
-	private titleDescriptionContainer?: HTMLElement;
-	private iconContainer?: HTMLElement;
-	protected twistiesContainer?: HTMLElement;
+	pwivate toowbaw?: ToowBaw;
+	pwivate weadonwy showActionsAwways: boowean = fawse;
+	pwivate headewContaina?: HTMWEwement;
+	pwivate titweContaina?: HTMWEwement;
+	pwivate titweDescwiptionContaina?: HTMWEwement;
+	pwivate iconContaina?: HTMWEwement;
+	pwotected twistiesContaina?: HTMWEwement;
 
-	private bodyContainer!: HTMLElement;
-	private viewWelcomeContainer!: HTMLElement;
-	private viewWelcomeDisposable: IDisposable = Disposable.None;
-	private viewWelcomeController: ViewWelcomeController;
+	pwivate bodyContaina!: HTMWEwement;
+	pwivate viewWewcomeContaina!: HTMWEwement;
+	pwivate viewWewcomeDisposabwe: IDisposabwe = Disposabwe.None;
+	pwivate viewWewcomeContwowwa: ViewWewcomeContwowwa;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IOpenerService protected openerService: IOpenerService,
-		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IKeybindingSewvice pwotected keybindingSewvice: IKeybindingSewvice,
+		@IContextMenuSewvice pwotected contextMenuSewvice: IContextMenuSewvice,
+		@IConfiguwationSewvice pwotected weadonwy configuwationSewvice: IConfiguwationSewvice,
+		@IContextKeySewvice pwotected contextKeySewvice: IContextKeySewvice,
+		@IViewDescwiptowSewvice pwotected viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IInstantiationSewvice pwotected instantiationSewvice: IInstantiationSewvice,
+		@IOpenewSewvice pwotected openewSewvice: IOpenewSewvice,
+		@IThemeSewvice pwotected themeSewvice: IThemeSewvice,
+		@ITewemetwySewvice pwotected tewemetwySewvice: ITewemetwySewvice,
 	) {
-		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
+		supa({ ...options, ...{ owientation: viewDescwiptowSewvice.getViewWocationById(options.id) === ViewContainewWocation.Panew ? Owientation.HOWIZONTAW : Owientation.VEWTICAW } });
 
 		this.id = options.id;
-		this._title = options.title;
-		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this._titwe = options.titwe;
+		this._titweDescwiption = options.titweDescwiption;
+		this.showActionsAwways = !!options.showActionsAwways;
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, !!options.donotForwardArgs));
-		this._register(this.menuActions.onDidChange(() => this.updateActions()));
+		this.menuActions = this._wegista(this.instantiationSewvice.cweateInstance(ViewMenuActions, this.ewement, this.id, options.titweMenuId || MenuId.ViewTitwe, MenuId.ViewTitweContext, !!options.donotFowwawdAwgs));
+		this._wegista(this.menuActions.onDidChange(() => this.updateActions()));
 
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
+		this.viewWewcomeContwowwa = new ViewWewcomeContwowwa(this.id, contextKeySewvice);
 	}
 
-	override get headerVisible(): boolean {
-		return super.headerVisible;
+	ovewwide get headewVisibwe(): boowean {
+		wetuwn supa.headewVisibwe;
 	}
 
-	override set headerVisible(visible: boolean) {
-		super.headerVisible = visible;
-		this.element.classList.toggle('merged-header', !visible);
+	ovewwide set headewVisibwe(visibwe: boowean) {
+		supa.headewVisibwe = visibwe;
+		this.ewement.cwassWist.toggwe('mewged-heada', !visibwe);
 	}
 
-	setVisible(visible: boolean): void {
-		if (this._isVisible !== visible) {
-			this._isVisible = visible;
+	setVisibwe(visibwe: boowean): void {
+		if (this._isVisibwe !== visibwe) {
+			this._isVisibwe = visibwe;
 
 			if (this.isExpanded()) {
-				this._onDidChangeBodyVisibility.fire(visible);
+				this._onDidChangeBodyVisibiwity.fiwe(visibwe);
 			}
 		}
 	}
 
-	isVisible(): boolean {
-		return this._isVisible;
+	isVisibwe(): boowean {
+		wetuwn this._isVisibwe;
 	}
 
-	isBodyVisible(): boolean {
-		return this._isVisible && this.isExpanded();
+	isBodyVisibwe(): boowean {
+		wetuwn this._isVisibwe && this.isExpanded();
 	}
 
-	override setExpanded(expanded: boolean): boolean {
-		const changed = super.setExpanded(expanded);
+	ovewwide setExpanded(expanded: boowean): boowean {
+		const changed = supa.setExpanded(expanded);
 		if (changed) {
-			this._onDidChangeBodyVisibility.fire(expanded);
+			this._onDidChangeBodyVisibiwity.fiwe(expanded);
 		}
-		if (this.twistiesContainer) {
-			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!expanded)));
-			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(expanded)));
+		if (this.twistiesContaina) {
+			this.twistiesContaina.cwassWist.wemove(...ThemeIcon.asCwassNameAwway(this.getTwistyIcon(!expanded)));
+			this.twistiesContaina.cwassWist.add(...ThemeIcon.asCwassNameAwway(this.getTwistyIcon(expanded)));
 		}
-		return changed;
+		wetuwn changed;
 	}
 
-	override render(): void {
-		super.render();
+	ovewwide wenda(): void {
+		supa.wenda();
 
-		const focusTracker = trackFocus(this.element);
-		this._register(focusTracker);
-		this._register(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
+		const focusTwacka = twackFocus(this.ewement);
+		this._wegista(focusTwacka);
+		this._wegista(focusTwacka.onDidFocus(() => this._onDidFocus.fiwe()));
+		this._wegista(focusTwacka.onDidBwuw(() => this._onDidBwuw.fiwe()));
 	}
 
-	protected renderHeader(container: HTMLElement): void {
-		this.headerContainer = container;
+	pwotected wendewHeada(containa: HTMWEwement): void {
+		this.headewContaina = containa;
 
-		this.twistiesContainer = append(container, $(ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))));
+		this.twistiesContaina = append(containa, $(ThemeIcon.asCSSSewectow(this.getTwistyIcon(this.isExpanded()))));
 
-		this.renderHeaderTitle(container, this.title);
+		this.wendewHeadewTitwe(containa, this.titwe);
 
-		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
-		this.toolbar = new ToolBar(actions, this.contextMenuService, {
-			orientation: ActionsOrientation.HORIZONTAL,
-			actionViewItemProvider: action => this.getActionViewItem(action),
-			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: true
+		const actions = append(containa, $('.actions'));
+		actions.cwassWist.toggwe('show', this.showActionsAwways);
+		this.toowbaw = new ToowBaw(actions, this.contextMenuSewvice, {
+			owientation: ActionsOwientation.HOWIZONTAW,
+			actionViewItemPwovida: action => this.getActionViewItem(action),
+			awiaWabew: nws.wocawize('viewToowbawAwiaWabew', "{0} actions", this.titwe),
+			getKeyBinding: action => this.keybindingSewvice.wookupKeybinding(action.id),
+			wendewDwopdownAsChiwdEwement: twue
 		});
 
-		this._register(this.toolbar);
+		this._wegista(this.toowbaw);
 		this.setActions();
 
-		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
+		this._wegista(addDisposabweWistena(actions, EventType.CWICK, e => e.pweventDefauwt()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
+		this._wegista(this.viewDescwiptowSewvice.getViewContainewModew(this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!)!.onDidChangeContainewInfo(({ titwe }) => {
+			this.updateTitwe(this.titwe);
 		}));
 
-		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
-		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
-		this.updateActionsVisibility();
+		const onDidWewevantConfiguwationChange = Event.fiwta(this.configuwationSewvice.onDidChangeConfiguwation, e => e.affectsConfiguwation(ViewPane.AwwaysShowActionsConfig));
+		this._wegista(onDidWewevantConfiguwationChange(this.updateActionsVisibiwity, this));
+		this.updateActionsVisibiwity();
 	}
 
-	protected getTwistyIcon(expanded: boolean): ThemeIcon {
-		return expanded ? viewPaneContainerExpandedIcon : viewPaneContainerCollapsedIcon;
+	pwotected getTwistyIcon(expanded: boowean): ThemeIcon {
+		wetuwn expanded ? viewPaneContainewExpandedIcon : viewPaneContainewCowwapsedIcon;
 	}
 
-	override style(styles: IPaneStyles): void {
-		super.style(styles);
+	ovewwide stywe(stywes: IPaneStywes): void {
+		supa.stywe(stywes);
 
 		const icon = this.getIcon();
-		if (this.iconContainer) {
-			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
-			if (URI.isUri(icon)) {
-				// Apply background color to activity bar item provided with iconUrls
-				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
-				this.iconContainer.style.color = '';
-			} else {
-				// Apply foreground color to activity bar items provided with codicons
-				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
-				this.iconContainer.style.backgroundColor = '';
+		if (this.iconContaina) {
+			const fgCowow = stywes.headewFowegwound || this.themeSewvice.getCowowTheme().getCowow(fowegwound);
+			if (UWI.isUwi(icon)) {
+				// Appwy backgwound cowow to activity baw item pwovided with iconUwws
+				this.iconContaina.stywe.backgwoundCowow = fgCowow ? fgCowow.toStwing() : '';
+				this.iconContaina.stywe.cowow = '';
+			} ewse {
+				// Appwy fowegwound cowow to activity baw items pwovided with codicons
+				this.iconContaina.stywe.cowow = fgCowow ? fgCowow.toStwing() : '';
+				this.iconContaina.stywe.backgwoundCowow = '';
 			}
 		}
 	}
 
-	private getIcon(): ThemeIcon | URI {
-		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || defaultViewIcon;
+	pwivate getIcon(): ThemeIcon | UWI {
+		wetuwn this.viewDescwiptowSewvice.getViewDescwiptowById(this.id)?.containewIcon || defauwtViewIcon;
 	}
 
-	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		this.iconContainer = append(container, $('.icon', undefined));
+	pwotected wendewHeadewTitwe(containa: HTMWEwement, titwe: stwing): void {
+		this.iconContaina = append(containa, $('.icon', undefined));
 		const icon = this.getIcon();
 
-		let cssClass: string | undefined = undefined;
-		if (URI.isUri(icon)) {
-			cssClass = `view-${this.id.replace(/[\.\:]/g, '-')}`;
-			const iconClass = `.pane-header .icon.${cssClass}`;
+		wet cssCwass: stwing | undefined = undefined;
+		if (UWI.isUwi(icon)) {
+			cssCwass = `view-${this.id.wepwace(/[\.\:]/g, '-')}`;
+			const iconCwass = `.pane-heada .icon.${cssCwass}`;
 
-			createCSSRule(iconClass, `
-				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+			cweateCSSWuwe(iconCwass, `
+				mask: ${asCSSUww(icon)} no-wepeat 50% 50%;
 				mask-size: 24px;
-				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask: ${asCSSUww(icon)} no-wepeat 50% 50%;
 				-webkit-mask-size: 16px;
 			`);
-		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+		} ewse if (ThemeIcon.isThemeIcon(icon)) {
+			cssCwass = ThemeIcon.asCwassName(icon);
 		}
 
-		if (cssClass) {
-			this.iconContainer.classList.add(...cssClass.split(' '));
+		if (cssCwass) {
+			this.iconContaina.cwassWist.add(...cssCwass.spwit(' '));
 		}
 
-		const calculatedTitle = this.calculateTitle(title);
-		this.titleContainer = append(container, $('h3.title', { title: calculatedTitle }, calculatedTitle));
+		const cawcuwatedTitwe = this.cawcuwateTitwe(titwe);
+		this.titweContaina = append(containa, $('h3.titwe', { titwe: cawcuwatedTitwe }, cawcuwatedTitwe));
 
-		if (this._titleDescription) {
-			this.setTitleDescription(this._titleDescription);
+		if (this._titweDescwiption) {
+			this.setTitweDescwiption(this._titweDescwiption);
 		}
 
-		this.iconContainer.title = calculatedTitle;
-		this.iconContainer.setAttribute('aria-label', calculatedTitle);
+		this.iconContaina.titwe = cawcuwatedTitwe;
+		this.iconContaina.setAttwibute('awia-wabew', cawcuwatedTitwe);
 	}
 
-	protected updateTitle(title: string): void {
-		const calculatedTitle = this.calculateTitle(title);
-		if (this.titleContainer) {
-			this.titleContainer.textContent = calculatedTitle;
-			this.titleContainer.setAttribute('title', calculatedTitle);
+	pwotected updateTitwe(titwe: stwing): void {
+		const cawcuwatedTitwe = this.cawcuwateTitwe(titwe);
+		if (this.titweContaina) {
+			this.titweContaina.textContent = cawcuwatedTitwe;
+			this.titweContaina.setAttwibute('titwe', cawcuwatedTitwe);
 		}
 
-		if (this.iconContainer) {
-			this.iconContainer.title = calculatedTitle;
-			this.iconContainer.setAttribute('aria-label', calculatedTitle);
+		if (this.iconContaina) {
+			this.iconContaina.titwe = cawcuwatedTitwe;
+			this.iconContaina.setAttwibute('awia-wabew', cawcuwatedTitwe);
 		}
 
-		this._title = title;
-		this._onDidChangeTitleArea.fire();
+		this._titwe = titwe;
+		this._onDidChangeTitweAwea.fiwe();
 	}
 
-	private setTitleDescription(description: string | undefined) {
-		if (this.titleDescriptionContainer) {
-			this.titleDescriptionContainer.textContent = description ?? '';
-			this.titleDescriptionContainer.setAttribute('title', description ?? '');
+	pwivate setTitweDescwiption(descwiption: stwing | undefined) {
+		if (this.titweDescwiptionContaina) {
+			this.titweDescwiptionContaina.textContent = descwiption ?? '';
+			this.titweDescwiptionContaina.setAttwibute('titwe', descwiption ?? '');
 		}
-		else if (description && this.titleContainer) {
-			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', { title: description }, description));
+		ewse if (descwiption && this.titweContaina) {
+			this.titweDescwiptionContaina = afta(this.titweContaina, $('span.descwiption', { titwe: descwiption }, descwiption));
 		}
 	}
 
-	protected updateTitleDescription(description?: string | undefined): void {
-		this.setTitleDescription(description);
+	pwotected updateTitweDescwiption(descwiption?: stwing | undefined): void {
+		this.setTitweDescwiption(descwiption);
 
-		this._titleDescription = description;
-		this._onDidChangeTitleArea.fire();
+		this._titweDescwiption = descwiption;
+		this._onDidChangeTitweAwea.fiwe();
 	}
 
-	private calculateTitle(title: string): string {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
-		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
-		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id);
-		const isDefault = this.viewDescriptorService.getDefaultContainerById(this.id) === viewContainer;
+	pwivate cawcuwateTitwe(titwe: stwing): stwing {
+		const viewContaina = this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!;
+		const modew = this.viewDescwiptowSewvice.getViewContainewModew(viewContaina);
+		const viewDescwiptow = this.viewDescwiptowSewvice.getViewDescwiptowById(this.id);
+		const isDefauwt = this.viewDescwiptowSewvice.getDefauwtContainewById(this.id) === viewContaina;
 
-		if (!isDefault && viewDescriptor?.containerTitle && model.title !== viewDescriptor.containerTitle) {
-			return `${viewDescriptor.containerTitle}: ${title}`;
+		if (!isDefauwt && viewDescwiptow?.containewTitwe && modew.titwe !== viewDescwiptow.containewTitwe) {
+			wetuwn `${viewDescwiptow.containewTitwe}: ${titwe}`;
 		}
 
-		return title;
+		wetuwn titwe;
 	}
 
-	private scrollableElement!: DomScrollableElement;
+	pwivate scwowwabweEwement!: DomScwowwabweEwement;
 
-	protected renderBody(container: HTMLElement): void {
-		this.bodyContainer = container;
+	pwotected wendewBody(containa: HTMWEwement): void {
+		this.bodyContaina = containa;
 
-		const viewWelcomeContainer = append(container, $('.welcome-view'));
-		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
-		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
-			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
+		const viewWewcomeContaina = append(containa, $('.wewcome-view'));
+		this.viewWewcomeContaina = $('.wewcome-view-content', { tabIndex: 0 });
+		this.scwowwabweEwement = this._wegista(new DomScwowwabweEwement(this.viewWewcomeContaina, {
+			awwaysConsumeMouseWheew: twue,
+			howizontaw: ScwowwbawVisibiwity.Hidden,
+			vewticaw: ScwowwbawVisibiwity.Visibwe,
 		}));
 
-		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
+		append(viewWewcomeContaina, this.scwowwabweEwement.getDomNode());
 
-		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
-		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
-		this.updateViewWelcome();
+		const onViewWewcomeChange = Event.any(this.viewWewcomeContwowwa.onDidChange, this.onDidChangeViewWewcomeState);
+		this._wegista(onViewWewcomeChange(this.updateViewWewcome, this));
+		this.updateViewWewcome();
 	}
 
-	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+	pwotected wayoutBody(height: numba, width: numba): void {
+		this.viewWewcomeContaina.stywe.height = `${height}px`;
+		this.viewWewcomeContaina.stywe.width = `${width}px`;
+		this.viewWewcomeContaina.cwassWist.toggwe('wide', width > 640);
+		this.scwowwabweEwement.scanDomNode();
 	}
 
-	onDidScrollRoot() {
+	onDidScwowwWoot() {
 		// noop
 	}
 
-	getProgressIndicator() {
-		if (this.progressBar === undefined) {
-			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
-			this.progressBar.hide();
+	getPwogwessIndicatow() {
+		if (this.pwogwessBaw === undefined) {
+			// Pwogwess baw
+			this.pwogwessBaw = this._wegista(new PwogwessBaw(this.ewement));
+			this._wegista(attachPwogwessBawStywa(this.pwogwessBaw, this.themeSewvice));
+			this.pwogwessBaw.hide();
 		}
 
-		if (this.progressIndicator === undefined) {
-			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isBodyVisible());
+		if (this.pwogwessIndicatow === undefined) {
+			this.pwogwessIndicatow = this.instantiationSewvice.cweateInstance(CompositePwogwessIndicatow, assewtIsDefined(this.pwogwessBaw), this.id, this.isBodyVisibwe());
 		}
-		return this.progressIndicator;
+		wetuwn this.pwogwessIndicatow;
 	}
 
-	protected getProgressLocation(): string {
-		return this.viewDescriptorService.getViewContainerByViewId(this.id)!.id;
+	pwotected getPwogwessWocation(): stwing {
+		wetuwn this.viewDescwiptowSewvice.getViewContainewByViewId(this.id)!.id;
 	}
 
-	protected getBackgroundColor(): string {
-		switch (this.viewDescriptorService.getViewLocationById(this.id)) {
-			case ViewContainerLocation.Panel:
-				return PANEL_BACKGROUND;
-			case ViewContainerLocation.Sidebar:
-			case ViewContainerLocation.AuxiliaryBar:
-				return SIDE_BAR_BACKGROUND;
+	pwotected getBackgwoundCowow(): stwing {
+		switch (this.viewDescwiptowSewvice.getViewWocationById(this.id)) {
+			case ViewContainewWocation.Panew:
+				wetuwn PANEW_BACKGWOUND;
+			case ViewContainewWocation.Sidebaw:
+			case ViewContainewWocation.AuxiwiawyBaw:
+				wetuwn SIDE_BAW_BACKGWOUND;
 		}
 
-		return SIDE_BAR_BACKGROUND;
+		wetuwn SIDE_BAW_BACKGWOUND;
 	}
 
 	focus(): void {
-		if (this.shouldShowWelcome()) {
-			this.viewWelcomeContainer.focus();
-		} else if (this.element) {
-			this.element.focus();
-			this._onDidFocus.fire();
+		if (this.shouwdShowWewcome()) {
+			this.viewWewcomeContaina.focus();
+		} ewse if (this.ewement) {
+			this.ewement.focus();
+			this._onDidFocus.fiwe();
 		}
 	}
 
-	private setActions(): void {
-		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.menuActions.getPrimaryActions()), prepareActions(this.menuActions.getSecondaryActions()));
-			this.toolbar.context = this.getActionsContext();
+	pwivate setActions(): void {
+		if (this.toowbaw) {
+			this.toowbaw.setActions(pwepaweActions(this.menuActions.getPwimawyActions()), pwepaweActions(this.menuActions.getSecondawyActions()));
+			this.toowbaw.context = this.getActionsContext();
 		}
 	}
 
-	private updateActionsVisibility(): void {
-		if (!this.headerContainer) {
-			return;
+	pwivate updateActionsVisibiwity(): void {
+		if (!this.headewContaina) {
+			wetuwn;
 		}
-		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.view.alwaysShowHeaderActions');
-		this.headerContainer.classList.toggle('actions-always-visible', shouldAlwaysShowActions);
+		const shouwdAwwaysShowActions = this.configuwationSewvice.getVawue<boowean>('wowkbench.view.awwaysShowHeadewActions');
+		this.headewContaina.cwassWist.toggwe('actions-awways-visibwe', shouwdAwwaysShowActions);
 	}
 
-	protected updateActions(): void {
+	pwotected updateActions(): void {
 		this.setActions();
-		this._onDidChangeTitleArea.fire();
+		this._onDidChangeTitweAwea.fiwe();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return createActionViewItem(this.instantiationService, action);
+		wetuwn cweateActionViewItem(this.instantiationSewvice, action);
 	}
 
 	getActionsContext(): unknown {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	getOptimalWidth(): number {
-		return 0;
+	getOptimawWidth(): numba {
+		wetuwn 0;
 	}
 
 	saveState(): void {
-		// Subclasses to implement for saving state
+		// Subcwasses to impwement fow saving state
 	}
 
-	private updateViewWelcome(): void {
-		this.viewWelcomeDisposable.dispose();
+	pwivate updateViewWewcome(): void {
+		this.viewWewcomeDisposabwe.dispose();
 
-		if (!this.shouldShowWelcome()) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
+		if (!this.shouwdShowWewcome()) {
+			this.bodyContaina.cwassWist.wemove('wewcome');
+			this.viewWewcomeContaina.innewText = '';
+			this.scwowwabweEwement.scanDomNode();
+			wetuwn;
 		}
 
-		const contents = this.viewWelcomeController.contents;
+		const contents = this.viewWewcomeContwowwa.contents;
 
-		if (contents.length === 0) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
+		if (contents.wength === 0) {
+			this.bodyContaina.cwassWist.wemove('wewcome');
+			this.viewWewcomeContaina.innewText = '';
+			this.scwowwabweEwement.scanDomNode();
+			wetuwn;
 		}
 
-		const disposables = new DisposableStore();
-		this.bodyContainer.classList.add('welcome');
-		this.viewWelcomeContainer.innerText = '';
+		const disposabwes = new DisposabweStowe();
+		this.bodyContaina.cwassWist.add('wewcome');
+		this.viewWewcomeContaina.innewText = '';
 
-		for (const { content, precondition } of contents) {
-			const lines = content.split('\n');
+		fow (const { content, pwecondition } of contents) {
+			const wines = content.spwit('\n');
 
-			for (let line of lines) {
-				line = line.trim();
+			fow (wet wine of wines) {
+				wine = wine.twim();
 
-				if (!line) {
+				if (!wine) {
 					continue;
 				}
 
-				const linkedText = parseLinkedText(line);
+				const winkedText = pawseWinkedText(wine);
 
-				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-					const node = linkedText.nodes[0];
-					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
-					button.label = node.label;
-					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-						this.openerService.open(node.href, { allowCommands: true });
-					}, null, disposables);
-					disposables.add(button);
-					disposables.add(attachButtonStyler(button, this.themeService));
+				if (winkedText.nodes.wength === 1 && typeof winkedText.nodes[0] !== 'stwing') {
+					const node = winkedText.nodes[0];
+					const buttonContaina = append(this.viewWewcomeContaina, $('.button-containa'));
+					const button = new Button(buttonContaina, { titwe: node.titwe, suppowtIcons: twue });
+					button.wabew = node.wabew;
+					button.onDidCwick(_ => {
+						this.tewemetwySewvice.pubwicWog2<{ viewId: stwing, uwi: stwing }, WewcomeActionCwassification>('views.wewcomeAction', { viewId: this.id, uwi: node.hwef });
+						this.openewSewvice.open(node.hwef, { awwowCommands: twue });
+					}, nuww, disposabwes);
+					disposabwes.add(button);
+					disposabwes.add(attachButtonStywa(button, this.themeSewvice));
 
-					if (precondition) {
-						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-						updateEnablement();
+					if (pwecondition) {
+						const updateEnabwement = () => button.enabwed = this.contextKeySewvice.contextMatchesWuwes(pwecondition);
+						updateEnabwement();
 
 						const keys = new Set();
-						precondition.keys().forEach(key => keys.add(key));
-						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-						onDidChangeContext(updateEnablement, null, disposables);
+						pwecondition.keys().fowEach(key => keys.add(key));
+						const onDidChangeContext = Event.fiwta(this.contextKeySewvice.onDidChangeContext, e => e.affectsSome(keys));
+						onDidChangeContext(updateEnabwement, nuww, disposabwes);
 					}
-				} else {
-					const p = append(this.viewWelcomeContainer, $('p'));
+				} ewse {
+					const p = append(this.viewWewcomeContaina, $('p'));
 
-					for (const node of linkedText.nodes) {
-						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
-						} else {
-							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
+					fow (const node of winkedText.nodes) {
+						if (typeof node === 'stwing') {
+							append(p, document.cweateTextNode(node));
+						} ewse {
+							const wink = disposabwes.add(this.instantiationSewvice.cweateInstance(Wink, p, node, {}));
 
-							if (precondition && node.href.startsWith('command:')) {
-								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
+							if (pwecondition && node.hwef.stawtsWith('command:')) {
+								const updateEnabwement = () => wink.enabwed = this.contextKeySewvice.contextMatchesWuwes(pwecondition);
+								updateEnabwement();
 
 								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
+								pwecondition.keys().fowEach(key => keys.add(key));
+								const onDidChangeContext = Event.fiwta(this.contextKeySewvice.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnabwement, nuww, disposabwes);
 							}
 						}
 					}
@@ -604,28 +604,28 @@ export abstract class ViewPane extends Pane implements IView {
 			}
 		}
 
-		this.scrollableElement.scanDomNode();
-		this.viewWelcomeDisposable = disposables;
+		this.scwowwabweEwement.scanDomNode();
+		this.viewWewcomeDisposabwe = disposabwes;
 	}
 
-	shouldShowWelcome(): boolean {
-		return false;
+	shouwdShowWewcome(): boowean {
+		wetuwn fawse;
 	}
 }
 
-export abstract class ViewAction<T extends IView> extends Action2 {
-	override readonly desc: Readonly<IAction2Options> & { viewId: string };
-	constructor(desc: Readonly<IAction2Options> & { viewId: string }) {
-		super(desc);
+expowt abstwact cwass ViewAction<T extends IView> extends Action2 {
+	ovewwide weadonwy desc: Weadonwy<IAction2Options> & { viewId: stwing };
+	constwuctow(desc: Weadonwy<IAction2Options> & { viewId: stwing }) {
+		supa(desc);
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
+	wun(accessow: SewvicesAccessow, ...awgs: any[]) {
+		const view = accessow.get(IViewsSewvice).getActiveViewWithId(this.desc.viewId);
 		if (view) {
-			return this.runInView(accessor, <T>view, ...args);
+			wetuwn this.wunInView(accessow, <T>view, ...awgs);
 		}
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+	abstwact wunInView(accessow: SewvicesAccessow, view: T, ...awgs: any[]): any;
 }

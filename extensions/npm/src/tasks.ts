@@ -1,453 +1,453 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
-	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
-	ShellQuotedString, ShellQuoting, commands, Location, CancellationTokenSource
-} from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as minimatch from 'minimatch';
-import * as nls from 'vscode-nls';
-import { findPreferredPM } from './preferred-pm';
-import { readScripts } from './readScripts';
+impowt {
+	TaskDefinition, Task, TaskGwoup, WowkspaceFowda, WewativePattewn, ShewwExecution, Uwi, wowkspace,
+	TaskPwovida, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
+	ShewwQuotedStwing, ShewwQuoting, commands, Wocation, CancewwationTokenSouwce
+} fwom 'vscode';
+impowt * as path fwom 'path';
+impowt * as fs fwom 'fs';
+impowt * as minimatch fwom 'minimatch';
+impowt * as nws fwom 'vscode-nws';
+impowt { findPwefewwedPM } fwom './pwefewwed-pm';
+impowt { weadScwipts } fwom './weadScwipts';
 
-const localize = nls.loadMessageBundle();
+const wocawize = nws.woadMessageBundwe();
 
-export interface NpmTaskDefinition extends TaskDefinition {
-	script: string;
-	path?: string;
+expowt intewface NpmTaskDefinition extends TaskDefinition {
+	scwipt: stwing;
+	path?: stwing;
 }
 
-export interface FolderTaskItem extends QuickPickItem {
-	label: string;
+expowt intewface FowdewTaskItem extends QuickPickItem {
+	wabew: stwing;
 	task: Task;
 }
 
 type AutoDetect = 'on' | 'off';
 
-let cachedTasks: TaskWithLocation[] | undefined = undefined;
+wet cachedTasks: TaskWithWocation[] | undefined = undefined;
 
-const INSTALL_SCRIPT = 'install';
+const INSTAWW_SCWIPT = 'instaww';
 
-export interface TaskLocation {
-	document: Uri,
-	line: Position
+expowt intewface TaskWocation {
+	document: Uwi,
+	wine: Position
 }
 
-export interface TaskWithLocation {
+expowt intewface TaskWithWocation {
 	task: Task,
-	location?: Location
+	wocation?: Wocation
 }
 
-export class NpmTaskProvider implements TaskProvider {
+expowt cwass NpmTaskPwovida impwements TaskPwovida {
 
-	constructor(private context: ExtensionContext) {
+	constwuctow(pwivate context: ExtensionContext) {
 	}
 
-	get tasksWithLocation(): Promise<TaskWithLocation[]> {
-		return provideNpmScripts(this.context, false);
+	get tasksWithWocation(): Pwomise<TaskWithWocation[]> {
+		wetuwn pwovideNpmScwipts(this.context, fawse);
 	}
 
-	public async provideTasks() {
-		const tasks = await provideNpmScripts(this.context, true);
-		return tasks.map(task => task.task);
+	pubwic async pwovideTasks() {
+		const tasks = await pwovideNpmScwipts(this.context, twue);
+		wetuwn tasks.map(task => task.task);
 	}
 
-	public async resolveTask(_task: Task): Promise<Task | undefined> {
-		const npmTask = (<any>_task.definition).script;
+	pubwic async wesowveTask(_task: Task): Pwomise<Task | undefined> {
+		const npmTask = (<any>_task.definition).scwipt;
 		if (npmTask) {
 			const kind: NpmTaskDefinition = (<any>_task.definition);
-			let packageJsonUri: Uri;
-			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
-				// scope is required to be a WorkspaceFolder for resolveTask
-				return undefined;
+			wet packageJsonUwi: Uwi;
+			if (_task.scope === undefined || _task.scope === TaskScope.Gwobaw || _task.scope === TaskScope.Wowkspace) {
+				// scope is wequiwed to be a WowkspaceFowda fow wesowveTask
+				wetuwn undefined;
 			}
 			if (kind.path) {
-				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.path + 'package.json' });
-			} else {
-				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
+				packageJsonUwi = _task.scope.uwi.with({ path: _task.scope.uwi.path + '/' + kind.path + 'package.json' });
+			} ewse {
+				packageJsonUwi = _task.scope.uwi.with({ path: _task.scope.uwi.path + '/package.json' });
 			}
-			const cmd = [kind.script];
-			if (kind.script !== INSTALL_SCRIPT) {
-				cmd.unshift('run');
+			const cmd = [kind.scwipt];
+			if (kind.scwipt !== INSTAWW_SCWIPT) {
+				cmd.unshift('wun');
 			}
-			return createTask(await getPackageManager(this.context, _task.scope.uri), kind, cmd, _task.scope, packageJsonUri);
+			wetuwn cweateTask(await getPackageManaga(this.context, _task.scope.uwi), kind, cmd, _task.scope, packageJsonUwi);
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 }
 
-export function invalidateTasksCache() {
+expowt function invawidateTasksCache() {
 	cachedTasks = undefined;
 }
 
-const buildNames: string[] = ['build', 'compile', 'watch'];
-function isBuildTask(name: string): boolean {
-	for (let buildName of buildNames) {
-		if (name.indexOf(buildName) !== -1) {
-			return true;
+const buiwdNames: stwing[] = ['buiwd', 'compiwe', 'watch'];
+function isBuiwdTask(name: stwing): boowean {
+	fow (wet buiwdName of buiwdNames) {
+		if (name.indexOf(buiwdName) !== -1) {
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-const testNames: string[] = ['test'];
-function isTestTask(name: string): boolean {
-	for (let testName of testNames) {
+const testNames: stwing[] = ['test'];
+function isTestTask(name: stwing): boowean {
+	fow (wet testName of testNames) {
 		if (name === testName) {
-			return true;
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-function getPrePostScripts(scripts: any): Set<string> {
-	const prePostScripts: Set<string> = new Set([
-		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
-		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
-		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
-		'pretest', 'postest', 'prepublishOnly'
+function getPwePostScwipts(scwipts: any): Set<stwing> {
+	const pwePostScwipts: Set<stwing> = new Set([
+		'pweuninstaww', 'postuninstaww', 'pwepack', 'postpack', 'pweinstaww', 'postinstaww',
+		'pwepack', 'postpack', 'pwepubwish', 'postpubwish', 'pwevewsion', 'postvewsion',
+		'pwestop', 'poststop', 'pwewestawt', 'postwestawt', 'pweshwinkwwap', 'postshwinkwwap',
+		'pwetest', 'postest', 'pwepubwishOnwy'
 	]);
-	let keys = Object.keys(scripts);
-	for (const script of keys) {
-		const prepost = ['pre' + script, 'post' + script];
-		prepost.forEach(each => {
-			if (scripts[each] !== undefined) {
-				prePostScripts.add(each);
+	wet keys = Object.keys(scwipts);
+	fow (const scwipt of keys) {
+		const pwepost = ['pwe' + scwipt, 'post' + scwipt];
+		pwepost.fowEach(each => {
+			if (scwipts[each] !== undefined) {
+				pwePostScwipts.add(each);
 			}
 		});
 	}
-	return prePostScripts;
+	wetuwn pwePostScwipts;
 }
 
-export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
-	return value && typeof value !== 'number';
+expowt function isWowkspaceFowda(vawue: any): vawue is WowkspaceFowda {
+	wetuwn vawue && typeof vawue !== 'numba';
 }
 
-export async function getPackageManager(extensionContext: ExtensionContext, folder: Uri, showWarning: boolean = true): Promise<string> {
-	let packageManagerName = workspace.getConfiguration('npm', folder).get<string>('packageManager', 'npm');
+expowt async function getPackageManaga(extensionContext: ExtensionContext, fowda: Uwi, showWawning: boowean = twue): Pwomise<stwing> {
+	wet packageManagewName = wowkspace.getConfiguwation('npm', fowda).get<stwing>('packageManaga', 'npm');
 
-	if (packageManagerName === 'auto') {
-		const { name, multiplePMDetected } = await findPreferredPM(folder.fsPath);
-		packageManagerName = name;
-		const neverShowWarning = 'npm.multiplePMWarning.neverShow';
-		if (showWarning && multiplePMDetected && !extensionContext.globalState.get<boolean>(neverShowWarning)) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Using {0} as the preferred package manager. Found multiple lockfiles for {1}.', packageManagerName, folder.fsPath);
-			const neverShowAgain = localize('npm.multiplePMWarning.doNotShow', "Do not show again");
-			const learnMore = localize('npm.multiplePMWarning.learnMore', "Learn more");
-			window.showInformationMessage(multiplePMWarning, learnMore, neverShowAgain).then(result => {
-				switch (result) {
-					case neverShowAgain: extensionContext.globalState.update(neverShowWarning, true); break;
-					case learnMore: env.openExternal(Uri.parse('https://nodejs.dev/learn/the-package-lock-json-file'));
+	if (packageManagewName === 'auto') {
+		const { name, muwtipwePMDetected } = await findPwefewwedPM(fowda.fsPath);
+		packageManagewName = name;
+		const nevewShowWawning = 'npm.muwtipwePMWawning.nevewShow';
+		if (showWawning && muwtipwePMDetected && !extensionContext.gwobawState.get<boowean>(nevewShowWawning)) {
+			const muwtipwePMWawning = wocawize('npm.muwtipwePMWawning', 'Using {0} as the pwefewwed package managa. Found muwtipwe wockfiwes fow {1}.', packageManagewName, fowda.fsPath);
+			const nevewShowAgain = wocawize('npm.muwtipwePMWawning.doNotShow', "Do not show again");
+			const weawnMowe = wocawize('npm.muwtipwePMWawning.weawnMowe', "Weawn mowe");
+			window.showInfowmationMessage(muwtipwePMWawning, weawnMowe, nevewShowAgain).then(wesuwt => {
+				switch (wesuwt) {
+					case nevewShowAgain: extensionContext.gwobawState.update(nevewShowWawning, twue); bweak;
+					case weawnMowe: env.openExtewnaw(Uwi.pawse('https://nodejs.dev/weawn/the-package-wock-json-fiwe'));
 				}
 			});
 		}
 	}
 
-	return packageManagerName;
+	wetuwn packageManagewName;
 }
 
-export async function hasNpmScripts(): Promise<boolean> {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
+expowt async function hasNpmScwipts(): Pwomise<boowean> {
+	wet fowdews = wowkspace.wowkspaceFowdews;
+	if (!fowdews) {
+		wetuwn fawse;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
-				let relativePattern = new RelativePattern(folder, '**/package.json');
-				let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
-				if (paths.length > 0) {
-					return true;
+	twy {
+		fow (const fowda of fowdews) {
+			if (isAutoDetectionEnabwed(fowda)) {
+				wet wewativePattewn = new WewativePattewn(fowda, '**/package.json');
+				wet paths = await wowkspace.findFiwes(wewativePattewn, '**/node_moduwes/**');
+				if (paths.wength > 0) {
+					wetuwn twue;
 				}
 			}
 		}
-		return false;
-	} catch (error) {
-		return Promise.reject(error);
+		wetuwn fawse;
+	} catch (ewwow) {
+		wetuwn Pwomise.weject(ewwow);
 	}
 }
 
-async function detectNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
+async function detectNpmScwipts(context: ExtensionContext, showWawning: boowean): Pwomise<TaskWithWocation[]> {
 
-	let emptyTasks: TaskWithLocation[] = [];
-	let allTasks: TaskWithLocation[] = [];
-	let visitedPackageJsonFiles: Set<string> = new Set();
+	wet emptyTasks: TaskWithWocation[] = [];
+	wet awwTasks: TaskWithWocation[] = [];
+	wet visitedPackageJsonFiwes: Set<stwing> = new Set();
 
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return emptyTasks;
+	wet fowdews = wowkspace.wowkspaceFowdews;
+	if (!fowdews) {
+		wetuwn emptyTasks;
 	}
-	try {
-		for (const folder of folders) {
-			if (isAutoDetectionEnabled(folder)) {
-				let relativePattern = new RelativePattern(folder, '**/package.json');
-				let paths = await workspace.findFiles(relativePattern, '**/{node_modules,.vscode-test}/**');
-				for (const path of paths) {
-					if (!isExcluded(folder, path) && !visitedPackageJsonFiles.has(path.fsPath)) {
-						let tasks = await provideNpmScriptsForFolder(context, path, showWarning);
-						visitedPackageJsonFiles.add(path.fsPath);
-						allTasks.push(...tasks);
+	twy {
+		fow (const fowda of fowdews) {
+			if (isAutoDetectionEnabwed(fowda)) {
+				wet wewativePattewn = new WewativePattewn(fowda, '**/package.json');
+				wet paths = await wowkspace.findFiwes(wewativePattewn, '**/{node_moduwes,.vscode-test}/**');
+				fow (const path of paths) {
+					if (!isExcwuded(fowda, path) && !visitedPackageJsonFiwes.has(path.fsPath)) {
+						wet tasks = await pwovideNpmScwiptsFowFowda(context, path, showWawning);
+						visitedPackageJsonFiwes.add(path.fsPath);
+						awwTasks.push(...tasks);
 					}
 				}
 			}
 		}
-		return allTasks;
-	} catch (error) {
-		return Promise.reject(error);
+		wetuwn awwTasks;
+	} catch (ewwow) {
+		wetuwn Pwomise.weject(ewwow);
 	}
 }
 
 
-export async function detectNpmScriptsForFolder(context: ExtensionContext, folder: Uri): Promise<FolderTaskItem[]> {
+expowt async function detectNpmScwiptsFowFowda(context: ExtensionContext, fowda: Uwi): Pwomise<FowdewTaskItem[]> {
 
-	let folderTasks: FolderTaskItem[] = [];
+	wet fowdewTasks: FowdewTaskItem[] = [];
 
-	try {
-		let relativePattern = new RelativePattern(folder.fsPath, '**/package.json');
-		let paths = await workspace.findFiles(relativePattern, '**/node_modules/**');
+	twy {
+		wet wewativePattewn = new WewativePattewn(fowda.fsPath, '**/package.json');
+		wet paths = await wowkspace.findFiwes(wewativePattewn, '**/node_moduwes/**');
 
-		let visitedPackageJsonFiles: Set<string> = new Set();
-		for (const path of paths) {
-			if (!visitedPackageJsonFiles.has(path.fsPath)) {
-				let tasks = await provideNpmScriptsForFolder(context, path, true);
-				visitedPackageJsonFiles.add(path.fsPath);
-				folderTasks.push(...tasks.map(t => ({ label: t.task.name, task: t.task })));
+		wet visitedPackageJsonFiwes: Set<stwing> = new Set();
+		fow (const path of paths) {
+			if (!visitedPackageJsonFiwes.has(path.fsPath)) {
+				wet tasks = await pwovideNpmScwiptsFowFowda(context, path, twue);
+				visitedPackageJsonFiwes.add(path.fsPath);
+				fowdewTasks.push(...tasks.map(t => ({ wabew: t.task.name, task: t.task })));
 			}
 		}
-		return folderTasks;
-	} catch (error) {
-		return Promise.reject(error);
+		wetuwn fowdewTasks;
+	} catch (ewwow) {
+		wetuwn Pwomise.weject(ewwow);
 	}
 }
 
-export async function provideNpmScripts(context: ExtensionContext, showWarning: boolean): Promise<TaskWithLocation[]> {
+expowt async function pwovideNpmScwipts(context: ExtensionContext, showWawning: boowean): Pwomise<TaskWithWocation[]> {
 	if (!cachedTasks) {
-		cachedTasks = await detectNpmScripts(context, showWarning);
+		cachedTasks = await detectNpmScwipts(context, showWawning);
 	}
-	return cachedTasks;
+	wetuwn cachedTasks;
 }
 
-export function isAutoDetectionEnabled(folder?: WorkspaceFolder): boolean {
-	return workspace.getConfiguration('npm', folder?.uri).get<AutoDetect>('autoDetect') === 'on';
+expowt function isAutoDetectionEnabwed(fowda?: WowkspaceFowda): boowean {
+	wetuwn wowkspace.getConfiguwation('npm', fowda?.uwi).get<AutoDetect>('autoDetect') === 'on';
 }
 
-function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
-	function testForExclusionPattern(path: string, pattern: string): boolean {
-		return minimatch(path, pattern, { dot: true });
+function isExcwuded(fowda: WowkspaceFowda, packageJsonUwi: Uwi) {
+	function testFowExcwusionPattewn(path: stwing, pattewn: stwing): boowean {
+		wetuwn minimatch(path, pattewn, { dot: twue });
 	}
 
-	let exclude = workspace.getConfiguration('npm', folder.uri).get<string | string[]>('exclude');
-	let packageJsonFolder = path.dirname(packageJsonUri.fsPath);
+	wet excwude = wowkspace.getConfiguwation('npm', fowda.uwi).get<stwing | stwing[]>('excwude');
+	wet packageJsonFowda = path.diwname(packageJsonUwi.fsPath);
 
-	if (exclude) {
-		if (Array.isArray(exclude)) {
-			for (let pattern of exclude) {
-				if (testForExclusionPattern(packageJsonFolder, pattern)) {
-					return true;
+	if (excwude) {
+		if (Awway.isAwway(excwude)) {
+			fow (wet pattewn of excwude) {
+				if (testFowExcwusionPattewn(packageJsonFowda, pattewn)) {
+					wetuwn twue;
 				}
 			}
-		} else if (testForExclusionPattern(packageJsonFolder, exclude)) {
-			return true;
+		} ewse if (testFowExcwusionPattewn(packageJsonFowda, excwude)) {
+			wetuwn twue;
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-function isDebugScript(script: string): boolean {
-	let match = script.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
-	return match !== null;
+function isDebugScwipt(scwipt: stwing): boowean {
+	wet match = scwipt.match(/--(inspect|debug)(-bwk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
+	wetuwn match !== nuww;
 }
 
-async function provideNpmScriptsForFolder(context: ExtensionContext, packageJsonUri: Uri, showWarning: boolean): Promise<TaskWithLocation[]> {
-	let emptyTasks: TaskWithLocation[] = [];
+async function pwovideNpmScwiptsFowFowda(context: ExtensionContext, packageJsonUwi: Uwi, showWawning: boowean): Pwomise<TaskWithWocation[]> {
+	wet emptyTasks: TaskWithWocation[] = [];
 
-	let folder = workspace.getWorkspaceFolder(packageJsonUri);
-	if (!folder) {
-		return emptyTasks;
+	wet fowda = wowkspace.getWowkspaceFowda(packageJsonUwi);
+	if (!fowda) {
+		wetuwn emptyTasks;
 	}
-	let scripts = await getScripts(packageJsonUri);
-	if (!scripts) {
-		return emptyTasks;
+	wet scwipts = await getScwipts(packageJsonUwi);
+	if (!scwipts) {
+		wetuwn emptyTasks;
 	}
 
-	const result: TaskWithLocation[] = [];
+	const wesuwt: TaskWithWocation[] = [];
 
-	const prePostScripts = getPrePostScripts(scripts);
-	const packageManager = await getPackageManager(context, folder.uri, showWarning);
+	const pwePostScwipts = getPwePostScwipts(scwipts);
+	const packageManaga = await getPackageManaga(context, fowda.uwi, showWawning);
 
-	for (const { name, value, nameRange } of scripts.scripts) {
-		const task = await createTask(packageManager, name, ['run', name], folder!, packageJsonUri, value);
-		const lowerCaseTaskName = name.toLowerCase();
-		if (isBuildTask(lowerCaseTaskName)) {
-			task.group = TaskGroup.Build;
-		} else if (isTestTask(lowerCaseTaskName)) {
-			task.group = TaskGroup.Test;
+	fow (const { name, vawue, nameWange } of scwipts.scwipts) {
+		const task = await cweateTask(packageManaga, name, ['wun', name], fowda!, packageJsonUwi, vawue);
+		const wowewCaseTaskName = name.toWowewCase();
+		if (isBuiwdTask(wowewCaseTaskName)) {
+			task.gwoup = TaskGwoup.Buiwd;
+		} ewse if (isTestTask(wowewCaseTaskName)) {
+			task.gwoup = TaskGwoup.Test;
 		}
-		if (prePostScripts.has(name)) {
-			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
-		}
-
-		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
-		if (isDebugScript(value)) {
-			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
+		if (pwePostScwipts.has(name)) {
+			task.gwoup = TaskGwoup.Cwean; // hack: use Cwean gwoup to tag pwe/post scwipts
 		}
 
-		result.push({ task, location: new Location(packageJsonUri, nameRange) });
+		// todo@connow4312: aww scwipts awe now debuggabwe, what is a 'debug scwipt'?
+		if (isDebugScwipt(vawue)) {
+			task.gwoup = TaskGwoup.Webuiwd; // hack: use Webuiwd gwoup to tag debug scwipts
+		}
+
+		wesuwt.push({ task, wocation: new Wocation(packageJsonUwi, nameWange) });
 	}
 
-	// always add npm install (without a problem matcher)
-	result.push({ task: await createTask(packageManager, INSTALL_SCRIPT, [INSTALL_SCRIPT], folder, packageJsonUri, 'install dependencies from package', []) });
-	return result;
+	// awways add npm instaww (without a pwobwem matcha)
+	wesuwt.push({ task: await cweateTask(packageManaga, INSTAWW_SCWIPT, [INSTAWW_SCWIPT], fowda, packageJsonUwi, 'instaww dependencies fwom package', []) });
+	wetuwn wesuwt;
 }
 
-export function getTaskName(script: string, relativePath: string | undefined) {
-	if (relativePath && relativePath.length) {
-		return `${script} - ${relativePath.substring(0, relativePath.length - 1)}`;
+expowt function getTaskName(scwipt: stwing, wewativePath: stwing | undefined) {
+	if (wewativePath && wewativePath.wength) {
+		wetuwn `${scwipt} - ${wewativePath.substwing(0, wewativePath.wength - 1)}`;
 	}
-	return script;
+	wetuwn scwipt;
 }
 
-export async function createTask(packageManager: string, script: NpmTaskDefinition | string, cmd: string[], folder: WorkspaceFolder, packageJsonUri: Uri, detail?: string, matcher?: any): Promise<Task> {
-	let kind: NpmTaskDefinition;
-	if (typeof script === 'string') {
-		kind = { type: 'npm', script: script };
-	} else {
-		kind = script;
+expowt async function cweateTask(packageManaga: stwing, scwipt: NpmTaskDefinition | stwing, cmd: stwing[], fowda: WowkspaceFowda, packageJsonUwi: Uwi, detaiw?: stwing, matcha?: any): Pwomise<Task> {
+	wet kind: NpmTaskDefinition;
+	if (typeof scwipt === 'stwing') {
+		kind = { type: 'npm', scwipt: scwipt };
+	} ewse {
+		kind = scwipt;
 	}
 
-	function getCommandLine(cmd: string[]): (string | ShellQuotedString)[] {
-		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
-		for (let i = 0; i < cmd.length; i++) {
+	function getCommandWine(cmd: stwing[]): (stwing | ShewwQuotedStwing)[] {
+		const wesuwt: (stwing | ShewwQuotedStwing)[] = new Awway(cmd.wength);
+		fow (wet i = 0; i < cmd.wength; i++) {
 			if (/\s/.test(cmd[i])) {
-				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
-			} else {
-				result[i] = cmd[i];
+				wesuwt[i] = { vawue: cmd[i], quoting: cmd[i].incwudes('--') ? ShewwQuoting.Weak : ShewwQuoting.Stwong };
+			} ewse {
+				wesuwt[i] = cmd[i];
 			}
 		}
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
-			result.unshift('--silent');
+		if (wowkspace.getConfiguwation('npm', fowda.uwi).get<boowean>('wunSiwent')) {
+			wesuwt.unshift('--siwent');
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
-	function getRelativePath(packageJsonUri: Uri): string {
-		let rootUri = folder.uri;
-		let absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
-		return absolutePath.substring(rootUri.path.length + 1);
+	function getWewativePath(packageJsonUwi: Uwi): stwing {
+		wet wootUwi = fowda.uwi;
+		wet absowutePath = packageJsonUwi.path.substwing(0, packageJsonUwi.path.wength - 'package.json'.wength);
+		wetuwn absowutePath.substwing(wootUwi.path.wength + 1);
 	}
 
-	let relativePackageJson = getRelativePath(packageJsonUri);
-	if (relativePackageJson.length) {
-		kind.path = relativePackageJson;
+	wet wewativePackageJson = getWewativePath(packageJsonUwi);
+	if (wewativePackageJson.wength) {
+		kind.path = wewativePackageJson;
 	}
-	let taskName = getTaskName(kind.script, relativePackageJson);
-	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(packageManager, getCommandLine(cmd), { cwd: cwd }), matcher);
-	task.detail = detail;
-	return task;
+	wet taskName = getTaskName(kind.scwipt, wewativePackageJson);
+	wet cwd = path.diwname(packageJsonUwi.fsPath);
+	const task = new Task(kind, fowda, taskName, 'npm', new ShewwExecution(packageManaga, getCommandWine(cmd), { cwd: cwd }), matcha);
+	task.detaiw = detaiw;
+	wetuwn task;
 }
 
 
-export function getPackageJsonUriFromTask(task: Task): Uri | null {
-	if (isWorkspaceFolder(task.scope)) {
+expowt function getPackageJsonUwiFwomTask(task: Task): Uwi | nuww {
+	if (isWowkspaceFowda(task.scope)) {
 		if (task.definition.path) {
-			return Uri.file(path.join(task.scope.uri.fsPath, task.definition.path, 'package.json'));
-		} else {
-			return Uri.file(path.join(task.scope.uri.fsPath, 'package.json'));
+			wetuwn Uwi.fiwe(path.join(task.scope.uwi.fsPath, task.definition.path, 'package.json'));
+		} ewse {
+			wetuwn Uwi.fiwe(path.join(task.scope.uwi.fsPath, 'package.json'));
 		}
 	}
-	return null;
+	wetuwn nuww;
 }
 
-export async function hasPackageJson(): Promise<boolean> {
-	const token = new CancellationTokenSource();
-	// Search for files for max 1 second.
-	const timeout = setTimeout(() => token.cancel(), 1000);
-	const files = await workspace.findFiles('**/package.json', undefined, 1, token.token);
-	clearTimeout(timeout);
-	return files.length > 0 || await hasRootPackageJson();
+expowt async function hasPackageJson(): Pwomise<boowean> {
+	const token = new CancewwationTokenSouwce();
+	// Seawch fow fiwes fow max 1 second.
+	const timeout = setTimeout(() => token.cancew(), 1000);
+	const fiwes = await wowkspace.findFiwes('**/package.json', undefined, 1, token.token);
+	cweawTimeout(timeout);
+	wetuwn fiwes.wength > 0 || await hasWootPackageJson();
 }
 
-async function hasRootPackageJson(): Promise<boolean> {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
+async function hasWootPackageJson(): Pwomise<boowean> {
+	wet fowdews = wowkspace.wowkspaceFowdews;
+	if (!fowdews) {
+		wetuwn fawse;
 	}
-	for (const folder of folders) {
-		if (folder.uri.scheme === 'file') {
-			let packageJson = path.join(folder.uri.fsPath, 'package.json');
+	fow (const fowda of fowdews) {
+		if (fowda.uwi.scheme === 'fiwe') {
+			wet packageJson = path.join(fowda.uwi.fsPath, 'package.json');
 			if (await exists(packageJson)) {
-				return true;
+				wetuwn twue;
 			}
 		}
 	}
-	return false;
+	wetuwn fawse;
 }
 
-async function exists(file: string): Promise<boolean> {
-	return new Promise<boolean>((resolve, _reject) => {
-		fs.exists(file, (value) => {
-			resolve(value);
+async function exists(fiwe: stwing): Pwomise<boowean> {
+	wetuwn new Pwomise<boowean>((wesowve, _weject) => {
+		fs.exists(fiwe, (vawue) => {
+			wesowve(vawue);
 		});
 	});
 }
 
-export async function runScript(context: ExtensionContext, script: string, document: TextDocument) {
-	let uri = document.uri;
-	let folder = workspace.getWorkspaceFolder(uri);
-	if (folder) {
-		const task = await createTask(await getPackageManager(context, folder.uri), script, ['run', script], folder, uri);
+expowt async function wunScwipt(context: ExtensionContext, scwipt: stwing, document: TextDocument) {
+	wet uwi = document.uwi;
+	wet fowda = wowkspace.getWowkspaceFowda(uwi);
+	if (fowda) {
+		const task = await cweateTask(await getPackageManaga(context, fowda.uwi), scwipt, ['wun', scwipt], fowda, uwi);
 		tasks.executeTask(task);
 	}
 }
 
-export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
+expowt async function stawtDebugging(context: ExtensionContext, scwiptName: stwing, cwd: stwing, fowda: WowkspaceFowda) {
 	commands.executeCommand(
-		'extension.js-debug.createDebuggerTerminal',
-		`${await getPackageManager(context, folder.uri)} run ${scriptName}`,
-		folder,
+		'extension.js-debug.cweateDebuggewTewminaw',
+		`${await getPackageManaga(context, fowda.uwi)} wun ${scwiptName}`,
+		fowda,
 		{ cwd },
 	);
 }
 
 
-export type StringMap = { [s: string]: string; };
+expowt type StwingMap = { [s: stwing]: stwing; };
 
-export function findScriptAtPosition(document: TextDocument, buffer: string, position: Position): string | undefined {
-	const read = readScripts(document, buffer);
-	if (!read) {
-		return undefined;
+expowt function findScwiptAtPosition(document: TextDocument, buffa: stwing, position: Position): stwing | undefined {
+	const wead = weadScwipts(document, buffa);
+	if (!wead) {
+		wetuwn undefined;
 	}
 
-	for (const script of read.scripts) {
-		if (script.nameRange.start.isBeforeOrEqual(position) && script.valueRange.end.isAfterOrEqual(position)) {
-			return script.name;
+	fow (const scwipt of wead.scwipts) {
+		if (scwipt.nameWange.stawt.isBefoweOwEquaw(position) && scwipt.vawueWange.end.isAftewOwEquaw(position)) {
+			wetuwn scwipt.name;
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-export async function getScripts(packageJsonUri: Uri) {
-	if (packageJsonUri.scheme !== 'file') {
-		return undefined;
+expowt async function getScwipts(packageJsonUwi: Uwi) {
+	if (packageJsonUwi.scheme !== 'fiwe') {
+		wetuwn undefined;
 	}
 
-	let packageJson = packageJsonUri.fsPath;
+	wet packageJson = packageJsonUwi.fsPath;
 	if (!await exists(packageJson)) {
-		return undefined;
+		wetuwn undefined;
 	}
 
-	try {
-		const document: TextDocument = await workspace.openTextDocument(packageJsonUri);
-		return readScripts(document);
+	twy {
+		const document: TextDocument = await wowkspace.openTextDocument(packageJsonUwi);
+		wetuwn weadScwipts(document);
 	} catch (e) {
-		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);
-		throw new Error(localizedParseError);
+		wet wocawizedPawseEwwow = wocawize('npm.pawseEwwow', 'Npm task detection: faiwed to pawse the fiwe {0}', packageJsonUwi.fsPath);
+		thwow new Ewwow(wocawizedPawseEwwow);
 	}
 }

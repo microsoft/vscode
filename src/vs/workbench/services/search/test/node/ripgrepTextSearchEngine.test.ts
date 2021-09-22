@@ -1,257 +1,257 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { Range, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+impowt * as assewt fwom 'assewt';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { fixWegexNewwine, IWgMatch, IWgMessage, WipgwepPawsa, unicodeEscapesToPCWE2, fixNewwine } fwom 'vs/wowkbench/sewvices/seawch/node/wipgwepTextSeawchEngine';
+impowt { Wange, TextSeawchWesuwt } fwom 'vs/wowkbench/sewvices/seawch/common/seawchExtTypes';
 
-suite('RipgrepTextSearchEngine', () => {
-	test('unicodeEscapesToPCRE2', async () => {
-		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
-		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
-		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u1234bar'), 'foo\\x{1234}bar');
-		assert.strictEqual(unicodeEscapesToPCRE2('\\\\\\u1234'), '\\\\\\x{1234}');
-		assert.strictEqual(unicodeEscapesToPCRE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
+suite('WipgwepTextSeawchEngine', () => {
+	test('unicodeEscapesToPCWE2', async () => {
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\u1234'), '\\x{1234}');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('foo\\u1234baw'), 'foo\\x{1234}baw');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\\\\\u1234'), '\\\\\\x{1234}');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('foo\\\\\\u1234'), 'foo\\\\\\x{1234}');
 
-		assert.strictEqual(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
-		assert.strictEqual(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
-		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
-		assert.strictEqual(unicodeEscapesToPCRE2('[\\u00A0-\\u00FF]'), '[\\x{00A0}-\\x{00FF}]');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\u{1234}'), '\\x{1234}');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('foo\\u{1234}baw'), 'foo\\x{1234}baw');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('[\\u00A0-\\u00FF]'), '[\\x{00A0}-\\x{00FF}]');
 
-		assert.strictEqual(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
-		assert.strictEqual(unicodeEscapesToPCRE2('\\u123'), '\\u123');
-		assert.strictEqual(unicodeEscapesToPCRE2('foo'), 'foo');
-		assert.strictEqual(unicodeEscapesToPCRE2(''), '');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('foo\\u{123456}7baw'), 'foo\\u{123456}7baw');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('\\u123'), '\\u123');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2('foo'), 'foo');
+		assewt.stwictEquaw(unicodeEscapesToPCWE2(''), '');
 	});
 
-	test('fixRegexNewline - src', () => {
-		const ttable = [
+	test('fixWegexNewwine - swc', () => {
+		const ttabwe = [
 			['foo', 'foo'],
-			['invalid(', 'invalid('],
-			['fo\\no', 'fo\\r?\\no'],
-			['f\\no\\no', 'f\\r?\\no\\r?\\no'],
-			['f[a-z\\n1]', 'f(?:[a-z1]|\\r?\\n)'],
+			['invawid(', 'invawid('],
+			['fo\\no', 'fo\\w?\\no'],
+			['f\\no\\no', 'f\\w?\\no\\w?\\no'],
+			['f[a-z\\n1]', 'f(?:[a-z1]|\\w?\\n)'],
 			['f[\\n-a]', 'f[\\n-a]'],
 			['(?<=\\n)\\w', '(?<=\\n)\\w'],
-			['fo\\n+o', 'fo(?:\\r?\\n)+o'],
-			['fo[^\\n]o', 'fo(?!\\r?\\n)o'],
-			['fo[^\\na-z]o', 'fo(?!\\r?\\n|[a-z])o'],
+			['fo\\n+o', 'fo(?:\\w?\\n)+o'],
+			['fo[^\\n]o', 'fo(?!\\w?\\n)o'],
+			['fo[^\\na-z]o', 'fo(?!\\w?\\n|[a-z])o'],
 		];
 
-		for (const [input, expected] of ttable) {
-			assert.strictEqual(fixRegexNewline(input), expected, `${input} -> ${expected}`);
+		fow (const [input, expected] of ttabwe) {
+			assewt.stwictEquaw(fixWegexNewwine(input), expected, `${input} -> ${expected}`);
 		}
 	});
 
-	test('fixRegexNewline - re', () => {
-		function testFixRegexNewline([inputReg, testStr, shouldMatch]: readonly [string, string, boolean]): void {
-			const fixed = fixRegexNewline(inputReg);
-			const reg = new RegExp(fixed);
-			assert.strictEqual(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
+	test('fixWegexNewwine - we', () => {
+		function testFixWegexNewwine([inputWeg, testStw, shouwdMatch]: weadonwy [stwing, stwing, boowean]): void {
+			const fixed = fixWegexNewwine(inputWeg);
+			const weg = new WegExp(fixed);
+			assewt.stwictEquaw(weg.test(testStw), shouwdMatch, `${inputWeg} => ${weg}, ${testStw}, ${shouwdMatch}`);
 		}
 
 		([
-			['foo', 'foo', true],
+			['foo', 'foo', twue],
 
-			['foo\\n', 'foo\r\n', true],
-			['foo\\n\\n', 'foo\n\n', true],
-			['foo\\n\\n', 'foo\r\n\r\n', true],
-			['foo\\n', 'foo\n', true],
-			['foo\\nabc', 'foo\r\nabc', true],
-			['foo\\nabc', 'foo\nabc', true],
-			['foo\\r\\n', 'foo\r\n', true],
+			['foo\\n', 'foo\w\n', twue],
+			['foo\\n\\n', 'foo\n\n', twue],
+			['foo\\n\\n', 'foo\w\n\w\n', twue],
+			['foo\\n', 'foo\n', twue],
+			['foo\\nabc', 'foo\w\nabc', twue],
+			['foo\\nabc', 'foo\nabc', twue],
+			['foo\\w\\n', 'foo\w\n', twue],
 
-			['foo\\n+abc', 'foo\r\nabc', true],
-			['foo\\n+abc', 'foo\n\n\nabc', true],
-			['foo\\n+abc', 'foo\r\n\r\n\r\nabc', true],
-			['foo[\\n-9]+abc', 'foo1abc', true],
-		] as const).forEach(testFixRegexNewline);
+			['foo\\n+abc', 'foo\w\nabc', twue],
+			['foo\\n+abc', 'foo\n\n\nabc', twue],
+			['foo\\n+abc', 'foo\w\n\w\n\w\nabc', twue],
+			['foo[\\n-9]+abc', 'foo1abc', twue],
+		] as const).fowEach(testFixWegexNewwine);
 	});
 
-	test('fixNewline - matching', () => {
-		function testFixNewline([inputReg, testStr, shouldMatch = true]: readonly [string, string, boolean?]): void {
-			const fixed = fixNewline(inputReg);
-			const reg = new RegExp(fixed);
-			assert.strictEqual(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
+	test('fixNewwine - matching', () => {
+		function testFixNewwine([inputWeg, testStw, shouwdMatch = twue]: weadonwy [stwing, stwing, boowean?]): void {
+			const fixed = fixNewwine(inputWeg);
+			const weg = new WegExp(fixed);
+			assewt.stwictEquaw(weg.test(testStw), shouwdMatch, `${inputWeg} => ${weg}, ${testStw}, ${shouwdMatch}`);
 		}
 
 		([
 			['foo', 'foo'],
 
-			['foo\n', 'foo\r\n'],
+			['foo\n', 'foo\w\n'],
 			['foo\n', 'foo\n'],
-			['foo\nabc', 'foo\r\nabc'],
+			['foo\nabc', 'foo\w\nabc'],
 			['foo\nabc', 'foo\nabc'],
-			['foo\r\n', 'foo\r\n'],
+			['foo\w\n', 'foo\w\n'],
 
-			['foo\nbarc', 'foobar', false],
-			['foobar', 'foo\nbar', false],
-		] as const).forEach(testFixNewline);
+			['foo\nbawc', 'foobaw', fawse],
+			['foobaw', 'foo\nbaw', fawse],
+		] as const).fowEach(testFixNewwine);
 	});
 
-	suite('RipgrepParser', () => {
-		const TEST_FOLDER = URI.file('/foo/bar');
+	suite('WipgwepPawsa', () => {
+		const TEST_FOWDa = UWI.fiwe('/foo/baw');
 
-		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
-			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
+		function testPawsa(inputData: stwing[], expectedWesuwts: TextSeawchWesuwt[]): void {
+			const testPawsa = new WipgwepPawsa(1000, TEST_FOWDa.fsPath);
 
-			const actualResults: TextSearchResult[] = [];
-			testParser.on('result', r => {
-				actualResults.push(r);
+			const actuawWesuwts: TextSeawchWesuwt[] = [];
+			testPawsa.on('wesuwt', w => {
+				actuawWesuwts.push(w);
 			});
 
-			inputData.forEach(d => testParser.handleData(d));
-			testParser.flush();
+			inputData.fowEach(d => testPawsa.handweData(d));
+			testPawsa.fwush();
 
-			assert.deepStrictEqual(actualResults, expectedResults);
+			assewt.deepStwictEquaw(actuawWesuwts, expectedWesuwts);
 		}
 
-		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number, end: number }[]): string {
-			return JSON.stringify(<IRgMessage>{
+		function makeWgMatch(wewativePath: stwing, text: stwing, wineNumba: numba, matchWanges: { stawt: numba, end: numba }[]): stwing {
+			wetuwn JSON.stwingify(<IWgMessage>{
 				type: 'match',
-				data: <IRgMatch>{
+				data: <IWgMatch>{
 					path: {
-						text: relativePath
+						text: wewativePath
 					},
-					lines: {
+					wines: {
 						text
 					},
-					line_number: lineNumber,
-					absolute_offset: 0, // unused
-					submatches: matchRanges.map(mr => {
-						return {
-							...mr,
-							match: { text: text.substring(mr.start, mr.end) }
+					wine_numba: wineNumba,
+					absowute_offset: 0, // unused
+					submatches: matchWanges.map(mw => {
+						wetuwn {
+							...mw,
+							match: { text: text.substwing(mw.stawt, mw.end) }
 						};
 					})
 				}
 			}) + '\n';
 		}
 
-		test('single result', () => {
-			testParser(
+		test('singwe wesuwt', () => {
+			testPawsa(
 				[
-					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }])
+					makeWgMatch('fiwe1.js', 'foobaw', 4, [{ stawt: 3, end: 6 }])
 				],
 				[
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'fiwe1.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					}
 				]);
 		});
 
-		test('multiple results', () => {
-			testParser(
+		test('muwtipwe wesuwts', () => {
+			testPawsa(
 				[
-					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }]),
-					makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
-					makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+					makeWgMatch('fiwe1.js', 'foobaw', 4, [{ stawt: 3, end: 6 }]),
+					makeWgMatch('app/fiwe2.js', 'foobaw', 4, [{ stawt: 3, end: 6 }]),
+					makeWgMatch('app2/fiwe3.js', 'foobaw', 4, [{ stawt: 3, end: 6 }]),
 				],
 				[
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'fiwe1.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					},
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'app/fiwe2.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					},
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'app2/fiwe3.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					}
 				]);
 		});
 
 		test('chopped-up input chunks', () => {
-			const dataStrs = [
-				makeRgMatch('file1.js', 'foo bar', 4, [{ start: 3, end: 7 }]),
-				makeRgMatch('app/file2.js', 'foobar', 4, [{ start: 3, end: 6 }]),
-				makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
+			const dataStws = [
+				makeWgMatch('fiwe1.js', 'foo baw', 4, [{ stawt: 3, end: 7 }]),
+				makeWgMatch('app/fiwe2.js', 'foobaw', 4, [{ stawt: 3, end: 6 }]),
+				makeWgMatch('app2/fiwe3.js', 'foobaw', 4, [{ stawt: 3, end: 6 }]),
 			];
 
-			const dataStr0Space = dataStrs[0].indexOf(' ');
-			testParser(
+			const dataStw0Space = dataStws[0].indexOf(' ');
+			testPawsa(
 				[
-					dataStrs[0].substring(0, dataStr0Space + 1),
-					dataStrs[0].substring(dataStr0Space + 1),
+					dataStws[0].substwing(0, dataStw0Space + 1),
+					dataStws[0].substwing(dataStw0Space + 1),
 					'\n',
-					dataStrs[1].trim(),
-					'\n' + dataStrs[2].substring(0, 25),
-					dataStrs[2].substring(25)
+					dataStws[1].twim(),
+					'\n' + dataStws[2].substwing(0, 25),
+					dataStws[2].substwing(25)
 				],
 				[
 					{
-						preview: {
-							text: 'foo bar',
-							matches: [new Range(0, 3, 0, 7)]
+						pweview: {
+							text: 'foo baw',
+							matches: [new Wange(0, 3, 0, 7)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 7)]
+						uwi: joinPath(TEST_FOWDa, 'fiwe1.js'),
+						wanges: [new Wange(3, 3, 3, 7)]
 					},
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'app/fiwe2.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					},
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 3, 0, 6)]
 						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
-						ranges: [new Range(3, 3, 3, 6)]
+						uwi: joinPath(TEST_FOWDa, 'app2/fiwe3.js'),
+						wanges: [new Wange(3, 3, 3, 6)]
 					}
 				]);
 		});
 
 
-		test('empty result (#100569)', () => {
-			testParser(
+		test('empty wesuwt (#100569)', () => {
+			testPawsa(
 				[
-					makeRgMatch('file1.js', 'foobar', 4, []),
-					makeRgMatch('file1.js', '', 5, []),
+					makeWgMatch('fiwe1.js', 'foobaw', 4, []),
+					makeWgMatch('fiwe1.js', '', 5, []),
 				],
 				[
 					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 0, 0, 1)]
+						pweview: {
+							text: 'foobaw',
+							matches: [new Wange(0, 0, 0, 1)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 0, 3, 1)]
+						uwi: joinPath(TEST_FOWDa, 'fiwe1.js'),
+						wanges: [new Wange(3, 0, 3, 1)]
 					},
 					{
-						preview: {
+						pweview: {
 							text: '',
-							matches: [new Range(0, 0, 0, 0)]
+							matches: [new Wange(0, 0, 0, 0)]
 						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(4, 0, 4, 0)]
+						uwi: joinPath(TEST_FOWDa, 'fiwe1.js'),
+						wanges: [new Wange(4, 0, 4, 0)]
 					}
 				]);
 		});

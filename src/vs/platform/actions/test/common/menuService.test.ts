@@ -1,203 +1,203 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isIMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuService } from 'vs/platform/actions/common/menuService';
-import { NullCommandService } from 'vs/platform/commands/common/commands';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+impowt * as assewt fwom 'assewt';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { isIMenuItem, MenuId, MenuWegistwy } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { MenuSewvice } fwom 'vs/pwatfowm/actions/common/menuSewvice';
+impowt { NuwwCommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
 
-// --- service instances
+// --- sewvice instances
 
-const contextKeyService = new class extends MockContextKeyService {
-	override contextMatchesRules() {
-		return true;
+const contextKeySewvice = new cwass extends MockContextKeySewvice {
+	ovewwide contextMatchesWuwes() {
+		wetuwn twue;
 	}
 };
 
 // --- tests
 
-suite('MenuService', function () {
+suite('MenuSewvice', function () {
 
-	let menuService: MenuService;
-	const disposables = new DisposableStore();
-	let testMenuId: MenuId;
+	wet menuSewvice: MenuSewvice;
+	const disposabwes = new DisposabweStowe();
+	wet testMenuId: MenuId;
 
 	setup(function () {
-		menuService = new MenuService(NullCommandService);
+		menuSewvice = new MenuSewvice(NuwwCommandSewvice);
 		testMenuId = new MenuId('testo');
-		disposables.clear();
+		disposabwes.cweaw();
 	});
 
-	teardown(function () {
-		disposables.clear();
+	teawdown(function () {
+		disposabwes.cweaw();
 	});
 
-	test('group sorting', function () {
+	test('gwoup sowting', function () {
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'one', title: 'FOO' },
-			group: '0_hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'one', titwe: 'FOO' },
+			gwoup: '0_hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'two', title: 'FOO' },
-			group: 'hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'two', titwe: 'FOO' },
+			gwoup: 'hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'three', title: 'FOO' },
-			group: 'Hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'thwee', titwe: 'FOO' },
+			gwoup: 'Hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'four', title: 'FOO' },
-			group: ''
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'fouw', titwe: 'FOO' },
+			gwoup: ''
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'five', title: 'FOO' },
-			group: 'navigation'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'five', titwe: 'FOO' },
+			gwoup: 'navigation'
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const gwoups = menuSewvice.cweateMenu(testMenuId, contextKeySewvice).getActions();
 
-		assert.strictEqual(groups.length, 5);
-		const [one, two, three, four, five] = groups;
+		assewt.stwictEquaw(gwoups.wength, 5);
+		const [one, two, thwee, fouw, five] = gwoups;
 
-		assert.strictEqual(one[0], 'navigation');
-		assert.strictEqual(two[0], '0_hello');
-		assert.strictEqual(three[0], 'hello');
-		assert.strictEqual(four[0], 'Hello');
-		assert.strictEqual(five[0], '');
+		assewt.stwictEquaw(one[0], 'navigation');
+		assewt.stwictEquaw(two[0], '0_hewwo');
+		assewt.stwictEquaw(thwee[0], 'hewwo');
+		assewt.stwictEquaw(fouw[0], 'Hewwo');
+		assewt.stwictEquaw(five[0], '');
 	});
 
-	test('in group sorting, by title', function () {
+	test('in gwoup sowting, by titwe', function () {
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'a', title: 'aaa' },
-			group: 'Hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'a', titwe: 'aaa' },
+			gwoup: 'Hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'b', title: 'fff' },
-			group: 'Hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'b', titwe: 'fff' },
+			gwoup: 'Hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'c', title: 'zzz' },
-			group: 'Hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'c', titwe: 'zzz' },
+			gwoup: 'Hewwo'
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const gwoups = menuSewvice.cweateMenu(testMenuId, contextKeySewvice).getActions();
 
-		assert.strictEqual(groups.length, 1);
-		const [, actions] = groups[0];
+		assewt.stwictEquaw(gwoups.wength, 1);
+		const [, actions] = gwoups[0];
 
-		assert.strictEqual(actions.length, 3);
-		const [one, two, three] = actions;
-		assert.strictEqual(one.id, 'a');
-		assert.strictEqual(two.id, 'b');
-		assert.strictEqual(three.id, 'c');
+		assewt.stwictEquaw(actions.wength, 3);
+		const [one, two, thwee] = actions;
+		assewt.stwictEquaw(one.id, 'a');
+		assewt.stwictEquaw(two.id, 'b');
+		assewt.stwictEquaw(thwee.id, 'c');
 	});
 
-	test('in group sorting, by title and order', function () {
+	test('in gwoup sowting, by titwe and owda', function () {
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'a', title: 'aaa' },
-			group: 'Hello',
-			order: 10
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'a', titwe: 'aaa' },
+			gwoup: 'Hewwo',
+			owda: 10
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'b', title: 'fff' },
-			group: 'Hello'
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'b', titwe: 'fff' },
+			gwoup: 'Hewwo'
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'c', title: 'zzz' },
-			group: 'Hello',
-			order: -1
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'c', titwe: 'zzz' },
+			gwoup: 'Hewwo',
+			owda: -1
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'd', title: 'yyy' },
-			group: 'Hello',
-			order: -1
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'd', titwe: 'yyy' },
+			gwoup: 'Hewwo',
+			owda: -1
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const gwoups = menuSewvice.cweateMenu(testMenuId, contextKeySewvice).getActions();
 
-		assert.strictEqual(groups.length, 1);
-		const [, actions] = groups[0];
+		assewt.stwictEquaw(gwoups.wength, 1);
+		const [, actions] = gwoups[0];
 
-		assert.strictEqual(actions.length, 4);
-		const [one, two, three, four] = actions;
-		assert.strictEqual(one.id, 'd');
-		assert.strictEqual(two.id, 'c');
-		assert.strictEqual(three.id, 'b');
-		assert.strictEqual(four.id, 'a');
+		assewt.stwictEquaw(actions.wength, 4);
+		const [one, two, thwee, fouw] = actions;
+		assewt.stwictEquaw(one.id, 'd');
+		assewt.stwictEquaw(two.id, 'c');
+		assewt.stwictEquaw(thwee.id, 'b');
+		assewt.stwictEquaw(fouw.id, 'a');
 	});
 
 
-	test('in group sorting, special: navigation', function () {
+	test('in gwoup sowting, speciaw: navigation', function () {
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'a', title: 'aaa' },
-			group: 'navigation',
-			order: 1.3
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'a', titwe: 'aaa' },
+			gwoup: 'navigation',
+			owda: 1.3
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'b', title: 'fff' },
-			group: 'navigation',
-			order: 1.2
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'b', titwe: 'fff' },
+			gwoup: 'navigation',
+			owda: 1.2
 		}));
 
-		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
-			command: { id: 'c', title: 'zzz' },
-			group: 'navigation',
-			order: 1.1
+		disposabwes.add(MenuWegistwy.appendMenuItem(testMenuId, {
+			command: { id: 'c', titwe: 'zzz' },
+			gwoup: 'navigation',
+			owda: 1.1
 		}));
 
-		const groups = menuService.createMenu(testMenuId, contextKeyService).getActions();
+		const gwoups = menuSewvice.cweateMenu(testMenuId, contextKeySewvice).getActions();
 
-		assert.strictEqual(groups.length, 1);
-		const [[, actions]] = groups;
+		assewt.stwictEquaw(gwoups.wength, 1);
+		const [[, actions]] = gwoups;
 
-		assert.strictEqual(actions.length, 3);
-		const [one, two, three] = actions;
-		assert.strictEqual(one.id, 'c');
-		assert.strictEqual(two.id, 'b');
-		assert.strictEqual(three.id, 'a');
+		assewt.stwictEquaw(actions.wength, 3);
+		const [one, two, thwee] = actions;
+		assewt.stwictEquaw(one.id, 'c');
+		assewt.stwictEquaw(two.id, 'b');
+		assewt.stwictEquaw(thwee.id, 'a');
 	});
 
-	test('special MenuId palette', function () {
+	test('speciaw MenuId pawette', function () {
 
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: { id: 'a', title: 'Explicit' }
+		disposabwes.add(MenuWegistwy.appendMenuItem(MenuId.CommandPawette, {
+			command: { id: 'a', titwe: 'Expwicit' }
 		}));
 
-		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
+		MenuWegistwy.addCommand({ id: 'b', titwe: 'Impwicit' });
 
-		let foundA = false;
-		let foundB = false;
-		for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+		wet foundA = fawse;
+		wet foundB = fawse;
+		fow (const item of MenuWegistwy.getMenuItems(MenuId.CommandPawette)) {
 			if (isIMenuItem(item)) {
 				if (item.command.id === 'a') {
-					assert.strictEqual(item.command.title, 'Explicit');
-					foundA = true;
+					assewt.stwictEquaw(item.command.titwe, 'Expwicit');
+					foundA = twue;
 				}
 				if (item.command.id === 'b') {
-					assert.strictEqual(item.command.title, 'Implicit');
-					foundB = true;
+					assewt.stwictEquaw(item.command.titwe, 'Impwicit');
+					foundB = twue;
 				}
 			}
 		}
-		assert.strictEqual(foundA, true);
-		assert.strictEqual(foundB, true);
+		assewt.stwictEquaw(foundA, twue);
+		assewt.stwictEquaw(foundB, twue);
 	});
 });

@@ -1,44 +1,44 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IHostCowowSchemeSewvice } fwom 'vs/wowkbench/sewvices/themes/common/hostCowowSchemeSewvice';
 
-export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
+expowt cwass NativeHostCowowSchemeSewvice extends Disposabwe impwements IHostCowowSchemeSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+	constwuctow(
+		@INativeHostSewvice pwivate weadonwy nativeHostSewvice: INativeHostSewvice,
+		@IWowkbenchEnviwonmentSewvice pwivate weadonwy enviwonmentSewvice: IWowkbenchEnviwonmentSewvice
 	) {
-		super();
+		supa();
 
-		this.registerListeners();
+		this.wegistewWistenews();
 	}
 
-	private registerListeners(): void {
+	pwivate wegistewWistenews(): void {
 
-		// Color Scheme
-		this._register(this.nativeHostService.onDidChangeColorScheme(({ highContrast, dark }) => {
-			this.dark = dark;
-			this.highContrast = highContrast;
-			this._onDidChangeColorScheme.fire();
+		// Cowow Scheme
+		this._wegista(this.nativeHostSewvice.onDidChangeCowowScheme(({ highContwast, dawk }) => {
+			this.dawk = dawk;
+			this.highContwast = highContwast;
+			this._onDidChangeCowowScheme.fiwe();
 		}));
 	}
 
-	private readonly _onDidChangeColorScheme = this._register(new Emitter<void>());
-	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+	pwivate weadonwy _onDidChangeCowowScheme = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeCowowScheme = this._onDidChangeCowowScheme.event;
 
-	public dark: boolean = this.environmentService.configuration.colorScheme.dark;
-	public highContrast: boolean = this.environmentService.configuration.colorScheme.highContrast;
+	pubwic dawk: boowean = this.enviwonmentSewvice.configuwation.cowowScheme.dawk;
+	pubwic highContwast: boowean = this.enviwonmentSewvice.configuwation.cowowScheme.highContwast;
 
 }
 
-registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, true);
+wegistewSingweton(IHostCowowSchemeSewvice, NativeHostCowowSchemeSewvice, twue);

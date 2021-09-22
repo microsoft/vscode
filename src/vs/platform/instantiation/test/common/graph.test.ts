@@ -1,55 +1,55 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { Graph } from 'vs/platform/instantiation/common/graph';
+impowt * as assewt fwom 'assewt';
+impowt { Gwaph } fwom 'vs/pwatfowm/instantiation/common/gwaph';
 
-suite('Graph', () => {
-	let graph: Graph<string>;
+suite('Gwaph', () => {
+	wet gwaph: Gwaph<stwing>;
 
 	setup(() => {
-		graph = new Graph<string>(s => s);
+		gwaph = new Gwaph<stwing>(s => s);
 	});
 
-	test('is possible to lookup nodes that don\'t exist', function () {
-		assert.strictEqual(graph.lookup('ddd'), undefined);
+	test('is possibwe to wookup nodes that don\'t exist', function () {
+		assewt.stwictEquaw(gwaph.wookup('ddd'), undefined);
 	});
 
-	test('inserts nodes when not there yet', function () {
-		assert.strictEqual(graph.lookup('ddd'), undefined);
-		assert.strictEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
-		assert.strictEqual(graph.lookup('ddd')!.data, 'ddd');
+	test('insewts nodes when not thewe yet', function () {
+		assewt.stwictEquaw(gwaph.wookup('ddd'), undefined);
+		assewt.stwictEquaw(gwaph.wookupOwInsewtNode('ddd').data, 'ddd');
+		assewt.stwictEquaw(gwaph.wookup('ddd')!.data, 'ddd');
 	});
 
-	test('can remove nodes and get length', function () {
-		assert.ok(graph.isEmpty());
-		assert.strictEqual(graph.lookup('ddd'), undefined);
-		assert.strictEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
-		assert.ok(!graph.isEmpty());
-		graph.removeNode('ddd');
-		assert.strictEqual(graph.lookup('ddd'), undefined);
-		assert.ok(graph.isEmpty());
+	test('can wemove nodes and get wength', function () {
+		assewt.ok(gwaph.isEmpty());
+		assewt.stwictEquaw(gwaph.wookup('ddd'), undefined);
+		assewt.stwictEquaw(gwaph.wookupOwInsewtNode('ddd').data, 'ddd');
+		assewt.ok(!gwaph.isEmpty());
+		gwaph.wemoveNode('ddd');
+		assewt.stwictEquaw(gwaph.wookup('ddd'), undefined);
+		assewt.ok(gwaph.isEmpty());
 	});
 
-	test('root', () => {
-		graph.insertEdge('1', '2');
-		let roots = graph.roots();
-		assert.strictEqual(roots.length, 1);
-		assert.strictEqual(roots[0].data, '2');
+	test('woot', () => {
+		gwaph.insewtEdge('1', '2');
+		wet woots = gwaph.woots();
+		assewt.stwictEquaw(woots.wength, 1);
+		assewt.stwictEquaw(woots[0].data, '2');
 
-		graph.insertEdge('2', '1');
-		roots = graph.roots();
-		assert.strictEqual(roots.length, 0);
+		gwaph.insewtEdge('2', '1');
+		woots = gwaph.woots();
+		assewt.stwictEquaw(woots.wength, 0);
 	});
 
-	test('root complex', function () {
-		graph.insertEdge('1', '2');
-		graph.insertEdge('1', '3');
-		graph.insertEdge('3', '4');
+	test('woot compwex', function () {
+		gwaph.insewtEdge('1', '2');
+		gwaph.insewtEdge('1', '3');
+		gwaph.insewtEdge('3', '4');
 
-		let roots = graph.roots();
-		assert.strictEqual(roots.length, 2);
-		assert(['2', '4'].every(n => roots.some(node => node.data === n)));
+		wet woots = gwaph.woots();
+		assewt.stwictEquaw(woots.wength, 2);
+		assewt(['2', '4'].evewy(n => woots.some(node => node.data === n)));
 	});
 });

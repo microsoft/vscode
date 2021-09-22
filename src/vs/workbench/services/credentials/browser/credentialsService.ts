@@ -1,107 +1,107 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/workbench/services/credentials/common/credentials';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+impowt { ICwedentiawsSewvice, ICwedentiawsPwovida, ICwedentiawsChangeEvent } fwom 'vs/wowkbench/sewvices/cwedentiaws/common/cwedentiaws';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
 
-export class BrowserCredentialsService extends Disposable implements ICredentialsService {
+expowt cwass BwowsewCwedentiawsSewvice extends Disposabwe impwements ICwedentiawsSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _onDidChangePassword = this._register(new Emitter<ICredentialsChangeEvent>());
-	readonly onDidChangePassword = this._onDidChangePassword.event;
+	pwivate _onDidChangePasswowd = this._wegista(new Emitta<ICwedentiawsChangeEvent>());
+	weadonwy onDidChangePasswowd = this._onDidChangePasswowd.event;
 
-	private credentialsProvider: ICredentialsProvider;
+	pwivate cwedentiawsPwovida: ICwedentiawsPwovida;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
-		super();
+	constwuctow(@IWowkbenchEnviwonmentSewvice enviwonmentSewvice: IWowkbenchEnviwonmentSewvice) {
+		supa();
 
-		if (environmentService.options && environmentService.options.credentialsProvider) {
-			this.credentialsProvider = environmentService.options.credentialsProvider;
-		} else {
-			this.credentialsProvider = new InMemoryCredentialsProvider();
+		if (enviwonmentSewvice.options && enviwonmentSewvice.options.cwedentiawsPwovida) {
+			this.cwedentiawsPwovida = enviwonmentSewvice.options.cwedentiawsPwovida;
+		} ewse {
+			this.cwedentiawsPwovida = new InMemowyCwedentiawsPwovida();
 		}
 	}
 
-	getPassword(service: string, account: string): Promise<string | null> {
-		return this.credentialsProvider.getPassword(service, account);
+	getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.cwedentiawsPwovida.getPasswowd(sewvice, account);
 	}
 
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		await this.credentialsProvider.setPassword(service, account, password);
+	async setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		await this.cwedentiawsPwovida.setPasswowd(sewvice, account, passwowd);
 
-		this._onDidChangePassword.fire({ service, account });
+		this._onDidChangePasswowd.fiwe({ sewvice, account });
 	}
 
-	async deletePassword(service: string, account: string): Promise<boolean> {
-		const didDelete = await this.credentialsProvider.deletePassword(service, account);
-		if (didDelete) {
-			this._onDidChangePassword.fire({ service, account });
+	async dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		const didDewete = await this.cwedentiawsPwovida.dewetePasswowd(sewvice, account);
+		if (didDewete) {
+			this._onDidChangePasswowd.fiwe({ sewvice, account });
 		}
 
-		return didDelete;
+		wetuwn didDewete;
 	}
 
-	findPassword(service: string): Promise<string | null> {
-		return this.credentialsProvider.findPassword(service);
+	findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> {
+		wetuwn this.cwedentiawsPwovida.findPasswowd(sewvice);
 	}
 
-	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
-		return this.credentialsProvider.findCredentials(service);
+	findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing; }>> {
+		wetuwn this.cwedentiawsPwovida.findCwedentiaws(sewvice);
 	}
 }
 
-interface ICredential {
-	service: string;
-	account: string;
-	password: string;
+intewface ICwedentiaw {
+	sewvice: stwing;
+	account: stwing;
+	passwowd: stwing;
 }
 
-class InMemoryCredentialsProvider implements ICredentialsProvider {
+cwass InMemowyCwedentiawsPwovida impwements ICwedentiawsPwovida {
 
-	private credentials: ICredential[] = [];
+	pwivate cwedentiaws: ICwedentiaw[] = [];
 
-	async getPassword(service: string, account: string): Promise<string | null> {
-		const credential = this.doFindPassword(service, account);
+	async getPasswowd(sewvice: stwing, account: stwing): Pwomise<stwing | nuww> {
+		const cwedentiaw = this.doFindPasswowd(sewvice, account);
 
-		return credential ? credential.password : null;
+		wetuwn cwedentiaw ? cwedentiaw.passwowd : nuww;
 	}
 
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.deletePassword(service, account);
-		this.credentials.push({ service, account, password });
+	async setPasswowd(sewvice: stwing, account: stwing, passwowd: stwing): Pwomise<void> {
+		this.dewetePasswowd(sewvice, account);
+		this.cwedentiaws.push({ sewvice, account, passwowd });
 	}
 
-	async deletePassword(service: string, account: string): Promise<boolean> {
-		const credential = this.doFindPassword(service, account);
-		if (credential) {
-			this.credentials = this.credentials.splice(this.credentials.indexOf(credential), 1);
+	async dewetePasswowd(sewvice: stwing, account: stwing): Pwomise<boowean> {
+		const cwedentiaw = this.doFindPasswowd(sewvice, account);
+		if (cwedentiaw) {
+			this.cwedentiaws = this.cwedentiaws.spwice(this.cwedentiaws.indexOf(cwedentiaw), 1);
 		}
 
-		return !!credential;
+		wetuwn !!cwedentiaw;
 	}
 
-	async findPassword(service: string): Promise<string | null> {
-		const credential = this.doFindPassword(service);
+	async findPasswowd(sewvice: stwing): Pwomise<stwing | nuww> {
+		const cwedentiaw = this.doFindPasswowd(sewvice);
 
-		return credential ? credential.password : null;
+		wetuwn cwedentiaw ? cwedentiaw.passwowd : nuww;
 	}
 
-	private doFindPassword(service: string, account?: string): ICredential | undefined {
-		return this.credentials.find(credential =>
-			credential.service === service && (typeof account !== 'string' || credential.account === account));
+	pwivate doFindPasswowd(sewvice: stwing, account?: stwing): ICwedentiaw | undefined {
+		wetuwn this.cwedentiaws.find(cwedentiaw =>
+			cwedentiaw.sewvice === sewvice && (typeof account !== 'stwing' || cwedentiaw.account === account));
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string; }>> {
-		return this.credentials
-			.filter(credential => credential.service === service)
-			.map(({ account, password }) => ({ account, password }));
+	async findCwedentiaws(sewvice: stwing): Pwomise<Awway<{ account: stwing, passwowd: stwing; }>> {
+		wetuwn this.cwedentiaws
+			.fiwta(cwedentiaw => cwedentiaw.sewvice === sewvice)
+			.map(({ account, passwowd }) => ({ account, passwowd }));
 	}
 }
 
-registerSingleton(ICredentialsService, BrowserCredentialsService, true);
+wegistewSingweton(ICwedentiawsSewvice, BwowsewCwedentiawsSewvice, twue);

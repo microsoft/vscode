@@ -1,257 +1,257 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as matchers from 'vs/workbench/contrib/tasks/common/problemMatcher';
+impowt * as matchews fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
 
-import * as assert from 'assert';
-import { ValidationState, IProblemReporter, ValidationStatus } from 'vs/base/common/parsers';
+impowt * as assewt fwom 'assewt';
+impowt { VawidationState, IPwobwemWepowta, VawidationStatus } fwom 'vs/base/common/pawsews';
 
-class ProblemReporter implements IProblemReporter {
-	private _validationStatus: ValidationStatus;
-	private _messages: string[];
+cwass PwobwemWepowta impwements IPwobwemWepowta {
+	pwivate _vawidationStatus: VawidationStatus;
+	pwivate _messages: stwing[];
 
-	constructor() {
-		this._validationStatus = new ValidationStatus();
+	constwuctow() {
+		this._vawidationStatus = new VawidationStatus();
 		this._messages = [];
 	}
 
-	public info(message: string): void {
+	pubwic info(message: stwing): void {
 		this._messages.push(message);
-		this._validationStatus.state = ValidationState.Info;
+		this._vawidationStatus.state = VawidationState.Info;
 	}
 
-	public warn(message: string): void {
+	pubwic wawn(message: stwing): void {
 		this._messages.push(message);
-		this._validationStatus.state = ValidationState.Warning;
+		this._vawidationStatus.state = VawidationState.Wawning;
 	}
 
-	public error(message: string): void {
+	pubwic ewwow(message: stwing): void {
 		this._messages.push(message);
-		this._validationStatus.state = ValidationState.Error;
+		this._vawidationStatus.state = VawidationState.Ewwow;
 	}
 
-	public fatal(message: string): void {
+	pubwic fataw(message: stwing): void {
 		this._messages.push(message);
-		this._validationStatus.state = ValidationState.Fatal;
+		this._vawidationStatus.state = VawidationState.Fataw;
 	}
 
-	public hasMessage(message: string): boolean {
-		return this._messages.indexOf(message) !== null;
+	pubwic hasMessage(message: stwing): boowean {
+		wetuwn this._messages.indexOf(message) !== nuww;
 	}
-	public get messages(): string[] {
-		return this._messages;
+	pubwic get messages(): stwing[] {
+		wetuwn this._messages;
 	}
-	public get state(): ValidationState {
-		return this._validationStatus.state;
-	}
-
-	public isOK(): boolean {
-		return this._validationStatus.isOK();
+	pubwic get state(): VawidationState {
+		wetuwn this._vawidationStatus.state;
 	}
 
-	public get status(): ValidationStatus {
-		return this._validationStatus;
+	pubwic isOK(): boowean {
+		wetuwn this._vawidationStatus.isOK();
+	}
+
+	pubwic get status(): VawidationStatus {
+		wetuwn this._vawidationStatus;
 	}
 }
 
-suite('ProblemPatternParser', () => {
-	let reporter: ProblemReporter;
-	let parser: matchers.ProblemPatternParser;
-	const testRegexp = new RegExp('test');
+suite('PwobwemPattewnPawsa', () => {
+	wet wepowta: PwobwemWepowta;
+	wet pawsa: matchews.PwobwemPattewnPawsa;
+	const testWegexp = new WegExp('test');
 
 	setup(() => {
-		reporter = new ProblemReporter();
-		parser = new matchers.ProblemPatternParser(reporter);
+		wepowta = new PwobwemWepowta();
+		pawsa = new matchews.PwobwemPattewnPawsa(wepowta);
 	});
 
-	suite('single-pattern definitions', () => {
-		test('parses a pattern defined by only a regexp', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
-				regexp: 'test'
+	suite('singwe-pattewn definitions', () => {
+		test('pawses a pattewn defined by onwy a wegexp', () => {
+			wet pwobwemPattewn: matchews.Config.PwobwemPattewn = {
+				wegexp: 'test'
 			};
-			let parsed = parser.parse(problemPattern);
-			assert(reporter.isOK());
-			assert.deepStrictEqual(parsed, {
-				regexp: testRegexp,
-				kind: matchers.ProblemLocationKind.Location,
-				file: 1,
-				line: 2,
-				character: 3,
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt(wepowta.isOK());
+			assewt.deepStwictEquaw(pawsed, {
+				wegexp: testWegexp,
+				kind: matchews.PwobwemWocationKind.Wocation,
+				fiwe: 1,
+				wine: 2,
+				chawacta: 3,
 				message: 0
 			});
 		});
-		test('does not sets defaults for line and character if kind is File', () => {
-			let problemPattern: matchers.Config.ProblemPattern = {
-				regexp: 'test',
-				kind: 'file'
+		test('does not sets defauwts fow wine and chawacta if kind is Fiwe', () => {
+			wet pwobwemPattewn: matchews.Config.PwobwemPattewn = {
+				wegexp: 'test',
+				kind: 'fiwe'
 			};
-			let parsed = parser.parse(problemPattern);
-			assert.deepStrictEqual(parsed, {
-				regexp: testRegexp,
-				kind: matchers.ProblemLocationKind.File,
-				file: 1,
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.deepStwictEquaw(pawsed, {
+				wegexp: testWegexp,
+				kind: matchews.PwobwemWocationKind.Fiwe,
+				fiwe: 1,
 				message: 0
 			});
 		});
 	});
 
-	suite('multi-pattern definitions', () => {
-		test('defines a pattern based on regexp and property fields, with file/line location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3, line: 4, column: 5, message: 6 }
+	suite('muwti-pattewn definitions', () => {
+		test('defines a pattewn based on wegexp and pwopewty fiewds, with fiwe/wine wocation', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3, wine: 4, cowumn: 5, message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert(reporter.isOK());
-			assert.deepStrictEqual(parsed,
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt(wepowta.isOK());
+			assewt.deepStwictEquaw(pawsed,
 				[{
-					regexp: testRegexp,
-					kind: matchers.ProblemLocationKind.Location,
-					file: 3,
-					line: 4,
-					character: 5,
+					wegexp: testWegexp,
+					kind: matchews.PwobwemWocationKind.Wocation,
+					fiwe: 3,
+					wine: 4,
+					chawacta: 5,
 					message: 6
 				}]
 			);
 		});
-		test('defines a pattern bsaed on regexp and property fields, with location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3, location: 4, message: 6 }
+		test('defines a pattewn bsaed on wegexp and pwopewty fiewds, with wocation', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3, wocation: 4, message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert(reporter.isOK());
-			assert.deepStrictEqual(parsed,
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt(wepowta.isOK());
+			assewt.deepStwictEquaw(pawsed,
 				[{
-					regexp: testRegexp,
-					kind: matchers.ProblemLocationKind.Location,
-					file: 3,
-					location: 4,
+					wegexp: testWegexp,
+					kind: matchews.PwobwemWocationKind.Wocation,
+					fiwe: 3,
+					wocation: 4,
 					message: 6
 				}]
 			);
 		});
-		test('accepts a pattern that provides the fields from multiple entries', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3 },
-				{ regexp: 'test1', line: 4 },
-				{ regexp: 'test2', column: 5 },
-				{ regexp: 'test3', message: 6 }
+		test('accepts a pattewn that pwovides the fiewds fwom muwtipwe entwies', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3 },
+				{ wegexp: 'test1', wine: 4 },
+				{ wegexp: 'test2', cowumn: 5 },
+				{ wegexp: 'test3', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert(reporter.isOK());
-			assert.deepStrictEqual(parsed, [
-				{ regexp: testRegexp, kind: matchers.ProblemLocationKind.Location, file: 3 },
-				{ regexp: new RegExp('test1'), line: 4 },
-				{ regexp: new RegExp('test2'), character: 5 },
-				{ regexp: new RegExp('test3'), message: 6 }
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt(wepowta.isOK());
+			assewt.deepStwictEquaw(pawsed, [
+				{ wegexp: testWegexp, kind: matchews.PwobwemWocationKind.Wocation, fiwe: 3 },
+				{ wegexp: new WegExp('test1'), wine: 4 },
+				{ wegexp: new WegExp('test2'), chawacta: 5 },
+				{ wegexp: new WegExp('test3'), message: 6 }
 			]);
 		});
-		test('forbids setting the loop flag outside of the last element in the array', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3, loop: true },
-				{ regexp: 'test1', line: 4 }
+		test('fowbids setting the woop fwag outside of the wast ewement in the awway', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3, woop: twue },
+				{ wegexp: 'test1', wine: 4 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The loop property is only supported on the last line matcher.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The woop pwopewty is onwy suppowted on the wast wine matcha.'));
 		});
-		test('forbids setting the kind outside of the first element of the array', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3 },
-				{ regexp: 'test1', kind: 'file', line: 4 }
+		test('fowbids setting the kind outside of the fiwst ewement of the awway', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3 },
+				{ wegexp: 'test1', kind: 'fiwe', wine: 4 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. The kind property must be provided only in the first element'));
-		});
-
-		test('kind: Location requires a regexp', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ file: 0, line: 1, column: 20, message: 0 }
-			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
-		});
-		test('kind: Location requires a regexp on every entry', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 3 },
-				{ line: 4 },
-				{ regexp: 'test2', column: 5 },
-				{ regexp: 'test3', message: 6 }
-			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
-		});
-		test('kind: Location requires a message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 0, line: 1, column: 20 }
-			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. The kind pwopewty must be pwovided onwy in the fiwst ewement'));
 		});
 
-		test('kind: Location requires a file', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', line: 1, column: 20, message: 0 }
+		test('kind: Wocation wequiwes a wegexp', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ fiwe: 0, wine: 1, cowumn: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is missing a weguwaw expwession.'));
+		});
+		test('kind: Wocation wequiwes a wegexp on evewy entwy', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 3 },
+				{ wine: 4 },
+				{ wegexp: 'test2', cowumn: 5 },
+				{ wegexp: 'test3', message: 6 }
+			];
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is missing a weguwaw expwession.'));
+		});
+		test('kind: Wocation wequiwes a message', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 0, wine: 1, cowumn: 20 }
+			];
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. It must have at weast have a fiwe and a message.'));
 		});
 
-		test('kind: Location requires either a line or location', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 1, column: 20, message: 0 }
+		test('kind: Wocation wequiwes a fiwe', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', wine: 1, cowumn: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. It must eitha have kind: "fiwe" ow have a wine ow wocation match gwoup.'));
 		});
 
-		test('kind: File accepts a regexp, file and message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', file: 2, kind: 'file', message: 6 }
+		test('kind: Wocation wequiwes eitha a wine ow wocation', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 1, cowumn: 20, message: 0 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert(reporter.isOK());
-			assert.deepStrictEqual(parsed,
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. It must eitha have kind: "fiwe" ow have a wine ow wocation match gwoup.'));
+		});
+
+		test('kind: Fiwe accepts a wegexp, fiwe and message', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', fiwe: 2, kind: 'fiwe', message: 6 }
+			];
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt(wepowta.isOK());
+			assewt.deepStwictEquaw(pawsed,
 				[{
-					regexp: testRegexp,
-					kind: matchers.ProblemLocationKind.File,
-					file: 2,
+					wegexp: testWegexp,
+					kind: matchews.PwobwemWocationKind.Fiwe,
+					fiwe: 2,
 					message: 6
 				}]
 			);
 		});
 
-		test('kind: File requires a file', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', kind: 'file', message: 6 }
+		test('kind: Fiwe wequiwes a fiwe', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', kind: 'fiwe', message: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. It must have at weast have a fiwe and a message.'));
 		});
 
-		test('kind: File requires a message', () => {
-			let problemPattern: matchers.Config.MultiLineProblemPattern = [
-				{ regexp: 'test', kind: 'file', file: 6 }
+		test('kind: Fiwe wequiwes a message', () => {
+			wet pwobwemPattewn: matchews.Config.MuwtiWinePwobwemPattewn = [
+				{ wegexp: 'test', kind: 'fiwe', fiwe: 6 }
 			];
-			let parsed = parser.parse(problemPattern);
-			assert.strictEqual(null, parsed);
-			assert.strictEqual(ValidationState.Error, reporter.state);
-			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
+			wet pawsed = pawsa.pawse(pwobwemPattewn);
+			assewt.stwictEquaw(nuww, pawsed);
+			assewt.stwictEquaw(VawidationState.Ewwow, wepowta.state);
+			assewt(wepowta.hasMessage('The pwobwem pattewn is invawid. It must have at weast have a fiwe and a message.'));
 		});
 	});
 });

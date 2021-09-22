@@ -1,40 +1,40 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
 
-'use strict';
+'use stwict';
 
-const withBrowserDefaults = require('../../shared.webpack.config').browser;
-const path = require('path');
+const withBwowsewDefauwts = wequiwe('../../shawed.webpack.config').bwowsa;
+const path = wequiwe('path');
 
-const serverConfig = withBrowserDefaults({
-	context: __dirname,
-	entry: {
-		extension: './src/browser/htmlServerMain.ts',
+const sewvewConfig = withBwowsewDefauwts({
+	context: __diwname,
+	entwy: {
+		extension: './swc/bwowsa/htmwSewvewMain.ts',
 	},
 	output: {
-		filename: 'htmlServerMain.js',
-		path: path.join(__dirname, 'dist', 'browser'),
-		libraryTarget: 'var',
-		library: 'serverExportVar'
+		fiwename: 'htmwSewvewMain.js',
+		path: path.join(__diwname, 'dist', 'bwowsa'),
+		wibwawyTawget: 'vaw',
+		wibwawy: 'sewvewExpowtVaw'
 	},
 	optimization: {
-		splitChunks: {
+		spwitChunks: {
 			chunks: 'async'
 		}
 	}
 });
-serverConfig.module.noParse = /typescript[\/\\]lib[\/\\]typescript\.js/;
-serverConfig.module.rules.push({
-	test: /javascriptLibs.ts$/,
+sewvewConfig.moduwe.noPawse = /typescwipt[\/\\]wib[\/\\]typescwipt\.js/;
+sewvewConfig.moduwe.wuwes.push({
+	test: /javascwiptWibs.ts$/,
 	use: [
 		{
-			loader: path.resolve(__dirname, 'build', 'javaScriptLibraryLoader.js')
+			woada: path.wesowve(__diwname, 'buiwd', 'javaScwiptWibwawyWoada.js')
 		}
 	]
 });
 
-module.exports = serverConfig;
+moduwe.expowts = sewvewConfig;

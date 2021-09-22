@@ -1,10 +1,10 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+impowt { EnviwonmentVawiabweSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabweSewvice';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { IEnviwonmentVawiabweSewvice } fwom 'vs/wowkbench/contwib/tewminaw/common/enviwonmentVawiabwe';
 
-registerSingleton(IEnvironmentVariableService, EnvironmentVariableService, true);
+wegistewSingweton(IEnviwonmentVawiabweSewvice, EnviwonmentVawiabweSewvice, twue);

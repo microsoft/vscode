@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IUsewDataSyncStoweSewvice } fwom 'vs/pwatfowm/usewDataSync/common/usewDataSync';
 
-export interface IUserDataSyncAccount {
-	readonly authenticationProviderId: string;
-	readonly token: string;
+expowt intewface IUsewDataSyncAccount {
+	weadonwy authenticationPwovidewId: stwing;
+	weadonwy token: stwing;
 }
 
-export const IUserDataSyncAccountService = createDecorator<IUserDataSyncAccountService>('IUserDataSyncAccountService');
-export interface IUserDataSyncAccountService {
-	readonly _serviceBrand: undefined;
+expowt const IUsewDataSyncAccountSewvice = cweateDecowatow<IUsewDataSyncAccountSewvice>('IUsewDataSyncAccountSewvice');
+expowt intewface IUsewDataSyncAccountSewvice {
+	weadonwy _sewviceBwand: undefined;
 
-	readonly onTokenFailed: Event<boolean>;
-	readonly account: IUserDataSyncAccount | undefined;
-	readonly onDidChangeAccount: Event<IUserDataSyncAccount | undefined>;
-	updateAccount(account: IUserDataSyncAccount | undefined): Promise<void>;
+	weadonwy onTokenFaiwed: Event<boowean>;
+	weadonwy account: IUsewDataSyncAccount | undefined;
+	weadonwy onDidChangeAccount: Event<IUsewDataSyncAccount | undefined>;
+	updateAccount(account: IUsewDataSyncAccount | undefined): Pwomise<void>;
 
 }
 
-export class UserDataSyncAccountService extends Disposable implements IUserDataSyncAccountService {
+expowt cwass UsewDataSyncAccountSewvice extends Disposabwe impwements IUsewDataSyncAccountSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	private _account: IUserDataSyncAccount | undefined;
-	get account(): IUserDataSyncAccount | undefined { return this._account; }
-	private _onDidChangeAccount = this._register(new Emitter<IUserDataSyncAccount | undefined>());
-	readonly onDidChangeAccount = this._onDidChangeAccount.event;
+	pwivate _account: IUsewDataSyncAccount | undefined;
+	get account(): IUsewDataSyncAccount | undefined { wetuwn this._account; }
+	pwivate _onDidChangeAccount = this._wegista(new Emitta<IUsewDataSyncAccount | undefined>());
+	weadonwy onDidChangeAccount = this._onDidChangeAccount.event;
 
-	private _onTokenFailed: Emitter<boolean> = this._register(new Emitter<boolean>());
-	readonly onTokenFailed: Event<boolean> = this._onTokenFailed.event;
+	pwivate _onTokenFaiwed: Emitta<boowean> = this._wegista(new Emitta<boowean>());
+	weadonwy onTokenFaiwed: Event<boowean> = this._onTokenFaiwed.event;
 
-	private wasTokenFailed: boolean = false;
+	pwivate wasTokenFaiwed: boowean = fawse;
 
-	constructor(
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService
+	constwuctow(
+		@IUsewDataSyncStoweSewvice pwivate weadonwy usewDataSyncStoweSewvice: IUsewDataSyncStoweSewvice
 	) {
-		super();
-		this._register(userDataSyncStoreService.onTokenFailed(() => {
+		supa();
+		this._wegista(usewDataSyncStoweSewvice.onTokenFaiwed(() => {
 			this.updateAccount(undefined);
-			this._onTokenFailed.fire(this.wasTokenFailed);
-			this.wasTokenFailed = true;
+			this._onTokenFaiwed.fiwe(this.wasTokenFaiwed);
+			this.wasTokenFaiwed = twue;
 		}));
-		this._register(userDataSyncStoreService.onTokenSucceed(() => this.wasTokenFailed = false));
+		this._wegista(usewDataSyncStoweSewvice.onTokenSucceed(() => this.wasTokenFaiwed = fawse));
 	}
 
-	async updateAccount(account: IUserDataSyncAccount | undefined): Promise<void> {
-		if (account && this._account ? account.token !== this._account.token || account.authenticationProviderId !== this._account.authenticationProviderId : account !== this._account) {
+	async updateAccount(account: IUsewDataSyncAccount | undefined): Pwomise<void> {
+		if (account && this._account ? account.token !== this._account.token || account.authenticationPwovidewId !== this._account.authenticationPwovidewId : account !== this._account) {
 			this._account = account;
 			if (this._account) {
-				this.userDataSyncStoreService.setAuthToken(this._account.token, this._account.authenticationProviderId);
+				this.usewDataSyncStoweSewvice.setAuthToken(this._account.token, this._account.authenticationPwovidewId);
 			}
-			this._onDidChangeAccount.fire(account);
+			this._onDidChangeAccount.fiwe(account);
 		}
 	}
 

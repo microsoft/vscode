@@ -1,507 +1,507 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { groupBy } from 'vs/base/common/arrays';
-import { CharCode } from 'vs/base/common/charCode';
-import { dispose } from 'vs/base/common/lifecycle';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import 'vs/css!./snippetSession';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { ILabelService } from 'vs/platform/label/common/label';
-import * as colors from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
-import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
+impowt { gwoupBy } fwom 'vs/base/common/awways';
+impowt { ChawCode } fwom 'vs/base/common/chawCode';
+impowt { dispose } fwom 'vs/base/common/wifecycwe';
+impowt { getWeadingWhitespace } fwom 'vs/base/common/stwings';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt 'vs/css!./snippetSession';
+impowt { IActiveCodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { IPosition } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { IIdentifiedSingweEditOpewation, ITextModew, TwackedWangeStickiness } fwom 'vs/editow/common/modew';
+impowt { ModewDecowationOptions } fwom 'vs/editow/common/modew/textModew';
+impowt { OvewtypingCaptuwa } fwom 'vs/editow/contwib/suggest/suggestOvewtypingCaptuwa';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt * as cowows fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { wegistewThemingPawticipant } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { Choice, Mawka, Pwacehowda, SnippetPawsa, Text, TextmateSnippet } fwom './snippetPawsa';
+impowt { CwipboawdBasedVawiabweWesowva, CommentBasedVawiabweWesowva, CompositeSnippetVawiabweWesowva, ModewBasedVawiabweWesowva, WandomBasedVawiabweWesowva, SewectionBasedVawiabweWesowva, TimeBasedVawiabweWesowva, WowkspaceBasedVawiabweWesowva } fwom './snippetVawiabwes';
 
-registerThemingParticipant((theme, collector) => {
+wegistewThemingPawticipant((theme, cowwectow) => {
 
-	function getColorGraceful(name: string) {
-		const color = theme.getColor(name);
-		return color ? color.toString() : 'transparent';
+	function getCowowGwacefuw(name: stwing) {
+		const cowow = theme.getCowow(name);
+		wetuwn cowow ? cowow.toStwing() : 'twanspawent';
 	}
 
-	collector.addRule(`.monaco-editor .snippet-placeholder { background-color: ${getColorGraceful(colors.snippetTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetTabstopHighlightBorder)}; }`);
-	collector.addRule(`.monaco-editor .finish-snippet-placeholder { background-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBackground)}; outline-color: ${getColorGraceful(colors.snippetFinalTabstopHighlightBorder)}; }`);
+	cowwectow.addWuwe(`.monaco-editow .snippet-pwacehowda { backgwound-cowow: ${getCowowGwacefuw(cowows.snippetTabstopHighwightBackgwound)}; outwine-cowow: ${getCowowGwacefuw(cowows.snippetTabstopHighwightBowda)}; }`);
+	cowwectow.addWuwe(`.monaco-editow .finish-snippet-pwacehowda { backgwound-cowow: ${getCowowGwacefuw(cowows.snippetFinawTabstopHighwightBackgwound)}; outwine-cowow: ${getCowowGwacefuw(cowows.snippetFinawTabstopHighwightBowda)}; }`);
 });
 
-export class OneSnippet {
+expowt cwass OneSnippet {
 
-	private _placeholderDecorations?: Map<Placeholder, string>;
-	private _placeholderGroups: Placeholder[][];
-	_placeholderGroupsIdx: number;
-	_nestingLevel: number = 1;
+	pwivate _pwacehowdewDecowations?: Map<Pwacehowda, stwing>;
+	pwivate _pwacehowdewGwoups: Pwacehowda[][];
+	_pwacehowdewGwoupsIdx: numba;
+	_nestingWevew: numba = 1;
 
-	private static readonly _decor = {
-		active: ModelDecorationOptions.register({ description: 'snippet-placeholder-1', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
-		inactive: ModelDecorationOptions.register({ description: 'snippet-placeholder-2', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
-		activeFinal: ModelDecorationOptions.register({ description: 'snippet-placeholder-3', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
-		inactiveFinal: ModelDecorationOptions.register({ description: 'snippet-placeholder-4', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
+	pwivate static weadonwy _decow = {
+		active: ModewDecowationOptions.wegista({ descwiption: 'snippet-pwacehowda-1', stickiness: TwackedWangeStickiness.AwwaysGwowsWhenTypingAtEdges, cwassName: 'snippet-pwacehowda' }),
+		inactive: ModewDecowationOptions.wegista({ descwiption: 'snippet-pwacehowda-2', stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges, cwassName: 'snippet-pwacehowda' }),
+		activeFinaw: ModewDecowationOptions.wegista({ descwiption: 'snippet-pwacehowda-3', stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges, cwassName: 'finish-snippet-pwacehowda' }),
+		inactiveFinaw: ModewDecowationOptions.wegista({ descwiption: 'snippet-pwacehowda-4', stickiness: TwackedWangeStickiness.NevewGwowsWhenTypingAtEdges, cwassName: 'finish-snippet-pwacehowda' }),
 	};
 
-	constructor(
-		private readonly _editor: IActiveCodeEditor, private readonly _snippet: TextmateSnippet,
-		private readonly _offset: number, private readonly _snippetLineLeadingWhitespace: string
+	constwuctow(
+		pwivate weadonwy _editow: IActiveCodeEditow, pwivate weadonwy _snippet: TextmateSnippet,
+		pwivate weadonwy _offset: numba, pwivate weadonwy _snippetWineWeadingWhitespace: stwing
 	) {
-		this._placeholderGroups = groupBy(_snippet.placeholders, Placeholder.compareByIndex);
-		this._placeholderGroupsIdx = -1;
+		this._pwacehowdewGwoups = gwoupBy(_snippet.pwacehowdews, Pwacehowda.compaweByIndex);
+		this._pwacehowdewGwoupsIdx = -1;
 	}
 
 	dispose(): void {
-		if (this._placeholderDecorations) {
-			this._editor.deltaDecorations([...this._placeholderDecorations.values()], []);
+		if (this._pwacehowdewDecowations) {
+			this._editow.dewtaDecowations([...this._pwacehowdewDecowations.vawues()], []);
 		}
-		this._placeholderGroups.length = 0;
+		this._pwacehowdewGwoups.wength = 0;
 	}
 
-	private _initDecorations(): void {
+	pwivate _initDecowations(): void {
 
-		if (this._placeholderDecorations) {
-			// already initialized
-			return;
+		if (this._pwacehowdewDecowations) {
+			// awweady initiawized
+			wetuwn;
 		}
 
-		this._placeholderDecorations = new Map<Placeholder, string>();
-		const model = this._editor.getModel();
+		this._pwacehowdewDecowations = new Map<Pwacehowda, stwing>();
+		const modew = this._editow.getModew();
 
-		this._editor.changeDecorations(accessor => {
-			// create a decoration for each placeholder
-			for (const placeholder of this._snippet.placeholders) {
-				const placeholderOffset = this._snippet.offset(placeholder);
-				const placeholderLen = this._snippet.fullLen(placeholder);
-				const range = Range.fromPositions(
-					model.getPositionAt(this._offset + placeholderOffset),
-					model.getPositionAt(this._offset + placeholderOffset + placeholderLen)
+		this._editow.changeDecowations(accessow => {
+			// cweate a decowation fow each pwacehowda
+			fow (const pwacehowda of this._snippet.pwacehowdews) {
+				const pwacehowdewOffset = this._snippet.offset(pwacehowda);
+				const pwacehowdewWen = this._snippet.fuwwWen(pwacehowda);
+				const wange = Wange.fwomPositions(
+					modew.getPositionAt(this._offset + pwacehowdewOffset),
+					modew.getPositionAt(this._offset + pwacehowdewOffset + pwacehowdewWen)
 				);
-				const options = placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive;
-				const handle = accessor.addDecoration(range, options);
-				this._placeholderDecorations!.set(placeholder, handle);
+				const options = pwacehowda.isFinawTabstop ? OneSnippet._decow.inactiveFinaw : OneSnippet._decow.inactive;
+				const handwe = accessow.addDecowation(wange, options);
+				this._pwacehowdewDecowations!.set(pwacehowda, handwe);
 			}
 		});
 	}
 
-	move(fwd: boolean | undefined): Selection[] {
-		if (!this._editor.hasModel()) {
-			return [];
+	move(fwd: boowean | undefined): Sewection[] {
+		if (!this._editow.hasModew()) {
+			wetuwn [];
 		}
 
-		this._initDecorations();
+		this._initDecowations();
 
-		// Transform placeholder text if necessary
-		if (this._placeholderGroupsIdx >= 0) {
-			let operations: IIdentifiedSingleEditOperation[] = [];
+		// Twansfowm pwacehowda text if necessawy
+		if (this._pwacehowdewGwoupsIdx >= 0) {
+			wet opewations: IIdentifiedSingweEditOpewation[] = [];
 
-			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				// Check if the placeholder has a transformation
-				if (placeholder.transform) {
-					const id = this._placeholderDecorations!.get(placeholder)!;
-					const range = this._editor.getModel().getDecorationRange(id)!;
-					const currentValue = this._editor.getModel().getValueInRange(range);
-					const transformedValueLines = placeholder.transform.resolve(currentValue).split(/\r\n|\r|\n/);
-					// fix indentation for transformed lines
-					for (let i = 1; i < transformedValueLines.length; i++) {
-						transformedValueLines[i] = this._editor.getModel().normalizeIndentation(this._snippetLineLeadingWhitespace + transformedValueLines[i]);
+			fow (const pwacehowda of this._pwacehowdewGwoups[this._pwacehowdewGwoupsIdx]) {
+				// Check if the pwacehowda has a twansfowmation
+				if (pwacehowda.twansfowm) {
+					const id = this._pwacehowdewDecowations!.get(pwacehowda)!;
+					const wange = this._editow.getModew().getDecowationWange(id)!;
+					const cuwwentVawue = this._editow.getModew().getVawueInWange(wange);
+					const twansfowmedVawueWines = pwacehowda.twansfowm.wesowve(cuwwentVawue).spwit(/\w\n|\w|\n/);
+					// fix indentation fow twansfowmed wines
+					fow (wet i = 1; i < twansfowmedVawueWines.wength; i++) {
+						twansfowmedVawueWines[i] = this._editow.getModew().nowmawizeIndentation(this._snippetWineWeadingWhitespace + twansfowmedVawueWines[i]);
 					}
-					operations.push(EditOperation.replace(range, transformedValueLines.join(this._editor.getModel().getEOL())));
+					opewations.push(EditOpewation.wepwace(wange, twansfowmedVawueWines.join(this._editow.getModew().getEOW())));
 				}
 			}
-			if (operations.length > 0) {
-				this._editor.executeEdits('snippet.placeholderTransform', operations);
+			if (opewations.wength > 0) {
+				this._editow.executeEdits('snippet.pwacehowdewTwansfowm', opewations);
 			}
 		}
 
-		let couldSkipThisPlaceholder = false;
-		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
-			this._placeholderGroupsIdx += 1;
-			couldSkipThisPlaceholder = true;
+		wet couwdSkipThisPwacehowda = fawse;
+		if (fwd === twue && this._pwacehowdewGwoupsIdx < this._pwacehowdewGwoups.wength - 1) {
+			this._pwacehowdewGwoupsIdx += 1;
+			couwdSkipThisPwacehowda = twue;
 
-		} else if (fwd === false && this._placeholderGroupsIdx > 0) {
-			this._placeholderGroupsIdx -= 1;
-			couldSkipThisPlaceholder = true;
+		} ewse if (fwd === fawse && this._pwacehowdewGwoupsIdx > 0) {
+			this._pwacehowdewGwoupsIdx -= 1;
+			couwdSkipThisPwacehowda = twue;
 
-		} else {
-			// the selection of the current placeholder might
-			// not acurate any more -> simply restore it
+		} ewse {
+			// the sewection of the cuwwent pwacehowda might
+			// not acuwate any mowe -> simpwy westowe it
 		}
 
-		const newSelections = this._editor.getModel().changeDecorations(accessor => {
+		const newSewections = this._editow.getModew().changeDecowations(accessow => {
 
-			const activePlaceholders = new Set<Placeholder>();
+			const activePwacehowdews = new Set<Pwacehowda>();
 
-			// change stickiness to always grow when typing at its edges
-			// because these decorations represent the currently active
+			// change stickiness to awways gwow when typing at its edges
+			// because these decowations wepwesent the cuwwentwy active
 			// tabstop.
-			// Special case #1: reaching the final tabstop
-			// Special case #2: placeholders enclosing active placeholders
-			const selections: Selection[] = [];
-			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const id = this._placeholderDecorations!.get(placeholder)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
-				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+			// Speciaw case #1: weaching the finaw tabstop
+			// Speciaw case #2: pwacehowdews encwosing active pwacehowdews
+			const sewections: Sewection[] = [];
+			fow (const pwacehowda of this._pwacehowdewGwoups[this._pwacehowdewGwoupsIdx]) {
+				const id = this._pwacehowdewDecowations!.get(pwacehowda)!;
+				const wange = this._editow.getModew().getDecowationWange(id)!;
+				sewections.push(new Sewection(wange.stawtWineNumba, wange.stawtCowumn, wange.endWineNumba, wange.endCowumn));
 
-				// consider to skip this placeholder index when the decoration
-				// range is empty but when the placeholder wasn't. that's a strong
-				// hint that the placeholder has been deleted. (all placeholder must match this)
-				couldSkipThisPlaceholder = couldSkipThisPlaceholder && this._hasPlaceholderBeenCollapsed(placeholder);
+				// consida to skip this pwacehowda index when the decowation
+				// wange is empty but when the pwacehowda wasn't. that's a stwong
+				// hint that the pwacehowda has been deweted. (aww pwacehowda must match this)
+				couwdSkipThisPwacehowda = couwdSkipThisPwacehowda && this._hasPwacehowdewBeenCowwapsed(pwacehowda);
 
-				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
-				activePlaceholders.add(placeholder);
+				accessow.changeDecowationOptions(id, pwacehowda.isFinawTabstop ? OneSnippet._decow.activeFinaw : OneSnippet._decow.active);
+				activePwacehowdews.add(pwacehowda);
 
-				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
-					const id = this._placeholderDecorations!.get(enclosingPlaceholder)!;
-					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
-					activePlaceholders.add(enclosingPlaceholder);
+				fow (const encwosingPwacehowda of this._snippet.encwosingPwacehowdews(pwacehowda)) {
+					const id = this._pwacehowdewDecowations!.get(encwosingPwacehowda)!;
+					accessow.changeDecowationOptions(id, encwosingPwacehowda.isFinawTabstop ? OneSnippet._decow.activeFinaw : OneSnippet._decow.active);
+					activePwacehowdews.add(encwosingPwacehowda);
 				}
 			}
 
-			// change stickness to never grow when typing at its edges
-			// so that in-active tabstops never grow
-			for (const [placeholder, id] of this._placeholderDecorations!) {
-				if (!activePlaceholders.has(placeholder)) {
-					accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive);
+			// change stickness to neva gwow when typing at its edges
+			// so that in-active tabstops neva gwow
+			fow (const [pwacehowda, id] of this._pwacehowdewDecowations!) {
+				if (!activePwacehowdews.has(pwacehowda)) {
+					accessow.changeDecowationOptions(id, pwacehowda.isFinawTabstop ? OneSnippet._decow.inactiveFinaw : OneSnippet._decow.inactive);
 				}
 			}
 
-			return selections;
+			wetuwn sewections;
 		});
 
-		return !couldSkipThisPlaceholder ? newSelections ?? [] : this.move(fwd);
+		wetuwn !couwdSkipThisPwacehowda ? newSewections ?? [] : this.move(fwd);
 	}
 
-	private _hasPlaceholderBeenCollapsed(placeholder: Placeholder): boolean {
-		// A placeholder is empty when it wasn't empty when authored but
-		// when its tracking decoration is empty. This also applies to all
-		// potential parent placeholders
-		let marker: Marker | undefined = placeholder;
-		while (marker) {
-			if (marker instanceof Placeholder) {
-				const id = this._placeholderDecorations!.get(marker)!;
-				const range = this._editor.getModel().getDecorationRange(id)!;
-				if (range.isEmpty() && marker.toString().length > 0) {
-					return true;
+	pwivate _hasPwacehowdewBeenCowwapsed(pwacehowda: Pwacehowda): boowean {
+		// A pwacehowda is empty when it wasn't empty when authowed but
+		// when its twacking decowation is empty. This awso appwies to aww
+		// potentiaw pawent pwacehowdews
+		wet mawka: Mawka | undefined = pwacehowda;
+		whiwe (mawka) {
+			if (mawka instanceof Pwacehowda) {
+				const id = this._pwacehowdewDecowations!.get(mawka)!;
+				const wange = this._editow.getModew().getDecowationWange(id)!;
+				if (wange.isEmpty() && mawka.toStwing().wength > 0) {
+					wetuwn twue;
 				}
 			}
-			marker = marker.parent;
+			mawka = mawka.pawent;
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	get isAtFirstPlaceholder() {
-		return this._placeholderGroupsIdx <= 0 || this._placeholderGroups.length === 0;
+	get isAtFiwstPwacehowda() {
+		wetuwn this._pwacehowdewGwoupsIdx <= 0 || this._pwacehowdewGwoups.wength === 0;
 	}
 
-	get isAtLastPlaceholder() {
-		return this._placeholderGroupsIdx === this._placeholderGroups.length - 1;
+	get isAtWastPwacehowda() {
+		wetuwn this._pwacehowdewGwoupsIdx === this._pwacehowdewGwoups.wength - 1;
 	}
 
-	get hasPlaceholder() {
-		return this._snippet.placeholders.length > 0;
+	get hasPwacehowda() {
+		wetuwn this._snippet.pwacehowdews.wength > 0;
 	}
 
-	computePossibleSelections() {
-		const result = new Map<number, Range[]>();
-		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
-			let ranges: Range[] | undefined;
+	computePossibweSewections() {
+		const wesuwt = new Map<numba, Wange[]>();
+		fow (const pwacehowdewsWithEquawIndex of this._pwacehowdewGwoups) {
+			wet wanges: Wange[] | undefined;
 
-			for (const placeholder of placeholdersWithEqualIndex) {
-				if (placeholder.isFinalTabstop) {
-					// ignore those
-					break;
+			fow (const pwacehowda of pwacehowdewsWithEquawIndex) {
+				if (pwacehowda.isFinawTabstop) {
+					// ignowe those
+					bweak;
 				}
 
-				if (!ranges) {
-					ranges = [];
-					result.set(placeholder.index, ranges);
+				if (!wanges) {
+					wanges = [];
+					wesuwt.set(pwacehowda.index, wanges);
 				}
 
-				const id = this._placeholderDecorations!.get(placeholder)!;
-				const range = this._editor.getModel().getDecorationRange(id);
-				if (!range) {
-					// one of the placeholder lost its decoration and
-					// therefore we bail out and pretend the placeholder
-					// (with its mirrors) doesn't exist anymore.
-					result.delete(placeholder.index);
-					break;
+				const id = this._pwacehowdewDecowations!.get(pwacehowda)!;
+				const wange = this._editow.getModew().getDecowationWange(id);
+				if (!wange) {
+					// one of the pwacehowda wost its decowation and
+					// thewefowe we baiw out and pwetend the pwacehowda
+					// (with its miwwows) doesn't exist anymowe.
+					wesuwt.dewete(pwacehowda.index);
+					bweak;
 				}
 
-				ranges.push(range);
+				wanges.push(wange);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 
 	get choice(): Choice | undefined {
-		return this._placeholderGroups[this._placeholderGroupsIdx][0].choice;
+		wetuwn this._pwacehowdewGwoups[this._pwacehowdewGwoupsIdx][0].choice;
 	}
 
-	merge(others: OneSnippet[]): void {
+	mewge(othews: OneSnippet[]): void {
 
-		const model = this._editor.getModel();
-		this._nestingLevel *= 10;
+		const modew = this._editow.getModew();
+		this._nestingWevew *= 10;
 
-		this._editor.changeDecorations(accessor => {
+		this._editow.changeDecowations(accessow => {
 
-			// For each active placeholder take one snippet and merge it
-			// in that the placeholder (can be many for `$1foo$1foo`). Because
-			// everything is sorted by editor selection we can simply remove
-			// elements from the beginning of the array
-			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-				const nested = others.shift()!;
-				console.assert(!nested._placeholderDecorations);
+			// Fow each active pwacehowda take one snippet and mewge it
+			// in that the pwacehowda (can be many fow `$1foo$1foo`). Because
+			// evewything is sowted by editow sewection we can simpwy wemove
+			// ewements fwom the beginning of the awway
+			fow (const pwacehowda of this._pwacehowdewGwoups[this._pwacehowdewGwoupsIdx]) {
+				const nested = othews.shift()!;
+				consowe.assewt(!nested._pwacehowdewDecowations);
 
-				// Massage placeholder-indicies of the nested snippet to be
-				// sorted right after the insertion point. This ensures we move
-				// through the placeholders in the correct order
-				const indexLastPlaceholder = nested._snippet.placeholderInfo.last!.index;
+				// Massage pwacehowda-indicies of the nested snippet to be
+				// sowted wight afta the insewtion point. This ensuwes we move
+				// thwough the pwacehowdews in the cowwect owda
+				const indexWastPwacehowda = nested._snippet.pwacehowdewInfo.wast!.index;
 
-				for (const nestedPlaceholder of nested._snippet.placeholderInfo.all) {
-					if (nestedPlaceholder.isFinalTabstop) {
-						nestedPlaceholder.index = placeholder.index + ((indexLastPlaceholder + 1) / this._nestingLevel);
-					} else {
-						nestedPlaceholder.index = placeholder.index + (nestedPlaceholder.index / this._nestingLevel);
+				fow (const nestedPwacehowda of nested._snippet.pwacehowdewInfo.aww) {
+					if (nestedPwacehowda.isFinawTabstop) {
+						nestedPwacehowda.index = pwacehowda.index + ((indexWastPwacehowda + 1) / this._nestingWevew);
+					} ewse {
+						nestedPwacehowda.index = pwacehowda.index + (nestedPwacehowda.index / this._nestingWevew);
 					}
 				}
-				this._snippet.replace(placeholder, nested._snippet.children);
+				this._snippet.wepwace(pwacehowda, nested._snippet.chiwdwen);
 
-				// Remove the placeholder at which position are inserting
-				// the snippet and also remove its decoration.
-				const id = this._placeholderDecorations!.get(placeholder)!;
-				accessor.removeDecoration(id);
-				this._placeholderDecorations!.delete(placeholder);
+				// Wemove the pwacehowda at which position awe insewting
+				// the snippet and awso wemove its decowation.
+				const id = this._pwacehowdewDecowations!.get(pwacehowda)!;
+				accessow.wemoveDecowation(id);
+				this._pwacehowdewDecowations!.dewete(pwacehowda);
 
-				// For each *new* placeholder we create decoration to monitor
-				// how and if it grows/shrinks.
-				for (const placeholder of nested._snippet.placeholders) {
-					const placeholderOffset = nested._snippet.offset(placeholder);
-					const placeholderLen = nested._snippet.fullLen(placeholder);
-					const range = Range.fromPositions(
-						model.getPositionAt(nested._offset + placeholderOffset),
-						model.getPositionAt(nested._offset + placeholderOffset + placeholderLen)
+				// Fow each *new* pwacehowda we cweate decowation to monitow
+				// how and if it gwows/shwinks.
+				fow (const pwacehowda of nested._snippet.pwacehowdews) {
+					const pwacehowdewOffset = nested._snippet.offset(pwacehowda);
+					const pwacehowdewWen = nested._snippet.fuwwWen(pwacehowda);
+					const wange = Wange.fwomPositions(
+						modew.getPositionAt(nested._offset + pwacehowdewOffset),
+						modew.getPositionAt(nested._offset + pwacehowdewOffset + pwacehowdewWen)
 					);
-					const handle = accessor.addDecoration(range, OneSnippet._decor.inactive);
-					this._placeholderDecorations!.set(placeholder, handle);
+					const handwe = accessow.addDecowation(wange, OneSnippet._decow.inactive);
+					this._pwacehowdewDecowations!.set(pwacehowda, handwe);
 				}
 			}
 
-			// Last, re-create the placeholder groups by sorting placeholders by their index.
-			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
+			// Wast, we-cweate the pwacehowda gwoups by sowting pwacehowdews by theiw index.
+			this._pwacehowdewGwoups = gwoupBy(this._snippet.pwacehowdews, Pwacehowda.compaweByIndex);
 		});
 	}
 
-	getEnclosingRange(): Range | undefined {
-		let result: Range | undefined;
-		const model = this._editor.getModel();
-		for (const decorationId of this._placeholderDecorations!.values()) {
-			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
-			if (!result) {
-				result = placeholderRange;
-			} else {
-				result = result.plusRange(placeholderRange!);
+	getEncwosingWange(): Wange | undefined {
+		wet wesuwt: Wange | undefined;
+		const modew = this._editow.getModew();
+		fow (const decowationId of this._pwacehowdewDecowations!.vawues()) {
+			const pwacehowdewWange = withNuwwAsUndefined(modew.getDecowationWange(decowationId));
+			if (!wesuwt) {
+				wesuwt = pwacehowdewWange;
+			} ewse {
+				wesuwt = wesuwt.pwusWange(pwacehowdewWange!);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }
 
-export interface ISnippetSessionInsertOptions {
-	overwriteBefore: number;
-	overwriteAfter: number;
-	adjustWhitespace: boolean;
-	clipboardText: string | undefined;
-	overtypingCapturer: OvertypingCapturer | undefined;
+expowt intewface ISnippetSessionInsewtOptions {
+	ovewwwiteBefowe: numba;
+	ovewwwiteAfta: numba;
+	adjustWhitespace: boowean;
+	cwipboawdText: stwing | undefined;
+	ovewtypingCaptuwa: OvewtypingCaptuwa | undefined;
 }
 
-const _defaultOptions: ISnippetSessionInsertOptions = {
-	overwriteBefore: 0,
-	overwriteAfter: 0,
-	adjustWhitespace: true,
-	clipboardText: undefined,
-	overtypingCapturer: undefined
+const _defauwtOptions: ISnippetSessionInsewtOptions = {
+	ovewwwiteBefowe: 0,
+	ovewwwiteAfta: 0,
+	adjustWhitespace: twue,
+	cwipboawdText: undefined,
+	ovewtypingCaptuwa: undefined
 };
 
-export class SnippetSession {
+expowt cwass SnippetSession {
 
-	static adjustWhitespace(model: ITextModel, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boolean, adjustNewlines: boolean): string {
-		const line = model.getLineContent(position.lineNumber);
-		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
+	static adjustWhitespace(modew: ITextModew, position: IPosition, snippet: TextmateSnippet, adjustIndentation: boowean, adjustNewwines: boowean): stwing {
+		const wine = modew.getWineContent(position.wineNumba);
+		const wineWeadingWhitespace = getWeadingWhitespace(wine, 0, position.cowumn - 1);
 
-		// the snippet as inserted
-		let snippetTextString: string | undefined;
+		// the snippet as insewted
+		wet snippetTextStwing: stwing | undefined;
 
-		snippet.walk(marker => {
-			// all text elements that are not inside choice
-			if (!(marker instanceof Text) || marker.parent instanceof Choice) {
-				return true;
+		snippet.wawk(mawka => {
+			// aww text ewements that awe not inside choice
+			if (!(mawka instanceof Text) || mawka.pawent instanceof Choice) {
+				wetuwn twue;
 			}
 
-			const lines = marker.value.split(/\r\n|\r|\n/);
+			const wines = mawka.vawue.spwit(/\w\n|\w|\n/);
 
 			if (adjustIndentation) {
 				// adjust indentation of snippet test
-				// -the snippet-start doesn't get extra-indented (lineLeadingWhitespace), only normalized
-				// -all N+1 lines get extra-indented and normalized
-				// -the text start get extra-indented and normalized when following a linebreak
-				const offset = snippet.offset(marker);
+				// -the snippet-stawt doesn't get extwa-indented (wineWeadingWhitespace), onwy nowmawized
+				// -aww N+1 wines get extwa-indented and nowmawized
+				// -the text stawt get extwa-indented and nowmawized when fowwowing a winebweak
+				const offset = snippet.offset(mawka);
 				if (offset === 0) {
-					// snippet start
-					lines[0] = model.normalizeIndentation(lines[0]);
+					// snippet stawt
+					wines[0] = modew.nowmawizeIndentation(wines[0]);
 
-				} else {
-					// check if text start is after a linebreak
-					snippetTextString = snippetTextString ?? snippet.toString();
-					let prevChar = snippetTextString.charCodeAt(offset - 1);
-					if (prevChar === CharCode.LineFeed || prevChar === CharCode.CarriageReturn) {
-						lines[0] = model.normalizeIndentation(lineLeadingWhitespace + lines[0]);
+				} ewse {
+					// check if text stawt is afta a winebweak
+					snippetTextStwing = snippetTextStwing ?? snippet.toStwing();
+					wet pwevChaw = snippetTextStwing.chawCodeAt(offset - 1);
+					if (pwevChaw === ChawCode.WineFeed || pwevChaw === ChawCode.CawwiageWetuwn) {
+						wines[0] = modew.nowmawizeIndentation(wineWeadingWhitespace + wines[0]);
 					}
 				}
-				for (let i = 1; i < lines.length; i++) {
-					lines[i] = model.normalizeIndentation(lineLeadingWhitespace + lines[i]);
+				fow (wet i = 1; i < wines.wength; i++) {
+					wines[i] = modew.nowmawizeIndentation(wineWeadingWhitespace + wines[i]);
 				}
 			}
 
-			const newValue = lines.join(model.getEOL());
-			if (newValue !== marker.value) {
-				marker.parent.replace(marker, [new Text(newValue)]);
-				snippetTextString = undefined;
+			const newVawue = wines.join(modew.getEOW());
+			if (newVawue !== mawka.vawue) {
+				mawka.pawent.wepwace(mawka, [new Text(newVawue)]);
+				snippetTextStwing = undefined;
 			}
-			return true;
+			wetuwn twue;
 		});
 
-		return lineLeadingWhitespace;
+		wetuwn wineWeadingWhitespace;
 	}
 
-	static adjustSelection(model: ITextModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
-		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
-			// overwrite[Before|After] is compute using the position, not the whole
-			// selection. therefore we adjust the selection around that position
-			const { positionLineNumber, positionColumn } = selection;
-			const positionColumnBefore = positionColumn - overwriteBefore;
-			const positionColumnAfter = positionColumn + overwriteAfter;
+	static adjustSewection(modew: ITextModew, sewection: Sewection, ovewwwiteBefowe: numba, ovewwwiteAfta: numba): Sewection {
+		if (ovewwwiteBefowe !== 0 || ovewwwiteAfta !== 0) {
+			// ovewwwite[Befowe|Afta] is compute using the position, not the whowe
+			// sewection. thewefowe we adjust the sewection awound that position
+			const { positionWineNumba, positionCowumn } = sewection;
+			const positionCowumnBefowe = positionCowumn - ovewwwiteBefowe;
+			const positionCowumnAfta = positionCowumn + ovewwwiteAfta;
 
-			const range = model.validateRange({
-				startLineNumber: positionLineNumber,
-				startColumn: positionColumnBefore,
-				endLineNumber: positionLineNumber,
-				endColumn: positionColumnAfter
+			const wange = modew.vawidateWange({
+				stawtWineNumba: positionWineNumba,
+				stawtCowumn: positionCowumnBefowe,
+				endWineNumba: positionWineNumba,
+				endCowumn: positionCowumnAfta
 			});
 
-			selection = Selection.createWithDirection(
-				range.startLineNumber, range.startColumn,
-				range.endLineNumber, range.endColumn,
-				selection.getDirection()
+			sewection = Sewection.cweateWithDiwection(
+				wange.stawtWineNumba, wange.stawtCowumn,
+				wange.endWineNumba, wange.endCowumn,
+				sewection.getDiwection()
 			);
 		}
-		return selection;
+		wetuwn sewection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
-		const edits: IIdentifiedSingleEditOperation[] = [];
+	static cweateEditsAndSnippets(editow: IActiveCodeEditow, tempwate: stwing, ovewwwiteBefowe: numba, ovewwwiteAfta: numba, enfowceFinawTabstop: boowean, adjustWhitespace: boowean, cwipboawdText: stwing | undefined, ovewtypingCaptuwa: OvewtypingCaptuwa | undefined): { edits: IIdentifiedSingweEditOpewation[], snippets: OneSnippet[] } {
+		const edits: IIdentifiedSingweEditOpewation[] = [];
 		const snippets: OneSnippet[] = [];
 
-		if (!editor.hasModel()) {
-			return { edits, snippets };
+		if (!editow.hasModew()) {
+			wetuwn { edits, snippets };
 		}
-		const model = editor.getModel();
+		const modew = editow.getModew();
 
-		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService));
-		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
-		const readClipboardText = () => clipboardText;
+		const wowkspaceSewvice = editow.invokeWithinContext(accessow => accessow.get(IWowkspaceContextSewvice));
+		const modewBasedVawiabweWesowva = editow.invokeWithinContext(accessow => new ModewBasedVawiabweWesowva(accessow.get(IWabewSewvice), modew));
+		const weadCwipboawdText = () => cwipboawdText;
 
-		let delta = 0;
+		wet dewta = 0;
 
-		// know what text the overwrite[Before|After] extensions
-		// of the primary curser have selected because only when
-		// secondary selections extend to the same text we can grow them
-		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
-		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
+		// know what text the ovewwwite[Befowe|Afta] extensions
+		// of the pwimawy cuwsa have sewected because onwy when
+		// secondawy sewections extend to the same text we can gwow them
+		wet fiwstBefoweText = modew.getVawueInWange(SnippetSession.adjustSewection(modew, editow.getSewection(), ovewwwiteBefowe, 0));
+		wet fiwstAftewText = modew.getVawueInWange(SnippetSession.adjustSewection(modew, editow.getSewection(), 0, ovewwwiteAfta));
 
-		// remember the first non-whitespace column to decide if
-		// `keepWhitespace` should be overruled for secondary selections
-		let firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
+		// wememba the fiwst non-whitespace cowumn to decide if
+		// `keepWhitespace` shouwd be ovewwuwed fow secondawy sewections
+		wet fiwstWineFiwstNonWhitespace = modew.getWineFiwstNonWhitespaceCowumn(editow.getSewection().positionWineNumba);
 
-		// sort selections by their start position but remeber
-		// the original index. that allows you to create correct
-		// offset-based selection logic without changing the
-		// primary selection
-		const indexedSelections = editor.getSelections()
-			.map((selection, idx) => ({ selection, idx }))
-			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+		// sowt sewections by theiw stawt position but wemeba
+		// the owiginaw index. that awwows you to cweate cowwect
+		// offset-based sewection wogic without changing the
+		// pwimawy sewection
+		const indexedSewections = editow.getSewections()
+			.map((sewection, idx) => ({ sewection, idx }))
+			.sowt((a, b) => Wange.compaweWangesUsingStawts(a.sewection, b.sewection));
 
-		for (const { selection, idx } of indexedSelections) {
+		fow (const { sewection, idx } of indexedSewections) {
 
-			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
-			// compare if this matches the extensions of the primary selection
-			let extensionBefore = SnippetSession.adjustSelection(model, selection, overwriteBefore, 0);
-			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, overwriteAfter);
-			if (firstBeforeText !== model.getValueInRange(extensionBefore)) {
-				extensionBefore = selection;
+			// extend sewection with the `ovewwwiteBefowe` and `ovewwwiteAfta` and then
+			// compawe if this matches the extensions of the pwimawy sewection
+			wet extensionBefowe = SnippetSession.adjustSewection(modew, sewection, ovewwwiteBefowe, 0);
+			wet extensionAfta = SnippetSession.adjustSewection(modew, sewection, 0, ovewwwiteAfta);
+			if (fiwstBefoweText !== modew.getVawueInWange(extensionBefowe)) {
+				extensionBefowe = sewection;
 			}
-			if (firstAfterText !== model.getValueInRange(extensionAfter)) {
-				extensionAfter = selection;
+			if (fiwstAftewText !== modew.getVawueInWange(extensionAfta)) {
+				extensionAfta = sewection;
 			}
 
-			// merge the before and after selection into one
-			const snippetSelection = selection
-				.setStartPosition(extensionBefore.startLineNumber, extensionBefore.startColumn)
-				.setEndPosition(extensionAfter.endLineNumber, extensionAfter.endColumn);
+			// mewge the befowe and afta sewection into one
+			const snippetSewection = sewection
+				.setStawtPosition(extensionBefowe.stawtWineNumba, extensionBefowe.stawtCowumn)
+				.setEndPosition(extensionAfta.endWineNumba, extensionAfta.endCowumn);
 
-			const snippet = new SnippetParser().parse(template, true, enforceFinalTabstop);
+			const snippet = new SnippetPawsa().pawse(tempwate, twue, enfowceFinawTabstop);
 
-			// adjust the template string to match the indentation and
-			// whitespace rules of this insert location (can be different for each cursor)
-			// happens when being asked for (default) or when this is a secondary
-			// cursor and the leading whitespace is different
-			const start = snippetSelection.getStartPosition();
-			const snippetLineLeadingWhitespace = SnippetSession.adjustWhitespace(
-				model, start, snippet,
-				adjustWhitespace || (idx > 0 && firstLineFirstNonWhitespace !== model.getLineFirstNonWhitespaceColumn(selection.positionLineNumber)),
-				true
+			// adjust the tempwate stwing to match the indentation and
+			// whitespace wuwes of this insewt wocation (can be diffewent fow each cuwsow)
+			// happens when being asked fow (defauwt) ow when this is a secondawy
+			// cuwsow and the weading whitespace is diffewent
+			const stawt = snippetSewection.getStawtPosition();
+			const snippetWineWeadingWhitespace = SnippetSession.adjustWhitespace(
+				modew, stawt, snippet,
+				adjustWhitespace || (idx > 0 && fiwstWineFiwstNonWhitespace !== modew.getWineFiwstNonWhitespaceCowumn(sewection.positionWineNumba)),
+				twue
 			);
 
-			snippet.resolveVariables(new CompositeSnippetVariableResolver([
-				modelBasedVariableResolver,
-				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
-				new SelectionBasedVariableResolver(model, selection, idx, overtypingCapturer),
-				new CommentBasedVariableResolver(model, selection),
-				new TimeBasedVariableResolver,
-				new WorkspaceBasedVariableResolver(workspaceService),
-				new RandomBasedVariableResolver,
+			snippet.wesowveVawiabwes(new CompositeSnippetVawiabweWesowva([
+				modewBasedVawiabweWesowva,
+				new CwipboawdBasedVawiabweWesowva(weadCwipboawdText, idx, indexedSewections.wength, editow.getOption(EditowOption.muwtiCuwsowPaste) === 'spwead'),
+				new SewectionBasedVawiabweWesowva(modew, sewection, idx, ovewtypingCaptuwa),
+				new CommentBasedVawiabweWesowva(modew, sewection),
+				new TimeBasedVawiabweWesowva,
+				new WowkspaceBasedVawiabweWesowva(wowkspaceSewvice),
+				new WandomBasedVawiabweWesowva,
 			]));
 
-			const offset = model.getOffsetAt(start) + delta;
-			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
+			const offset = modew.getOffsetAt(stawt) + dewta;
+			dewta += snippet.toStwing().wength - modew.getVawueWengthInWange(snippetSewection);
 
-			// store snippets with the index of their originating selection.
-			// that ensures the primiary cursor stays primary despite not being
-			// the one with lowest start position
-			edits[idx] = EditOperation.replace(snippetSelection, snippet.toString());
-			edits[idx].identifier = { major: idx, minor: 0 }; // mark the edit so only our undo edits will be used to generate end cursors
-			snippets[idx] = new OneSnippet(editor, snippet, offset, snippetLineLeadingWhitespace);
+			// stowe snippets with the index of theiw owiginating sewection.
+			// that ensuwes the pwimiawy cuwsow stays pwimawy despite not being
+			// the one with wowest stawt position
+			edits[idx] = EditOpewation.wepwace(snippetSewection, snippet.toStwing());
+			edits[idx].identifia = { majow: idx, minow: 0 }; // mawk the edit so onwy ouw undo edits wiww be used to genewate end cuwsows
+			snippets[idx] = new OneSnippet(editow, snippet, offset, snippetWineWeadingWhitespace);
 		}
 
-		return { edits, snippets };
+		wetuwn { edits, snippets };
 	}
 
-	private readonly _editor: IActiveCodeEditor;
-	private readonly _template: string;
-	private readonly _templateMerges: [number, number, string][] = [];
-	private readonly _options: ISnippetSessionInsertOptions;
-	private _snippets: OneSnippet[] = [];
+	pwivate weadonwy _editow: IActiveCodeEditow;
+	pwivate weadonwy _tempwate: stwing;
+	pwivate weadonwy _tempwateMewges: [numba, numba, stwing][] = [];
+	pwivate weadonwy _options: ISnippetSessionInsewtOptions;
+	pwivate _snippets: OneSnippet[] = [];
 
-	constructor(editor: IActiveCodeEditor, template: string, options: ISnippetSessionInsertOptions = _defaultOptions) {
-		this._editor = editor;
-		this._template = template;
+	constwuctow(editow: IActiveCodeEditow, tempwate: stwing, options: ISnippetSessionInsewtOptions = _defauwtOptions) {
+		this._editow = editow;
+		this._tempwate = tempwate;
 		this._options = options;
 	}
 
@@ -509,177 +509,177 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	_logInfo(): string {
-		return `template="${this._template}", merged_templates="${this._templateMerges.join(' -> ')}"`;
+	_wogInfo(): stwing {
+		wetuwn `tempwate="${this._tempwate}", mewged_tempwates="${this._tempwateMewges.join(' -> ')}"`;
 	}
 
-	insert(): void {
-		if (!this._editor.hasModel()) {
-			return;
+	insewt(): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
 
-		// make insert edit and start with first selections
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._options.overwriteBefore, this._options.overwriteAfter, false, this._options.adjustWhitespace, this._options.clipboardText, this._options.overtypingCapturer);
+		// make insewt edit and stawt with fiwst sewections
+		const { edits, snippets } = SnippetSession.cweateEditsAndSnippets(this._editow, this._tempwate, this._options.ovewwwiteBefowe, this._options.ovewwwiteAfta, fawse, this._options.adjustWhitespace, this._options.cwipboawdText, this._options.ovewtypingCaptuwa);
 		this._snippets = snippets;
 
-		this._editor.executeEdits('snippet', edits, undoEdits => {
-			if (this._snippets[0].hasPlaceholder) {
-				return this._move(true);
-			} else {
-				return undoEdits
-					.filter(edit => !!edit.identifier) // only use our undo edits
-					.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
+		this._editow.executeEdits('snippet', edits, undoEdits => {
+			if (this._snippets[0].hasPwacehowda) {
+				wetuwn this._move(twue);
+			} ewse {
+				wetuwn undoEdits
+					.fiwta(edit => !!edit.identifia) // onwy use ouw undo edits
+					.map(edit => Sewection.fwomPositions(edit.wange.getEndPosition()));
 			}
 		});
-		this._editor.revealRange(this._editor.getSelections()[0]);
+		this._editow.weveawWange(this._editow.getSewections()[0]);
 	}
 
-	merge(template: string, options: ISnippetSessionInsertOptions = _defaultOptions): void {
-		if (!this._editor.hasModel()) {
-			return;
+	mewge(tempwate: stwing, options: ISnippetSessionInsewtOptions = _defauwtOptions): void {
+		if (!this._editow.hasModew()) {
+			wetuwn;
 		}
-		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
-		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, options.overwriteBefore, options.overwriteAfter, true, options.adjustWhitespace, options.clipboardText, options.overtypingCapturer);
+		this._tempwateMewges.push([this._snippets[0]._nestingWevew, this._snippets[0]._pwacehowdewGwoupsIdx, tempwate]);
+		const { edits, snippets } = SnippetSession.cweateEditsAndSnippets(this._editow, tempwate, options.ovewwwiteBefowe, options.ovewwwiteAfta, twue, options.adjustWhitespace, options.cwipboawdText, options.ovewtypingCaptuwa);
 
-		this._editor.executeEdits('snippet', edits, undoEdits => {
-			for (const snippet of this._snippets) {
-				snippet.merge(snippets);
+		this._editow.executeEdits('snippet', edits, undoEdits => {
+			fow (const snippet of this._snippets) {
+				snippet.mewge(snippets);
 			}
-			console.assert(snippets.length === 0);
+			consowe.assewt(snippets.wength === 0);
 
-			if (this._snippets[0].hasPlaceholder) {
-				return this._move(undefined);
-			} else {
-				return (
+			if (this._snippets[0].hasPwacehowda) {
+				wetuwn this._move(undefined);
+			} ewse {
+				wetuwn (
 					undoEdits
-						.filter(edit => !!edit.identifier) // only use our undo edits
-						.map(edit => Selection.fromPositions(edit.range.getEndPosition()))
+						.fiwta(edit => !!edit.identifia) // onwy use ouw undo edits
+						.map(edit => Sewection.fwomPositions(edit.wange.getEndPosition()))
 				);
 			}
 		});
 	}
 
 	next(): void {
-		const newSelections = this._move(true);
-		this._editor.setSelections(newSelections);
-		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
+		const newSewections = this._move(twue);
+		this._editow.setSewections(newSewections);
+		this._editow.weveawPositionInCentewIfOutsideViewpowt(newSewections[0].getPosition());
 	}
 
-	prev(): void {
-		const newSelections = this._move(false);
-		this._editor.setSelections(newSelections);
-		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
+	pwev(): void {
+		const newSewections = this._move(fawse);
+		this._editow.setSewections(newSewections);
+		this._editow.weveawPositionInCentewIfOutsideViewpowt(newSewections[0].getPosition());
 	}
 
-	private _move(fwd: boolean | undefined): Selection[] {
-		const selections: Selection[] = [];
-		for (const snippet of this._snippets) {
-			const oneSelection = snippet.move(fwd);
-			selections.push(...oneSelection);
+	pwivate _move(fwd: boowean | undefined): Sewection[] {
+		const sewections: Sewection[] = [];
+		fow (const snippet of this._snippets) {
+			const oneSewection = snippet.move(fwd);
+			sewections.push(...oneSewection);
 		}
-		return selections;
+		wetuwn sewections;
 	}
 
-	get isAtFirstPlaceholder() {
-		return this._snippets[0].isAtFirstPlaceholder;
+	get isAtFiwstPwacehowda() {
+		wetuwn this._snippets[0].isAtFiwstPwacehowda;
 	}
 
-	get isAtLastPlaceholder() {
-		return this._snippets[0].isAtLastPlaceholder;
+	get isAtWastPwacehowda() {
+		wetuwn this._snippets[0].isAtWastPwacehowda;
 	}
 
-	get hasPlaceholder() {
-		return this._snippets[0].hasPlaceholder;
+	get hasPwacehowda() {
+		wetuwn this._snippets[0].hasPwacehowda;
 	}
 
 	get choice(): Choice | undefined {
-		return this._snippets[0].choice;
+		wetuwn this._snippets[0].choice;
 	}
 
-	isSelectionWithinPlaceholders(): boolean {
+	isSewectionWithinPwacehowdews(): boowean {
 
-		if (!this.hasPlaceholder) {
-			return false;
+		if (!this.hasPwacehowda) {
+			wetuwn fawse;
 		}
 
-		const selections = this._editor.getSelections();
-		if (selections.length < this._snippets.length) {
-			// this means we started snippet mode with N
-			// selections and have M (N > M) selections.
-			// So one snippet is without selection -> cancel
-			return false;
+		const sewections = this._editow.getSewections();
+		if (sewections.wength < this._snippets.wength) {
+			// this means we stawted snippet mode with N
+			// sewections and have M (N > M) sewections.
+			// So one snippet is without sewection -> cancew
+			wetuwn fawse;
 		}
 
-		let allPossibleSelections = new Map<number, Range[]>();
-		for (const snippet of this._snippets) {
+		wet awwPossibweSewections = new Map<numba, Wange[]>();
+		fow (const snippet of this._snippets) {
 
-			const possibleSelections = snippet.computePossibleSelections();
+			const possibweSewections = snippet.computePossibweSewections();
 
-			// for the first snippet find the placeholder (and its ranges)
-			// that contain at least one selection. for all remaining snippets
-			// the same placeholder (and their ranges) must be used.
-			if (allPossibleSelections.size === 0) {
-				for (const [index, ranges] of possibleSelections) {
-					ranges.sort(Range.compareRangesUsingStarts);
-					for (const selection of selections) {
-						if (ranges[0].containsRange(selection)) {
-							allPossibleSelections.set(index, []);
-							break;
+			// fow the fiwst snippet find the pwacehowda (and its wanges)
+			// that contain at weast one sewection. fow aww wemaining snippets
+			// the same pwacehowda (and theiw wanges) must be used.
+			if (awwPossibweSewections.size === 0) {
+				fow (const [index, wanges] of possibweSewections) {
+					wanges.sowt(Wange.compaweWangesUsingStawts);
+					fow (const sewection of sewections) {
+						if (wanges[0].containsWange(sewection)) {
+							awwPossibweSewections.set(index, []);
+							bweak;
 						}
 					}
 				}
 			}
 
-			if (allPossibleSelections.size === 0) {
-				// return false if we couldn't associate a selection to
-				// this (the first) snippet
-				return false;
+			if (awwPossibweSewections.size === 0) {
+				// wetuwn fawse if we couwdn't associate a sewection to
+				// this (the fiwst) snippet
+				wetuwn fawse;
 			}
 
-			// add selections from 'this' snippet so that we know all
-			// selections for this placeholder
-			allPossibleSelections.forEach((array, index) => {
-				array.push(...possibleSelections.get(index)!);
+			// add sewections fwom 'this' snippet so that we know aww
+			// sewections fow this pwacehowda
+			awwPossibweSewections.fowEach((awway, index) => {
+				awway.push(...possibweSewections.get(index)!);
 			});
 		}
 
-		// sort selections (and later placeholder-ranges). then walk both
-		// arrays and make sure the placeholder-ranges contain the corresponding
-		// selection
-		selections.sort(Range.compareRangesUsingStarts);
+		// sowt sewections (and wata pwacehowda-wanges). then wawk both
+		// awways and make suwe the pwacehowda-wanges contain the cowwesponding
+		// sewection
+		sewections.sowt(Wange.compaweWangesUsingStawts);
 
-		for (let [index, ranges] of allPossibleSelections) {
-			if (ranges.length !== selections.length) {
-				allPossibleSelections.delete(index);
+		fow (wet [index, wanges] of awwPossibweSewections) {
+			if (wanges.wength !== sewections.wength) {
+				awwPossibweSewections.dewete(index);
 				continue;
 			}
 
-			ranges.sort(Range.compareRangesUsingStarts);
+			wanges.sowt(Wange.compaweWangesUsingStawts);
 
-			for (let i = 0; i < ranges.length; i++) {
-				if (!ranges[i].containsRange(selections[i])) {
-					allPossibleSelections.delete(index);
+			fow (wet i = 0; i < wanges.wength; i++) {
+				if (!wanges[i].containsWange(sewections[i])) {
+					awwPossibweSewections.dewete(index);
 					continue;
 				}
 			}
 		}
 
-		// from all possible selections we have deleted those
-		// that don't match with the current selection. if we don't
-		// have any left, we don't have a selection anymore
-		return allPossibleSelections.size > 0;
+		// fwom aww possibwe sewections we have deweted those
+		// that don't match with the cuwwent sewection. if we don't
+		// have any weft, we don't have a sewection anymowe
+		wetuwn awwPossibweSewections.size > 0;
 	}
 
-	public getEnclosingRange(): Range | undefined {
-		let result: Range | undefined;
-		for (const snippet of this._snippets) {
-			const snippetRange = snippet.getEnclosingRange();
-			if (!result) {
-				result = snippetRange;
-			} else {
-				result = result.plusRange(snippetRange!);
+	pubwic getEncwosingWange(): Wange | undefined {
+		wet wesuwt: Wange | undefined;
+		fow (const snippet of this._snippets) {
+			const snippetWange = snippet.getEncwosingWange();
+			if (!wesuwt) {
+				wesuwt = snippetWange;
+			} ewse {
+				wesuwt = wesuwt.pwusWange(snippetWange!);
 			}
 		}
-		return result;
+		wetuwn wesuwt;
 	}
 }

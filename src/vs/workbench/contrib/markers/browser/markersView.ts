@@ -1,937 +1,937 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/markers';
+impowt 'vs/css!./media/mawkews';
 
-import { URI } from 'vs/base/common/uri';
-import * as dom from 'vs/base/browser/dom';
-import { IAction, Action, Separator } from 'vs/base/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import Constants from 'vs/workbench/contrib/markers/browser/constants';
-import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent, MarkersModel, compareMarkersByUri, MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkersFilterActionViewItem, MarkersFilters, IMarkersFiltersChangeEvent } from 'vs/workbench/contrib/markers/browser/markersViewActions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import Messages from 'vs/workbench/contrib/markers/browser/messages';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Iterable } from 'vs/base/common/iterator';
-import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
-import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
-import { IExpression } from 'vs/base/common/glob';
-import { deepClone } from 'vs/base/common/objects';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { groupBy } from 'vs/base/common/arrays';
-import { ResourceMap } from 'vs/base/common/map';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { IAction, Action, Sepawatow } fwom 'vs/base/common/actions';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IEditowSewvice, SIDE_GWOUP, ACTIVE_GWOUP } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt Constants fwom 'vs/wowkbench/contwib/mawkews/bwowsa/constants';
+impowt { Mawka, WesouwceMawkews, WewatedInfowmation, MawkewChangesEvent, MawkewsModew, compaweMawkewsByUwi, MawkewEwement } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsModew';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { MawkewsFiwtewActionViewItem, MawkewsFiwtews, IMawkewsFiwtewsChangeEvent } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsViewActions';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt Messages fwom 'vs/wowkbench/contwib/mawkews/bwowsa/messages';
+impowt { WangeHighwightDecowations } fwom 'vs/wowkbench/bwowsa/codeeditow';
+impowt { IThemeSewvice, wegistewThemingPawticipant, ICowowTheme, ICssStyweCowwectow } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { IStowageSewvice, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IContextKey, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { Itewabwe } fwom 'vs/base/common/itewatow';
+impowt { ITweeEwement, ITweeNode, ITweeContextMenuEvent, ITweeWendewa } fwom 'vs/base/bwowsa/ui/twee/twee';
+impowt { Weway, Event, Emitta } fwom 'vs/base/common/event';
+impowt { WowkbenchObjectTwee, IWistSewvice, IWowkbenchObjectTweeOptions } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { FiwtewOptions } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsFiwtewOptions';
+impowt { IExpwession } fwom 'vs/base/common/gwob';
+impowt { deepCwone } fwom 'vs/base/common/objects';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { FiwtewData, Fiwta, ViwtuawDewegate, WesouwceMawkewsWendewa, MawkewWendewa, WewatedInfowmationWendewa, MawkewsTweeAccessibiwityPwovida, MawkewsViewModew, WesouwceDwagAndDwop } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkewsTweeViewa';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { ActionBaw, IActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IMenuSewvice, MenuId } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { StandawdKeyboawdEvent, IKeyboawdEvent } fwom 'vs/base/bwowsa/keyboawdEvent';
+impowt { WesouwceWabews } fwom 'vs/wowkbench/bwowsa/wabews';
+impowt { IMawka, IMawkewSewvice, MawkewSevewity } fwom 'vs/pwatfowm/mawkews/common/mawkews';
+impowt { withUndefinedAsNuww } fwom 'vs/base/common/types';
+impowt { MementoObject, Memento } fwom 'vs/wowkbench/common/memento';
+impowt { IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { editowWightBuwbFowegwound, editowWightBuwbAutoFixFowegwound } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { ViewPane, IViewPaneOptions } fwom 'vs/wowkbench/bwowsa/pawts/views/viewPane';
+impowt { IViewDescwiptowSewvice } fwom 'vs/wowkbench/common/views';
+impowt { IOpenewSewvice } fwom 'vs/pwatfowm/opena/common/opena';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { ActionViewItem } fwom 'vs/base/bwowsa/ui/actionbaw/actionViewItems';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { DisposabweStowe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { gwoupBy } fwom 'vs/base/common/awways';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IMawkewsView } fwom 'vs/wowkbench/contwib/mawkews/bwowsa/mawkews';
+impowt { cweateAndFiwwInContextMenuActions } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
 
-function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
-	return Iterable.map(resourceMarkers.markers, m => {
-		const relatedInformationIt = Iterable.from(m.relatedInformation);
-		const children = Iterable.map(relatedInformationIt, r => ({ element: r }));
+function cweateWesouwceMawkewsItewatow(wesouwceMawkews: WesouwceMawkews): Itewabwe<ITweeEwement<MawkewEwement>> {
+	wetuwn Itewabwe.map(wesouwceMawkews.mawkews, m => {
+		const wewatedInfowmationIt = Itewabwe.fwom(m.wewatedInfowmation);
+		const chiwdwen = Itewabwe.map(wewatedInfowmationIt, w => ({ ewement: w }));
 
-		return { element: m, children };
+		wetuwn { ewement: m, chiwdwen };
 	});
 }
 
-export class MarkersView extends ViewPane implements IMarkersView {
+expowt cwass MawkewsView extends ViewPane impwements IMawkewsView {
 
-	private lastSelectedRelativeTop: number = 0;
-	private currentActiveResource: URI | null = null;
+	pwivate wastSewectedWewativeTop: numba = 0;
+	pwivate cuwwentActiveWesouwce: UWI | nuww = nuww;
 
-	private readonly rangeHighlightDecorations: RangeHighlightDecorations;
-	private readonly markersModel: MarkersModel;
-	private readonly filter: Filter;
-	private readonly onVisibleDisposables = this._register(new DisposableStore());
+	pwivate weadonwy wangeHighwightDecowations: WangeHighwightDecowations;
+	pwivate weadonwy mawkewsModew: MawkewsModew;
+	pwivate weadonwy fiwta: Fiwta;
+	pwivate weadonwy onVisibweDisposabwes = this._wegista(new DisposabweStowe());
 
-	private tree: MarkersTree | undefined;
-	private filterActionBar: ActionBar | undefined;
-	private messageBoxContainer: HTMLElement | undefined;
-	private ariaLabelElement: HTMLElement | undefined;
-	readonly filters: MarkersFilters;
+	pwivate twee: MawkewsTwee | undefined;
+	pwivate fiwtewActionBaw: ActionBaw | undefined;
+	pwivate messageBoxContaina: HTMWEwement | undefined;
+	pwivate awiaWabewEwement: HTMWEwement | undefined;
+	weadonwy fiwtews: MawkewsFiwtews;
 
-	private readonly panelState: MementoObject;
+	pwivate weadonwy panewState: MementoObject;
 
-	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number, filtered: number }>());
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }> = this._onDidChangeFilterStats.event;
-	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
+	pwivate _onDidChangeFiwtewStats = this._wegista(new Emitta<{ totaw: numba, fiwtewed: numba }>());
+	weadonwy onDidChangeFiwtewStats: Event<{ totaw: numba, fiwtewed: numba }> = this._onDidChangeFiwtewStats.event;
+	pwivate cachedFiwtewStats: { totaw: numba; fiwtewed: numba; } | undefined = undefined;
 
-	private currentResourceGotAddedToMarkersData: boolean = false;
-	private readonly markersViewModel: MarkersViewModel;
-	private readonly smallLayoutContextKey: IContextKey<boolean>;
-	private get smallLayout(): boolean { return !!this.smallLayoutContextKey.get(); }
-	private set smallLayout(smallLayout: boolean) { this.smallLayoutContextKey.set(smallLayout); }
+	pwivate cuwwentWesouwceGotAddedToMawkewsData: boowean = fawse;
+	pwivate weadonwy mawkewsViewModew: MawkewsViewModew;
+	pwivate weadonwy smawwWayoutContextKey: IContextKey<boowean>;
+	pwivate get smawwWayout(): boowean { wetuwn !!this.smawwWayoutContextKey.get(); }
+	pwivate set smawwWayout(smawwWayout: boowean) { this.smawwWayoutContextKey.set(smawwWayout); }
 
-	readonly onDidChangeVisibility = this.onDidChangeBodyVisibility;
+	weadonwy onDidChangeVisibiwity = this.onDidChangeBodyVisibiwity;
 
-	private readonly _onDidFocusFilter: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidFocusFilter: Event<void> = this._onDidFocusFilter.event;
+	pwivate weadonwy _onDidFocusFiwta: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidFocusFiwta: Event<void> = this._onDidFocusFiwta.event;
 
-	private readonly _onDidClearFilterText: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidClearFilterText: Event<void> = this._onDidClearFilterText.event;
+	pwivate weadonwy _onDidCweawFiwtewText: Emitta<void> = this._wegista(new Emitta<void>());
+	weadonwy onDidCweawFiwtewText: Event<void> = this._onDidCweawFiwtewText.event;
 
-	constructor(
+	constwuctow(
 		options: IViewPaneOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IMarkerService private readonly markerService: IMarkerService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IStorageService storageService: IStorageService,
-		@IOpenerService openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IViewDescwiptowSewvice viewDescwiptowSewvice: IViewDescwiptowSewvice,
+		@IEditowSewvice pwivate weadonwy editowSewvice: IEditowSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IMawkewSewvice pwivate weadonwy mawkewSewvice: IMawkewSewvice,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWowkspaceContextSewvice pwivate weadonwy wowkspaceContextSewvice: IWowkspaceContextSewvice,
+		@IContextMenuSewvice contextMenuSewvice: IContextMenuSewvice,
+		@IMenuSewvice pwivate weadonwy menuSewvice: IMenuSewvice,
+		@IUwiIdentitySewvice pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IStowageSewvice stowageSewvice: IStowageSewvice,
+		@IOpenewSewvice openewSewvice: IOpenewSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
-		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
+		supa(options, keybindingSewvice, contextMenuSewvice, configuwationSewvice, contextKeySewvice, viewDescwiptowSewvice, instantiationSewvice, openewSewvice, themeSewvice, tewemetwySewvice);
+		this.smawwWayoutContextKey = Constants.MawkewsViewSmawwWayoutContextKey.bindTo(this.contextKeySewvice);
+		this.panewState = new Memento(Constants.MAWKEWS_VIEW_STOWAGE_ID, stowageSewvice).getMemento(StowageScope.WOWKSPACE, StowageTawget.USa);
 
-		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
-		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
-		this._register(this.onDidChangeVisibility(visible => this.onDidChangeMarkersViewVisibility(visible)));
+		this.mawkewsModew = this._wegista(instantiationSewvice.cweateInstance(MawkewsModew));
+		this.mawkewsViewModew = this._wegista(instantiationSewvice.cweateInstance(MawkewsViewModew, this.panewState['muwtiwine']));
+		this._wegista(this.onDidChangeVisibiwity(visibwe => this.onDidChangeMawkewsViewVisibiwity(visibwe)));
 
-		this.setCurrentActiveEditor();
+		this.setCuwwentActiveEditow();
 
-		this.filter = new Filter(FilterOptions.EMPTY(uriIdentityService));
-		this.rangeHighlightDecorations = this._register(this.instantiationService.createInstance(RangeHighlightDecorations));
+		this.fiwta = new Fiwta(FiwtewOptions.EMPTY(uwiIdentitySewvice));
+		this.wangeHighwightDecowations = this._wegista(this.instantiationSewvice.cweateInstance(WangeHighwightDecowations));
 
-		this.filters = this._register(new MarkersFilters({
-			filterText: this.panelState['filter'] || '',
-			filterHistory: this.panelState['filterHistory'] || [],
-			showErrors: this.panelState['showErrors'] !== false,
-			showWarnings: this.panelState['showWarnings'] !== false,
-			showInfos: this.panelState['showInfos'] !== false,
-			excludedFiles: !!this.panelState['useFilesExclude'],
-			activeFile: !!this.panelState['activeFile'],
-			layout: new dom.Dimension(0, 0)
+		this.fiwtews = this._wegista(new MawkewsFiwtews({
+			fiwtewText: this.panewState['fiwta'] || '',
+			fiwtewHistowy: this.panewState['fiwtewHistowy'] || [],
+			showEwwows: this.panewState['showEwwows'] !== fawse,
+			showWawnings: this.panewState['showWawnings'] !== fawse,
+			showInfos: this.panewState['showInfos'] !== fawse,
+			excwudedFiwes: !!this.panewState['useFiwesExcwude'],
+			activeFiwe: !!this.panewState['activeFiwe'],
+			wayout: new dom.Dimension(0, 0)
 		}));
 	}
 
-	public override renderBody(parent: HTMLElement): void {
-		super.renderBody(parent);
+	pubwic ovewwide wendewBody(pawent: HTMWEwement): void {
+		supa.wendewBody(pawent);
 
-		parent.classList.add('markers-panel');
+		pawent.cwassWist.add('mawkews-panew');
 
-		const container = dom.append(parent, dom.$('.markers-panel-container'));
+		const containa = dom.append(pawent, dom.$('.mawkews-panew-containa'));
 
-		this.createFilterActionBar(container);
-		this.createArialLabelElement(container);
-		this.createMessageBox(container);
-		this.createTree(container);
+		this.cweateFiwtewActionBaw(containa);
+		this.cweateAwiawWabewEwement(containa);
+		this.cweateMessageBox(containa);
+		this.cweateTwee(containa);
 
-		this.updateFilter();
+		this.updateFiwta();
 
-		this.filterActionBar!.push(new Action(`workbench.actions.treeView.${this.id}.filter`));
-		this.renderContent();
+		this.fiwtewActionBaw!.push(new Action(`wowkbench.actions.tweeView.${this.id}.fiwta`));
+		this.wendewContent();
 	}
 
-	public getTitle(): string {
-		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
+	pubwic getTitwe(): stwing {
+		wetuwn Messages.MAWKEWS_PANEW_TITWE_PWOBWEMS;
 	}
 
-	public override layoutBody(height: number, width: number): void {
-		super.layoutBody(height, width);
-		const wasSmallLayout = this.smallLayout;
-		this.smallLayout = width < 600 && height > 100;
-		if (this.smallLayout !== wasSmallLayout) {
-			if (this.filterActionBar) {
-				this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
+	pubwic ovewwide wayoutBody(height: numba, width: numba): void {
+		supa.wayoutBody(height, width);
+		const wasSmawwWayout = this.smawwWayout;
+		this.smawwWayout = width < 600 && height > 100;
+		if (this.smawwWayout !== wasSmawwWayout) {
+			if (this.fiwtewActionBaw) {
+				this.fiwtewActionBaw.getContaina().cwassWist.toggwe('hide', !this.smawwWayout);
 			}
 		}
-		const contentHeight = this.smallLayout ? height - 44 : height;
-		if (this.tree) {
-			this.tree.layout(contentHeight, width);
+		const contentHeight = this.smawwWayout ? height - 44 : height;
+		if (this.twee) {
+			this.twee.wayout(contentHeight, width);
 		}
-		if (this.messageBoxContainer) {
-			this.messageBoxContainer.style.height = `${contentHeight}px`;
+		if (this.messageBoxContaina) {
+			this.messageBoxContaina.stywe.height = `${contentHeight}px`;
 		}
-		this.filters.layout = new dom.Dimension(this.smallLayout ? width : width - 200, height);
+		this.fiwtews.wayout = new dom.Dimension(this.smawwWayout ? width : width - 200, height);
 	}
 
-	public override focus(): void {
-		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
-			return;
+	pubwic ovewwide focus(): void {
+		if (this.twee && this.twee.getHTMWEwement() === document.activeEwement) {
+			wetuwn;
 		}
 
-		if (this.hasNoProblems() && this.messageBoxContainer) {
-			this.messageBoxContainer.focus();
-		} else if (this.tree) {
-			this.tree.domFocus();
-			this.setTreeSelection();
-		}
-	}
-
-	public focusFilter(): void {
-		this._onDidFocusFilter.fire();
-	}
-
-	public clearFilterText(): void {
-		this._onDidClearFilterText.fire();
-	}
-
-	public showQuickFixes(marker: Marker): void {
-		const viewModel = this.markersViewModel.getViewModel(marker);
-		if (viewModel) {
-			viewModel.quickFixAction.run();
+		if (this.hasNoPwobwems() && this.messageBoxContaina) {
+			this.messageBoxContaina.focus();
+		} ewse if (this.twee) {
+			this.twee.domFocus();
+			this.setTweeSewection();
 		}
 	}
 
-	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
-			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
-		if (resource && selection && event) {
-			/* __GDPR__
-			"problems.selectDiagnostic" : {
-				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+	pubwic focusFiwta(): void {
+		this._onDidFocusFiwta.fiwe();
+	}
+
+	pubwic cweawFiwtewText(): void {
+		this._onDidCweawFiwtewText.fiwe();
+	}
+
+	pubwic showQuickFixes(mawka: Mawka): void {
+		const viewModew = this.mawkewsViewModew.getViewModew(mawka);
+		if (viewModew) {
+			viewModew.quickFixAction.wun();
+		}
+	}
+
+	pubwic openFiweAtEwement(ewement: any, pwesewveFocus: boowean, sideByside: boowean, pinned: boowean): boowean {
+		const { wesouwce, sewection, event, data } = ewement instanceof Mawka ? { wesouwce: ewement.wesouwce, sewection: ewement.wange, event: 'pwobwems.sewectDiagnostic', data: this.getTewemetwyData(ewement.mawka) } :
+			ewement instanceof WewatedInfowmation ? { wesouwce: ewement.waw.wesouwce, sewection: ewement.waw, event: 'pwobwems.sewectWewatedInfowmation', data: this.getTewemetwyData(ewement.mawka) } : { wesouwce: nuww, sewection: nuww, event: nuww, data: nuww };
+		if (wesouwce && sewection && event) {
+			/* __GDPW__
+			"pwobwems.sewectDiagnostic" : {
+				"souwce": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+				"code" : { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 			}
 			*/
-			/* __GDPR__
-				"problems.selectRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			/* __GDPW__
+				"pwobwems.sewectWewatedInfowmation" : {
+					"souwce": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+					"code" : { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 				}
 			*/
-			this.telemetryService.publicLog(event, data);
-			this.editorService.openEditor({
-				resource,
+			this.tewemetwySewvice.pubwicWog(event, data);
+			this.editowSewvice.openEditow({
+				wesouwce,
 				options: {
-					selection,
-					preserveFocus,
+					sewection,
+					pwesewveFocus,
 					pinned,
-					revealIfVisible: true
+					weveawIfVisibwe: twue
 				},
-			}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
+			}, sideByside ? SIDE_GWOUP : ACTIVE_GWOUP).then(editow => {
+				if (editow && pwesewveFocus) {
+					this.wangeHighwightDecowations.highwightWange({ wesouwce, wange: sewection }, <ICodeEditow>editow.getContwow());
+				} ewse {
+					this.wangeHighwightDecowations.wemoveHighwightWange();
 				}
 			});
-			return true;
-		} else {
-			this.rangeHighlightDecorations.removeHighlightRange();
+			wetuwn twue;
+		} ewse {
+			this.wangeHighwightDecowations.wemoveHighwightWange();
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private refreshPanel(markerOrChange?: Marker | MarkerChangesEvent): void {
-		if (this.isVisible() && this.tree) {
-			const hasSelection = this.tree.getSelection().length > 0;
-			this.cachedFilterStats = undefined;
+	pwivate wefweshPanew(mawkewOwChange?: Mawka | MawkewChangesEvent): void {
+		if (this.isVisibwe() && this.twee) {
+			const hasSewection = this.twee.getSewection().wength > 0;
+			this.cachedFiwtewStats = undefined;
 
-			if (markerOrChange) {
-				if (markerOrChange instanceof Marker) {
-					this.tree.rerender(markerOrChange);
-				} else {
-					if (markerOrChange.added.size || markerOrChange.removed.size) {
-						// Reset complete tree
-						this.resetTree();
-					} else {
-						// Update resource
-						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
-							this.tree.rerender(updated);
+			if (mawkewOwChange) {
+				if (mawkewOwChange instanceof Mawka) {
+					this.twee.wewenda(mawkewOwChange);
+				} ewse {
+					if (mawkewOwChange.added.size || mawkewOwChange.wemoved.size) {
+						// Weset compwete twee
+						this.wesetTwee();
+					} ewse {
+						// Update wesouwce
+						fow (const updated of mawkewOwChange.updated) {
+							this.twee.setChiwdwen(updated, cweateWesouwceMawkewsItewatow(updated));
+							this.twee.wewenda(updated);
 						}
 					}
 				}
-			} else {
-				// Reset complete tree
-				this.resetTree();
+			} ewse {
+				// Weset compwete twee
+				this.wesetTwee();
 			}
 
-			const { total, filtered } = this.getFilterStats();
-			this.tree.toggleVisibility(total === 0 || filtered === 0);
-			this.renderMessage();
-			this._onDidChangeFilterStats.fire(this.getFilterStats());
+			const { totaw, fiwtewed } = this.getFiwtewStats();
+			this.twee.toggweVisibiwity(totaw === 0 || fiwtewed === 0);
+			this.wendewMessage();
+			this._onDidChangeFiwtewStats.fiwe(this.getFiwtewStats());
 
-			if (hasSelection) {
-				this.setTreeSelection();
+			if (hasSewection) {
+				this.setTweeSewection();
 			}
 		}
 	}
 
-	private setTreeSelection(): void {
-		if (this.tree && this.tree.isVisible() && this.tree.getSelection().length === 0) {
-			const firstVisibleElement = this.tree.firstVisibleElement;
-			const marker = firstVisibleElement ?
-				firstVisibleElement instanceof ResourceMarkers ? firstVisibleElement.markers[0] :
-					firstVisibleElement instanceof Marker ? firstVisibleElement : undefined
+	pwivate setTweeSewection(): void {
+		if (this.twee && this.twee.isVisibwe() && this.twee.getSewection().wength === 0) {
+			const fiwstVisibweEwement = this.twee.fiwstVisibweEwement;
+			const mawka = fiwstVisibweEwement ?
+				fiwstVisibweEwement instanceof WesouwceMawkews ? fiwstVisibweEwement.mawkews[0] :
+					fiwstVisibweEwement instanceof Mawka ? fiwstVisibweEwement : undefined
 				: undefined;
-			if (marker) {
-				this.tree.setFocus([marker]);
-				this.tree.setSelection([marker]);
+			if (mawka) {
+				this.twee.setFocus([mawka]);
+				this.twee.setSewection([mawka]);
 			}
 		}
 	}
 
-	private onDidChangeViewState(marker?: Marker): void {
-		this.refreshPanel(marker);
+	pwivate onDidChangeViewState(mawka?: Mawka): void {
+		this.wefweshPanew(mawka);
 	}
 
-	private resetTree(): void {
-		if (!this.tree) {
-			return;
+	pwivate wesetTwee(): void {
+		if (!this.twee) {
+			wetuwn;
 		}
-		let resourceMarkers: ResourceMarkers[] = [];
-		if (this.filters.activeFile) {
-			if (this.currentActiveResource) {
-				const activeResourceMarkers = this.markersModel.getResourceMarkers(this.currentActiveResource);
-				if (activeResourceMarkers) {
-					resourceMarkers = [activeResourceMarkers];
+		wet wesouwceMawkews: WesouwceMawkews[] = [];
+		if (this.fiwtews.activeFiwe) {
+			if (this.cuwwentActiveWesouwce) {
+				const activeWesouwceMawkews = this.mawkewsModew.getWesouwceMawkews(this.cuwwentActiveWesouwce);
+				if (activeWesouwceMawkews) {
+					wesouwceMawkews = [activeWesouwceMawkews];
 				}
 			}
-		} else {
-			resourceMarkers = this.markersModel.resourceMarkers;
+		} ewse {
+			wesouwceMawkews = this.mawkewsModew.wesouwceMawkews;
 		}
-		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })));
+		this.twee.setChiwdwen(nuww, Itewabwe.map(wesouwceMawkews, m => ({ ewement: m, chiwdwen: cweateWesouwceMawkewsItewatow(m) })));
 	}
 
-	private updateFilter() {
-		this.cachedFilterStats = undefined;
-		this.filter.options = new FilterOptions(this.filters.filterText, this.getFilesExcludeExpressions(), this.filters.showWarnings, this.filters.showErrors, this.filters.showInfos, this.uriIdentityService);
-		if (this.tree) {
-			this.tree.refilter();
+	pwivate updateFiwta() {
+		this.cachedFiwtewStats = undefined;
+		this.fiwta.options = new FiwtewOptions(this.fiwtews.fiwtewText, this.getFiwesExcwudeExpwessions(), this.fiwtews.showWawnings, this.fiwtews.showEwwows, this.fiwtews.showInfos, this.uwiIdentitySewvice);
+		if (this.twee) {
+			this.twee.wefiwta();
 		}
-		this._onDidChangeFilterStats.fire(this.getFilterStats());
+		this._onDidChangeFiwtewStats.fiwe(this.getFiwtewStats());
 
-		const { total, filtered } = this.getFilterStats();
-		if (this.tree) {
-			this.tree.toggleVisibility(total === 0 || filtered === 0);
+		const { totaw, fiwtewed } = this.getFiwtewStats();
+		if (this.twee) {
+			this.twee.toggweVisibiwity(totaw === 0 || fiwtewed === 0);
 		}
-		this.renderMessage();
+		this.wendewMessage();
 	}
 
-	private getFilesExcludeExpressions(): { root: URI, expression: IExpression }[] | IExpression {
-		if (!this.filters.excludedFiles) {
-			return [];
+	pwivate getFiwesExcwudeExpwessions(): { woot: UWI, expwession: IExpwession }[] | IExpwession {
+		if (!this.fiwtews.excwudedFiwes) {
+			wetuwn [];
 		}
 
-		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		return workspaceFolders.length
-			? workspaceFolders.map(workspaceFolder => ({ root: workspaceFolder.uri, expression: this.getFilesExclude(workspaceFolder.uri) }))
-			: this.getFilesExclude();
+		const wowkspaceFowdews = this.wowkspaceContextSewvice.getWowkspace().fowdews;
+		wetuwn wowkspaceFowdews.wength
+			? wowkspaceFowdews.map(wowkspaceFowda => ({ woot: wowkspaceFowda.uwi, expwession: this.getFiwesExcwude(wowkspaceFowda.uwi) }))
+			: this.getFiwesExcwude();
 	}
 
-	private getFilesExclude(resource?: URI): IExpression {
-		return deepClone(this.configurationService.getValue('files.exclude', { resource })) || {};
+	pwivate getFiwesExcwude(wesouwce?: UWI): IExpwession {
+		wetuwn deepCwone(this.configuwationSewvice.getVawue('fiwes.excwude', { wesouwce })) || {};
 	}
 
-	private createFilterActionBar(parent: HTMLElement): void {
-		this.filterActionBar = this._register(new ActionBar(parent, { actionViewItemProvider: action => this.getActionViewItem(action) }));
-		this.filterActionBar.getContainer().classList.add('markers-panel-filter-container');
-		this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
+	pwivate cweateFiwtewActionBaw(pawent: HTMWEwement): void {
+		this.fiwtewActionBaw = this._wegista(new ActionBaw(pawent, { actionViewItemPwovida: action => this.getActionViewItem(action) }));
+		this.fiwtewActionBaw.getContaina().cwassWist.add('mawkews-panew-fiwta-containa');
+		this.fiwtewActionBaw.getContaina().cwassWist.toggwe('hide', !this.smawwWayout);
 	}
 
-	private createMessageBox(parent: HTMLElement): void {
-		this.messageBoxContainer = dom.append(parent, dom.$('.message-box-container'));
-		this.messageBoxContainer.setAttribute('aria-labelledby', 'markers-panel-arialabel');
+	pwivate cweateMessageBox(pawent: HTMWEwement): void {
+		this.messageBoxContaina = dom.append(pawent, dom.$('.message-box-containa'));
+		this.messageBoxContaina.setAttwibute('awia-wabewwedby', 'mawkews-panew-awiawabew');
 	}
 
-	private createArialLabelElement(parent: HTMLElement): void {
-		this.ariaLabelElement = dom.append(parent, dom.$(''));
-		this.ariaLabelElement.setAttribute('id', 'markers-panel-arialabel');
+	pwivate cweateAwiawWabewEwement(pawent: HTMWEwement): void {
+		this.awiaWabewEwement = dom.append(pawent, dom.$(''));
+		this.awiaWabewEwement.setAttwibute('id', 'mawkews-panew-awiawabew');
 	}
 
-	private createTree(parent: HTMLElement): void {
-		const onDidChangeRenderNodeCount = new Relay<ITreeNode<any, any>>();
+	pwivate cweateTwee(pawent: HTMWEwement): void {
+		const onDidChangeWendewNodeCount = new Weway<ITweeNode<any, any>>();
 
-		const treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
+		const tweeWabews = this._wegista(this.instantiationSewvice.cweateInstance(WesouwceWabews, this));
 
-		const virtualDelegate = new VirtualDelegate(this.markersViewModel);
-		const renderers = [
-			this.instantiationService.createInstance(ResourceMarkersRenderer, treeLabels, onDidChangeRenderNodeCount.event),
-			this.instantiationService.createInstance(MarkerRenderer, this.markersViewModel),
-			this.instantiationService.createInstance(RelatedInformationRenderer)
+		const viwtuawDewegate = new ViwtuawDewegate(this.mawkewsViewModew);
+		const wendewews = [
+			this.instantiationSewvice.cweateInstance(WesouwceMawkewsWendewa, tweeWabews, onDidChangeWendewNodeCount.event),
+			this.instantiationSewvice.cweateInstance(MawkewWendewa, this.mawkewsViewModew),
+			this.instantiationSewvice.cweateInstance(WewatedInfowmationWendewa)
 		];
-		const accessibilityProvider = this.instantiationService.createInstance(MarkersTreeAccessibilityProvider);
+		const accessibiwityPwovida = this.instantiationSewvice.cweateInstance(MawkewsTweeAccessibiwityPwovida);
 
-		const identityProvider = {
-			getId(element: MarkerElement) {
-				return element.id;
+		const identityPwovida = {
+			getId(ewement: MawkewEwement) {
+				wetuwn ewement.id;
 			}
 		};
 
-		this.tree = this._register(this.instantiationService.createInstance(MarkersTree,
-			'MarkersView',
-			dom.append(parent, dom.$('.tree-container.show-file-icons')),
-			virtualDelegate,
-			renderers,
+		this.twee = this._wegista(this.instantiationSewvice.cweateInstance(MawkewsTwee,
+			'MawkewsView',
+			dom.append(pawent, dom.$('.twee-containa.show-fiwe-icons')),
+			viwtuawDewegate,
+			wendewews,
 			{
-				filter: this.filter,
-				accessibilityProvider,
-				identityProvider,
-				dnd: new ResourceDragAndDrop(this.instantiationService),
-				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
+				fiwta: this.fiwta,
+				accessibiwityPwovida,
+				identityPwovida,
+				dnd: new WesouwceDwagAndDwop(this.instantiationSewvice),
+				expandOnwyOnTwistieCwick: (e: MawkewEwement) => e instanceof Mawka && e.wewatedInfowmation.wength > 0,
+				ovewwideStywes: {
+					wistBackgwound: this.getBackgwoundCowow()
 				},
-				selectionNavigation: true
+				sewectionNavigation: twue
 			},
 		));
 
-		onDidChangeRenderNodeCount.input = this.tree.onDidChangeRenderNodeCount;
+		onDidChangeWendewNodeCount.input = this.twee.onDidChangeWendewNodeCount;
 
-		const markerFocusContextKey = Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
-		const relatedInformationFocusContextKey = Constants.RelatedInformationFocusContextKey.bindTo(this.tree.contextKeyService);
-		this._register(this.tree.onDidChangeFocus(focus => {
-			markerFocusContextKey.set(focus.elements.some(e => e instanceof Marker));
-			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
+		const mawkewFocusContextKey = Constants.MawkewFocusContextKey.bindTo(this.twee.contextKeySewvice);
+		const wewatedInfowmationFocusContextKey = Constants.WewatedInfowmationFocusContextKey.bindTo(this.twee.contextKeySewvice);
+		this._wegista(this.twee.onDidChangeFocus(focus => {
+			mawkewFocusContextKey.set(focus.ewements.some(e => e instanceof Mawka));
+			wewatedInfowmationFocusContextKey.set(focus.ewements.some(e => e instanceof WewatedInfowmation));
 		}));
 
-		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
-			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
+		this._wegista(Event.debounce(this.twee.onDidOpen, (wast, event) => event, 75, twue)(options => {
+			this.openFiweAtEwement(options.ewement, !!options.editowOptions.pwesewveFocus, options.sideBySide, !!options.editowOptions.pinned);
 		}));
-		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
-			const { element } = node;
-			if (element instanceof RelatedInformation && !node.collapsed) {
-				/* __GDPR__
-				"problems.expandRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+		this._wegista(this.twee.onDidChangeCowwapseState(({ node }) => {
+			const { ewement } = node;
+			if (ewement instanceof WewatedInfowmation && !node.cowwapsed) {
+				/* __GDPW__
+				"pwobwems.expandWewatedInfowmation" : {
+					"souwce": { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" },
+					"code" : { "cwassification": "PubwicNonPewsonawData", "puwpose": "FeatuweInsight" }
 				}
 				*/
-				this.telemetryService.publicLog('problems.expandRelatedInformation', this.getTelemetryData(element.marker));
+				this.tewemetwySewvice.pubwicWog('pwobwems.expandWewatedInfowmation', this.getTewemetwyData(ewement.mawka));
 			}
 		}));
 
-		this._register(this.tree.onContextMenu(this.onContextMenu, this));
+		this._wegista(this.twee.onContextMenu(this.onContextMenu, this));
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (this.filters.excludedFiles && e.affectsConfiguration('files.exclude')) {
-				this.updateFilter();
+		this._wegista(this.configuwationSewvice.onDidChangeConfiguwation(e => {
+			if (this.fiwtews.excwudedFiwes && e.affectsConfiguwation('fiwes.excwude')) {
+				this.updateFiwta();
 			}
 		}));
 
-		// move focus to input, whenever a key is pressed in the panel container
-		this._register(dom.addDisposableListener(parent, 'keydown', e => {
-			if (this.keybindingService.mightProducePrintableCharacter(new StandardKeyboardEvent(e))) {
-				this.focusFilter();
+		// move focus to input, wheneva a key is pwessed in the panew containa
+		this._wegista(dom.addDisposabweWistena(pawent, 'keydown', e => {
+			if (this.keybindingSewvice.mightPwoducePwintabweChawacta(new StandawdKeyboawdEvent(e))) {
+				this.focusFiwta();
 			}
 		}));
 
-		this._register(Event.any<any>(this.tree.onDidChangeSelection, this.tree.onDidChangeFocus)(() => {
-			const elements = [...this.tree!.getSelection(), ...this.tree!.getFocus()];
-			for (const element of elements) {
-				if (element instanceof Marker) {
-					const viewModel = this.markersViewModel.getViewModel(element);
-					if (viewModel) {
-						viewModel.showLightBulb();
+		this._wegista(Event.any<any>(this.twee.onDidChangeSewection, this.twee.onDidChangeFocus)(() => {
+			const ewements = [...this.twee!.getSewection(), ...this.twee!.getFocus()];
+			fow (const ewement of ewements) {
+				if (ewement instanceof Mawka) {
+					const viewModew = this.mawkewsViewModew.getViewModew(ewement);
+					if (viewModew) {
+						viewModew.showWightBuwb();
 					}
 				}
 			}
 		}));
 
-		this._register(this.tree.onDidChangeSelection(() => this.onSelected()));
+		this._wegista(this.twee.onDidChangeSewection(() => this.onSewected()));
 	}
 
-	collapseAll(): void {
-		if (this.tree) {
-			this.tree.collapseAll();
-			this.tree.setSelection([]);
-			this.tree.setFocus([]);
-			this.tree.getHTMLElement().focus();
-			this.tree.focusFirst();
+	cowwapseAww(): void {
+		if (this.twee) {
+			this.twee.cowwapseAww();
+			this.twee.setSewection([]);
+			this.twee.setFocus([]);
+			this.twee.getHTMWEwement().focus();
+			this.twee.focusFiwst();
 		}
 	}
 
-	setMultiline(multiline: boolean): void {
-		this.markersViewModel.multiline = multiline;
+	setMuwtiwine(muwtiwine: boowean): void {
+		this.mawkewsViewModew.muwtiwine = muwtiwine;
 	}
 
-	private onDidChangeMarkersViewVisibility(visible: boolean): void {
-		this.onVisibleDisposables.clear();
-		if (visible) {
-			for (const disposable of this.reInitialize()) {
-				this.onVisibleDisposables.add(disposable);
+	pwivate onDidChangeMawkewsViewVisibiwity(visibwe: boowean): void {
+		this.onVisibweDisposabwes.cweaw();
+		if (visibwe) {
+			fow (const disposabwe of this.weInitiawize()) {
+				this.onVisibweDisposabwes.add(disposabwe);
 			}
-			this.refreshPanel();
+			this.wefweshPanew();
 		}
 	}
 
-	private reInitialize(): IDisposable[] {
-		const disposables = [];
+	pwivate weInitiawize(): IDisposabwe[] {
+		const disposabwes = [];
 
-		// Markers Model
-		const readMarkers = (resource?: URI) => this.markerService.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
-		this.markersModel.setResourceMarkers(groupBy(readMarkers(), compareMarkersByUri).map(group => [group[0].resource, group]));
-		disposables.push(Event.debounce<readonly URI[], ResourceMap<URI>>(this.markerService.onMarkerChanged, (resourcesMap, resources) => {
-			resourcesMap = resourcesMap || new ResourceMap<URI>();
-			resources.forEach(resource => resourcesMap!.set(resource, resource));
-			return resourcesMap;
-		}, 64)(resourcesMap => {
-			this.markersModel.setResourceMarkers([...resourcesMap.values()].map(resource => [resource, readMarkers(resource)]));
+		// Mawkews Modew
+		const weadMawkews = (wesouwce?: UWI) => this.mawkewSewvice.wead({ wesouwce, sevewities: MawkewSevewity.Ewwow | MawkewSevewity.Wawning | MawkewSevewity.Info });
+		this.mawkewsModew.setWesouwceMawkews(gwoupBy(weadMawkews(), compaweMawkewsByUwi).map(gwoup => [gwoup[0].wesouwce, gwoup]));
+		disposabwes.push(Event.debounce<weadonwy UWI[], WesouwceMap<UWI>>(this.mawkewSewvice.onMawkewChanged, (wesouwcesMap, wesouwces) => {
+			wesouwcesMap = wesouwcesMap || new WesouwceMap<UWI>();
+			wesouwces.fowEach(wesouwce => wesouwcesMap!.set(wesouwce, wesouwce));
+			wetuwn wesouwcesMap;
+		}, 64)(wesouwcesMap => {
+			this.mawkewsModew.setWesouwceMawkews([...wesouwcesMap.vawues()].map(wesouwce => [wesouwce, weadMawkews(wesouwce)]));
 		}));
-		disposables.push(Event.any<MarkerChangesEvent | void>(this.markersModel.onDidChange, this.editorService.onDidActiveEditorChange)(changes => {
+		disposabwes.push(Event.any<MawkewChangesEvent | void>(this.mawkewsModew.onDidChange, this.editowSewvice.onDidActiveEditowChange)(changes => {
 			if (changes) {
-				this.onDidChangeModel(changes);
-			} else {
-				this.onActiveEditorChanged();
+				this.onDidChangeModew(changes);
+			} ewse {
+				this.onActiveEditowChanged();
 			}
 		}));
-		disposables.push(toDisposable(() => this.markersModel.reset()));
+		disposabwes.push(toDisposabwe(() => this.mawkewsModew.weset()));
 
-		// Markers View Model
-		this.markersModel.resourceMarkers.forEach(resourceMarker => resourceMarker.markers.forEach(marker => this.markersViewModel.add(marker)));
-		disposables.push(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
-		disposables.push(toDisposable(() => this.markersModel.resourceMarkers.forEach(resourceMarker => this.markersViewModel.remove(resourceMarker.resource))));
+		// Mawkews View Modew
+		this.mawkewsModew.wesouwceMawkews.fowEach(wesouwceMawka => wesouwceMawka.mawkews.fowEach(mawka => this.mawkewsViewModew.add(mawka)));
+		disposabwes.push(this.mawkewsViewModew.onDidChange(mawka => this.onDidChangeViewState(mawka)));
+		disposabwes.push(toDisposabwe(() => this.mawkewsModew.wesouwceMawkews.fowEach(wesouwceMawka => this.mawkewsViewModew.wemove(wesouwceMawka.wesouwce))));
 
-		// Markers Filters
-		disposables.push(this.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
-			this.reportFilteringUsed();
-			if (event.activeFile) {
-				this.refreshPanel();
-			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
-				this.updateFilter();
+		// Mawkews Fiwtews
+		disposabwes.push(this.fiwtews.onDidChange((event: IMawkewsFiwtewsChangeEvent) => {
+			this.wepowtFiwtewingUsed();
+			if (event.activeFiwe) {
+				this.wefweshPanew();
+			} ewse if (event.fiwtewText || event.excwudedFiwes || event.showWawnings || event.showEwwows || event.showInfos) {
+				this.updateFiwta();
 			}
 		}));
-		disposables.push(toDisposable(() => { this.cachedFilterStats = undefined; }));
+		disposabwes.push(toDisposabwe(() => { this.cachedFiwtewStats = undefined; }));
 
-		disposables.push(toDisposable(() => this.rangeHighlightDecorations.removeHighlightRange()));
+		disposabwes.push(toDisposabwe(() => this.wangeHighwightDecowations.wemoveHighwightWange()));
 
-		return disposables;
+		wetuwn disposabwes;
 	}
 
-	private onDidChangeModel(change: MarkerChangesEvent): void {
-		const resourceMarkers = [...change.added, ...change.removed, ...change.updated];
-		const resources: URI[] = [];
-		for (const { resource } of resourceMarkers) {
-			this.markersViewModel.remove(resource);
-			const resourceMarkers = this.markersModel.getResourceMarkers(resource);
-			if (resourceMarkers) {
-				for (const marker of resourceMarkers.markers) {
-					this.markersViewModel.add(marker);
+	pwivate onDidChangeModew(change: MawkewChangesEvent): void {
+		const wesouwceMawkews = [...change.added, ...change.wemoved, ...change.updated];
+		const wesouwces: UWI[] = [];
+		fow (const { wesouwce } of wesouwceMawkews) {
+			this.mawkewsViewModew.wemove(wesouwce);
+			const wesouwceMawkews = this.mawkewsModew.getWesouwceMawkews(wesouwce);
+			if (wesouwceMawkews) {
+				fow (const mawka of wesouwceMawkews.mawkews) {
+					this.mawkewsViewModew.add(mawka);
 				}
 			}
-			resources.push(resource);
+			wesouwces.push(wesouwce);
 		}
-		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(resources);
-		this.refreshPanel(change);
-		this.updateRangeHighlights();
-		if (this.currentResourceGotAddedToMarkersData) {
-			this.autoReveal();
-			this.currentResourceGotAddedToMarkersData = false;
+		this.cuwwentWesouwceGotAddedToMawkewsData = this.cuwwentWesouwceGotAddedToMawkewsData || this.isCuwwentWesouwceGotAddedToMawkewsData(wesouwces);
+		this.wefweshPanew(change);
+		this.updateWangeHighwights();
+		if (this.cuwwentWesouwceGotAddedToMawkewsData) {
+			this.autoWeveaw();
+			this.cuwwentWesouwceGotAddedToMawkewsData = fawse;
 		}
 	}
 
-	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
-		const currentlyActiveResource = this.currentActiveResource;
-		if (!currentlyActiveResource) {
-			return false;
+	pwivate isCuwwentWesouwceGotAddedToMawkewsData(changedWesouwces: UWI[]) {
+		const cuwwentwyActiveWesouwce = this.cuwwentActiveWesouwce;
+		if (!cuwwentwyActiveWesouwce) {
+			wetuwn fawse;
 		}
-		const resourceForCurrentActiveResource = this.getResourceForCurrentActiveResource();
-		if (resourceForCurrentActiveResource) {
-			return false;
+		const wesouwceFowCuwwentActiveWesouwce = this.getWesouwceFowCuwwentActiveWesouwce();
+		if (wesouwceFowCuwwentActiveWesouwce) {
+			wetuwn fawse;
 		}
-		return changedResources.some(r => r.toString() === currentlyActiveResource.toString());
+		wetuwn changedWesouwces.some(w => w.toStwing() === cuwwentwyActiveWesouwce.toStwing());
 	}
 
-	private onActiveEditorChanged(): void {
-		this.setCurrentActiveEditor();
-		if (this.filters.activeFile) {
-			this.refreshPanel();
+	pwivate onActiveEditowChanged(): void {
+		this.setCuwwentActiveEditow();
+		if (this.fiwtews.activeFiwe) {
+			this.wefweshPanew();
 		}
-		this.autoReveal();
+		this.autoWeveaw();
 	}
 
-	private setCurrentActiveEditor(): void {
-		const activeEditor = this.editorService.activeEditor;
-		this.currentActiveResource = activeEditor ? withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null;
+	pwivate setCuwwentActiveEditow(): void {
+		const activeEditow = this.editowSewvice.activeEditow;
+		this.cuwwentActiveWesouwce = activeEditow ? withUndefinedAsNuww(EditowWesouwceAccessow.getOwiginawUwi(activeEditow, { suppowtSideBySide: SideBySideEditow.PWIMAWY })) : nuww;
 	}
 
-	private onSelected(): void {
-		if (this.tree) {
-			let selection = this.tree.getSelection();
-			if (selection && selection.length > 0) {
-				this.lastSelectedRelativeTop = this.tree!.getRelativeTop(selection[0]) || 0;
+	pwivate onSewected(): void {
+		if (this.twee) {
+			wet sewection = this.twee.getSewection();
+			if (sewection && sewection.wength > 0) {
+				this.wastSewectedWewativeTop = this.twee!.getWewativeTop(sewection[0]) || 0;
 			}
 		}
 	}
 
-	private hasNoProblems(): boolean {
-		const { total, filtered } = this.getFilterStats();
-		return total === 0 || filtered === 0;
+	pwivate hasNoPwobwems(): boowean {
+		const { totaw, fiwtewed } = this.getFiwtewStats();
+		wetuwn totaw === 0 || fiwtewed === 0;
 	}
 
-	private renderContent(): void {
-		this.cachedFilterStats = undefined;
-		this.resetTree();
-		if (this.tree) {
-			this.tree.toggleVisibility(this.hasNoProblems());
+	pwivate wendewContent(): void {
+		this.cachedFiwtewStats = undefined;
+		this.wesetTwee();
+		if (this.twee) {
+			this.twee.toggweVisibiwity(this.hasNoPwobwems());
 		}
-		this.renderMessage();
+		this.wendewMessage();
 	}
 
-	private renderMessage(): void {
-		if (!this.messageBoxContainer || !this.ariaLabelElement) {
-			return;
+	pwivate wendewMessage(): void {
+		if (!this.messageBoxContaina || !this.awiaWabewEwement) {
+			wetuwn;
 		}
-		dom.clearNode(this.messageBoxContainer);
-		const { total, filtered } = this.getFilterStats();
+		dom.cweawNode(this.messageBoxContaina);
+		const { totaw, fiwtewed } = this.getFiwtewStats();
 
-		if (filtered === 0) {
-			this.messageBoxContainer.style.display = 'block';
-			this.messageBoxContainer.setAttribute('tabIndex', '0');
-			if (this.filters.activeFile) {
-				this.renderFilterMessageForActiveFile(this.messageBoxContainer);
-			} else {
-				if (total > 0) {
-					this.renderFilteredByFilterMessage(this.messageBoxContainer);
-				} else {
-					this.renderNoProblemsMessage(this.messageBoxContainer);
+		if (fiwtewed === 0) {
+			this.messageBoxContaina.stywe.dispway = 'bwock';
+			this.messageBoxContaina.setAttwibute('tabIndex', '0');
+			if (this.fiwtews.activeFiwe) {
+				this.wendewFiwtewMessageFowActiveFiwe(this.messageBoxContaina);
+			} ewse {
+				if (totaw > 0) {
+					this.wendewFiwtewedByFiwtewMessage(this.messageBoxContaina);
+				} ewse {
+					this.wendewNoPwobwemsMessage(this.messageBoxContaina);
 				}
 			}
-		} else {
-			this.messageBoxContainer.style.display = 'none';
-			if (filtered === total) {
-				this.setAriaLabel(localize('No problems filtered', "Showing {0} problems", total));
-			} else {
-				this.setAriaLabel(localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+		} ewse {
+			this.messageBoxContaina.stywe.dispway = 'none';
+			if (fiwtewed === totaw) {
+				this.setAwiaWabew(wocawize('No pwobwems fiwtewed', "Showing {0} pwobwems", totaw));
+			} ewse {
+				this.setAwiaWabew(wocawize('pwobwems fiwtewed', "Showing {0} of {1} pwobwems", fiwtewed, totaw));
 			}
-			this.messageBoxContainer.removeAttribute('tabIndex');
+			this.messageBoxContaina.wemoveAttwibute('tabIndex');
 		}
 	}
 
-	private renderFilterMessageForActiveFile(container: HTMLElement): void {
-		if (this.currentActiveResource && this.markersModel.getResourceMarkers(this.currentActiveResource)) {
-			this.renderFilteredByFilterMessage(container);
-		} else {
-			this.renderNoProblemsMessageForActiveFile(container);
+	pwivate wendewFiwtewMessageFowActiveFiwe(containa: HTMWEwement): void {
+		if (this.cuwwentActiveWesouwce && this.mawkewsModew.getWesouwceMawkews(this.cuwwentActiveWesouwce)) {
+			this.wendewFiwtewedByFiwtewMessage(containa);
+		} ewse {
+			this.wendewNoPwobwemsMessageFowActiveFiwe(containa);
 		}
 	}
 
-	private renderFilteredByFilterMessage(container: HTMLElement) {
-		const span1 = dom.append(container, dom.$('span'));
-		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS;
-		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('clearFilter', "Clear Filters");
-		link.setAttribute('tabIndex', '0');
-		const span2 = dom.append(container, dom.$('span'));
+	pwivate wendewFiwtewedByFiwtewMessage(containa: HTMWEwement) {
+		const span1 = dom.append(containa, dom.$('span'));
+		span1.textContent = Messages.MAWKEWS_PANEW_NO_PWOBWEMS_FIWTEWS;
+		const wink = dom.append(containa, dom.$('a.messageAction'));
+		wink.textContent = wocawize('cweawFiwta', "Cweaw Fiwtews");
+		wink.setAttwibute('tabIndex', '0');
+		const span2 = dom.append(containa, dom.$('span'));
 		span2.textContent = '.';
-		dom.addStandardDisposableListener(link, dom.EventType.CLICK, () => this.clearFilters());
-		dom.addStandardDisposableListener(link, dom.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				this.clearFilters();
-				e.stopPropagation();
+		dom.addStandawdDisposabweWistena(wink, dom.EventType.CWICK, () => this.cweawFiwtews());
+		dom.addStandawdDisposabweWistena(wink, dom.EventType.KEY_DOWN, (e: IKeyboawdEvent) => {
+			if (e.equaws(KeyCode.Enta) || e.equaws(KeyCode.Space)) {
+				this.cweawFiwtews();
+				e.stopPwopagation();
 			}
 		});
-		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+		this.setAwiaWabew(Messages.MAWKEWS_PANEW_NO_PWOBWEMS_FIWTEWS);
 	}
 
-	private renderNoProblemsMessageForActiveFile(container: HTMLElement) {
-		const span = dom.append(container, dom.$('span'));
-		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT;
-		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
+	pwivate wendewNoPwobwemsMessageFowActiveFiwe(containa: HTMWEwement) {
+		const span = dom.append(containa, dom.$('span'));
+		span.textContent = Messages.MAWKEWS_PANEW_NO_PWOBWEMS_ACTIVE_FIWE_BUIWT;
+		this.setAwiaWabew(Messages.MAWKEWS_PANEW_NO_PWOBWEMS_ACTIVE_FIWE_BUIWT);
 	}
 
-	private renderNoProblemsMessage(container: HTMLElement) {
-		const span = dom.append(container, dom.$('span'));
-		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	pwivate wendewNoPwobwemsMessage(containa: HTMWEwement) {
+		const span = dom.append(containa, dom.$('span'));
+		span.textContent = Messages.MAWKEWS_PANEW_NO_PWOBWEMS_BUIWT;
+		this.setAwiaWabew(Messages.MAWKEWS_PANEW_NO_PWOBWEMS_BUIWT);
 	}
 
-	private setAriaLabel(label: string): void {
-		if (this.tree) {
-			this.tree.ariaLabel = label;
+	pwivate setAwiaWabew(wabew: stwing): void {
+		if (this.twee) {
+			this.twee.awiaWabew = wabew;
 		}
-		this.ariaLabelElement!.setAttribute('aria-label', label);
+		this.awiaWabewEwement!.setAttwibute('awia-wabew', wabew);
 	}
 
-	private clearFilters(): void {
-		this.filters.filterText = '';
-		this.filters.excludedFiles = false;
-		this.filters.showErrors = true;
-		this.filters.showWarnings = true;
-		this.filters.showInfos = true;
+	pwivate cweawFiwtews(): void {
+		this.fiwtews.fiwtewText = '';
+		this.fiwtews.excwudedFiwes = fawse;
+		this.fiwtews.showEwwows = twue;
+		this.fiwtews.showWawnings = twue;
+		this.fiwtews.showInfos = twue;
 	}
 
-	private autoReveal(focus: boolean = false): void {
-		// No need to auto reveal if active file filter is on
-		if (this.filters.activeFile || !this.tree) {
-			return;
+	pwivate autoWeveaw(focus: boowean = fawse): void {
+		// No need to auto weveaw if active fiwe fiwta is on
+		if (this.fiwtews.activeFiwe || !this.twee) {
+			wetuwn;
 		}
-		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
-		if (typeof autoReveal === 'boolean' && autoReveal) {
-			let currentActiveResource = this.getResourceForCurrentActiveResource();
-			if (currentActiveResource) {
-				if (this.tree.hasElement(currentActiveResource)) {
-					if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-						this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+		wet autoWeveaw = this.configuwationSewvice.getVawue<boowean>('pwobwems.autoWeveaw');
+		if (typeof autoWeveaw === 'boowean' && autoWeveaw) {
+			wet cuwwentActiveWesouwce = this.getWesouwceFowCuwwentActiveWesouwce();
+			if (cuwwentActiveWesouwce) {
+				if (this.twee.hasEwement(cuwwentActiveWesouwce)) {
+					if (!this.twee.isCowwapsed(cuwwentActiveWesouwce) && this.hasSewectedMawkewFow(cuwwentActiveWesouwce)) {
+						this.twee.weveaw(this.twee.getSewection()[0], this.wastSewectedWewativeTop);
 						if (focus) {
-							this.tree.setFocus(this.tree.getSelection());
+							this.twee.setFocus(this.twee.getSewection());
 						}
-					} else {
-						this.tree.expand(currentActiveResource);
-						this.tree.reveal(currentActiveResource, 0);
+					} ewse {
+						this.twee.expand(cuwwentActiveWesouwce);
+						this.twee.weveaw(cuwwentActiveWesouwce, 0);
 
 						if (focus) {
-							this.tree.setFocus([currentActiveResource]);
-							this.tree.setSelection([currentActiveResource]);
+							this.twee.setFocus([cuwwentActiveWesouwce]);
+							this.twee.setSewection([cuwwentActiveWesouwce]);
 						}
 					}
 				}
-			} else if (focus) {
-				this.tree.setSelection([]);
-				this.tree.focusFirst();
+			} ewse if (focus) {
+				this.twee.setSewection([]);
+				this.twee.focusFiwst();
 			}
 		}
 	}
 
-	private getResourceForCurrentActiveResource(): ResourceMarkers | null {
-		return this.currentActiveResource ? this.markersModel.getResourceMarkers(this.currentActiveResource) : null;
+	pwivate getWesouwceFowCuwwentActiveWesouwce(): WesouwceMawkews | nuww {
+		wetuwn this.cuwwentActiveWesouwce ? this.mawkewsModew.getWesouwceMawkews(this.cuwwentActiveWesouwce) : nuww;
 	}
 
-	private hasSelectedMarkerFor(resource: ResourceMarkers): boolean {
-		if (this.tree) {
-			let selectedElement = this.tree.getSelection();
-			if (selectedElement && selectedElement.length > 0) {
-				if (selectedElement[0] instanceof Marker) {
-					if (resource.has((<Marker>selectedElement[0]).marker.resource)) {
-						return true;
+	pwivate hasSewectedMawkewFow(wesouwce: WesouwceMawkews): boowean {
+		if (this.twee) {
+			wet sewectedEwement = this.twee.getSewection();
+			if (sewectedEwement && sewectedEwement.wength > 0) {
+				if (sewectedEwement[0] instanceof Mawka) {
+					if (wesouwce.has((<Mawka>sewectedEwement[0]).mawka.wesouwce)) {
+						wetuwn twue;
 					}
 				}
 			}
 		}
-		return false;
+		wetuwn fawse;
 	}
 
-	private updateRangeHighlights() {
-		this.rangeHighlightDecorations.removeHighlightRange();
-		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
-			this.highlightCurrentSelectedMarkerRange();
+	pwivate updateWangeHighwights() {
+		this.wangeHighwightDecowations.wemoveHighwightWange();
+		if (this.twee && this.twee.getHTMWEwement() === document.activeEwement) {
+			this.highwightCuwwentSewectedMawkewWange();
 		}
 	}
 
-	private highlightCurrentSelectedMarkerRange() {
-		const selections = this.tree ? this.tree.getSelection() : [];
+	pwivate highwightCuwwentSewectedMawkewWange() {
+		const sewections = this.twee ? this.twee.getSewection() : [];
 
-		if (selections.length !== 1) {
-			return;
+		if (sewections.wength !== 1) {
+			wetuwn;
 		}
 
-		const selection = selections[0];
+		const sewection = sewections[0];
 
-		if (!(selection instanceof Marker)) {
-			return;
+		if (!(sewection instanceof Mawka)) {
+			wetuwn;
 		}
 
-		this.rangeHighlightDecorations.highlightRange(selection);
+		this.wangeHighwightDecowations.highwightWange(sewection);
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<MarkerElement | null>): void {
-		const element = e.element;
-		if (!element) {
-			return;
+	pwivate onContextMenu(e: ITweeContextMenuEvent<MawkewEwement | nuww>): void {
+		const ewement = e.ewement;
+		if (!ewement) {
+			wetuwn;
 		}
 
-		e.browserEvent.preventDefault();
-		e.browserEvent.stopPropagation();
+		e.bwowsewEvent.pweventDefauwt();
+		e.bwowsewEvent.stopPwopagation();
 
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => e.anchor!,
-			getActions: () => this.getMenuActions(element),
+		this.contextMenuSewvice.showContextMenu({
+			getAnchow: () => e.anchow!,
+			getActions: () => this.getMenuActions(ewement),
 			getActionViewItem: (action) => {
-				const keybinding = this.keybindingService.lookupKeybinding(action.id);
+				const keybinding = this.keybindingSewvice.wookupKeybinding(action.id);
 				if (keybinding) {
-					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+					wetuwn new ActionViewItem(action, action, { wabew: twue, keybinding: keybinding.getWabew() });
 				}
-				return undefined;
+				wetuwn undefined;
 			},
-			onHide: (wasCancelled?: boolean) => {
-				if (wasCancelled) {
-					this.tree!.domFocus();
+			onHide: (wasCancewwed?: boowean) => {
+				if (wasCancewwed) {
+					this.twee!.domFocus();
 				}
 			}
 		});
 	}
 
-	private getMenuActions(element: MarkerElement): IAction[] {
-		const result: IAction[] = [];
+	pwivate getMenuActions(ewement: MawkewEwement): IAction[] {
+		const wesuwt: IAction[] = [];
 
-		if (element instanceof Marker) {
-			const viewModel = this.markersViewModel.getViewModel(element);
-			if (viewModel) {
-				const quickFixActions = viewModel.quickFixAction.quickFixes;
-				if (quickFixActions.length) {
-					result.push(...quickFixActions);
-					result.push(new Separator());
+		if (ewement instanceof Mawka) {
+			const viewModew = this.mawkewsViewModew.getViewModew(ewement);
+			if (viewModew) {
+				const quickFixActions = viewModew.quickFixAction.quickFixes;
+				if (quickFixActions.wength) {
+					wesuwt.push(...quickFixActions);
+					wesuwt.push(new Sepawatow());
 				}
 			}
 		}
 
-		const menu = this.menuService.createMenu(MenuId.ProblemsPanelContext, this.tree!.contextKeyService);
-		createAndFillInContextMenuActions(menu, undefined, result);
+		const menu = this.menuSewvice.cweateMenu(MenuId.PwobwemsPanewContext, this.twee!.contextKeySewvice);
+		cweateAndFiwwInContextMenuActions(menu, undefined, wesuwt);
 		menu.dispose();
-		return result;
+		wetuwn wesuwt;
 	}
 
-	public getFocusElement(): MarkerElement | undefined {
-		return this.tree?.getFocus()[0] || undefined;
+	pubwic getFocusEwement(): MawkewEwement | undefined {
+		wetuwn this.twee?.getFocus()[0] || undefined;
 	}
 
-	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === `workbench.actions.treeView.${this.id}.filter`) {
-			return this.instantiationService.createInstance(MarkersFilterActionViewItem, action, this);
+	pubwic ovewwide getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === `wowkbench.actions.tweeView.${this.id}.fiwta`) {
+			wetuwn this.instantiationSewvice.cweateInstance(MawkewsFiwtewActionViewItem, action, this);
 		}
-		return super.getActionViewItem(action);
+		wetuwn supa.getActionViewItem(action);
 	}
 
-	getFilterStats(): { total: number; filtered: number; } {
-		if (!this.cachedFilterStats) {
-			this.cachedFilterStats = this.computeFilterStats();
+	getFiwtewStats(): { totaw: numba; fiwtewed: numba; } {
+		if (!this.cachedFiwtewStats) {
+			this.cachedFiwtewStats = this.computeFiwtewStats();
 		}
 
-		return this.cachedFilterStats;
+		wetuwn this.cachedFiwtewStats;
 	}
 
-	private computeFilterStats(): { total: number; filtered: number; } {
-		let filtered = 0;
-		if (this.tree) {
-			const root = this.tree.getNode();
+	pwivate computeFiwtewStats(): { totaw: numba; fiwtewed: numba; } {
+		wet fiwtewed = 0;
+		if (this.twee) {
+			const woot = this.twee.getNode();
 
-			for (const resourceMarkerNode of root.children) {
-				for (const markerNode of resourceMarkerNode.children) {
-					if (resourceMarkerNode.visible && markerNode.visible) {
-						filtered++;
+			fow (const wesouwceMawkewNode of woot.chiwdwen) {
+				fow (const mawkewNode of wesouwceMawkewNode.chiwdwen) {
+					if (wesouwceMawkewNode.visibwe && mawkewNode.visibwe) {
+						fiwtewed++;
 					}
 				}
 			}
 		}
 
-		return { total: this.markersModel.total, filtered };
+		wetuwn { totaw: this.mawkewsModew.totaw, fiwtewed };
 	}
 
-	private getTelemetryData({ source, code }: IMarker): any {
-		return { source, code };
+	pwivate getTewemetwyData({ souwce, code }: IMawka): any {
+		wetuwn { souwce, code };
 	}
 
-	private reportFilteringUsed(): void {
+	pwivate wepowtFiwtewingUsed(): void {
 		const data = {
-			errors: this.filters.showErrors,
-			warnings: this.filters.showWarnings,
-			infos: this.filters.showInfos,
-			activeFile: this.filters.activeFile,
-			excludedFiles: this.filters.excludedFiles,
+			ewwows: this.fiwtews.showEwwows,
+			wawnings: this.fiwtews.showWawnings,
+			infos: this.fiwtews.showInfos,
+			activeFiwe: this.fiwtews.activeFiwe,
+			excwudedFiwes: this.fiwtews.excwudedFiwes,
 		};
-		/* __GDPR__
-			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"activeFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"excludedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		/* __GDPW__
+			"pwobwems.fiwta" : {
+				"ewwows" : { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"wawnings": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"infos": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"activeFiwe": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue },
+				"excwudedFiwes": { "cwassification": "SystemMetaData", "puwpose": "FeatuweInsight", "isMeasuwement": twue }
 			}
 		*/
-		this.telemetryService.publicLog('problems.filter', data);
+		this.tewemetwySewvice.pubwicWog('pwobwems.fiwta', data);
 	}
 
-	override saveState(): void {
-		this.panelState['filter'] = this.filters.filterText;
-		this.panelState['filterHistory'] = this.filters.filterHistory;
-		this.panelState['showErrors'] = this.filters.showErrors;
-		this.panelState['showWarnings'] = this.filters.showWarnings;
-		this.panelState['showInfos'] = this.filters.showInfos;
-		this.panelState['useFilesExclude'] = this.filters.excludedFiles;
-		this.panelState['activeFile'] = this.filters.activeFile;
-		this.panelState['multiline'] = this.markersViewModel.multiline;
+	ovewwide saveState(): void {
+		this.panewState['fiwta'] = this.fiwtews.fiwtewText;
+		this.panewState['fiwtewHistowy'] = this.fiwtews.fiwtewHistowy;
+		this.panewState['showEwwows'] = this.fiwtews.showEwwows;
+		this.panewState['showWawnings'] = this.fiwtews.showWawnings;
+		this.panewState['showInfos'] = this.fiwtews.showInfos;
+		this.panewState['useFiwesExcwude'] = this.fiwtews.excwudedFiwes;
+		this.panewState['activeFiwe'] = this.fiwtews.activeFiwe;
+		this.panewState['muwtiwine'] = this.mawkewsViewModew.muwtiwine;
 
-		super.saveState();
+		supa.saveState();
 	}
 
-	override dispose() {
-		super.dispose();
+	ovewwide dispose() {
+		supa.dispose();
 	}
 
 }
 
-class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
+cwass MawkewsTwee extends WowkbenchObjectTwee<MawkewEwement, FiwtewData> {
 
-	constructor(
-		user: string,
-		readonly container: HTMLElement,
-		delegate: IListVirtualDelegate<MarkerElement>,
-		renderers: ITreeRenderer<MarkerElement, FilterData, any>[],
-		options: IWorkbenchObjectTreeOptions<MarkerElement, FilterData>,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+	constwuctow(
+		usa: stwing,
+		weadonwy containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<MawkewEwement>,
+		wendewews: ITweeWendewa<MawkewEwement, FiwtewData, any>[],
+		options: IWowkbenchObjectTweeOptions<MawkewEwement, FiwtewData>,
+		@IContextKeySewvice contextKeySewvice: IContextKeySewvice,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@IAccessibiwitySewvice accessibiwitySewvice: IAccessibiwitySewvice
 	) {
-		super(user, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService);
+		supa(usa, containa, dewegate, wendewews, options, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, keybindingSewvice, accessibiwitySewvice);
 	}
 
-	override layout(height: number, width: number): void {
-		this.container.style.height = `${height}px`;
-		super.layout(height, width);
+	ovewwide wayout(height: numba, width: numba): void {
+		this.containa.stywe.height = `${height}px`;
+		supa.wayout(height, width);
 	}
 
-	toggleVisibility(hide: boolean): void {
-		this.container.classList.toggle('hidden', hide);
+	toggweVisibiwity(hide: boowean): void {
+		this.containa.cwassWist.toggwe('hidden', hide);
 	}
 
-	isVisible(): boolean {
-		return !this.container.classList.contains('hidden');
+	isVisibwe(): boowean {
+		wetuwn !this.containa.cwassWist.contains('hidden');
 	}
 
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+wegistewThemingPawticipant((theme: ICowowTheme, cowwectow: ICssStyweCowwectow) => {
 
-	// Lightbulb Icon
-	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
-	if (editorLightBulbForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .markers-panel-container ${Codicon.lightBulb.cssSelector} {
-			color: ${editorLightBulbForegroundColor};
+	// Wightbuwb Icon
+	const editowWightBuwbFowegwoundCowow = theme.getCowow(editowWightBuwbFowegwound);
+	if (editowWightBuwbFowegwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .mawkews-panew-containa ${Codicon.wightBuwb.cssSewectow} {
+			cowow: ${editowWightBuwbFowegwoundCowow};
 		}`);
 	}
 
-	// Lightbulb Auto Fix Icon
-	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
-	if (editorLightBulbAutoFixForegroundColor) {
-		collector.addRule(`
-		.monaco-workbench .markers-panel-container ${Codicon.lightbulbAutofix.cssSelector} {
-			color: ${editorLightBulbAutoFixForegroundColor};
+	// Wightbuwb Auto Fix Icon
+	const editowWightBuwbAutoFixFowegwoundCowow = theme.getCowow(editowWightBuwbAutoFixFowegwound);
+	if (editowWightBuwbAutoFixFowegwoundCowow) {
+		cowwectow.addWuwe(`
+		.monaco-wowkbench .mawkews-panew-containa ${Codicon.wightbuwbAutofix.cssSewectow} {
+			cowow: ${editowWightBuwbAutoFixFowegwoundCowow};
 		}`);
 	}
 

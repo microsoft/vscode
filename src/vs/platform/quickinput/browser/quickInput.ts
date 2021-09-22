@@ -1,231 +1,231 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IQuickInputOptions, IQuickInputStyles, QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { computeStyles } from 'vs/platform/theme/common/styler';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt { Wist } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IQuickInputOptions, IQuickInputStywes, QuickInputContwowwa } fwom 'vs/base/pawts/quickinput/bwowsa/quickInput';
+impowt { IAccessibiwitySewvice } fwom 'vs/pwatfowm/accessibiwity/common/accessibiwity';
+impowt { IContextKey, IContextKeySewvice, WawContextKey } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IWayoutSewvice } fwom 'vs/pwatfowm/wayout/bwowsa/wayoutSewvice';
+impowt { IWowkbenchWistOptions, WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { QuickAccessContwowwa } fwom 'vs/pwatfowm/quickinput/bwowsa/quickAccess';
+impowt { IQuickAccessContwowwa } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQuickInputSewvice, IQuickNavigateConfiguwation, IQuickPick, IQuickPickItem, QuickPickInput } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { activeContwastBowda, badgeBackgwound, badgeFowegwound, buttonBackgwound, buttonFowegwound, buttonHovewBackgwound, contwastBowda, inputBackgwound, inputBowda, inputFowegwound, inputVawidationEwwowBackgwound, inputVawidationEwwowBowda, inputVawidationEwwowFowegwound, inputVawidationInfoBackgwound, inputVawidationInfoBowda, inputVawidationInfoFowegwound, inputVawidationWawningBackgwound, inputVawidationWawningBowda, inputVawidationWawningFowegwound, keybindingWabewBackgwound, keybindingWabewBowda, keybindingWabewBottomBowda, keybindingWabewFowegwound, pickewGwoupBowda, pickewGwoupFowegwound, pwogwessBawBackgwound, quickInputBackgwound, quickInputFowegwound, quickInputWistFocusBackgwound, quickInputWistFocusFowegwound, quickInputWistFocusIconFowegwound, quickInputTitweBackgwound, widgetShadow } fwom 'vs/pwatfowm/theme/common/cowowWegistwy';
+impowt { computeStywes } fwom 'vs/pwatfowm/theme/common/stywa';
+impowt { IThemeSewvice, Themabwe } fwom 'vs/pwatfowm/theme/common/themeSewvice';
 
-export interface IQuickInputControllerHost extends ILayoutService { }
+expowt intewface IQuickInputContwowwewHost extends IWayoutSewvice { }
 
-export class QuickInputService extends Themable implements IQuickInputService {
+expowt cwass QuickInputSewvice extends Themabwe impwements IQuickInputSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	get backButton(): IQuickInputButton { return this.controller.backButton; }
+	get backButton(): IQuickInputButton { wetuwn this.contwowwa.backButton; }
 
-	get onShow() { return this.controller.onShow; }
-	get onHide() { return this.controller.onHide; }
+	get onShow() { wetuwn this.contwowwa.onShow; }
+	get onHide() { wetuwn this.contwowwa.onHide; }
 
-	private _controller: QuickInputController | undefined;
-	private get controller(): QuickInputController {
-		if (!this._controller) {
-			this._controller = this._register(this.createController());
+	pwivate _contwowwa: QuickInputContwowwa | undefined;
+	pwivate get contwowwa(): QuickInputContwowwa {
+		if (!this._contwowwa) {
+			this._contwowwa = this._wegista(this.cweateContwowwa());
 		}
 
-		return this._controller;
+		wetuwn this._contwowwa;
 	}
 
-	private _quickAccess: IQuickAccessController | undefined;
-	get quickAccess(): IQuickAccessController {
+	pwivate _quickAccess: IQuickAccessContwowwa | undefined;
+	get quickAccess(): IQuickAccessContwowwa {
 		if (!this._quickAccess) {
-			this._quickAccess = this._register(this.instantiationService.createInstance(QuickAccessController));
+			this._quickAccess = this._wegista(this.instantiationSewvice.cweateInstance(QuickAccessContwowwa));
 		}
 
-		return this._quickAccess;
+		wetuwn this._quickAccess;
 	}
 
-	private readonly contexts = new Map<string, IContextKey<boolean>>();
+	pwivate weadonwy contexts = new Map<stwing, IContextKey<boowean>>();
 
-	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILayoutService protected readonly layoutService: ILayoutService
+	constwuctow(
+		@IInstantiationSewvice pwivate weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IAccessibiwitySewvice pwivate weadonwy accessibiwitySewvice: IAccessibiwitySewvice,
+		@IWayoutSewvice pwotected weadonwy wayoutSewvice: IWayoutSewvice
 	) {
-		super(themeService);
+		supa(themeSewvice);
 	}
 
-	protected createController(host: IQuickInputControllerHost = this.layoutService, options?: Partial<IQuickInputOptions>): QuickInputController {
-		const defaultOptions: IQuickInputOptions = {
-			idPrefix: 'quickInput_', // Constant since there is still only one.
-			container: host.container,
-			ignoreFocusOut: () => false,
-			isScreenReaderOptimized: () => this.accessibilityService.isScreenReaderOptimized(),
-			backKeybindingLabel: () => undefined,
-			setContextKey: (id?: string) => this.setContextKey(id),
-			returnFocus: () => host.focus(),
-			createList: <T>(
-				user: string,
-				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
-				renderers: IListRenderer<T, any>[],
-				options: IWorkbenchListOptions<T>,
-			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
-			styles: this.computeStyles()
+	pwotected cweateContwowwa(host: IQuickInputContwowwewHost = this.wayoutSewvice, options?: Pawtiaw<IQuickInputOptions>): QuickInputContwowwa {
+		const defauwtOptions: IQuickInputOptions = {
+			idPwefix: 'quickInput_', // Constant since thewe is stiww onwy one.
+			containa: host.containa,
+			ignoweFocusOut: () => fawse,
+			isScweenWeadewOptimized: () => this.accessibiwitySewvice.isScweenWeadewOptimized(),
+			backKeybindingWabew: () => undefined,
+			setContextKey: (id?: stwing) => this.setContextKey(id),
+			wetuwnFocus: () => host.focus(),
+			cweateWist: <T>(
+				usa: stwing,
+				containa: HTMWEwement,
+				dewegate: IWistViwtuawDewegate<T>,
+				wendewews: IWistWendewa<T, any>[],
+				options: IWowkbenchWistOptions<T>,
+			) => this.instantiationSewvice.cweateInstance(WowkbenchWist, usa, containa, dewegate, wendewews, options) as Wist<T>,
+			stywes: this.computeStywes()
 		};
 
-		const controller = this._register(new QuickInputController({
-			...defaultOptions,
+		const contwowwa = this._wegista(new QuickInputContwowwa({
+			...defauwtOptions,
 			...options
 		}));
 
-		controller.layout(host.dimension, host.offset?.top ?? 0);
+		contwowwa.wayout(host.dimension, host.offset?.top ?? 0);
 
-		// Layout changes
-		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset?.top ?? 0)));
+		// Wayout changes
+		this._wegista(host.onDidWayout(dimension => contwowwa.wayout(dimension, host.offset?.top ?? 0)));
 
 		// Context keys
-		this._register(controller.onShow(() => this.resetContextKeys()));
-		this._register(controller.onHide(() => this.resetContextKeys()));
+		this._wegista(contwowwa.onShow(() => this.wesetContextKeys()));
+		this._wegista(contwowwa.onHide(() => this.wesetContextKeys()));
 
-		return controller;
+		wetuwn contwowwa;
 	}
 
-	private setContextKey(id?: string) {
-		let key: IContextKey<boolean> | undefined;
+	pwivate setContextKey(id?: stwing) {
+		wet key: IContextKey<boowean> | undefined;
 		if (id) {
 			key = this.contexts.get(id);
 			if (!key) {
-				key = new RawContextKey<boolean>(id, false)
-					.bindTo(this.contextKeyService);
+				key = new WawContextKey<boowean>(id, fawse)
+					.bindTo(this.contextKeySewvice);
 				this.contexts.set(id, key);
 			}
 		}
 
 		if (key && key.get()) {
-			return; // already active context
+			wetuwn; // awweady active context
 		}
 
-		this.resetContextKeys();
+		this.wesetContextKeys();
 
 		if (key) {
-			key.set(true);
+			key.set(twue);
 		}
 	}
 
-	private resetContextKeys() {
-		this.contexts.forEach(context => {
+	pwivate wesetContextKeys() {
+		this.contexts.fowEach(context => {
 			if (context.get()) {
-				context.reset();
+				context.weset();
 			}
 		});
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
-		return this.controller.pick(picks, options, token);
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Pwomise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancewwationToken = CancewwationToken.None): Pwomise<(O extends { canPickMany: twue } ? T[] : T) | undefined> {
+		wetuwn this.contwowwa.pick(picks, options, token);
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return this.controller.input(options, token);
+	input(options: IInputOptions = {}, token: CancewwationToken = CancewwationToken.None): Pwomise<stwing | undefined> {
+		wetuwn this.contwowwa.input(options, token);
 	}
 
-	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
-		return this.controller.createQuickPick();
+	cweateQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
+		wetuwn this.contwowwa.cweateQuickPick();
 	}
 
-	createInputBox(): IInputBox {
-		return this.controller.createInputBox();
+	cweateInputBox(): IInputBox {
+		wetuwn this.contwowwa.cweateInputBox();
 	}
 
 	focus() {
-		this.controller.focus();
+		this.contwowwa.focus();
 	}
 
-	toggle() {
-		this.controller.toggle();
+	toggwe() {
+		this.contwowwa.toggwe();
 	}
 
-	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
-		this.controller.navigate(next, quickNavigate);
+	navigate(next: boowean, quickNavigate?: IQuickNavigateConfiguwation) {
+		this.contwowwa.navigate(next, quickNavigate);
 	}
 
 	accept(keyMods?: IKeyMods) {
-		return this.controller.accept(keyMods);
+		wetuwn this.contwowwa.accept(keyMods);
 	}
 
 	back() {
-		return this.controller.back();
+		wetuwn this.contwowwa.back();
 	}
 
-	cancel() {
-		return this.controller.cancel();
+	cancew() {
+		wetuwn this.contwowwa.cancew();
 	}
 
-	protected override updateStyles() {
-		this.controller.applyStyles(this.computeStyles());
+	pwotected ovewwide updateStywes() {
+		this.contwowwa.appwyStywes(this.computeStywes());
 	}
 
-	private computeStyles(): IQuickInputStyles {
-		return {
+	pwivate computeStywes(): IQuickInputStywes {
+		wetuwn {
 			widget: {
-				...computeStyles(this.theme, {
-					quickInputBackground,
-					quickInputForeground,
-					quickInputTitleBackground,
-					contrastBorder,
+				...computeStywes(this.theme, {
+					quickInputBackgwound,
+					quickInputFowegwound,
+					quickInputTitweBackgwound,
+					contwastBowda,
 					widgetShadow
 				}),
 			},
-			inputBox: computeStyles(this.theme, {
-				inputForeground,
-				inputBackground,
-				inputBorder,
-				inputValidationInfoBackground,
-				inputValidationInfoForeground,
-				inputValidationInfoBorder,
-				inputValidationWarningBackground,
-				inputValidationWarningForeground,
-				inputValidationWarningBorder,
-				inputValidationErrorBackground,
-				inputValidationErrorForeground,
-				inputValidationErrorBorder
+			inputBox: computeStywes(this.theme, {
+				inputFowegwound,
+				inputBackgwound,
+				inputBowda,
+				inputVawidationInfoBackgwound,
+				inputVawidationInfoFowegwound,
+				inputVawidationInfoBowda,
+				inputVawidationWawningBackgwound,
+				inputVawidationWawningFowegwound,
+				inputVawidationWawningBowda,
+				inputVawidationEwwowBackgwound,
+				inputVawidationEwwowFowegwound,
+				inputVawidationEwwowBowda
 			}),
-			countBadge: computeStyles(this.theme, {
-				badgeBackground,
-				badgeForeground,
-				badgeBorder: contrastBorder
+			countBadge: computeStywes(this.theme, {
+				badgeBackgwound,
+				badgeFowegwound,
+				badgeBowda: contwastBowda
 			}),
-			button: computeStyles(this.theme, {
-				buttonForeground,
-				buttonBackground,
-				buttonHoverBackground,
-				buttonBorder: contrastBorder
+			button: computeStywes(this.theme, {
+				buttonFowegwound,
+				buttonBackgwound,
+				buttonHovewBackgwound,
+				buttonBowda: contwastBowda
 			}),
-			progressBar: computeStyles(this.theme, {
-				progressBarBackground
+			pwogwessBaw: computeStywes(this.theme, {
+				pwogwessBawBackgwound
 			}),
-			keybindingLabel: computeStyles(this.theme, {
-				keybindingLabelBackground,
-				keybindingLabelForeground,
-				keybindingLabelBorder,
-				keybindingLabelBottomBorder,
-				keybindingLabelShadow: widgetShadow
+			keybindingWabew: computeStywes(this.theme, {
+				keybindingWabewBackgwound,
+				keybindingWabewFowegwound,
+				keybindingWabewBowda,
+				keybindingWabewBottomBowda,
+				keybindingWabewShadow: widgetShadow
 			}),
-			list: computeStyles(this.theme, {
-				listBackground: quickInputBackground,
-				// Look like focused when inactive.
-				listInactiveFocusForeground: quickInputListFocusForeground,
-				listInactiveSelectionIconForeground: quickInputListFocusIconForeground,
-				listInactiveFocusBackground: quickInputListFocusBackground,
-				listFocusOutline: activeContrastBorder,
-				listInactiveFocusOutline: activeContrastBorder,
-				pickerGroupBorder,
-				pickerGroupForeground
+			wist: computeStywes(this.theme, {
+				wistBackgwound: quickInputBackgwound,
+				// Wook wike focused when inactive.
+				wistInactiveFocusFowegwound: quickInputWistFocusFowegwound,
+				wistInactiveSewectionIconFowegwound: quickInputWistFocusIconFowegwound,
+				wistInactiveFocusBackgwound: quickInputWistFocusBackgwound,
+				wistFocusOutwine: activeContwastBowda,
+				wistInactiveFocusOutwine: activeContwastBowda,
+				pickewGwoupBowda,
+				pickewGwoupFowegwound
 			})
 		};
 	}

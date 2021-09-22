@@ -1,206 +1,206 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn } from 'child_process';
-import * as path from 'path';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getSystemShell } from 'vs/base/node/shell';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { spawn } fwom 'chiwd_pwocess';
+impowt * as path fwom 'path';
+impowt { CancewwationToken, CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { toEwwowMessage } fwom 'vs/base/common/ewwowMessage';
+impowt { cancewed, isPwomiseCancewedEwwow } fwom 'vs/base/common/ewwows';
+impowt { IPwocessEnviwonment, isWindows, OS } fwom 'vs/base/common/pwatfowm';
+impowt { genewateUuid } fwom 'vs/base/common/uuid';
+impowt { getSystemSheww } fwom 'vs/base/node/sheww';
+impowt { NativePawsedAwgs } fwom 'vs/pwatfowm/enviwonment/common/awgv';
+impowt { isWaunchedFwomCwi } fwom 'vs/pwatfowm/enviwonment/node/awgvHewpa';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 /**
- * We need to get the environment from a user's shell.
- * This should only be done when Code itself is not launched
- * from within a shell.
+ * We need to get the enviwonment fwom a usa's sheww.
+ * This shouwd onwy be done when Code itsewf is not waunched
+ * fwom within a sheww.
  */
-export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+expowt async function wesowveShewwEnv(wogSewvice: IWogSewvice, awgs: NativePawsedAwgs, env: IPwocessEnviwonment): Pwomise<typeof pwocess.env> {
 
-	// Skip if --force-disable-user-env
-	if (args['force-disable-user-env']) {
-		logService.trace('resolveShellEnv(): skipped (--force-disable-user-env)');
+	// Skip if --fowce-disabwe-usa-env
+	if (awgs['fowce-disabwe-usa-env']) {
+		wogSewvice.twace('wesowveShewwEnv(): skipped (--fowce-disabwe-usa-env)');
 
-		return {};
+		wetuwn {};
 	}
 
 	// Skip on windows
-	else if (isWindows) {
-		logService.trace('resolveShellEnv(): skipped (Windows)');
+	ewse if (isWindows) {
+		wogSewvice.twace('wesowveShewwEnv(): skipped (Windows)');
 
-		return {};
+		wetuwn {};
 	}
 
-	// Skip if running from CLI already
-	else if (isLaunchedFromCli(env) && !args['force-user-env']) {
-		logService.trace('resolveShellEnv(): skipped (VSCODE_CLI is set)');
+	// Skip if wunning fwom CWI awweady
+	ewse if (isWaunchedFwomCwi(env) && !awgs['fowce-usa-env']) {
+		wogSewvice.twace('wesowveShewwEnv(): skipped (VSCODE_CWI is set)');
 
-		return {};
+		wetuwn {};
 	}
 
-	// Otherwise resolve (macOS, Linux)
-	else {
-		if (isLaunchedFromCli(env)) {
-			logService.trace('resolveShellEnv(): running (--force-user-env)');
-		} else {
-			logService.trace('resolveShellEnv(): running (macOS/Linux)');
+	// Othewwise wesowve (macOS, Winux)
+	ewse {
+		if (isWaunchedFwomCwi(env)) {
+			wogSewvice.twace('wesowveShewwEnv(): wunning (--fowce-usa-env)');
+		} ewse {
+			wogSewvice.twace('wesowveShewwEnv(): wunning (macOS/Winux)');
 		}
 
-		// Call this only once and cache the promise for
-		// subsequent calls since this operation can be
-		// expensive (spawns a process).
-		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = new Promise(async resolve => {
-				const cts = new CancellationTokenSource();
+		// Caww this onwy once and cache the pwomise fow
+		// subsequent cawws since this opewation can be
+		// expensive (spawns a pwocess).
+		if (!unixShewwEnvPwomise) {
+			unixShewwEnvPwomise = new Pwomise(async wesowve => {
+				const cts = new CancewwationTokenSouwce();
 
-				// Give up resolving shell env after 10 seconds
+				// Give up wesowving sheww env afta 10 seconds
 				const timeout = setTimeout(() => {
-					logService.error(`[resolve shell env] Could not resolve shell environment within 10 seconds. Proceeding without shell environment...`);
+					wogSewvice.ewwow(`[wesowve sheww env] Couwd not wesowve sheww enviwonment within 10 seconds. Pwoceeding without sheww enviwonment...`);
 
-					cts.dispose(true);
-					resolve({});
+					cts.dispose(twue);
+					wesowve({});
 				}, 10000);
 
-				// Resolve shell env and handle errors
-				try {
-					const shellEnv = await doResolveUnixShellEnv(logService, cts.token);
+				// Wesowve sheww env and handwe ewwows
+				twy {
+					const shewwEnv = await doWesowveUnixShewwEnv(wogSewvice, cts.token);
 
-					resolve(shellEnv);
-				} catch (error) {
-					if (!isPromiseCanceledError(error)) {
-						logService.error(`[resolve shell env] Unable to resolve shell environment (${error}). Proceeding without shell environment...`);
+					wesowve(shewwEnv);
+				} catch (ewwow) {
+					if (!isPwomiseCancewedEwwow(ewwow)) {
+						wogSewvice.ewwow(`[wesowve sheww env] Unabwe to wesowve sheww enviwonment (${ewwow}). Pwoceeding without sheww enviwonment...`);
 					}
 
-					resolve({});
-				} finally {
-					clearTimeout(timeout);
+					wesowve({});
+				} finawwy {
+					cweawTimeout(timeout);
 					cts.dispose();
 				}
 			});
 		}
 
-		return unixShellEnvPromise;
+		wetuwn unixShewwEnvPwomise;
 	}
 }
 
-let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
+wet unixShewwEnvPwomise: Pwomise<typeof pwocess.env> | undefined = undefined;
 
-async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	const promise = new Promise<typeof process.env>(async (resolve, reject) => {
-		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
+async function doWesowveUnixShewwEnv(wogSewvice: IWogSewvice, token: CancewwationToken): Pwomise<typeof pwocess.env> {
+	const pwomise = new Pwomise<typeof pwocess.env>(async (wesowve, weject) => {
+		const wunAsNode = pwocess.env['EWECTWON_WUN_AS_NODE'];
+		wogSewvice.twace('getUnixShewwEnviwonment#wunAsNode', wunAsNode);
 
-		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-		logService.trace('getUnixShellEnvironment#noAttach', noAttach);
+		const noAttach = pwocess.env['EWECTWON_NO_ATTACH_CONSOWE'];
+		wogSewvice.twace('getUnixShewwEnviwonment#noAttach', noAttach);
 
-		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-		const regex = new RegExp(mark + '(.*)' + mark);
+		const mawk = genewateUuid().wepwace(/-/g, '').substw(0, 12);
+		const wegex = new WegExp(mawk + '(.*)' + mawk);
 
 		const env = {
-			...process.env,
-			ELECTRON_RUN_AS_NODE: '1',
-			ELECTRON_NO_ATTACH_CONSOLE: '1'
+			...pwocess.env,
+			EWECTWON_WUN_AS_NODE: '1',
+			EWECTWON_NO_ATTACH_CONSOWE: '1'
 		};
 
-		logService.trace('getUnixShellEnvironment#env', env);
-		const systemShellUnix = await getSystemShell(OS, env);
-		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
+		wogSewvice.twace('getUnixShewwEnviwonment#env', env);
+		const systemShewwUnix = await getSystemSheww(OS, env);
+		wogSewvice.twace('getUnixShewwEnviwonment#sheww', systemShewwUnix);
 
-		if (token.isCancellationRequested) {
-			return reject(canceled);
+		if (token.isCancewwationWequested) {
+			wetuwn weject(cancewed);
 		}
 
-		// handle popular non-POSIX shells
-		const name = path.basename(systemShellUnix);
-		let command: string, shellArgs: Array<string>;
-		if (/^pwsh(-preview)?$/.test(name)) {
-			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
-			// you escape single quotes inside of a single quoted string.
-			command = `& '${process.execPath}' -p '''${mark}'' + JSON.stringify(process.env) + ''${mark}'''`;
-			shellArgs = ['-Login', '-Command'];
-		} else {
-			command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
-			shellArgs = ['-ilc'];
+		// handwe popuwaw non-POSIX shewws
+		const name = path.basename(systemShewwUnix);
+		wet command: stwing, shewwAwgs: Awway<stwing>;
+		if (/^pwsh(-pweview)?$/.test(name)) {
+			// Owda vewsions of PowewSheww wemoves doubwe quotes sometimes so we use "doubwe singwe quotes" which is how
+			// you escape singwe quotes inside of a singwe quoted stwing.
+			command = `& '${pwocess.execPath}' -p '''${mawk}'' + JSON.stwingify(pwocess.env) + ''${mawk}'''`;
+			shewwAwgs = ['-Wogin', '-Command'];
+		} ewse {
+			command = `'${pwocess.execPath}' -p '"${mawk}" + JSON.stwingify(pwocess.env) + "${mawk}"'`;
+			shewwAwgs = ['-iwc'];
 		}
 
-		logService.trace('getUnixShellEnvironment#spawn', JSON.stringify(shellArgs), command);
+		wogSewvice.twace('getUnixShewwEnviwonment#spawn', JSON.stwingify(shewwAwgs), command);
 
-		const child = spawn(systemShellUnix, [...shellArgs, command], {
-			detached: true,
-			stdio: ['ignore', 'pipe', 'pipe'],
+		const chiwd = spawn(systemShewwUnix, [...shewwAwgs, command], {
+			detached: twue,
+			stdio: ['ignowe', 'pipe', 'pipe'],
 			env
 		});
 
-		token.onCancellationRequested(() => {
-			child.kill();
+		token.onCancewwationWequested(() => {
+			chiwd.kiww();
 
-			return reject(canceled);
+			wetuwn weject(cancewed);
 		});
 
-		child.on('error', err => {
-			logService.error('getUnixShellEnvironment#errorChildProcess', toErrorMessage(err));
-			resolve({});
+		chiwd.on('ewwow', eww => {
+			wogSewvice.ewwow('getUnixShewwEnviwonment#ewwowChiwdPwocess', toEwwowMessage(eww));
+			wesowve({});
 		});
 
-		const buffers: Buffer[] = [];
-		child.stdout.on('data', b => buffers.push(b));
+		const buffews: Buffa[] = [];
+		chiwd.stdout.on('data', b => buffews.push(b));
 
-		const stderr: Buffer[] = [];
-		child.stderr.on('data', b => stderr.push(b));
+		const stdeww: Buffa[] = [];
+		chiwd.stdeww.on('data', b => stdeww.push(b));
 
-		child.on('close', (code, signal) => {
-			const raw = Buffer.concat(buffers).toString('utf8');
-			logService.trace('getUnixShellEnvironment#raw', raw);
+		chiwd.on('cwose', (code, signaw) => {
+			const waw = Buffa.concat(buffews).toStwing('utf8');
+			wogSewvice.twace('getUnixShewwEnviwonment#waw', waw);
 
-			const stderrStr = Buffer.concat(stderr).toString('utf8');
-			if (stderrStr.trim()) {
-				logService.trace('getUnixShellEnvironment#stderr', stderrStr);
+			const stdewwStw = Buffa.concat(stdeww).toStwing('utf8');
+			if (stdewwStw.twim()) {
+				wogSewvice.twace('getUnixShewwEnviwonment#stdeww', stdewwStw);
 			}
 
-			if (code || signal) {
-				return reject(new Error(`Failed to get environment (code ${code}, signal ${signal})`));
+			if (code || signaw) {
+				wetuwn weject(new Ewwow(`Faiwed to get enviwonment (code ${code}, signaw ${signaw})`));
 			}
 
-			const match = regex.exec(raw);
-			const rawStripped = match ? match[1] : '{}';
+			const match = wegex.exec(waw);
+			const wawStwipped = match ? match[1] : '{}';
 
-			try {
-				const env = JSON.parse(rawStripped);
+			twy {
+				const env = JSON.pawse(wawStwipped);
 
-				if (runAsNode) {
-					env['ELECTRON_RUN_AS_NODE'] = runAsNode;
-				} else {
-					delete env['ELECTRON_RUN_AS_NODE'];
+				if (wunAsNode) {
+					env['EWECTWON_WUN_AS_NODE'] = wunAsNode;
+				} ewse {
+					dewete env['EWECTWON_WUN_AS_NODE'];
 				}
 
 				if (noAttach) {
-					env['ELECTRON_NO_ATTACH_CONSOLE'] = noAttach;
-				} else {
-					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
+					env['EWECTWON_NO_ATTACH_CONSOWE'] = noAttach;
+				} ewse {
+					dewete env['EWECTWON_NO_ATTACH_CONSOWE'];
 				}
 
-				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
-				delete env['XDG_RUNTIME_DIR'];
+				// https://github.com/micwosoft/vscode/issues/22593#issuecomment-336050758
+				dewete env['XDG_WUNTIME_DIW'];
 
-				logService.trace('getUnixShellEnvironment#result', env);
-				resolve(env);
-			} catch (err) {
-				logService.error('getUnixShellEnvironment#errorCaught', toErrorMessage(err));
-				reject(err);
+				wogSewvice.twace('getUnixShewwEnviwonment#wesuwt', env);
+				wesowve(env);
+			} catch (eww) {
+				wogSewvice.ewwow('getUnixShewwEnviwonment#ewwowCaught', toEwwowMessage(eww));
+				weject(eww);
 			}
 		});
 	});
 
-	try {
-		return await promise;
-	} catch (error) {
-		logService.error('getUnixShellEnvironment#error', toErrorMessage(error));
+	twy {
+		wetuwn await pwomise;
+	} catch (ewwow) {
+		wogSewvice.ewwow('getUnixShewwEnviwonment#ewwow', toEwwowMessage(ewwow));
 
-		return {}; // ignore any errors
+		wetuwn {}; // ignowe any ewwows
 	}
 }

@@ -1,15 +1,15 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+impowt { WendewingContext } fwom 'vs/editow/common/view/wendewingContext';
+impowt { ViewEventHandwa } fwom 'vs/editow/common/viewModew/viewEventHandwa';
 
-export abstract class DynamicViewOverlay extends ViewEventHandler {
+expowt abstwact cwass DynamicViewOvewway extends ViewEventHandwa {
 
-	public abstract prepareRender(ctx: RenderingContext): void;
+	pubwic abstwact pwepaweWenda(ctx: WendewingContext): void;
 
-	public abstract render(startLineNumber: number, lineNumber: number): string;
+	pubwic abstwact wenda(stawtWineNumba: numba, wineNumba: numba): stwing;
 
 }

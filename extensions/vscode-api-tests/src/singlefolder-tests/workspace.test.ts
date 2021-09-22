@@ -1,1132 +1,1132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as fs from 'fs';
-import { basename, join, posix } from 'path';
-import * as vscode from 'vscode';
-import { TestFS } from '../memfs';
-import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
+impowt * as assewt fwom 'assewt';
+impowt * as fs fwom 'fs';
+impowt { basename, join, posix } fwom 'path';
+impowt * as vscode fwom 'vscode';
+impowt { TestFS } fwom '../memfs';
+impowt { assewtNoWpc, cwoseAwwEditows, cweateWandomFiwe, deway, deweteFiwe, disposeAww, pathEquaws, wevewtAwwDiwty, wndName, testFs, withWogDisabwed } fwom '../utiws';
 
-suite('vscode API - workspace', () => {
+suite('vscode API - wowkspace', () => {
 
-	teardown(async function () {
-		assertNoRpc();
-		await closeAllEditors();
+	teawdown(async function () {
+		assewtNoWpc();
+		await cwoseAwwEditows();
 	});
 
-	test('MarkdownString', function () {
-		let md = new vscode.MarkdownString();
-		assert.strictEqual(md.value, '');
-		assert.strictEqual(md.isTrusted, undefined);
+	test('MawkdownStwing', function () {
+		wet md = new vscode.MawkdownStwing();
+		assewt.stwictEquaw(md.vawue, '');
+		assewt.stwictEquaw(md.isTwusted, undefined);
 
-		md = new vscode.MarkdownString('**bold**');
-		assert.strictEqual(md.value, '**bold**');
+		md = new vscode.MawkdownStwing('**bowd**');
+		assewt.stwictEquaw(md.vawue, '**bowd**');
 
-		md.appendText('**bold?**');
-		assert.strictEqual(md.value, '**bold**\\*\\*bold?\\*\\*');
+		md.appendText('**bowd?**');
+		assewt.stwictEquaw(md.vawue, '**bowd**\\*\\*bowd?\\*\\*');
 
-		md.appendMarkdown('**bold**');
-		assert.strictEqual(md.value, '**bold**\\*\\*bold?\\*\\***bold**');
+		md.appendMawkdown('**bowd**');
+		assewt.stwictEquaw(md.vawue, '**bowd**\\*\\*bowd?\\*\\***bowd**');
 	});
 
 
 	test('textDocuments', () => {
-		assert.ok(Array.isArray(vscode.workspace.textDocuments));
-		assert.throws(() => (<any>vscode.workspace).textDocuments = null);
+		assewt.ok(Awway.isAwway(vscode.wowkspace.textDocuments));
+		assewt.thwows(() => (<any>vscode.wowkspace).textDocuments = nuww);
 	});
 
-	test('rootPath', () => {
-		assert.ok(pathEquals(vscode.workspace.rootPath!, join(__dirname, '../../testWorkspace')));
-		assert.throws(() => (vscode.workspace as any).rootPath = 'farboo');
+	test('wootPath', () => {
+		assewt.ok(pathEquaws(vscode.wowkspace.wootPath!, join(__diwname, '../../testWowkspace')));
+		assewt.thwows(() => (vscode.wowkspace as any).wootPath = 'fawboo');
 	});
 
-	test('workspaceFile', () => {
-		assert.ok(!vscode.workspace.workspaceFile);
+	test('wowkspaceFiwe', () => {
+		assewt.ok(!vscode.wowkspace.wowkspaceFiwe);
 	});
 
-	test('workspaceFolders', () => {
-		if (vscode.workspace.workspaceFolders) {
-			assert.strictEqual(vscode.workspace.workspaceFolders.length, 1);
-			assert.ok(pathEquals(vscode.workspace.workspaceFolders[0].uri.fsPath, join(__dirname, '../../testWorkspace')));
+	test('wowkspaceFowdews', () => {
+		if (vscode.wowkspace.wowkspaceFowdews) {
+			assewt.stwictEquaw(vscode.wowkspace.wowkspaceFowdews.wength, 1);
+			assewt.ok(pathEquaws(vscode.wowkspace.wowkspaceFowdews[0].uwi.fsPath, join(__diwname, '../../testWowkspace')));
 		}
 	});
 
-	test('getWorkspaceFolder', () => {
-		const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(join(__dirname, '../../testWorkspace/far.js')));
-		assert.ok(!!folder);
+	test('getWowkspaceFowda', () => {
+		const fowda = vscode.wowkspace.getWowkspaceFowda(vscode.Uwi.fiwe(join(__diwname, '../../testWowkspace/faw.js')));
+		assewt.ok(!!fowda);
 
-		if (folder) {
-			assert.ok(pathEquals(folder.uri.fsPath, join(__dirname, '../../testWorkspace')));
+		if (fowda) {
+			assewt.ok(pathEquaws(fowda.uwi.fsPath, join(__diwname, '../../testWowkspace')));
 		}
 	});
 
 	test('openTextDocument', async () => {
-		const uri = await createRandomFile();
+		const uwi = await cweateWandomFiwe();
 
-		// not yet there
-		const existing1 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
-		assert.strictEqual(existing1, undefined);
+		// not yet thewe
+		const existing1 = vscode.wowkspace.textDocuments.find(doc => doc.uwi.toStwing() === uwi.toStwing());
+		assewt.stwictEquaw(existing1, undefined);
 
-		// open and assert its there
-		const doc = await vscode.workspace.openTextDocument(uri);
-		assert.ok(doc);
-		assert.strictEqual(doc.uri.toString(), uri.toString());
-		const existing2 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
-		assert.strictEqual(existing2 === doc, true);
+		// open and assewt its thewe
+		const doc = await vscode.wowkspace.openTextDocument(uwi);
+		assewt.ok(doc);
+		assewt.stwictEquaw(doc.uwi.toStwing(), uwi.toStwing());
+		const existing2 = vscode.wowkspace.textDocuments.find(doc => doc.uwi.toStwing() === uwi.toStwing());
+		assewt.stwictEquaw(existing2 === doc, twue);
 	});
 
-	test('openTextDocument, illegal path', () => {
-		return vscode.workspace.openTextDocument('funkydonky.txt').then(_doc => {
-			throw new Error('missing error');
-		}, _err => {
+	test('openTextDocument, iwwegaw path', () => {
+		wetuwn vscode.wowkspace.openTextDocument('funkydonky.txt').then(_doc => {
+			thwow new Ewwow('missing ewwow');
+		}, _eww => {
 			// good!
 		});
 	});
 
-	test('openTextDocument, untitled is dirty', async function () {
-		return vscode.workspace.openTextDocument(vscode.workspace.workspaceFolders![0].uri.with({ scheme: 'untitled', path: posix.join(vscode.workspace.workspaceFolders![0].uri.path, 'newfile.txt') })).then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
-			assert.ok(doc.isDirty);
+	test('openTextDocument, untitwed is diwty', async function () {
+		wetuwn vscode.wowkspace.openTextDocument(vscode.wowkspace.wowkspaceFowdews![0].uwi.with({ scheme: 'untitwed', path: posix.join(vscode.wowkspace.wowkspaceFowdews![0].uwi.path, 'newfiwe.txt') })).then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
+			assewt.ok(doc.isDiwty);
 		});
 	});
 
-	test('openTextDocument, untitled with host', function () {
-		const uri = vscode.Uri.parse('untitled://localhost/c%24/Users/jrieken/code/samples/foobar.txt');
-		return vscode.workspace.openTextDocument(uri).then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
+	test('openTextDocument, untitwed with host', function () {
+		const uwi = vscode.Uwi.pawse('untitwed://wocawhost/c%24/Usews/jwieken/code/sampwes/foobaw.txt');
+		wetuwn vscode.wowkspace.openTextDocument(uwi).then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
 		});
 	});
 
-	test('openTextDocument, untitled without path', function () {
-		return vscode.workspace.openTextDocument().then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
-			assert.ok(doc.isDirty);
+	test('openTextDocument, untitwed without path', function () {
+		wetuwn vscode.wowkspace.openTextDocument().then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
+			assewt.ok(doc.isDiwty);
 		});
 	});
 
-	test('openTextDocument, untitled without path but language ID', function () {
-		return vscode.workspace.openTextDocument({ language: 'xml' }).then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
-			assert.strictEqual(doc.languageId, 'xml');
-			assert.ok(doc.isDirty);
+	test('openTextDocument, untitwed without path but wanguage ID', function () {
+		wetuwn vscode.wowkspace.openTextDocument({ wanguage: 'xmw' }).then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
+			assewt.stwictEquaw(doc.wanguageId, 'xmw');
+			assewt.ok(doc.isDiwty);
 		});
 	});
 
-	test('openTextDocument, untitled without path but language ID and content', function () {
-		return vscode.workspace.openTextDocument({ language: 'html', content: '<h1>Hello world!</h1>' }).then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
-			assert.strictEqual(doc.languageId, 'html');
-			assert.ok(doc.isDirty);
-			assert.strictEqual(doc.getText(), '<h1>Hello world!</h1>');
+	test('openTextDocument, untitwed without path but wanguage ID and content', function () {
+		wetuwn vscode.wowkspace.openTextDocument({ wanguage: 'htmw', content: '<h1>Hewwo wowwd!</h1>' }).then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
+			assewt.stwictEquaw(doc.wanguageId, 'htmw');
+			assewt.ok(doc.isDiwty);
+			assewt.stwictEquaw(doc.getText(), '<h1>Hewwo wowwd!</h1>');
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function () {
-		const path = join(vscode.workspace.rootPath || '', './newfile.txt');
+	test('openTextDocument, untitwed cwoses on save', function () {
+		const path = join(vscode.wowkspace.wootPath || '', './newfiwe.txt');
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + path)).then(doc => {
-			assert.strictEqual(doc.uri.scheme, 'untitled');
-			assert.ok(doc.isDirty);
+		wetuwn vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('untitwed:' + path)).then(doc => {
+			assewt.stwictEquaw(doc.uwi.scheme, 'untitwed');
+			assewt.ok(doc.isDiwty);
 
-			let closed: vscode.TextDocument;
-			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
+			wet cwosed: vscode.TextDocument;
+			wet d0 = vscode.wowkspace.onDidCwoseTextDocument(e => cwosed = e);
 
-			return vscode.window.showTextDocument(doc).then(() => {
-				return doc.save().then((didSave: boolean) => {
+			wetuwn vscode.window.showTextDocument(doc).then(() => {
+				wetuwn doc.save().then((didSave: boowean) => {
 
-					assert.strictEqual(didSave, true, `FAILED to save${doc.uri.toString()}`);
+					assewt.stwictEquaw(didSave, twue, `FAIWED to save${doc.uwi.toStwing()}`);
 
-					assert.ok(closed === doc);
-					assert.ok(!doc.isDirty);
-					assert.ok(fs.existsSync(path));
+					assewt.ok(cwosed === doc);
+					assewt.ok(!doc.isDiwty);
+					assewt.ok(fs.existsSync(path));
 
 					d0.dispose();
-					fs.unlinkSync(join(vscode.workspace.rootPath || '', './newfile.txt'));
+					fs.unwinkSync(join(vscode.wowkspace.wootPath || '', './newfiwe.txt'));
 				});
 			});
 
 		});
 	});
 
-	test('openTextDocument, uri scheme/auth/path', function () {
+	test('openTextDocument, uwi scheme/auth/path', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('sc', {
-			provideTextDocumentContent() {
-				return 'SC';
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('sc', {
+			pwovideTextDocumentContent() {
+				wetuwn 'SC';
 			}
 		});
 
-		return Promise.all([
-			vscode.workspace.openTextDocument(vscode.Uri.parse('sc://auth')).then(doc => {
-				assert.strictEqual(doc.uri.authority, 'auth');
-				assert.strictEqual(doc.uri.path, '');
+		wetuwn Pwomise.aww([
+			vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('sc://auth')).then(doc => {
+				assewt.stwictEquaw(doc.uwi.authowity, 'auth');
+				assewt.stwictEquaw(doc.uwi.path, '');
 			}),
-			vscode.workspace.openTextDocument(vscode.Uri.parse('sc:///path')).then(doc => {
-				assert.strictEqual(doc.uri.authority, '');
-				assert.strictEqual(doc.uri.path, '/path');
+			vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('sc:///path')).then(doc => {
+				assewt.stwictEquaw(doc.uwi.authowity, '');
+				assewt.stwictEquaw(doc.uwi.path, '/path');
 			}),
-			vscode.workspace.openTextDocument(vscode.Uri.parse('sc://auth/path')).then(doc => {
-				assert.strictEqual(doc.uri.authority, 'auth');
-				assert.strictEqual(doc.uri.path, '/path');
+			vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('sc://auth/path')).then(doc => {
+				assewt.stwictEquaw(doc.uwi.authowity, 'auth');
+				assewt.stwictEquaw(doc.uwi.path, '/path');
 			})
 		]).then(() => {
-			registration.dispose();
+			wegistwation.dispose();
 		});
 	});
 
-	test('openTextDocument, actual casing first', async function () {
+	test('openTextDocument, actuaw casing fiwst', async function () {
 
-		const fs = new TestFS('this-fs', false);
-		const reg = vscode.workspace.registerFileSystemProvider(fs.scheme, fs, { isCaseSensitive: fs.isCaseSensitive });
+		const fs = new TestFS('this-fs', fawse);
+		const weg = vscode.wowkspace.wegistewFiweSystemPwovida(fs.scheme, fs, { isCaseSensitive: fs.isCaseSensitive });
 
-		let uriOne = vscode.Uri.parse('this-fs:/one');
-		let uriTwo = vscode.Uri.parse('this-fs:/two');
-		let uriONE = vscode.Uri.parse('this-fs:/ONE'); // same resource, different uri
-		let uriTWO = vscode.Uri.parse('this-fs:/TWO');
+		wet uwiOne = vscode.Uwi.pawse('this-fs:/one');
+		wet uwiTwo = vscode.Uwi.pawse('this-fs:/two');
+		wet uwiONE = vscode.Uwi.pawse('this-fs:/ONE'); // same wesouwce, diffewent uwi
+		wet uwiTWO = vscode.Uwi.pawse('this-fs:/TWO');
 
-		fs.writeFile(uriOne, Buffer.from('one'), { create: true, overwrite: true });
-		fs.writeFile(uriTwo, Buffer.from('two'), { create: true, overwrite: true });
+		fs.wwiteFiwe(uwiOne, Buffa.fwom('one'), { cweate: twue, ovewwwite: twue });
+		fs.wwiteFiwe(uwiTwo, Buffa.fwom('two'), { cweate: twue, ovewwwite: twue });
 
-		// lower case (actual case) comes first
-		let docOne = await vscode.workspace.openTextDocument(uriOne);
-		assert.strictEqual(docOne.uri.toString(), uriOne.toString());
+		// wowa case (actuaw case) comes fiwst
+		wet docOne = await vscode.wowkspace.openTextDocument(uwiOne);
+		assewt.stwictEquaw(docOne.uwi.toStwing(), uwiOne.toStwing());
 
-		let docONE = await vscode.workspace.openTextDocument(uriONE);
-		assert.strictEqual(docONE === docOne, true);
-		assert.strictEqual(docONE.uri.toString(), uriOne.toString());
-		assert.strictEqual(docONE.uri.toString() !== uriONE.toString(), true); // yep
+		wet docONE = await vscode.wowkspace.openTextDocument(uwiONE);
+		assewt.stwictEquaw(docONE === docOne, twue);
+		assewt.stwictEquaw(docONE.uwi.toStwing(), uwiOne.toStwing());
+		assewt.stwictEquaw(docONE.uwi.toStwing() !== uwiONE.toStwing(), twue); // yep
 
-		// upper case (NOT the actual case) comes first
-		let docTWO = await vscode.workspace.openTextDocument(uriTWO);
-		assert.strictEqual(docTWO.uri.toString(), uriTWO.toString());
+		// uppa case (NOT the actuaw case) comes fiwst
+		wet docTWO = await vscode.wowkspace.openTextDocument(uwiTWO);
+		assewt.stwictEquaw(docTWO.uwi.toStwing(), uwiTWO.toStwing());
 
-		let docTwo = await vscode.workspace.openTextDocument(uriTwo);
-		assert.strictEqual(docTWO === docTwo, true);
-		assert.strictEqual(docTwo.uri.toString(), uriTWO.toString());
-		assert.strictEqual(docTwo.uri.toString() !== uriTwo.toString(), true); // yep
+		wet docTwo = await vscode.wowkspace.openTextDocument(uwiTwo);
+		assewt.stwictEquaw(docTWO === docTwo, twue);
+		assewt.stwictEquaw(docTwo.uwi.toStwing(), uwiTWO.toStwing());
+		assewt.stwictEquaw(docTwo.uwi.toStwing() !== uwiTwo.toStwing(), twue); // yep
 
-		reg.dispose();
+		weg.dispose();
 	});
 
-	test('eol, read', () => {
-		const a = createRandomFile('foo\nbar\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.strictEqual(doc.eol, vscode.EndOfLine.LF);
+	test('eow, wead', () => {
+		const a = cweateWandomFiwe('foo\nbaw\nbaw').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				assewt.stwictEquaw(doc.eow, vscode.EndOfWine.WF);
 			});
 		});
-		const b = createRandomFile('foo\nbar\nbar\r\nbaz').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.strictEqual(doc.eol, vscode.EndOfLine.LF);
+		const b = cweateWandomFiwe('foo\nbaw\nbaw\w\nbaz').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				assewt.stwictEquaw(doc.eow, vscode.EndOfWine.WF);
 			});
 		});
-		const c = createRandomFile('foo\r\nbar\r\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.strictEqual(doc.eol, vscode.EndOfLine.CRLF);
+		const c = cweateWandomFiwe('foo\w\nbaw\w\nbaw').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				assewt.stwictEquaw(doc.eow, vscode.EndOfWine.CWWF);
 			});
 		});
-		return Promise.all([a, b, c]);
+		wetuwn Pwomise.aww([a, b, c]);
 	});
 
-	test('eol, change via editor', () => {
-		return createRandomFile('foo\nbar\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.strictEqual(doc.eol, vscode.EndOfLine.LF);
-				return vscode.window.showTextDocument(doc).then(editor => {
-					return editor.edit(builder => builder.setEndOfLine(vscode.EndOfLine.CRLF));
+	test('eow, change via editow', () => {
+		wetuwn cweateWandomFiwe('foo\nbaw\nbaw').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				assewt.stwictEquaw(doc.eow, vscode.EndOfWine.WF);
+				wetuwn vscode.window.showTextDocument(doc).then(editow => {
+					wetuwn editow.edit(buiwda => buiwda.setEndOfWine(vscode.EndOfWine.CWWF));
 
-				}).then(value => {
-					assert.ok(value);
-					assert.ok(doc.isDirty);
-					assert.strictEqual(doc.eol, vscode.EndOfLine.CRLF);
+				}).then(vawue => {
+					assewt.ok(vawue);
+					assewt.ok(doc.isDiwty);
+					assewt.stwictEquaw(doc.eow, vscode.EndOfWine.CWWF);
 				});
 			});
 		});
 	});
 
-	test('eol, change via applyEdit', () => {
-		return createRandomFile('foo\nbar\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				assert.strictEqual(doc.eol, vscode.EndOfLine.LF);
+	test('eow, change via appwyEdit', () => {
+		wetuwn cweateWandomFiwe('foo\nbaw\nbaw').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				assewt.stwictEquaw(doc.eow, vscode.EndOfWine.WF);
 
-				const edit = new vscode.WorkspaceEdit();
-				edit.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.CRLF)]);
-				return vscode.workspace.applyEdit(edit).then(value => {
-					assert.ok(value);
-					assert.ok(doc.isDirty);
-					assert.strictEqual(doc.eol, vscode.EndOfLine.CRLF);
+				const edit = new vscode.WowkspaceEdit();
+				edit.set(fiwe, [vscode.TextEdit.setEndOfWine(vscode.EndOfWine.CWWF)]);
+				wetuwn vscode.wowkspace.appwyEdit(edit).then(vawue => {
+					assewt.ok(vawue);
+					assewt.ok(doc.isDiwty);
+					assewt.stwictEquaw(doc.eow, vscode.EndOfWine.CWWF);
 				});
 			});
 		});
 	});
 
-	test('eol, change via onWillSave', async function () {
-		let called = false;
-		let sub = vscode.workspace.onWillSaveTextDocument(e => {
-			called = true;
-			e.waitUntil(Promise.resolve([vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]));
+	test('eow, change via onWiwwSave', async function () {
+		wet cawwed = fawse;
+		wet sub = vscode.wowkspace.onWiwwSaveTextDocument(e => {
+			cawwed = twue;
+			e.waitUntiw(Pwomise.wesowve([vscode.TextEdit.setEndOfWine(vscode.EndOfWine.WF)]));
 		});
 
-		const file = await createRandomFile('foo\r\nbar\r\nbar');
-		const doc = await vscode.workspace.openTextDocument(file);
-		assert.strictEqual(doc.eol, vscode.EndOfLine.CRLF);
+		const fiwe = await cweateWandomFiwe('foo\w\nbaw\w\nbaw');
+		const doc = await vscode.wowkspace.openTextDocument(fiwe);
+		assewt.stwictEquaw(doc.eow, vscode.EndOfWine.CWWF);
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.set(file, [vscode.TextEdit.insert(new vscode.Position(0, 0), '-changes-')]);
-		const successEdit = await vscode.workspace.applyEdit(edit);
-		assert.ok(successEdit);
+		const edit = new vscode.WowkspaceEdit();
+		edit.set(fiwe, [vscode.TextEdit.insewt(new vscode.Position(0, 0), '-changes-')]);
+		const successEdit = await vscode.wowkspace.appwyEdit(edit);
+		assewt.ok(successEdit);
 
 		const successSave = await doc.save();
-		assert.ok(successSave);
-		assert.ok(called);
-		assert.ok(!doc.isDirty);
-		assert.strictEqual(doc.eol, vscode.EndOfLine.LF);
+		assewt.ok(successSave);
+		assewt.ok(cawwed);
+		assewt.ok(!doc.isDiwty);
+		assewt.stwictEquaw(doc.eow, vscode.EndOfWine.WF);
 		sub.dispose();
 	});
 
-	function assertEqualPath(a: string, b: string): void {
-		assert.ok(pathEquals(a, b), `${a} <-> ${b}`);
+	function assewtEquawPath(a: stwing, b: stwing): void {
+		assewt.ok(pathEquaws(a, b), `${a} <-> ${b}`);
 	}
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
-		const file = await createRandomFile();
-		let disposables: vscode.Disposable[] = [];
+		const fiwe = await cweateWandomFiwe();
+		wet disposabwes: vscode.Disposabwe[] = [];
 
-		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
+		await wevewtAwwDiwty(); // needed fow a cwean state fow `onDidSaveTextDocument` (#102365)
 
-		let pendingAsserts: Function[] = [];
-		let onDidOpenTextDocument = false;
-		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidOpenTextDocument = true;
+		wet pendingAssewts: Function[] = [];
+		wet onDidOpenTextDocument = fawse;
+		disposabwes.push(vscode.wowkspace.onDidOpenTextDocument(e => {
+			pendingAssewts.push(() => assewtEquawPath(e.uwi.fsPath, fiwe.fsPath));
+			onDidOpenTextDocument = twue;
 		}));
 
-		let onDidChangeTextDocument = false;
-		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.document.uri.fsPath, file.fsPath));
-			onDidChangeTextDocument = true;
+		wet onDidChangeTextDocument = fawse;
+		disposabwes.push(vscode.wowkspace.onDidChangeTextDocument(e => {
+			pendingAssewts.push(() => assewtEquawPath(e.document.uwi.fsPath, fiwe.fsPath));
+			onDidChangeTextDocument = twue;
 		}));
 
-		let onDidSaveTextDocument = false;
-		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+		wet onDidSaveTextDocument = fawse;
+		disposabwes.push(vscode.wowkspace.onDidSaveTextDocument(e => {
+			pendingAssewts.push(() => assewtEquawPath(e.uwi.fsPath, fiwe.fsPath));
+			onDidSaveTextDocument = twue;
 		}));
 
-		const doc = await vscode.workspace.openTextDocument(file);
-		const editor = await vscode.window.showTextDocument(doc);
+		const doc = await vscode.wowkspace.openTextDocument(fiwe);
+		const editow = await vscode.window.showTextDocument(doc);
 
-		await editor.edit((builder) => {
-			builder.insert(new vscode.Position(0, 0), 'Hello World');
+		await editow.edit((buiwda) => {
+			buiwda.insewt(new vscode.Position(0, 0), 'Hewwo Wowwd');
 		});
 		await doc.save();
 
-		assert.ok(onDidOpenTextDocument);
-		assert.ok(onDidChangeTextDocument);
-		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(assert => assert());
-		disposeAll(disposables);
-		return deleteFile(file);
+		assewt.ok(onDidOpenTextDocument);
+		assewt.ok(onDidChangeTextDocument);
+		assewt.ok(onDidSaveTextDocument);
+		pendingAssewts.fowEach(assewt => assewt());
+		disposeAww(disposabwes);
+		wetuwn deweteFiwe(fiwe);
 	});
 
-	test('events: onDidSaveTextDocument fires even for non dirty file when saved', async () => {
-		const file = await createRandomFile();
-		let disposables: vscode.Disposable[] = [];
-		let pendingAsserts: Function[] = [];
+	test('events: onDidSaveTextDocument fiwes even fow non diwty fiwe when saved', async () => {
+		const fiwe = await cweateWandomFiwe();
+		wet disposabwes: vscode.Disposabwe[] = [];
+		wet pendingAssewts: Function[] = [];
 
-		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
+		await wevewtAwwDiwty(); // needed fow a cwean state fow `onDidSaveTextDocument` (#102365)
 
-		let onDidSaveTextDocument = false;
-		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+		wet onDidSaveTextDocument = fawse;
+		disposabwes.push(vscode.wowkspace.onDidSaveTextDocument(e => {
+			pendingAssewts.push(() => assewtEquawPath(e.uwi.fsPath, fiwe.fsPath));
+			onDidSaveTextDocument = twue;
 		}));
 
-		const doc = await vscode.workspace.openTextDocument(file);
+		const doc = await vscode.wowkspace.openTextDocument(fiwe);
 		await vscode.window.showTextDocument(doc);
-		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('wowkbench.action.fiwes.save');
 
-		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(fn => fn());
-		disposeAll(disposables);
-		return deleteFile(file);
+		assewt.ok(onDidSaveTextDocument);
+		pendingAssewts.fowEach(fn => fn());
+		disposeAww(disposabwes);
+		wetuwn deweteFiwe(fiwe);
 	});
 
-	test('openTextDocument, with selection', function () {
-		return createRandomFile('foo\nbar\nbar').then(file => {
-			return vscode.workspace.openTextDocument(file).then(doc => {
-				return vscode.window.showTextDocument(doc, { selection: new vscode.Range(new vscode.Position(1, 1), new vscode.Position(1, 2)) }).then(editor => {
-					assert.strictEqual(editor.selection.start.line, 1);
-					assert.strictEqual(editor.selection.start.character, 1);
-					assert.strictEqual(editor.selection.end.line, 1);
-					assert.strictEqual(editor.selection.end.character, 2);
+	test('openTextDocument, with sewection', function () {
+		wetuwn cweateWandomFiwe('foo\nbaw\nbaw').then(fiwe => {
+			wetuwn vscode.wowkspace.openTextDocument(fiwe).then(doc => {
+				wetuwn vscode.window.showTextDocument(doc, { sewection: new vscode.Wange(new vscode.Position(1, 1), new vscode.Position(1, 2)) }).then(editow => {
+					assewt.stwictEquaw(editow.sewection.stawt.wine, 1);
+					assewt.stwictEquaw(editow.sewection.stawt.chawacta, 1);
+					assewt.stwictEquaw(editow.sewection.end.wine, 1);
+					assewt.stwictEquaw(editow.sewection.end.chawacta, 2);
 				});
 			});
 		});
 	});
 
-	test('registerTextDocumentContentProvider, simple', function () {
+	test('wegistewTextDocumentContentPwovida, simpwe', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				return uri.toString();
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(uwi) {
+				wetuwn uwi.toStwing();
 			}
 		});
 
-		const uri = vscode.Uri.parse('foo://testing/virtual.js');
-		return vscode.workspace.openTextDocument(uri).then(doc => {
-			assert.strictEqual(doc.getText(), uri.toString());
-			assert.strictEqual(doc.isDirty, false);
-			assert.strictEqual(doc.uri.toString(), uri.toString());
-			registration.dispose();
+		const uwi = vscode.Uwi.pawse('foo://testing/viwtuaw.js');
+		wetuwn vscode.wowkspace.openTextDocument(uwi).then(doc => {
+			assewt.stwictEquaw(doc.getText(), uwi.toStwing());
+			assewt.stwictEquaw(doc.isDiwty, fawse);
+			assewt.stwictEquaw(doc.uwi.toStwing(), uwi.toStwing());
+			wegistwation.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, constrains', function () {
+	test('wegistewTextDocumentContentPwovida, constwains', function () {
 
-		// built-in
-		assert.throws(function () {
-			vscode.workspace.registerTextDocumentContentProvider('untitled', { provideTextDocumentContent() { return null; } });
+		// buiwt-in
+		assewt.thwows(function () {
+			vscode.wowkspace.wegistewTextDocumentContentPwovida('untitwed', { pwovideTextDocumentContent() { wetuwn nuww; } });
 		});
-		// built-in
-		assert.throws(function () {
-			vscode.workspace.registerTextDocumentContentProvider('file', { provideTextDocumentContent() { return null; } });
+		// buiwt-in
+		assewt.thwows(function () {
+			vscode.wowkspace.wegistewTextDocumentContentPwovida('fiwe', { pwovideTextDocumentContent() { wetuwn nuww; } });
 		});
 
 		// missing scheme
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('notThere://foo/far/boo/bar')).then(() => {
-			assert.ok(false, 'expected failure');
-		}, _err => {
+		wetuwn vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('notThewe://foo/faw/boo/baw')).then(() => {
+			assewt.ok(fawse, 'expected faiwuwe');
+		}, _eww => {
 			// expected
 		});
 	});
 
-	test('registerTextDocumentContentProvider, multiple', function () {
+	test('wegistewTextDocumentContentPwovida, muwtipwe', function () {
 
-		// duplicate registration
-		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				if (uri.authority === 'foo') {
-					return '1';
+		// dupwicate wegistwation
+		wet wegistwation1 = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(uwi) {
+				if (uwi.authowity === 'foo') {
+					wetuwn '1';
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
-		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(uri) {
-				if (uri.authority === 'bar') {
-					return '2';
+		wet wegistwation2 = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(uwi) {
+				if (uwi.authowity === 'baw') {
+					wetuwn '2';
 				}
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 
-		return Promise.all([
-			vscode.workspace.openTextDocument(vscode.Uri.parse('foo://foo/bla')).then(doc => { assert.strictEqual(doc.getText(), '1'); }),
-			vscode.workspace.openTextDocument(vscode.Uri.parse('foo://bar/bla')).then(doc => { assert.strictEqual(doc.getText(), '2'); })
+		wetuwn Pwomise.aww([
+			vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('foo://foo/bwa')).then(doc => { assewt.stwictEquaw(doc.getText(), '1'); }),
+			vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('foo://baw/bwa')).then(doc => { assewt.stwictEquaw(doc.getText(), '2'); })
 		]).then(() => {
-			registration1.dispose();
-			registration2.dispose();
+			wegistwation1.dispose();
+			wegistwation2.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, evil provider', function () {
+	test('wegistewTextDocumentContentPwovida, eviw pwovida', function () {
 
-		// duplicate registration
-		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri) {
-				return '1';
+		// dupwicate wegistwation
+		wet wegistwation1 = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi) {
+				wetuwn '1';
 			}
 		});
-		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri): string {
-				throw new Error('fail');
+		wet wegistwation2 = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi): stwing {
+				thwow new Ewwow('faiw');
 			}
 		});
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://foo/bla')).then(doc => {
-			assert.strictEqual(doc.getText(), '1');
-			registration1.dispose();
-			registration2.dispose();
+		wetuwn vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('foo://foo/bwa')).then(doc => {
+			assewt.stwictEquaw(doc.getText(), '1');
+			wegistwation1.dispose();
+			wegistwation2.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, invalid text', function () {
+	test('wegistewTextDocumentContentPwovida, invawid text', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri) {
-				return <any>123;
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi) {
+				wetuwn <any>123;
 			}
 		});
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://auth/path')).then(() => {
-			assert.ok(false, 'expected failure');
-		}, _err => {
+		wetuwn vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('foo://auth/path')).then(() => {
+			assewt.ok(fawse, 'expected faiwuwe');
+		}, _eww => {
 			// expected
-			registration.dispose();
+			wegistwation.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, show virtual document', function () {
+	test('wegistewTextDocumentContentPwovida, show viwtuaw document', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri) {
-				return 'I am virtual';
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi) {
+				wetuwn 'I am viwtuaw';
 			}
 		});
 
-		return vscode.workspace.openTextDocument(vscode.Uri.parse('foo://something/path')).then(doc => {
-			return vscode.window.showTextDocument(doc).then(editor => {
+		wetuwn vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('foo://something/path')).then(doc => {
+			wetuwn vscode.window.showTextDocument(doc).then(editow => {
 
-				assert.ok(editor.document === doc);
-				assert.strictEqual(editor.document.getText(), 'I am virtual');
-				registration.dispose();
+				assewt.ok(editow.document === doc);
+				assewt.stwictEquaw(editow.document.getText(), 'I am viwtuaw');
+				wegistwation.dispose();
 			});
 		});
 	});
 
-	test('registerTextDocumentContentProvider, open/open document', function () {
+	test('wegistewTextDocumentContentPwovida, open/open document', function () {
 
-		let callCount = 0;
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri) {
-				callCount += 1;
-				return 'I am virtual';
+		wet cawwCount = 0;
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi) {
+				cawwCount += 1;
+				wetuwn 'I am viwtuaw';
 			}
 		});
 
-		const uri = vscode.Uri.parse('foo://testing/path');
+		const uwi = vscode.Uwi.pawse('foo://testing/path');
 
-		return Promise.all([vscode.workspace.openTextDocument(uri), vscode.workspace.openTextDocument(uri)]).then(docs => {
-			let [first, second] = docs;
-			assert.ok(first === second);
-			assert.ok(vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
-			assert.strictEqual(callCount, 1);
-			registration.dispose();
+		wetuwn Pwomise.aww([vscode.wowkspace.openTextDocument(uwi), vscode.wowkspace.openTextDocument(uwi)]).then(docs => {
+			wet [fiwst, second] = docs;
+			assewt.ok(fiwst === second);
+			assewt.ok(vscode.wowkspace.textDocuments.some(doc => doc.uwi.toStwing() === uwi.toStwing()));
+			assewt.stwictEquaw(cawwCount, 1);
+			wegistwation.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, empty doc', function () {
+	test('wegistewTextDocumentContentPwovida, empty doc', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			provideTextDocumentContent(_uri) {
-				return '';
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			pwovideTextDocumentContent(_uwi) {
+				wetuwn '';
 			}
 		});
 
-		const uri = vscode.Uri.parse('foo:doc/empty');
+		const uwi = vscode.Uwi.pawse('foo:doc/empty');
 
-		return vscode.workspace.openTextDocument(uri).then(doc => {
-			assert.strictEqual(doc.getText(), '');
-			assert.strictEqual(doc.uri.toString(), uri.toString());
-			registration.dispose();
+		wetuwn vscode.wowkspace.openTextDocument(uwi).then(doc => {
+			assewt.stwictEquaw(doc.getText(), '');
+			assewt.stwictEquaw(doc.uwi.toStwing(), uwi.toStwing());
+			wegistwation.dispose();
 		});
 	});
 
-	test('registerTextDocumentContentProvider, change event', async function () {
+	test('wegistewTextDocumentContentPwovida, change event', async function () {
 
-		let callCount = 0;
-		let emitter = new vscode.EventEmitter<vscode.Uri>();
+		wet cawwCount = 0;
+		wet emitta = new vscode.EventEmitta<vscode.Uwi>();
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
-			onDidChange: emitter.event,
-			provideTextDocumentContent(_uri) {
-				return 'call' + (callCount++);
+		wet wegistwation = vscode.wowkspace.wegistewTextDocumentContentPwovida('foo', {
+			onDidChange: emitta.event,
+			pwovideTextDocumentContent(_uwi) {
+				wetuwn 'caww' + (cawwCount++);
 			}
 		});
 
-		const uri = vscode.Uri.parse('foo://testing/path3');
-		const doc = await vscode.workspace.openTextDocument(uri);
+		const uwi = vscode.Uwi.pawse('foo://testing/path3');
+		const doc = await vscode.wowkspace.openTextDocument(uwi);
 
-		assert.strictEqual(callCount, 1);
-		assert.strictEqual(doc.getText(), 'call0');
+		assewt.stwictEquaw(cawwCount, 1);
+		assewt.stwictEquaw(doc.getText(), 'caww0');
 
-		return new Promise<void>(resolve => {
+		wetuwn new Pwomise<void>(wesowve => {
 
-			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
-				assert.ok(event.document === doc);
-				assert.strictEqual(event.document.getText(), 'call1');
-				subscription.dispose();
-				registration.dispose();
-				resolve();
+			wet subscwiption = vscode.wowkspace.onDidChangeTextDocument(event => {
+				assewt.ok(event.document === doc);
+				assewt.stwictEquaw(event.document.getText(), 'caww1');
+				subscwiption.dispose();
+				wegistwation.dispose();
+				wesowve();
 			});
 
-			emitter.fire(doc.uri);
+			emitta.fiwe(doc.uwi);
 		});
 	});
 
-	test('findFiles', () => {
-		return vscode.workspace.findFiles('**/image.png').then((res) => {
-			assert.strictEqual(res.length, 2);
-			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+	test('findFiwes', () => {
+		wetuwn vscode.wowkspace.findFiwes('**/image.png').then((wes) => {
+			assewt.stwictEquaw(wes.wength, 2);
+			assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(wes[0])), 'image.png');
 		});
 	});
 
-	test('findFiles - null exclude', async () => {
-		await vscode.workspace.findFiles('**/file.txt').then((res) => {
-			// search.exclude folder is still searched, files.exclude folder is not
-			assert.strictEqual(res.length, 1);
-			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+	test('findFiwes - nuww excwude', async () => {
+		await vscode.wowkspace.findFiwes('**/fiwe.txt').then((wes) => {
+			// seawch.excwude fowda is stiww seawched, fiwes.excwude fowda is not
+			assewt.stwictEquaw(wes.wength, 1);
+			assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(wes[0])), 'fiwe.txt');
 		});
 
-		await vscode.workspace.findFiles('**/file.txt', null).then((res) => {
-			// search.exclude and files.exclude folders are both searched
-			assert.strictEqual(res.length, 2);
-			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
-		});
-	});
-
-	test('findFiles - exclude', () => {
-		return vscode.workspace.findFiles('**/image.png').then((res) => {
-			assert.strictEqual(res.length, 2);
-			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+		await vscode.wowkspace.findFiwes('**/fiwe.txt', nuww).then((wes) => {
+			// seawch.excwude and fiwes.excwude fowdews awe both seawched
+			assewt.stwictEquaw(wes.wength, 2);
+			assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(wes[0])), 'fiwe.txt');
 		});
 	});
 
-	test('findFiles, exclude', () => {
-		return vscode.workspace.findFiles('**/image.png', '**/sub/**').then((res) => {
-			assert.strictEqual(res.length, 1);
-			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
+	test('findFiwes - excwude', () => {
+		wetuwn vscode.wowkspace.findFiwes('**/image.png').then((wes) => {
+			assewt.stwictEquaw(wes.wength, 2);
+			assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(wes[0])), 'image.png');
 		});
 	});
 
-	test('findFiles, cancellation', () => {
-
-		const source = new vscode.CancellationTokenSource();
-		const token = source.token; // just to get an instance first
-		source.cancel();
-
-		return vscode.workspace.findFiles('*.js', null, 100, token).then((res) => {
-			assert.deepStrictEqual(res, []);
+	test('findFiwes, excwude', () => {
+		wetuwn vscode.wowkspace.findFiwes('**/image.png', '**/sub/**').then((wes) => {
+			assewt.stwictEquaw(wes.wength, 1);
+			assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(wes[0])), 'image.png');
 		});
 	});
 
-	test('findTextInFiles', async () => {
-		const options: vscode.FindTextInFilesOptions = {
-			include: '*.ts',
-			previewOptions: {
-				matchLines: 1,
-				charsPerLine: 100
+	test('findFiwes, cancewwation', () => {
+
+		const souwce = new vscode.CancewwationTokenSouwce();
+		const token = souwce.token; // just to get an instance fiwst
+		souwce.cancew();
+
+		wetuwn vscode.wowkspace.findFiwes('*.js', nuww, 100, token).then((wes) => {
+			assewt.deepStwictEquaw(wes, []);
+		});
+	});
+
+	test('findTextInFiwes', async () => {
+		const options: vscode.FindTextInFiwesOptions = {
+			incwude: '*.ts',
+			pweviewOptions: {
+				matchWines: 1,
+				chawsPewWine: 100
 			}
 		};
 
-		const results: vscode.TextSearchResult[] = [];
-		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, options, result => {
-			results.push(result);
+		const wesuwts: vscode.TextSeawchWesuwt[] = [];
+		await vscode.wowkspace.findTextInFiwes({ pattewn: 'foo' }, options, wesuwt => {
+			wesuwts.push(wesuwt);
 		});
 
-		assert.strictEqual(results.length, 1);
-		const match = <vscode.TextSearchMatch>results[0];
-		assert(match.preview.text.indexOf('foo') >= 0);
-		assert.strictEqual(basename(vscode.workspace.asRelativePath(match.uri)), '10linefile.ts');
+		assewt.stwictEquaw(wesuwts.wength, 1);
+		const match = <vscode.TextSeawchMatch>wesuwts[0];
+		assewt(match.pweview.text.indexOf('foo') >= 0);
+		assewt.stwictEquaw(basename(vscode.wowkspace.asWewativePath(match.uwi)), '10winefiwe.ts');
 	});
 
-	test('findTextInFiles, cancellation', async () => {
-		const results: vscode.TextSearchResult[] = [];
-		const cancellation = new vscode.CancellationTokenSource();
-		cancellation.cancel();
+	test('findTextInFiwes, cancewwation', async () => {
+		const wesuwts: vscode.TextSeawchWesuwt[] = [];
+		const cancewwation = new vscode.CancewwationTokenSouwce();
+		cancewwation.cancew();
 
-		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, result => {
-			results.push(result);
-		}, cancellation.token);
+		await vscode.wowkspace.findTextInFiwes({ pattewn: 'foo' }, wesuwt => {
+			wesuwts.push(wesuwt);
+		}, cancewwation.token);
 	});
 
-	test('applyEdit', async () => {
-		const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt')));
+	test('appwyEdit', async () => {
+		const doc = await vscode.wowkspace.openTextDocument(vscode.Uwi.pawse('untitwed:' + join(vscode.wowkspace.wootPath || '', './new2.txt')));
 
-		let edit = new vscode.WorkspaceEdit();
-		edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
+		wet edit = new vscode.WowkspaceEdit();
+		edit.insewt(doc.uwi, new vscode.Position(0, 0), new Awway(1000).join('Hewwo Wowwd'));
 
-		let success = await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(success, true);
-		assert.strictEqual(doc.isDirty, true);
+		wet success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.stwictEquaw(success, twue);
+		assewt.stwictEquaw(doc.isDiwty, twue);
 	});
 
-	test('applyEdit should fail when editing deleted resource', withLogDisabled(async () => {
-		const resource = await createRandomFile();
+	test('appwyEdit shouwd faiw when editing deweted wesouwce', withWogDisabwed(async () => {
+		const wesouwce = await cweateWandomFiwe();
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(resource);
-		edit.insert(resource, new vscode.Position(0, 0), '');
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(wesouwce);
+		edit.insewt(wesouwce, new vscode.Position(0, 0), '');
 
-		let success = await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(success, false);
+		wet success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.stwictEquaw(success, fawse);
 	}));
 
-	test('applyEdit should fail when renaming deleted resource', withLogDisabled(async () => {
-		const resource = await createRandomFile();
+	test('appwyEdit shouwd faiw when wenaming deweted wesouwce', withWogDisabwed(async () => {
+		const wesouwce = await cweateWandomFiwe();
 
-		const edit = new vscode.WorkspaceEdit();
-		edit.deleteFile(resource);
-		edit.renameFile(resource, resource);
+		const edit = new vscode.WowkspaceEdit();
+		edit.deweteFiwe(wesouwce);
+		edit.wenameFiwe(wesouwce, wesouwce);
 
-		let success = await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(success, false);
+		wet success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.stwictEquaw(success, fawse);
 	}));
 
-	test('applyEdit should fail when editing renamed from resource', withLogDisabled(async () => {
-		const resource = await createRandomFile();
-		const newResource = vscode.Uri.file(resource.fsPath + '.1');
-		const edit = new vscode.WorkspaceEdit();
-		edit.renameFile(resource, newResource);
-		edit.insert(resource, new vscode.Position(0, 0), '');
+	test('appwyEdit shouwd faiw when editing wenamed fwom wesouwce', withWogDisabwed(async () => {
+		const wesouwce = await cweateWandomFiwe();
+		const newWesouwce = vscode.Uwi.fiwe(wesouwce.fsPath + '.1');
+		const edit = new vscode.WowkspaceEdit();
+		edit.wenameFiwe(wesouwce, newWesouwce);
+		edit.insewt(wesouwce, new vscode.Position(0, 0), '');
 
-		let success = await vscode.workspace.applyEdit(edit);
-		assert.strictEqual(success, false);
+		wet success = await vscode.wowkspace.appwyEdit(edit);
+		assewt.stwictEquaw(success, fawse);
 	}));
 
-	test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
-		await testEditRenameEdit(oldUri => oldUri.with({ path: oldUri.path + 'NEW' }));
+	test('appwyEdit "edit A -> wename A to B -> edit B"', async () => {
+		await testEditWenameEdit(owdUwi => owdUwi.with({ path: owdUwi.path + 'NEW' }));
 	});
 
-	test('applyEdit "edit A -> rename A to B (different case)" -> edit B', async () => {
-		await testEditRenameEdit(oldUri => oldUri.with({ path: oldUri.path.toUpperCase() }));
+	test('appwyEdit "edit A -> wename A to B (diffewent case)" -> edit B', async () => {
+		await testEditWenameEdit(owdUwi => owdUwi.with({ path: owdUwi.path.toUppewCase() }));
 	});
 
-	test('applyEdit "edit A -> rename A to B (same case)" -> edit B', async () => {
-		await testEditRenameEdit(oldUri => oldUri);
+	test('appwyEdit "edit A -> wename A to B (same case)" -> edit B', async () => {
+		await testEditWenameEdit(owdUwi => owdUwi);
 	});
 
-	async function testEditRenameEdit(newUriCreator: (oldUri: vscode.Uri) => vscode.Uri): Promise<void> {
-		const oldUri = await createRandomFile();
-		const newUri = newUriCreator(oldUri);
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
-		edit.renameFile(oldUri, newUri);
-		edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
+	async function testEditWenameEdit(newUwiCweatow: (owdUwi: vscode.Uwi) => vscode.Uwi): Pwomise<void> {
+		const owdUwi = await cweateWandomFiwe();
+		const newUwi = newUwiCweatow(owdUwi);
+		const edit = new vscode.WowkspaceEdit();
+		edit.insewt(owdUwi, new vscode.Position(0, 0), 'BEFOWE');
+		edit.wenameFiwe(owdUwi, newUwi);
+		edit.insewt(newUwi, new vscode.Position(0, 0), 'AFTa');
 
-		assert.ok(await vscode.workspace.applyEdit(edit));
+		assewt.ok(await vscode.wowkspace.appwyEdit(edit));
 
-		let doc = await vscode.workspace.openTextDocument(newUri);
-		assert.strictEqual(doc.getText(), 'AFTERBEFORE');
-		assert.strictEqual(doc.isDirty, true);
+		wet doc = await vscode.wowkspace.openTextDocument(newUwi);
+		assewt.stwictEquaw(doc.getText(), 'AFTEWBEFOWE');
+		assewt.stwictEquaw(doc.isDiwty, twue);
 	}
 
-	function nameWithUnderscore(uri: vscode.Uri) {
-		return uri.with({ path: posix.join(posix.dirname(uri.path), `_${posix.basename(uri.path)}`) });
+	function nameWithUndewscowe(uwi: vscode.Uwi) {
+		wetuwn uwi.with({ path: posix.join(posix.diwname(uwi.path), `_${posix.basename(uwi.path)}`) });
 	}
 
-	test('WorkspaceEdit: applying edits before and after rename duplicates resource #42633', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+	test('WowkspaceEdit: appwying edits befowe and afta wename dupwicates wesouwce #42633', withWogDisabwed(async function () {
+		wet docUwi = await cweateWandomFiwe();
+		wet newUwi = nameWithUndewscowe(docUwi);
 
-		let we = new vscode.WorkspaceEdit();
-		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
-		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
-		we.renameFile(docUri, newUri);
-		we.insert(newUri, new vscode.Position(0, 0), 'Bar');
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Hewwo');
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Foo');
+		we.wenameFiwe(docUwi, newUwi);
+		we.insewt(newUwi, new vscode.Position(0, 0), 'Baw');
 
-		assert.ok(await vscode.workspace.applyEdit(we));
-		let doc = await vscode.workspace.openTextDocument(newUri);
-		assert.strictEqual(doc.getText(), 'BarHelloFoo');
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
+		wet doc = await vscode.wowkspace.openTextDocument(newUwi);
+		assewt.stwictEquaw(doc.getText(), 'BawHewwoFoo');
 	}));
 
-	test('WorkspaceEdit: Problem recreating a renamed resource #42634', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+	test('WowkspaceEdit: Pwobwem wecweating a wenamed wesouwce #42634', withWogDisabwed(async function () {
+		wet docUwi = await cweateWandomFiwe();
+		wet newUwi = nameWithUndewscowe(docUwi);
 
-		let we = new vscode.WorkspaceEdit();
-		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
-		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
-		we.renameFile(docUri, newUri);
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Hewwo');
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Foo');
+		we.wenameFiwe(docUwi, newUwi);
 
-		we.createFile(docUri);
-		we.insert(docUri, new vscode.Position(0, 0), 'Bar');
+		we.cweateFiwe(docUwi);
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Baw');
 
-		assert.ok(await vscode.workspace.applyEdit(we));
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		let newDoc = await vscode.workspace.openTextDocument(newUri);
-		assert.strictEqual(newDoc.getText(), 'HelloFoo');
-		let doc = await vscode.workspace.openTextDocument(docUri);
-		assert.strictEqual(doc.getText(), 'Bar');
+		wet newDoc = await vscode.wowkspace.openTextDocument(newUwi);
+		assewt.stwictEquaw(newDoc.getText(), 'HewwoFoo');
+		wet doc = await vscode.wowkspace.openTextDocument(docUwi);
+		assewt.stwictEquaw(doc.getText(), 'Baw');
 	}));
 
-	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
-		we.deleteFile(docUri);
-		we.insert(docUri, new vscode.Position(0, 0), 'InsertText');
+	test('WowkspaceEdit api - afta saving a deweted fiwe, it stiww shows up as deweted. #42667', withWogDisabwed(async function () {
+		wet docUwi = await cweateWandomFiwe();
+		wet we = new vscode.WowkspaceEdit();
+		we.deweteFiwe(docUwi);
+		we.insewt(docUwi, new vscode.Position(0, 0), 'InsewtText');
 
-		assert.ok(!(await vscode.workspace.applyEdit(we)));
-		try {
-			await vscode.workspace.openTextDocument(docUri);
-			assert.ok(false);
+		assewt.ok(!(await vscode.wowkspace.appwyEdit(we)));
+		twy {
+			await vscode.wowkspace.openTextDocument(docUwi);
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	}));
 
-	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
+	test('WowkspaceEdit: edit and wename pawent fowda dupwicates wesouwce #42641', async function () {
 
-		let dir = vscode.Uri.parse(`${testFs.scheme}:/before-${rndName()}`);
-		await testFs.createDirectory(dir);
+		wet diw = vscode.Uwi.pawse(`${testFs.scheme}:/befowe-${wndName()}`);
+		await testFs.cweateDiwectowy(diw);
 
-		let docUri = await createRandomFile('', dir);
-		let docParent = docUri.with({ path: posix.dirname(docUri.path) });
-		let newParent = nameWithUnderscore(docParent);
+		wet docUwi = await cweateWandomFiwe('', diw);
+		wet docPawent = docUwi.with({ path: posix.diwname(docUwi.path) });
+		wet newPawent = nameWithUndewscowe(docPawent);
 
-		let we = new vscode.WorkspaceEdit();
-		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
-		we.renameFile(docParent, newParent);
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(docUwi, new vscode.Position(0, 0), 'Hewwo');
+		we.wenameFiwe(docPawent, newPawent);
 
-		assert.ok(await vscode.workspace.applyEdit(we));
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		try {
-			await vscode.workspace.openTextDocument(docUri);
-			assert.ok(false);
+		twy {
+			await vscode.wowkspace.openTextDocument(docUwi);
+			assewt.ok(fawse);
 		} catch (e) {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 
-		let newUri = newParent.with({ path: posix.join(newParent.path, posix.basename(docUri.path)) });
-		let doc = await vscode.workspace.openTextDocument(newUri);
-		assert.ok(doc);
+		wet newUwi = newPawent.with({ path: posix.join(newPawent.path, posix.basename(docUwi.path)) });
+		wet doc = await vscode.wowkspace.openTextDocument(newUwi);
+		assewt.ok(doc);
 
-		assert.strictEqual(doc.getText(), 'Hello');
+		assewt.stwictEquaw(doc.getText(), 'Hewwo');
 	});
 
-	test('WorkspaceEdit: rename resource followed by edit does not work #42638', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+	test('WowkspaceEdit: wename wesouwce fowwowed by edit does not wowk #42638', withWogDisabwed(async function () {
+		wet docUwi = await cweateWandomFiwe();
+		wet newUwi = nameWithUndewscowe(docUwi);
 
-		let we = new vscode.WorkspaceEdit();
-		we.renameFile(docUri, newUri);
-		we.insert(newUri, new vscode.Position(0, 0), 'Hello');
+		wet we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(docUwi, newUwi);
+		we.insewt(newUwi, new vscode.Position(0, 0), 'Hewwo');
 
-		assert.ok(await vscode.workspace.applyEdit(we));
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		let doc = await vscode.workspace.openTextDocument(newUri);
-		assert.strictEqual(doc.getText(), 'Hello');
+		wet doc = await vscode.wowkspace.openTextDocument(newUwi);
+		assewt.stwictEquaw(doc.getText(), 'Hewwo');
 	}));
 
-	test('WorkspaceEdit: create & override', withLogDisabled(async function () {
+	test('WowkspaceEdit: cweate & ovewwide', withWogDisabwed(async function () {
 
-		let docUri = await createRandomFile('before');
+		wet docUwi = await cweateWandomFiwe('befowe');
 
-		let we = new vscode.WorkspaceEdit();
-		we.createFile(docUri);
-		assert.ok(!await vscode.workspace.applyEdit(we));
-		assert.strictEqual((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+		wet we = new vscode.WowkspaceEdit();
+		we.cweateFiwe(docUwi);
+		assewt.ok(!await vscode.wowkspace.appwyEdit(we));
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(docUwi)).getText(), 'befowe');
 
-		we = new vscode.WorkspaceEdit();
-		we.createFile(docUri, { overwrite: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
-		assert.strictEqual((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+		we = new vscode.WowkspaceEdit();
+		we.cweateFiwe(docUwi, { ovewwwite: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(docUwi)).getText(), '');
 	}));
 
-	test('WorkspaceEdit: create & ignoreIfExists', withLogDisabled(async function () {
-		let docUri = await createRandomFile('before');
+	test('WowkspaceEdit: cweate & ignoweIfExists', withWogDisabwed(async function () {
+		wet docUwi = await cweateWandomFiwe('befowe');
 
-		let we = new vscode.WorkspaceEdit();
-		we.createFile(docUri, { ignoreIfExists: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
-		assert.strictEqual((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+		wet we = new vscode.WowkspaceEdit();
+		we.cweateFiwe(docUwi, { ignoweIfExists: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(docUwi)).getText(), 'befowe');
 
-		we = new vscode.WorkspaceEdit();
-		we.createFile(docUri, { overwrite: true, ignoreIfExists: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
-		assert.strictEqual((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+		we = new vscode.WowkspaceEdit();
+		we.cweateFiwe(docUwi, { ovewwwite: twue, ignoweIfExists: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(docUwi)).getText(), '');
 	}));
 
-	test('WorkspaceEdit: rename & ignoreIfExists', withLogDisabled(async function () {
-		let aUri = await createRandomFile('aaa');
-		let bUri = await createRandomFile('bbb');
+	test('WowkspaceEdit: wename & ignoweIfExists', withWogDisabwed(async function () {
+		wet aUwi = await cweateWandomFiwe('aaa');
+		wet bUwi = await cweateWandomFiwe('bbb');
 
-		let we = new vscode.WorkspaceEdit();
-		we.renameFile(aUri, bUri);
-		assert.ok(!await vscode.workspace.applyEdit(we));
+		wet we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(aUwi, bUwi);
+		assewt.ok(!await vscode.wowkspace.appwyEdit(we));
 
-		we = new vscode.WorkspaceEdit();
-		we.renameFile(aUri, bUri, { ignoreIfExists: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
+		we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(aUwi, bUwi, { ignoweIfExists: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		we = new vscode.WorkspaceEdit();
-		we.renameFile(aUri, bUri, { overwrite: false, ignoreIfExists: true });
-		assert.ok(!await vscode.workspace.applyEdit(we));
+		we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(aUwi, bUwi, { ovewwwite: fawse, ignoweIfExists: twue });
+		assewt.ok(!await vscode.wowkspace.appwyEdit(we));
 
-		we = new vscode.WorkspaceEdit();
-		we.renameFile(aUri, bUri, { overwrite: true, ignoreIfExists: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
+		we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(aUwi, bUwi, { ovewwwite: twue, ignoweIfExists: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 	}));
 
-	test('WorkspaceEdit: delete & ignoreIfNotExists', withLogDisabled(async function () {
+	test('WowkspaceEdit: dewete & ignoweIfNotExists', withWogDisabwed(async function () {
 
-		let docUri = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
-		we.deleteFile(docUri, { ignoreIfNotExists: false });
-		assert.ok(await vscode.workspace.applyEdit(we));
+		wet docUwi = await cweateWandomFiwe();
+		wet we = new vscode.WowkspaceEdit();
+		we.deweteFiwe(docUwi, { ignoweIfNotExists: fawse });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		we = new vscode.WorkspaceEdit();
-		we.deleteFile(docUri, { ignoreIfNotExists: false });
-		assert.ok(!await vscode.workspace.applyEdit(we));
+		we = new vscode.WowkspaceEdit();
+		we.deweteFiwe(docUwi, { ignoweIfNotExists: fawse });
+		assewt.ok(!await vscode.wowkspace.appwyEdit(we));
 
-		we = new vscode.WorkspaceEdit();
-		we.deleteFile(docUri, { ignoreIfNotExists: true });
-		assert.ok(await vscode.workspace.applyEdit(we));
+		we = new vscode.WowkspaceEdit();
+		we.deweteFiwe(docUwi, { ignoweIfNotExists: twue });
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 	}));
 
-	test('WorkspaceEdit: insert & rename multiple', async function () {
+	test('WowkspaceEdit: insewt & wename muwtipwe', async function () {
 
-		let [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
+		wet [f1, f2, f3] = await Pwomise.aww([cweateWandomFiwe(), cweateWandomFiwe(), cweateWandomFiwe()]);
 
-		let we = new vscode.WorkspaceEdit();
-		we.insert(f1, new vscode.Position(0, 0), 'f1');
-		we.insert(f2, new vscode.Position(0, 0), 'f2');
-		we.insert(f3, new vscode.Position(0, 0), 'f3');
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(f1, new vscode.Position(0, 0), 'f1');
+		we.insewt(f2, new vscode.Position(0, 0), 'f2');
+		we.insewt(f3, new vscode.Position(0, 0), 'f3');
 
-		let f1_ = nameWithUnderscore(f1);
-		we.renameFile(f1, f1_);
+		wet f1_ = nameWithUndewscowe(f1);
+		we.wenameFiwe(f1, f1_);
 
-		assert.ok(await vscode.workspace.applyEdit(we));
+		assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-		assert.strictEqual((await vscode.workspace.openTextDocument(f3)).getText(), 'f3');
-		assert.strictEqual((await vscode.workspace.openTextDocument(f2)).getText(), 'f2');
-		assert.strictEqual((await vscode.workspace.openTextDocument(f1_)).getText(), 'f1');
-		try {
-			await vscode.workspace.fs.stat(f1);
-			assert.ok(false);
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(f3)).getText(), 'f3');
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(f2)).getText(), 'f2');
+		assewt.stwictEquaw((await vscode.wowkspace.openTextDocument(f1_)).getText(), 'f1');
+		twy {
+			await vscode.wowkspace.fs.stat(f1);
+			assewt.ok(fawse);
 		} catch {
-			assert.ok(true);
+			assewt.ok(twue);
 		}
 	});
 
-	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (with opened editor)', async function () {
-		await test77735(true);
+	test('wowkspace.appwyEdit dwops the TextEdit if thewe is a WenameFiwe wata #77735 (with opened editow)', async function () {
+		await test77735(twue);
 	});
 
-	test('workspace.applyEdit drops the TextEdit if there is a RenameFile later #77735 (without opened editor)', async function () {
-		await test77735(false);
+	test('wowkspace.appwyEdit dwops the TextEdit if thewe is a WenameFiwe wata #77735 (without opened editow)', async function () {
+		await test77735(fawse);
 	});
 
-	async function test77735(withOpenedEditor: boolean): Promise<void> {
-		const docUriOriginal = await createRandomFile();
-		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
+	async function test77735(withOpenedEditow: boowean): Pwomise<void> {
+		const docUwiOwiginaw = await cweateWandomFiwe();
+		const docUwiMoved = docUwiOwiginaw.with({ path: `${docUwiOwiginaw.path}.moved` });
 
-		if (withOpenedEditor) {
-			const document = await vscode.workspace.openTextDocument(docUriOriginal);
+		if (withOpenedEditow) {
+			const document = await vscode.wowkspace.openTextDocument(docUwiOwiginaw);
 			await vscode.window.showTextDocument(document);
-		} else {
-			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+		} ewse {
+			await vscode.commands.executeCommand('wowkbench.action.cwoseAwwEditows');
 		}
 
-		for (let i = 0; i < 4; i++) {
-			let we = new vscode.WorkspaceEdit();
-			let oldUri: vscode.Uri;
-			let newUri: vscode.Uri;
-			let expected: string;
+		fow (wet i = 0; i < 4; i++) {
+			wet we = new vscode.WowkspaceEdit();
+			wet owdUwi: vscode.Uwi;
+			wet newUwi: vscode.Uwi;
+			wet expected: stwing;
 
 			if (i % 2 === 0) {
-				oldUri = docUriOriginal;
-				newUri = docUriMoved;
-				we.insert(oldUri, new vscode.Position(0, 0), 'Hello');
-				expected = 'Hello';
-			} else {
-				oldUri = docUriMoved;
-				newUri = docUriOriginal;
-				we.delete(oldUri, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5)));
+				owdUwi = docUwiOwiginaw;
+				newUwi = docUwiMoved;
+				we.insewt(owdUwi, new vscode.Position(0, 0), 'Hewwo');
+				expected = 'Hewwo';
+			} ewse {
+				owdUwi = docUwiMoved;
+				newUwi = docUwiOwiginaw;
+				we.dewete(owdUwi, new vscode.Wange(new vscode.Position(0, 0), new vscode.Position(0, 5)));
 				expected = '';
 			}
 
-			we.renameFile(oldUri, newUri);
-			assert.ok(await vscode.workspace.applyEdit(we));
+			we.wenameFiwe(owdUwi, newUwi);
+			assewt.ok(await vscode.wowkspace.appwyEdit(we));
 
-			const document = await vscode.workspace.openTextDocument(newUri);
-			assert.strictEqual(document.isDirty, true);
+			const document = await vscode.wowkspace.openTextDocument(newUwi);
+			assewt.stwictEquaw(document.isDiwty, twue);
 
 			await document.save();
-			assert.strictEqual(document.isDirty, false);
+			assewt.stwictEquaw(document.isDiwty, fawse);
 
-			assert.strictEqual(document.getText(), expected);
+			assewt.stwictEquaw(document.getText(), expected);
 
-			await delay(10);
+			await deway(10);
 		}
 	}
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
-		const file1 = await createRandomFile();
-		const file2 = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
-		we.insert(file1, new vscode.Position(0, 0), 'import1;');
+	test('The api wowkspace.appwyEdit faiwed fow some case of mixing wesouwceChange and textEdit #80688', async function () {
+		const fiwe1 = await cweateWandomFiwe();
+		const fiwe2 = await cweateWandomFiwe();
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(fiwe1, new vscode.Position(0, 0), 'impowt1;');
 
-		const file2Name = basename(file2.fsPath);
-		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
-		we.renameFile(file2, file2NewUri);
+		const fiwe2Name = basename(fiwe2.fsPath);
+		const fiwe2NewUwi = vscode.Uwi.pawse(fiwe2.toStwing().wepwace(fiwe2Name, `new/${fiwe2Name}`));
+		we.wenameFiwe(fiwe2, fiwe2NewUwi);
 
-		we.insert(file1, new vscode.Position(0, 0), 'import2;');
-		await vscode.workspace.applyEdit(we);
+		we.insewt(fiwe1, new vscode.Position(0, 0), 'impowt2;');
+		await vscode.wowkspace.appwyEdit(we);
 
-		const document = await vscode.workspace.openTextDocument(file1);
-		// const expected = 'import1;import2;';
-		const expected2 = 'import2;import1;';
-		assert.strictEqual(document.getText(), expected2);
+		const document = await vscode.wowkspace.openTextDocument(fiwe1);
+		// const expected = 'impowt1;impowt2;';
+		const expected2 = 'impowt2;impowt1;';
+		assewt.stwictEquaw(document.getText(), expected2);
 	});
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
-		const file1 = await createRandomFile();
-		const file2 = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
-		we.insert(file1, new vscode.Position(0, 0), 'import1;');
-		we.insert(file1, new vscode.Position(0, 0), 'import2;');
+	test('The api wowkspace.appwyEdit faiwed fow some case of mixing wesouwceChange and textEdit #80688', async function () {
+		const fiwe1 = await cweateWandomFiwe();
+		const fiwe2 = await cweateWandomFiwe();
+		wet we = new vscode.WowkspaceEdit();
+		we.insewt(fiwe1, new vscode.Position(0, 0), 'impowt1;');
+		we.insewt(fiwe1, new vscode.Position(0, 0), 'impowt2;');
 
-		const file2Name = basename(file2.fsPath);
-		const file2NewUri = vscode.Uri.parse(file2.toString().replace(file2Name, `new/${file2Name}`));
-		we.renameFile(file2, file2NewUri);
+		const fiwe2Name = basename(fiwe2.fsPath);
+		const fiwe2NewUwi = vscode.Uwi.pawse(fiwe2.toStwing().wepwace(fiwe2Name, `new/${fiwe2Name}`));
+		we.wenameFiwe(fiwe2, fiwe2NewUwi);
 
-		await vscode.workspace.applyEdit(we);
+		await vscode.wowkspace.appwyEdit(we);
 
-		const document = await vscode.workspace.openTextDocument(file1);
-		const expected = 'import1;import2;';
-		// const expected2 = 'import2;import1;';
-		assert.strictEqual(document.getText(), expected);
+		const document = await vscode.wowkspace.openTextDocument(fiwe1);
+		const expected = 'impowt1;impowt2;';
+		// const expected2 = 'impowt2;impowt1;';
+		assewt.stwictEquaw(document.getText(), expected);
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Shouwd send a singwe FiweWiwwWenameEvent instead of sepawate events when moving muwtipwe fiwes at once#111867', async function () {
 
-		const file1 = await createRandomFile();
-		const file2 = await createRandomFile();
+		const fiwe1 = await cweateWandomFiwe();
+		const fiwe2 = await cweateWandomFiwe();
 
-		const file1New = await createRandomFile();
-		const file2New = await createRandomFile();
+		const fiwe1New = await cweateWandomFiwe();
+		const fiwe2New = await cweateWandomFiwe();
 
-		const event = new Promise<vscode.FileWillRenameEvent>(resolve => {
-			let sub = vscode.workspace.onWillRenameFiles(e => {
+		const event = new Pwomise<vscode.FiweWiwwWenameEvent>(wesowve => {
+			wet sub = vscode.wowkspace.onWiwwWenameFiwes(e => {
 				sub.dispose();
-				resolve(e);
+				wesowve(e);
 			});
 		});
 
-		const we = new vscode.WorkspaceEdit();
-		we.renameFile(file1, file1New, { overwrite: true });
-		we.renameFile(file2, file2New, { overwrite: true });
-		await vscode.workspace.applyEdit(we);
+		const we = new vscode.WowkspaceEdit();
+		we.wenameFiwe(fiwe1, fiwe1New, { ovewwwite: twue });
+		we.wenameFiwe(fiwe2, fiwe2New, { ovewwwite: twue });
+		await vscode.wowkspace.appwyEdit(we);
 
 		const e = await event;
 
-		assert.strictEqual(e.files.length, 2);
-		assert.strictEqual(e.files[0].oldUri.toString(), file1.toString());
-		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
+		assewt.stwictEquaw(e.fiwes.wength, 2);
+		assewt.stwictEquaw(e.fiwes[0].owdUwi.toStwing(), fiwe1.toStwing());
+		assewt.stwictEquaw(e.fiwes[1].owdUwi.toStwing(), fiwe2.toStwing());
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Shouwd send a singwe FiweWiwwWenameEvent instead of sepawate events when moving muwtipwe fiwes at once#111867', async function () {
 
-		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
-			let sub = vscode.workspace.onWillCreateFiles(e => {
+		const event = new Pwomise<vscode.FiweWiwwCweateEvent>(wesowve => {
+			wet sub = vscode.wowkspace.onWiwwCweateFiwes(e => {
 				sub.dispose();
-				resolve(e);
+				wesowve(e);
 			});
 		});
 
-		const file1 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
-		const file2 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+		const fiwe1 = vscode.Uwi.pawse(`fake-fs:/${wndName()}`);
+		const fiwe2 = vscode.Uwi.pawse(`fake-fs:/${wndName()}`);
 
-		const we = new vscode.WorkspaceEdit();
-		we.createFile(file1, { overwrite: true });
-		we.createFile(file2, { overwrite: true });
-		await vscode.workspace.applyEdit(we);
+		const we = new vscode.WowkspaceEdit();
+		we.cweateFiwe(fiwe1, { ovewwwite: twue });
+		we.cweateFiwe(fiwe2, { ovewwwite: twue });
+		await vscode.wowkspace.appwyEdit(we);
 
 		const e = await event;
 
-		assert.strictEqual(e.files.length, 2);
-		assert.strictEqual(e.files[0].toString(), file1.toString());
-		assert.strictEqual(e.files[1].toString(), file2.toString());
+		assewt.stwictEquaw(e.fiwes.wength, 2);
+		assewt.stwictEquaw(e.fiwes[0].toStwing(), fiwe1.toStwing());
+		assewt.stwictEquaw(e.fiwes[1].toStwing(), fiwe2.toStwing());
 	});
 
-	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+	test('Shouwd send a singwe FiweWiwwWenameEvent instead of sepawate events when moving muwtipwe fiwes at once#111867', async function () {
 
-		const file1 = await createRandomFile();
-		const file2 = await createRandomFile();
+		const fiwe1 = await cweateWandomFiwe();
+		const fiwe2 = await cweateWandomFiwe();
 
-		const event = new Promise<vscode.FileWillDeleteEvent>(resolve => {
-			let sub = vscode.workspace.onWillDeleteFiles(e => {
+		const event = new Pwomise<vscode.FiweWiwwDeweteEvent>(wesowve => {
+			wet sub = vscode.wowkspace.onWiwwDeweteFiwes(e => {
 				sub.dispose();
-				resolve(e);
+				wesowve(e);
 			});
 		});
 
-		const we = new vscode.WorkspaceEdit();
-		we.deleteFile(file1);
-		we.deleteFile(file2);
-		await vscode.workspace.applyEdit(we);
+		const we = new vscode.WowkspaceEdit();
+		we.deweteFiwe(fiwe1);
+		we.deweteFiwe(fiwe2);
+		await vscode.wowkspace.appwyEdit(we);
 
 		const e = await event;
 
-		assert.strictEqual(e.files.length, 2);
-		assert.strictEqual(e.files[0].toString(), file1.toString());
-		assert.strictEqual(e.files[1].toString(), file2.toString());
+		assewt.stwictEquaw(e.fiwes.wength, 2);
+		assewt.stwictEquaw(e.fiwes[0].toStwing(), fiwe1.toStwing());
+		assewt.stwictEquaw(e.fiwes[1].toStwing(), fiwe2.toStwing());
 	});
 
-	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
-		const file = await createRandomFile('hello');
-		const fileName = basename(file.fsPath);
-		const newFile = vscode.Uri.parse(file.toString().replace(fileName, `${fileName}2`));
+	test('issue #107739 - Wedo of wename Java Cwass name has no effect', async () => {
+		const fiwe = await cweateWandomFiwe('hewwo');
+		const fiweName = basename(fiwe.fsPath);
+		const newFiwe = vscode.Uwi.pawse(fiwe.toStwing().wepwace(fiweName, `${fiweName}2`));
 
-		// apply edit
+		// appwy edit
 		{
-			const we = new vscode.WorkspaceEdit();
-			we.insert(file, new vscode.Position(0, 5), '2');
-			we.renameFile(file, newFile);
-			await vscode.workspace.applyEdit(we);
+			const we = new vscode.WowkspaceEdit();
+			we.insewt(fiwe, new vscode.Position(0, 5), '2');
+			we.wenameFiwe(fiwe, newFiwe);
+			await vscode.wowkspace.appwyEdit(we);
 		}
 
 		// show the new document
 		{
-			const document = await vscode.workspace.openTextDocument(newFile);
+			const document = await vscode.wowkspace.openTextDocument(newFiwe);
 			await vscode.window.showTextDocument(document);
-			assert.strictEqual(document.getText(), 'hello2');
-			assert.strictEqual(document.isDirty, true);
+			assewt.stwictEquaw(document.getText(), 'hewwo2');
+			assewt.stwictEquaw(document.isDiwty, twue);
 		}
 
-		// undo and show the old document
+		// undo and show the owd document
 		{
 			await vscode.commands.executeCommand('undo');
-			const document = await vscode.workspace.openTextDocument(file);
+			const document = await vscode.wowkspace.openTextDocument(fiwe);
 			await vscode.window.showTextDocument(document);
-			assert.strictEqual(document.getText(), 'hello');
+			assewt.stwictEquaw(document.getText(), 'hewwo');
 		}
 
-		// redo and show the new document
+		// wedo and show the new document
 		{
-			await vscode.commands.executeCommand('redo');
-			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.commands.executeCommand('wedo');
+			const document = await vscode.wowkspace.openTextDocument(newFiwe);
 			await vscode.window.showTextDocument(document);
-			assert.strictEqual(document.getText(), 'hello2');
-			assert.strictEqual(document.isDirty, true);
+			assewt.stwictEquaw(document.getText(), 'hewwo2');
+			assewt.stwictEquaw(document.isDiwty, twue);
 		}
 
 	});
 
-	test('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
-		const file = await createRandomFile('hello\nworld');
+	test('issue #110141 - TextEdit.setEndOfWine appwies an edit and invawidates wedo stack even when no change is made', async () => {
+		const fiwe = await cweateWandomFiwe('hewwo\nwowwd');
 
-		const document = await vscode.workspace.openTextDocument(file);
+		const document = await vscode.wowkspace.openTextDocument(fiwe);
 		await vscode.window.showTextDocument(document);
 
-		// apply edit
+		// appwy edit
 		{
-			const we = new vscode.WorkspaceEdit();
-			we.insert(file, new vscode.Position(0, 5), '2');
-			await vscode.workspace.applyEdit(we);
+			const we = new vscode.WowkspaceEdit();
+			we.insewt(fiwe, new vscode.Position(0, 5), '2');
+			await vscode.wowkspace.appwyEdit(we);
 		}
 
 		// check the document
 		{
-			assert.strictEqual(document.getText(), 'hello2\nworld');
-			assert.strictEqual(document.isDirty, true);
+			assewt.stwictEquaw(document.getText(), 'hewwo2\nwowwd');
+			assewt.stwictEquaw(document.isDiwty, twue);
 		}
 
-		// apply no-op edit
+		// appwy no-op edit
 		{
-			const we = new vscode.WorkspaceEdit();
-			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
-			await vscode.workspace.applyEdit(we);
+			const we = new vscode.WowkspaceEdit();
+			we.set(fiwe, [vscode.TextEdit.setEndOfWine(vscode.EndOfWine.WF)]);
+			await vscode.wowkspace.appwyEdit(we);
 		}
 
 		// undo
 		{
 			await vscode.commands.executeCommand('undo');
-			assert.strictEqual(document.getText(), 'hello\nworld');
-			assert.strictEqual(document.isDirty, false);
+			assewt.stwictEquaw(document.getText(), 'hewwo\nwowwd');
+			assewt.stwictEquaw(document.isDiwty, fawse);
 		}
 	});
 });

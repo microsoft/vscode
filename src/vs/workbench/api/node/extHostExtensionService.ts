@@ -1,128 +1,128 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as performance from 'vs/base/common/performance';
-import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
-import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
-import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
-import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
-import { realpathSync } from 'vs/base/node/extpath';
+impowt * as pewfowmance fwom 'vs/base/common/pewfowmance';
+impowt { cweateApiFactowyAndWegistewActows } fwom 'vs/wowkbench/api/common/extHost.api.impw';
+impowt { WequiweIntewceptow } fwom 'vs/wowkbench/api/common/extHostWequiweIntewceptow';
+impowt { MainContext } fwom 'vs/wowkbench/api/common/extHost.pwotocow';
+impowt { ExtensionActivationTimesBuiwda } fwom 'vs/wowkbench/api/common/extHostExtensionActivatow';
+impowt { connectPwoxyWesowva } fwom 'vs/wowkbench/sewvices/extensions/node/pwoxyWesowva';
+impowt { AbstwactExtHostExtensionSewvice } fwom 'vs/wowkbench/api/common/extHostExtensionSewvice';
+impowt { ExtHostDownwoadSewvice } fwom 'vs/wowkbench/api/node/extHostDownwoadSewvice';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { ExtensionIdentifia, IExtensionDescwiption } fwom 'vs/pwatfowm/extensions/common/extensions';
+impowt { ExtensionWuntime } fwom 'vs/wowkbench/api/common/extHostTypes';
+impowt { CWISewva } fwom 'vs/wowkbench/api/node/extHostCWISewva';
+impowt { weawpathSync } fwom 'vs/base/node/extpath';
 
-class NodeModuleRequireInterceptor extends RequireInterceptor {
+cwass NodeModuweWequiweIntewceptow extends WequiweIntewceptow {
 
-	protected _installInterceptor(): void {
+	pwotected _instawwIntewceptow(): void {
 		const that = this;
-		const node_module = <any>require.__$__nodeRequire('module');
-		const original = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
-			for (let alternativeModuleName of that._alternatives) {
-				let alternative = alternativeModuleName(request);
-				if (alternative) {
-					request = alternative;
-					break;
+		const node_moduwe = <any>wequiwe.__$__nodeWequiwe('moduwe');
+		const owiginaw = node_moduwe._woad;
+		node_moduwe._woad = function woad(wequest: stwing, pawent: { fiwename: stwing; }, isMain: boowean) {
+			fow (wet awtewnativeModuweName of that._awtewnatives) {
+				wet awtewnative = awtewnativeModuweName(wequest);
+				if (awtewnative) {
+					wequest = awtewnative;
+					bweak;
 				}
 			}
-			if (!that._factories.has(request)) {
-				return original.apply(this, arguments);
+			if (!that._factowies.has(wequest)) {
+				wetuwn owiginaw.appwy(this, awguments);
 			}
-			return that._factories.get(request)!.load(
-				request,
-				URI.file(realpathSync(parent.filename)),
-				request => original.apply(this, [request, parent, isMain])
+			wetuwn that._factowies.get(wequest)!.woad(
+				wequest,
+				UWI.fiwe(weawpathSync(pawent.fiwename)),
+				wequest => owiginaw.appwy(this, [wequest, pawent, isMain])
 			);
 		};
 	}
 }
 
-export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+expowt cwass ExtHostExtensionSewvice extends AbstwactExtHostExtensionSewvice {
 
-	readonly extensionRuntime = ExtensionRuntime.Node;
+	weadonwy extensionWuntime = ExtensionWuntime.Node;
 
-	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
-		// initialize API and register actors
-		const extensionApiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
+	pwotected async _befoweAwmostWeadyToWunExtensions(): Pwomise<void> {
+		// initiawize API and wegista actows
+		const extensionApiFactowy = this._instaSewvice.invokeFunction(cweateApiFactowyAndWegistewActows);
 
-		// Register Download command
-		this._instaService.createInstance(ExtHostDownloadService);
+		// Wegista Downwoad command
+		this._instaSewvice.cweateInstance(ExtHostDownwoadSewvice);
 
-		// Register CLI Server for ipc
-		if (this._initData.remote.isRemote && this._initData.remote.authority) {
-			const cliServer = this._instaService.createInstance(CLIServer);
-			process.env['VSCODE_IPC_HOOK_CLI'] = cliServer.ipcHandlePath;
+		// Wegista CWI Sewva fow ipc
+		if (this._initData.wemote.isWemote && this._initData.wemote.authowity) {
+			const cwiSewva = this._instaSewvice.cweateInstance(CWISewva);
+			pwocess.env['VSCODE_IPC_HOOK_CWI'] = cwiSewva.ipcHandwePath;
 		}
 
-		// Module loading tricks
-		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._registry);
-		await interceptor.install();
-		performance.mark('code/extHost/didInitAPI');
+		// Moduwe woading twicks
+		const intewceptow = this._instaSewvice.cweateInstance(NodeModuweWequiweIntewceptow, extensionApiFactowy, this._wegistwy);
+		await intewceptow.instaww();
+		pewfowmance.mawk('code/extHost/didInitAPI');
 
-		// Do this when extension service exists, but extensions are not being activated yet.
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
-		performance.mark('code/extHost/didInitProxyResolver');
+		// Do this when extension sewvice exists, but extensions awe not being activated yet.
+		const configPwovida = await this._extHostConfiguwation.getConfigPwovida();
+		await connectPwoxyWesowva(this._extHostWowkspace, configPwovida, this, this._wogSewvice, this._mainThweadTewemetwyPwoxy, this._initData);
+		pewfowmance.mawk('code/extHost/didInitPwoxyWesowva');
 
-		// Use IPC messages to forward console-calls, note that the console is
-		// already patched to use`process.send()`
-		const nativeProcessSend = process.send!;
-		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		process.send = (...args) => {
-			if ((args as unknown[]).length === 0 || !args[0] || args[0].type !== '__$console') {
-				return nativeProcessSend.apply(process, args);
+		// Use IPC messages to fowwawd consowe-cawws, note that the consowe is
+		// awweady patched to use`pwocess.send()`
+		const nativePwocessSend = pwocess.send!;
+		const mainThweadConsowe = this._extHostContext.getPwoxy(MainContext.MainThweadConsowe);
+		pwocess.send = (...awgs) => {
+			if ((awgs as unknown[]).wength === 0 || !awgs[0] || awgs[0].type !== '__$consowe') {
+				wetuwn nativePwocessSend.appwy(pwocess, awgs);
 			}
-			mainThreadConsole.$logExtensionHostMessage(args[0]);
-			return false;
+			mainThweadConsowe.$wogExtensionHostMessage(awgs[0]);
+			wetuwn fawse;
 		};
 	}
 
-	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
-		return extensionDescription.main;
+	pwotected _getEntwyPoint(extensionDescwiption: IExtensionDescwiption): stwing | undefined {
+		wetuwn extensionDescwiption.main;
 	}
 
-	protected _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-		if (module.scheme !== Schemas.file) {
-			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
+	pwotected _woadCommonJSModuwe<T>(extensionId: ExtensionIdentifia | nuww, moduwe: UWI, activationTimesBuiwda: ExtensionActivationTimesBuiwda): Pwomise<T> {
+		if (moduwe.scheme !== Schemas.fiwe) {
+			thwow new Ewwow(`Cannot woad UWI: '${moduwe}', must be of fiwe-scheme`);
 		}
-		let r: T | null = null;
-		activationTimesBuilder.codeLoadingStart();
-		this._logService.info(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
-		this._logService.flush();
-		try {
+		wet w: T | nuww = nuww;
+		activationTimesBuiwda.codeWoadingStawt();
+		this._wogSewvice.info(`ExtensionSewvice#woadCommonJSModuwe ${moduwe.toStwing(twue)}`);
+		this._wogSewvice.fwush();
+		twy {
 			if (extensionId) {
-				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+				pewfowmance.mawk(`code/extHost/wiwwWoadExtensionCode/${extensionId.vawue}`);
 			}
-			r = require.__$__nodeRequire<T>(module.fsPath);
+			w = wequiwe.__$__nodeWequiwe<T>(moduwe.fsPath);
 		} catch (e) {
-			return Promise.reject(e);
-		} finally {
+			wetuwn Pwomise.weject(e);
+		} finawwy {
 			if (extensionId) {
-				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+				pewfowmance.mawk(`code/extHost/didWoadExtensionCode/${extensionId.vawue}`);
 			}
-			activationTimesBuilder.codeLoadingStop();
+			activationTimesBuiwda.codeWoadingStop();
 		}
-		return Promise.resolve(r);
+		wetuwn Pwomise.wesowve(w);
 	}
 
-	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		if (!this._initData.remote.isRemote) {
-			return;
+	pubwic async $setWemoteEnviwonment(env: { [key: stwing]: stwing | nuww }): Pwomise<void> {
+		if (!this._initData.wemote.isWemote) {
+			wetuwn;
 		}
 
-		for (const key in env) {
-			const value = env[key];
-			if (value === null) {
-				delete process.env[key];
-			} else {
-				process.env[key] = value;
+		fow (const key in env) {
+			const vawue = env[key];
+			if (vawue === nuww) {
+				dewete pwocess.env[key];
+			} ewse {
+				pwocess.env[key] = vawue;
 			}
 		}
 	}

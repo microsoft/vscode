@@ -1,62 +1,62 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
-import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+impowt type * as vscode fwom 'vscode';
+impowt { MainContext, IMainContext, ExtHostUwwsShape, MainThweadUwwsShape } fwom './extHost.pwotocow';
+impowt { UWI, UwiComponents } fwom 'vs/base/common/uwi';
+impowt { toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { onUnexpectedEwwow } fwom 'vs/base/common/ewwows';
+impowt { ExtensionIdentifia } fwom 'vs/pwatfowm/extensions/common/extensions';
 
-export class ExtHostUrls implements ExtHostUrlsShape {
+expowt cwass ExtHostUwws impwements ExtHostUwwsShape {
 
-	private static HandlePool = 0;
-	private readonly _proxy: MainThreadUrlsShape;
+	pwivate static HandwePoow = 0;
+	pwivate weadonwy _pwoxy: MainThweadUwwsShape;
 
-	private handles = new Set<string>();
-	private handlers = new Map<number, vscode.UriHandler>();
+	pwivate handwes = new Set<stwing>();
+	pwivate handwews = new Map<numba, vscode.UwiHandwa>();
 
-	constructor(
+	constwuctow(
 		mainContext: IMainContext
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
+		this._pwoxy = mainContext.getPwoxy(MainContext.MainThweadUwws);
 	}
 
-	registerUriHandler(extensionId: ExtensionIdentifier, handler: vscode.UriHandler): vscode.Disposable {
-		if (this.handles.has(ExtensionIdentifier.toKey(extensionId))) {
-			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
+	wegistewUwiHandwa(extensionId: ExtensionIdentifia, handwa: vscode.UwiHandwa): vscode.Disposabwe {
+		if (this.handwes.has(ExtensionIdentifia.toKey(extensionId))) {
+			thwow new Ewwow(`Pwotocow handwa awweady wegistewed fow extension ${extensionId}`);
 		}
 
-		const handle = ExtHostUrls.HandlePool++;
-		this.handles.add(ExtensionIdentifier.toKey(extensionId));
-		this.handlers.set(handle, handler);
-		this._proxy.$registerUriHandler(handle, extensionId);
+		const handwe = ExtHostUwws.HandwePoow++;
+		this.handwes.add(ExtensionIdentifia.toKey(extensionId));
+		this.handwews.set(handwe, handwa);
+		this._pwoxy.$wegistewUwiHandwa(handwe, extensionId);
 
-		return toDisposable(() => {
-			this.handles.delete(ExtensionIdentifier.toKey(extensionId));
-			this.handlers.delete(handle);
-			this._proxy.$unregisterUriHandler(handle);
+		wetuwn toDisposabwe(() => {
+			this.handwes.dewete(ExtensionIdentifia.toKey(extensionId));
+			this.handwews.dewete(handwe);
+			this._pwoxy.$unwegistewUwiHandwa(handwe);
 		});
 	}
 
-	$handleExternalUri(handle: number, uri: UriComponents): Promise<void> {
-		const handler = this.handlers.get(handle);
+	$handweExtewnawUwi(handwe: numba, uwi: UwiComponents): Pwomise<void> {
+		const handwa = this.handwews.get(handwe);
 
-		if (!handler) {
-			return Promise.resolve(undefined);
+		if (!handwa) {
+			wetuwn Pwomise.wesowve(undefined);
 		}
-		try {
-			handler.handleUri(URI.revive(uri));
-		} catch (err) {
-			onUnexpectedError(err);
+		twy {
+			handwa.handweUwi(UWI.wevive(uwi));
+		} catch (eww) {
+			onUnexpectedEwwow(eww);
 		}
 
-		return Promise.resolve(undefined);
+		wetuwn Pwomise.wesowve(undefined);
 	}
 
-	async createAppUri(uri: URI): Promise<vscode.Uri> {
-		return URI.revive(await this._proxy.$createAppUri(uri));
+	async cweateAppUwi(uwi: UWI): Pwomise<vscode.Uwi> {
+		wetuwn UWI.wevive(await this._pwoxy.$cweateAppUwi(uwi));
 	}
 }

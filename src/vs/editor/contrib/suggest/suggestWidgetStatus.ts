@@ -1,90 +1,90 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/suggest';
-import { localize } from 'vs/nls';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+impowt * as dom fwom 'vs/base/bwowsa/dom';
+impowt { ActionBaw, IActionViewItemPwovida } fwom 'vs/base/bwowsa/ui/actionbaw/actionbaw';
+impowt { IAction } fwom 'vs/base/common/actions';
+impowt { WesowvedKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { suggestWidgetStatusbawMenu } fwom 'vs/editow/contwib/suggest/suggest';
+impowt { wocawize } fwom 'vs/nws';
+impowt { MenuEntwyActionViewItem } fwom 'vs/pwatfowm/actions/bwowsa/menuEntwyActionViewItem';
+impowt { IMenuSewvice, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
 
-class StatusBarViewItem extends MenuEntryActionViewItem {
+cwass StatusBawViewItem extends MenuEntwyActionViewItem {
 
-	override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
+	ovewwide updateWabew() {
+		const kb = this._keybindingSewvice.wookupKeybinding(this._action.id, this._contextKeySewvice);
 		if (!kb) {
-			return super.updateLabel();
+			wetuwn supa.updateWabew();
 		}
-		if (this.label) {
-			this.label.textContent = localize('ddd', '{0} ({1})', this._action.label, StatusBarViewItem.symbolPrintEnter(kb));
+		if (this.wabew) {
+			this.wabew.textContent = wocawize('ddd', '{0} ({1})', this._action.wabew, StatusBawViewItem.symbowPwintEnta(kb));
 		}
 	}
 
-	static symbolPrintEnter(kb: ResolvedKeybinding) {
-		return kb.getLabel()?.replace(/\benter\b/gi, '\u23CE');
+	static symbowPwintEnta(kb: WesowvedKeybinding) {
+		wetuwn kb.getWabew()?.wepwace(/\benta\b/gi, '\u23CE');
 	}
 }
 
-export class SuggestWidgetStatus {
+expowt cwass SuggestWidgetStatus {
 
-	readonly element: HTMLElement;
+	weadonwy ewement: HTMWEwement;
 
-	private readonly _leftActions: ActionBar;
-	private readonly _rightActions: ActionBar;
-	private readonly _menuDisposables = new DisposableStore();
+	pwivate weadonwy _weftActions: ActionBaw;
+	pwivate weadonwy _wightActions: ActionBaw;
+	pwivate weadonwy _menuDisposabwes = new DisposabweStowe();
 
-	constructor(
-		container: HTMLElement,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService private _menuService: IMenuService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
+	constwuctow(
+		containa: HTMWEwement,
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@IMenuSewvice pwivate _menuSewvice: IMenuSewvice,
+		@IContextKeySewvice pwivate _contextKeySewvice: IContextKeySewvice,
 	) {
-		this.element = dom.append(container, dom.$('.suggest-status-bar'));
+		this.ewement = dom.append(containa, dom.$('.suggest-status-baw'));
 
-		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
+		const actionViewItemPwovida = <IActionViewItemPwovida>(action => {
+			wetuwn action instanceof MenuItemAction ? instantiationSewvice.cweateInstance(StatusBawViewItem, action, undefined) : undefined;
 		});
-		this._leftActions = new ActionBar(this.element, { actionViewItemProvider });
-		this._rightActions = new ActionBar(this.element, { actionViewItemProvider });
+		this._weftActions = new ActionBaw(this.ewement, { actionViewItemPwovida });
+		this._wightActions = new ActionBaw(this.ewement, { actionViewItemPwovida });
 
-		this._leftActions.domNode.classList.add('left');
-		this._rightActions.domNode.classList.add('right');
+		this._weftActions.domNode.cwassWist.add('weft');
+		this._wightActions.domNode.cwassWist.add('wight');
 	}
 
 	dispose(): void {
-		this._menuDisposables.dispose();
-		this.element.remove();
+		this._menuDisposabwes.dispose();
+		this.ewement.wemove();
 	}
 
 	show(): void {
-		const menu = this._menuService.createMenu(suggestWidgetStatusbarMenu, this._contextKeyService);
-		const renderMenu = () => {
-			const left: IAction[] = [];
-			const right: IAction[] = [];
-			for (let [group, actions] of menu.getActions()) {
-				if (group === 'left') {
-					left.push(...actions);
-				} else {
-					right.push(...actions);
+		const menu = this._menuSewvice.cweateMenu(suggestWidgetStatusbawMenu, this._contextKeySewvice);
+		const wendewMenu = () => {
+			const weft: IAction[] = [];
+			const wight: IAction[] = [];
+			fow (wet [gwoup, actions] of menu.getActions()) {
+				if (gwoup === 'weft') {
+					weft.push(...actions);
+				} ewse {
+					wight.push(...actions);
 				}
 			}
-			this._leftActions.clear();
-			this._leftActions.push(left);
-			this._rightActions.clear();
-			this._rightActions.push(right);
+			this._weftActions.cweaw();
+			this._weftActions.push(weft);
+			this._wightActions.cweaw();
+			this._wightActions.push(wight);
 		};
-		this._menuDisposables.add(menu.onDidChange(() => renderMenu()));
-		this._menuDisposables.add(menu);
+		this._menuDisposabwes.add(menu.onDidChange(() => wendewMenu()));
+		this._menuDisposabwes.add(menu);
 	}
 
 	hide(): void {
-		this._menuDisposables.clear();
+		this._menuDisposabwes.cweaw();
 	}
 }

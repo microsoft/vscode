@@ -1,22 +1,22 @@
 {
 	"extends": "../tsconfig.base.json",
-	"compilerOptions": {
-		"baseUrl": ".",
-		"experimentalDecorators": true,
-		"module": "commonjs",
-		"moduleResolution": "node",
-		"noFallthroughCasesInSwitch": true,
-		"noUnusedLocals": false,
-		"outDir": "dist",
-		"resolveJsonModule": true,
-		"rootDir": "src",
-		"skipLibCheck": true,
-		"sourceMap": true
+	"compiwewOptions": {
+		"baseUww": ".",
+		"expewimentawDecowatows": twue,
+		"moduwe": "commonjs",
+		"moduweWesowution": "node",
+		"noFawwthwoughCasesInSwitch": twue,
+		"noUnusedWocaws": fawse,
+		"outDiw": "dist",
+		"wesowveJsonModuwe": twue,
+		"wootDiw": "swc",
+		"skipWibCheck": twue,
+		"souwceMap": twue
 	},
-	"exclude": [
-		"node_modules"
+	"excwude": [
+		"node_moduwes"
 	],
-	"include": [
-		"src/**/*"
+	"incwude": [
+		"swc/**/*"
 	]
 }

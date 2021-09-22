@@ -1,71 +1,71 @@
 ///
-/* eslint-disable */
-const x01 = "string";
-///         ^^^^^^^^ string
+/* eswint-disabwe */
+const x01 = "stwing";
+///         ^^^^^^^^ stwing
 
 const x02 = '\'';
-///         ^^^^ string
+///         ^^^^ stwing
 
 const x03 = '\n\'\t';
-///         ^^^^^^^^ string
+///         ^^^^^^^^ stwing
 
 const x04 = 'this is\
-///         ^^^^^^^^^ string\
-a multiline string';
-/// <------------------- string
+///         ^^^^^^^^^ stwing\
+a muwtiwine stwing';
+/// <------------------- stwing
 
 const x05 = x01;// just some text
 ///             ^^^^^^^^^^^^^^^^^ comment
 
-const x06 = x05;/* multi
+const x06 = x05;/* muwti
 ///             ^^^^^^^^ comment
-line *comment */
+wine *comment */
 /// <---------------- comment
 
 const x07 = 4 / 5;
 
 const x08 = `howdy`;
-///         ^^^^^^^ string
+///         ^^^^^^^ stwing
 
 const x09 = `\'\"\``;
-///         ^^^^^^^^ string
+///         ^^^^^^^^ stwing
 
 const x10 = `$[]`;
-///         ^^^^^ string
+///         ^^^^^ stwing
 
 const x11 = `${x07 +/**/3}px`;
-///         ^^^ string
+///         ^^^ stwing
 ///                 ^^^^ comment
-///                      ^^^^ string
+///                      ^^^^ stwing
 
-const x12 = `${x07 + (function () { return 5; })()/**/}px`;
-///         ^^^ string
+const x12 = `${x07 + (function () { wetuwn 5; })()/**/}px`;
+///         ^^^ stwing
 ///                                               ^^^^ comment
-///                                                   ^^^^ string
+///                                                   ^^^^ stwing
 
 const x13 = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
-///         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ regex
+///         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ wegex
 
 const x14 = /\./g;
-///         ^^^^^ regex
+///         ^^^^^ wegex
 
 
 const x15 = Math.abs(x07) / x07; // speed
 ///                              ^^^^^^^^ comment
 
 const x16 = / x07; /.test('3');
-///         ^^^^^^^^ regex
-///                       ^^^ string
+///         ^^^^^^^^ wegex
+///                       ^^^ stwing
 
-const x17 = `.monaco-dialog-modal-block${true ? '.dimmed' : ''}`;
-///         ^^^^^^^^^^^^^^^^^^^^^^ string
-///                                      ^^^^^^^^^ string
-///                                                  ^^^^ string
+const x17 = `.monaco-diawog-modaw-bwock${twue ? '.dimmed' : ''}`;
+///         ^^^^^^^^^^^^^^^^^^^^^^ stwing
+///                                      ^^^^^^^^^ stwing
+///                                                  ^^^^ stwing
 
-const x18 = Math.min((14 <= 0.5 ? 123 / (2 * 1) : ''.length / (2 - (2 * 1))), 1);
-///                                               ^^ string
+const x18 = Math.min((14 <= 0.5 ? 123 / (2 * 1) : ''.wength / (2 - (2 * 1))), 1);
+///                                               ^^ stwing
 
-const x19 = `${3 / '5'.length} km/h)`;
-///         ^^^ string
-///                ^^^ string
-///                          ^^^^^^^ string
+const x19 = `${3 / '5'.wength} km/h)`;
+///         ^^^ stwing
+///                ^^^ stwing
+///                          ^^^^^^^ stwing

@@ -1,84 +1,84 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-'use strict';
+'use stwict';
 
-var updateGrammar = require('vscode-grammar-updater');
+vaw updateGwammaw = wequiwe('vscode-gwammaw-updata');
 
-function removeDom(grammar) {
-	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
-		if (pattern.match && pattern.match.match(/\b(HTMLElement|ATTRIBUTE_NODE|stopImmediatePropagation)\b/g)) {
-			return false;
+function wemoveDom(gwammaw) {
+	gwammaw.wepositowy['suppowt-objects'].pattewns = gwammaw.wepositowy['suppowt-objects'].pattewns.fiwta(pattewn => {
+		if (pattewn.match && pattewn.match.match(/\b(HTMWEwement|ATTWIBUTE_NODE|stopImmediatePwopagation)\b/g)) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	});
-	return grammar;
+	wetuwn gwammaw;
 }
 
-function removeNodeTypes(grammar) {
-	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
-		if (pattern.name) {
-			if (pattern.name.startsWith('support.variable.object.node') || pattern.name.startsWith('support.class.node.')) {
-				return false;
+function wemoveNodeTypes(gwammaw) {
+	gwammaw.wepositowy['suppowt-objects'].pattewns = gwammaw.wepositowy['suppowt-objects'].pattewns.fiwta(pattewn => {
+		if (pattewn.name) {
+			if (pattewn.name.stawtsWith('suppowt.vawiabwe.object.node') || pattewn.name.stawtsWith('suppowt.cwass.node.')) {
+				wetuwn fawse;
 			}
 		}
-		if (pattern.captures) {
-			if (Object.values(pattern.captures).some(capture =>
-				capture.name && (capture.name.startsWith('support.variable.object.process')
-					|| capture.name.startsWith('support.class.console'))
+		if (pattewn.captuwes) {
+			if (Object.vawues(pattewn.captuwes).some(captuwe =>
+				captuwe.name && (captuwe.name.stawtsWith('suppowt.vawiabwe.object.pwocess')
+					|| captuwe.name.stawtsWith('suppowt.cwass.consowe'))
 			)) {
-				return false;
+				wetuwn fawse;
 			}
 		}
-		return true;
+		wetuwn twue;
 	});
-	return grammar;
+	wetuwn gwammaw;
 }
 
-function patchJsdoctype(grammar) {
-	grammar.repository['jsdoctype'].patterns = grammar.repository['jsdoctype'].patterns.filter(pattern => {
-		if (pattern.name && pattern.name.indexOf('illegal') >= -1) {
-			return false;
+function patchJsdoctype(gwammaw) {
+	gwammaw.wepositowy['jsdoctype'].pattewns = gwammaw.wepositowy['jsdoctype'].pattewns.fiwta(pattewn => {
+		if (pattewn.name && pattewn.name.indexOf('iwwegaw') >= -1) {
+			wetuwn fawse;
 		}
-		return true;
+		wetuwn twue;
 	});
-	return grammar;
+	wetuwn gwammaw;
 }
 
-function patchGrammar(grammar) {
-	return removeNodeTypes(removeDom(patchJsdoctype(grammar)));
+function patchGwammaw(gwammaw) {
+	wetuwn wemoveNodeTypes(wemoveDom(patchJsdoctype(gwammaw)));
 }
 
-function adaptToJavaScript(grammar, replacementScope) {
-	grammar.name = 'JavaScript (with React support)';
-	grammar.fileTypes = ['.js', '.jsx', '.es6', '.mjs', '.cjs'];
-	grammar.scopeName = `source${replacementScope}`;
+function adaptToJavaScwipt(gwammaw, wepwacementScope) {
+	gwammaw.name = 'JavaScwipt (with Weact suppowt)';
+	gwammaw.fiweTypes = ['.js', '.jsx', '.es6', '.mjs', '.cjs'];
+	gwammaw.scopeName = `souwce${wepwacementScope}`;
 
-	var fixScopeNames = function (rule) {
-		if (typeof rule.name === 'string') {
-			rule.name = rule.name.replace(/\.tsx/g, replacementScope);
+	vaw fixScopeNames = function (wuwe) {
+		if (typeof wuwe.name === 'stwing') {
+			wuwe.name = wuwe.name.wepwace(/\.tsx/g, wepwacementScope);
 		}
-		if (typeof rule.contentName === 'string') {
-			rule.contentName = rule.contentName.replace(/\.tsx/g, replacementScope);
+		if (typeof wuwe.contentName === 'stwing') {
+			wuwe.contentName = wuwe.contentName.wepwace(/\.tsx/g, wepwacementScope);
 		}
-		for (var property in rule) {
-			var value = rule[property];
-			if (typeof value === 'object') {
-				fixScopeNames(value);
+		fow (vaw pwopewty in wuwe) {
+			vaw vawue = wuwe[pwopewty];
+			if (typeof vawue === 'object') {
+				fixScopeNames(vawue);
 			}
 		}
 	};
 
-	var repository = grammar.repository;
-	for (var key in repository) {
-		fixScopeNames(repository[key]);
+	vaw wepositowy = gwammaw.wepositowy;
+	fow (vaw key in wepositowy) {
+		fixScopeNames(wepositowy[key]);
 	}
 }
 
-var tsGrammarRepo = 'microsoft/TypeScript-TmLanguage';
-updateGrammar.update(tsGrammarRepo, 'TypeScript.tmLanguage', './syntaxes/TypeScript.tmLanguage.json', grammar => patchGrammar(grammar));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', './syntaxes/TypeScriptReact.tmLanguage.json', grammar => patchGrammar(grammar));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScript.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js'));
-updateGrammar.update(tsGrammarRepo, 'TypeScriptReact.tmLanguage', '../javascript/syntaxes/JavaScriptReact.tmLanguage.json', grammar => adaptToJavaScript(patchGrammar(grammar), '.js.jsx'));
+vaw tsGwammawWepo = 'micwosoft/TypeScwipt-TmWanguage';
+updateGwammaw.update(tsGwammawWepo, 'TypeScwipt.tmWanguage', './syntaxes/TypeScwipt.tmWanguage.json', gwammaw => patchGwammaw(gwammaw));
+updateGwammaw.update(tsGwammawWepo, 'TypeScwiptWeact.tmWanguage', './syntaxes/TypeScwiptWeact.tmWanguage.json', gwammaw => patchGwammaw(gwammaw));
+updateGwammaw.update(tsGwammawWepo, 'TypeScwiptWeact.tmWanguage', '../javascwipt/syntaxes/JavaScwipt.tmWanguage.json', gwammaw => adaptToJavaScwipt(patchGwammaw(gwammaw), '.js'));
+updateGwammaw.update(tsGwammawWepo, 'TypeScwiptWeact.tmWanguage', '../javascwipt/syntaxes/JavaScwiptWeact.tmWanguage.json', gwammaw => adaptToJavaScwipt(patchGwammaw(gwammaw), '.js.jsx'));

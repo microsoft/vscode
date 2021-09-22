@@ -1,516 +1,516 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+impowt * as awways fwom 'vs/base/common/awways';
+impowt { DefewwedPwomise } fwom 'vs/base/common/async';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { cancewed } fwom 'vs/base/common/ewwows';
+impowt { Disposabwe, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { WesouwceMap } fwom 'vs/base/common/map';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { UWI, UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { EditowWesouwceAccessow, SideBySideEditow } fwom 'vs/wowkbench/common/editow';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IExtensionSewvice } fwom 'vs/wowkbench/sewvices/extensions/common/extensions';
+impowt { desewiawizeSeawchEwwow, FiweMatch, ICachedSeawchStats, IFiweMatch, IFiweQuewy, IFiweSeawchStats, IFowdewQuewy, IPwogwessMessage, ISeawchCompwete, ISeawchEngineStats, ISeawchPwogwessItem, ISeawchQuewy, ISeawchWesuwtPwovida, ISeawchSewvice, isFiweMatch, isPwogwessMessage, ITextQuewy, pathIncwudedInQuewy, QuewyType, SeawchEwwow, SeawchEwwowCode, SeawchPwovidewType } fwom 'vs/wowkbench/sewvices/seawch/common/seawch';
+impowt { addContextToEditowMatches, editowMatchesToTextSeawchWesuwts } fwom 'vs/wowkbench/sewvices/seawch/common/seawchHewpews';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
 
-export class SearchService extends Disposable implements ISearchService {
+expowt cwass SeawchSewvice extends Disposabwe impwements ISeawchSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	protected diskSearch: ISearchResultProvider | null = null;
-	private readonly fileSearchProviders = new Map<string, ISearchResultProvider>();
-	private readonly textSearchProviders = new Map<string, ISearchResultProvider>();
+	pwotected diskSeawch: ISeawchWesuwtPwovida | nuww = nuww;
+	pwivate weadonwy fiweSeawchPwovidews = new Map<stwing, ISeawchWesuwtPwovida>();
+	pwivate weadonwy textSeawchPwovidews = new Map<stwing, ISeawchWesuwtPwovida>();
 
-	private deferredFileSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
-	private deferredTextSearchesByScheme = new Map<string, DeferredPromise<ISearchResultProvider>>();
+	pwivate defewwedFiweSeawchesByScheme = new Map<stwing, DefewwedPwomise<ISeawchWesuwtPwovida>>();
+	pwivate defewwedTextSeawchesByScheme = new Map<stwing, DefewwedPwomise<ISeawchWesuwtPwovida>>();
 
-	constructor(
-		private readonly modelService: IModelService,
-		private readonly editorService: IEditorService,
-		private readonly telemetryService: ITelemetryService,
-		private readonly logService: ILogService,
-		private readonly extensionService: IExtensionService,
-		private readonly fileService: IFileService,
-		private readonly uriIdentityService: IUriIdentityService,
+	constwuctow(
+		pwivate weadonwy modewSewvice: IModewSewvice,
+		pwivate weadonwy editowSewvice: IEditowSewvice,
+		pwivate weadonwy tewemetwySewvice: ITewemetwySewvice,
+		pwivate weadonwy wogSewvice: IWogSewvice,
+		pwivate weadonwy extensionSewvice: IExtensionSewvice,
+		pwivate weadonwy fiweSewvice: IFiweSewvice,
+		pwivate weadonwy uwiIdentitySewvice: IUwiIdentitySewvice,
 	) {
-		super();
+		supa();
 	}
 
-	registerSearchResultProvider(scheme: string, type: SearchProviderType, provider: ISearchResultProvider): IDisposable {
-		let list: Map<string, ISearchResultProvider>;
-		let deferredMap: Map<string, DeferredPromise<ISearchResultProvider>>;
-		if (type === SearchProviderType.file) {
-			list = this.fileSearchProviders;
-			deferredMap = this.deferredFileSearchesByScheme;
-		} else if (type === SearchProviderType.text) {
-			list = this.textSearchProviders;
-			deferredMap = this.deferredTextSearchesByScheme;
-		} else {
-			throw new Error('Unknown SearchProviderType');
+	wegistewSeawchWesuwtPwovida(scheme: stwing, type: SeawchPwovidewType, pwovida: ISeawchWesuwtPwovida): IDisposabwe {
+		wet wist: Map<stwing, ISeawchWesuwtPwovida>;
+		wet defewwedMap: Map<stwing, DefewwedPwomise<ISeawchWesuwtPwovida>>;
+		if (type === SeawchPwovidewType.fiwe) {
+			wist = this.fiweSeawchPwovidews;
+			defewwedMap = this.defewwedFiweSeawchesByScheme;
+		} ewse if (type === SeawchPwovidewType.text) {
+			wist = this.textSeawchPwovidews;
+			defewwedMap = this.defewwedTextSeawchesByScheme;
+		} ewse {
+			thwow new Ewwow('Unknown SeawchPwovidewType');
 		}
 
-		list.set(scheme, provider);
+		wist.set(scheme, pwovida);
 
-		if (deferredMap.has(scheme)) {
-			deferredMap.get(scheme)!.complete(provider);
-			deferredMap.delete(scheme);
+		if (defewwedMap.has(scheme)) {
+			defewwedMap.get(scheme)!.compwete(pwovida);
+			defewwedMap.dewete(scheme);
 		}
 
-		return toDisposable(() => {
-			list.delete(scheme);
+		wetuwn toDisposabwe(() => {
+			wist.dewete(scheme);
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
+	async textSeawch(quewy: ITextQuewy, token?: CancewwationToken, onPwogwess?: (item: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
+		// Get wocaw wesuwts fwom diwty/untitwed
+		const wocawWesuwts = this.getWocawWesuwts(quewy);
 
-		if (onProgress) {
-			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
+		if (onPwogwess) {
+			awways.coawesce([...wocawWesuwts.wesuwts.vawues()]).fowEach(onPwogwess);
 		}
 
-		const onProviderProgress = (progress: ISearchProgressItem) => {
-			if (isFileMatch(progress)) {
+		const onPwovidewPwogwess = (pwogwess: ISeawchPwogwessItem) => {
+			if (isFiweMatch(pwogwess)) {
 				// Match
-				if (!localResults.results.has(progress.resource) && onProgress) { // don't override local results
-					onProgress(progress);
+				if (!wocawWesuwts.wesuwts.has(pwogwess.wesouwce) && onPwogwess) { // don't ovewwide wocaw wesuwts
+					onPwogwess(pwogwess);
 				}
-			} else if (onProgress) {
-				// Progress
-				onProgress(<IProgressMessage>progress);
+			} ewse if (onPwogwess) {
+				// Pwogwess
+				onPwogwess(<IPwogwessMessage>pwogwess);
 			}
 
-			if (isProgressMessage(progress)) {
-				this.logService.debug('SearchService#search', progress.message);
+			if (isPwogwessMessage(pwogwess)) {
+				this.wogSewvice.debug('SeawchSewvice#seawch', pwogwess.message);
 			}
 		};
 
-		const otherResults = await this.doSearch(query, token, onProviderProgress);
-		return {
-			...otherResults,
+		const othewWesuwts = await this.doSeawch(quewy, token, onPwovidewPwogwess);
+		wetuwn {
+			...othewWesuwts,
 			...{
-				limitHit: otherResults.limitHit || localResults.limitHit
+				wimitHit: othewWesuwts.wimitHit || wocawWesuwts.wimitHit
 			},
-			results: [...otherResults.results, ...arrays.coalesce([...localResults.results.values()])]
+			wesuwts: [...othewWesuwts.wesuwts, ...awways.coawesce([...wocawWesuwts.wesuwts.vawues()])]
 		};
 	}
 
-	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-		return this.doSearch(query, token);
+	fiweSeawch(quewy: IFiweQuewy, token?: CancewwationToken): Pwomise<ISeawchCompwete> {
+		wetuwn this.doSeawch(quewy, token);
 	}
 
-	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		this.logService.trace('SearchService#search', JSON.stringify(query));
+	pwivate doSeawch(quewy: ISeawchQuewy, token?: CancewwationToken, onPwogwess?: (item: ISeawchPwogwessItem) => void): Pwomise<ISeawchCompwete> {
+		this.wogSewvice.twace('SeawchSewvice#seawch', JSON.stwingify(quewy));
 
-		const schemesInQuery = this.getSchemesInQuery(query);
+		const schemesInQuewy = this.getSchemesInQuewy(quewy);
 
-		const providerActivations: Promise<any>[] = [Promise.resolve(null)];
-		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
-		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
+		const pwovidewActivations: Pwomise<any>[] = [Pwomise.wesowve(nuww)];
+		schemesInQuewy.fowEach(scheme => pwovidewActivations.push(this.extensionSewvice.activateByEvent(`onSeawch:${scheme}`)));
+		pwovidewActivations.push(this.extensionSewvice.activateByEvent('onSeawch:fiwe'));
 
-		const providerPromise = (async () => {
-			await Promise.all(providerActivations);
-			this.extensionService.whenInstalledExtensionsRegistered();
+		const pwovidewPwomise = (async () => {
+			await Pwomise.aww(pwovidewActivations);
+			this.extensionSewvice.whenInstawwedExtensionsWegistewed();
 
-			// Cancel faster if search was canceled while waiting for extensions
-			if (token && token.isCancellationRequested) {
-				return Promise.reject(canceled());
+			// Cancew fasta if seawch was cancewed whiwe waiting fow extensions
+			if (token && token.isCancewwationWequested) {
+				wetuwn Pwomise.weject(cancewed());
 			}
 
-			const progressCallback = (item: ISearchProgressItem) => {
-				if (token && token.isCancellationRequested) {
-					return;
+			const pwogwessCawwback = (item: ISeawchPwogwessItem) => {
+				if (token && token.isCancewwationWequested) {
+					wetuwn;
 				}
 
-				if (onProgress) {
-					onProgress(item);
+				if (onPwogwess) {
+					onPwogwess(item);
 				}
 			};
 
-			const exists = await Promise.all(query.folderQueries.map(query => this.fileService.exists(query.folder)));
-			query.folderQueries = query.folderQueries.filter((_, i) => exists[i]);
+			const exists = await Pwomise.aww(quewy.fowdewQuewies.map(quewy => this.fiweSewvice.exists(quewy.fowda)));
+			quewy.fowdewQuewies = quewy.fowdewQuewies.fiwta((_, i) => exists[i]);
 
-			let completes = await this.searchWithProviders(query, progressCallback, token);
-			completes = arrays.coalesce(completes);
-			if (!completes.length) {
-				return {
-					limitHit: false,
-					results: [],
+			wet compwetes = await this.seawchWithPwovidews(quewy, pwogwessCawwback, token);
+			compwetes = awways.coawesce(compwetes);
+			if (!compwetes.wength) {
+				wetuwn {
+					wimitHit: fawse,
+					wesuwts: [],
 					messages: [],
 				};
 			}
 
-			return {
-				limitHit: completes[0] && completes[0].limitHit,
-				stats: completes[0].stats,
-				messages: arrays.coalesce(arrays.flatten(completes.map(i => i.messages))).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
-				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+			wetuwn {
+				wimitHit: compwetes[0] && compwetes[0].wimitHit,
+				stats: compwetes[0].stats,
+				messages: awways.coawesce(awways.fwatten(compwetes.map(i => i.messages))).fiwta(awways.uniqueFiwta(message => message.type + message.text + message.twusted)),
+				wesuwts: awways.fwatten(compwetes.map((c: ISeawchCompwete) => c.wesuwts))
 			};
 		})();
 
-		return new Promise((resolve, reject) => {
+		wetuwn new Pwomise((wesowve, weject) => {
 			if (token) {
-				token.onCancellationRequested(() => {
-					reject(canceled());
+				token.onCancewwationWequested(() => {
+					weject(cancewed());
 				});
 			}
 
-			providerPromise.then(resolve, reject);
+			pwovidewPwomise.then(wesowve, weject);
 		});
 	}
 
-	private getSchemesInQuery(query: ISearchQuery): Set<string> {
-		const schemes = new Set<string>();
-		if (query.folderQueries) {
-			query.folderQueries.forEach(fq => schemes.add(fq.folder.scheme));
+	pwivate getSchemesInQuewy(quewy: ISeawchQuewy): Set<stwing> {
+		const schemes = new Set<stwing>();
+		if (quewy.fowdewQuewies) {
+			quewy.fowdewQuewies.fowEach(fq => schemes.add(fq.fowda.scheme));
 		}
 
-		if (query.extraFileResources) {
-			query.extraFileResources.forEach(extraFile => schemes.add(extraFile.scheme));
+		if (quewy.extwaFiweWesouwces) {
+			quewy.extwaFiweWesouwces.fowEach(extwaFiwe => schemes.add(extwaFiwe.scheme));
 		}
 
-		return schemes;
+		wetuwn schemes;
 	}
 
-	private async waitForProvider(queryType: QueryType, scheme: string): Promise<ISearchResultProvider> {
-		const deferredMap: Map<string, DeferredPromise<ISearchResultProvider>> = queryType === QueryType.File ?
-			this.deferredFileSearchesByScheme :
-			this.deferredTextSearchesByScheme;
+	pwivate async waitFowPwovida(quewyType: QuewyType, scheme: stwing): Pwomise<ISeawchWesuwtPwovida> {
+		const defewwedMap: Map<stwing, DefewwedPwomise<ISeawchWesuwtPwovida>> = quewyType === QuewyType.Fiwe ?
+			this.defewwedFiweSeawchesByScheme :
+			this.defewwedTextSeawchesByScheme;
 
-		if (deferredMap.has(scheme)) {
-			return deferredMap.get(scheme)!.p;
-		} else {
-			const deferred = new DeferredPromise<ISearchResultProvider>();
-			deferredMap.set(scheme, deferred);
-			return deferred.p;
+		if (defewwedMap.has(scheme)) {
+			wetuwn defewwedMap.get(scheme)!.p;
+		} ewse {
+			const defewwed = new DefewwedPwomise<ISeawchWesuwtPwovida>();
+			defewwedMap.set(scheme, defewwed);
+			wetuwn defewwed.p;
 		}
 	}
 
-	private async searchWithProviders(query: ISearchQuery, onProviderProgress: (progress: ISearchProgressItem) => void, token?: CancellationToken) {
-		const e2eSW = StopWatch.create(false);
+	pwivate async seawchWithPwovidews(quewy: ISeawchQuewy, onPwovidewPwogwess: (pwogwess: ISeawchPwogwessItem) => void, token?: CancewwationToken) {
+		const e2eSW = StopWatch.cweate(fawse);
 
-		const diskSearchQueries: IFolderQuery[] = [];
-		const searchPs: Promise<ISearchComplete>[] = [];
+		const diskSeawchQuewies: IFowdewQuewy[] = [];
+		const seawchPs: Pwomise<ISeawchCompwete>[] = [];
 
-		const fqs = this.groupFolderQueriesByScheme(query);
-		await Promise.all([...fqs.keys()].map(async scheme => {
+		const fqs = this.gwoupFowdewQuewiesByScheme(quewy);
+		await Pwomise.aww([...fqs.keys()].map(async scheme => {
 			const schemeFQs = fqs.get(scheme)!;
-			let provider = query.type === QueryType.File ?
-				this.fileSearchProviders.get(scheme) :
-				this.textSearchProviders.get(scheme);
+			wet pwovida = quewy.type === QuewyType.Fiwe ?
+				this.fiweSeawchPwovidews.get(scheme) :
+				this.textSeawchPwovidews.get(scheme);
 
-			if (!provider && scheme === Schemas.file) {
-				diskSearchQueries.push(...schemeFQs);
-			} else {
-				if (!provider) {
-					if (scheme !== Schemas.vscodeRemote) {
-						console.warn(`No search provider registered for scheme: ${scheme}`);
-						return;
+			if (!pwovida && scheme === Schemas.fiwe) {
+				diskSeawchQuewies.push(...schemeFQs);
+			} ewse {
+				if (!pwovida) {
+					if (scheme !== Schemas.vscodeWemote) {
+						consowe.wawn(`No seawch pwovida wegistewed fow scheme: ${scheme}`);
+						wetuwn;
 					}
 
-					console.warn(`No search provider registered for scheme: ${scheme}, waiting`);
-					provider = await this.waitForProvider(query.type, scheme);
+					consowe.wawn(`No seawch pwovida wegistewed fow scheme: ${scheme}, waiting`);
+					pwovida = await this.waitFowPwovida(quewy.type, scheme);
 				}
 
-				const oneSchemeQuery: ISearchQuery = {
-					...query,
+				const oneSchemeQuewy: ISeawchQuewy = {
+					...quewy,
 					...{
-						folderQueries: schemeFQs
+						fowdewQuewies: schemeFQs
 					}
 				};
 
-				searchPs.push(query.type === QueryType.File ?
-					provider.fileSearch(<IFileQuery>oneSchemeQuery, token) :
-					provider.textSearch(<ITextQuery>oneSchemeQuery, onProviderProgress, token));
+				seawchPs.push(quewy.type === QuewyType.Fiwe ?
+					pwovida.fiweSeawch(<IFiweQuewy>oneSchemeQuewy, token) :
+					pwovida.textSeawch(<ITextQuewy>oneSchemeQuewy, onPwovidewPwogwess, token));
 			}
 		}));
 
-		const diskSearchExtraFileResources = query.extraFileResources && query.extraFileResources.filter(res => res.scheme === Schemas.file);
+		const diskSeawchExtwaFiweWesouwces = quewy.extwaFiweWesouwces && quewy.extwaFiweWesouwces.fiwta(wes => wes.scheme === Schemas.fiwe);
 
-		if (diskSearchQueries.length || diskSearchExtraFileResources) {
-			const diskSearchQuery: ISearchQuery = {
-				...query,
+		if (diskSeawchQuewies.wength || diskSeawchExtwaFiweWesouwces) {
+			const diskSeawchQuewy: ISeawchQuewy = {
+				...quewy,
 				...{
-					folderQueries: diskSearchQueries
+					fowdewQuewies: diskSeawchQuewies
 				},
-				extraFileResources: diskSearchExtraFileResources
+				extwaFiweWesouwces: diskSeawchExtwaFiweWesouwces
 			};
 
 
-			if (this.diskSearch) {
-				searchPs.push(diskSearchQuery.type === QueryType.File ?
-					this.diskSearch.fileSearch(diskSearchQuery, token) :
-					this.diskSearch.textSearch(diskSearchQuery, onProviderProgress, token));
+			if (this.diskSeawch) {
+				seawchPs.push(diskSeawchQuewy.type === QuewyType.Fiwe ?
+					this.diskSeawch.fiweSeawch(diskSeawchQuewy, token) :
+					this.diskSeawch.textSeawch(diskSeawchQuewy, onPwovidewPwogwess, token));
 			}
 		}
 
-		return Promise.all(searchPs).then(completes => {
-			const endToEndTime = e2eSW.elapsed();
-			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
-			completes.forEach(complete => {
-				this.sendTelemetry(query, endToEndTime, complete);
+		wetuwn Pwomise.aww(seawchPs).then(compwetes => {
+			const endToEndTime = e2eSW.ewapsed();
+			this.wogSewvice.twace(`SeawchSewvice#seawch: ${endToEndTime}ms`);
+			compwetes.fowEach(compwete => {
+				this.sendTewemetwy(quewy, endToEndTime, compwete);
 			});
-			return completes;
-		}, err => {
-			const endToEndTime = e2eSW.elapsed();
-			this.logService.trace(`SearchService#search: ${endToEndTime}ms`);
-			const searchError = deserializeSearchError(err);
-			this.logService.trace(`SearchService#searchError: ${searchError.message}`);
-			this.sendTelemetry(query, endToEndTime, undefined, searchError);
+			wetuwn compwetes;
+		}, eww => {
+			const endToEndTime = e2eSW.ewapsed();
+			this.wogSewvice.twace(`SeawchSewvice#seawch: ${endToEndTime}ms`);
+			const seawchEwwow = desewiawizeSeawchEwwow(eww);
+			this.wogSewvice.twace(`SeawchSewvice#seawchEwwow: ${seawchEwwow.message}`);
+			this.sendTewemetwy(quewy, endToEndTime, undefined, seawchEwwow);
 
-			throw searchError;
+			thwow seawchEwwow;
 		});
 	}
 
-	private groupFolderQueriesByScheme(query: ISearchQuery): Map<string, IFolderQuery[]> {
-		const queries = new Map<string, IFolderQuery[]>();
+	pwivate gwoupFowdewQuewiesByScheme(quewy: ISeawchQuewy): Map<stwing, IFowdewQuewy[]> {
+		const quewies = new Map<stwing, IFowdewQuewy[]>();
 
-		query.folderQueries.forEach(fq => {
-			const schemeFQs = queries.get(fq.folder.scheme) || [];
+		quewy.fowdewQuewies.fowEach(fq => {
+			const schemeFQs = quewies.get(fq.fowda.scheme) || [];
 			schemeFQs.push(fq);
 
-			queries.set(fq.folder.scheme, schemeFQs);
+			quewies.set(fq.fowda.scheme, schemeFQs);
 		});
 
-		return queries;
+		wetuwn quewies;
 	}
 
-	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
-		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
-		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
-		const scheme = fileSchemeOnly ? Schemas.file :
-			otherSchemeOnly ? 'other' :
+	pwivate sendTewemetwy(quewy: ISeawchQuewy, endToEndTime: numba, compwete?: ISeawchCompwete, eww?: SeawchEwwow): void {
+		const fiweSchemeOnwy = quewy.fowdewQuewies.evewy(fq => fq.fowda.scheme === Schemas.fiwe);
+		const othewSchemeOnwy = quewy.fowdewQuewies.evewy(fq => fq.fowda.scheme !== Schemas.fiwe);
+		const scheme = fiweSchemeOnwy ? Schemas.fiwe :
+			othewSchemeOnwy ? 'otha' :
 				'mixed';
 
-		if (query.type === QueryType.File && complete && complete.stats) {
-			const fileSearchStats = complete.stats as IFileSearchStats;
-			if (fileSearchStats.fromCache) {
-				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
+		if (quewy.type === QuewyType.Fiwe && compwete && compwete.stats) {
+			const fiweSeawchStats = compwete.stats as IFiweSeawchStats;
+			if (fiweSeawchStats.fwomCache) {
+				const cacheStats: ICachedSeawchStats = fiweSeawchStats.detaiwStats as ICachedSeawchStats;
 
-				type CachedSearchCompleteClassifcation = {
-					reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheWasResolved: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					cacheLookupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheFilterTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheEntryCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type CachedSeawchCompweteCwassifcation = {
+					weason?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					wesuwtCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					wowkspaceFowdewCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					endToEndTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					sowtingTime?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					cacheWasWesowved: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					cacheWookupTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					cacheFiwtewTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					cacheEntwyCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					scheme: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 				};
-				type CachedSearchCompleteEvent = {
-					reason?: string;
-					resultCount: number;
-					workspaceFolderCount: number;
-					type: 'fileSearchProvider' | 'searchProcess';
-					endToEndTime: number;
-					sortingTime?: number;
-					cacheWasResolved: boolean;
-					cacheLookupTime: number;
-					cacheFilterTime: number;
-					cacheEntryCount: number;
-					scheme: string;
+				type CachedSeawchCompweteEvent = {
+					weason?: stwing;
+					wesuwtCount: numba;
+					wowkspaceFowdewCount: numba;
+					type: 'fiweSeawchPwovida' | 'seawchPwocess';
+					endToEndTime: numba;
+					sowtingTime?: numba;
+					cacheWasWesowved: boowean;
+					cacheWookupTime: numba;
+					cacheFiwtewTime: numba;
+					cacheEntwyCount: numba;
+					scheme: stwing;
 				};
-				this.telemetryService.publicLog2<CachedSearchCompleteEvent, CachedSearchCompleteClassifcation>('cachedSearchComplete', {
-					reason: query._reason,
-					resultCount: fileSearchStats.resultCount,
-					workspaceFolderCount: query.folderQueries.length,
-					type: fileSearchStats.type,
+				this.tewemetwySewvice.pubwicWog2<CachedSeawchCompweteEvent, CachedSeawchCompweteCwassifcation>('cachedSeawchCompwete', {
+					weason: quewy._weason,
+					wesuwtCount: fiweSeawchStats.wesuwtCount,
+					wowkspaceFowdewCount: quewy.fowdewQuewies.wength,
+					type: fiweSeawchStats.type,
 					endToEndTime: endToEndTime,
-					sortingTime: fileSearchStats.sortingTime,
-					cacheWasResolved: cacheStats.cacheWasResolved,
-					cacheLookupTime: cacheStats.cacheLookupTime,
-					cacheFilterTime: cacheStats.cacheFilterTime,
-					cacheEntryCount: cacheStats.cacheEntryCount,
+					sowtingTime: fiweSeawchStats.sowtingTime,
+					cacheWasWesowved: cacheStats.cacheWasWesowved,
+					cacheWookupTime: cacheStats.cacheWookupTime,
+					cacheFiwtewTime: cacheStats.cacheFiwtewTime,
+					cacheEntwyCount: cacheStats.cacheEntwyCount,
 					scheme
 				});
-			} else {
-				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
+			} ewse {
+				const seawchEngineStats: ISeawchEngineStats = fiweSeawchStats.detaiwStats as ISeawchEngineStats;
 
-				type SearchCompleteClassification = {
-					reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					fileWalkTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					directoriesWalked: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					filesWalked: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cmdTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cmdResultCount?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type SeawchCompweteCwassification = {
+					weason?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					wesuwtCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					wowkspaceFowdewCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					type: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+					endToEndTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					sowtingTime?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					fiweWawkTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					diwectowiesWawked: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					fiwesWawked: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					cmdTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					cmdWesuwtCount?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+					scheme: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 				};
-				type SearchCompleteEvent = {
-					reason?: string;
-					resultCount: number;
-					workspaceFolderCount: number;
-					type: 'fileSearchProvider' | 'searchProcess';
-					endToEndTime: number;
-					sortingTime?: number;
-					fileWalkTime: number
-					directoriesWalked: number;
-					filesWalked: number;
-					cmdTime: number;
-					cmdResultCount?: number;
-					scheme: string;
+				type SeawchCompweteEvent = {
+					weason?: stwing;
+					wesuwtCount: numba;
+					wowkspaceFowdewCount: numba;
+					type: 'fiweSeawchPwovida' | 'seawchPwocess';
+					endToEndTime: numba;
+					sowtingTime?: numba;
+					fiweWawkTime: numba
+					diwectowiesWawked: numba;
+					fiwesWawked: numba;
+					cmdTime: numba;
+					cmdWesuwtCount?: numba;
+					scheme: stwing;
 
 				};
 
-				this.telemetryService.publicLog2<SearchCompleteEvent, SearchCompleteClassification>('searchComplete', {
-					reason: query._reason,
-					resultCount: fileSearchStats.resultCount,
-					workspaceFolderCount: query.folderQueries.length,
-					type: fileSearchStats.type,
+				this.tewemetwySewvice.pubwicWog2<SeawchCompweteEvent, SeawchCompweteCwassification>('seawchCompwete', {
+					weason: quewy._weason,
+					wesuwtCount: fiweSeawchStats.wesuwtCount,
+					wowkspaceFowdewCount: quewy.fowdewQuewies.wength,
+					type: fiweSeawchStats.type,
 					endToEndTime: endToEndTime,
-					sortingTime: fileSearchStats.sortingTime,
-					fileWalkTime: searchEngineStats.fileWalkTime,
-					directoriesWalked: searchEngineStats.directoriesWalked,
-					filesWalked: searchEngineStats.filesWalked,
-					cmdTime: searchEngineStats.cmdTime,
-					cmdResultCount: searchEngineStats.cmdResultCount,
+					sowtingTime: fiweSeawchStats.sowtingTime,
+					fiweWawkTime: seawchEngineStats.fiweWawkTime,
+					diwectowiesWawked: seawchEngineStats.diwectowiesWawked,
+					fiwesWawked: seawchEngineStats.fiwesWawked,
+					cmdTime: seawchEngineStats.cmdTime,
+					cmdWesuwtCount: seawchEngineStats.cmdWesuwtCount,
 					scheme
 				});
 			}
-		} else if (query.type === QueryType.Text) {
-			let errorType: string | undefined;
-			if (err) {
-				errorType = err.code === SearchErrorCode.regexParseError ? 'regex' :
-					err.code === SearchErrorCode.unknownEncoding ? 'encoding' :
-						err.code === SearchErrorCode.globParseError ? 'glob' :
-							err.code === SearchErrorCode.invalidLiteral ? 'literal' :
-								err.code === SearchErrorCode.other ? 'other' :
-									err.code === SearchErrorCode.canceled ? 'canceled' :
+		} ewse if (quewy.type === QuewyType.Text) {
+			wet ewwowType: stwing | undefined;
+			if (eww) {
+				ewwowType = eww.code === SeawchEwwowCode.wegexPawseEwwow ? 'wegex' :
+					eww.code === SeawchEwwowCode.unknownEncoding ? 'encoding' :
+						eww.code === SeawchEwwowCode.gwobPawseEwwow ? 'gwob' :
+							eww.code === SeawchEwwowCode.invawidWitewaw ? 'witewaw' :
+								eww.code === SeawchEwwowCode.otha ? 'otha' :
+									eww.code === SeawchEwwowCode.cancewed ? 'cancewed' :
 										'unknown';
 			}
 
-			type TextSearchCompleteClassification = {
-				reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				error?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				usePCRE2: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			type TextSeawchCompweteCwassification = {
+				weason?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				wowkspaceFowdewCount: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				endToEndTime: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth', isMeasuwement: twue };
+				scheme: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				ewwow?: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
+				usePCWE2: { cwassification: 'SystemMetaData', puwpose: 'PewfowmanceAndHeawth' };
 			};
-			type TextSearchCompleteEvent = {
-				reason?: string;
-				workspaceFolderCount: number;
-				endToEndTime: number;
-				scheme: string;
-				error?: string;
-				usePCRE2: boolean;
+			type TextSeawchCompweteEvent = {
+				weason?: stwing;
+				wowkspaceFowdewCount: numba;
+				endToEndTime: numba;
+				scheme: stwing;
+				ewwow?: stwing;
+				usePCWE2: boowean;
 			};
-			this.telemetryService.publicLog2<TextSearchCompleteEvent, TextSearchCompleteClassification>('textSearchComplete', {
-				reason: query._reason,
-				workspaceFolderCount: query.folderQueries.length,
+			this.tewemetwySewvice.pubwicWog2<TextSeawchCompweteEvent, TextSeawchCompweteCwassification>('textSeawchCompwete', {
+				weason: quewy._weason,
+				wowkspaceFowdewCount: quewy.fowdewQuewies.wength,
 				endToEndTime: endToEndTime,
 				scheme,
-				error: errorType,
-				usePCRE2: !!query.usePCRE2
+				ewwow: ewwowType,
+				usePCWE2: !!quewy.usePCWE2
 			});
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
-		let limitHit = false;
+	pwivate getWocawWesuwts(quewy: ITextQuewy): { wesuwts: WesouwceMap<IFiweMatch | nuww>; wimitHit: boowean } {
+		const wocawWesuwts = new WesouwceMap<IFiweMatch | nuww>(uwi => this.uwiIdentitySewvice.extUwi.getCompawisonKey(uwi));
+		wet wimitHit = fawse;
 
-		if (query.type === QueryType.Text) {
-			const canonicalToOriginalResources = new ResourceMap<URI>();
-			for (let editorInput of this.editorService.editors) {
-				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
-				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (quewy.type === QuewyType.Text) {
+			const canonicawToOwiginawWesouwces = new WesouwceMap<UWI>();
+			fow (wet editowInput of this.editowSewvice.editows) {
+				const canonicaw = EditowWesouwceAccessow.getCanonicawUwi(editowInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
+				const owiginaw = EditowWesouwceAccessow.getOwiginawUwi(editowInput, { suppowtSideBySide: SideBySideEditow.PWIMAWY });
 
-				if (canonical) {
-					canonicalToOriginalResources.set(canonical, original ?? canonical);
+				if (canonicaw) {
+					canonicawToOwiginawWesouwces.set(canonicaw, owiginaw ?? canonicaw);
 				}
 			}
 
-			const models = this.modelService.getModels();
-			models.forEach((model) => {
-				const resource = model.uri;
-				if (!resource) {
-					return;
+			const modews = this.modewSewvice.getModews();
+			modews.fowEach((modew) => {
+				const wesouwce = modew.uwi;
+				if (!wesouwce) {
+					wetuwn;
 				}
 
-				if (limitHit) {
-					return;
+				if (wimitHit) {
+					wetuwn;
 				}
 
-				const originalResource = canonicalToOriginalResources.get(resource);
-				if (!originalResource) {
-					return;
+				const owiginawWesouwce = canonicawToOwiginawWesouwces.get(wesouwce);
+				if (!owiginawWesouwce) {
+					wetuwn;
 				}
 
-				// Skip search results
-				if (model.getModeId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
-					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
-					return;
+				// Skip seawch wesuwts
+				if (modew.getModeId() === 'seawch-wesuwt' && !(quewy.incwudePattewn && quewy.incwudePattewn['**/*.code-seawch'])) {
+					// TODO: untitwed seawch editows wiww be excwuded fwom seawch even when incwude *.code-seawch is specified
+					wetuwn;
 				}
 
-				// Block walkthrough, webview, etc.
-				if (originalResource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(originalResource)) {
-					return;
+				// Bwock wawkthwough, webview, etc.
+				if (owiginawWesouwce.scheme !== Schemas.untitwed && !this.fiweSewvice.canHandweWesouwce(owiginawWesouwce)) {
+					wetuwn;
 				}
 
-				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (originalResource.scheme === 'git') {
-					return;
+				// Excwude fiwes fwom the git FiweSystemPwovida, e.g. to pwevent open staged fiwes fwom showing in seawch wesuwts
+				if (owiginawWesouwce.scheme === 'git') {
+					wetuwn;
 				}
 
-				if (!this.matches(originalResource, query)) {
-					return; // respect user filters
+				if (!this.matches(owiginawWesouwce, quewy)) {
+					wetuwn; // wespect usa fiwtews
 				}
 
-				// Use editor API to find matches
-				const askMax = typeof query.maxResults === 'number' ? query.maxResults + 1 : undefined;
-				let matches = model.findMatches(query.contentPattern.pattern, false, !!query.contentPattern.isRegExp, !!query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators! : null, false, askMax);
-				if (matches.length) {
-					if (askMax && matches.length >= askMax) {
-						limitHit = true;
-						matches = matches.slice(0, askMax - 1);
+				// Use editow API to find matches
+				const askMax = typeof quewy.maxWesuwts === 'numba' ? quewy.maxWesuwts + 1 : undefined;
+				wet matches = modew.findMatches(quewy.contentPattewn.pattewn, fawse, !!quewy.contentPattewn.isWegExp, !!quewy.contentPattewn.isCaseSensitive, quewy.contentPattewn.isWowdMatch ? quewy.contentPattewn.wowdSepawatows! : nuww, fawse, askMax);
+				if (matches.wength) {
+					if (askMax && matches.wength >= askMax) {
+						wimitHit = twue;
+						matches = matches.swice(0, askMax - 1);
 					}
 
-					const fileMatch = new FileMatch(originalResource);
-					localResults.set(originalResource, fileMatch);
+					const fiweMatch = new FiweMatch(owiginawWesouwce);
+					wocawWesuwts.set(owiginawWesouwce, fiweMatch);
 
-					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
-				} else {
-					localResults.set(originalResource, null);
+					const textSeawchWesuwts = editowMatchesToTextSeawchWesuwts(matches, modew, quewy.pweviewOptions);
+					fiweMatch.wesuwts = addContextToEditowMatches(textSeawchWesuwts, modew, quewy);
+				} ewse {
+					wocawWesuwts.set(owiginawWesouwce, nuww);
 				}
 			});
 		}
 
-		return {
-			results: localResults,
-			limitHit
+		wetuwn {
+			wesuwts: wocawWesuwts,
+			wimitHit
 		};
 	}
 
-	private matches(resource: uri, query: ITextQuery): boolean {
-		return pathIncludedInQuery(query, resource.fsPath);
+	pwivate matches(wesouwce: uwi, quewy: ITextQuewy): boowean {
+		wetuwn pathIncwudedInQuewy(quewy, wesouwce.fsPath);
 	}
 
-	clearCache(cacheKey: string): Promise<void> {
-		const clearPs = [
-			this.diskSearch,
-			...Array.from(this.fileSearchProviders.values())
-		].map(provider => provider && provider.clearCache(cacheKey));
+	cweawCache(cacheKey: stwing): Pwomise<void> {
+		const cweawPs = [
+			this.diskSeawch,
+			...Awway.fwom(this.fiweSeawchPwovidews.vawues())
+		].map(pwovida => pwovida && pwovida.cweawCache(cacheKey));
 
-		return Promise.all(clearPs)
+		wetuwn Pwomise.aww(cweawPs)
 			.then(() => { });
 	}
 }

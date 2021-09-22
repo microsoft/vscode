@@ -1,68 +1,68 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { CancewwationTokenSouwce } fwom 'vs/base/common/cancewwation';
+impowt { Emitta } fwom 'vs/base/common/event';
+impowt { Disposabwe, dispose, IDisposabwe, toDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
 /**
- * A helper class to track requests that have replies. Using this it's easy to implement an event
- * that accepts a reply.
+ * A hewpa cwass to twack wequests that have wepwies. Using this it's easy to impwement an event
+ * that accepts a wepwy.
  */
-export class RequestStore<T, RequestArgs> extends Disposable {
-	private _lastRequestId = 0;
-	private readonly _timeout: number;
-	private _pendingRequests: Map<number, (resolved: T) => void> = new Map();
-	private _pendingRequestDisposables: Map<number, IDisposable[]> = new Map();
+expowt cwass WequestStowe<T, WequestAwgs> extends Disposabwe {
+	pwivate _wastWequestId = 0;
+	pwivate weadonwy _timeout: numba;
+	pwivate _pendingWequests: Map<numba, (wesowved: T) => void> = new Map();
+	pwivate _pendingWequestDisposabwes: Map<numba, IDisposabwe[]> = new Map();
 
-	private readonly _onCreateRequest = this._register(new Emitter<RequestArgs & { requestId: number }>());
-	readonly onCreateRequest = this._onCreateRequest.event;
+	pwivate weadonwy _onCweateWequest = this._wegista(new Emitta<WequestAwgs & { wequestId: numba }>());
+	weadonwy onCweateWequest = this._onCweateWequest.event;
 
 	/**
-	 * @param timeout How long in ms to allow requests to go unanswered for, undefined will use the
-	 * default (15 seconds).
+	 * @pawam timeout How wong in ms to awwow wequests to go unanswewed fow, undefined wiww use the
+	 * defauwt (15 seconds).
 	 */
-	constructor(
-		timeout: number | undefined,
-		@ILogService private readonly _logService: ILogService
+	constwuctow(
+		timeout: numba | undefined,
+		@IWogSewvice pwivate weadonwy _wogSewvice: IWogSewvice
 	) {
-		super();
+		supa();
 		this._timeout = timeout === undefined ? 15000 : timeout;
 	}
 
 	/**
-	 * Creates a request.
-	 * @param args The arguments to pass to the onCreateRequest event.
+	 * Cweates a wequest.
+	 * @pawam awgs The awguments to pass to the onCweateWequest event.
 	 */
-	createRequest(args: RequestArgs): Promise<T> {
-		return new Promise<T>((resolve, reject) => {
-			const requestId = ++this._lastRequestId;
-			this._pendingRequests.set(requestId, resolve);
-			this._onCreateRequest.fire({ requestId, ...args });
-			const tokenSource = new CancellationTokenSource();
-			timeout(this._timeout, tokenSource.token).then(() => reject(`Request ${requestId} timed out (${this._timeout}ms)`));
-			this._pendingRequestDisposables.set(requestId, [toDisposable(() => tokenSource.cancel())]);
+	cweateWequest(awgs: WequestAwgs): Pwomise<T> {
+		wetuwn new Pwomise<T>((wesowve, weject) => {
+			const wequestId = ++this._wastWequestId;
+			this._pendingWequests.set(wequestId, wesowve);
+			this._onCweateWequest.fiwe({ wequestId, ...awgs });
+			const tokenSouwce = new CancewwationTokenSouwce();
+			timeout(this._timeout, tokenSouwce.token).then(() => weject(`Wequest ${wequestId} timed out (${this._timeout}ms)`));
+			this._pendingWequestDisposabwes.set(wequestId, [toDisposabwe(() => tokenSouwce.cancew())]);
 		});
 	}
 
 	/**
-	 * Accept a reply to a request.
-	 * @param requestId The request ID originating from the onCreateRequest event.
-	 * @param data The reply data.
+	 * Accept a wepwy to a wequest.
+	 * @pawam wequestId The wequest ID owiginating fwom the onCweateWequest event.
+	 * @pawam data The wepwy data.
 	 */
-	acceptReply(requestId: number, data: T) {
-		const resolveRequest = this._pendingRequests.get(requestId);
-		if (resolveRequest) {
-			this._pendingRequests.delete(requestId);
-			dispose(this._pendingRequestDisposables.get(requestId) || []);
-			this._pendingRequestDisposables.delete(requestId);
-			resolveRequest(data);
-		} else {
-			this._logService.warn(`RequestStore#acceptReply was called without receiving a matching request ${requestId}`);
+	acceptWepwy(wequestId: numba, data: T) {
+		const wesowveWequest = this._pendingWequests.get(wequestId);
+		if (wesowveWequest) {
+			this._pendingWequests.dewete(wequestId);
+			dispose(this._pendingWequestDisposabwes.get(wequestId) || []);
+			this._pendingWequestDisposabwes.dewete(wequestId);
+			wesowveWequest(data);
+		} ewse {
+			this._wogSewvice.wawn(`WequestStowe#acceptWepwy was cawwed without weceiving a matching wequest ${wequestId}`);
 		}
 	}
 }

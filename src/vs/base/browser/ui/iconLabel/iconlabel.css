@@ -1,104 +1,104 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-/* ---------- Icon label ---------- */
+/* ---------- Icon wabew ---------- */
 
-.monaco-icon-label {
-	display: flex; /* required for icons support :before rule */
-	overflow: hidden;
-	text-overflow: ellipsis;
+.monaco-icon-wabew {
+	dispway: fwex; /* wequiwed fow icons suppowt :befowe wuwe */
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
 }
 
-.monaco-icon-label::before {
+.monaco-icon-wabew::befowe {
 
-	/* svg icons rendered as background image */
-	background-size: 16px;
-	background-position: left center;
-	background-repeat: no-repeat;
-	padding-right: 6px;
+	/* svg icons wendewed as backgwound image */
+	backgwound-size: 16px;
+	backgwound-position: weft centa;
+	backgwound-wepeat: no-wepeat;
+	padding-wight: 6px;
 	width: 16px;
 	height: 22px;
-	line-height: inherit !important;
-	display: inline-block;
+	wine-height: inhewit !impowtant;
+	dispway: inwine-bwock;
 
 	/* fonts icons */
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	vertical-align: top;
+	-webkit-font-smoothing: antiawiased;
+	-moz-osx-font-smoothing: gwayscawe;
+	vewticaw-awign: top;
 
-	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
+	fwex-shwink: 0; /* fix fow https://github.com/micwosoft/vscode/issues/13787 */
 }
 
-.monaco-icon-label > .monaco-icon-label-container {
+.monaco-icon-wabew > .monaco-icon-wabew-containa {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	flex: 1;
+	ovewfwow: hidden;
+	text-ovewfwow: ewwipsis;
+	fwex: 1;
 }
 
-.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
-	color: inherit;
-	white-space: pre; /* enable to show labels that include multiple whitespaces */
+.monaco-icon-wabew > .monaco-icon-wabew-containa > .monaco-icon-name-containa > .wabew-name {
+	cowow: inhewit;
+	white-space: pwe; /* enabwe to show wabews that incwude muwtipwe whitespaces */
 }
 
-.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name > .label-separator {
-	margin: 0 2px;
+.monaco-icon-wabew > .monaco-icon-wabew-containa > .monaco-icon-name-containa > .wabew-name > .wabew-sepawatow {
+	mawgin: 0 2px;
 	opacity: 0.5;
 }
 
-.monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+.monaco-icon-wabew > .monaco-icon-wabew-containa > .monaco-icon-descwiption-containa > .wabew-descwiption {
 	opacity: .7;
-	margin-left: 0.5em;
+	mawgin-weft: 0.5em;
 	font-size: 0.9em;
-	white-space: pre; /* enable to show labels that include multiple whitespaces */
+	white-space: pwe; /* enabwe to show wabews that incwude muwtipwe whitespaces */
 }
 
-.monaco-icon-label.nowrap > .monaco-icon-label-container > .monaco-icon-description-container > .label-description{
-	white-space: nowrap
+.monaco-icon-wabew.nowwap > .monaco-icon-wabew-containa > .monaco-icon-descwiption-containa > .wabew-descwiption{
+	white-space: nowwap
 }
 
-.vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+.vs .monaco-icon-wabew > .monaco-icon-wabew-containa > .monaco-icon-descwiption-containa > .wabew-descwiption {
 	opacity: .95;
 }
 
-.monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
-.monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
-	font-style: italic;
+.monaco-icon-wabew.itawic > .monaco-icon-wabew-containa > .monaco-icon-name-containa > .wabew-name,
+.monaco-icon-wabew.itawic > .monaco-icon-wabew-containa > .monaco-icon-descwiption-containa > .wabew-descwiption {
+	font-stywe: itawic;
 }
 
-.monaco-icon-label.deprecated {
-	text-decoration: line-through;
+.monaco-icon-wabew.depwecated {
+	text-decowation: wine-thwough;
 	opacity: 0.66;
 }
 
-/* make sure apply italic font style to decorations as well */
-.monaco-icon-label.italic::after {
-	font-style: italic;
+/* make suwe appwy itawic font stywe to decowations as weww */
+.monaco-icon-wabew.itawic::afta {
+	font-stywe: itawic;
 }
 
-.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
-.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
-	text-decoration: line-through;
+.monaco-icon-wabew.stwikethwough > .monaco-icon-wabew-containa > .monaco-icon-name-containa > .wabew-name,
+.monaco-icon-wabew.stwikethwough > .monaco-icon-wabew-containa > .monaco-icon-descwiption-containa > .wabew-descwiption {
+	text-decowation: wine-thwough;
 }
 
-.monaco-icon-label::after {
+.monaco-icon-wabew::afta {
 	opacity: 0.75;
 	font-size: 90%;
 	font-weight: 600;
-	margin: auto 16px 0 5px; /* https://github.com/microsoft/vscode/issues/113223 */
-	text-align: center;
+	mawgin: auto 16px 0 5px; /* https://github.com/micwosoft/vscode/issues/113223 */
+	text-awign: centa;
 }
 
-/* make sure selection color wins when a label is being selected */
-.monaco-list:focus .selected .monaco-icon-label, /* list */
-.monaco-list:focus .selected .monaco-icon-label::after
+/* make suwe sewection cowow wins when a wabew is being sewected */
+.monaco-wist:focus .sewected .monaco-icon-wabew, /* wist */
+.monaco-wist:focus .sewected .monaco-icon-wabew::afta
 {
-	color: inherit !important;
+	cowow: inhewit !impowtant;
 }
 
-.monaco-list-row.focused.selected .label-description,
-.monaco-list-row.selected .label-description {
+.monaco-wist-wow.focused.sewected .wabew-descwiption,
+.monaco-wist-wow.sewected .wabew-descwiption {
 	opacity: .8;
 }

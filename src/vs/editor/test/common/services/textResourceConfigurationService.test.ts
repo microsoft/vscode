@@ -1,301 +1,301 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IConfigurationValue, IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationServiceImpl';
-import { URI } from 'vs/base/common/uri';
+impowt * as assewt fwom 'assewt';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { IConfiguwationVawue, IConfiguwationSewvice, ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { TextWesouwceConfiguwationSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewviceImpw';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
 
-suite('TextResourceConfigurationService - Update', () => {
+suite('TextWesouwceConfiguwationSewvice - Update', () => {
 
-	let configurationValue: IConfigurationValue<any> = {};
-	let updateArgs: any[];
-	let configurationService = new class extends TestConfigurationService {
-		override inspect() {
-			return configurationValue;
+	wet configuwationVawue: IConfiguwationVawue<any> = {};
+	wet updateAwgs: any[];
+	wet configuwationSewvice = new cwass extends TestConfiguwationSewvice {
+		ovewwide inspect() {
+			wetuwn configuwationVawue;
 		}
-		override updateValue() {
-			updateArgs = [...arguments];
-			return Promise.resolve();
+		ovewwide updateVawue() {
+			updateAwgs = [...awguments];
+			wetuwn Pwomise.wesowve();
 		}
 	}();
-	let language: string | null = null;
-	let testObject: TextResourceConfigurationService;
+	wet wanguage: stwing | nuww = nuww;
+	wet testObject: TextWesouwceConfiguwationSewvice;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
-		instantiationService.stub(IModeService, <Partial<IModeService>>{ getModeIdByFilepathOrFirstLine() { return language; } });
-		instantiationService.stub(IConfigurationService, configurationService);
-		testObject = instantiationService.createInstance(TextResourceConfigurationService);
+		const instantiationSewvice = new TestInstantiationSewvice();
+		instantiationSewvice.stub(IModewSewvice, <Pawtiaw<IModewSewvice>>{ getModew() { wetuwn nuww; } });
+		instantiationSewvice.stub(IModeSewvice, <Pawtiaw<IModeSewvice>>{ getModeIdByFiwepathOwFiwstWine() { wetuwn wanguage; } });
+		instantiationSewvice.stub(IConfiguwationSewvice, configuwationSewvice);
+		testObject = instantiationSewvice.cweateInstance(TextWesouwceConfiguwationSewvice);
 	});
 
-	test('updateValue writes without target and overrides when no language is defined', async () => {
-		const resource = URI.file('someFile');
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER_LOCAL]);
+	test('updateVawue wwites without tawget and ovewwides when no wanguage is defined', async () => {
+		const wesouwce = UWI.fiwe('someFiwe');
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes with target and without overrides when no language is defined', async () => {
-		const resource = URI.file('someFile');
-		await testObject.updateValue(resource, 'a', 'b', ConfigurationTarget.USER_LOCAL);
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER_LOCAL]);
+	test('updateVawue wwites with tawget and without ovewwides when no wanguage is defined', async () => {
+		const wesouwce = UWI.fiwe('someFiwe');
+		await testObject.updateVawue(wesouwce, 'a', 'b', ConfiguwationTawget.USEW_WOCAW);
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes into given memory target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspaceFolder: { value: '1' },
+	test('updateVawue wwites into given memowy tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspaceFowda: { vawue: '1' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b', ConfigurationTarget.MEMORY);
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.MEMORY]);
+		await testObject.updateVawue(wesouwce, 'a', 'b', ConfiguwationTawget.MEMOWY);
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.MEMOWY]);
 	});
 
-	test('updateValue writes into given workspace target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspaceFolder: { value: '2' },
+	test('updateVawue wwites into given wowkspace tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspaceFowda: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b', ConfigurationTarget.WORKSPACE);
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.WORKSPACE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b', ConfiguwationTawget.WOWKSPACE);
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.WOWKSPACE]);
 	});
 
-	test('updateValue writes into given user target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspaceFolder: { value: '2' },
+	test('updateVawue wwites into given usa tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspaceFowda: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b', ConfigurationTarget.USER);
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER]);
+		await testObject.updateVawue(wesouwce, 'a', 'b', ConfiguwationTawget.USa);
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USa]);
 	});
 
-	test('updateValue writes into given workspace folder target with overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspaceFolder: { value: '2', override: '1' },
+	test('updateVawue wwites into given wowkspace fowda tawget with ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspaceFowda: { vawue: '2', ovewwide: '1' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b', ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.WORKSPACE_FOLDER]);
+		await testObject.updateVawue(wesouwce, 'a', 'b', ConfiguwationTawget.WOWKSPACE_FOWDa);
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.WOWKSPACE_FOWDa]);
 	});
 
-	test('updateValue writes into derived workspace folder target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspaceFolder: { value: '2' },
+	test('updateVawue wwites into dewived wowkspace fowda tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspaceFowda: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.WORKSPACE_FOLDER]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.WOWKSPACE_FOWDa]);
 	});
 
-	test('updateValue writes into derived workspace folder target with overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspace: { value: '2', override: '1' },
-			workspaceFolder: { value: '2', override: '2' },
+	test('updateVawue wwites into dewived wowkspace fowda tawget with ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspace: { vawue: '2', ovewwide: '1' },
+			wowkspaceFowda: { vawue: '2', ovewwide: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.WORKSPACE_FOLDER]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.WOWKSPACE_FOWDa]);
 	});
 
-	test('updateValue writes into derived workspace target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspace: { value: '2' },
+	test('updateVawue wwites into dewived wowkspace tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspace: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.WORKSPACE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.WOWKSPACE]);
 	});
 
-	test('updateValue writes into derived workspace target with overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			workspace: { value: '2', override: '2' },
+	test('updateVawue wwites into dewived wowkspace tawget with ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			wowkspace: { vawue: '2', ovewwide: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.WORKSPACE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.WOWKSPACE]);
 	});
 
-	test('updateValue writes into derived workspace target with overrides and value defined in folder', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1', override: '3' },
-			userLocal: { value: '2' },
-			workspace: { value: '2', override: '2' },
-			workspaceFolder: { value: '2' },
+	test('updateVawue wwites into dewived wowkspace tawget with ovewwides and vawue defined in fowda', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1', ovewwide: '3' },
+			usewWocaw: { vawue: '2' },
+			wowkspace: { vawue: '2', ovewwide: '2' },
+			wowkspaceFowda: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.WORKSPACE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.WOWKSPACE]);
 	});
 
-	test('updateValue writes into derived user remote target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			userRemote: { value: '2' },
+	test('updateVawue wwites into dewived usa wemote tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			usewWemote: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER_REMOTE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USEW_WEMOTE]);
 	});
 
-	test('updateValue writes into derived user remote target with overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			userRemote: { value: '2', override: '3' },
+	test('updateVawue wwites into dewived usa wemote tawget with ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			usewWemote: { vawue: '2', ovewwide: '3' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_REMOTE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WEMOTE]);
 	});
 
-	test('updateValue writes into derived user remote target with overrides and value defined in workspace', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
-			userRemote: { value: '2', override: '3' },
-			workspace: { value: '3' }
+	test('updateVawue wwites into dewived usa wemote tawget with ovewwides and vawue defined in wowkspace', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
+			usewWemote: { vawue: '2', ovewwide: '3' },
+			wowkspace: { vawue: '3' }
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_REMOTE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WEMOTE]);
 	});
 
-	test('updateValue writes into derived user remote target with overrides and value defined in workspace folder', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2', override: '1' },
-			userRemote: { value: '2', override: '3' },
-			workspace: { value: '3' },
-			workspaceFolder: { value: '3' }
+	test('updateVawue wwites into dewived usa wemote tawget with ovewwides and vawue defined in wowkspace fowda', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2', ovewwide: '1' },
+			usewWemote: { vawue: '2', ovewwide: '3' },
+			wowkspace: { vawue: '3' },
+			wowkspaceFowda: { vawue: '3' }
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_REMOTE]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WEMOTE]);
 	});
 
-	test('updateValue writes into derived user target without overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2' },
+	test('updateVawue wwites into dewived usa tawget without ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes into derived user target with overrides', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2', override: '3' },
+	test('updateVawue wwites into dewived usa tawget with ovewwides', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2', ovewwide: '3' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', '2');
-		assert.deepStrictEqual(updateArgs, ['a', '2', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', '2');
+		assewt.deepStwictEquaw(updateAwgs, ['a', '2', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes into derived user target with overrides and value is defined in remote', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2', override: '3' },
-			userRemote: { value: '3' }
+	test('updateVawue wwites into dewived usa tawget with ovewwides and vawue is defined in wemote', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2', ovewwide: '3' },
+			usewWemote: { vawue: '3' }
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', '2');
-		assert.deepStrictEqual(updateArgs, ['a', '2', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', '2');
+		assewt.deepStwictEquaw(updateAwgs, ['a', '2', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes into derived user target with overrides and value is defined in workspace', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
-			userLocal: { value: '2', override: '3' },
-			workspaceValue: { value: '3' }
+	test('updateVawue wwites into dewived usa tawget with ovewwides and vawue is defined in wowkspace', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
+			usewWocaw: { vawue: '2', ovewwide: '3' },
+			wowkspaceVawue: { vawue: '3' }
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', '2');
-		assert.deepStrictEqual(updateArgs, ['a', '2', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', '2');
+		assewt.deepStwictEquaw(updateAwgs, ['a', '2', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue writes into derived user target with overrides and value is defined in workspace folder', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1', override: '3' },
-			userLocal: { value: '2', override: '3' },
-			userRemote: { value: '3' },
-			workspaceFolderValue: { value: '3' }
+	test('updateVawue wwites into dewived usa tawget with ovewwides and vawue is defined in wowkspace fowda', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1', ovewwide: '3' },
+			usewWocaw: { vawue: '2', ovewwide: '3' },
+			usewWemote: { vawue: '3' },
+			wowkspaceFowdewVawue: { vawue: '3' }
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', '2');
-		assert.deepStrictEqual(updateArgs, ['a', '2', { resource, overrideIdentifier: language }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', '2');
+		assewt.deepStwictEquaw(updateAwgs, ['a', '2', { wesouwce, ovewwideIdentifia: wanguage }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
-	test('updateValue when not changed', async () => {
-		language = 'a';
-		configurationValue = {
-			default: { value: '1' },
+	test('updateVawue when not changed', async () => {
+		wanguage = 'a';
+		configuwationVawue = {
+			defauwt: { vawue: '1' },
 		};
-		const resource = URI.file('someFile');
+		const wesouwce = UWI.fiwe('someFiwe');
 
-		await testObject.updateValue(resource, 'a', 'b');
-		assert.deepStrictEqual(updateArgs, ['a', 'b', { resource }, ConfigurationTarget.USER_LOCAL]);
+		await testObject.updateVawue(wesouwce, 'a', 'b');
+		assewt.deepStwictEquaw(updateAwgs, ['a', 'b', { wesouwce }, ConfiguwationTawget.USEW_WOCAW]);
 	});
 
 });

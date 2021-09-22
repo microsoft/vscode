@@ -1,246 +1,246 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+impowt * as assewt fwom 'assewt';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ConfiguwationTawget } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { Extensions as ConfiguwationExtensions, IConfiguwationWegistwy } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { ConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwationSewvice';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
 
 
-suite('ConfigurationService', () => {
+suite('ConfiguwationSewvice', () => {
 
-	let fileService: IFileService;
-	let settingsResource: URI;
-	const disposables: DisposableStore = new DisposableStore();
+	wet fiweSewvice: IFiweSewvice;
+	wet settingsWesouwce: UWI;
+	const disposabwes: DisposabweStowe = new DisposabweStowe();
 
 	setup(async () => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		settingsResource = URI.file('settings.json');
+		fiweSewvice = disposabwes.add(new FiweSewvice(new NuwwWogSewvice()));
+		const diskFiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		fiweSewvice.wegistewPwovida(Schemas.fiwe, diskFiweSystemPwovida);
+		settingsWesouwce = UWI.fiwe('settings.json');
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('simple', async () => {
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await testObject.initialize();
-		const config = testObject.getValue<{
-			foo: string;
+	test('simpwe', async () => {
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "baw" }'));
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await testObject.initiawize();
+		const config = testObject.getVawue<{
+			foo: stwing;
 		}>();
 
-		assert.ok(config);
-		assert.strictEqual(config.foo, 'bar');
+		assewt.ok(config);
+		assewt.stwictEquaw(config.foo, 'baw');
 	});
 
-	test('config gets flattened', async () => {
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
+	test('config gets fwattened', async () => {
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "testwowkbench.editow.tabs": twue }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await testObject.initialize();
-		const config = testObject.getValue<{
-			testworkbench: {
-				editor: {
-					tabs: boolean;
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await testObject.initiawize();
+		const config = testObject.getVawue<{
+			testwowkbench: {
+				editow: {
+					tabs: boowean;
 				};
 			};
 		}>();
 
-		assert.ok(config);
-		assert.ok(config.testworkbench);
-		assert.ok(config.testworkbench.editor);
-		assert.strictEqual(config.testworkbench.editor.tabs, true);
+		assewt.ok(config);
+		assewt.ok(config.testwowkbench);
+		assewt.ok(config.testwowkbench.editow);
+		assewt.stwictEquaw(config.testwowkbench.editow.tabs, twue);
 	});
 
-	test('error case does not explode', async () => {
-		await fileService.writeFile(settingsResource, VSBuffer.fromString(',,,,'));
+	test('ewwow case does not expwode', async () => {
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing(',,,,'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await testObject.initialize();
-		const config = testObject.getValue<{
-			foo: string;
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await testObject.initiawize();
+		const config = testObject.getVawue<{
+			foo: stwing;
 		}>();
 
-		assert.ok(config);
+		assewt.ok(config);
 	});
 
-	test('missing file does not explode', async () => {
-		const testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
-		await testObject.initialize();
+	test('missing fiwe does not expwode', async () => {
+		const testObject = disposabwes.add(new ConfiguwationSewvice(UWI.fiwe('__testFiwe'), fiweSewvice));
+		await testObject.initiawize();
 
-		const config = testObject.getValue<{ foo: string }>();
+		const config = testObject.getVawue<{ foo: stwing }>();
 
-		assert.ok(config);
+		assewt.ok(config);
 	});
 
-	test('trigger configuration change event when file does not exist', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await testObject.initialize();
-		return new Promise<void>(async (c) => {
-			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
-				assert.strictEqual(testObject.getValue('foo'), 'bar');
+	test('twigga configuwation change event when fiwe does not exist', async () => {
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await testObject.initiawize();
+		wetuwn new Pwomise<void>(async (c) => {
+			disposabwes.add(Event.fiwta(testObject.onDidChangeConfiguwation, e => e.souwce === ConfiguwationTawget.USa)(() => {
+				assewt.stwictEquaw(testObject.getVawue('foo'), 'baw');
 				c();
 			}));
-			await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
+			await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "baw" }'));
 		});
 
 	});
 
-	test('trigger configuration change event when file exists', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
-		await testObject.initialize();
+	test('twigga configuwation change event when fiwe exists', async () => {
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "baw" }'));
+		await testObject.initiawize();
 
-		return new Promise<void>((c) => {
-			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(async (e) => {
-				assert.strictEqual(testObject.getValue('foo'), 'barz');
+		wetuwn new Pwomise<void>((c) => {
+			disposabwes.add(Event.fiwta(testObject.onDidChangeConfiguwation, e => e.souwce === ConfiguwationTawget.USa)(async (e) => {
+				assewt.stwictEquaw(testObject.getVawue('foo'), 'bawz');
 				c();
 			}));
-			fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "barz" }'));
+			fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "bawz" }'));
 		});
 	});
 
-	test('reloadConfiguration', async () => {
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
+	test('wewoadConfiguwation', async () => {
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "baw" }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		await testObject.initialize();
-		let config = testObject.getValue<{
-			foo: string;
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		await testObject.initiawize();
+		wet config = testObject.getVawue<{
+			foo: stwing;
 		}>();
-		assert.ok(config);
-		assert.strictEqual(config.foo, 'bar');
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "changed" }'));
+		assewt.ok(config);
+		assewt.stwictEquaw(config.foo, 'baw');
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "foo": "changed" }'));
 
-		// force a reload to get latest
-		await testObject.reloadConfiguration();
-		config = testObject.getValue<{
-			foo: string;
+		// fowce a wewoad to get watest
+		await testObject.wewoadConfiguwation();
+		config = testObject.getVawue<{
+			foo: stwing;
 		}>();
-		assert.ok(config);
-		assert.strictEqual(config.foo, 'changed');
+		assewt.ok(config);
+		assewt.stwictEquaw(config.foo, 'changed');
 	});
 
-	test('model defaults', async () => {
-		interface ITestSetting {
-			configuration: {
-				service: {
-					testSetting: string;
+	test('modew defauwts', async () => {
+		intewface ITestSetting {
+			configuwation: {
+				sewvice: {
+					testSetting: stwing;
 				}
 			};
 		}
 
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'configuration.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'configuwation.sewvice.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				}
 			}
 		});
 
-		let testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
-		await testObject.initialize();
-		let setting = testObject.getValue<ITestSetting>();
+		wet testObject = disposabwes.add(new ConfiguwationSewvice(UWI.fiwe('__testFiwe'), fiweSewvice));
+		await testObject.initiawize();
+		wet setting = testObject.getVawue<ITestSetting>();
 
-		assert.ok(setting);
-		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
+		assewt.ok(setting);
+		assewt.stwictEquaw(setting.configuwation.sewvice.testSetting, 'isSet');
 
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "testwowkbench.editow.tabs": twue }'));
+		testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
 
-		setting = testObject.getValue<ITestSetting>();
+		setting = testObject.getVawue<ITestSetting>();
 
-		assert.ok(setting);
-		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
+		assewt.ok(setting);
+		assewt.stwictEquaw(setting.configuwation.sewvice.testSetting, 'isSet');
 
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "configuration.service.testSetting": "isChanged" }'));
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "configuwation.sewvice.testSetting": "isChanged" }'));
 
-		await testObject.reloadConfiguration();
-		setting = testObject.getValue<ITestSetting>();
-		assert.ok(setting);
-		assert.strictEqual(setting.configuration.service.testSetting, 'isChanged');
+		await testObject.wewoadConfiguwation();
+		setting = testObject.getVawue<ITestSetting>();
+		assewt.ok(setting);
+		assewt.stwictEquaw(setting.configuwation.sewvice.testSetting, 'isChanged');
 	});
 
-	test('lookup', async () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
+	test('wookup', async () => {
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
 			'id': '_test',
 			'type': 'object',
-			'properties': {
-				'lookup.service.testSetting': {
-					'type': 'string',
-					'default': 'isSet'
+			'pwopewties': {
+				'wookup.sewvice.testSetting': {
+					'type': 'stwing',
+					'defauwt': 'isSet'
 				}
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		testObject.initialize();
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		testObject.initiawize();
 
-		let res = testObject.inspect('something.missing');
-		assert.strictEqual(res.value, undefined);
-		assert.strictEqual(res.defaultValue, undefined);
-		assert.strictEqual(res.userValue, undefined);
+		wet wes = testObject.inspect('something.missing');
+		assewt.stwictEquaw(wes.vawue, undefined);
+		assewt.stwictEquaw(wes.defauwtVawue, undefined);
+		assewt.stwictEquaw(wes.usewVawue, undefined);
 
-		res = testObject.inspect('lookup.service.testSetting');
-		assert.strictEqual(res.defaultValue, 'isSet');
-		assert.strictEqual(res.value, 'isSet');
-		assert.strictEqual(res.userValue, undefined);
+		wes = testObject.inspect('wookup.sewvice.testSetting');
+		assewt.stwictEquaw(wes.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(wes.vawue, 'isSet');
+		assewt.stwictEquaw(wes.usewVawue, undefined);
 
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "lookup.service.testSetting": "bar" }'));
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "wookup.sewvice.testSetting": "baw" }'));
 
-		await testObject.reloadConfiguration();
-		res = testObject.inspect('lookup.service.testSetting');
-		assert.strictEqual(res.defaultValue, 'isSet');
-		assert.strictEqual(res.userValue, 'bar');
-		assert.strictEqual(res.value, 'bar');
+		await testObject.wewoadConfiguwation();
+		wes = testObject.inspect('wookup.sewvice.testSetting');
+		assewt.stwictEquaw(wes.defauwtVawue, 'isSet');
+		assewt.stwictEquaw(wes.usewVawue, 'baw');
+		assewt.stwictEquaw(wes.vawue, 'baw');
 
 	});
 
-	test('lookup with null', async () => {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration({
-			'id': '_testNull',
+	test('wookup with nuww', async () => {
+		const configuwationWegistwy = Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation);
+		configuwationWegistwy.wegistewConfiguwation({
+			'id': '_testNuww',
 			'type': 'object',
-			'properties': {
-				'lookup.service.testNullSetting': {
-					'type': 'null',
+			'pwopewties': {
+				'wookup.sewvice.testNuwwSetting': {
+					'type': 'nuww',
 				}
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		testObject.initialize();
+		const testObject = disposabwes.add(new ConfiguwationSewvice(settingsWesouwce, fiweSewvice));
+		testObject.initiawize();
 
-		let res = testObject.inspect('lookup.service.testNullSetting');
-		assert.strictEqual(res.defaultValue, null);
-		assert.strictEqual(res.value, null);
-		assert.strictEqual(res.userValue, undefined);
+		wet wes = testObject.inspect('wookup.sewvice.testNuwwSetting');
+		assewt.stwictEquaw(wes.defauwtVawue, nuww);
+		assewt.stwictEquaw(wes.vawue, nuww);
+		assewt.stwictEquaw(wes.usewVawue, undefined);
 
-		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "lookup.service.testNullSetting": null }'));
+		await fiweSewvice.wwiteFiwe(settingsWesouwce, VSBuffa.fwomStwing('{ "wookup.sewvice.testNuwwSetting": nuww }'));
 
-		await testObject.reloadConfiguration();
+		await testObject.wewoadConfiguwation();
 
-		res = testObject.inspect('lookup.service.testNullSetting');
-		assert.strictEqual(res.defaultValue, null);
-		assert.strictEqual(res.value, null);
-		assert.strictEqual(res.userValue, null);
+		wes = testObject.inspect('wookup.sewvice.testNuwwSetting');
+		assewt.stwictEquaw(wes.defauwtVawue, nuww);
+		assewt.stwictEquaw(wes.vawue, nuww);
+		assewt.stwictEquaw(wes.usewVawue, nuww);
 	});
 });

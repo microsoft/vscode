@@ -1,80 +1,80 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
-import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { IWanguageSewection, IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ITextModewContentPwovida, ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { IWowkbenchContwibution } fwom 'vs/wowkbench/common/contwibutions';
+impowt { TestMessageType } fwom 'vs/wowkbench/contwib/testing/common/testCowwection';
+impowt { pawseTestUwi, TestUwiType, TEST_DATA_SCHEME } fwom 'vs/wowkbench/contwib/testing/common/testingUwi';
+impowt { ITestWesuwtSewvice } fwom 'vs/wowkbench/contwib/testing/common/testWesuwtSewvice';
 
 /**
- * A content provider that returns various outputs for tests. This is used
- * in the inline peek view.
+ * A content pwovida that wetuwns vawious outputs fow tests. This is used
+ * in the inwine peek view.
  */
-export class TestingContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
-	constructor(
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@ITestResultService private readonly resultService: ITestResultService,
+expowt cwass TestingContentPwovida impwements IWowkbenchContwibution, ITextModewContentPwovida {
+	constwuctow(
+		@ITextModewSewvice textModewWesowvewSewvice: ITextModewSewvice,
+		@IModeSewvice pwivate weadonwy modeSewvice: IModeSewvice,
+		@IModewSewvice pwivate weadonwy modewSewvice: IModewSewvice,
+		@ITestWesuwtSewvice pwivate weadonwy wesuwtSewvice: ITestWesuwtSewvice,
 	) {
-		textModelResolverService.registerTextModelContentProvider(TEST_DATA_SCHEME, this);
+		textModewWesowvewSewvice.wegistewTextModewContentPwovida(TEST_DATA_SCHEME, this);
 	}
 
 	/**
-	 * @inheritdoc
+	 * @inhewitdoc
 	 */
-	public async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		const existing = this.modelService.getModel(resource);
+	pubwic async pwovideTextContent(wesouwce: UWI): Pwomise<ITextModew | nuww> {
+		const existing = this.modewSewvice.getModew(wesouwce);
 		if (existing && !existing.isDisposed()) {
-			return existing;
+			wetuwn existing;
 		}
 
-		const parsed = parseTestUri(resource);
-		if (!parsed) {
-			return null;
+		const pawsed = pawseTestUwi(wesouwce);
+		if (!pawsed) {
+			wetuwn nuww;
 		}
 
-		const test = this.resultService.getResult(parsed.resultId)?.getStateById(parsed.testExtId);
+		const test = this.wesuwtSewvice.getWesuwt(pawsed.wesuwtId)?.getStateById(pawsed.testExtId);
 
 		if (!test) {
-			return null;
+			wetuwn nuww;
 		}
 
-		let text: string | undefined;
-		let language: ILanguageSelection | null = null;
-		switch (parsed.type) {
-			case TestUriType.ResultActualOutput: {
-				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
-				if (message?.type === TestMessageType.Error) { text = message.actual; }
-				break;
+		wet text: stwing | undefined;
+		wet wanguage: IWanguageSewection | nuww = nuww;
+		switch (pawsed.type) {
+			case TestUwiType.WesuwtActuawOutput: {
+				const message = test.tasks[pawsed.taskIndex].messages[pawsed.messageIndex];
+				if (message?.type === TestMessageType.Ewwow) { text = message.actuaw; }
+				bweak;
 			}
-			case TestUriType.ResultExpectedOutput: {
-				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
-				if (message?.type === TestMessageType.Error) { text = message.expected; }
-				break;
+			case TestUwiType.WesuwtExpectedOutput: {
+				const message = test.tasks[pawsed.taskIndex].messages[pawsed.messageIndex];
+				if (message?.type === TestMessageType.Ewwow) { text = message.expected; }
+				bweak;
 			}
-			case TestUriType.ResultMessage:
-				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex]?.message;
-				if (typeof message === 'string') {
+			case TestUwiType.WesuwtMessage:
+				const message = test.tasks[pawsed.taskIndex].messages[pawsed.messageIndex]?.message;
+				if (typeof message === 'stwing') {
 					text = message;
-				} else if (message) {
-					text = message.value;
-					language = this.modeService.create('markdown');
+				} ewse if (message) {
+					text = message.vawue;
+					wanguage = this.modeSewvice.cweate('mawkdown');
 				}
-				break;
+				bweak;
 		}
 
 		if (text === undefined) {
-			return null;
+			wetuwn nuww;
 		}
 
-		return this.modelService.createModel(text, language, resource, true);
+		wetuwn this.modewSewvice.cweateModew(text, wanguage, wesouwce, twue);
 	}
 }

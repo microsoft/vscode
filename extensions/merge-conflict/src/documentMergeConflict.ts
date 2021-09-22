@@ -1,78 +1,78 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
-import * as interfaces from './interfaces';
-import * as vscode from 'vscode';
+impowt * as intewfaces fwom './intewfaces';
+impowt * as vscode fwom 'vscode';
 
-export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict {
+expowt cwass DocumentMewgeConfwict impwements intewfaces.IDocumentMewgeConfwict {
 
-	public range: vscode.Range;
-	public current: interfaces.IMergeRegion;
-	public incoming: interfaces.IMergeRegion;
-	public commonAncestors: interfaces.IMergeRegion[];
-	public splitter: vscode.Range;
+	pubwic wange: vscode.Wange;
+	pubwic cuwwent: intewfaces.IMewgeWegion;
+	pubwic incoming: intewfaces.IMewgeWegion;
+	pubwic commonAncestows: intewfaces.IMewgeWegion[];
+	pubwic spwitta: vscode.Wange;
 
-	constructor(descriptor: interfaces.IDocumentMergeConflictDescriptor) {
-		this.range = descriptor.range;
-		this.current = descriptor.current;
-		this.incoming = descriptor.incoming;
-		this.commonAncestors = descriptor.commonAncestors;
-		this.splitter = descriptor.splitter;
+	constwuctow(descwiptow: intewfaces.IDocumentMewgeConfwictDescwiptow) {
+		this.wange = descwiptow.wange;
+		this.cuwwent = descwiptow.cuwwent;
+		this.incoming = descwiptow.incoming;
+		this.commonAncestows = descwiptow.commonAncestows;
+		this.spwitta = descwiptow.spwitta;
 	}
 
-	public commitEdit(type: interfaces.CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean> {
+	pubwic commitEdit(type: intewfaces.CommitType, editow: vscode.TextEditow, edit?: vscode.TextEditowEdit): Thenabwe<boowean> {
 
 		if (edit) {
 
-			this.applyEdit(type, editor.document, edit);
-			return Promise.resolve(true);
+			this.appwyEdit(type, editow.document, edit);
+			wetuwn Pwomise.wesowve(twue);
 		}
 
-		return editor.edit((edit) => this.applyEdit(type, editor.document, edit));
+		wetuwn editow.edit((edit) => this.appwyEdit(type, editow.document, edit));
 	}
 
-	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void; }): void {
+	pubwic appwyEdit(type: intewfaces.CommitType, document: vscode.TextDocument, edit: { wepwace(wange: vscode.Wange, newText: stwing): void; }): void {
 
-		// Each conflict is a set of ranges as follows, note placements or newlines
+		// Each confwict is a set of wanges as fowwows, note pwacements ow newwines
 		// which may not in spans
-		// [ Conflict Range             -- (Entire content below)
-		//   [ Current Header ]\n       -- >>>>> Header
-		//   [ Current Content ]        -- (content)
-		//   [ Splitter ]\n             -- =====
+		// [ Confwict Wange             -- (Entiwe content bewow)
+		//   [ Cuwwent Heada ]\n       -- >>>>> Heada
+		//   [ Cuwwent Content ]        -- (content)
+		//   [ Spwitta ]\n             -- =====
 		//   [ Incoming Content ]       -- (content)
-		//   [ Incoming Header ]\n      -- <<<<< Incoming
+		//   [ Incoming Heada ]\n      -- <<<<< Incoming
 		// ]
-		if (type === interfaces.CommitType.Current) {
-			// Replace [ Conflict Range ] with [ Current Content ]
-			let content = document.getText(this.current.content);
-			this.replaceRangeWithContent(content, edit);
+		if (type === intewfaces.CommitType.Cuwwent) {
+			// Wepwace [ Confwict Wange ] with [ Cuwwent Content ]
+			wet content = document.getText(this.cuwwent.content);
+			this.wepwaceWangeWithContent(content, edit);
 		}
-		else if (type === interfaces.CommitType.Incoming) {
-			let content = document.getText(this.incoming.content);
-			this.replaceRangeWithContent(content, edit);
+		ewse if (type === intewfaces.CommitType.Incoming) {
+			wet content = document.getText(this.incoming.content);
+			this.wepwaceWangeWithContent(content, edit);
 		}
-		else if (type === interfaces.CommitType.Both) {
-			// Replace [ Conflict Range ] with [ Current Content ] + \n + [ Incoming Content ]
+		ewse if (type === intewfaces.CommitType.Both) {
+			// Wepwace [ Confwict Wange ] with [ Cuwwent Content ] + \n + [ Incoming Content ]
 
-			const currentContent = document.getText(this.current.content);
+			const cuwwentContent = document.getText(this.cuwwent.content);
 			const incomingContent = document.getText(this.incoming.content);
 
-			edit.replace(this.range, currentContent.concat(incomingContent));
+			edit.wepwace(this.wange, cuwwentContent.concat(incomingContent));
 		}
 	}
 
-	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void; }) {
-		if (this.isNewlineOnly(content)) {
-			edit.replace(this.range, '');
-			return;
+	pwivate wepwaceWangeWithContent(content: stwing, edit: { wepwace(wange: vscode.Wange, newText: stwing): void; }) {
+		if (this.isNewwineOnwy(content)) {
+			edit.wepwace(this.wange, '');
+			wetuwn;
 		}
 
-		// Replace [ Conflict Range ] with [ Current Content ]
-		edit.replace(this.range, content);
+		// Wepwace [ Confwict Wange ] with [ Cuwwent Content ]
+		edit.wepwace(this.wange, content);
 	}
 
-	private isNewlineOnly(text: string) {
-		return text === '\n' || text === '\r\n';
+	pwivate isNewwineOnwy(text: stwing) {
+		wetuwn text === '\n' || text === '\w\n';
 	}
 }

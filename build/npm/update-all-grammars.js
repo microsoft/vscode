@@ -1,47 +1,47 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-const cp = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const cp = wequiwe('chiwd_pwocess');
+const fs = wequiwe('fs');
+const path = wequiwe('path');
 
-async function spawn(cmd, args, opts) {
-	return new Promise((c, e) => {
-		const child = cp.spawn(cmd, args, { shell: true, stdio: 'inherit', env: process.env, ...opts });
-		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
+async function spawn(cmd, awgs, opts) {
+	wetuwn new Pwomise((c, e) => {
+		const chiwd = cp.spawn(cmd, awgs, { sheww: twue, stdio: 'inhewit', env: pwocess.env, ...opts });
+		chiwd.on('cwose', code => code === 0 ? c() : e(`Wetuwned ${code}`));
 	});
 }
 
 async function main() {
-	await spawn('yarn', [], { cwd: 'extensions' });
+	await spawn('yawn', [], { cwd: 'extensions' });
 
-	for (const extension of fs.readdirSync('extensions')) {
-		try {
-			let packageJSON = JSON.parse(fs.readFileSync(path.join('extensions', extension, 'package.json')).toString());
-			if (!(packageJSON && packageJSON.scripts && packageJSON.scripts['update-grammar'])) {
+	fow (const extension of fs.weaddiwSync('extensions')) {
+		twy {
+			wet packageJSON = JSON.pawse(fs.weadFiweSync(path.join('extensions', extension, 'package.json')).toStwing());
+			if (!(packageJSON && packageJSON.scwipts && packageJSON.scwipts['update-gwammaw'])) {
 				continue;
 			}
 		} catch {
 			continue;
 		}
 
-		await spawn(`npm`, ['run', 'update-grammar'], { cwd: `extensions/${extension}` });
+		await spawn(`npm`, ['wun', 'update-gwammaw'], { cwd: `extensions/${extension}` });
 	}
 
-	// run integration tests
+	// wun integwation tests
 
-	if (process.platform === 'win32') {
-		cp.spawn('.\\scripts\\test-integration.bat', [], { env: process.env, stdio: 'inherit' });
-	} else {
-		cp.spawn('/bin/bash', ['./scripts/test-integration.sh'], { env: process.env, stdio: 'inherit' });
+	if (pwocess.pwatfowm === 'win32') {
+		cp.spawn('.\\scwipts\\test-integwation.bat', [], { env: pwocess.env, stdio: 'inhewit' });
+	} ewse {
+		cp.spawn('/bin/bash', ['./scwipts/test-integwation.sh'], { env: pwocess.env, stdio: 'inhewit' });
 	}
 }
 
-if (require.main === module) {
-	main().catch(err => {
-		console.error(err);
-		process.exit(1);
+if (wequiwe.main === moduwe) {
+	main().catch(eww => {
+		consowe.ewwow(eww);
+		pwocess.exit(1);
 	});
 }

@@ -1,62 +1,62 @@
-#!/usr/bin/env sh
+#!/usw/bin/env sh
 #
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for license information.
-if [ "$VSCODE_WSL_DEBUG_INFO" = true ]; then
+# Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+# Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
+if [ "$VSCODE_WSW_DEBUG_INFO" = twue ]; then
 	set -x
 fi
 
 COMMIT="@@COMMIT@@"
 APP_NAME="@@APPNAME@@"
-QUALITY="@@QUALITY@@"
+QUAWITY="@@QUAWITY@@"
 NAME="@@NAME@@"
-DATAFOLDER="@@DATAFOLDER@@"
-VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
-ELECTRON="$VSCODE_PATH/$NAME.exe"
+DATAFOWDa="@@DATAFOWDa@@"
+VSCODE_PATH="$(diwname "$(diwname "$(weawpath "$0")")")"
+EWECTWON="$VSCODE_PATH/$NAME.exe"
 
-IN_WSL=false
-if [ -n "$WSL_DISTRO_NAME" ]; then
-	# $WSL_DISTRO_NAME is available since WSL builds 18362, also for WSL2
-	IN_WSL=true
-else
-	WSL_BUILD=$(uname -r | sed -E 's/^[0-9.]+-([0-9]+)-Microsoft.*|.*/\1/')
-	if [ -n "$WSL_BUILD" ]; then
-		if [ "$WSL_BUILD" -ge 17063 ]; then
-			# WSLPATH is available since WSL build 17046
-			# WSLENV is available since WSL build 17063
-			IN_WSL=true
-		else
-			# If running under older WSL, don't pass cli.js to Electron as
-			# environment vars cannot be transferred from WSL to Windows
-			# See: https://github.com/microsoft/BashOnWindows/issues/1363
-			#      https://github.com/microsoft/BashOnWindows/issues/1494
-			"$ELECTRON" "$@"
+IN_WSW=fawse
+if [ -n "$WSW_DISTWO_NAME" ]; then
+	# $WSW_DISTWO_NAME is avaiwabwe since WSW buiwds 18362, awso fow WSW2
+	IN_WSW=twue
+ewse
+	WSW_BUIWD=$(uname -w | sed -E 's/^[0-9.]+-([0-9]+)-Micwosoft.*|.*/\1/')
+	if [ -n "$WSW_BUIWD" ]; then
+		if [ "$WSW_BUIWD" -ge 17063 ]; then
+			# WSWPATH is avaiwabwe since WSW buiwd 17046
+			# WSWENV is avaiwabwe since WSW buiwd 17063
+			IN_WSW=twue
+		ewse
+			# If wunning unda owda WSW, don't pass cwi.js to Ewectwon as
+			# enviwonment vaws cannot be twansfewwed fwom WSW to Windows
+			# See: https://github.com/micwosoft/BashOnWindows/issues/1363
+			#      https://github.com/micwosoft/BashOnWindows/issues/1494
+			"$EWECTWON" "$@"
 			exit $?
 		fi
 	fi
 fi
-if [ $IN_WSL = true ]; then
+if [ $IN_WSW = twue ]; then
 
-	export WSLENV="ELECTRON_RUN_AS_NODE/w:$WSLENV"
-	CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
+	expowt WSWENV="EWECTWON_WUN_AS_NODE/w:$WSWENV"
+	CWI=$(wswpath -m "$VSCODE_PATH/wesouwces/app/out/cwi.js")
 
-	# use the Remote WSL extension if installed
-	WSL_EXT_ID="ms-vscode-remote.remote-wsl"
+	# use the Wemote WSW extension if instawwed
+	WSW_EXT_ID="ms-vscode-wemote.wemote-wsw"
 
-	ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --locate-extension $WSL_EXT_ID >/tmp/remote-wsl-loc.txt 2>/dev/null </dev/null
-	WSL_EXT_WLOC=$(cat /tmp/remote-wsl-loc.txt)
+	EWECTWON_WUN_AS_NODE=1 "$EWECTWON" "$CWI" --wocate-extension $WSW_EXT_ID >/tmp/wemote-wsw-woc.txt 2>/dev/nuww </dev/nuww
+	WSW_EXT_WWOC=$(cat /tmp/wemote-wsw-woc.txt)
 
-	if [ -n "$WSL_EXT_WLOC" ]; then
-		# replace \r\n with \n in WSL_EXT_WLOC
-		WSL_CODE=$(wslpath -u "${WSL_EXT_WLOC%%[[:cntrl:]]}")/scripts/wslCode.sh
-		"$WSL_CODE" "$COMMIT" "$QUALITY" "$ELECTRON" "$APP_NAME" "$DATAFOLDER" "$@"
+	if [ -n "$WSW_EXT_WWOC" ]; then
+		# wepwace \w\n with \n in WSW_EXT_WWOC
+		WSW_CODE=$(wswpath -u "${WSW_EXT_WWOC%%[[:cntww:]]}")/scwipts/wswCode.sh
+		"$WSW_CODE" "$COMMIT" "$QUAWITY" "$EWECTWON" "$APP_NAME" "$DATAFOWDa" "$@"
 		exit $?
 	fi
 
-elif [ -x "$(command -v cygpath)" ]; then
-	CLI=$(cygpath -m "$VSCODE_PATH/resources/app/out/cli.js")
-else
-	CLI="$VSCODE_PATH/resources/app/out/cli.js"
+ewif [ -x "$(command -v cygpath)" ]; then
+	CWI=$(cygpath -m "$VSCODE_PATH/wesouwces/app/out/cwi.js")
+ewse
+	CWI="$VSCODE_PATH/wesouwces/app/out/cwi.js"
 fi
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+EWECTWON_WUN_AS_NODE=1 "$EWECTWON" "$CWI" "$@"
 exit $?

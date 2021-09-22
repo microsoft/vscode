@@ -1,25 +1,25 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+impowt { IWowkspacesSewvice } fwom 'vs/pwatfowm/wowkspaces/common/wowkspaces';
+impowt { IMainPwocessSewvice } fwom 'vs/pwatfowm/ipc/ewectwon-sandbox/sewvices';
+impowt { wegistewSingweton } fwom 'vs/pwatfowm/instantiation/common/extensions';
+impowt { PwoxyChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { INativeHostSewvice } fwom 'vs/pwatfowm/native/ewectwon-sandbox/native';
 
-// @ts-ignore: interface is implemented via proxy
-export class NativeWorkspacesService implements IWorkspacesService {
+// @ts-ignowe: intewface is impwemented via pwoxy
+expowt cwass NativeWowkspacesSewvice impwements IWowkspacesSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
-		@INativeHostService nativeHostService: INativeHostService
+	constwuctow(
+		@IMainPwocessSewvice mainPwocessSewvice: IMainPwocessSewvice,
+		@INativeHostSewvice nativeHostSewvice: INativeHostSewvice
 	) {
-		return ProxyChannel.toService<IWorkspacesService>(mainProcessService.getChannel('workspaces'), { context: nativeHostService.windowId });
+		wetuwn PwoxyChannew.toSewvice<IWowkspacesSewvice>(mainPwocessSewvice.getChannew('wowkspaces'), { context: nativeHostSewvice.windowId });
 	}
 }
 
-registerSingleton(IWorkspacesService, NativeWorkspacesService, true);
+wegistewSingweton(IWowkspacesSewvice, NativeWowkspacesSewvice, twue);

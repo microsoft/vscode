@@ -1,212 +1,212 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench.noauxiliarybar .part.auxiliarybar {
-	display: none !important;
-	visibility: hidden !important;
+.monaco-wowkbench.noauxiwiawybaw .pawt.auxiwiawybaw {
+	dispway: none !impowtant;
+	visibiwity: hidden !impowtant;
 }
 
-.monaco-workbench .part.auxiliarybar {
-	z-index: initial;
+.monaco-wowkbench .pawt.auxiwiawybaw {
+	z-index: initiaw;
 }
 
-.monaco-workbench .part.auxiliarybar .composite.title {
+.monaco-wowkbench .pawt.auxiwiawybaw .composite.titwe {
 	height: 35px;
-	display: flex;
-	flex-direction: row;
+	dispway: fwex;
+	fwex-diwection: wow;
 	justify-content: space-between;
 }
 
-.monaco-workbench .part.auxiliarybar.bottom .composite.title {
-	border-top-width: 1px;
-	border-top-style: solid;
+.monaco-wowkbench .pawt.auxiwiawybaw.bottom .composite.titwe {
+	bowda-top-width: 1px;
+	bowda-top-stywe: sowid;
 }
 
-.monaco-workbench.noeditorarea .part.auxiliarybar.bottom .composite.title {
-	border-top-width: 0; /* no border when editor area is hiden */
+.monaco-wowkbench.noeditowawea .pawt.auxiwiawybaw.bottom .composite.titwe {
+	bowda-top-width: 0; /* no bowda when editow awea is hiden */
 }
 
-.monaco-workbench .part.auxiliarybar.right {
-	border-left-width: 1px;
-	border-left-style: solid;
+.monaco-wowkbench .pawt.auxiwiawybaw.wight {
+	bowda-weft-width: 1px;
+	bowda-weft-stywe: sowid;
 }
 
-.monaco-workbench.noeditorarea .part.auxiliarybar.right {
-	border-left-width: 0; /* no border when editor area is hiden */
+.monaco-wowkbench.noeditowawea .pawt.auxiwiawybaw.wight {
+	bowda-weft-width: 0; /* no bowda when editow awea is hiden */
 }
 
-.monaco-workbench .part.auxiliarybar.left {
-	border-right-width: 1px;
-	border-right-style: solid;
+.monaco-wowkbench .pawt.auxiwiawybaw.weft {
+	bowda-wight-width: 1px;
+	bowda-wight-stywe: sowid;
 }
 
-.monaco-workbench.noeditorarea .part.auxiliarybar.left {
-	border-right-width: 0; /* no border when editor area is hiden */
+.monaco-wowkbench.noeditowawea .pawt.auxiwiawybaw.weft {
+	bowda-wight-width: 0; /* no bowda when editow awea is hiden */
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title > .title-actions .monaco-action-bar .actions-container {
-	justify-content: flex-end;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe > .titwe-actions .monaco-action-baw .actions-containa {
+	justify-content: fwex-end;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title > .title-actions .monaco-action-bar .action-item {
-	margin-right: 4px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe > .titwe-actions .monaco-action-baw .action-item {
+	mawgin-wight: 4px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title > .title-actions .monaco-action-bar .action-item .action-label {
-	outline-offset: -2px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe > .titwe-actions .monaco-action-baw .action-item .action-wabew {
+	outwine-offset: -2px;
 }
 
-.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:not(.checked):focus .action-label {
-	border-bottom-color: transparent !important; /* hides border on clicked state */
+.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item.cwicked:not(.checked):focus .action-wabew {
+	bowda-bottom-cowow: twanspawent !impowtant; /* hides bowda on cwicked state */
 }
 
-.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .action-label,
-.monaco-workbench .part.auxiliarybar > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.active:focus .action-label {
-	border-bottom-color: currentColor !important;
+.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item.checked.cwicked:focus .action-wabew,
+.monaco-wowkbench .pawt.auxiwiawybaw > .titwe > .panew-switcha-containa > .monaco-action-baw .action-item.checked.active:focus .action-wabew {
+	bowda-bottom-cowow: cuwwentCowow !impowtant;
 }
 
-/** Panel Switcher */
+/** Panew Switcha */
 
-.monaco-workbench .part.auxiliarybar > .composite.title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-left: 0px;
-	margin-right: 0px;
-	color: inherit !important;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe > .panew-switcha-containa.composite-baw > .monaco-action-baw .action-wabew.codicon-mowe {
+	dispway: fwex;
+	awign-items: centa;
+	justify-content: centa;
+	mawgin-weft: 0px;
+	mawgin-wight: 0px;
+	cowow: inhewit !impowtant;
 
 }
 
-.monaco-workbench .part.auxiliarybar .empty-panel-message-area {
-	display: none;
+.monaco-wowkbench .pawt.auxiwiawybaw .empty-panew-message-awea {
+	dispway: none;
 	height: 100%;
 	width: 100%;
 }
 
-.monaco-workbench .part.auxiliarybar .empty-panel-message-area.visible {
-	display: flex;
-	align-items: center;
-	align-content: center;
-	justify-content: center;
+.monaco-wowkbench .pawt.auxiwiawybaw .empty-panew-message-awea.visibwe {
+	dispway: fwex;
+	awign-items: centa;
+	awign-content: centa;
+	justify-content: centa;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar {
-	line-height: 27px; /* matches panel titles in settings */
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw {
+	wine-height: 27px; /* matches panew titwes in settings */
 	height: 35px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:first-child {
-	padding-left: 12px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item:fiwst-chiwd {
+	padding-weft: 12px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item {
-	text-transform: uppercase;
-	padding-left: 10px;
-	padding-right: 10px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item {
+	text-twansfowm: uppewcase;
+	padding-weft: 10px;
+	padding-wight: 10px;
 	font-size: 11px;
-	padding-bottom: 3px; /* puts the bottom border down */
+	padding-bottom: 3px; /* puts the bottom bowda down */
 	padding-top: 4px;
-	display: flex;
+	dispway: fwex;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before,
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item::afta {
 	content: '';
 	width: 2px;
-	display: block;
-	background-color: var(--insert-border-color);
+	dispway: bwock;
+	backgwound-cowow: vaw(--insewt-bowda-cowow);
 	opacity: 0;
-	transition-property: opacity;
-	transition-duration: 0ms;
-	transition-delay: 100ms;
+	twansition-pwopewty: opacity;
+	twansition-duwation: 0ms;
+	twansition-deway: 100ms;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before {
-	margin-left: -11px;
-	margin-right: 9px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item::befowe {
+	mawgin-weft: -11px;
+	mawgin-wight: 9px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
-	margin-right: -11px;
-	margin-left: 9px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item::afta {
+	mawgin-wight: -11px;
+	mawgin-weft: 9px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
-	margin-right: -10px;
-	margin-left: 8px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item:wast-of-type::afta {
+	mawgin-wight: -10px;
+	mawgin-weft: 8px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::after,
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
-	transition-delay: 0s;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.wight::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.weft::afta,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.weft::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.wight::afta {
+	twansition-deway: 0s;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
-.monaco-workbench .part.auxiliarybar > .composite.title.dragged-over-head > .panel-switcher-container > .monaco-action-bar .action-item:first-of-type::before,
-.monaco-workbench .part.auxiliarybar > .composite.title.dragged-over-tail > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.weft::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.wight::afta,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe.dwagged-ova-head > .panew-switcha-containa > .monaco-action-baw .action-item:fiwst-of-type::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe.dwagged-ova-taiw > .panew-switcha-containa > .monaco-action-baw .action-item:wast-of-type::afta {
 	opacity: 1;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
-	margin-right: 0;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item .action-wabew {
+	mawgin-wight: 0;
 	padding: 2px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label:not(.codicon) {
-	background: none !important;
-	border-radius: 0;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item .action-wabew:not(.codicon) {
+	backgwound: none !impowtant;
+	bowda-wadius: 0;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-child {
-	padding-right: 10px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item:wast-chiwd {
+	padding-wight: 10px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label {
-	margin-bottom: 1px;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item:not(.checked) .action-wabew {
+	mawgin-bottom: 1px;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
-	border-bottom: 1px solid;
-	margin-right: 0;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .action-item.checked .action-wabew {
+	bowda-bottom: 1px sowid;
+	mawgin-wight: 0;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .badge {
-	margin-left: 8px;
-	display: flex;
-	align-items: center;
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .badge {
+	mawgin-weft: 8px;
+	dispway: fwex;
+	awign-items: centa;
 }
 
-.monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .badge .badge-content {
+.monaco-wowkbench .pawt.auxiwiawybaw > .composite.titwe> .panew-switcha-containa > .monaco-action-baw .badge .badge-content {
 	padding: 3px 5px;
-	border-radius: 11px;
+	bowda-wadius: 11px;
 	font-size: 11px;
 	min-width: 18px;
 	height: 18px;
-	line-height: 11px;
-	font-weight: normal;
-	text-align: center;
-	display: inline-block;
-	box-sizing: border-box;
-	position: relative;
+	wine-height: 11px;
+	font-weight: nowmaw;
+	text-awign: centa;
+	dispway: inwine-bwock;
+	box-sizing: bowda-box;
+	position: wewative;
 }
 
-/* Rotate icons when panel is on right */
-.monaco-workbench .part.auxiliarybar.right .title-actions .codicon-split-horizontal::before,
-.monaco-workbench .part.auxiliarybar.right .title-actions .codicon-panel-maximize::before,
-.monaco-workbench .part.auxiliarybar.right .title-actions .codicon-panel-restore::before {
-	display: inline-block;
-	transform: rotate(-90deg);
+/* Wotate icons when panew is on wight */
+.monaco-wowkbench .pawt.auxiwiawybaw.wight .titwe-actions .codicon-spwit-howizontaw::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw.wight .titwe-actions .codicon-panew-maximize::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw.wight .titwe-actions .codicon-panew-westowe::befowe {
+	dispway: inwine-bwock;
+	twansfowm: wotate(-90deg);
 }
 
-/* Rotate icons when panel is on left */
-.monaco-workbench .part.auxiliarybar.left .title-actions .codicon-split-horizontal::before,
-.monaco-workbench .part.auxiliarybar.left .title-actions .codicon-panel-maximize::before,
-.monaco-workbench .part.auxiliarybar.left .title-actions .codicon-panel-restore::before {
-	display: inline-block;
-	transform: rotate(90deg);
+/* Wotate icons when panew is on weft */
+.monaco-wowkbench .pawt.auxiwiawybaw.weft .titwe-actions .codicon-spwit-howizontaw::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw.weft .titwe-actions .codicon-panew-maximize::befowe,
+.monaco-wowkbench .pawt.auxiwiawybaw.weft .titwe-actions .codicon-panew-westowe::befowe {
+	dispway: inwine-bwock;
+	twansfowm: wotate(90deg);
 }

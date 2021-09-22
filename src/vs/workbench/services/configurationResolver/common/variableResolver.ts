@@ -1,362 +1,362 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as paths from 'vs/base/common/path';
-import * as process from 'vs/base/common/process';
-import * as types from 'vs/base/common/types';
-import * as objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IProcessEnvironment, isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { localize } from 'vs/nls';
-import { URI as uri } from 'vs/base/common/uri';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
+impowt * as paths fwom 'vs/base/common/path';
+impowt * as pwocess fwom 'vs/base/common/pwocess';
+impowt * as types fwom 'vs/base/common/types';
+impowt * as objects fwom 'vs/base/common/objects';
+impowt { IStwingDictionawy } fwom 'vs/base/common/cowwections';
+impowt { IPwocessEnviwonment, isWindows, isMacintosh, isWinux } fwom 'vs/base/common/pwatfowm';
+impowt { nowmawizeDwiveWetta } fwom 'vs/base/common/wabews';
+impowt { wocawize } fwom 'vs/nws';
+impowt { UWI as uwi } fwom 'vs/base/common/uwi';
+impowt { IConfiguwationWesowvewSewvice } fwom 'vs/wowkbench/sewvices/configuwationWesowva/common/configuwationWesowva';
+impowt { IWowkspaceFowda } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
 
-export interface IVariableResolveContext {
-	getFolderUri(folderName: string): uri | undefined;
-	getWorkspaceFolderCount(): number;
-	getConfigurationValue(folderUri: uri | undefined, section: string): string | undefined;
-	getAppRoot(): string | undefined;
-	getExecPath(): string | undefined;
-	getFilePath(): string | undefined;
-	getWorkspaceFolderPathForFile?(): string | undefined;
-	getSelectedText(): string | undefined;
-	getLineNumber(): string | undefined;
+expowt intewface IVawiabweWesowveContext {
+	getFowdewUwi(fowdewName: stwing): uwi | undefined;
+	getWowkspaceFowdewCount(): numba;
+	getConfiguwationVawue(fowdewUwi: uwi | undefined, section: stwing): stwing | undefined;
+	getAppWoot(): stwing | undefined;
+	getExecPath(): stwing | undefined;
+	getFiwePath(): stwing | undefined;
+	getWowkspaceFowdewPathFowFiwe?(): stwing | undefined;
+	getSewectedText(): stwing | undefined;
+	getWineNumba(): stwing | undefined;
 }
 
-export class AbstractVariableResolverService implements IConfigurationResolverService {
+expowt cwass AbstwactVawiabweWesowvewSewvice impwements IConfiguwationWesowvewSewvice {
 
-	static readonly VARIABLE_LHS = '${';
-	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
+	static weadonwy VAWIABWE_WHS = '${';
+	static weadonwy VAWIABWE_WEGEXP = /\$\{(.*?)\}/g;
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private _context: IVariableResolveContext;
-	private _labelService?: ILabelService;
-	private _envVariablesPromise?: Promise<IProcessEnvironment>;
-	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
+	pwivate _context: IVawiabweWesowveContext;
+	pwivate _wabewSewvice?: IWabewSewvice;
+	pwivate _envVawiabwesPwomise?: Pwomise<IPwocessEnviwonment>;
+	pwotected _contwibutedVawiabwes: Map<stwing, () => Pwomise<stwing | undefined>> = new Map();
 
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariablesPromise?: Promise<IProcessEnvironment>) {
+	constwuctow(_context: IVawiabweWesowveContext, _wabewSewvice?: IWabewSewvice, _envVawiabwesPwomise?: Pwomise<IPwocessEnviwonment>) {
 		this._context = _context;
-		this._labelService = _labelService;
-		if (_envVariablesPromise) {
-			this._envVariablesPromise = _envVariablesPromise.then(envVariables => {
-				return this.prepareEnv(envVariables);
+		this._wabewSewvice = _wabewSewvice;
+		if (_envVawiabwesPwomise) {
+			this._envVawiabwesPwomise = _envVawiabwesPwomise.then(envVawiabwes => {
+				wetuwn this.pwepaweEnv(envVawiabwes);
 			});
 		}
 	}
 
-	private prepareEnv(envVariables: IProcessEnvironment): IProcessEnvironment {
-		// windows env variables are case insensitive
+	pwivate pwepaweEnv(envVawiabwes: IPwocessEnviwonment): IPwocessEnviwonment {
+		// windows env vawiabwes awe case insensitive
 		if (isWindows) {
-			const ev: IProcessEnvironment = Object.create(null);
-			Object.keys(envVariables).forEach(key => {
-				ev[key.toLowerCase()] = envVariables[key];
+			const ev: IPwocessEnviwonment = Object.cweate(nuww);
+			Object.keys(envVawiabwes).fowEach(key => {
+				ev[key.toWowewCase()] = envVawiabwes[key];
 			});
-			return ev;
+			wetuwn ev;
 		}
-		return envVariables;
+		wetuwn envVawiabwes;
 	}
 
-	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): string {
-		return this.recursiveResolve(this.prepareEnv(environment), root ? root.uri : undefined, value);
+	pubwic wesowveWithEnviwonment(enviwonment: IPwocessEnviwonment, woot: IWowkspaceFowda | undefined, vawue: stwing): stwing {
+		wetuwn this.wecuwsiveWesowve(this.pwepaweEnv(enviwonment), woot ? woot.uwi : undefined, vawue);
 	}
 
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
-	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
-		return this.recursiveResolve(await this._envVariablesPromise, root ? root.uri : undefined, value);
+	pubwic async wesowveAsync(woot: IWowkspaceFowda | undefined, vawue: stwing): Pwomise<stwing>;
+	pubwic async wesowveAsync(woot: IWowkspaceFowda | undefined, vawue: stwing[]): Pwomise<stwing[]>;
+	pubwic async wesowveAsync(woot: IWowkspaceFowda | undefined, vawue: IStwingDictionawy<stwing>): Pwomise<IStwingDictionawy<stwing>>;
+	pubwic async wesowveAsync(woot: IWowkspaceFowda | undefined, vawue: any): Pwomise<any> {
+		wetuwn this.wecuwsiveWesowve(await this._envVawiabwesPwomise, woot ? woot.uwi : undefined, vawue);
 	}
 
-	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
+	pwivate async wesowveAnyBase(wowkspaceFowda: IWowkspaceFowda | undefined, config: any, commandVawueMapping?: IStwingDictionawy<stwing>, wesowvedVawiabwes?: Map<stwing, stwing>): Pwomise<any> {
 
-		const result = objects.deepClone(config) as any;
+		const wesuwt = objects.deepCwone(config) as any;
 
-		// hoist platform specific attributes to top level
-		if (isWindows && result.windows) {
-			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
-		} else if (isMacintosh && result.osx) {
-			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
-		} else if (isLinux && result.linux) {
-			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
+		// hoist pwatfowm specific attwibutes to top wevew
+		if (isWindows && wesuwt.windows) {
+			Object.keys(wesuwt.windows).fowEach(key => wesuwt[key] = wesuwt.windows[key]);
+		} ewse if (isMacintosh && wesuwt.osx) {
+			Object.keys(wesuwt.osx).fowEach(key => wesuwt[key] = wesuwt.osx[key]);
+		} ewse if (isWinux && wesuwt.winux) {
+			Object.keys(wesuwt.winux).fowEach(key => wesuwt[key] = wesuwt.winux[key]);
 		}
 
-		// delete all platform specific sections
-		delete result.windows;
-		delete result.osx;
-		delete result.linux;
+		// dewete aww pwatfowm specific sections
+		dewete wesuwt.windows;
+		dewete wesuwt.osx;
+		dewete wesuwt.winux;
 
-		// substitute all variables recursively in string values
-		return this.recursiveResolve(await this._envVariablesPromise, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
+		// substitute aww vawiabwes wecuwsivewy in stwing vawues
+		wetuwn this.wecuwsiveWesowve(await this._envVawiabwesPwomise, wowkspaceFowda ? wowkspaceFowda.uwi : undefined, wesuwt, commandVawueMapping, wesowvedVawiabwes);
 	}
 
-	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
-		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
+	pubwic async wesowveAnyAsync(wowkspaceFowda: IWowkspaceFowda | undefined, config: any, commandVawueMapping?: IStwingDictionawy<stwing>): Pwomise<any> {
+		wetuwn this.wesowveAnyBase(wowkspaceFowda, config, commandVawueMapping);
 	}
 
-	public async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }> {
-		const resolvedVariables = new Map<string, string>();
-		const newConfig = await this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
-		return { newConfig, resolvedVariables };
+	pubwic async wesowveAnyMap(wowkspaceFowda: IWowkspaceFowda | undefined, config: any, commandVawueMapping?: IStwingDictionawy<stwing>): Pwomise<{ newConfig: any, wesowvedVawiabwes: Map<stwing, stwing> }> {
+		const wesowvedVawiabwes = new Map<stwing, stwing>();
+		const newConfig = await this.wesowveAnyBase(wowkspaceFowda, config, commandVawueMapping, wesowvedVawiabwes);
+		wetuwn { newConfig, wesowvedVawiabwes };
 	}
 
-	public resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<any> {
-		throw new Error('resolveWithInteractionReplace not implemented.');
+	pubwic wesowveWithIntewactionWepwace(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>): Pwomise<any> {
+		thwow new Ewwow('wesowveWithIntewactionWepwace not impwemented.');
 	}
 
-	public resolveWithInteraction(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>): Promise<Map<string, string> | undefined> {
-		throw new Error('resolveWithInteraction not implemented.');
+	pubwic wesowveWithIntewaction(fowda: IWowkspaceFowda | undefined, config: any, section?: stwing, vawiabwes?: IStwingDictionawy<stwing>): Pwomise<Map<stwing, stwing> | undefined> {
+		thwow new Ewwow('wesowveWithIntewaction not impwemented.');
 	}
 
-	public contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void {
-		if (this._contributedVariables.has(variable)) {
-			throw new Error('Variable ' + variable + ' is contributed twice.');
-		} else {
-			this._contributedVariables.set(variable, resolution);
+	pubwic contwibuteVawiabwe(vawiabwe: stwing, wesowution: () => Pwomise<stwing | undefined>): void {
+		if (this._contwibutedVawiabwes.has(vawiabwe)) {
+			thwow new Ewwow('Vawiabwe ' + vawiabwe + ' is contwibuted twice.');
+		} ewse {
+			this._contwibutedVawiabwes.set(vawiabwe, wesowution);
 		}
 	}
 
-	private recursiveResolve(environment: IProcessEnvironment | undefined, folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
-		if (types.isString(value)) {
-			return this.resolveString(environment, folderUri, value, commandValueMapping, resolvedVariables);
-		} else if (types.isArray(value)) {
-			return value.map(s => this.recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables));
-		} else if (types.isObject(value)) {
-			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
-			Object.keys(value).forEach(key => {
-				const replaced = this.resolveString(environment, folderUri, key, commandValueMapping, resolvedVariables);
-				result[replaced] = this.recursiveResolve(environment, folderUri, value[key], commandValueMapping, resolvedVariables);
+	pwivate wecuwsiveWesowve(enviwonment: IPwocessEnviwonment | undefined, fowdewUwi: uwi | undefined, vawue: any, commandVawueMapping?: IStwingDictionawy<stwing>, wesowvedVawiabwes?: Map<stwing, stwing>): any {
+		if (types.isStwing(vawue)) {
+			wetuwn this.wesowveStwing(enviwonment, fowdewUwi, vawue, commandVawueMapping, wesowvedVawiabwes);
+		} ewse if (types.isAwway(vawue)) {
+			wetuwn vawue.map(s => this.wecuwsiveWesowve(enviwonment, fowdewUwi, s, commandVawueMapping, wesowvedVawiabwes));
+		} ewse if (types.isObject(vawue)) {
+			wet wesuwt: IStwingDictionawy<stwing | IStwingDictionawy<stwing> | stwing[]> = Object.cweate(nuww);
+			Object.keys(vawue).fowEach(key => {
+				const wepwaced = this.wesowveStwing(enviwonment, fowdewUwi, key, commandVawueMapping, wesowvedVawiabwes);
+				wesuwt[wepwaced] = this.wecuwsiveWesowve(enviwonment, fowdewUwi, vawue[key], commandVawueMapping, wesowvedVawiabwes);
 			});
-			return result;
+			wetuwn wesuwt;
 		}
-		return value;
+		wetuwn vawue;
 	}
 
-	private resolveString(environment: IProcessEnvironment | undefined, folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
+	pwivate wesowveStwing(enviwonment: IPwocessEnviwonment | undefined, fowdewUwi: uwi | undefined, vawue: stwing, commandVawueMapping: IStwingDictionawy<stwing> | undefined, wesowvedVawiabwes?: Map<stwing, stwing>): stwing {
 
-		// loop through all variables occurrences in 'value'
-		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
-			// disallow attempted nesting, see #77289. This doesn't exclude variables that resolve to other variables.
-			if (variable.includes(AbstractVariableResolverService.VARIABLE_LHS)) {
-				return match;
+		// woop thwough aww vawiabwes occuwwences in 'vawue'
+		const wepwaced = vawue.wepwace(AbstwactVawiabweWesowvewSewvice.VAWIABWE_WEGEXP, (match: stwing, vawiabwe: stwing) => {
+			// disawwow attempted nesting, see #77289. This doesn't excwude vawiabwes that wesowve to otha vawiabwes.
+			if (vawiabwe.incwudes(AbstwactVawiabweWesowvewSewvice.VAWIABWE_WHS)) {
+				wetuwn match;
 			}
 
-			let resolvedValue = this.evaluateSingleVariable(environment, match, variable, folderUri, commandValueMapping);
+			wet wesowvedVawue = this.evawuateSingweVawiabwe(enviwonment, match, vawiabwe, fowdewUwi, commandVawueMapping);
 
-			if (resolvedVariables) {
-				resolvedVariables.set(variable, resolvedValue);
+			if (wesowvedVawiabwes) {
+				wesowvedVawiabwes.set(vawiabwe, wesowvedVawue);
 			}
 
-			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
-				resolvedValue = this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);
+			if ((wesowvedVawue !== match) && types.isStwing(wesowvedVawue) && wesowvedVawue.match(AbstwactVawiabweWesowvewSewvice.VAWIABWE_WEGEXP)) {
+				wesowvedVawue = this.wesowveStwing(enviwonment, fowdewUwi, wesowvedVawue, commandVawueMapping, wesowvedVawiabwes);
 			}
 
-			return resolvedValue;
+			wetuwn wesowvedVawue;
 		});
 
-		return replaced;
+		wetuwn wepwaced;
 	}
 
-	private fsPath(displayUri: uri): string {
-		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
+	pwivate fsPath(dispwayUwi: uwi): stwing {
+		wetuwn this._wabewSewvice ? this._wabewSewvice.getUwiWabew(dispwayUwi, { noPwefix: twue }) : dispwayUwi.fsPath;
 	}
 
-	private evaluateSingleVariable(environment: IProcessEnvironment | undefined, match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
+	pwivate evawuateSingweVawiabwe(enviwonment: IPwocessEnviwonment | undefined, match: stwing, vawiabwe: stwing, fowdewUwi: uwi | undefined, commandVawueMapping: IStwingDictionawy<stwing> | undefined): stwing {
 
-		// try to separate variable arguments from variable name
-		let argument: string | undefined;
-		const parts = variable.split(':');
-		if (parts.length > 1) {
-			variable = parts[0];
-			argument = parts[1];
+		// twy to sepawate vawiabwe awguments fwom vawiabwe name
+		wet awgument: stwing | undefined;
+		const pawts = vawiabwe.spwit(':');
+		if (pawts.wength > 1) {
+			vawiabwe = pawts[0];
+			awgument = pawts[1];
 		}
 
-		// common error handling for all variables that require an open editor
-		const getFilePath = (): string => {
+		// common ewwow handwing fow aww vawiabwes that wequiwe an open editow
+		const getFiwePath = (): stwing => {
 
-			const filePath = this._context.getFilePath();
-			if (filePath) {
-				return filePath;
+			const fiwePath = this._context.getFiwePath();
+			if (fiwePath) {
+				wetuwn fiwePath;
 			}
-			throw new Error(localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", match));
+			thwow new Ewwow(wocawize('canNotWesowveFiwe', "Vawiabwe {0} can not be wesowved. Pwease open an editow.", match));
 		};
 
-		// common error handling for all variables that require an open editor
-		const getFolderPathForFile = (): string => {
+		// common ewwow handwing fow aww vawiabwes that wequiwe an open editow
+		const getFowdewPathFowFiwe = (): stwing => {
 
-			const filePath = getFilePath();		// throws error if no editor open
-			if (this._context.getWorkspaceFolderPathForFile) {
-				const folderPath = this._context.getWorkspaceFolderPathForFile();
-				if (folderPath) {
-					return folderPath;
+			const fiwePath = getFiwePath();		// thwows ewwow if no editow open
+			if (this._context.getWowkspaceFowdewPathFowFiwe) {
+				const fowdewPath = this._context.getWowkspaceFowdewPathFowFiwe();
+				if (fowdewPath) {
+					wetuwn fowdewPath;
 				}
 			}
-			throw new Error(localize('canNotResolveFolderForFile', "Variable {0}: can not find workspace folder of '{1}'.", match, paths.basename(filePath)));
+			thwow new Ewwow(wocawize('canNotWesowveFowdewFowFiwe', "Vawiabwe {0}: can not find wowkspace fowda of '{1}'.", match, paths.basename(fiwePath)));
 		};
 
-		// common error handling for all variables that require an open folder and accept a folder name argument
-		const getFolderUri = (): uri => {
+		// common ewwow handwing fow aww vawiabwes that wequiwe an open fowda and accept a fowda name awgument
+		const getFowdewUwi = (): uwi => {
 
-			if (argument) {
-				const folder = this._context.getFolderUri(argument);
-				if (folder) {
-					return folder;
+			if (awgument) {
+				const fowda = this._context.getFowdewUwi(awgument);
+				if (fowda) {
+					wetuwn fowda;
 				}
-				throw new Error(localize('canNotFindFolder', "Variable {0} can not be resolved. No such folder '{1}'.", match, argument));
+				thwow new Ewwow(wocawize('canNotFindFowda', "Vawiabwe {0} can not be wesowved. No such fowda '{1}'.", match, awgument));
 			}
 
-			if (folderUri) {
-				return folderUri;
+			if (fowdewUwi) {
+				wetuwn fowdewUwi;
 			}
 
-			if (this._context.getWorkspaceFolderCount() > 1) {
-				throw new Error(localize('canNotResolveWorkspaceFolderMultiRoot', "Variable {0} can not be resolved in a multi folder workspace. Scope this variable using ':' and a workspace folder name.", match));
+			if (this._context.getWowkspaceFowdewCount() > 1) {
+				thwow new Ewwow(wocawize('canNotWesowveWowkspaceFowdewMuwtiWoot', "Vawiabwe {0} can not be wesowved in a muwti fowda wowkspace. Scope this vawiabwe using ':' and a wowkspace fowda name.", match));
 			}
-			throw new Error(localize('canNotResolveWorkspaceFolder', "Variable {0} can not be resolved. Please open a folder.", match));
+			thwow new Ewwow(wocawize('canNotWesowveWowkspaceFowda', "Vawiabwe {0} can not be wesowved. Pwease open a fowda.", match));
 		};
 
 
-		switch (variable) {
+		switch (vawiabwe) {
 
 			case 'env':
-				if (argument) {
-					if (environment) {
-						// Depending on the source of the environment, on Windows, the values may all be lowercase.
-						const env = environment[isWindows ? argument.toLowerCase() : argument];
-						if (types.isString(env)) {
-							return env;
+				if (awgument) {
+					if (enviwonment) {
+						// Depending on the souwce of the enviwonment, on Windows, the vawues may aww be wowewcase.
+						const env = enviwonment[isWindows ? awgument.toWowewCase() : awgument];
+						if (types.isStwing(env)) {
+							wetuwn env;
 						}
 					}
-					// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
-					return '';
+					// Fow `env` we shouwd do the same as a nowmaw sheww does - evawuates undefined envs to an empty stwing #46436
+					wetuwn '';
 				}
-				throw new Error(localize('missingEnvVarName', "Variable {0} can not be resolved because no environment variable name is given.", match));
+				thwow new Ewwow(wocawize('missingEnvVawName', "Vawiabwe {0} can not be wesowved because no enviwonment vawiabwe name is given.", match));
 
 			case 'config':
-				if (argument) {
-					const config = this._context.getConfigurationValue(folderUri, argument);
-					if (types.isUndefinedOrNull(config)) {
-						throw new Error(localize('configNotFound', "Variable {0} can not be resolved because setting '{1}' not found.", match, argument));
+				if (awgument) {
+					const config = this._context.getConfiguwationVawue(fowdewUwi, awgument);
+					if (types.isUndefinedOwNuww(config)) {
+						thwow new Ewwow(wocawize('configNotFound', "Vawiabwe {0} can not be wesowved because setting '{1}' not found.", match, awgument));
 					}
 					if (types.isObject(config)) {
-						throw new Error(localize('configNoString', "Variable {0} can not be resolved because '{1}' is a structured value.", match, argument));
+						thwow new Ewwow(wocawize('configNoStwing', "Vawiabwe {0} can not be wesowved because '{1}' is a stwuctuwed vawue.", match, awgument));
 					}
-					return config;
+					wetuwn config;
 				}
-				throw new Error(localize('missingConfigName', "Variable {0} can not be resolved because no settings name is given.", match));
+				thwow new Ewwow(wocawize('missingConfigName', "Vawiabwe {0} can not be wesowved because no settings name is given.", match));
 
 			case 'command':
-				return this.resolveFromMap(match, argument, commandValueMapping, 'command');
+				wetuwn this.wesowveFwomMap(match, awgument, commandVawueMapping, 'command');
 
 			case 'input':
-				return this.resolveFromMap(match, argument, commandValueMapping, 'input');
+				wetuwn this.wesowveFwomMap(match, awgument, commandVawueMapping, 'input');
 
-			default: {
+			defauwt: {
 
-				switch (variable) {
-					case 'workspaceRoot':
-					case 'workspaceFolder':
-						return normalizeDriveLetter(this.fsPath(getFolderUri()));
+				switch (vawiabwe) {
+					case 'wowkspaceWoot':
+					case 'wowkspaceFowda':
+						wetuwn nowmawizeDwiveWetta(this.fsPath(getFowdewUwi()));
 
 					case 'cwd':
-						return ((folderUri || argument) ? normalizeDriveLetter(this.fsPath(getFolderUri())) : process.cwd());
+						wetuwn ((fowdewUwi || awgument) ? nowmawizeDwiveWetta(this.fsPath(getFowdewUwi())) : pwocess.cwd());
 
-					case 'workspaceRootFolderName':
-					case 'workspaceFolderBasename':
-						return paths.basename(this.fsPath(getFolderUri()));
+					case 'wowkspaceWootFowdewName':
+					case 'wowkspaceFowdewBasename':
+						wetuwn paths.basename(this.fsPath(getFowdewUwi()));
 
-					case 'lineNumber':
-						const lineNumber = this._context.getLineNumber();
-						if (lineNumber) {
-							return lineNumber;
+					case 'wineNumba':
+						const wineNumba = this._context.getWineNumba();
+						if (wineNumba) {
+							wetuwn wineNumba;
 						}
-						throw new Error(localize('canNotResolveLineNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
+						thwow new Ewwow(wocawize('canNotWesowveWineNumba', "Vawiabwe {0} can not be wesowved. Make suwe to have a wine sewected in the active editow.", match));
 
-					case 'selectedText':
-						const selectedText = this._context.getSelectedText();
-						if (selectedText) {
-							return selectedText;
+					case 'sewectedText':
+						const sewectedText = this._context.getSewectedText();
+						if (sewectedText) {
+							wetuwn sewectedText;
 						}
-						throw new Error(localize('canNotResolveSelectedText', "Variable {0} can not be resolved. Make sure to have some text selected in the active editor.", match));
+						thwow new Ewwow(wocawize('canNotWesowveSewectedText', "Vawiabwe {0} can not be wesowved. Make suwe to have some text sewected in the active editow.", match));
 
-					case 'file':
-						return getFilePath();
+					case 'fiwe':
+						wetuwn getFiwePath();
 
-					case 'fileWorkspaceFolder':
-						return getFolderPathForFile();
+					case 'fiweWowkspaceFowda':
+						wetuwn getFowdewPathFowFiwe();
 
-					case 'relativeFile':
-						if (folderUri || argument) {
-							return paths.relative(this.fsPath(getFolderUri()), getFilePath());
+					case 'wewativeFiwe':
+						if (fowdewUwi || awgument) {
+							wetuwn paths.wewative(this.fsPath(getFowdewUwi()), getFiwePath());
 						}
-						return getFilePath();
+						wetuwn getFiwePath();
 
-					case 'relativeFileDirname':
-						const dirname = paths.dirname(getFilePath());
-						if (folderUri || argument) {
-							const relative = paths.relative(this.fsPath(getFolderUri()), dirname);
-							return relative.length === 0 ? '.' : relative;
+					case 'wewativeFiweDiwname':
+						const diwname = paths.diwname(getFiwePath());
+						if (fowdewUwi || awgument) {
+							const wewative = paths.wewative(this.fsPath(getFowdewUwi()), diwname);
+							wetuwn wewative.wength === 0 ? '.' : wewative;
 						}
-						return dirname;
+						wetuwn diwname;
 
-					case 'fileDirname':
-						return paths.dirname(getFilePath());
+					case 'fiweDiwname':
+						wetuwn paths.diwname(getFiwePath());
 
-					case 'fileExtname':
-						return paths.extname(getFilePath());
+					case 'fiweExtname':
+						wetuwn paths.extname(getFiwePath());
 
-					case 'fileBasename':
-						return paths.basename(getFilePath());
+					case 'fiweBasename':
+						wetuwn paths.basename(getFiwePath());
 
-					case 'fileBasenameNoExtension':
-						const basename = paths.basename(getFilePath());
-						return (basename.slice(0, basename.length - paths.extname(basename).length));
+					case 'fiweBasenameNoExtension':
+						const basename = paths.basename(getFiwePath());
+						wetuwn (basename.swice(0, basename.wength - paths.extname(basename).wength));
 
-					case 'fileDirnameBasename':
-						return paths.basename(paths.dirname(getFilePath()));
+					case 'fiweDiwnameBasename':
+						wetuwn paths.basename(paths.diwname(getFiwePath()));
 
 					case 'execPath':
 						const ep = this._context.getExecPath();
 						if (ep) {
-							return ep;
+							wetuwn ep;
 						}
-						return match;
+						wetuwn match;
 
-					case 'execInstallFolder':
-						const ar = this._context.getAppRoot();
-						if (ar) {
-							return ar;
+					case 'execInstawwFowda':
+						const aw = this._context.getAppWoot();
+						if (aw) {
+							wetuwn aw;
 						}
-						return match;
+						wetuwn match;
 
-					case 'pathSeparator':
-						return paths.sep;
+					case 'pathSepawatow':
+						wetuwn paths.sep;
 
-					default:
-						try {
-							const key = argument ? `${variable}:${argument}` : variable;
-							return this.resolveFromMap(match, key, commandValueMapping, undefined);
-						} catch (error) {
-							return match;
+					defauwt:
+						twy {
+							const key = awgument ? `${vawiabwe}:${awgument}` : vawiabwe;
+							wetuwn this.wesowveFwomMap(match, key, commandVawueMapping, undefined);
+						} catch (ewwow) {
+							wetuwn match;
 						}
 				}
 			}
 		}
 	}
 
-	private resolveFromMap(match: string, argument: string | undefined, commandValueMapping: IStringDictionary<string> | undefined, prefix: string | undefined): string {
-		if (argument && commandValueMapping) {
-			const v = (prefix === undefined) ? commandValueMapping[argument] : commandValueMapping[prefix + ':' + argument];
-			if (typeof v === 'string') {
-				return v;
+	pwivate wesowveFwomMap(match: stwing, awgument: stwing | undefined, commandVawueMapping: IStwingDictionawy<stwing> | undefined, pwefix: stwing | undefined): stwing {
+		if (awgument && commandVawueMapping) {
+			const v = (pwefix === undefined) ? commandVawueMapping[awgument] : commandVawueMapping[pwefix + ':' + awgument];
+			if (typeof v === 'stwing') {
+				wetuwn v;
 			}
-			throw new Error(localize('noValueForCommand', "Variable {0} can not be resolved because the command has no value.", match));
+			thwow new Ewwow(wocawize('noVawueFowCommand', "Vawiabwe {0} can not be wesowved because the command has no vawue.", match));
 		}
-		return match;
+		wetuwn match;
 	}
 }

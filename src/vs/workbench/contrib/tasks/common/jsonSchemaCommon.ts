@@ -1,132 +1,132 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+impowt * as nws fwom 'vs/nws';
+impowt { IJSONSchema } fwom 'vs/base/common/jsonSchema';
 
-import { Schemas } from 'vs/workbench/contrib/tasks/common/problemMatcher';
+impowt { Schemas } fwom 'vs/wowkbench/contwib/tasks/common/pwobwemMatcha';
 
 const schema: IJSONSchema = {
 	definitions: {
 		showOutputType: {
-			type: 'string',
-			enum: ['always', 'silent', 'never']
+			type: 'stwing',
+			enum: ['awways', 'siwent', 'neva']
 		},
 		options: {
 			type: 'object',
-			description: nls.localize('JsonSchema.options', 'Additional command options'),
-			properties: {
+			descwiption: nws.wocawize('JsonSchema.options', 'Additionaw command options'),
+			pwopewties: {
 				cwd: {
-					type: 'string',
-					description: nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.options.cwd', 'The cuwwent wowking diwectowy of the executed pwogwam ow scwipt. If omitted Code\'s cuwwent wowkspace woot is used.')
 				},
 				env: {
 					type: 'object',
-					additionalProperties: {
-						type: 'string'
+					additionawPwopewties: {
+						type: 'stwing'
 					},
-					description: nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
+					descwiption: nws.wocawize('JsonSchema.options.env', 'The enviwonment of the executed pwogwam ow sheww. If omitted the pawent pwocess\' enviwonment is used.')
 				}
 			},
-			additionalProperties: {
-				type: ['string', 'array', 'object']
+			additionawPwopewties: {
+				type: ['stwing', 'awway', 'object']
 			}
 		},
-		problemMatcherType: {
+		pwobwemMatchewType: {
 			oneOf: [
 				{
-					type: 'string',
-					errorMessage: nls.localize('JsonSchema.tasks.matcherError', 'Unrecognized problem matcher. Is the extension that contributes this problem matcher installed?')
+					type: 'stwing',
+					ewwowMessage: nws.wocawize('JsonSchema.tasks.matchewEwwow', 'Unwecognized pwobwem matcha. Is the extension that contwibutes this pwobwem matcha instawwed?')
 				},
-				Schemas.LegacyProblemMatcher,
+				Schemas.WegacyPwobwemMatcha,
 				{
-					type: 'array',
+					type: 'awway',
 					items: {
 						anyOf: [
 							{
-								type: 'string',
-								errorMessage: nls.localize('JsonSchema.tasks.matcherError', 'Unrecognized problem matcher. Is the extension that contributes this problem matcher installed?')
+								type: 'stwing',
+								ewwowMessage: nws.wocawize('JsonSchema.tasks.matchewEwwow', 'Unwecognized pwobwem matcha. Is the extension that contwibutes this pwobwem matcha instawwed?')
 							},
-							Schemas.LegacyProblemMatcher
+							Schemas.WegacyPwobwemMatcha
 						]
 					}
 				}
 			]
 		},
-		shellConfiguration: {
+		shewwConfiguwation: {
 			type: 'object',
-			additionalProperties: false,
-			description: nls.localize('JsonSchema.shellConfiguration', 'Configures the shell to be used.'),
-			properties: {
-				executable: {
-					type: 'string',
-					description: nls.localize('JsonSchema.shell.executable', 'The shell to be used.')
+			additionawPwopewties: fawse,
+			descwiption: nws.wocawize('JsonSchema.shewwConfiguwation', 'Configuwes the sheww to be used.'),
+			pwopewties: {
+				executabwe: {
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.sheww.executabwe', 'The sheww to be used.')
 				},
-				args: {
-					type: 'array',
-					description: nls.localize('JsonSchema.shell.args', 'The shell arguments.'),
+				awgs: {
+					type: 'awway',
+					descwiption: nws.wocawize('JsonSchema.sheww.awgs', 'The sheww awguments.'),
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				}
 			}
 		},
-		commandConfiguration: {
+		commandConfiguwation: {
 			type: 'object',
-			additionalProperties: false,
-			properties: {
+			additionawPwopewties: fawse,
+			pwopewties: {
 				command: {
-					type: 'string',
-					description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.command', 'The command to be executed. Can be an extewnaw pwogwam ow a sheww command.')
 				},
-				args: {
-					type: 'array',
-					description: nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
+				awgs: {
+					type: 'awway',
+					descwiption: nws.wocawize('JsonSchema.tasks.awgs', 'Awguments passed to the command when this task is invoked.'),
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
 				options: {
-					$ref: '#/definitions/options'
+					$wef: '#/definitions/options'
 				}
 			}
 		},
-		taskDescription: {
+		taskDescwiption: {
 			type: 'object',
-			required: ['taskName'],
-			additionalProperties: false,
-			properties: {
+			wequiwed: ['taskName'],
+			additionawPwopewties: fawse,
+			pwopewties: {
 				taskName: {
-					type: 'string',
-					description: nls.localize('JsonSchema.tasks.taskName', "The task's name")
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.tasks.taskName', "The task's name")
 				},
 				command: {
-					type: 'string',
-					description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.command', 'The command to be executed. Can be an extewnaw pwogwam ow a sheww command.')
 				},
-				args: {
-					type: 'array',
-					description: nls.localize('JsonSchema.tasks.args', 'Arguments passed to the command when this task is invoked.'),
+				awgs: {
+					type: 'awway',
+					descwiption: nws.wocawize('JsonSchema.tasks.awgs', 'Awguments passed to the command when this task is invoked.'),
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
 				options: {
-					$ref: '#/definitions/options'
+					$wef: '#/definitions/options'
 				},
 				windows: {
 					anyOf: [
 						{
-							$ref: '#/definitions/commandConfiguration',
-							description: nls.localize('JsonSchema.tasks.windows', 'Windows specific command configuration'),
+							$wef: '#/definitions/commandConfiguwation',
+							descwiption: nws.wocawize('JsonSchema.tasks.windows', 'Windows specific command configuwation'),
 						},
 						{
-							properties: {
-								problemMatcher: {
-									$ref: '#/definitions/problemMatcherType',
-									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+							pwopewties: {
+								pwobwemMatcha: {
+									$wef: '#/definitions/pwobwemMatchewType',
+									descwiption: nws.wocawize('JsonSchema.tasks.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 								}
 							}
 						}
@@ -135,143 +135,143 @@ const schema: IJSONSchema = {
 				osx: {
 					anyOf: [
 						{
-							$ref: '#/definitions/commandConfiguration',
-							description: nls.localize('JsonSchema.tasks.mac', 'Mac specific command configuration')
+							$wef: '#/definitions/commandConfiguwation',
+							descwiption: nws.wocawize('JsonSchema.tasks.mac', 'Mac specific command configuwation')
 						},
 						{
-							properties: {
-								problemMatcher: {
-									$ref: '#/definitions/problemMatcherType',
-									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+							pwopewties: {
+								pwobwemMatcha: {
+									$wef: '#/definitions/pwobwemMatchewType',
+									descwiption: nws.wocawize('JsonSchema.tasks.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 								}
 							}
 						}
 					]
 				},
-				linux: {
+				winux: {
 					anyOf: [
 						{
-							$ref: '#/definitions/commandConfiguration',
-							description: nls.localize('JsonSchema.tasks.linux', 'Linux specific command configuration')
+							$wef: '#/definitions/commandConfiguwation',
+							descwiption: nws.wocawize('JsonSchema.tasks.winux', 'Winux specific command configuwation')
 						},
 						{
-							properties: {
-								problemMatcher: {
-									$ref: '#/definitions/problemMatcherType',
-									description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+							pwopewties: {
+								pwobwemMatcha: {
+									$wef: '#/definitions/pwobwemMatchewType',
+									descwiption: nws.wocawize('JsonSchema.tasks.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 								}
 							}
 						}
 					]
 				},
-				suppressTaskName: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.suppressTaskName', 'Controls whether the task name is added as an argument to the command. If omitted the globally defined value is used.'),
-					default: true
+				suppwessTaskName: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.tasks.suppwessTaskName', 'Contwows whetha the task name is added as an awgument to the command. If omitted the gwobawwy defined vawue is used.'),
+					defauwt: twue
 				},
 				showOutput: {
-					$ref: '#/definitions/showOutputType',
-					description: nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
+					$wef: '#/definitions/showOutputType',
+					descwiption: nws.wocawize('JsonSchema.tasks.showOutput', 'Contwows whetha the output of the wunning task is shown ow not. If omitted the gwobawwy defined vawue is used.')
 				},
 				echoCommand: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-					default: true
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.echoCommand', 'Contwows whetha the executed command is echoed to the output. Defauwt is fawse.'),
+					defauwt: twue
 				},
 				isWatching: {
-					type: 'boolean',
-					deprecationMessage: nls.localize('JsonSchema.tasks.watching.deprecation', 'Deprecated. Use isBackground instead.'),
-					description: nls.localize('JsonSchema.tasks.watching', 'Whether the executed task is kept alive and is watching the file system.'),
-					default: true
+					type: 'boowean',
+					depwecationMessage: nws.wocawize('JsonSchema.tasks.watching.depwecation', 'Depwecated. Use isBackgwound instead.'),
+					descwiption: nws.wocawize('JsonSchema.tasks.watching', 'Whetha the executed task is kept awive and is watching the fiwe system.'),
+					defauwt: twue
 				},
-				isBackground: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
-					default: true
+				isBackgwound: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.tasks.backgwound', 'Whetha the executed task is kept awive and is wunning in the backgwound.'),
+					defauwt: twue
 				},
-				promptOnClose: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
-					default: false
+				pwomptOnCwose: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.tasks.pwomptOnCwose', 'Whetha the usa is pwompted when VS Code cwoses with a wunning task.'),
+					defauwt: fawse
 				},
-				isBuildCommand: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.build', 'Maps this task to Code\'s default build command.'),
-					default: true
+				isBuiwdCommand: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.tasks.buiwd', 'Maps this task to Code\'s defauwt buiwd command.'),
+					defauwt: twue
 				},
 				isTestCommand: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.test', 'Maps this task to Code\'s default test command.'),
-					default: true
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.tasks.test', 'Maps this task to Code\'s defauwt test command.'),
+					defauwt: twue
 				},
-				problemMatcher: {
-					$ref: '#/definitions/problemMatcherType',
-					description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+				pwobwemMatcha: {
+					$wef: '#/definitions/pwobwemMatchewType',
+					descwiption: nws.wocawize('JsonSchema.tasks.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 				}
 			}
 		},
-		taskRunnerConfiguration: {
+		taskWunnewConfiguwation: {
 			type: 'object',
-			required: [],
-			properties: {
+			wequiwed: [],
+			pwopewties: {
 				command: {
-					type: 'string',
-					description: nls.localize('JsonSchema.command', 'The command to be executed. Can be an external program or a shell command.')
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.command', 'The command to be executed. Can be an extewnaw pwogwam ow a sheww command.')
 				},
-				args: {
-					type: 'array',
-					description: nls.localize('JsonSchema.args', 'Additional arguments passed to the command.'),
+				awgs: {
+					type: 'awway',
+					descwiption: nws.wocawize('JsonSchema.awgs', 'Additionaw awguments passed to the command.'),
 					items: {
-						type: 'string'
+						type: 'stwing'
 					}
 				},
 				options: {
-					$ref: '#/definitions/options'
+					$wef: '#/definitions/options'
 				},
 				showOutput: {
-					$ref: '#/definitions/showOutputType',
-					description: nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
+					$wef: '#/definitions/showOutputType',
+					descwiption: nws.wocawize('JsonSchema.showOutput', 'Contwows whetha the output of the wunning task is shown ow not. If omitted \'awways\' is used.')
 				},
 				isWatching: {
-					type: 'boolean',
-					deprecationMessage: nls.localize('JsonSchema.watching.deprecation', 'Deprecated. Use isBackground instead.'),
-					description: nls.localize('JsonSchema.watching', 'Whether the executed task is kept alive and is watching the file system.'),
-					default: true
+					type: 'boowean',
+					depwecationMessage: nws.wocawize('JsonSchema.watching.depwecation', 'Depwecated. Use isBackgwound instead.'),
+					descwiption: nws.wocawize('JsonSchema.watching', 'Whetha the executed task is kept awive and is watching the fiwe system.'),
+					defauwt: twue
 				},
-				isBackground: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.background', 'Whether the executed task is kept alive and is running in the background.'),
-					default: true
+				isBackgwound: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.backgwound', 'Whetha the executed task is kept awive and is wunning in the backgwound.'),
+					defauwt: twue
 				},
-				promptOnClose: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.promptOnClose', 'Whether the user is prompted when VS Code closes with a running background task.'),
-					default: false
+				pwomptOnCwose: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.pwomptOnCwose', 'Whetha the usa is pwompted when VS Code cwoses with a wunning backgwound task.'),
+					defauwt: fawse
 				},
 				echoCommand: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.echoCommand', 'Controls whether the executed command is echoed to the output. Default is false.'),
-					default: true
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.echoCommand', 'Contwows whetha the executed command is echoed to the output. Defauwt is fawse.'),
+					defauwt: twue
 				},
-				suppressTaskName: {
-					type: 'boolean',
-					description: nls.localize('JsonSchema.suppressTaskName', 'Controls whether the task name is added as an argument to the command. Default is false.'),
-					default: true
+				suppwessTaskName: {
+					type: 'boowean',
+					descwiption: nws.wocawize('JsonSchema.suppwessTaskName', 'Contwows whetha the task name is added as an awgument to the command. Defauwt is fawse.'),
+					defauwt: twue
 				},
-				taskSelector: {
-					type: 'string',
-					description: nls.localize('JsonSchema.taskSelector', 'Prefix to indicate that an argument is task.')
+				taskSewectow: {
+					type: 'stwing',
+					descwiption: nws.wocawize('JsonSchema.taskSewectow', 'Pwefix to indicate that an awgument is task.')
 				},
-				problemMatcher: {
-					$ref: '#/definitions/problemMatcherType',
-					description: nls.localize('JsonSchema.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
+				pwobwemMatcha: {
+					$wef: '#/definitions/pwobwemMatchewType',
+					descwiption: nws.wocawize('JsonSchema.matchews', 'The pwobwem matcha(s) to use. Can eitha be a stwing ow a pwobwem matcha definition ow an awway of stwings and pwobwem matchews.')
 				},
 				tasks: {
-					type: 'array',
-					description: nls.localize('JsonSchema.tasks', 'The task configurations. Usually these are enrichments of task already defined in the external task runner.'),
+					type: 'awway',
+					descwiption: nws.wocawize('JsonSchema.tasks', 'The task configuwations. Usuawwy these awe enwichments of task awweady defined in the extewnaw task wunna.'),
 					items: {
 						type: 'object',
-						$ref: '#/definitions/taskDescription'
+						$wef: '#/definitions/taskDescwiption'
 					}
 				}
 			}
@@ -279,4 +279,4 @@ const schema: IJSONSchema = {
 	}
 };
 
-export default schema;
+expowt defauwt schema;

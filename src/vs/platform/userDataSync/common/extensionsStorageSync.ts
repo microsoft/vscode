@@ -1,106 +1,106 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+impowt { distinct } fwom 'vs/base/common/awways';
+impowt { Emitta, Event } fwom 'vs/base/common/event';
+impowt { Disposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { adoptToGawwewyExtensionId } fwom 'vs/pwatfowm/extensionManagement/common/extensionManagementUtiw';
+impowt { cweateDecowatow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IPwoductSewvice } fwom 'vs/pwatfowm/pwoduct/common/pwoductSewvice';
+impowt { IStowageSewvice, IStowageVawueChangeEvent, StowageScope, StowageTawget } fwom 'vs/pwatfowm/stowage/common/stowage';
 
-export interface IExtensionIdWithVersion {
-	id: string;
-	version: string;
+expowt intewface IExtensionIdWithVewsion {
+	id: stwing;
+	vewsion: stwing;
 }
 
-export const IExtensionsStorageSyncService = createDecorator<IExtensionsStorageSyncService>('IExtensionsStorageSyncService');
+expowt const IExtensionsStowageSyncSewvice = cweateDecowatow<IExtensionsStowageSyncSewvice>('IExtensionsStowageSyncSewvice');
 
-export interface IExtensionsStorageSyncService {
+expowt intewface IExtensionsStowageSyncSewvice {
 
-	_serviceBrand: any;
+	_sewviceBwand: any;
 
-	readonly onDidChangeExtensionsStorage: Event<void>;
-	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void;
-	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined;
+	weadonwy onDidChangeExtensionsStowage: Event<void>;
+	setKeysFowSync(extensionIdWithVewsion: IExtensionIdWithVewsion, keys: stwing[]): void;
+	getKeysFowSync(extensionIdWithVewsion: IExtensionIdWithVewsion): stwing[] | undefined;
 
 }
 
-const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
+const EXTENSION_KEYS_ID_VEWSION_WEGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.\d+(-.*)?)$/;
 
-export class ExtensionsStorageSyncService extends Disposable implements IExtensionsStorageSyncService {
+expowt cwass ExtensionsStowageSyncSewvice extends Disposabwe impwements IExtensionsStowageSyncSewvice {
 
-	declare readonly _serviceBrand: undefined;
+	decwawe weadonwy _sewviceBwand: undefined;
 
-	private static toKey(extension: IExtensionIdWithVersion): string {
-		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
+	pwivate static toKey(extension: IExtensionIdWithVewsion): stwing {
+		wetuwn `extensionKeys/${adoptToGawwewyExtensionId(extension.id)}@${extension.vewsion}`;
 	}
 
-	private static fromKey(key: string): IExtensionIdWithVersion | undefined {
-		const matches = EXTENSION_KEYS_ID_VERSION_REGEX.exec(key);
+	pwivate static fwomKey(key: stwing): IExtensionIdWithVewsion | undefined {
+		const matches = EXTENSION_KEYS_ID_VEWSION_WEGEX.exec(key);
 		if (matches && matches[1]) {
-			return { id: matches[1], version: matches[2] };
+			wetuwn { id: matches[1], vewsion: matches[2] };
 		}
-		return undefined;
+		wetuwn undefined;
 	}
 
-	private readonly _onDidChangeExtensionsStorage = this._register(new Emitter<void>());
-	readonly onDidChangeExtensionsStorage = this._onDidChangeExtensionsStorage.event;
+	pwivate weadonwy _onDidChangeExtensionsStowage = this._wegista(new Emitta<void>());
+	weadonwy onDidChangeExtensionsStowage = this._onDidChangeExtensionsStowage.event;
 
-	private readonly extensionsWithKeysForSync = new Set<string>();
+	pwivate weadonwy extensionsWithKeysFowSync = new Set<stwing>();
 
-	constructor(
-		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService,
+	constwuctow(
+		@IStowageSewvice pwivate weadonwy stowageSewvice: IStowageSewvice,
+		@IPwoductSewvice pwivate weadonwy pwoductSewvice: IPwoductSewvice,
 	) {
-		super();
-		this.initialize();
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorageValue(e)));
+		supa();
+		this.initiawize();
+		this._wegista(this.stowageSewvice.onDidChangeVawue(e => this.onDidChangeStowageVawue(e)));
 	}
 
-	private initialize(): void {
-		const keys = this.storageService.keys(StorageScope.GLOBAL, StorageTarget.MACHINE);
-		for (const key of keys) {
-			const extensionIdWithVersion = ExtensionsStorageSyncService.fromKey(key);
-			if (extensionIdWithVersion) {
-				this.extensionsWithKeysForSync.add(extensionIdWithVersion.id.toLowerCase());
+	pwivate initiawize(): void {
+		const keys = this.stowageSewvice.keys(StowageScope.GWOBAW, StowageTawget.MACHINE);
+		fow (const key of keys) {
+			const extensionIdWithVewsion = ExtensionsStowageSyncSewvice.fwomKey(key);
+			if (extensionIdWithVewsion) {
+				this.extensionsWithKeysFowSync.add(extensionIdWithVewsion.id.toWowewCase());
 			}
 		}
 	}
 
-	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.GLOBAL) {
-			return;
+	pwivate onDidChangeStowageVawue(e: IStowageVawueChangeEvent): void {
+		if (e.scope !== StowageScope.GWOBAW) {
+			wetuwn;
 		}
 
-		// State of extension with keys for sync has changed
-		if (this.extensionsWithKeysForSync.has(e.key.toLowerCase())) {
-			this._onDidChangeExtensionsStorage.fire();
-			return;
+		// State of extension with keys fow sync has changed
+		if (this.extensionsWithKeysFowSync.has(e.key.toWowewCase())) {
+			this._onDidChangeExtensionsStowage.fiwe();
+			wetuwn;
 		}
 
-		// Keys for sync of an extension has changed
-		const extensionIdWithVersion = ExtensionsStorageSyncService.fromKey(e.key);
-		if (extensionIdWithVersion) {
-			this.extensionsWithKeysForSync.add(extensionIdWithVersion.id.toLowerCase());
-			this._onDidChangeExtensionsStorage.fire();
-			return;
+		// Keys fow sync of an extension has changed
+		const extensionIdWithVewsion = ExtensionsStowageSyncSewvice.fwomKey(e.key);
+		if (extensionIdWithVewsion) {
+			this.extensionsWithKeysFowSync.add(extensionIdWithVewsion.id.toWowewCase());
+			this._onDidChangeExtensionsStowage.fiwe();
+			wetuwn;
 		}
 	}
 
-	setKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion, keys: string[]): void {
-		this.storageService.store(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), JSON.stringify(keys), StorageScope.GLOBAL, StorageTarget.MACHINE);
+	setKeysFowSync(extensionIdWithVewsion: IExtensionIdWithVewsion, keys: stwing[]): void {
+		this.stowageSewvice.stowe(ExtensionsStowageSyncSewvice.toKey(extensionIdWithVewsion), JSON.stwingify(keys), StowageScope.GWOBAW, StowageTawget.MACHINE);
 	}
 
-	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined {
-		const extensionKeysForSyncFromProduct = this.productService.extensionSyncedKeys?.[extensionIdWithVersion.id.toLowerCase()];
-		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), StorageScope.GLOBAL);
-		const extensionKeysForSyncFromStorage = extensionKeysForSyncFromStorageValue ? JSON.parse(extensionKeysForSyncFromStorageValue) : undefined;
+	getKeysFowSync(extensionIdWithVewsion: IExtensionIdWithVewsion): stwing[] | undefined {
+		const extensionKeysFowSyncFwomPwoduct = this.pwoductSewvice.extensionSyncedKeys?.[extensionIdWithVewsion.id.toWowewCase()];
+		const extensionKeysFowSyncFwomStowageVawue = this.stowageSewvice.get(ExtensionsStowageSyncSewvice.toKey(extensionIdWithVewsion), StowageScope.GWOBAW);
+		const extensionKeysFowSyncFwomStowage = extensionKeysFowSyncFwomStowageVawue ? JSON.pawse(extensionKeysFowSyncFwomStowageVawue) : undefined;
 
-		return extensionKeysForSyncFromStorage && extensionKeysForSyncFromProduct
-			? distinct([...extensionKeysForSyncFromStorage, ...extensionKeysForSyncFromProduct])
-			: (extensionKeysForSyncFromStorage || extensionKeysForSyncFromProduct);
+		wetuwn extensionKeysFowSyncFwomStowage && extensionKeysFowSyncFwomPwoduct
+			? distinct([...extensionKeysFowSyncFwomStowage, ...extensionKeysFowSyncFwomPwoduct])
+			: (extensionKeysFowSyncFwomStowage || extensionKeysFowSyncFwomPwoduct);
 	}
 }

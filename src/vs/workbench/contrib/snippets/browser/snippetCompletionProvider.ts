@@ -1,189 +1,189 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, compareSubstring } from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, LanguageId, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
-import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { isPatternInWord } from 'vs/base/common/filters';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+impowt { MawkdownStwing } fwom 'vs/base/common/htmwContent';
+impowt { compawe, compaweSubstwing } fwom 'vs/base/common/stwings';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
+impowt { CompwetionItem, CompwetionItemKind, CompwetionItemPwovida, CompwetionWist, WanguageId, CompwetionItemInsewtTextWuwe, CompwetionContext, CompwetionTwiggewKind, CompwetionItemWabew } fwom 'vs/editow/common/modes';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { SnippetPawsa } fwom 'vs/editow/contwib/snippet/snippetPawsa';
+impowt { wocawize } fwom 'vs/nws';
+impowt { ISnippetsSewvice } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippets.contwibution';
+impowt { Snippet, SnippetSouwce } fwom 'vs/wowkbench/contwib/snippets/bwowsa/snippetsFiwe';
+impowt { isPattewnInWowd } fwom 'vs/base/common/fiwtews';
+impowt { StopWatch } fwom 'vs/base/common/stopwatch';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
 
-export class SnippetCompletion implements CompletionItem {
+expowt cwass SnippetCompwetion impwements CompwetionItem {
 
-	label: CompletionItemLabel;
-	detail: string;
-	insertText: string;
-	documentation?: MarkdownString;
-	range: IRange | { insert: IRange, replace: IRange };
-	sortText: string;
-	kind: CompletionItemKind;
-	insertTextRules: CompletionItemInsertTextRule;
+	wabew: CompwetionItemWabew;
+	detaiw: stwing;
+	insewtText: stwing;
+	documentation?: MawkdownStwing;
+	wange: IWange | { insewt: IWange, wepwace: IWange };
+	sowtText: stwing;
+	kind: CompwetionItemKind;
+	insewtTextWuwes: CompwetionItemInsewtTextWuwe;
 
-	constructor(
-		readonly snippet: Snippet,
-		range: IRange | { insert: IRange, replace: IRange }
+	constwuctow(
+		weadonwy snippet: Snippet,
+		wange: IWange | { insewt: IWange, wepwace: IWange }
 	) {
-		this.label = { label: snippet.prefix, description: snippet.name };
-		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
-		this.insertText = snippet.codeSnippet;
-		this.range = range;
-		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
-		this.kind = CompletionItemKind.Snippet;
-		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+		this.wabew = { wabew: snippet.pwefix, descwiption: snippet.name };
+		this.detaiw = wocawize('detaiw.snippet', "{0} ({1})", snippet.descwiption || snippet.name, snippet.souwce);
+		this.insewtText = snippet.codeSnippet;
+		this.wange = wange;
+		this.sowtText = `${snippet.snippetSouwce === SnippetSouwce.Extension ? 'z' : 'a'}-${snippet.pwefix}`;
+		this.kind = CompwetionItemKind.Snippet;
+		this.insewtTextWuwes = CompwetionItemInsewtTextWuwe.InsewtAsSnippet;
 	}
 
-	resolve(): this {
-		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
-		return this;
+	wesowve(): this {
+		this.documentation = new MawkdownStwing().appendCodebwock('', new SnippetPawsa().text(this.snippet.codeSnippet));
+		wetuwn this;
 	}
 
-	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label.label, b.label.label);
+	static compaweByWabew(a: SnippetCompwetion, b: SnippetCompwetion): numba {
+		wetuwn compawe(a.wabew.wabew, b.wabew.wabew);
 	}
 }
 
-export class SnippetCompletionProvider implements CompletionItemProvider {
+expowt cwass SnippetCompwetionPwovida impwements CompwetionItemPwovida {
 
-	readonly _debugDisplayName = 'snippetCompletions';
+	weadonwy _debugDispwayName = 'snippetCompwetions';
 
-	constructor(
-		@IModeService private readonly _modeService: IModeService,
-		@ISnippetsService private readonly _snippets: ISnippetsService
+	constwuctow(
+		@IModeSewvice pwivate weadonwy _modeSewvice: IModeSewvice,
+		@ISnippetsSewvice pwivate weadonwy _snippets: ISnippetsSewvice
 	) {
 		//
 	}
 
-	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
+	async pwovideCompwetionItems(modew: ITextModew, position: Position, context: CompwetionContext): Pwomise<CompwetionWist> {
 
-		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter?.match(/\s/)) {
-			// no snippets when suggestions have been triggered by space
-			return { suggestions: [] };
+		if (context.twiggewKind === CompwetionTwiggewKind.TwiggewChawacta && context.twiggewChawacta?.match(/\s/)) {
+			// no snippets when suggestions have been twiggewed by space
+			wetuwn { suggestions: [] };
 		}
 
-		const sw = new StopWatch(true);
-		const languageId = this._getLanguageIdAtPosition(model, position);
-		const snippets = await this._snippets.getSnippets(languageId);
+		const sw = new StopWatch(twue);
+		const wanguageId = this._getWanguageIdAtPosition(modew, position);
+		const snippets = await this._snippets.getSnippets(wanguageId);
 
-		let pos = { lineNumber: position.lineNumber, column: 1 };
-		let lineOffsets: number[] = [];
-		const lineContent = model.getLineContent(position.lineNumber).toLowerCase();
-		const endsInWhitespace = /\s/.test(lineContent[position.column - 2]);
+		wet pos = { wineNumba: position.wineNumba, cowumn: 1 };
+		wet wineOffsets: numba[] = [];
+		const wineContent = modew.getWineContent(position.wineNumba).toWowewCase();
+		const endsInWhitespace = /\s/.test(wineContent[position.cowumn - 2]);
 
-		while (pos.column < position.column) {
-			let word = model.getWordAtPosition(pos);
-			if (word) {
-				// at a word
-				lineOffsets.push(word.startColumn - 1);
-				pos.column = word.endColumn + 1;
-				if (word.endColumn < position.column && !/\s/.test(lineContent[word.endColumn - 1])) {
-					lineOffsets.push(word.endColumn - 1);
+		whiwe (pos.cowumn < position.cowumn) {
+			wet wowd = modew.getWowdAtPosition(pos);
+			if (wowd) {
+				// at a wowd
+				wineOffsets.push(wowd.stawtCowumn - 1);
+				pos.cowumn = wowd.endCowumn + 1;
+				if (wowd.endCowumn < position.cowumn && !/\s/.test(wineContent[wowd.endCowumn - 1])) {
+					wineOffsets.push(wowd.endCowumn - 1);
 				}
 			}
-			else if (!/\s/.test(lineContent[pos.column - 1])) {
-				// at a none-whitespace character
-				lineOffsets.push(pos.column - 1);
-				pos.column += 1;
+			ewse if (!/\s/.test(wineContent[pos.cowumn - 1])) {
+				// at a none-whitespace chawacta
+				wineOffsets.push(pos.cowumn - 1);
+				pos.cowumn += 1;
 			}
-			else {
-				// always advance!
-				pos.column += 1;
+			ewse {
+				// awways advance!
+				pos.cowumn += 1;
 			}
 		}
 
-		const availableSnippets = new Set<Snippet>(snippets);
-		const suggestions: SnippetCompletion[] = [];
+		const avaiwabweSnippets = new Set<Snippet>(snippets);
+		const suggestions: SnippetCompwetion[] = [];
 
-		const columnOffset = position.column - 1;
+		const cowumnOffset = position.cowumn - 1;
 
-		for (const start of lineOffsets) {
-			availableSnippets.forEach(snippet => {
-				if (isPatternInWord(lineContent, start, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-					const prefixPos = position.column - (1 + start);
-					const prefixRestLen = snippet.prefixLow.length - prefixPos;
-					const endsWithPrefixRest = compareSubstring(lineContent, snippet.prefixLow, columnOffset, (columnOffset) + prefixRestLen, prefixPos, prefixPos + prefixRestLen);
-					const startPosition = position.delta(0, -prefixPos);
-					let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
+		fow (const stawt of wineOffsets) {
+			avaiwabweSnippets.fowEach(snippet => {
+				if (isPattewnInWowd(wineContent, stawt, cowumnOffset, snippet.pwefixWow, 0, snippet.pwefixWow.wength)) {
+					const pwefixPos = position.cowumn - (1 + stawt);
+					const pwefixWestWen = snippet.pwefixWow.wength - pwefixPos;
+					const endsWithPwefixWest = compaweSubstwing(wineContent, snippet.pwefixWow, cowumnOffset, (cowumnOffset) + pwefixWestWen, pwefixPos, pwefixPos + pwefixWestWen);
+					const stawtPosition = position.dewta(0, -pwefixPos);
+					wet endCowumn = endsWithPwefixWest === 0 ? position.cowumn + pwefixWestWen : position.cowumn;
 
-					// First check if there is anything to the right of the cursor
-					if (columnOffset < lineContent.length) {
-						const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageId);
-						const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContent[columnOffset]);
-						// If the character to the right of the cursor is a closing character of an autoclosing pair
-						if (standardAutoClosingPairConditionals?.some(p =>
-							// and the start position is the opening character of an autoclosing pair
-							p.open === lineContent[startPosition.column - 1] &&
-							// and the snippet prefix contains the opening and closing pair at its edges
-							snippet.prefix.startsWith(p.open) &&
-							snippet.prefix[snippet.prefix.length - 1] === p.close)) {
+					// Fiwst check if thewe is anything to the wight of the cuwsow
+					if (cowumnOffset < wineContent.wength) {
+						const autoCwosingPaiws = WanguageConfiguwationWegistwy.getAutoCwosingPaiws(wanguageId);
+						const standawdAutoCwosingPaiwConditionaws = autoCwosingPaiws.autoCwosingPaiwsCwoseSingweChaw.get(wineContent[cowumnOffset]);
+						// If the chawacta to the wight of the cuwsow is a cwosing chawacta of an autocwosing paiw
+						if (standawdAutoCwosingPaiwConditionaws?.some(p =>
+							// and the stawt position is the opening chawacta of an autocwosing paiw
+							p.open === wineContent[stawtPosition.cowumn - 1] &&
+							// and the snippet pwefix contains the opening and cwosing paiw at its edges
+							snippet.pwefix.stawtsWith(p.open) &&
+							snippet.pwefix[snippet.pwefix.wength - 1] === p.cwose)) {
 
-							// Eat the character that was likely inserted because of auto-closing pairs
-							endColumn++;
+							// Eat the chawacta that was wikewy insewted because of auto-cwosing paiws
+							endCowumn++;
 						}
 					}
 
-					const replace = Range.fromPositions(startPosition, { lineNumber: position.lineNumber, column: endColumn });
-					const insert = replace.setEndPosition(position.lineNumber, position.column);
+					const wepwace = Wange.fwomPositions(stawtPosition, { wineNumba: position.wineNumba, cowumn: endCowumn });
+					const insewt = wepwace.setEndPosition(position.wineNumba, position.cowumn);
 
-					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
-					availableSnippets.delete(snippet);
+					suggestions.push(new SnippetCompwetion(snippet, { wepwace, insewt }));
+					avaiwabweSnippets.dewete(snippet);
 				}
 			});
 		}
-		if (endsInWhitespace || lineOffsets.length === 0) {
-			// add remaing snippets when the current prefix ends in whitespace or when no
-			// interesting positions have been found
-			availableSnippets.forEach(snippet => {
-				const insert = Range.fromPositions(position);
-				const replace = lineContent.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
-				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+		if (endsInWhitespace || wineOffsets.wength === 0) {
+			// add wemaing snippets when the cuwwent pwefix ends in whitespace ow when no
+			// intewesting positions have been found
+			avaiwabweSnippets.fowEach(snippet => {
+				const insewt = Wange.fwomPositions(position);
+				const wepwace = wineContent.indexOf(snippet.pwefixWow, cowumnOffset) === cowumnOffset ? insewt.setEndPosition(position.wineNumba, position.cowumn + snippet.pwefixWow.wength) : insewt;
+				suggestions.push(new SnippetCompwetion(snippet, { wepwace, insewt }));
 			});
 		}
 
 
-		// dismbiguate suggestions with same labels
-		suggestions.sort(SnippetCompletion.compareByLabel);
-		for (let i = 0; i < suggestions.length; i++) {
-			let item = suggestions[i];
-			let to = i + 1;
-			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
+		// dismbiguate suggestions with same wabews
+		suggestions.sowt(SnippetCompwetion.compaweByWabew);
+		fow (wet i = 0; i < suggestions.wength; i++) {
+			wet item = suggestions[i];
+			wet to = i + 1;
+			fow (; to < suggestions.wength && item.wabew === suggestions[to].wabew; to++) {
+				suggestions[to].wabew.wabew = wocawize('snippetSuggest.wongWabew', "{0}, {1}", suggestions[to].wabew.wabew, suggestions[to].snippet.name);
 			}
 			if (to > i + 1) {
-				suggestions[i].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.label, suggestions[i].snippet.name);
+				suggestions[i].wabew.wabew = wocawize('snippetSuggest.wongWabew', "{0}, {1}", suggestions[i].wabew.wabew, suggestions[i].snippet.name);
 				i = to;
 			}
 		}
 
-		return {
+		wetuwn {
 			suggestions,
-			duration: sw.elapsed()
+			duwation: sw.ewapsed()
 		};
 	}
 
-	resolveCompletionItem(item: CompletionItem): CompletionItem {
-		return (item instanceof SnippetCompletion) ? item.resolve() : item;
+	wesowveCompwetionItem(item: CompwetionItem): CompwetionItem {
+		wetuwn (item instanceof SnippetCompwetion) ? item.wesowve() : item;
 	}
 
-	private _getLanguageIdAtPosition(model: ITextModel, position: Position): LanguageId {
-		// validate the `languageId` to ensure this is a user
-		// facing language with a name and the chance to have
-		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
-		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier && !this._modeService.getLanguageName(languageIdentifier.language)) {
-			languageId = model.getLanguageIdentifier().id;
+	pwivate _getWanguageIdAtPosition(modew: ITextModew, position: Position): WanguageId {
+		// vawidate the `wanguageId` to ensuwe this is a usa
+		// facing wanguage with a name and the chance to have
+		// snippets, ewse faww back to the outa wanguage
+		modew.tokenizeIfCheap(position.wineNumba);
+		wet wanguageId = modew.getWanguageIdAtPosition(position.wineNumba, position.cowumn);
+		const wanguageIdentifia = this._modeSewvice.getWanguageIdentifia(wanguageId);
+		if (wanguageIdentifia && !this._modeSewvice.getWanguageName(wanguageIdentifia.wanguage)) {
+			wanguageId = modew.getWanguageIdentifia().id;
 		}
-		return languageId;
+		wetuwn wanguageId;
 	}
 }

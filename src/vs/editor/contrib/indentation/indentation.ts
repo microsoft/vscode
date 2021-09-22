@@ -1,579 +1,579 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { StandardTokenType, TextEdit } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
-import * as nls from 'vs/nls';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt * as stwings fwom 'vs/base/common/stwings';
+impowt { ICodeEditow } fwom 'vs/editow/bwowsa/editowBwowsa';
+impowt { EditowAction, IActionOptions, wegistewEditowAction, wegistewEditowContwibution, SewvicesAccessow } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { ShiftCommand } fwom 'vs/editow/common/commands/shiftCommand';
+impowt { EditowAutoIndentStwategy, EditowOption } fwom 'vs/editow/common/config/editowOptions';
+impowt { EditOpewation } fwom 'vs/editow/common/cowe/editOpewation';
+impowt { IWange, Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda, IEditowContwibution } fwom 'vs/editow/common/editowCommon';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { EndOfWineSequence, IIdentifiedSingweEditOpewation, ITextModew } fwom 'vs/editow/common/modew';
+impowt { TextModew } fwom 'vs/editow/common/modew/textModew';
+impowt { StandawdTokenType, TextEdit } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
+impowt { IndentConsts } fwom 'vs/editow/common/modes/suppowts/indentWuwes';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt * as indentUtiws fwom 'vs/editow/contwib/indentation/indentUtiws';
+impowt * as nws fwom 'vs/nws';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
-	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
-		// Model is empty
-		return [];
+expowt function getWeindentEditOpewations(modew: ITextModew, stawtWineNumba: numba, endWineNumba: numba, inhewitedIndent?: stwing): IIdentifiedSingweEditOpewation[] {
+	if (modew.getWineCount() === 1 && modew.getWineMaxCowumn(1) === 1) {
+		// Modew is empty
+		wetuwn [];
 	}
 
-	let indentationRules = LanguageConfigurationRegistry.getIndentationRules(model.getLanguageIdentifier().id);
-	if (!indentationRules) {
-		return [];
+	wet indentationWuwes = WanguageConfiguwationWegistwy.getIndentationWuwes(modew.getWanguageIdentifia().id);
+	if (!indentationWuwes) {
+		wetuwn [];
 	}
 
-	endLineNumber = Math.min(endLineNumber, model.getLineCount());
+	endWineNumba = Math.min(endWineNumba, modew.getWineCount());
 
-	// Skip `unIndentedLinePattern` lines
-	while (startLineNumber <= endLineNumber) {
-		if (!indentationRules.unIndentedLinePattern) {
-			break;
+	// Skip `unIndentedWinePattewn` wines
+	whiwe (stawtWineNumba <= endWineNumba) {
+		if (!indentationWuwes.unIndentedWinePattewn) {
+			bweak;
 		}
 
-		let text = model.getLineContent(startLineNumber);
-		if (!indentationRules.unIndentedLinePattern.test(text)) {
-			break;
+		wet text = modew.getWineContent(stawtWineNumba);
+		if (!indentationWuwes.unIndentedWinePattewn.test(text)) {
+			bweak;
 		}
 
-		startLineNumber++;
+		stawtWineNumba++;
 	}
 
-	if (startLineNumber > endLineNumber - 1) {
-		return [];
+	if (stawtWineNumba > endWineNumba - 1) {
+		wetuwn [];
 	}
 
-	const { tabSize, indentSize, insertSpaces } = model.getOptions();
-	const shiftIndent = (indentation: string, count?: number) => {
+	const { tabSize, indentSize, insewtSpaces } = modew.getOptions();
+	const shiftIndent = (indentation: stwing, count?: numba) => {
 		count = count || 1;
-		return ShiftCommand.shiftIndent(indentation, indentation.length + count, tabSize, indentSize, insertSpaces);
+		wetuwn ShiftCommand.shiftIndent(indentation, indentation.wength + count, tabSize, indentSize, insewtSpaces);
 	};
-	const unshiftIndent = (indentation: string, count?: number) => {
+	const unshiftIndent = (indentation: stwing, count?: numba) => {
 		count = count || 1;
-		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, tabSize, indentSize, insertSpaces);
+		wetuwn ShiftCommand.unshiftIndent(indentation, indentation.wength + count, tabSize, indentSize, insewtSpaces);
 	};
-	let indentEdits: IIdentifiedSingleEditOperation[] = [];
+	wet indentEdits: IIdentifiedSingweEditOpewation[] = [];
 
-	// indentation being passed to lines below
-	let globalIndent: string;
+	// indentation being passed to wines bewow
+	wet gwobawIndent: stwing;
 
-	// Calculate indentation for the first line
-	// If there is no passed-in indentation, we use the indentation of the first line as base.
-	let currentLineText = model.getLineContent(startLineNumber);
-	let adjustedLineContent = currentLineText;
-	if (inheritedIndent !== undefined && inheritedIndent !== null) {
-		globalIndent = inheritedIndent;
-		let oldIndentation = strings.getLeadingWhitespace(currentLineText);
+	// Cawcuwate indentation fow the fiwst wine
+	// If thewe is no passed-in indentation, we use the indentation of the fiwst wine as base.
+	wet cuwwentWineText = modew.getWineContent(stawtWineNumba);
+	wet adjustedWineContent = cuwwentWineText;
+	if (inhewitedIndent !== undefined && inhewitedIndent !== nuww) {
+		gwobawIndent = inhewitedIndent;
+		wet owdIndentation = stwings.getWeadingWhitespace(cuwwentWineText);
 
-		adjustedLineContent = globalIndent + currentLineText.substring(oldIndentation.length);
-		if (indentationRules.decreaseIndentPattern && indentationRules.decreaseIndentPattern.test(adjustedLineContent)) {
-			globalIndent = unshiftIndent(globalIndent);
-			adjustedLineContent = globalIndent + currentLineText.substring(oldIndentation.length);
+		adjustedWineContent = gwobawIndent + cuwwentWineText.substwing(owdIndentation.wength);
+		if (indentationWuwes.decweaseIndentPattewn && indentationWuwes.decweaseIndentPattewn.test(adjustedWineContent)) {
+			gwobawIndent = unshiftIndent(gwobawIndent);
+			adjustedWineContent = gwobawIndent + cuwwentWineText.substwing(owdIndentation.wength);
 
 		}
-		if (currentLineText !== adjustedLineContent) {
-			indentEdits.push(EditOperation.replaceMove(new Selection(startLineNumber, 1, startLineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(globalIndent, indentSize, insertSpaces)));
+		if (cuwwentWineText !== adjustedWineContent) {
+			indentEdits.push(EditOpewation.wepwaceMove(new Sewection(stawtWineNumba, 1, stawtWineNumba, owdIndentation.wength + 1), TextModew.nowmawizeIndentation(gwobawIndent, indentSize, insewtSpaces)));
 		}
-	} else {
-		globalIndent = strings.getLeadingWhitespace(currentLineText);
+	} ewse {
+		gwobawIndent = stwings.getWeadingWhitespace(cuwwentWineText);
 	}
 
-	// idealIndentForNextLine doesn't equal globalIndent when there is a line matching `indentNextLinePattern`.
-	let idealIndentForNextLine: string = globalIndent;
+	// ideawIndentFowNextWine doesn't equaw gwobawIndent when thewe is a wine matching `indentNextWinePattewn`.
+	wet ideawIndentFowNextWine: stwing = gwobawIndent;
 
-	if (indentationRules.increaseIndentPattern && indentationRules.increaseIndentPattern.test(adjustedLineContent)) {
-		idealIndentForNextLine = shiftIndent(idealIndentForNextLine);
-		globalIndent = shiftIndent(globalIndent);
+	if (indentationWuwes.incweaseIndentPattewn && indentationWuwes.incweaseIndentPattewn.test(adjustedWineContent)) {
+		ideawIndentFowNextWine = shiftIndent(ideawIndentFowNextWine);
+		gwobawIndent = shiftIndent(gwobawIndent);
 	}
-	else if (indentationRules.indentNextLinePattern && indentationRules.indentNextLinePattern.test(adjustedLineContent)) {
-		idealIndentForNextLine = shiftIndent(idealIndentForNextLine);
+	ewse if (indentationWuwes.indentNextWinePattewn && indentationWuwes.indentNextWinePattewn.test(adjustedWineContent)) {
+		ideawIndentFowNextWine = shiftIndent(ideawIndentFowNextWine);
 	}
 
-	startLineNumber++;
+	stawtWineNumba++;
 
-	// Calculate indentation adjustment for all following lines
-	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-		let text = model.getLineContent(lineNumber);
-		let oldIndentation = strings.getLeadingWhitespace(text);
-		let adjustedLineContent = idealIndentForNextLine + text.substring(oldIndentation.length);
+	// Cawcuwate indentation adjustment fow aww fowwowing wines
+	fow (wet wineNumba = stawtWineNumba; wineNumba <= endWineNumba; wineNumba++) {
+		wet text = modew.getWineContent(wineNumba);
+		wet owdIndentation = stwings.getWeadingWhitespace(text);
+		wet adjustedWineContent = ideawIndentFowNextWine + text.substwing(owdIndentation.wength);
 
-		if (indentationRules.decreaseIndentPattern && indentationRules.decreaseIndentPattern.test(adjustedLineContent)) {
-			idealIndentForNextLine = unshiftIndent(idealIndentForNextLine);
-			globalIndent = unshiftIndent(globalIndent);
+		if (indentationWuwes.decweaseIndentPattewn && indentationWuwes.decweaseIndentPattewn.test(adjustedWineContent)) {
+			ideawIndentFowNextWine = unshiftIndent(ideawIndentFowNextWine);
+			gwobawIndent = unshiftIndent(gwobawIndent);
 		}
 
-		if (oldIndentation !== idealIndentForNextLine) {
-			indentEdits.push(EditOperation.replaceMove(new Selection(lineNumber, 1, lineNumber, oldIndentation.length + 1), TextModel.normalizeIndentation(idealIndentForNextLine, indentSize, insertSpaces)));
+		if (owdIndentation !== ideawIndentFowNextWine) {
+			indentEdits.push(EditOpewation.wepwaceMove(new Sewection(wineNumba, 1, wineNumba, owdIndentation.wength + 1), TextModew.nowmawizeIndentation(ideawIndentFowNextWine, indentSize, insewtSpaces)));
 		}
 
-		// calculate idealIndentForNextLine
-		if (indentationRules.unIndentedLinePattern && indentationRules.unIndentedLinePattern.test(text)) {
-			// In reindent phase, if the line matches `unIndentedLinePattern` we inherit indentation from above lines
-			// but don't change globalIndent and idealIndentForNextLine.
+		// cawcuwate ideawIndentFowNextWine
+		if (indentationWuwes.unIndentedWinePattewn && indentationWuwes.unIndentedWinePattewn.test(text)) {
+			// In weindent phase, if the wine matches `unIndentedWinePattewn` we inhewit indentation fwom above wines
+			// but don't change gwobawIndent and ideawIndentFowNextWine.
 			continue;
-		} else if (indentationRules.increaseIndentPattern && indentationRules.increaseIndentPattern.test(adjustedLineContent)) {
-			globalIndent = shiftIndent(globalIndent);
-			idealIndentForNextLine = globalIndent;
-		} else if (indentationRules.indentNextLinePattern && indentationRules.indentNextLinePattern.test(adjustedLineContent)) {
-			idealIndentForNextLine = shiftIndent(idealIndentForNextLine);
-		} else {
-			idealIndentForNextLine = globalIndent;
+		} ewse if (indentationWuwes.incweaseIndentPattewn && indentationWuwes.incweaseIndentPattewn.test(adjustedWineContent)) {
+			gwobawIndent = shiftIndent(gwobawIndent);
+			ideawIndentFowNextWine = gwobawIndent;
+		} ewse if (indentationWuwes.indentNextWinePattewn && indentationWuwes.indentNextWinePattewn.test(adjustedWineContent)) {
+			ideawIndentFowNextWine = shiftIndent(ideawIndentFowNextWine);
+		} ewse {
+			ideawIndentFowNextWine = gwobawIndent;
 		}
 	}
 
-	return indentEdits;
+	wetuwn indentEdits;
 }
 
-export class IndentationToSpacesAction extends EditorAction {
-	public static readonly ID = 'editor.action.indentationToSpaces';
+expowt cwass IndentationToSpacesAction extends EditowAction {
+	pubwic static weadonwy ID = 'editow.action.indentationToSpaces';
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: IndentationToSpacesAction.ID,
-			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
-			alias: 'Convert Indentation to Spaces',
-			precondition: EditorContextKeys.writable
+			wabew: nws.wocawize('indentationToSpaces', "Convewt Indentation to Spaces"),
+			awias: 'Convewt Indentation to Spaces',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
-		let modelOpts = model.getOptions();
-		let selection = editor.getSelection();
-		if (!selection) {
-			return;
+		wet modewOpts = modew.getOptions();
+		wet sewection = editow.getSewection();
+		if (!sewection) {
+			wetuwn;
 		}
-		const command = new IndentationToSpacesCommand(selection, modelOpts.tabSize);
+		const command = new IndentationToSpacesCommand(sewection, modewOpts.tabSize);
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, [command]);
+		editow.pushUndoStop();
 
-		model.updateOptions({
-			insertSpaces: true
+		modew.updateOptions({
+			insewtSpaces: twue
 		});
 	}
 }
 
-export class IndentationToTabsAction extends EditorAction {
-	public static readonly ID = 'editor.action.indentationToTabs';
+expowt cwass IndentationToTabsAction extends EditowAction {
+	pubwic static weadonwy ID = 'editow.action.indentationToTabs';
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: IndentationToTabsAction.ID,
-			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
-			alias: 'Convert Indentation to Tabs',
-			precondition: EditorContextKeys.writable
+			wabew: nws.wocawize('indentationToTabs', "Convewt Indentation to Tabs"),
+			awias: 'Convewt Indentation to Tabs',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
-		let modelOpts = model.getOptions();
-		let selection = editor.getSelection();
-		if (!selection) {
-			return;
+		wet modewOpts = modew.getOptions();
+		wet sewection = editow.getSewection();
+		if (!sewection) {
+			wetuwn;
 		}
-		const command = new IndentationToTabsCommand(selection, modelOpts.tabSize);
+		const command = new IndentationToTabsCommand(sewection, modewOpts.tabSize);
 
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
-		editor.pushUndoStop();
+		editow.pushUndoStop();
+		editow.executeCommands(this.id, [command]);
+		editow.pushUndoStop();
 
-		model.updateOptions({
-			insertSpaces: false
+		modew.updateOptions({
+			insewtSpaces: fawse
 		});
 	}
 }
 
-export class ChangeIndentationSizeAction extends EditorAction {
+expowt cwass ChangeIndentationSizeAction extends EditowAction {
 
-	constructor(private readonly insertSpaces: boolean, opts: IActionOptions) {
-		super(opts);
+	constwuctow(pwivate weadonwy insewtSpaces: boowean, opts: IActionOptions) {
+		supa(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		const modelService = accessor.get(IModelService);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const quickInputSewvice = accessow.get(IQuickInputSewvice);
+		const modewSewvice = accessow.get(IModewSewvice);
 
-		let model = editor.getModel();
-		if (!model) {
-			return;
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
+		wet cweationOpts = modewSewvice.getCweationOptions(modew.getWanguageIdentifia().wanguage, modew.uwi, modew.isFowSimpweWidget);
 		const picks = [1, 2, 3, 4, 5, 6, 7, 8].map(n => ({
-			id: n.toString(),
-			label: n.toString(),
-			// add description for tabSize value set in the configuration
-			description: n === creationOpts.tabSize ? nls.localize('configuredTabSize', "Configured Tab Size") : undefined
+			id: n.toStwing(),
+			wabew: n.toStwing(),
+			// add descwiption fow tabSize vawue set in the configuwation
+			descwiption: n === cweationOpts.tabSize ? nws.wocawize('configuwedTabSize', "Configuwed Tab Size") : undefined
 		}));
 
-		// auto focus the tabSize set for the current editor
-		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
+		// auto focus the tabSize set fow the cuwwent editow
+		const autoFocusIndex = Math.min(modew.getOptions().tabSize - 1, 7);
 
 		setTimeout(() => {
-			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
+			quickInputSewvice.pick(picks, { pwaceHowda: nws.wocawize({ key: 'sewectTabWidth', comment: ['Tab cowwesponds to the tab key'] }, "Sewect Tab Size fow Cuwwent Fiwe"), activeItem: picks[autoFocusIndex] }).then(pick => {
 				if (pick) {
-					if (model && !model.isDisposed()) {
-						model.updateOptions({
-							tabSize: parseInt(pick.label, 10),
-							insertSpaces: this.insertSpaces
+					if (modew && !modew.isDisposed()) {
+						modew.updateOptions({
+							tabSize: pawseInt(pick.wabew, 10),
+							insewtSpaces: this.insewtSpaces
 						});
 					}
 				}
 			});
-		}, 50/* quick input is sensitive to being opened so soon after another */);
+		}, 50/* quick input is sensitive to being opened so soon afta anotha */);
 	}
 }
 
-export class IndentUsingTabs extends ChangeIndentationSizeAction {
+expowt cwass IndentUsingTabs extends ChangeIndentationSizeAction {
 
-	public static readonly ID = 'editor.action.indentUsingTabs';
+	pubwic static weadonwy ID = 'editow.action.indentUsingTabs';
 
-	constructor() {
-		super(false, {
+	constwuctow() {
+		supa(fawse, {
 			id: IndentUsingTabs.ID,
-			label: nls.localize('indentUsingTabs', "Indent Using Tabs"),
-			alias: 'Indent Using Tabs',
-			precondition: undefined
+			wabew: nws.wocawize('indentUsingTabs', "Indent Using Tabs"),
+			awias: 'Indent Using Tabs',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class IndentUsingSpaces extends ChangeIndentationSizeAction {
+expowt cwass IndentUsingSpaces extends ChangeIndentationSizeAction {
 
-	public static readonly ID = 'editor.action.indentUsingSpaces';
+	pubwic static weadonwy ID = 'editow.action.indentUsingSpaces';
 
-	constructor() {
-		super(true, {
+	constwuctow() {
+		supa(twue, {
 			id: IndentUsingSpaces.ID,
-			label: nls.localize('indentUsingSpaces', "Indent Using Spaces"),
-			alias: 'Indent Using Spaces',
-			precondition: undefined
+			wabew: nws.wocawize('indentUsingSpaces', "Indent Using Spaces"),
+			awias: 'Indent Using Spaces',
+			pwecondition: undefined
 		});
 	}
 }
 
-export class DetectIndentation extends EditorAction {
+expowt cwass DetectIndentation extends EditowAction {
 
-	public static readonly ID = 'editor.action.detectIndentation';
+	pubwic static weadonwy ID = 'editow.action.detectIndentation';
 
-	constructor() {
-		super({
+	constwuctow() {
+		supa({
 			id: DetectIndentation.ID,
-			label: nls.localize('detectIndentation', "Detect Indentation from Content"),
-			alias: 'Detect Indentation from Content',
-			precondition: undefined
+			wabew: nws.wocawize('detectIndentation', "Detect Indentation fwom Content"),
+			awias: 'Detect Indentation fwom Content',
+			pwecondition: undefined
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const modelService = accessor.get(IModelService);
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		const modewSewvice = accessow.get(IModewSewvice);
 
-		let model = editor.getModel();
-		if (!model) {
-			return;
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		let creationOpts = modelService.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
-		model.detectIndentation(creationOpts.insertSpaces, creationOpts.tabSize);
+		wet cweationOpts = modewSewvice.getCweationOptions(modew.getWanguageIdentifia().wanguage, modew.uwi, modew.isFowSimpweWidget);
+		modew.detectIndentation(cweationOpts.insewtSpaces, cweationOpts.tabSize);
 	}
 }
 
-export class ReindentLinesAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.reindentlines',
-			label: nls.localize('editor.reindentlines', "Reindent Lines"),
-			alias: 'Reindent Lines',
-			precondition: EditorContextKeys.writable
+expowt cwass WeindentWinesAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.weindentwines',
+			wabew: nws.wocawize('editow.weindentwines', "Weindent Wines"),
+			awias: 'Weindent Wines',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
-		let edits = getReindentEditOperations(model, 1, model.getLineCount());
-		if (edits.length > 0) {
-			editor.pushUndoStop();
-			editor.executeEdits(this.id, edits);
-			editor.pushUndoStop();
+		wet edits = getWeindentEditOpewations(modew, 1, modew.getWineCount());
+		if (edits.wength > 0) {
+			editow.pushUndoStop();
+			editow.executeEdits(this.id, edits);
+			editow.pushUndoStop();
 		}
 	}
 }
 
-export class ReindentSelectedLinesAction extends EditorAction {
-	constructor() {
-		super({
-			id: 'editor.action.reindentselectedlines',
-			label: nls.localize('editor.reindentselectedlines', "Reindent Selected Lines"),
-			alias: 'Reindent Selected Lines',
-			precondition: EditorContextKeys.writable
+expowt cwass WeindentSewectedWinesAction extends EditowAction {
+	constwuctow() {
+		supa({
+			id: 'editow.action.weindentsewectedwines',
+			wabew: nws.wocawize('editow.weindentsewectedwines', "Weindent Sewected Wines"),
+			awias: 'Weindent Sewected Wines',
+			pwecondition: EditowContextKeys.wwitabwe
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let model = editor.getModel();
-		if (!model) {
-			return;
+	pubwic wun(accessow: SewvicesAccessow, editow: ICodeEditow): void {
+		wet modew = editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		let selections = editor.getSelections();
-		if (selections === null) {
-			return;
+		wet sewections = editow.getSewections();
+		if (sewections === nuww) {
+			wetuwn;
 		}
 
-		let edits: IIdentifiedSingleEditOperation[] = [];
+		wet edits: IIdentifiedSingweEditOpewation[] = [];
 
-		for (let selection of selections) {
-			let startLineNumber = selection.startLineNumber;
-			let endLineNumber = selection.endLineNumber;
+		fow (wet sewection of sewections) {
+			wet stawtWineNumba = sewection.stawtWineNumba;
+			wet endWineNumba = sewection.endWineNumba;
 
-			if (startLineNumber !== endLineNumber && selection.endColumn === 1) {
-				endLineNumber--;
+			if (stawtWineNumba !== endWineNumba && sewection.endCowumn === 1) {
+				endWineNumba--;
 			}
 
-			if (startLineNumber === 1) {
-				if (startLineNumber === endLineNumber) {
+			if (stawtWineNumba === 1) {
+				if (stawtWineNumba === endWineNumba) {
 					continue;
 				}
-			} else {
-				startLineNumber--;
+			} ewse {
+				stawtWineNumba--;
 			}
 
-			let editOperations = getReindentEditOperations(model, startLineNumber, endLineNumber);
-			edits.push(...editOperations);
+			wet editOpewations = getWeindentEditOpewations(modew, stawtWineNumba, endWineNumba);
+			edits.push(...editOpewations);
 		}
 
-		if (edits.length > 0) {
-			editor.pushUndoStop();
-			editor.executeEdits(this.id, edits);
-			editor.pushUndoStop();
+		if (edits.wength > 0) {
+			editow.pushUndoStop();
+			editow.executeEdits(this.id, edits);
+			editow.pushUndoStop();
 		}
 	}
 }
 
-export class AutoIndentOnPasteCommand implements ICommand {
+expowt cwass AutoIndentOnPasteCommand impwements ICommand {
 
-	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
+	pwivate weadonwy _edits: { wange: IWange; text: stwing; eow?: EndOfWineSequence; }[];
 
-	private readonly _initialSelection: Selection;
-	private _selectionId: string | null;
+	pwivate weadonwy _initiawSewection: Sewection;
+	pwivate _sewectionId: stwing | nuww;
 
-	constructor(edits: TextEdit[], initialSelection: Selection) {
-		this._initialSelection = initialSelection;
+	constwuctow(edits: TextEdit[], initiawSewection: Sewection) {
+		this._initiawSewection = initiawSewection;
 		this._edits = [];
-		this._selectionId = null;
+		this._sewectionId = nuww;
 
-		for (let edit of edits) {
-			if (edit.range && typeof edit.text === 'string') {
-				this._edits.push(edit as { range: IRange; text: string; eol?: EndOfLineSequence; });
+		fow (wet edit of edits) {
+			if (edit.wange && typeof edit.text === 'stwing') {
+				this._edits.push(edit as { wange: IWange; text: stwing; eow?: EndOfWineSequence; });
 			}
 		}
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		for (let edit of this._edits) {
-			builder.addEditOperation(Range.lift(edit.range), edit.text);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		fow (wet edit of this._edits) {
+			buiwda.addEditOpewation(Wange.wift(edit.wange), edit.text);
 		}
 
-		let selectionIsSet = false;
-		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
-			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
-				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
-				selectionIsSet = true;
-				this._selectionId = builder.trackSelection(this._initialSelection, true);
-			} else if (this._edits[0].range.endColumn === this._initialSelection.startColumn &&
-				this._edits[0].range.endLineNumber === this._initialSelection.startLineNumber) {
-				selectionIsSet = true;
-				this._selectionId = builder.trackSelection(this._initialSelection, false);
+		wet sewectionIsSet = fawse;
+		if (Awway.isAwway(this._edits) && this._edits.wength === 1 && this._initiawSewection.isEmpty()) {
+			if (this._edits[0].wange.stawtCowumn === this._initiawSewection.endCowumn &&
+				this._edits[0].wange.stawtWineNumba === this._initiawSewection.endWineNumba) {
+				sewectionIsSet = twue;
+				this._sewectionId = buiwda.twackSewection(this._initiawSewection, twue);
+			} ewse if (this._edits[0].wange.endCowumn === this._initiawSewection.stawtCowumn &&
+				this._edits[0].wange.endWineNumba === this._initiawSewection.stawtWineNumba) {
+				sewectionIsSet = twue;
+				this._sewectionId = buiwda.twackSewection(this._initiawSewection, fawse);
 			}
 		}
 
-		if (!selectionIsSet) {
-			this._selectionId = builder.trackSelection(this._initialSelection);
+		if (!sewectionIsSet) {
+			this._sewectionId = buiwda.twackSewection(this._initiawSewection);
 		}
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this._selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this._sewectionId!);
 	}
 }
 
-export class AutoIndentOnPaste implements IEditorContribution {
-	public static readonly ID = 'editor.contrib.autoIndentOnPaste';
+expowt cwass AutoIndentOnPaste impwements IEditowContwibution {
+	pubwic static weadonwy ID = 'editow.contwib.autoIndentOnPaste';
 
-	private readonly editor: ICodeEditor;
-	private readonly callOnDispose = new DisposableStore();
-	private readonly callOnModel = new DisposableStore();
+	pwivate weadonwy editow: ICodeEditow;
+	pwivate weadonwy cawwOnDispose = new DisposabweStowe();
+	pwivate weadonwy cawwOnModew = new DisposabweStowe();
 
-	constructor(editor: ICodeEditor) {
-		this.editor = editor;
+	constwuctow(editow: ICodeEditow) {
+		this.editow = editow;
 
-		this.callOnDispose.add(editor.onDidChangeConfiguration(() => this.update()));
-		this.callOnDispose.add(editor.onDidChangeModel(() => this.update()));
-		this.callOnDispose.add(editor.onDidChangeModelLanguage(() => this.update()));
+		this.cawwOnDispose.add(editow.onDidChangeConfiguwation(() => this.update()));
+		this.cawwOnDispose.add(editow.onDidChangeModew(() => this.update()));
+		this.cawwOnDispose.add(editow.onDidChangeModewWanguage(() => this.update()));
 	}
 
-	private update(): void {
+	pwivate update(): void {
 
-		// clean up
-		this.callOnModel.clear();
+		// cwean up
+		this.cawwOnModew.cweaw();
 
-		// we are disabled
-		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
-			return;
+		// we awe disabwed
+		if (this.editow.getOption(EditowOption.autoIndent) < EditowAutoIndentStwategy.Fuww || this.editow.getOption(EditowOption.fowmatOnPaste)) {
+			wetuwn;
 		}
 
-		// no model
-		if (!this.editor.hasModel()) {
-			return;
+		// no modew
+		if (!this.editow.hasModew()) {
+			wetuwn;
 		}
 
-		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
-			this.trigger(range);
+		this.cawwOnModew.add(this.editow.onDidPaste(({ wange }) => {
+			this.twigga(wange);
 		}));
 	}
 
-	private trigger(range: Range): void {
-		let selections = this.editor.getSelections();
-		if (selections === null || selections.length > 1) {
-			return;
+	pwivate twigga(wange: Wange): void {
+		wet sewections = this.editow.getSewections();
+		if (sewections === nuww || sewections.wength > 1) {
+			wetuwn;
 		}
 
-		const model = this.editor.getModel();
-		if (!model) {
-			return;
+		const modew = this.editow.getModew();
+		if (!modew) {
+			wetuwn;
 		}
 
-		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
-			return;
+		if (!modew.isCheapToTokenize(wange.getStawtPosition().wineNumba)) {
+			wetuwn;
 		}
-		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
-		const { tabSize, indentSize, insertSpaces } = model.getOptions();
-		let textEdits: TextEdit[] = [];
+		const autoIndent = this.editow.getOption(EditowOption.autoIndent);
+		const { tabSize, indentSize, insewtSpaces } = modew.getOptions();
+		wet textEdits: TextEdit[] = [];
 
-		let indentConverter = {
-			shiftIndent: (indentation: string) => {
-				return ShiftCommand.shiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
+		wet indentConvewta = {
+			shiftIndent: (indentation: stwing) => {
+				wetuwn ShiftCommand.shiftIndent(indentation, indentation.wength + 1, tabSize, indentSize, insewtSpaces);
 			},
-			unshiftIndent: (indentation: string) => {
-				return ShiftCommand.unshiftIndent(indentation, indentation.length + 1, tabSize, indentSize, insertSpaces);
+			unshiftIndent: (indentation: stwing) => {
+				wetuwn ShiftCommand.unshiftIndent(indentation, indentation.wength + 1, tabSize, indentSize, insewtSpaces);
 			}
 		};
 
-		let startLineNumber = range.startLineNumber;
+		wet stawtWineNumba = wange.stawtWineNumba;
 
-		while (startLineNumber <= range.endLineNumber) {
-			if (this.shouldIgnoreLine(model, startLineNumber)) {
-				startLineNumber++;
+		whiwe (stawtWineNumba <= wange.endWineNumba) {
+			if (this.shouwdIgnoweWine(modew, stawtWineNumba)) {
+				stawtWineNumba++;
 				continue;
 			}
-			break;
+			bweak;
 		}
 
-		if (startLineNumber > range.endLineNumber) {
-			return;
+		if (stawtWineNumba > wange.endWineNumba) {
+			wetuwn;
 		}
 
-		let firstLineText = model.getLineContent(startLineNumber);
-		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
+		wet fiwstWineText = modew.getWineContent(stawtWineNumba);
+		if (!/\S/.test(fiwstWineText.substwing(0, wange.stawtCowumn - 1))) {
+			wet indentOfFiwstWine = WanguageConfiguwationWegistwy.getGoodIndentFowWine(autoIndent, modew, modew.getWanguageIdentifia().id, stawtWineNumba, indentConvewta);
 
-			if (indentOfFirstLine !== null) {
-				let oldIndentation = strings.getLeadingWhitespace(firstLineText);
-				let newSpaceCnt = indentUtils.getSpaceCnt(indentOfFirstLine, tabSize);
-				let oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
+			if (indentOfFiwstWine !== nuww) {
+				wet owdIndentation = stwings.getWeadingWhitespace(fiwstWineText);
+				wet newSpaceCnt = indentUtiws.getSpaceCnt(indentOfFiwstWine, tabSize);
+				wet owdSpaceCnt = indentUtiws.getSpaceCnt(owdIndentation, tabSize);
 
-				if (newSpaceCnt !== oldSpaceCnt) {
-					let newIndent = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
+				if (newSpaceCnt !== owdSpaceCnt) {
+					wet newIndent = indentUtiws.genewateIndent(newSpaceCnt, tabSize, insewtSpaces);
 					textEdits.push({
-						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
+						wange: new Wange(stawtWineNumba, 1, stawtWineNumba, owdIndentation.wength + 1),
 						text: newIndent
 					});
-					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
-				} else {
-					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
+					fiwstWineText = newIndent + fiwstWineText.substw(owdIndentation.wength);
+				} ewse {
+					wet indentMetadata = WanguageConfiguwationWegistwy.getIndentMetadata(modew, stawtWineNumba);
 
 					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
-						// we paste content into a line where only contains whitespaces
-						// after pasting, the indentation of the first line is already correct
-						// the first line doesn't match any indentation rule
+						// we paste content into a wine whewe onwy contains whitespaces
+						// afta pasting, the indentation of the fiwst wine is awweady cowwect
+						// the fiwst wine doesn't match any indentation wuwe
 						// then no-op.
-						return;
+						wetuwn;
 					}
 				}
 			}
 		}
 
-		const firstLineNumber = startLineNumber;
+		const fiwstWineNumba = stawtWineNumba;
 
-		// ignore empty or ignored lines
-		while (startLineNumber < range.endLineNumber) {
-			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
-				startLineNumber++;
+		// ignowe empty ow ignowed wines
+		whiwe (stawtWineNumba < wange.endWineNumba) {
+			if (!/\S/.test(modew.getWineContent(stawtWineNumba + 1))) {
+				stawtWineNumba++;
 				continue;
 			}
-			break;
+			bweak;
 		}
 
-		if (startLineNumber !== range.endLineNumber) {
-			let virtualModel = {
-				getLineTokens: (lineNumber: number) => {
-					return model.getLineTokens(lineNumber);
+		if (stawtWineNumba !== wange.endWineNumba) {
+			wet viwtuawModew = {
+				getWineTokens: (wineNumba: numba) => {
+					wetuwn modew.getWineTokens(wineNumba);
 				},
-				getLanguageIdentifier: () => {
-					return model.getLanguageIdentifier();
+				getWanguageIdentifia: () => {
+					wetuwn modew.getWanguageIdentifia();
 				},
-				getLanguageIdAtPosition: (lineNumber: number, column: number) => {
-					return model.getLanguageIdAtPosition(lineNumber, column);
+				getWanguageIdAtPosition: (wineNumba: numba, cowumn: numba) => {
+					wetuwn modew.getWanguageIdAtPosition(wineNumba, cowumn);
 				},
-				getLineContent: (lineNumber: number) => {
-					if (lineNumber === firstLineNumber) {
-						return firstLineText;
-					} else {
-						return model.getLineContent(lineNumber);
+				getWineContent: (wineNumba: numba) => {
+					if (wineNumba === fiwstWineNumba) {
+						wetuwn fiwstWineText;
+					} ewse {
+						wetuwn modew.getWineContent(wineNumba);
 					}
 				}
 			};
-			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
-			if (indentOfSecondLine !== null) {
-				let newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
-				let oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);
+			wet indentOfSecondWine = WanguageConfiguwationWegistwy.getGoodIndentFowWine(autoIndent, viwtuawModew, modew.getWanguageIdentifia().id, stawtWineNumba + 1, indentConvewta);
+			if (indentOfSecondWine !== nuww) {
+				wet newSpaceCntOfSecondWine = indentUtiws.getSpaceCnt(indentOfSecondWine, tabSize);
+				wet owdSpaceCntOfSecondWine = indentUtiws.getSpaceCnt(stwings.getWeadingWhitespace(modew.getWineContent(stawtWineNumba + 1)), tabSize);
 
-				if (newSpaceCntOfSecondLine !== oldSpaceCntOfSecondLine) {
-					let spaceCntOffset = newSpaceCntOfSecondLine - oldSpaceCntOfSecondLine;
-					for (let i = startLineNumber + 1; i <= range.endLineNumber; i++) {
-						let lineContent = model.getLineContent(i);
-						let originalIndent = strings.getLeadingWhitespace(lineContent);
-						let originalSpacesCnt = indentUtils.getSpaceCnt(originalIndent, tabSize);
-						let newSpacesCnt = originalSpacesCnt + spaceCntOffset;
-						let newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
+				if (newSpaceCntOfSecondWine !== owdSpaceCntOfSecondWine) {
+					wet spaceCntOffset = newSpaceCntOfSecondWine - owdSpaceCntOfSecondWine;
+					fow (wet i = stawtWineNumba + 1; i <= wange.endWineNumba; i++) {
+						wet wineContent = modew.getWineContent(i);
+						wet owiginawIndent = stwings.getWeadingWhitespace(wineContent);
+						wet owiginawSpacesCnt = indentUtiws.getSpaceCnt(owiginawIndent, tabSize);
+						wet newSpacesCnt = owiginawSpacesCnt + spaceCntOffset;
+						wet newIndent = indentUtiws.genewateIndent(newSpacesCnt, tabSize, insewtSpaces);
 
-						if (newIndent !== originalIndent) {
+						if (newIndent !== owiginawIndent) {
 							textEdits.push({
-								range: new Range(i, 1, i, originalIndent.length + 1),
+								wange: new Wange(i, 1, i, owiginawIndent.wength + 1),
 								text: newIndent
 							});
 						}
@@ -582,109 +582,109 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 
-		if (textEdits.length > 0) {
-			this.editor.pushUndoStop();
-			let cmd = new AutoIndentOnPasteCommand(textEdits, this.editor.getSelection()!);
-			this.editor.executeCommand('autoIndentOnPaste', cmd);
-			this.editor.pushUndoStop();
+		if (textEdits.wength > 0) {
+			this.editow.pushUndoStop();
+			wet cmd = new AutoIndentOnPasteCommand(textEdits, this.editow.getSewection()!);
+			this.editow.executeCommand('autoIndentOnPaste', cmd);
+			this.editow.pushUndoStop();
 		}
 	}
 
-	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
-		model.forceTokenization(lineNumber);
-		let nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhitespaceColumn === 0) {
-			return true;
+	pwivate shouwdIgnoweWine(modew: ITextModew, wineNumba: numba): boowean {
+		modew.fowceTokenization(wineNumba);
+		wet nonWhitespaceCowumn = modew.getWineFiwstNonWhitespaceCowumn(wineNumba);
+		if (nonWhitespaceCowumn === 0) {
+			wetuwn twue;
 		}
-		let tokens = model.getLineTokens(lineNumber);
+		wet tokens = modew.getWineTokens(wineNumba);
 		if (tokens.getCount() > 0) {
-			let firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
-			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
-				return true;
+			wet fiwstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceCowumn);
+			if (fiwstNonWhitespaceTokenIndex >= 0 && tokens.getStandawdTokenType(fiwstNonWhitespaceTokenIndex) === StandawdTokenType.Comment) {
+				wetuwn twue;
 			}
 		}
 
-		return false;
+		wetuwn fawse;
 	}
 
-	public dispose(): void {
-		this.callOnDispose.dispose();
-		this.callOnModel.dispose();
+	pubwic dispose(): void {
+		this.cawwOnDispose.dispose();
+		this.cawwOnModew.dispose();
 	}
 }
 
-function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {
-	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
-		// Model is empty
-		return;
+function getIndentationEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda, tabSize: numba, tabsToSpaces: boowean): void {
+	if (modew.getWineCount() === 1 && modew.getWineMaxCowumn(1) === 1) {
+		// Modew is empty
+		wetuwn;
 	}
 
-	let spaces = '';
-	for (let i = 0; i < tabSize; i++) {
+	wet spaces = '';
+	fow (wet i = 0; i < tabSize; i++) {
 		spaces += ' ';
 	}
 
-	let spacesRegExp = new RegExp(spaces, 'gi');
+	wet spacesWegExp = new WegExp(spaces, 'gi');
 
-	for (let lineNumber = 1, lineCount = model.getLineCount(); lineNumber <= lineCount; lineNumber++) {
-		let lastIndentationColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (lastIndentationColumn === 0) {
-			lastIndentationColumn = model.getLineMaxColumn(lineNumber);
+	fow (wet wineNumba = 1, wineCount = modew.getWineCount(); wineNumba <= wineCount; wineNumba++) {
+		wet wastIndentationCowumn = modew.getWineFiwstNonWhitespaceCowumn(wineNumba);
+		if (wastIndentationCowumn === 0) {
+			wastIndentationCowumn = modew.getWineMaxCowumn(wineNumba);
 		}
 
-		if (lastIndentationColumn === 1) {
+		if (wastIndentationCowumn === 1) {
 			continue;
 		}
 
-		const originalIndentationRange = new Range(lineNumber, 1, lineNumber, lastIndentationColumn);
-		const originalIndentation = model.getValueInRange(originalIndentationRange);
+		const owiginawIndentationWange = new Wange(wineNumba, 1, wineNumba, wastIndentationCowumn);
+		const owiginawIndentation = modew.getVawueInWange(owiginawIndentationWange);
 		const newIndentation = (
 			tabsToSpaces
-				? originalIndentation.replace(/\t/ig, spaces)
-				: originalIndentation.replace(spacesRegExp, '\t')
+				? owiginawIndentation.wepwace(/\t/ig, spaces)
+				: owiginawIndentation.wepwace(spacesWegExp, '\t')
 		);
 
-		builder.addEditOperation(originalIndentationRange, newIndentation);
+		buiwda.addEditOpewation(owiginawIndentationWange, newIndentation);
 	}
 }
 
-export class IndentationToSpacesCommand implements ICommand {
+expowt cwass IndentationToSpacesCommand impwements ICommand {
 
-	private selectionId: string | null = null;
+	pwivate sewectionId: stwing | nuww = nuww;
 
-	constructor(private readonly selection: Selection, private tabSize: number) { }
+	constwuctow(pwivate weadonwy sewection: Sewection, pwivate tabSize: numba) { }
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		this.selectionId = builder.trackSelection(this.selection);
-		getIndentationEditOperations(model, builder, this.tabSize, true);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		this.sewectionId = buiwda.twackSewection(this.sewection);
+		getIndentationEditOpewations(modew, buiwda, this.tabSize, twue);
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId!);
-	}
-}
-
-export class IndentationToTabsCommand implements ICommand {
-
-	private selectionId: string | null = null;
-
-	constructor(private readonly selection: Selection, private tabSize: number) { }
-
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		this.selectionId = builder.trackSelection(this.selection);
-		getIndentationEditOperations(model, builder, this.tabSize, false);
-	}
-
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return helper.getTrackedSelection(this.selectionId!);
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this.sewectionId!);
 	}
 }
 
-registerEditorContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
-registerEditorAction(IndentationToSpacesAction);
-registerEditorAction(IndentationToTabsAction);
-registerEditorAction(IndentUsingTabs);
-registerEditorAction(IndentUsingSpaces);
-registerEditorAction(DetectIndentation);
-registerEditorAction(ReindentLinesAction);
-registerEditorAction(ReindentSelectedLinesAction);
+expowt cwass IndentationToTabsCommand impwements ICommand {
+
+	pwivate sewectionId: stwing | nuww = nuww;
+
+	constwuctow(pwivate weadonwy sewection: Sewection, pwivate tabSize: numba) { }
+
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		this.sewectionId = buiwda.twackSewection(this.sewection);
+		getIndentationEditOpewations(modew, buiwda, this.tabSize, fawse);
+	}
+
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn hewpa.getTwackedSewection(this.sewectionId!);
+	}
+}
+
+wegistewEditowContwibution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+wegistewEditowAction(IndentationToSpacesAction);
+wegistewEditowAction(IndentationToTabsAction);
+wegistewEditowAction(IndentUsingTabs);
+wegistewEditowAction(IndentUsingSpaces);
+wegistewEditowAction(DetectIndentation);
+wegistewEditowAction(WeindentWinesAction);
+wegistewEditowAction(WeindentSewectedWinesAction);

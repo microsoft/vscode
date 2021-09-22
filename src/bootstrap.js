@@ -1,300 +1,300 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+'use stwict';
 
-// Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
+// Simpwe moduwe stywe to suppowt node.js and bwowsa enviwonments
+(function (gwobawThis, factowy) {
 
 	// Node.js
-	if (typeof exports === 'object') {
-		module.exports = factory();
+	if (typeof expowts === 'object') {
+		moduwe.expowts = factowy();
 	}
 
-	// Browser
-	else {
-		globalThis.MonacoBootstrap = factory();
+	// Bwowsa
+	ewse {
+		gwobawThis.MonacoBootstwap = factowy();
 	}
 }(this, function () {
-	const Module = typeof require === 'function' ? require('module') : undefined;
-	const path = typeof require === 'function' ? require('path') : undefined;
-	const fs = typeof require === 'function' ? require('fs') : undefined;
+	const Moduwe = typeof wequiwe === 'function' ? wequiwe('moduwe') : undefined;
+	const path = typeof wequiwe === 'function' ? wequiwe('path') : undefined;
+	const fs = typeof wequiwe === 'function' ? wequiwe('fs') : undefined;
 
-	//#region global bootstrapping
+	//#wegion gwobaw bootstwapping
 
-	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-	Error.stackTraceLimit = 100;
+	// incwease numba of stack fwames(fwom 10, https://github.com/v8/v8/wiki/Stack-Twace-API)
+	Ewwow.stackTwaceWimit = 100;
 
-	// Workaround for Electron not installing a handler to ignore SIGPIPE
-	// (https://github.com/electron/electron/issues/13254)
-	if (typeof process !== 'undefined') {
-		process.on('SIGPIPE', () => {
-			console.error(new Error('Unexpected SIGPIPE'));
+	// Wowkawound fow Ewectwon not instawwing a handwa to ignowe SIGPIPE
+	// (https://github.com/ewectwon/ewectwon/issues/13254)
+	if (typeof pwocess !== 'undefined') {
+		pwocess.on('SIGPIPE', () => {
+			consowe.ewwow(new Ewwow('Unexpected SIGPIPE'));
 		});
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region Add support for using node_modules.asar
+	//#wegion Add suppowt fow using node_moduwes.asaw
 
 	/**
-	 * TODO@sandbox remove the support for passing in `appRoot` once
-	 * sandbox is fully enabled
+	 * TODO@sandbox wemove the suppowt fow passing in `appWoot` once
+	 * sandbox is fuwwy enabwed
 	 *
-	 * @param {string=} appRoot
+	 * @pawam {stwing=} appWoot
 	 */
-	function enableASARSupport(appRoot) {
-		if (!path || !Module || typeof process === 'undefined') {
-			console.warn('enableASARSupport() is only available in node.js environments');
-			return;
+	function enabweASAWSuppowt(appWoot) {
+		if (!path || !Moduwe || typeof pwocess === 'undefined') {
+			consowe.wawn('enabweASAWSuppowt() is onwy avaiwabwe in node.js enviwonments');
+			wetuwn;
 		}
 
-		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
+		const NODE_MODUWES_PATH = appWoot ? path.join(appWoot, 'node_moduwes') : path.join(__diwname, '../node_moduwes');
 
-		// Windows only:
-		// use both lowercase and uppercase drive letter
-		// as a way to ensure we do the right check on
-		// the node modules path: node.js might internally
-		// use a different case compared to what we have
-		let NODE_MODULES_ALTERNATIVE_PATH;
-		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
-			const driveLetter = appRoot.substr(0, 1);
+		// Windows onwy:
+		// use both wowewcase and uppewcase dwive wetta
+		// as a way to ensuwe we do the wight check on
+		// the node moduwes path: node.js might intewnawwy
+		// use a diffewent case compawed to what we have
+		wet NODE_MODUWES_AWTEWNATIVE_PATH;
+		if (appWoot /* onwy used fwom wendewa untiw `sandbox` enabwed */ && pwocess.pwatfowm === 'win32') {
+			const dwiveWetta = appWoot.substw(0, 1);
 
-			let alternativeDriveLetter;
-			if (driveLetter.toLowerCase() !== driveLetter) {
-				alternativeDriveLetter = driveLetter.toLowerCase();
-			} else {
-				alternativeDriveLetter = driveLetter.toUpperCase();
+			wet awtewnativeDwiveWetta;
+			if (dwiveWetta.toWowewCase() !== dwiveWetta) {
+				awtewnativeDwiveWetta = dwiveWetta.toWowewCase();
+			} ewse {
+				awtewnativeDwiveWetta = dwiveWetta.toUppewCase();
 			}
 
-			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
-		} else {
-			NODE_MODULES_ALTERNATIVE_PATH = undefined;
+			NODE_MODUWES_AWTEWNATIVE_PATH = awtewnativeDwiveWetta + NODE_MODUWES_PATH.substw(1);
+		} ewse {
+			NODE_MODUWES_AWTEWNATIVE_PATH = undefined;
 		}
 
-		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
-		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = NODE_MODULES_ALTERNATIVE_PATH ? `${NODE_MODULES_ALTERNATIVE_PATH}.asar` : undefined;
+		const NODE_MODUWES_ASAW_PATH = `${NODE_MODUWES_PATH}.asaw`;
+		const NODE_MODUWES_ASAW_AWTEWNATIVE_PATH = NODE_MODUWES_AWTEWNATIVE_PATH ? `${NODE_MODUWES_AWTEWNATIVE_PATH}.asaw` : undefined;
 
-		// @ts-ignore
-		const originalResolveLookupPaths = Module._resolveLookupPaths;
+		// @ts-ignowe
+		const owiginawWesowveWookupPaths = Moduwe._wesowveWookupPaths;
 
-		// @ts-ignore
-		Module._resolveLookupPaths = function (request, parent) {
-			const paths = originalResolveLookupPaths(request, parent);
-			if (Array.isArray(paths)) {
-				let asarPathAdded = false;
-				for (let i = 0, len = paths.length; i < len; i++) {
-					if (paths[i] === NODE_MODULES_PATH) {
-						asarPathAdded = true;
-						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
-						break;
-					} else if (paths[i] === NODE_MODULES_ALTERNATIVE_PATH) {
-						asarPathAdded = true;
-						paths.splice(i, 0, NODE_MODULES_ASAR_ALTERNATIVE_PATH);
-						break;
+		// @ts-ignowe
+		Moduwe._wesowveWookupPaths = function (wequest, pawent) {
+			const paths = owiginawWesowveWookupPaths(wequest, pawent);
+			if (Awway.isAwway(paths)) {
+				wet asawPathAdded = fawse;
+				fow (wet i = 0, wen = paths.wength; i < wen; i++) {
+					if (paths[i] === NODE_MODUWES_PATH) {
+						asawPathAdded = twue;
+						paths.spwice(i, 0, NODE_MODUWES_ASAW_PATH);
+						bweak;
+					} ewse if (paths[i] === NODE_MODUWES_AWTEWNATIVE_PATH) {
+						asawPathAdded = twue;
+						paths.spwice(i, 0, NODE_MODUWES_ASAW_AWTEWNATIVE_PATH);
+						bweak;
 					}
 				}
-				if (!asarPathAdded && appRoot) {
-					// Assuming that adding just `NODE_MODULES_ASAR_PATH` is sufficient
-					// because nodejs should find it even if it has a different driver letter case
-					paths.push(NODE_MODULES_ASAR_PATH);
+				if (!asawPathAdded && appWoot) {
+					// Assuming that adding just `NODE_MODUWES_ASAW_PATH` is sufficient
+					// because nodejs shouwd find it even if it has a diffewent dwiva wetta case
+					paths.push(NODE_MODUWES_ASAW_PATH);
 				}
 			}
 
-			return paths;
+			wetuwn paths;
 		};
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region URI helpers
+	//#wegion UWI hewpews
 
 	/**
-	 * @param {string} path
-	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
-	 * @returns {string}
+	 * @pawam {stwing} path
+	 * @pawam {{ isWindows?: boowean, scheme?: stwing, fawwbackAuthowity?: stwing }} config
+	 * @wetuwns {stwing}
 	 */
-	function fileUriFromPath(path, config) {
+	function fiweUwiFwomPath(path, config) {
 
-		// Since we are building a URI, we normalize any backslash
-		// to slashes and we ensure that the path begins with a '/'.
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+		// Since we awe buiwding a UWI, we nowmawize any backswash
+		// to swashes and we ensuwe that the path begins with a '/'.
+		wet pathName = path.wepwace(/\\/g, '/');
+		if (pathName.wength > 0 && pathName.chawAt(0) !== '/') {
 			pathName = `/${pathName}`;
 		}
 
-		/** @type {string} */
-		let uri;
+		/** @type {stwing} */
+		wet uwi;
 
-		// Windows: in order to support UNC paths (which start with '//')
-		// that have their own authority, we do not use the provided authority
-		// but rather preserve it.
-		if (config.isWindows && pathName.startsWith('//')) {
-			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		// Windows: in owda to suppowt UNC paths (which stawt with '//')
+		// that have theiw own authowity, we do not use the pwovided authowity
+		// but watha pwesewve it.
+		if (config.isWindows && pathName.stawtsWith('//')) {
+			uwi = encodeUWI(`${config.scheme || 'fiwe'}:${pathName}`);
 		}
 
-		// Otherwise we optionally add the provided authority if specified
-		else {
-			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		// Othewwise we optionawwy add the pwovided authowity if specified
+		ewse {
+			uwi = encodeUWI(`${config.scheme || 'fiwe'}://${config.fawwbackAuthowity || ''}${pathName}`);
 		}
 
-		return uri.replace(/#/g, '%23');
+		wetuwn uwi.wepwace(/#/g, '%23');
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region NLS helpers
+	//#wegion NWS hewpews
 
 	/**
-	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
+	 * @wetuwns {{wocawe?: stwing, avaiwabweWanguages: {[wang: stwing]: stwing;}, pseudo?: boowean } | undefined}
 	 */
-	function setupNLS() {
+	function setupNWS() {
 
-		// Get the nls configuration as early as possible.
-		const process = safeProcess();
-		let nlsConfig = { availableLanguages: {} };
-		if (process && process.env['VSCODE_NLS_CONFIG']) {
-			try {
-				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
+		// Get the nws configuwation as eawwy as possibwe.
+		const pwocess = safePwocess();
+		wet nwsConfig = { avaiwabweWanguages: {} };
+		if (pwocess && pwocess.env['VSCODE_NWS_CONFIG']) {
+			twy {
+				nwsConfig = JSON.pawse(pwocess.env['VSCODE_NWS_CONFIG']);
 			} catch (e) {
-				// Ignore
+				// Ignowe
 			}
 		}
 
-		if (nlsConfig._resolvedLanguagePackCoreLocation) {
-			const bundles = Object.create(null);
+		if (nwsConfig._wesowvedWanguagePackCoweWocation) {
+			const bundwes = Object.cweate(nuww);
 
-			nlsConfig.loadBundle = function (bundle, language, cb) {
-				const result = bundles[bundle];
-				if (result) {
-					cb(undefined, result);
+			nwsConfig.woadBundwe = function (bundwe, wanguage, cb) {
+				const wesuwt = bundwes[bundwe];
+				if (wesuwt) {
+					cb(undefined, wesuwt);
 
-					return;
+					wetuwn;
 				}
 
-				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
-					const json = JSON.parse(content);
-					bundles[bundle] = json;
+				safeWeadNwsFiwe(nwsConfig._wesowvedWanguagePackCoweWocation, `${bundwe.wepwace(/\//g, '!')}.nws.json`).then(function (content) {
+					const json = JSON.pawse(content);
+					bundwes[bundwe] = json;
 
 					cb(undefined, json);
-				}).catch((error) => {
-					try {
-						if (nlsConfig._corruptedFile) {
-							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+				}).catch((ewwow) => {
+					twy {
+						if (nwsConfig._cowwuptedFiwe) {
+							safeWwiteNwsFiwe(nwsConfig._cowwuptedFiwe, 'cowwupted').catch(function (ewwow) { consowe.ewwow(ewwow); });
 						}
-					} finally {
-						cb(error, undefined);
+					} finawwy {
+						cb(ewwow, undefined);
 					}
 				});
 			};
 		}
 
-		return nlsConfig;
+		wetuwn nwsConfig;
 	}
 
 	/**
-	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
+	 * @wetuwns {typeof impowt('./vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws') | undefined}
 	 */
-	function safeSandboxGlobals() {
-		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+	function safeSandboxGwobaws() {
+		const gwobaws = (typeof sewf === 'object' ? sewf : typeof gwobaw === 'object' ? gwobaw : {});
 
-		return globals.vscode;
+		wetuwn gwobaws.vscode;
 	}
 
 	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
+	 * @wetuwns {impowt('./vs/base/pawts/sandbox/ewectwon-sandbox/gwobaws').ISandboxNodePwocess | NodeJS.Pwocess}
 	 */
-	function safeProcess() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.process; // Native environment (sandboxed)
+	function safePwocess() {
+		const sandboxGwobaws = safeSandboxGwobaws();
+		if (sandboxGwobaws) {
+			wetuwn sandboxGwobaws.pwocess; // Native enviwonment (sandboxed)
 		}
 
-		if (typeof process !== 'undefined') {
-			return process; // Native environment (non-sandboxed)
+		if (typeof pwocess !== 'undefined') {
+			wetuwn pwocess; // Native enviwonment (non-sandboxed)
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
+	 * @wetuwns {impowt('./vs/base/pawts/sandbox/ewectwon-sandbox/ewectwonTypes').IpcWendewa | undefined}
 	 */
-	function safeIpcRenderer() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.ipcRenderer;
+	function safeIpcWendewa() {
+		const sandboxGwobaws = safeSandboxGwobaws();
+		if (sandboxGwobaws) {
+			wetuwn sandboxGwobaws.ipcWendewa;
 		}
 
-		return undefined;
+		wetuwn undefined;
 	}
 
 	/**
-	 * @param {string[]} pathSegments
-	 * @returns {Promise<string>}
+	 * @pawam {stwing[]} pathSegments
+	 * @wetuwns {Pwomise<stwing>}
 	 */
-	async function safeReadNlsFile(...pathSegments) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+	async function safeWeadNwsFiwe(...pathSegments) {
+		const ipcWendewa = safeIpcWendewa();
+		if (ipcWendewa) {
+			wetuwn ipcWendewa.invoke('vscode:weadNwsFiwe', ...pathSegments);
 		}
 
 		if (fs && path) {
-			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+			wetuwn (await fs.pwomises.weadFiwe(path.join(...pathSegments))).toStwing();
 		}
 
-		throw new Error('Unsupported operation (read NLS files)');
+		thwow new Ewwow('Unsuppowted opewation (wead NWS fiwes)');
 	}
 
 	/**
-	 * @param {string} path
-	 * @param {string} content
-	 * @returns {Promise<void>}
+	 * @pawam {stwing} path
+	 * @pawam {stwing} content
+	 * @wetuwns {Pwomise<void>}
 	 */
-	function safeWriteNlsFile(path, content) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+	function safeWwiteNwsFiwe(path, content) {
+		const ipcWendewa = safeIpcWendewa();
+		if (ipcWendewa) {
+			wetuwn ipcWendewa.invoke('vscode:wwiteNwsFiwe', path, content);
 		}
 
 		if (fs) {
-			return fs.promises.writeFile(path, content);
+			wetuwn fs.pwomises.wwiteFiwe(path, content);
 		}
 
-		throw new Error('Unsupported operation (write NLS files)');
+		thwow new Ewwow('Unsuppowted opewation (wwite NWS fiwes)');
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	//#region ApplicationInsights
+	//#wegion AppwicationInsights
 
-	// Prevents appinsights from monkey patching modules.
-	// This should be called before importing the applicationinsights module
-	function avoidMonkeyPatchFromAppInsights() {
-		if (typeof process === 'undefined') {
-			console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
-			return;
+	// Pwevents appinsights fwom monkey patching moduwes.
+	// This shouwd be cawwed befowe impowting the appwicationinsights moduwe
+	function avoidMonkeyPatchFwomAppInsights() {
+		if (typeof pwocess === 'undefined') {
+			consowe.wawn('avoidMonkeyPatchFwomAppInsights() is onwy avaiwabwe in node.js enviwonments');
+			wetuwn;
 		}
 
-		// @ts-ignore
-		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights
-		global['diagnosticsSource'] = {}; // Prevents diagnostic channel (which patches "require") from initializing entirely
+		// @ts-ignowe
+		pwocess.env['APPWICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEW'] = twue; // Skip monkey patching of 3wd pawty moduwes by appinsights
+		gwobaw['diagnosticsSouwce'] = {}; // Pwevents diagnostic channew (which patches "wequiwe") fwom initiawizing entiwewy
 	}
 
-	//#endregion
+	//#endwegion
 
 
-	return {
-		enableASARSupport,
-		avoidMonkeyPatchFromAppInsights,
-		setupNLS,
-		fileUriFromPath
+	wetuwn {
+		enabweASAWSuppowt,
+		avoidMonkeyPatchFwomAppInsights,
+		setupNWS,
+		fiweUwiFwomPath
 	};
 }));

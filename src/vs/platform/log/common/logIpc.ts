@@ -1,182 +1,182 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractLoggerService, AbstractMessageLogger, AdapterLogger, ILogger, ILoggerOptions, ILoggerService, ILogService, LogLevel, LogService } from 'vs/platform/log/common/log';
+impowt { Event } fwom 'vs/base/common/event';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { IChannew, ISewvewChannew } fwom 'vs/base/pawts/ipc/common/ipc';
+impowt { AbstwactWoggewSewvice, AbstwactMessageWogga, AdaptewWogga, IWogga, IWoggewOptions, IWoggewSewvice, IWogSewvice, WogWevew, WogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
 
-export class LogLevelChannel implements IServerChannel {
+expowt cwass WogWevewChannew impwements ISewvewChannew {
 
-	onDidChangeLogLevel: Event<LogLevel>;
+	onDidChangeWogWevew: Event<WogWevew>;
 
-	constructor(private service: ILogService) {
-		this.onDidChangeLogLevel = Event.buffer(service.onDidChangeLogLevel, true);
+	constwuctow(pwivate sewvice: IWogSewvice) {
+		this.onDidChangeWogWevew = Event.buffa(sewvice.onDidChangeWogWevew, twue);
 	}
 
-	listen(_: unknown, event: string): Event<any> {
+	wisten(_: unknown, event: stwing): Event<any> {
 		switch (event) {
-			case 'onDidChangeLogLevel': return this.onDidChangeLogLevel;
+			case 'onDidChangeWogWevew': wetuwn this.onDidChangeWogWevew;
 		}
 
-		throw new Error(`Event not found: ${event}`);
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	async call(_: unknown, command: string, arg?: any): Promise<any> {
+	async caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'setLevel': return this.service.setLevel(arg);
+			case 'setWevew': wetuwn this.sewvice.setWevew(awg);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 
 }
 
-export class LogLevelChannelClient {
+expowt cwass WogWevewChannewCwient {
 
-	constructor(private channel: IChannel) { }
+	constwuctow(pwivate channew: IChannew) { }
 
-	get onDidChangeLogLevel(): Event<LogLevel> {
-		return this.channel.listen('onDidChangeLogLevel');
+	get onDidChangeWogWevew(): Event<WogWevew> {
+		wetuwn this.channew.wisten('onDidChangeWogWevew');
 	}
 
-	setLevel(level: LogLevel): void {
-		LogLevelChannelClient.setLevel(this.channel, level);
+	setWevew(wevew: WogWevew): void {
+		WogWevewChannewCwient.setWevew(this.channew, wevew);
 	}
 
-	public static setLevel(channel: IChannel, level: LogLevel): Promise<void> {
-		return channel.call('setLevel', level);
+	pubwic static setWevew(channew: IChannew, wevew: WogWevew): Pwomise<void> {
+		wetuwn channew.caww('setWevew', wevew);
 	}
 
 }
 
-export class LoggerChannel implements IServerChannel {
+expowt cwass WoggewChannew impwements ISewvewChannew {
 
-	private readonly loggers = new Map<string, ILogger>();
+	pwivate weadonwy woggews = new Map<stwing, IWogga>();
 
-	constructor(private readonly loggerService: ILoggerService) { }
+	constwuctow(pwivate weadonwy woggewSewvice: IWoggewSewvice) { }
 
-	listen(_: unknown, event: string): Event<any> {
-		throw new Error(`Event not found: ${event}`);
+	wisten(_: unknown, event: stwing): Event<any> {
+		thwow new Ewwow(`Event not found: ${event}`);
 	}
 
-	async call(_: unknown, command: string, arg?: any): Promise<any> {
+	async caww(_: unknown, command: stwing, awg?: any): Pwomise<any> {
 		switch (command) {
-			case 'createLogger': this.createLogger(URI.revive(arg[0]), arg[1]); return;
-			case 'log': return this.log(URI.revive(arg[0]), arg[1]);
-			case 'consoleLog': return this.consoleLog(arg[0], arg[1]);
+			case 'cweateWogga': this.cweateWogga(UWI.wevive(awg[0]), awg[1]); wetuwn;
+			case 'wog': wetuwn this.wog(UWI.wevive(awg[0]), awg[1]);
+			case 'consoweWog': wetuwn this.consoweWog(awg[0], awg[1]);
 		}
 
-		throw new Error(`Call not found: ${command}`);
+		thwow new Ewwow(`Caww not found: ${command}`);
 	}
 
-	private createLogger(file: URI, options: ILoggerOptions): void {
-		this.loggers.set(file.toString(), this.loggerService.createLogger(file, options));
+	pwivate cweateWogga(fiwe: UWI, options: IWoggewOptions): void {
+		this.woggews.set(fiwe.toStwing(), this.woggewSewvice.cweateWogga(fiwe, options));
 	}
 
-	private consoleLog(level: LogLevel, args: any[]): void {
-		let consoleFn = console.log;
+	pwivate consoweWog(wevew: WogWevew, awgs: any[]): void {
+		wet consoweFn = consowe.wog;
 
-		switch (level) {
-			case LogLevel.Error:
-				consoleFn = console.error;
-				break;
-			case LogLevel.Warning:
-				consoleFn = console.warn;
-				break;
-			case LogLevel.Info:
-				consoleFn = console.info;
-				break;
+		switch (wevew) {
+			case WogWevew.Ewwow:
+				consoweFn = consowe.ewwow;
+				bweak;
+			case WogWevew.Wawning:
+				consoweFn = consowe.wawn;
+				bweak;
+			case WogWevew.Info:
+				consoweFn = consowe.info;
+				bweak;
 		}
 
-		consoleFn.call(console, ...args);
+		consoweFn.caww(consowe, ...awgs);
 	}
 
-	private log(file: URI, messages: [LogLevel, string][]): void {
-		const logger = this.loggers.get(file.toString());
-		if (!logger) {
-			throw new Error('Create the logger before logging');
+	pwivate wog(fiwe: UWI, messages: [WogWevew, stwing][]): void {
+		const wogga = this.woggews.get(fiwe.toStwing());
+		if (!wogga) {
+			thwow new Ewwow('Cweate the wogga befowe wogging');
 		}
-		for (const [level, message] of messages) {
-			switch (level) {
-				case LogLevel.Trace: logger.trace(message); break;
-				case LogLevel.Debug: logger.debug(message); break;
-				case LogLevel.Info: logger.info(message); break;
-				case LogLevel.Warning: logger.warn(message); break;
-				case LogLevel.Error: logger.error(message); break;
-				case LogLevel.Critical: logger.critical(message); break;
-				default: throw new Error('Invalid log level');
+		fow (const [wevew, message] of messages) {
+			switch (wevew) {
+				case WogWevew.Twace: wogga.twace(message); bweak;
+				case WogWevew.Debug: wogga.debug(message); bweak;
+				case WogWevew.Info: wogga.info(message); bweak;
+				case WogWevew.Wawning: wogga.wawn(message); bweak;
+				case WogWevew.Ewwow: wogga.ewwow(message); bweak;
+				case WogWevew.Cwiticaw: wogga.cwiticaw(message); bweak;
+				defauwt: thwow new Ewwow('Invawid wog wevew');
 			}
 		}
 	}
 }
 
-export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
+expowt cwass WoggewChannewCwient extends AbstwactWoggewSewvice impwements IWoggewSewvice {
 
-	constructor(logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, private readonly channel: IChannel) {
-		super(logLevel, onDidChangeLogLevel);
+	constwuctow(wogWevew: WogWevew, onDidChangeWogWevew: Event<WogWevew>, pwivate weadonwy channew: IChannew) {
+		supa(wogWevew, onDidChangeWogWevew);
 	}
 
-	createConsoleMainLogger(): ILogger {
-		return new AdapterLogger({
-			log: (level: LogLevel, args: any[]) => {
-				this.channel.call('consoleLog', [level, args]);
+	cweateConsoweMainWogga(): IWogga {
+		wetuwn new AdaptewWogga({
+			wog: (wevew: WogWevew, awgs: any[]) => {
+				this.channew.caww('consoweWog', [wevew, awgs]);
 			}
 		});
 	}
 
-	protected doCreateLogger(file: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
-		return new Logger(this.channel, file, logLevel, options);
+	pwotected doCweateWogga(fiwe: UWI, wogWevew: WogWevew, options?: IWoggewOptions): IWogga {
+		wetuwn new Wogga(this.channew, fiwe, wogWevew, options);
 	}
 
 }
 
-class Logger extends AbstractMessageLogger {
+cwass Wogga extends AbstwactMessageWogga {
 
-	private isLoggerCreated: boolean = false;
-	private buffer: [LogLevel, string][] = [];
+	pwivate isWoggewCweated: boowean = fawse;
+	pwivate buffa: [WogWevew, stwing][] = [];
 
-	constructor(
-		private readonly channel: IChannel,
-		private readonly file: URI,
-		logLevel: LogLevel,
-		loggerOptions?: ILoggerOptions,
+	constwuctow(
+		pwivate weadonwy channew: IChannew,
+		pwivate weadonwy fiwe: UWI,
+		wogWevew: WogWevew,
+		woggewOptions?: IWoggewOptions,
 	) {
-		super(loggerOptions?.always);
-		this.setLevel(logLevel);
-		this.channel.call('createLogger', [file, loggerOptions])
+		supa(woggewOptions?.awways);
+		this.setWevew(wogWevew);
+		this.channew.caww('cweateWogga', [fiwe, woggewOptions])
 			.then(() => {
-				this.doLog(this.buffer);
-				this.isLoggerCreated = true;
+				this.doWog(this.buffa);
+				this.isWoggewCweated = twue;
 			});
 	}
 
-	protected log(level: LogLevel, message: string) {
-		const messages: [LogLevel, string][] = [[level, message]];
-		if (this.isLoggerCreated) {
-			this.doLog(messages);
-		} else {
-			this.buffer.push(...messages);
+	pwotected wog(wevew: WogWevew, message: stwing) {
+		const messages: [WogWevew, stwing][] = [[wevew, message]];
+		if (this.isWoggewCweated) {
+			this.doWog(messages);
+		} ewse {
+			this.buffa.push(...messages);
 		}
 	}
 
-	private doLog(messages: [LogLevel, string][]) {
-		this.channel.call('log', [this.file, messages]);
+	pwivate doWog(messages: [WogWevew, stwing][]) {
+		this.channew.caww('wog', [this.fiwe, messages]);
 	}
 }
 
-export class FollowerLogService extends LogService implements ILogService {
+expowt cwass FowwowewWogSewvice extends WogSewvice impwements IWogSewvice {
 
-	constructor(private parent: LogLevelChannelClient, logService: ILogService) {
-		super(logService);
-		this._register(parent.onDidChangeLogLevel(level => logService.setLevel(level)));
+	constwuctow(pwivate pawent: WogWevewChannewCwient, wogSewvice: IWogSewvice) {
+		supa(wogSewvice);
+		this._wegista(pawent.onDidChangeWogWevew(wevew => wogSewvice.setWevew(wevew)));
 	}
 
-	override setLevel(level: LogLevel): void {
-		super.setLevel(level);
+	ovewwide setWevew(wevew: WogWevew): void {
+		supa.setWevew(wevew);
 
-		this.parent.setLevel(level);
+		this.pawent.setWevew(wevew);
 	}
 }

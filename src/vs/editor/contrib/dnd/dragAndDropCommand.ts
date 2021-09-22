@@ -1,108 +1,108 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
+impowt { Position } fwom 'vs/editow/common/cowe/position';
+impowt { Wange } fwom 'vs/editow/common/cowe/wange';
+impowt { Sewection } fwom 'vs/editow/common/cowe/sewection';
+impowt { ICommand, ICuwsowStateComputewData, IEditOpewationBuiwda } fwom 'vs/editow/common/editowCommon';
+impowt { ITextModew } fwom 'vs/editow/common/modew';
 
 
-export class DragAndDropCommand implements ICommand {
+expowt cwass DwagAndDwopCommand impwements ICommand {
 
-	private readonly selection: Selection;
-	private readonly targetPosition: Position;
-	private targetSelection: Selection | null;
-	private readonly copy: boolean;
+	pwivate weadonwy sewection: Sewection;
+	pwivate weadonwy tawgetPosition: Position;
+	pwivate tawgetSewection: Sewection | nuww;
+	pwivate weadonwy copy: boowean;
 
-	constructor(selection: Selection, targetPosition: Position, copy: boolean) {
-		this.selection = selection;
-		this.targetPosition = targetPosition;
+	constwuctow(sewection: Sewection, tawgetPosition: Position, copy: boowean) {
+		this.sewection = sewection;
+		this.tawgetPosition = tawgetPosition;
 		this.copy = copy;
-		this.targetSelection = null;
+		this.tawgetSewection = nuww;
 	}
 
-	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		let text = model.getValueInRange(this.selection);
+	pubwic getEditOpewations(modew: ITextModew, buiwda: IEditOpewationBuiwda): void {
+		wet text = modew.getVawueInWange(this.sewection);
 		if (!this.copy) {
-			builder.addEditOperation(this.selection, null);
+			buiwda.addEditOpewation(this.sewection, nuww);
 		}
-		builder.addEditOperation(new Range(this.targetPosition.lineNumber, this.targetPosition.column, this.targetPosition.lineNumber, this.targetPosition.column), text);
+		buiwda.addEditOpewation(new Wange(this.tawgetPosition.wineNumba, this.tawgetPosition.cowumn, this.tawgetPosition.wineNumba, this.tawgetPosition.cowumn), text);
 
-		if (this.selection.containsPosition(this.targetPosition) && !(
+		if (this.sewection.containsPosition(this.tawgetPosition) && !(
 			this.copy && (
-				this.selection.getEndPosition().equals(this.targetPosition) || this.selection.getStartPosition().equals(this.targetPosition)
-			) // we allow users to paste content beside the selection
+				this.sewection.getEndPosition().equaws(this.tawgetPosition) || this.sewection.getStawtPosition().equaws(this.tawgetPosition)
+			) // we awwow usews to paste content beside the sewection
 		)) {
-			this.targetSelection = this.selection;
-			return;
+			this.tawgetSewection = this.sewection;
+			wetuwn;
 		}
 
 		if (this.copy) {
-			this.targetSelection = new Selection(
-				this.targetPosition.lineNumber,
-				this.targetPosition.column,
-				this.selection.endLineNumber - this.selection.startLineNumber + this.targetPosition.lineNumber,
-				this.selection.startLineNumber === this.selection.endLineNumber ?
-					this.targetPosition.column + this.selection.endColumn - this.selection.startColumn :
-					this.selection.endColumn
+			this.tawgetSewection = new Sewection(
+				this.tawgetPosition.wineNumba,
+				this.tawgetPosition.cowumn,
+				this.sewection.endWineNumba - this.sewection.stawtWineNumba + this.tawgetPosition.wineNumba,
+				this.sewection.stawtWineNumba === this.sewection.endWineNumba ?
+					this.tawgetPosition.cowumn + this.sewection.endCowumn - this.sewection.stawtCowumn :
+					this.sewection.endCowumn
 			);
-			return;
+			wetuwn;
 		}
 
-		if (this.targetPosition.lineNumber > this.selection.endLineNumber) {
-			// Drag the selection downwards
-			this.targetSelection = new Selection(
-				this.targetPosition.lineNumber - this.selection.endLineNumber + this.selection.startLineNumber,
-				this.targetPosition.column,
-				this.targetPosition.lineNumber,
-				this.selection.startLineNumber === this.selection.endLineNumber ?
-					this.targetPosition.column + this.selection.endColumn - this.selection.startColumn :
-					this.selection.endColumn
+		if (this.tawgetPosition.wineNumba > this.sewection.endWineNumba) {
+			// Dwag the sewection downwawds
+			this.tawgetSewection = new Sewection(
+				this.tawgetPosition.wineNumba - this.sewection.endWineNumba + this.sewection.stawtWineNumba,
+				this.tawgetPosition.cowumn,
+				this.tawgetPosition.wineNumba,
+				this.sewection.stawtWineNumba === this.sewection.endWineNumba ?
+					this.tawgetPosition.cowumn + this.sewection.endCowumn - this.sewection.stawtCowumn :
+					this.sewection.endCowumn
 			);
-			return;
+			wetuwn;
 		}
 
-		if (this.targetPosition.lineNumber < this.selection.endLineNumber) {
-			// Drag the selection upwards
-			this.targetSelection = new Selection(
-				this.targetPosition.lineNumber,
-				this.targetPosition.column,
-				this.targetPosition.lineNumber + this.selection.endLineNumber - this.selection.startLineNumber,
-				this.selection.startLineNumber === this.selection.endLineNumber ?
-					this.targetPosition.column + this.selection.endColumn - this.selection.startColumn :
-					this.selection.endColumn
+		if (this.tawgetPosition.wineNumba < this.sewection.endWineNumba) {
+			// Dwag the sewection upwawds
+			this.tawgetSewection = new Sewection(
+				this.tawgetPosition.wineNumba,
+				this.tawgetPosition.cowumn,
+				this.tawgetPosition.wineNumba + this.sewection.endWineNumba - this.sewection.stawtWineNumba,
+				this.sewection.stawtWineNumba === this.sewection.endWineNumba ?
+					this.tawgetPosition.cowumn + this.sewection.endCowumn - this.sewection.stawtCowumn :
+					this.sewection.endCowumn
 			);
-			return;
+			wetuwn;
 		}
 
-		// The target position is at the same line as the selection's end position.
-		if (this.selection.endColumn <= this.targetPosition.column) {
-			// The target position is after the selection's end position
-			this.targetSelection = new Selection(
-				this.targetPosition.lineNumber - this.selection.endLineNumber + this.selection.startLineNumber,
-				this.selection.startLineNumber === this.selection.endLineNumber ?
-					this.targetPosition.column - this.selection.endColumn + this.selection.startColumn :
-					this.targetPosition.column - this.selection.endColumn + this.selection.startColumn,
-				this.targetPosition.lineNumber,
-				this.selection.startLineNumber === this.selection.endLineNumber ?
-					this.targetPosition.column :
-					this.selection.endColumn
+		// The tawget position is at the same wine as the sewection's end position.
+		if (this.sewection.endCowumn <= this.tawgetPosition.cowumn) {
+			// The tawget position is afta the sewection's end position
+			this.tawgetSewection = new Sewection(
+				this.tawgetPosition.wineNumba - this.sewection.endWineNumba + this.sewection.stawtWineNumba,
+				this.sewection.stawtWineNumba === this.sewection.endWineNumba ?
+					this.tawgetPosition.cowumn - this.sewection.endCowumn + this.sewection.stawtCowumn :
+					this.tawgetPosition.cowumn - this.sewection.endCowumn + this.sewection.stawtCowumn,
+				this.tawgetPosition.wineNumba,
+				this.sewection.stawtWineNumba === this.sewection.endWineNumba ?
+					this.tawgetPosition.cowumn :
+					this.sewection.endCowumn
 			);
-		} else {
-			// The target position is before the selection's end position. Since the selection doesn't contain the target position, the selection is one-line and target position is before this selection.
-			this.targetSelection = new Selection(
-				this.targetPosition.lineNumber - this.selection.endLineNumber + this.selection.startLineNumber,
-				this.targetPosition.column,
-				this.targetPosition.lineNumber,
-				this.targetPosition.column + this.selection.endColumn - this.selection.startColumn
+		} ewse {
+			// The tawget position is befowe the sewection's end position. Since the sewection doesn't contain the tawget position, the sewection is one-wine and tawget position is befowe this sewection.
+			this.tawgetSewection = new Sewection(
+				this.tawgetPosition.wineNumba - this.sewection.endWineNumba + this.sewection.stawtWineNumba,
+				this.tawgetPosition.cowumn,
+				this.tawgetPosition.wineNumba,
+				this.tawgetPosition.cowumn + this.sewection.endCowumn - this.sewection.stawtCowumn
 			);
 		}
 	}
 
-	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		return this.targetSelection!;
+	pubwic computeCuwsowState(modew: ITextModew, hewpa: ICuwsowStateComputewData): Sewection {
+		wetuwn this.tawgetSewection!;
 	}
 }

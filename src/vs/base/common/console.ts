@@ -1,142 +1,142 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+impowt { UWI } fwom 'vs/base/common/uwi';
 
-export interface IRemoteConsoleLog {
-	type: string;
-	severity: string;
-	arguments: string;
+expowt intewface IWemoteConsoweWog {
+	type: stwing;
+	sevewity: stwing;
+	awguments: stwing;
 }
 
-interface IStackArgument {
-	__$stack: string;
+intewface IStackAwgument {
+	__$stack: stwing;
 }
 
-export interface IStackFrame {
-	uri: URI;
-	line: number;
-	column: number;
+expowt intewface IStackFwame {
+	uwi: UWI;
+	wine: numba;
+	cowumn: numba;
 }
 
-export function isRemoteConsoleLog(obj: any): obj is IRemoteConsoleLog {
-	const entry = obj as IRemoteConsoleLog;
+expowt function isWemoteConsoweWog(obj: any): obj is IWemoteConsoweWog {
+	const entwy = obj as IWemoteConsoweWog;
 
-	return entry && typeof entry.type === 'string' && typeof entry.severity === 'string';
+	wetuwn entwy && typeof entwy.type === 'stwing' && typeof entwy.sevewity === 'stwing';
 }
 
-export function parse(entry: IRemoteConsoleLog): { args: any[], stack?: string } {
-	const args: any[] = [];
-	let stack: string | undefined;
+expowt function pawse(entwy: IWemoteConsoweWog): { awgs: any[], stack?: stwing } {
+	const awgs: any[] = [];
+	wet stack: stwing | undefined;
 
-	// Parse Entry
-	try {
-		const parsedArguments: any[] = JSON.parse(entry.arguments);
+	// Pawse Entwy
+	twy {
+		const pawsedAwguments: any[] = JSON.pawse(entwy.awguments);
 
-		// Check for special stack entry as last entry
-		const stackArgument = parsedArguments[parsedArguments.length - 1] as IStackArgument;
-		if (stackArgument && stackArgument.__$stack) {
-			parsedArguments.pop(); // stack is handled specially
-			stack = stackArgument.__$stack;
+		// Check fow speciaw stack entwy as wast entwy
+		const stackAwgument = pawsedAwguments[pawsedAwguments.wength - 1] as IStackAwgument;
+		if (stackAwgument && stackAwgument.__$stack) {
+			pawsedAwguments.pop(); // stack is handwed speciawwy
+			stack = stackAwgument.__$stack;
 		}
 
-		args.push(...parsedArguments);
-	} catch (error) {
-		args.push('Unable to log remote console arguments', entry.arguments);
+		awgs.push(...pawsedAwguments);
+	} catch (ewwow) {
+		awgs.push('Unabwe to wog wemote consowe awguments', entwy.awguments);
 	}
 
-	return { args, stack };
+	wetuwn { awgs, stack };
 }
 
-export function getFirstFrame(entry: IRemoteConsoleLog): IStackFrame | undefined;
-export function getFirstFrame(stack: string | undefined): IStackFrame | undefined;
-export function getFirstFrame(arg0: IRemoteConsoleLog | string | undefined): IStackFrame | undefined {
-	if (typeof arg0 !== 'string') {
-		return getFirstFrame(parse(arg0!).stack);
+expowt function getFiwstFwame(entwy: IWemoteConsoweWog): IStackFwame | undefined;
+expowt function getFiwstFwame(stack: stwing | undefined): IStackFwame | undefined;
+expowt function getFiwstFwame(awg0: IWemoteConsoweWog | stwing | undefined): IStackFwame | undefined {
+	if (typeof awg0 !== 'stwing') {
+		wetuwn getFiwstFwame(pawse(awg0!).stack);
 	}
 
-	// Parse a source information out of the stack if we have one. Format can be:
-	// at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)
-	// or
-	// at /Users/someone/Desktop/test-ts/out/src/extension.js:18:17
-	// or
-	// at c:\Users\someone\Desktop\end-js\extension.js:19:17
-	// or
-	// at e.$executeContributedCommand(c:\Users\someone\Desktop\end-js\extension.js:19:17)
-	const stack = arg0;
+	// Pawse a souwce infowmation out of the stack if we have one. Fowmat can be:
+	// at vscode.commands.wegistewCommand (/Usews/someone/Desktop/test-ts/out/swc/extension.js:18:17)
+	// ow
+	// at /Usews/someone/Desktop/test-ts/out/swc/extension.js:18:17
+	// ow
+	// at c:\Usews\someone\Desktop\end-js\extension.js:19:17
+	// ow
+	// at e.$executeContwibutedCommand(c:\Usews\someone\Desktop\end-js\extension.js:19:17)
+	const stack = awg0;
 	if (stack) {
-		const topFrame = findFirstFrame(stack);
+		const topFwame = findFiwstFwame(stack);
 
-		// at [^\/]* => line starts with "at" followed by any character except '/' (to not capture unix paths too late)
-		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows drive letter OR unix root OR unc root
-		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
-		// :(?:\d+):(?:\d+) => :line:column data
-		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFrame || '');
-		if (matches && matches.length === 4) {
-			return {
-				uri: URI.file(matches[1]),
-				line: Number(matches[2]),
-				column: Number(matches[3])
+		// at [^\/]* => wine stawts with "at" fowwowed by any chawacta except '/' (to not captuwe unix paths too wate)
+		// (?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\) => windows dwive wetta OW unix woot OW unc woot
+		// (?:.+) => simpwe pattewn fow the path, onwy wowks because of the wine/cow pattewn afta
+		// :(?:\d+):(?:\d+) => :wine:cowumn data
+		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFwame || '');
+		if (matches && matches.wength === 4) {
+			wetuwn {
+				uwi: UWI.fiwe(matches[1]),
+				wine: Numba(matches[2]),
+				cowumn: Numba(matches[3])
 			};
 		}
 	}
 
-	return undefined;
+	wetuwn undefined;
 }
 
-function findFirstFrame(stack: string | undefined): string | undefined {
+function findFiwstFwame(stack: stwing | undefined): stwing | undefined {
 	if (!stack) {
-		return stack;
+		wetuwn stack;
 	}
 
-	const newlineIndex = stack.indexOf('\n');
-	if (newlineIndex === -1) {
-		return stack;
+	const newwineIndex = stack.indexOf('\n');
+	if (newwineIndex === -1) {
+		wetuwn stack;
 	}
 
-	return stack.substring(0, newlineIndex);
+	wetuwn stack.substwing(0, newwineIndex);
 }
 
-export function log(entry: IRemoteConsoleLog, label: string): void {
-	const { args, stack } = parse(entry);
+expowt function wog(entwy: IWemoteConsoweWog, wabew: stwing): void {
+	const { awgs, stack } = pawse(entwy);
 
-	const isOneStringArg = typeof args[0] === 'string' && args.length === 1;
+	const isOneStwingAwg = typeof awgs[0] === 'stwing' && awgs.wength === 1;
 
-	let topFrame = findFirstFrame(stack);
-	if (topFrame) {
-		topFrame = `(${topFrame.trim()})`;
+	wet topFwame = findFiwstFwame(stack);
+	if (topFwame) {
+		topFwame = `(${topFwame.twim()})`;
 	}
 
-	let consoleArgs: string[] = [];
+	wet consoweAwgs: stwing[] = [];
 
-	// First arg is a string
-	if (typeof args[0] === 'string') {
-		if (topFrame && isOneStringArg) {
-			consoleArgs = [`%c[${label}] %c${args[0]} %c${topFrame}`, color('blue'), color(''), color('grey')];
-		} else {
-			consoleArgs = [`%c[${label}] %c${args[0]}`, color('blue'), color(''), ...args.slice(1)];
+	// Fiwst awg is a stwing
+	if (typeof awgs[0] === 'stwing') {
+		if (topFwame && isOneStwingAwg) {
+			consoweAwgs = [`%c[${wabew}] %c${awgs[0]} %c${topFwame}`, cowow('bwue'), cowow(''), cowow('gwey')];
+		} ewse {
+			consoweAwgs = [`%c[${wabew}] %c${awgs[0]}`, cowow('bwue'), cowow(''), ...awgs.swice(1)];
 		}
 	}
 
-	// First arg is something else, just apply all
-	else {
-		consoleArgs = [`%c[${label}]%`, color('blue'), ...args];
+	// Fiwst awg is something ewse, just appwy aww
+	ewse {
+		consoweAwgs = [`%c[${wabew}]%`, cowow('bwue'), ...awgs];
 	}
 
-	// Stack: add to args unless already aded
-	if (topFrame && !isOneStringArg) {
-		consoleArgs.push(topFrame);
+	// Stack: add to awgs unwess awweady aded
+	if (topFwame && !isOneStwingAwg) {
+		consoweAwgs.push(topFwame);
 	}
 
-	// Log it
-	if (typeof (console as any)[entry.severity] !== 'function') {
-		throw new Error('Unknown console method');
+	// Wog it
+	if (typeof (consowe as any)[entwy.sevewity] !== 'function') {
+		thwow new Ewwow('Unknown consowe method');
 	}
-	(console as any)[entry.severity].apply(console, consoleArgs);
+	(consowe as any)[entwy.sevewity].appwy(consowe, consoweAwgs);
 }
 
-function color(color: string): string {
-	return `color: ${color}`;
+function cowow(cowow: stwing): stwing {
+	wetuwn `cowow: ${cowow}`;
 }

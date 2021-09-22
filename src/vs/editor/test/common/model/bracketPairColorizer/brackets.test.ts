@@ -1,81 +1,81 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairColorizer/brackets';
-import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { Token, TokenKind } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+impowt assewt = wequiwe('assewt');
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { WanguageAgnosticBwacketTokens } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/bwackets';
+impowt { SmawwImmutabweSet, DenseKeyPwovida } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/smawwImmutabweSet';
+impowt { Token, TokenKind } fwom 'vs/editow/common/modew/bwacketPaiwCowowiza/tokeniza';
+impowt { WanguageIdentifia } fwom 'vs/editow/common/modes';
+impowt { WanguageConfiguwationWegistwy } fwom 'vs/editow/common/modes/wanguageConfiguwationWegistwy';
 
-suite('Bracket Pair Colorizer - Brackets', () => {
+suite('Bwacket Paiw Cowowiza - Bwackets', () => {
 	test('Basic', () => {
-		const languageId = 3;
-		const mode1 = new LanguageIdentifier('testMode1', languageId);
-		const denseKeyProvider = new DenseKeyProvider<string>();
-		const getImmutableSet = (elements: string[]) => {
-			let newSet = SmallImmutableSet.getEmpty();
-			elements.forEach(x => newSet = newSet.add(`${languageId}:::${x}`, denseKeyProvider));
-			return newSet;
+		const wanguageId = 3;
+		const mode1 = new WanguageIdentifia('testMode1', wanguageId);
+		const denseKeyPwovida = new DenseKeyPwovida<stwing>();
+		const getImmutabweSet = (ewements: stwing[]) => {
+			wet newSet = SmawwImmutabweSet.getEmpty();
+			ewements.fowEach(x => newSet = newSet.add(`${wanguageId}:::${x}`, denseKeyPwovida));
+			wetuwn newSet;
 		};
-		const getKey = (value: string) => {
-			return denseKeyProvider.getKey(`${languageId}:::${value}`);
+		const getKey = (vawue: stwing) => {
+			wetuwn denseKeyPwovida.getKey(`${wanguageId}:::${vawue}`);
 		};
 
-		const disposableStore = new DisposableStore();
-		disposableStore.add(LanguageConfigurationRegistry.register(mode1, {
-			brackets: [
+		const disposabweStowe = new DisposabweStowe();
+		disposabweStowe.add(WanguageConfiguwationWegistwy.wegista(mode1, {
+			bwackets: [
 				['{', '}'], ['[', ']'], ['(', ')'],
-				['begin', 'end'], ['case', 'endcase'], ['casez', 'endcase'],					// Verilog
-				['\\left(', '\\right)'], ['\\left(', '\\right.'], ['\\left.', '\\right)'],		// LaTeX Parentheses
-				['\\left[', '\\right]'], ['\\left[', '\\right.'], ['\\left.', '\\right]']		// LaTeX Brackets
+				['begin', 'end'], ['case', 'endcase'], ['casez', 'endcase'],					// Vewiwog
+				['\\weft(', '\\wight)'], ['\\weft(', '\\wight.'], ['\\weft.', '\\wight)'],		// WaTeX Pawentheses
+				['\\weft[', '\\wight]'], ['\\weft[', '\\wight.'], ['\\weft.', '\\wight]']		// WaTeX Bwackets
 			]
 		}));
 
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider);
-		const bracketsExpected = [
-			{ text: '{', length: 1, kind: 'OpeningBracket', bracketId: getKey('{'), bracketIds: getImmutableSet(['{']) },
-			{ text: '[', length: 1, kind: 'OpeningBracket', bracketId: getKey('['), bracketIds: getImmutableSet(['[']) },
-			{ text: '(', length: 1, kind: 'OpeningBracket', bracketId: getKey('('), bracketIds: getImmutableSet(['(']) },
-			{ text: 'begin', length: 5, kind: 'OpeningBracket', bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']) },
-			{ text: 'case', length: 4, kind: 'OpeningBracket', bracketId: getKey('case'), bracketIds: getImmutableSet(['case']) },
-			{ text: 'casez', length: 5, kind: 'OpeningBracket', bracketId: getKey('casez'), bracketIds: getImmutableSet(['casez']) },
-			{ text: '\\left(', length: 6, kind: 'OpeningBracket', bracketId: getKey('\\left('), bracketIds: getImmutableSet(['\\left(']) },
-			{ text: '\\left.', length: 6, kind: 'OpeningBracket', bracketId: getKey('\\left.'), bracketIds: getImmutableSet(['\\left.']) },
-			{ text: '\\left[', length: 6, kind: 'OpeningBracket', bracketId: getKey('\\left['), bracketIds: getImmutableSet(['\\left[']) },
+		const bwackets = new WanguageAgnosticBwacketTokens(denseKeyPwovida);
+		const bwacketsExpected = [
+			{ text: '{', wength: 1, kind: 'OpeningBwacket', bwacketId: getKey('{'), bwacketIds: getImmutabweSet(['{']) },
+			{ text: '[', wength: 1, kind: 'OpeningBwacket', bwacketId: getKey('['), bwacketIds: getImmutabweSet(['[']) },
+			{ text: '(', wength: 1, kind: 'OpeningBwacket', bwacketId: getKey('('), bwacketIds: getImmutabweSet(['(']) },
+			{ text: 'begin', wength: 5, kind: 'OpeningBwacket', bwacketId: getKey('begin'), bwacketIds: getImmutabweSet(['begin']) },
+			{ text: 'case', wength: 4, kind: 'OpeningBwacket', bwacketId: getKey('case'), bwacketIds: getImmutabweSet(['case']) },
+			{ text: 'casez', wength: 5, kind: 'OpeningBwacket', bwacketId: getKey('casez'), bwacketIds: getImmutabweSet(['casez']) },
+			{ text: '\\weft(', wength: 6, kind: 'OpeningBwacket', bwacketId: getKey('\\weft('), bwacketIds: getImmutabweSet(['\\weft(']) },
+			{ text: '\\weft.', wength: 6, kind: 'OpeningBwacket', bwacketId: getKey('\\weft.'), bwacketIds: getImmutabweSet(['\\weft.']) },
+			{ text: '\\weft[', wength: 6, kind: 'OpeningBwacket', bwacketId: getKey('\\weft['), bwacketIds: getImmutabweSet(['\\weft[']) },
 
-			{ text: '}', length: 1, kind: 'ClosingBracket', bracketId: getKey('{'), bracketIds: getImmutableSet(['{']) },
-			{ text: ']', length: 1, kind: 'ClosingBracket', bracketId: getKey('['), bracketIds: getImmutableSet(['[']) },
-			{ text: ')', length: 1, kind: 'ClosingBracket', bracketId: getKey('('), bracketIds: getImmutableSet(['(']) },
-			{ text: 'end', length: 3, kind: 'ClosingBracket', bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']) },
-			{ text: 'endcase', length: 7, kind: 'ClosingBracket', bracketId: getKey('case'), bracketIds: getImmutableSet(['case', 'casez']) },
-			{ text: '\\right)', length: 7, kind: 'ClosingBracket', bracketId: getKey('\\left('), bracketIds: getImmutableSet(['\\left(', '\\left.']) },
-			{ text: '\\right.', length: 7, kind: 'ClosingBracket', bracketId: getKey('\\left('), bracketIds: getImmutableSet(['\\left(', '\\left[']) },
-			{ text: '\\right]', length: 7, kind: 'ClosingBracket', bracketId: getKey('\\left['), bracketIds: getImmutableSet(['\\left[', '\\left.']) }
+			{ text: '}', wength: 1, kind: 'CwosingBwacket', bwacketId: getKey('{'), bwacketIds: getImmutabweSet(['{']) },
+			{ text: ']', wength: 1, kind: 'CwosingBwacket', bwacketId: getKey('['), bwacketIds: getImmutabweSet(['[']) },
+			{ text: ')', wength: 1, kind: 'CwosingBwacket', bwacketId: getKey('('), bwacketIds: getImmutabweSet(['(']) },
+			{ text: 'end', wength: 3, kind: 'CwosingBwacket', bwacketId: getKey('begin'), bwacketIds: getImmutabweSet(['begin']) },
+			{ text: 'endcase', wength: 7, kind: 'CwosingBwacket', bwacketId: getKey('case'), bwacketIds: getImmutabweSet(['case', 'casez']) },
+			{ text: '\\wight)', wength: 7, kind: 'CwosingBwacket', bwacketId: getKey('\\weft('), bwacketIds: getImmutabweSet(['\\weft(', '\\weft.']) },
+			{ text: '\\wight.', wength: 7, kind: 'CwosingBwacket', bwacketId: getKey('\\weft('), bwacketIds: getImmutabweSet(['\\weft(', '\\weft[']) },
+			{ text: '\\wight]', wength: 7, kind: 'CwosingBwacket', bwacketId: getKey('\\weft['), bwacketIds: getImmutabweSet(['\\weft[', '\\weft.']) }
 		];
-		const bracketsActual = bracketsExpected.map(x => tokenToObject(brackets.getToken(x.text, 3), x.text));
+		const bwacketsActuaw = bwacketsExpected.map(x => tokenToObject(bwackets.getToken(x.text, 3), x.text));
 
-		assert.deepStrictEqual(bracketsActual, bracketsExpected);
+		assewt.deepStwictEquaw(bwacketsActuaw, bwacketsExpected);
 
-		disposableStore.dispose();
+		disposabweStowe.dispose();
 	});
 });
 
-function tokenToObject(token: Token | undefined, text: string): any {
+function tokenToObject(token: Token | undefined, text: stwing): any {
 	if (token === undefined) {
-		return undefined;
+		wetuwn undefined;
 	}
-	return {
+	wetuwn {
 		text: text,
-		length: token.length,
-		bracketId: token.bracketId,
-		bracketIds: token.bracketIds,
+		wength: token.wength,
+		bwacketId: token.bwacketId,
+		bwacketIds: token.bwacketIds,
 		kind: {
-			[TokenKind.ClosingBracket]: 'ClosingBracket',
-			[TokenKind.OpeningBracket]: 'OpeningBracket',
+			[TokenKind.CwosingBwacket]: 'CwosingBwacket',
+			[TokenKind.OpeningBwacket]: 'OpeningBwacket',
 			[TokenKind.Text]: 'Text',
 		}[token.kind],
 	};

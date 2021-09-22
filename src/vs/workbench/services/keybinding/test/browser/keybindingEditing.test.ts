@@ -1,318 +1,318 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as json from 'vs/base/common/json';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { OS } from 'vs/base/common/platform';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService, TestDecorationsService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { WorkingCopyFileService, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { joinPath } from 'vs/base/common/resources';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+impowt * as assewt fwom 'assewt';
+impowt * as json fwom 'vs/base/common/json';
+impowt { ChowdKeybinding, KeyCode, SimpweKeybinding } fwom 'vs/base/common/keyCodes';
+impowt { OS } fwom 'vs/base/common/pwatfowm';
+impowt { IModeSewvice } fwom 'vs/editow/common/sewvices/modeSewvice';
+impowt { ModeSewviceImpw } fwom 'vs/editow/common/sewvices/modeSewviceImpw';
+impowt { IModewSewvice } fwom 'vs/editow/common/sewvices/modewSewvice';
+impowt { ModewSewviceImpw } fwom 'vs/editow/common/sewvices/modewSewviceImpw';
+impowt { ITextModewSewvice } fwom 'vs/editow/common/sewvices/wesowvewSewvice';
+impowt { ITextWesouwcePwopewtiesSewvice } fwom 'vs/editow/common/sewvices/textWesouwceConfiguwationSewvice';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { ContextKeyExpw, IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IEnviwonmentSewvice } fwom 'vs/pwatfowm/enviwonment/common/enviwonment';
+impowt { IFiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiwes';
+impowt { TestInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/test/common/instantiationSewviceMock';
+impowt { IUsewFwiendwyKeybinding } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { WesowvedKeybindingItem } fwom 'vs/pwatfowm/keybinding/common/wesowvedKeybindingItem';
+impowt { USWayoutWesowvedKeybinding } fwom 'vs/pwatfowm/keybinding/common/usWayoutWesowvedKeybinding';
+impowt { MockContextKeySewvice } fwom 'vs/pwatfowm/keybinding/test/common/mockKeybindingSewvice';
+impowt { IWifecycweSewvice } fwom 'vs/wowkbench/sewvices/wifecycwe/common/wifecycwe';
+impowt { IWogSewvice, NuwwWogSewvice } fwom 'vs/pwatfowm/wog/common/wog';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { NuwwTewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwyUtiws';
+impowt { IWowkspaceContextSewvice } fwom 'vs/pwatfowm/wowkspace/common/wowkspace';
+impowt { IWowkingCopyBackupSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyBackup';
+impowt { IEditowSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowSewvice';
+impowt { IEditowGwoupsSewvice } fwom 'vs/wowkbench/sewvices/editow/common/editowGwoupsSewvice';
+impowt { KeybindingsEditingSewvice } fwom 'vs/wowkbench/sewvices/keybinding/common/keybindingEditing';
+impowt { ITextFiweSewvice } fwom 'vs/wowkbench/sewvices/textfiwe/common/textfiwes';
+impowt { TextModewWesowvewSewvice } fwom 'vs/wowkbench/sewvices/textmodewWesowva/common/textModewWesowvewSewvice';
+impowt { TestWowkingCopyBackupSewvice, TestEditowGwoupsSewvice, TestEditowSewvice, TestEnviwonmentSewvice, TestWifecycweSewvice, TestPathSewvice, TestTextFiweSewvice, TestDecowationsSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { FiweSewvice } fwom 'vs/pwatfowm/fiwes/common/fiweSewvice';
+impowt { Schemas } fwom 'vs/base/common/netwowk';
+impowt { UWI } fwom 'vs/base/common/uwi';
+impowt { FiweUsewDataPwovida } fwom 'vs/wowkbench/sewvices/usewData/common/fiweUsewDataPwovida';
+impowt { TestConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/test/common/testConfiguwationSewvice';
+impowt { IWowkingCopySewvice, WowkingCopySewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopySewvice';
+impowt { IWabewSewvice } fwom 'vs/pwatfowm/wabew/common/wabew';
+impowt { WabewSewvice } fwom 'vs/wowkbench/sewvices/wabew/common/wabewSewvice';
+impowt { IFiwesConfiguwationSewvice, FiwesConfiguwationSewvice } fwom 'vs/wowkbench/sewvices/fiwesConfiguwation/common/fiwesConfiguwationSewvice';
+impowt { WowkingCopyFiweSewvice, IWowkingCopyFiweSewvice } fwom 'vs/wowkbench/sewvices/wowkingCopy/common/wowkingCopyFiweSewvice';
+impowt { IUndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedo';
+impowt { UndoWedoSewvice } fwom 'vs/pwatfowm/undoWedo/common/undoWedoSewvice';
+impowt { TestTextWesouwcePwopewtiesSewvice, TestContextSewvice } fwom 'vs/wowkbench/test/common/wowkbenchTestSewvices';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { TestThemeSewvice } fwom 'vs/pwatfowm/theme/test/common/testThemeSewvice';
+impowt { IPathSewvice } fwom 'vs/wowkbench/sewvices/path/common/pathSewvice';
+impowt { IUwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentity';
+impowt { UwiIdentitySewvice } fwom 'vs/wowkbench/sewvices/uwiIdentity/common/uwiIdentitySewvice';
+impowt { joinPath } fwom 'vs/base/common/wesouwces';
+impowt { InMemowyFiweSystemPwovida } fwom 'vs/pwatfowm/fiwes/common/inMemowyFiwesystemPwovida';
+impowt { DisposabweStowe } fwom 'vs/base/common/wifecycwe';
+impowt { VSBuffa } fwom 'vs/base/common/buffa';
+impowt { IWowkbenchEnviwonmentSewvice } fwom 'vs/wowkbench/sewvices/enviwonment/common/enviwonmentSewvice';
+impowt { IDecowationsSewvice } fwom 'vs/wowkbench/sewvices/decowations/common/decowations';
 
-interface Modifiers {
-	metaKey?: boolean;
-	ctrlKey?: boolean;
-	altKey?: boolean;
-	shiftKey?: boolean;
+intewface Modifiews {
+	metaKey?: boowean;
+	ctwwKey?: boowean;
+	awtKey?: boowean;
+	shiftKey?: boowean;
 }
 
-const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+const WOOT = UWI.fiwe('tests').with({ scheme: 'vscode-tests' });
 
 suite('KeybindingsEditing', () => {
 
-	const disposables = new DisposableStore();
-	let instantiationService: TestInstantiationService, fileService: IFileService, environmentService: IEnvironmentService;
-	let testObject: KeybindingsEditingService;
+	const disposabwes = new DisposabweStowe();
+	wet instantiationSewvice: TestInstantiationSewvice, fiweSewvice: IFiweSewvice, enviwonmentSewvice: IEnviwonmentSewvice;
+	wet testObject: KeybindingsEditingSewvice;
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+		const wogSewvice = new NuwwWogSewvice();
+		fiweSewvice = disposabwes.add(new FiweSewvice(wogSewvice));
+		const fiweSystemPwovida = disposabwes.add(new InMemowyFiweSystemPwovida());
+		disposabwes.add(fiweSewvice.wegistewPwovida(WOOT.scheme, fiweSystemPwovida));
 
-		const userFolder = joinPath(ROOT, 'User');
-		await fileService.createFolder(userFolder);
-		environmentService = TestEnvironmentService;
+		const usewFowda = joinPath(WOOT, 'Usa');
+		await fiweSewvice.cweateFowda(usewFowda);
+		enviwonmentSewvice = TestEnviwonmentSewvice;
 
-		instantiationService = new TestInstantiationService();
+		instantiationSewvice = new TestInstantiationSewvice();
 
-		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('files', { 'eol': '\n' });
+		const configSewvice = new TestConfiguwationSewvice();
+		configSewvice.setUsewConfiguwation('fiwes', { 'eow': '\n' });
 
-		instantiationService.stub(IEnvironmentService, environmentService);
-		instantiationService.stub(IDecorationsService, TestDecorationsService);
-		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
-		instantiationService.stub(IPathService, new TestPathService());
-		instantiationService.stub(IConfigurationService, configService);
-		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycleService = new TestLifecycleService();
-		instantiationService.stub(ILifecycleService, lifecycleService);
-		instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
-		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
-		instantiationService.stub(IEditorService, new TestEditorService());
-		instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModeService, ModeServiceImpl);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ILabelService, disposables.add(instantiationService.createInstance(LabelService)));
-		instantiationService.stub(IFilesConfigurationService, disposables.add(instantiationService.createInstance(FilesConfigurationService)));
-		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
-		instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
-		instantiationService.stub(IThemeService, new TestThemeService());
-		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelServiceImpl)));
-		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-		instantiationService.stub(IWorkingCopyFileService, disposables.add(instantiationService.createInstance(WorkingCopyFileService)));
-		instantiationService.stub(ITextFileService, disposables.add(instantiationService.createInstance(TestTextFileService)));
-		instantiationService.stub(ITextModelService, disposables.add(instantiationService.createInstance(TextModelResolverService)));
-		instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
+		instantiationSewvice.stub(IEnviwonmentSewvice, enviwonmentSewvice);
+		instantiationSewvice.stub(IDecowationsSewvice, TestDecowationsSewvice);
+		instantiationSewvice.stub(IWowkbenchEnviwonmentSewvice, enviwonmentSewvice);
+		instantiationSewvice.stub(IPathSewvice, new TestPathSewvice());
+		instantiationSewvice.stub(IConfiguwationSewvice, configSewvice);
+		instantiationSewvice.stub(IWowkspaceContextSewvice, new TestContextSewvice());
+		const wifecycweSewvice = new TestWifecycweSewvice();
+		instantiationSewvice.stub(IWifecycweSewvice, wifecycweSewvice);
+		instantiationSewvice.stub(IContextKeySewvice, <IContextKeySewvice>instantiationSewvice.cweateInstance(MockContextKeySewvice));
+		instantiationSewvice.stub(IEditowGwoupsSewvice, new TestEditowGwoupsSewvice());
+		instantiationSewvice.stub(IEditowSewvice, new TestEditowSewvice());
+		instantiationSewvice.stub(IWowkingCopySewvice, disposabwes.add(new WowkingCopySewvice()));
+		instantiationSewvice.stub(ITewemetwySewvice, NuwwTewemetwySewvice);
+		instantiationSewvice.stub(IModeSewvice, ModeSewviceImpw);
+		instantiationSewvice.stub(IWogSewvice, new NuwwWogSewvice());
+		instantiationSewvice.stub(IWabewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(WabewSewvice)));
+		instantiationSewvice.stub(IFiwesConfiguwationSewvice, disposabwes.add(instantiationSewvice.cweateInstance(FiwesConfiguwationSewvice)));
+		instantiationSewvice.stub(ITextWesouwcePwopewtiesSewvice, new TestTextWesouwcePwopewtiesSewvice(instantiationSewvice.get(IConfiguwationSewvice)));
+		instantiationSewvice.stub(IUndoWedoSewvice, instantiationSewvice.cweateInstance(UndoWedoSewvice));
+		instantiationSewvice.stub(IThemeSewvice, new TestThemeSewvice());
+		instantiationSewvice.stub(IModewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(ModewSewviceImpw)));
+		fiweSewvice.wegistewPwovida(Schemas.usewData, disposabwes.add(new FiweUsewDataPwovida(WOOT.scheme, fiweSystemPwovida, Schemas.usewData, new NuwwWogSewvice())));
+		instantiationSewvice.stub(IFiweSewvice, fiweSewvice);
+		instantiationSewvice.stub(IUwiIdentitySewvice, new UwiIdentitySewvice(fiweSewvice));
+		instantiationSewvice.stub(IWowkingCopyFiweSewvice, disposabwes.add(instantiationSewvice.cweateInstance(WowkingCopyFiweSewvice)));
+		instantiationSewvice.stub(ITextFiweSewvice, disposabwes.add(instantiationSewvice.cweateInstance(TestTextFiweSewvice)));
+		instantiationSewvice.stub(ITextModewSewvice, disposabwes.add(instantiationSewvice.cweateInstance(TextModewWesowvewSewvice)));
+		instantiationSewvice.stub(IWowkingCopyBackupSewvice, new TestWowkingCopyBackupSewvice());
 
-		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
+		testObject = disposabwes.add(instantiationSewvice.cweateInstance(KeybindingsEditingSewvice));
 
 	});
 
-	teardown(() => disposables.clear());
+	teawdown(() => disposabwes.cweaw());
 
-	test('errors cases - parse errors', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
-		try {
-			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
-			assert.fail('Should fail with parse errors');
-		} catch (error) {
-			assert.strictEqual(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.');
+	test('ewwows cases - pawse ewwows', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(',,,,,,,,,,,,,,'));
+		twy {
+			await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape } }), 'awt+c', undefined);
+			assewt.faiw('Shouwd faiw with pawse ewwows');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.message, 'Unabwe to wwite to the keybindings configuwation fiwe. Pwease open it to cowwect ewwows/wawnings in the fiwe and twy again.');
 		}
 	});
 
-	test('errors cases - parse errors 2', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString('[{"key": }]'));
-		try {
-			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
-			assert.fail('Should fail with parse errors');
-		} catch (error) {
-			assert.strictEqual(error.message, 'Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.');
+	test('ewwows cases - pawse ewwows 2', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing('[{"key": }]'));
+		twy {
+			await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape } }), 'awt+c', undefined);
+			assewt.faiw('Shouwd faiw with pawse ewwows');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.message, 'Unabwe to wwite to the keybindings configuwation fiwe. Pwease open it to cowwect ewwows/wawnings in the fiwe and twy again.');
 		}
 	});
 
-	test('errors cases - dirty', () => {
-		instantiationService.stub(ITextFileService, 'isDirty', true);
-		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
-			.then(() => assert.fail('Should fail with dirty error'),
-				error => assert.strictEqual(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
+	test('ewwows cases - diwty', () => {
+		instantiationSewvice.stub(ITextFiweSewvice, 'isDiwty', twue);
+		wetuwn testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape } }), 'awt+c', undefined)
+			.then(() => assewt.faiw('Shouwd faiw with diwty ewwow'),
+				ewwow => assewt.stwictEquaw(ewwow.message, 'Unabwe to wwite because the keybindings configuwation fiwe is diwty. Pwease save it fiwst and then twy again.'));
 	});
 
-	test('errors cases - did not find an array', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString('{"key": "alt+c", "command": "hello"}'));
-		try {
-			await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined);
-			assert.fail('Should fail');
-		} catch (error) {
-			assert.strictEqual(error.message, 'Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.');
+	test('ewwows cases - did not find an awway', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing('{"key": "awt+c", "command": "hewwo"}'));
+		twy {
+			await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape } }), 'awt+c', undefined);
+			assewt.faiw('Shouwd faiw');
+		} catch (ewwow) {
+			assewt.stwictEquaw(ewwow.message, 'Unabwe to wwite to the keybindings configuwation fiwe. It has an object which is not of type Awway. Pwease open the fiwe to cwean up and twy again.');
 		}
 	});
 
-	test('edit a default keybinding to an empty file', async () => {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(''));
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('edit a defauwt keybinding to an empty fiwe', async () => {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(''));
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'a' }), 'awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('edit a default keybinding to an empty array', async () => {
-		await writeToKeybindingsFile();
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined);
-		return assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('edit a defauwt keybinding to an empty awway', async () => {
+		await wwiteToKeybindingsFiwe();
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'a' }), 'awt+c', undefined);
+		wetuwn assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('edit a default keybinding in an existing array', async () => {
-		await writeToKeybindingsFile({ command: 'b', key: 'shift+c' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'shift+c', command: 'b' }, { key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined);
-		return assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('edit a defauwt keybinding in an existing awway', async () => {
+		await wwiteToKeybindingsFiwe({ command: 'b', key: 'shift+c' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'shift+c', command: 'b' }, { key: 'awt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'a' }), 'awt+c', undefined);
+		wetuwn assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('add another keybinding', async () => {
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
-		await testObject.addKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'a' }), 'alt+c', undefined);
-		return assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('add anotha keybinding', async () => {
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'a' }];
+		await testObject.addKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'a' }), 'awt+c', undefined);
+		wetuwn assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('add a new default keybinding', async () => {
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
-		await testObject.addKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined);
-		return assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('add a new defauwt keybinding', async () => {
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'a' }];
+		await testObject.addKeybinding(aWesowvedKeybindingItem({ command: 'a' }), 'awt+c', undefined);
+		wetuwn assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('add a new default keybinding using edit', async () => {
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('add a new defauwt keybinding using edit', async () => {
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a' }), 'awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('edit an user keybinding', async () => {
-		await writeToKeybindingsFile({ key: 'escape', command: 'b' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('edit an usa keybinding', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'escape', command: 'b' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'b' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'b', isDefauwt: fawse }), 'awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('edit an user keybinding with more than one element', async () => {
-		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('edit an usa keybinding with mowe than one ewement', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'escape', command: 'b' }, { key: 'awt+shift+g', command: 'c' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: 'b' }, { key: 'awt+shift+g', command: 'c' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ fiwstPawt: { keyCode: KeyCode.Escape }, command: 'b', isDefauwt: fawse }), 'awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('remove a default keybinding', async () => {
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('wemove a defauwt keybinding', async () => {
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a' }];
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('remove a default keybinding should not ad duplicate entries', async () => {
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('wemove a defauwt keybinding shouwd not ad dupwicate entwies', async () => {
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a' }];
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'a', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } } }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('remove a user keybinding', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } }, isDefault: false }));
-		assert.deepStrictEqual(await getUserKeybindings(), []);
+	test('wemove a usa keybinding', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: 'b' });
+		await testObject.wemoveKeybinding(aWesowvedKeybindingItem({ command: 'b', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } }, isDefauwt: fawse }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), []);
 	});
 
-	test('reset an edited keybinding', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
-		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } }, isDefault: false }));
-		assert.deepStrictEqual(await getUserKeybindings(), []);
+	test('weset an edited keybinding', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: 'b' });
+		await testObject.wesetKeybinding(aWesowvedKeybindingItem({ command: 'b', fiwstPawt: { keyCode: KeyCode.KEY_C, modifiews: { awtKey: twue } }, isDefauwt: fawse }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), []);
 	});
 
-	test('reset a removed keybinding', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
-		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }));
-		assert.deepStrictEqual(await getUserKeybindings(), []);
+	test('weset a wemoved keybinding', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-b' });
+		await testObject.wesetKeybinding(aWesowvedKeybindingItem({ command: 'b', isDefauwt: fawse }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), []);
 	});
 
-	test('reset multiple removed keybindings', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
-		await writeToKeybindingsFile({ key: 'alt+shift+c', command: '-b' });
-		await writeToKeybindingsFile({ key: 'escape', command: '-b' });
-		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }));
-		assert.deepStrictEqual(await getUserKeybindings(), []);
+	test('weset muwtipwe wemoved keybindings', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-b' });
+		await wwiteToKeybindingsFiwe({ key: 'awt+shift+c', command: '-b' });
+		await wwiteToKeybindingsFiwe({ key: 'escape', command: '-b' });
+		await testObject.wesetKeybinding(aWesowvedKeybindingItem({ command: 'b', isDefauwt: fawse }));
+		assewt.deepStwictEquaw(await getUsewKeybindings(), []);
 	});
 
 	test('add a new keybinding to unassigned keybinding', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-a' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a' }, { key: 'shift+awt+c', command: 'a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a', isDefauwt: fawse }), 'shift+awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('add when expression', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', 'editorTextFocus');
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('add when expwession', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-a' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a' }, { key: 'shift+awt+c', command: 'a', when: 'editowTextFocus' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a', isDefauwt: fawse }), 'shift+awt+c', 'editowTextFocus');
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('update command and when expression', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', 'editorTextFocus');
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('update command and when expwession', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }, { key: 'shift+awt+c', command: 'a', when: 'editowTextFocus' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a', isDefauwt: fawse }), 'shift+awt+c', 'editowTextFocus');
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('update when expression', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a', when: 'editorTextFocus' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false, when: 'editorTextFocus && !editorReadonly' }), 'shift+alt+c', 'editorTextFocus');
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('update when expwession', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }, { key: 'shift+awt+c', command: 'a', when: 'editowTextFocus && !editowWeadonwy' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }, { key: 'shift+awt+c', command: 'a', when: 'editowTextFocus' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a', isDefauwt: fawse, when: 'editowTextFocus && !editowWeadonwy' }), 'shift+awt+c', 'editowTextFocus');
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	test('remove when expression', async () => {
-		await writeToKeybindingsFile({ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' });
-		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a', when: 'editorTextFocus && !editorReadonly' }, { key: 'shift+alt+c', command: 'a' }];
-		await testObject.editKeybinding(aResolvedKeybindingItem({ command: 'a', isDefault: false }), 'shift+alt+c', undefined);
-		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	test('wemove when expwession', async () => {
+		await wwiteToKeybindingsFiwe({ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' });
+		const expected: IUsewFwiendwyKeybinding[] = [{ key: 'awt+c', command: '-a', when: 'editowTextFocus && !editowWeadonwy' }, { key: 'shift+awt+c', command: 'a' }];
+		await testObject.editKeybinding(aWesowvedKeybindingItem({ command: 'a', isDefauwt: fawse }), 'shift+awt+c', undefined);
+		assewt.deepStwictEquaw(await getUsewKeybindings(), expected);
 	});
 
-	async function writeToKeybindingsFile(...keybindings: IUserFriendlyKeybinding[]): Promise<void> {
-		await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify(keybindings || [])));
+	async function wwiteToKeybindingsFiwe(...keybindings: IUsewFwiendwyKeybinding[]): Pwomise<void> {
+		await fiweSewvice.wwiteFiwe(enviwonmentSewvice.keybindingsWesouwce, VSBuffa.fwomStwing(JSON.stwingify(keybindings || [])));
 	}
 
-	async function getUserKeybindings(): Promise<IUserFriendlyKeybinding[]> {
-		return json.parse((await fileService.readFile(environmentService.keybindingsResource)).value.toString());
+	async function getUsewKeybindings(): Pwomise<IUsewFwiendwyKeybinding[]> {
+		wetuwn json.pawse((await fiweSewvice.weadFiwe(enviwonmentSewvice.keybindingsWesouwce)).vawue.toStwing());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string, when?: string, isDefault?: boolean, firstPart?: { keyCode: KeyCode, modifiers?: Modifiers }, chordPart?: { keyCode: KeyCode, modifiers?: Modifiers } }): ResolvedKeybindingItem {
-		const aSimpleKeybinding = function (part: { keyCode: KeyCode, modifiers?: Modifiers }): SimpleKeybinding {
-			const { ctrlKey, shiftKey, altKey, metaKey } = part.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
-			return new SimpleKeybinding(ctrlKey!, shiftKey!, altKey!, metaKey!, part.keyCode);
+	function aWesowvedKeybindingItem({ command, when, isDefauwt, fiwstPawt, chowdPawt }: { command?: stwing, when?: stwing, isDefauwt?: boowean, fiwstPawt?: { keyCode: KeyCode, modifiews?: Modifiews }, chowdPawt?: { keyCode: KeyCode, modifiews?: Modifiews } }): WesowvedKeybindingItem {
+		const aSimpweKeybinding = function (pawt: { keyCode: KeyCode, modifiews?: Modifiews }): SimpweKeybinding {
+			const { ctwwKey, shiftKey, awtKey, metaKey } = pawt.modifiews || { ctwwKey: fawse, shiftKey: fawse, awtKey: fawse, metaKey: fawse };
+			wetuwn new SimpweKeybinding(ctwwKey!, shiftKey!, awtKey!, metaKey!, pawt.keyCode);
 		};
-		let parts: SimpleKeybinding[] = [];
-		if (firstPart) {
-			parts.push(aSimpleKeybinding(firstPart));
-			if (chordPart) {
-				parts.push(aSimpleKeybinding(chordPart));
+		wet pawts: SimpweKeybinding[] = [];
+		if (fiwstPawt) {
+			pawts.push(aSimpweKeybinding(fiwstPawt));
+			if (chowdPawt) {
+				pawts.push(aSimpweKeybinding(chowdPawt));
 			}
 		}
-		const keybinding = parts.length > 0 ? new USLayoutResolvedKeybinding(new ChordKeybinding(parts), OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		const keybinding = pawts.wength > 0 ? new USWayoutWesowvedKeybinding(new ChowdKeybinding(pawts), OS) : undefined;
+		wetuwn new WesowvedKeybindingItem(keybinding, command || 'some command', nuww, when ? ContextKeyExpw.desewiawize(when) : undefined, isDefauwt === undefined ? twue : isDefauwt, nuww, fawse);
 	}
 
 });

@@ -1,219 +1,219 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { OutlinePane } from './outlinePane';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { VIEW_CONTAINER } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+impowt { wocawize } fwom 'vs/nws';
+impowt { IViewsWegistwy, IViewDescwiptow, Extensions as ViewExtensions } fwom 'vs/wowkbench/common/views';
+impowt { OutwinePane } fwom './outwinePane';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IConfiguwationWegistwy, Extensions as ConfiguwationExtensions, ConfiguwationScope } fwom 'vs/pwatfowm/configuwation/common/configuwationWegistwy';
+impowt { VIEW_CONTAINa } fwom 'vs/wowkbench/contwib/fiwes/bwowsa/expwowewViewwet';
+impowt { SyncDescwiptow } fwom 'vs/pwatfowm/instantiation/common/descwiptows';
+impowt { Codicon } fwom 'vs/base/common/codicons';
+impowt { wegistewIcon } fwom 'vs/pwatfowm/theme/common/iconWegistwy';
+impowt { OutwineConfigKeys } fwom 'vs/wowkbench/sewvices/outwine/bwowsa/outwine';
 
 
-const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, localize('outlineViewIcon', 'View icon of the outline view.'));
+const outwineViewIcon = wegistewIcon('outwine-view-icon', Codicon.symbowCwass, wocawize('outwineViewIcon', 'View icon of the outwine view.'));
 
-const _outlineDesc = <IViewDescriptor>{
-	id: OutlinePane.Id,
-	name: localize('name', "Outline"),
-	containerIcon: outlineViewIcon,
-	ctorDescriptor: new SyncDescriptor(OutlinePane),
-	canToggleVisibility: true,
-	canMoveView: true,
-	hideByDefault: false,
-	collapsed: true,
-	order: 2,
+const _outwineDesc = <IViewDescwiptow>{
+	id: OutwinePane.Id,
+	name: wocawize('name', "Outwine"),
+	containewIcon: outwineViewIcon,
+	ctowDescwiptow: new SyncDescwiptow(OutwinePane),
+	canToggweVisibiwity: twue,
+	canMoveView: twue,
+	hideByDefauwt: fawse,
+	cowwapsed: twue,
+	owda: 2,
 	weight: 30,
-	focusCommand: { id: 'outline.focus' }
+	focusCommand: { id: 'outwine.focus' }
 };
 
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([_outlineDesc], VIEW_CONTAINER);
+Wegistwy.as<IViewsWegistwy>(ViewExtensions.ViewsWegistwy).wegistewViews([_outwineDesc], VIEW_CONTAINa);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'id': 'outline',
-	'order': 117,
-	'title': localize('outlineConfigurationTitle', "Outline"),
+Wegistwy.as<IConfiguwationWegistwy>(ConfiguwationExtensions.Configuwation).wegistewConfiguwation({
+	'id': 'outwine',
+	'owda': 117,
+	'titwe': wocawize('outwineConfiguwationTitwe', "Outwine"),
 	'type': 'object',
-	'properties': {
-		[OutlineConfigKeys.icons]: {
-			'description': localize('outline.showIcons', "Render Outline Elements with Icons."),
-			'type': 'boolean',
-			'default': true
+	'pwopewties': {
+		[OutwineConfigKeys.icons]: {
+			'descwiption': wocawize('outwine.showIcons', "Wenda Outwine Ewements with Icons."),
+			'type': 'boowean',
+			'defauwt': twue
 		},
-		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
-			'type': 'boolean',
-			'default': true
+		[OutwineConfigKeys.pwobwemsEnabwed]: {
+			'descwiption': wocawize('outwine.showPwobwem', "Show Ewwows & Wawnings on Outwine Ewements."),
+			'type': 'boowean',
+			'defauwt': twue
 		},
-		[OutlineConfigKeys.problemsColors]: {
-			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
-			'type': 'boolean',
-			'default': true
+		[OutwineConfigKeys.pwobwemsCowows]: {
+			'descwiption': wocawize('outwine.pwobwem.cowows', "Use cowows fow Ewwows & Wawnings."),
+			'type': 'boowean',
+			'defauwt': twue
 		},
-		[OutlineConfigKeys.problemsBadges]: {
-			'description': localize('outline.problems.badges', "Use badges for Errors & Warnings."),
-			'type': 'boolean',
-			'default': true
+		[OutwineConfigKeys.pwobwemsBadges]: {
+			'descwiption': wocawize('outwine.pwobwems.badges', "Use badges fow Ewwows & Wawnings."),
+			'type': 'boowean',
+			'defauwt': twue
 		},
-		'outline.showFiles': {
-			type: 'boolean',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			default: true,
-			markdownDescription: localize('filteredTypes.file', "When enabled outline shows `file`-symbols.")
+		'outwine.showFiwes': {
+			type: 'boowean',
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			defauwt: twue,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.fiwe', "When enabwed outwine shows `fiwe`-symbows.")
 		},
-		'outline.showModules': {
-			type: 'boolean',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			default: true,
-			markdownDescription: localize('filteredTypes.module', "When enabled outline shows `module`-symbols.")
+		'outwine.showModuwes': {
+			type: 'boowean',
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			defauwt: twue,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.moduwe', "When enabwed outwine shows `moduwe`-symbows.")
 		},
-		'outline.showNamespaces': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.namespace', "When enabled outline shows `namespace`-symbols.")
+		'outwine.showNamespaces': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.namespace', "When enabwed outwine shows `namespace`-symbows.")
 		},
-		'outline.showPackages': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.package', "When enabled outline shows `package`-symbols.")
+		'outwine.showPackages': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.package', "When enabwed outwine shows `package`-symbows.")
 		},
-		'outline.showClasses': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.class', "When enabled outline shows `class`-symbols.")
+		'outwine.showCwasses': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.cwass', "When enabwed outwine shows `cwass`-symbows.")
 		},
-		'outline.showMethods': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.method', "When enabled outline shows `method`-symbols.")
+		'outwine.showMethods': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.method', "When enabwed outwine shows `method`-symbows.")
 		},
-		'outline.showProperties': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.property', "When enabled outline shows `property`-symbols.")
+		'outwine.showPwopewties': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.pwopewty', "When enabwed outwine shows `pwopewty`-symbows.")
 		},
-		'outline.showFields': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.field', "When enabled outline shows `field`-symbols.")
+		'outwine.showFiewds': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.fiewd', "When enabwed outwine shows `fiewd`-symbows.")
 		},
-		'outline.showConstructors': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constructor', "When enabled outline shows `constructor`-symbols.")
+		'outwine.showConstwuctows': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.constwuctow', "When enabwed outwine shows `constwuctow`-symbows.")
 		},
-		'outline.showEnums': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enum', "When enabled outline shows `enum`-symbols.")
+		'outwine.showEnums': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.enum', "When enabwed outwine shows `enum`-symbows.")
 		},
-		'outline.showInterfaces': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.interface', "When enabled outline shows `interface`-symbols.")
+		'outwine.showIntewfaces': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.intewface', "When enabwed outwine shows `intewface`-symbows.")
 		},
-		'outline.showFunctions': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.function', "When enabled outline shows `function`-symbols.")
+		'outwine.showFunctions': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.function', "When enabwed outwine shows `function`-symbows.")
 		},
-		'outline.showVariables': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.variable', "When enabled outline shows `variable`-symbols.")
+		'outwine.showVawiabwes': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.vawiabwe', "When enabwed outwine shows `vawiabwe`-symbows.")
 		},
-		'outline.showConstants': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.constant', "When enabled outline shows `constant`-symbols.")
+		'outwine.showConstants': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.constant', "When enabwed outwine shows `constant`-symbows.")
 		},
-		'outline.showStrings': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.string', "When enabled outline shows `string`-symbols.")
+		'outwine.showStwings': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.stwing', "When enabwed outwine shows `stwing`-symbows.")
 		},
-		'outline.showNumbers': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.number', "When enabled outline shows `number`-symbols.")
+		'outwine.showNumbews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.numba', "When enabwed outwine shows `numba`-symbows.")
 		},
-		'outline.showBooleans': {
-			type: 'boolean',
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			default: true,
-			markdownDescription: localize('filteredTypes.boolean', "When enabled outline shows `boolean`-symbols.")
+		'outwine.showBooweans': {
+			type: 'boowean',
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			defauwt: twue,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.boowean', "When enabwed outwine shows `boowean`-symbows.")
 		},
-		'outline.showArrays': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.array', "When enabled outline shows `array`-symbols.")
+		'outwine.showAwways': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.awway', "When enabwed outwine shows `awway`-symbows.")
 		},
-		'outline.showObjects': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.object', "When enabled outline shows `object`-symbols.")
+		'outwine.showObjects': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.object', "When enabwed outwine shows `object`-symbows.")
 		},
-		'outline.showKeys': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.key', "When enabled outline shows `key`-symbols.")
+		'outwine.showKeys': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.key', "When enabwed outwine shows `key`-symbows.")
 		},
-		'outline.showNull': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.null', "When enabled outline shows `null`-symbols.")
+		'outwine.showNuww': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.nuww', "When enabwed outwine shows `nuww`-symbows.")
 		},
-		'outline.showEnumMembers': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.enumMember', "When enabled outline shows `enumMember`-symbols.")
+		'outwine.showEnumMembews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.enumMemba', "When enabwed outwine shows `enumMemba`-symbows.")
 		},
-		'outline.showStructs': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.struct', "When enabled outline shows `struct`-symbols.")
+		'outwine.showStwucts': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.stwuct', "When enabwed outwine shows `stwuct`-symbows.")
 		},
-		'outline.showEvents': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.event', "When enabled outline shows `event`-symbols.")
+		'outwine.showEvents': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.event', "When enabwed outwine shows `event`-symbows.")
 		},
-		'outline.showOperators': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.operator', "When enabled outline shows `operator`-symbols.")
+		'outwine.showOpewatows': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.opewatow', "When enabwed outwine shows `opewatow`-symbows.")
 		},
-		'outline.showTypeParameters': {
-			type: 'boolean',
-			default: true,
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			markdownDescription: localize('filteredTypes.typeParameter', "When enabled outline shows `typeParameter`-symbols.")
+		'outwine.showTypePawametews': {
+			type: 'boowean',
+			defauwt: twue,
+			scope: ConfiguwationScope.WANGUAGE_OVEWWIDABWE,
+			mawkdownDescwiption: wocawize('fiwtewedTypes.typePawameta', "When enabwed outwine shows `typePawameta`-symbows.")
 		}
 	}
 });

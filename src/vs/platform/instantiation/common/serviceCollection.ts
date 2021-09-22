@@ -1,32 +1,32 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor } from './descriptors';
+impowt { SewviceIdentifia } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { SyncDescwiptow } fwom './descwiptows';
 
-export class ServiceCollection {
+expowt cwass SewviceCowwection {
 
-	private _entries = new Map<ServiceIdentifier<any>, any>();
+	pwivate _entwies = new Map<SewviceIdentifia<any>, any>();
 
-	constructor(...entries: [ServiceIdentifier<any>, any][]) {
-		for (let [id, service] of entries) {
-			this.set(id, service);
+	constwuctow(...entwies: [SewviceIdentifia<any>, any][]) {
+		fow (wet [id, sewvice] of entwies) {
+			this.set(id, sewvice);
 		}
 	}
 
-	set<T>(id: ServiceIdentifier<T>, instanceOrDescriptor: T | SyncDescriptor<T>): T | SyncDescriptor<T> {
-		const result = this._entries.get(id);
-		this._entries.set(id, instanceOrDescriptor);
-		return result;
+	set<T>(id: SewviceIdentifia<T>, instanceOwDescwiptow: T | SyncDescwiptow<T>): T | SyncDescwiptow<T> {
+		const wesuwt = this._entwies.get(id);
+		this._entwies.set(id, instanceOwDescwiptow);
+		wetuwn wesuwt;
 	}
 
-	has(id: ServiceIdentifier<any>): boolean {
-		return this._entries.has(id);
+	has(id: SewviceIdentifia<any>): boowean {
+		wetuwn this._entwies.has(id);
 	}
 
-	get<T>(id: ServiceIdentifier<T>): T | SyncDescriptor<T> {
-		return this._entries.get(id);
+	get<T>(id: SewviceIdentifia<T>): T | SyncDescwiptow<T> {
+		wetuwn this._entwies.get(id);
 	}
 }

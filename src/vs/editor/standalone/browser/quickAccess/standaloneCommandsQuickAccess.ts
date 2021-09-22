@@ -1,76 +1,76 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
-import { QuickCommandNLS } from 'vs/editor/common/standaloneStrings';
-import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { QuickCommandNWS } fwom 'vs/editow/common/standawoneStwings';
+impowt { ICommandQuickPick } fwom 'vs/pwatfowm/quickinput/bwowsa/commandsQuickAccess';
+impowt { ICodeEditowSewvice } fwom 'vs/editow/bwowsa/sewvices/codeEditowSewvice';
+impowt { AbstwactEditowCommandsQuickAccessPwovida } fwom 'vs/editow/contwib/quickAccess/commandsQuickAccess';
+impowt { IEditow } fwom 'vs/editow/common/editowCommon';
+impowt { withNuwwAsUndefined } fwom 'vs/base/common/types';
+impowt { IInstantiationSewvice, SewvicesAccessow } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { ICommandSewvice } fwom 'vs/pwatfowm/commands/common/commands';
+impowt { ITewemetwySewvice } fwom 'vs/pwatfowm/tewemetwy/common/tewemetwy';
+impowt { IDiawogSewvice } fwom 'vs/pwatfowm/diawogs/common/diawogs';
+impowt { EditowAction, wegistewEditowAction } fwom 'vs/editow/bwowsa/editowExtensions';
+impowt { EditowContextKeys } fwom 'vs/editow/common/editowContextKeys';
+impowt { KeyCode } fwom 'vs/base/common/keyCodes';
+impowt { KeybindingWeight } fwom 'vs/pwatfowm/keybinding/common/keybindingsWegistwy';
+impowt { IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
 
-export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
+expowt cwass StandawoneCommandsQuickAccessPwovida extends AbstwactEditowCommandsQuickAccessPwovida {
 
-	protected get activeTextEditorControl(): IEditor | undefined { return withNullAsUndefined(this.codeEditorService.getFocusedCodeEditor()); }
+	pwotected get activeTextEditowContwow(): IEditow | undefined { wetuwn withNuwwAsUndefined(this.codeEditowSewvice.getFocusedCodeEditow()); }
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IDialogService dialogService: IDialogService
+	constwuctow(
+		@IInstantiationSewvice instantiationSewvice: IInstantiationSewvice,
+		@ICodeEditowSewvice pwivate weadonwy codeEditowSewvice: ICodeEditowSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice,
+		@ICommandSewvice commandSewvice: ICommandSewvice,
+		@ITewemetwySewvice tewemetwySewvice: ITewemetwySewvice,
+		@IDiawogSewvice diawogSewvice: IDiawogSewvice
 	) {
-		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+		supa({ showAwias: fawse }, instantiationSewvice, keybindingSewvice, commandSewvice, tewemetwySewvice, diawogSewvice);
 	}
 
-	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {
-		return this.getCodeEditorCommandPicks();
+	pwotected async getCommandPicks(): Pwomise<Awway<ICommandQuickPick>> {
+		wetuwn this.getCodeEditowCommandPicks();
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
-	ctor: StandaloneCommandsQuickAccessProvider,
-	prefix: StandaloneCommandsQuickAccessProvider.PREFIX,
-	helpEntries: [{ description: QuickCommandNLS.quickCommandHelp, needsEditor: true }]
+Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess).wegistewQuickAccessPwovida({
+	ctow: StandawoneCommandsQuickAccessPwovida,
+	pwefix: StandawoneCommandsQuickAccessPwovida.PWEFIX,
+	hewpEntwies: [{ descwiption: QuickCommandNWS.quickCommandHewp, needsEditow: twue }]
 });
 
-export class GotoLineAction extends EditorAction {
+expowt cwass GotoWineAction extends EditowAction {
 
-	constructor() {
-		super({
-			id: 'editor.action.quickCommand',
-			label: QuickCommandNLS.quickCommandActionLabel,
-			alias: 'Command Palette',
-			precondition: undefined,
+	constwuctow() {
+		supa({
+			id: 'editow.action.quickCommand',
+			wabew: QuickCommandNWS.quickCommandActionWabew,
+			awias: 'Command Pawette',
+			pwecondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F1,
-				weight: KeybindingWeight.EditorContrib
+				kbExpw: EditowContextKeys.focus,
+				pwimawy: KeyCode.F1,
+				weight: KeybindingWeight.EditowContwib
 			},
 			contextMenuOpts: {
-				group: 'z_commands',
-				order: 1
+				gwoup: 'z_commands',
+				owda: 1
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IQuickInputService).quickAccess.show(StandaloneCommandsQuickAccessProvider.PREFIX);
+	wun(accessow: SewvicesAccessow): void {
+		accessow.get(IQuickInputSewvice).quickAccess.show(StandawoneCommandsQuickAccessPwovida.PWEFIX);
 	}
 }
 
-registerEditorAction(GotoLineAction);
+wegistewEditowAction(GotoWineAction);

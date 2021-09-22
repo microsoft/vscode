@@ -1,331 +1,331 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickAccessRegistry, Extensions, IQuickAccessProvider, QuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IQuickPick, IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { timeout } from 'vs/base/common/async';
-import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+impowt * as assewt fwom 'assewt';
+impowt { Wegistwy } fwom 'vs/pwatfowm/wegistwy/common/pwatfowm';
+impowt { IQuickAccessWegistwy, Extensions, IQuickAccessPwovida, QuickAccessWegistwy } fwom 'vs/pwatfowm/quickinput/common/quickAccess';
+impowt { IQuickPick, IQuickPickItem, IQuickInputSewvice } fwom 'vs/pwatfowm/quickinput/common/quickInput';
+impowt { CancewwationToken } fwom 'vs/base/common/cancewwation';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { TestSewviceAccessow, wowkbenchInstantiationSewvice } fwom 'vs/wowkbench/test/bwowsa/wowkbenchTestSewvices';
+impowt { DisposabweStowe, toDisposabwe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { timeout } fwom 'vs/base/common/async';
+impowt { PickewQuickAccessPwovida, FastAndSwowPicks } fwom 'vs/pwatfowm/quickinput/bwowsa/pickewQuickAccess';
 
 suite('QuickAccess', () => {
 
-	let instantiationService: IInstantiationService;
-	let accessor: TestServiceAccessor;
+	wet instantiationSewvice: IInstantiationSewvice;
+	wet accessow: TestSewviceAccessow;
 
-	let providerDefaultCalled = false;
-	let providerDefaultCanceled = false;
-	let providerDefaultDisposed = false;
+	wet pwovidewDefauwtCawwed = fawse;
+	wet pwovidewDefauwtCancewed = fawse;
+	wet pwovidewDefauwtDisposed = fawse;
 
-	let provider1Called = false;
-	let provider1Canceled = false;
-	let provider1Disposed = false;
+	wet pwovidew1Cawwed = fawse;
+	wet pwovidew1Cancewed = fawse;
+	wet pwovidew1Disposed = fawse;
 
-	let provider2Called = false;
-	let provider2Canceled = false;
-	let provider2Disposed = false;
+	wet pwovidew2Cawwed = fawse;
+	wet pwovidew2Cancewed = fawse;
+	wet pwovidew2Disposed = fawse;
 
-	let provider3Called = false;
-	let provider3Canceled = false;
-	let provider3Disposed = false;
+	wet pwovidew3Cawwed = fawse;
+	wet pwovidew3Cancewed = fawse;
+	wet pwovidew3Disposed = fawse;
 
-	class TestProviderDefault implements IQuickAccessProvider {
+	cwass TestPwovidewDefauwt impwements IQuickAccessPwovida {
 
-		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService, disposables: DisposableStore) { }
+		constwuctow(@IQuickInputSewvice pwivate weadonwy quickInputSewvice: IQuickInputSewvice, disposabwes: DisposabweStowe) { }
 
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-			assert.ok(picker);
-			providerDefaultCalled = true;
-			token.onCancellationRequested(() => providerDefaultCanceled = true);
+		pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+			assewt.ok(picka);
+			pwovidewDefauwtCawwed = twue;
+			token.onCancewwationWequested(() => pwovidewDefauwtCancewed = twue);
 
-			// bring up provider #3
-			setTimeout(() => this.quickInputService.quickAccess.show(providerDescriptor3.prefix));
+			// bwing up pwovida #3
+			setTimeout(() => this.quickInputSewvice.quickAccess.show(pwovidewDescwiptow3.pwefix));
 
-			return toDisposable(() => providerDefaultDisposed = true);
+			wetuwn toDisposabwe(() => pwovidewDefauwtDisposed = twue);
 		}
 	}
 
-	class TestProvider1 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-			assert.ok(picker);
-			provider1Called = true;
-			token.onCancellationRequested(() => provider1Canceled = true);
+	cwass TestPwovidew1 impwements IQuickAccessPwovida {
+		pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+			assewt.ok(picka);
+			pwovidew1Cawwed = twue;
+			token.onCancewwationWequested(() => pwovidew1Cancewed = twue);
 
-			return toDisposable(() => provider1Disposed = true);
+			wetuwn toDisposabwe(() => pwovidew1Disposed = twue);
 		}
 	}
 
-	class TestProvider2 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-			assert.ok(picker);
-			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
+	cwass TestPwovidew2 impwements IQuickAccessPwovida {
+		pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+			assewt.ok(picka);
+			pwovidew2Cawwed = twue;
+			token.onCancewwationWequested(() => pwovidew2Cancewed = twue);
 
-			return toDisposable(() => provider2Disposed = true);
+			wetuwn toDisposabwe(() => pwovidew2Disposed = twue);
 		}
 	}
 
-	class TestProvider3 implements IQuickAccessProvider {
-		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
-			assert.ok(picker);
-			provider3Called = true;
-			token.onCancellationRequested(() => provider3Canceled = true);
+	cwass TestPwovidew3 impwements IQuickAccessPwovida {
+		pwovide(picka: IQuickPick<IQuickPickItem>, token: CancewwationToken): IDisposabwe {
+			assewt.ok(picka);
+			pwovidew3Cawwed = twue;
+			token.onCancewwationWequested(() => pwovidew3Cancewed = twue);
 
 			// hide without picking
-			setTimeout(() => picker.hide());
+			setTimeout(() => picka.hide());
 
-			return toDisposable(() => provider3Disposed = true);
+			wetuwn toDisposabwe(() => pwovidew3Disposed = twue);
 		}
 	}
 
-	const providerDescriptorDefault = { ctor: TestProviderDefault, prefix: '', helpEntries: [] };
-	const providerDescriptor1 = { ctor: TestProvider1, prefix: 'test', helpEntries: [] };
-	const providerDescriptor2 = { ctor: TestProvider2, prefix: 'test something', helpEntries: [] };
-	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
+	const pwovidewDescwiptowDefauwt = { ctow: TestPwovidewDefauwt, pwefix: '', hewpEntwies: [] };
+	const pwovidewDescwiptow1 = { ctow: TestPwovidew1, pwefix: 'test', hewpEntwies: [] };
+	const pwovidewDescwiptow2 = { ctow: TestPwovidew2, pwefix: 'test something', hewpEntwies: [] };
+	const pwovidewDescwiptow3 = { ctow: TestPwovidew3, pwefix: 'changed', hewpEntwies: [] };
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
-		accessor = instantiationService.createInstance(TestServiceAccessor);
+		instantiationSewvice = wowkbenchInstantiationSewvice();
+		accessow = instantiationSewvice.cweateInstance(TestSewviceAccessow);
 	});
 
-	test('registry', () => {
-		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
-		const restore = (registry as QuickAccessRegistry).clear();
+	test('wegistwy', () => {
+		const wegistwy = (Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess));
+		const westowe = (wegistwy as QuickAccessWegistwy).cweaw();
 
-		assert.ok(!registry.getQuickAccessProvider('test'));
+		assewt.ok(!wegistwy.getQuickAccessPwovida('test'));
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registry.registerQuickAccessProvider(providerDescriptorDefault));
-		assert(registry.getQuickAccessProvider('') === providerDescriptorDefault);
-		assert(registry.getQuickAccessProvider('test') === providerDescriptorDefault);
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptowDefauwt));
+		assewt(wegistwy.getQuickAccessPwovida('') === pwovidewDescwiptowDefauwt);
+		assewt(wegistwy.getQuickAccessPwovida('test') === pwovidewDescwiptowDefauwt);
 
-		const disposable = disposables.add(registry.registerQuickAccessProvider(providerDescriptor1));
-		assert(registry.getQuickAccessProvider('test') === providerDescriptor1);
+		const disposabwe = disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptow1));
+		assewt(wegistwy.getQuickAccessPwovida('test') === pwovidewDescwiptow1);
 
-		const providers = registry.getQuickAccessProviders();
-		assert(providers.some(provider => provider.prefix === 'test'));
+		const pwovidews = wegistwy.getQuickAccessPwovidews();
+		assewt(pwovidews.some(pwovida => pwovida.pwefix === 'test'));
 
-		disposable.dispose();
-		assert(registry.getQuickAccessProvider('test') === providerDescriptorDefault);
+		disposabwe.dispose();
+		assewt(wegistwy.getQuickAccessPwovida('test') === pwovidewDescwiptowDefauwt);
 
-		disposables.dispose();
-		assert.ok(!registry.getQuickAccessProvider('test'));
+		disposabwes.dispose();
+		assewt.ok(!wegistwy.getQuickAccessPwovida('test'));
 
-		restore();
+		westowe();
 	});
 
-	test('provider', async () => {
-		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
-		const restore = (registry as QuickAccessRegistry).clear();
+	test('pwovida', async () => {
+		const wegistwy = (Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess));
+		const westowe = (wegistwy as QuickAccessWegistwy).cweaw();
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registry.registerQuickAccessProvider(providerDescriptorDefault));
-		disposables.add(registry.registerQuickAccessProvider(providerDescriptor1));
-		disposables.add(registry.registerQuickAccessProvider(providerDescriptor2));
-		disposables.add(registry.registerQuickAccessProvider(providerDescriptor3));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptowDefauwt));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptow1));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptow2));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(pwovidewDescwiptow3));
 
-		accessor.quickInputService.quickAccess.show('test');
-		assert.strictEqual(providerDefaultCalled, false);
-		assert.strictEqual(provider1Called, true);
-		assert.strictEqual(provider2Called, false);
-		assert.strictEqual(provider3Called, false);
-		assert.strictEqual(providerDefaultCanceled, false);
-		assert.strictEqual(provider1Canceled, false);
-		assert.strictEqual(provider2Canceled, false);
-		assert.strictEqual(provider3Canceled, false);
-		assert.strictEqual(providerDefaultDisposed, false);
-		assert.strictEqual(provider1Disposed, false);
-		assert.strictEqual(provider2Disposed, false);
-		assert.strictEqual(provider3Disposed, false);
-		provider1Called = false;
+		accessow.quickInputSewvice.quickAccess.show('test');
+		assewt.stwictEquaw(pwovidewDefauwtCawwed, fawse);
+		assewt.stwictEquaw(pwovidew1Cawwed, twue);
+		assewt.stwictEquaw(pwovidew2Cawwed, fawse);
+		assewt.stwictEquaw(pwovidew3Cawwed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtCancewed, fawse);
+		assewt.stwictEquaw(pwovidew1Cancewed, fawse);
+		assewt.stwictEquaw(pwovidew2Cancewed, fawse);
+		assewt.stwictEquaw(pwovidew3Cancewed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtDisposed, fawse);
+		assewt.stwictEquaw(pwovidew1Disposed, fawse);
+		assewt.stwictEquaw(pwovidew2Disposed, fawse);
+		assewt.stwictEquaw(pwovidew3Disposed, fawse);
+		pwovidew1Cawwed = fawse;
 
-		accessor.quickInputService.quickAccess.show('test something');
-		assert.strictEqual(providerDefaultCalled, false);
-		assert.strictEqual(provider1Called, false);
-		assert.strictEqual(provider2Called, true);
-		assert.strictEqual(provider3Called, false);
-		assert.strictEqual(providerDefaultCanceled, false);
-		assert.strictEqual(provider1Canceled, true);
-		assert.strictEqual(provider2Canceled, false);
-		assert.strictEqual(provider3Canceled, false);
-		assert.strictEqual(providerDefaultDisposed, false);
-		assert.strictEqual(provider1Disposed, true);
-		assert.strictEqual(provider2Disposed, false);
-		assert.strictEqual(provider3Disposed, false);
-		provider2Called = false;
-		provider1Canceled = false;
-		provider1Disposed = false;
+		accessow.quickInputSewvice.quickAccess.show('test something');
+		assewt.stwictEquaw(pwovidewDefauwtCawwed, fawse);
+		assewt.stwictEquaw(pwovidew1Cawwed, fawse);
+		assewt.stwictEquaw(pwovidew2Cawwed, twue);
+		assewt.stwictEquaw(pwovidew3Cawwed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtCancewed, fawse);
+		assewt.stwictEquaw(pwovidew1Cancewed, twue);
+		assewt.stwictEquaw(pwovidew2Cancewed, fawse);
+		assewt.stwictEquaw(pwovidew3Cancewed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtDisposed, fawse);
+		assewt.stwictEquaw(pwovidew1Disposed, twue);
+		assewt.stwictEquaw(pwovidew2Disposed, fawse);
+		assewt.stwictEquaw(pwovidew3Disposed, fawse);
+		pwovidew2Cawwed = fawse;
+		pwovidew1Cancewed = fawse;
+		pwovidew1Disposed = fawse;
 
-		accessor.quickInputService.quickAccess.show('usedefault');
-		assert.strictEqual(providerDefaultCalled, true);
-		assert.strictEqual(provider1Called, false);
-		assert.strictEqual(provider2Called, false);
-		assert.strictEqual(provider3Called, false);
-		assert.strictEqual(providerDefaultCanceled, false);
-		assert.strictEqual(provider1Canceled, false);
-		assert.strictEqual(provider2Canceled, true);
-		assert.strictEqual(provider3Canceled, false);
-		assert.strictEqual(providerDefaultDisposed, false);
-		assert.strictEqual(provider1Disposed, false);
-		assert.strictEqual(provider2Disposed, true);
-		assert.strictEqual(provider3Disposed, false);
+		accessow.quickInputSewvice.quickAccess.show('usedefauwt');
+		assewt.stwictEquaw(pwovidewDefauwtCawwed, twue);
+		assewt.stwictEquaw(pwovidew1Cawwed, fawse);
+		assewt.stwictEquaw(pwovidew2Cawwed, fawse);
+		assewt.stwictEquaw(pwovidew3Cawwed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtCancewed, fawse);
+		assewt.stwictEquaw(pwovidew1Cancewed, fawse);
+		assewt.stwictEquaw(pwovidew2Cancewed, twue);
+		assewt.stwictEquaw(pwovidew3Cancewed, fawse);
+		assewt.stwictEquaw(pwovidewDefauwtDisposed, fawse);
+		assewt.stwictEquaw(pwovidew1Disposed, fawse);
+		assewt.stwictEquaw(pwovidew2Disposed, twue);
+		assewt.stwictEquaw(pwovidew3Disposed, fawse);
 
 		await timeout(1);
 
-		assert.strictEqual(providerDefaultCanceled, true);
-		assert.strictEqual(providerDefaultDisposed, true);
-		assert.strictEqual(provider3Called, true);
+		assewt.stwictEquaw(pwovidewDefauwtCancewed, twue);
+		assewt.stwictEquaw(pwovidewDefauwtDisposed, twue);
+		assewt.stwictEquaw(pwovidew3Cawwed, twue);
 
 		await timeout(1);
 
-		assert.strictEqual(provider3Canceled, true);
-		assert.strictEqual(provider3Disposed, true);
+		assewt.stwictEquaw(pwovidew3Cancewed, twue);
+		assewt.stwictEquaw(pwovidew3Disposed, twue);
 
-		disposables.dispose();
+		disposabwes.dispose();
 
-		restore();
+		westowe();
 	});
 
-	let fastProviderCalled = false;
-	let slowProviderCalled = false;
-	let fastAndSlowProviderCalled = false;
+	wet fastPwovidewCawwed = fawse;
+	wet swowPwovidewCawwed = fawse;
+	wet fastAndSwowPwovidewCawwed = fawse;
 
-	let slowProviderCanceled = false;
-	let fastAndSlowProviderCanceled = false;
+	wet swowPwovidewCancewed = fawse;
+	wet fastAndSwowPwovidewCancewed = fawse;
 
-	class FastTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+	cwass FastTestQuickPickPwovida extends PickewQuickAccessPwovida<IQuickPickItem> {
 
-		constructor() {
-			super('fast');
+		constwuctow() {
+			supa('fast');
 		}
 
-		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Array<IQuickPickItem> {
-			fastProviderCalled = true;
+		pwotected _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Awway<IQuickPickItem> {
+			fastPwovidewCawwed = twue;
 
-			return [{ label: 'Fast Pick' }];
+			wetuwn [{ wabew: 'Fast Pick' }];
 		}
 	}
 
-	class SlowTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+	cwass SwowTestQuickPickPwovida extends PickewQuickAccessPwovida<IQuickPickItem> {
 
-		constructor() {
-			super('slow');
+		constwuctow() {
+			supa('swow');
 		}
 
-		protected async _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<IQuickPickItem>> {
-			slowProviderCalled = true;
+		pwotected async _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): Pwomise<Awway<IQuickPickItem>> {
+			swowPwovidewCawwed = twue;
 
 			await timeout(1);
 
-			if (token.isCancellationRequested) {
-				slowProviderCanceled = true;
+			if (token.isCancewwationWequested) {
+				swowPwovidewCancewed = twue;
 			}
 
-			return [{ label: 'Slow Pick' }];
+			wetuwn [{ wabew: 'Swow Pick' }];
 		}
 	}
 
-	class FastAndSlowTestQuickPickProvider extends PickerQuickAccessProvider<IQuickPickItem> {
+	cwass FastAndSwowTestQuickPickPwovida extends PickewQuickAccessPwovida<IQuickPickItem> {
 
-		constructor() {
-			super('bothFastAndSlow');
+		constwuctow() {
+			supa('bothFastAndSwow');
 		}
 
-		protected _getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): FastAndSlowPicks<IQuickPickItem> {
-			fastAndSlowProviderCalled = true;
+		pwotected _getPicks(fiwta: stwing, disposabwes: DisposabweStowe, token: CancewwationToken): FastAndSwowPicks<IQuickPickItem> {
+			fastAndSwowPwovidewCawwed = twue;
 
-			return {
-				picks: [{ label: 'Fast Pick' }],
-				additionalPicks: (async () => {
+			wetuwn {
+				picks: [{ wabew: 'Fast Pick' }],
+				additionawPicks: (async () => {
 					await timeout(1);
 
-					if (token.isCancellationRequested) {
-						fastAndSlowProviderCanceled = true;
+					if (token.isCancewwationWequested) {
+						fastAndSwowPwovidewCancewed = twue;
 					}
 
-					return [{ label: 'Slow Pick' }];
+					wetuwn [{ wabew: 'Swow Pick' }];
 				})()
 			};
 		}
 	}
 
-	const fastProviderDescriptor = { ctor: FastTestQuickPickProvider, prefix: 'fast', helpEntries: [] };
-	const slowProviderDescriptor = { ctor: SlowTestQuickPickProvider, prefix: 'slow', helpEntries: [] };
-	const fastAndSlowProviderDescriptor = { ctor: FastAndSlowTestQuickPickProvider, prefix: 'bothFastAndSlow', helpEntries: [] };
+	const fastPwovidewDescwiptow = { ctow: FastTestQuickPickPwovida, pwefix: 'fast', hewpEntwies: [] };
+	const swowPwovidewDescwiptow = { ctow: SwowTestQuickPickPwovida, pwefix: 'swow', hewpEntwies: [] };
+	const fastAndSwowPwovidewDescwiptow = { ctow: FastAndSwowTestQuickPickPwovida, pwefix: 'bothFastAndSwow', hewpEntwies: [] };
 
 	test('quick pick access - show()', async () => {
-		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
-		const restore = (registry as QuickAccessRegistry).clear();
+		const wegistwy = (Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess));
+		const westowe = (wegistwy as QuickAccessWegistwy).cweaw();
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
-		disposables.add(registry.registerQuickAccessProvider(slowProviderDescriptor));
-		disposables.add(registry.registerQuickAccessProvider(fastAndSlowProviderDescriptor));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(fastPwovidewDescwiptow));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(swowPwovidewDescwiptow));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(fastAndSwowPwovidewDescwiptow));
 
-		accessor.quickInputService.quickAccess.show('fast');
-		assert.strictEqual(fastProviderCalled, true);
-		assert.strictEqual(slowProviderCalled, false);
-		assert.strictEqual(fastAndSlowProviderCalled, false);
-		fastProviderCalled = false;
+		accessow.quickInputSewvice.quickAccess.show('fast');
+		assewt.stwictEquaw(fastPwovidewCawwed, twue);
+		assewt.stwictEquaw(swowPwovidewCawwed, fawse);
+		assewt.stwictEquaw(fastAndSwowPwovidewCawwed, fawse);
+		fastPwovidewCawwed = fawse;
 
-		accessor.quickInputService.quickAccess.show('slow');
+		accessow.quickInputSewvice.quickAccess.show('swow');
 		await timeout(2);
 
-		assert.strictEqual(fastProviderCalled, false);
-		assert.strictEqual(slowProviderCalled, true);
-		assert.strictEqual(slowProviderCanceled, false);
-		assert.strictEqual(fastAndSlowProviderCalled, false);
-		slowProviderCalled = false;
+		assewt.stwictEquaw(fastPwovidewCawwed, fawse);
+		assewt.stwictEquaw(swowPwovidewCawwed, twue);
+		assewt.stwictEquaw(swowPwovidewCancewed, fawse);
+		assewt.stwictEquaw(fastAndSwowPwovidewCawwed, fawse);
+		swowPwovidewCawwed = fawse;
 
-		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
+		accessow.quickInputSewvice.quickAccess.show('bothFastAndSwow');
 		await timeout(2);
 
-		assert.strictEqual(fastProviderCalled, false);
-		assert.strictEqual(slowProviderCalled, false);
-		assert.strictEqual(fastAndSlowProviderCalled, true);
-		assert.strictEqual(fastAndSlowProviderCanceled, false);
-		fastAndSlowProviderCalled = false;
+		assewt.stwictEquaw(fastPwovidewCawwed, fawse);
+		assewt.stwictEquaw(swowPwovidewCawwed, fawse);
+		assewt.stwictEquaw(fastAndSwowPwovidewCawwed, twue);
+		assewt.stwictEquaw(fastAndSwowPwovidewCancewed, fawse);
+		fastAndSwowPwovidewCawwed = fawse;
 
-		accessor.quickInputService.quickAccess.show('slow');
-		accessor.quickInputService.quickAccess.show('bothFastAndSlow');
-		accessor.quickInputService.quickAccess.show('fast');
+		accessow.quickInputSewvice.quickAccess.show('swow');
+		accessow.quickInputSewvice.quickAccess.show('bothFastAndSwow');
+		accessow.quickInputSewvice.quickAccess.show('fast');
 
-		assert.strictEqual(fastProviderCalled, true);
-		assert.strictEqual(slowProviderCalled, true);
-		assert.strictEqual(fastAndSlowProviderCalled, true);
+		assewt.stwictEquaw(fastPwovidewCawwed, twue);
+		assewt.stwictEquaw(swowPwovidewCawwed, twue);
+		assewt.stwictEquaw(fastAndSwowPwovidewCawwed, twue);
 
 		await timeout(2);
-		assert.strictEqual(slowProviderCanceled, true);
-		assert.strictEqual(fastAndSlowProviderCanceled, true);
+		assewt.stwictEquaw(swowPwovidewCancewed, twue);
+		assewt.stwictEquaw(fastAndSwowPwovidewCancewed, twue);
 
-		disposables.dispose();
+		disposabwes.dispose();
 
-		restore();
+		westowe();
 	});
 
 	test('quick pick access - pick()', async () => {
-		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
-		const restore = (registry as QuickAccessRegistry).clear();
+		const wegistwy = (Wegistwy.as<IQuickAccessWegistwy>(Extensions.Quickaccess));
+		const westowe = (wegistwy as QuickAccessWegistwy).cweaw();
 
-		const disposables = new DisposableStore();
+		const disposabwes = new DisposabweStowe();
 
-		disposables.add(registry.registerQuickAccessProvider(fastProviderDescriptor));
+		disposabwes.add(wegistwy.wegistewQuickAccessPwovida(fastPwovidewDescwiptow));
 
-		const result = accessor.quickInputService.quickAccess.pick('fast');
-		assert.strictEqual(fastProviderCalled, true);
-		assert.ok(result instanceof Promise);
+		const wesuwt = accessow.quickInputSewvice.quickAccess.pick('fast');
+		assewt.stwictEquaw(fastPwovidewCawwed, twue);
+		assewt.ok(wesuwt instanceof Pwomise);
 
-		disposables.dispose();
+		disposabwes.dispose();
 
-		restore();
+		westowe();
 	});
 });

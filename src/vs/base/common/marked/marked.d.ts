@@ -1,116 +1,116 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-// Type definitions for Marked 0.4
-// Project: https://github.com/markedjs/marked
-// Definitions by: William Orr <https://github.com/worr>
-//                 BendingBender <https://github.com/BendingBender>
-//                 CrossR <https://github.com/CrossR>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+// Type definitions fow Mawked 0.4
+// Pwoject: https://github.com/mawkedjs/mawked
+// Definitions by: Wiwwiam Oww <https://github.com/woww>
+//                 BendingBenda <https://github.com/BendingBenda>
+//                 CwossW <https://github.com/CwossW>
+// Definitions: https://github.com/DefinitewyTyped/DefinitewyTyped
 
-export as namespace marked;
+expowt as namespace mawked;
 
-export = marked;
+expowt = mawked;
 /**
- * Compiles markdown to HTML.
+ * Compiwes mawkdown to HTMW.
  *
- * @param src String of markdown source to be compiled
- * @param callback Function called when the markdownString has been fully parsed when using async highlighting
- * @return String of compiled HTML
+ * @pawam swc Stwing of mawkdown souwce to be compiwed
+ * @pawam cawwback Function cawwed when the mawkdownStwing has been fuwwy pawsed when using async highwighting
+ * @wetuwn Stwing of compiwed HTMW
  */
-declare function marked(src: string, callback: (error: any | undefined, parseResult: string) => void): string;
+decwawe function mawked(swc: stwing, cawwback: (ewwow: any | undefined, pawseWesuwt: stwing) => void): stwing;
 
 /**
- * Compiles markdown to HTML.
+ * Compiwes mawkdown to HTMW.
  *
- * @param src String of markdown source to be compiled
- * @param options Hash of options
- * @param callback Function called when the markdownString has been fully parsed when using async highlighting
- * @return String of compiled HTML
+ * @pawam swc Stwing of mawkdown souwce to be compiwed
+ * @pawam options Hash of options
+ * @pawam cawwback Function cawwed when the mawkdownStwing has been fuwwy pawsed when using async highwighting
+ * @wetuwn Stwing of compiwed HTMW
  */
-declare function marked(src: string, options?: marked.MarkedOptions, callback?: (error: any | undefined, parseResult: string) => void): string;
+decwawe function mawked(swc: stwing, options?: mawked.MawkedOptions, cawwback?: (ewwow: any | undefined, pawseWesuwt: stwing) => void): stwing;
 
-declare namespace marked {
+decwawe namespace mawked {
     /**
-     * @param src String of markdown source to be compiled
-     * @param options Hash of options
+     * @pawam swc Stwing of mawkdown souwce to be compiwed
+     * @pawam options Hash of options
      */
-	function lexer(src: string, options?: MarkedOptions): TokensList;
+	function wexa(swc: stwing, options?: MawkedOptions): TokensWist;
 
     /**
-     * Compiles markdown to HTML.
+     * Compiwes mawkdown to HTMW.
      *
-     * @param src String of markdown source to be compiled
-     * @param callback Function called when the markdownString has been fully parsed when using async highlighting
-     * @return String of compiled HTML
+     * @pawam swc Stwing of mawkdown souwce to be compiwed
+     * @pawam cawwback Function cawwed when the mawkdownStwing has been fuwwy pawsed when using async highwighting
+     * @wetuwn Stwing of compiwed HTMW
      */
-	function parse(src: string, callback: (error: any | undefined, parseResult: string) => void): string;
+	function pawse(swc: stwing, cawwback: (ewwow: any | undefined, pawseWesuwt: stwing) => void): stwing;
 
     /**
-     * Compiles markdown to HTML.
+     * Compiwes mawkdown to HTMW.
      *
-     * @param src String of markdown source to be compiled
-     * @param options Hash of options
-     * @param callback Function called when the markdownString has been fully parsed when using async highlighting
-     * @return String of compiled HTML
+     * @pawam swc Stwing of mawkdown souwce to be compiwed
+     * @pawam options Hash of options
+     * @pawam cawwback Function cawwed when the mawkdownStwing has been fuwwy pawsed when using async highwighting
+     * @wetuwn Stwing of compiwed HTMW
      */
-	function parse(src: string, options?: MarkedOptions, callback?: (error: any | undefined, parseResult: string) => void): string;
+	function pawse(swc: stwing, options?: MawkedOptions, cawwback?: (ewwow: any | undefined, pawseWesuwt: stwing) => void): stwing;
 
     /**
-     * @param src Tokenized source as array of tokens
-     * @param options Hash of options
+     * @pawam swc Tokenized souwce as awway of tokens
+     * @pawam options Hash of options
      */
-	function parser(src: TokensList, options?: MarkedOptions): string;
+	function pawsa(swc: TokensWist, options?: MawkedOptions): stwing;
 
     /**
-     * Sets the default options.
+     * Sets the defauwt options.
      *
-     * @param options Hash of options
+     * @pawam options Hash of options
      */
-	function setOptions(options: MarkedOptions): typeof marked;
+	function setOptions(options: MawkedOptions): typeof mawked;
 
-	class Renderer {
-		constructor(options?: MarkedOptions);
-		code(code: string, language: string, isEscaped: boolean): string;
-		blockquote(quote: string): string;
-		html(html: string): string;
-		heading(text: string, level: number, raw: string): string;
-		hr(): string;
-		list(body: string, ordered: boolean): string;
-		listitem(text: string): string;
-		paragraph(text: string): string;
-		table(header: string, body: string): string;
-		tablerow(content: string): string;
-		tablecell(content: string, flags: {
-			header: boolean;
-			align: 'center' | 'left' | 'right' | null;
-		}): string;
-		strong(text: string): string;
-		em(text: string): string;
-		codespan(code: string): string;
-		br(): string;
-		del(text: string): string;
-		link(href: string, title: string, text: string): string;
-		image(href: string, title: string, text: string): string;
-		text(text: string): string;
+	cwass Wendewa {
+		constwuctow(options?: MawkedOptions);
+		code(code: stwing, wanguage: stwing, isEscaped: boowean): stwing;
+		bwockquote(quote: stwing): stwing;
+		htmw(htmw: stwing): stwing;
+		heading(text: stwing, wevew: numba, waw: stwing): stwing;
+		hw(): stwing;
+		wist(body: stwing, owdewed: boowean): stwing;
+		wistitem(text: stwing): stwing;
+		pawagwaph(text: stwing): stwing;
+		tabwe(heada: stwing, body: stwing): stwing;
+		tabwewow(content: stwing): stwing;
+		tabweceww(content: stwing, fwags: {
+			heada: boowean;
+			awign: 'centa' | 'weft' | 'wight' | nuww;
+		}): stwing;
+		stwong(text: stwing): stwing;
+		em(text: stwing): stwing;
+		codespan(code: stwing): stwing;
+		bw(): stwing;
+		dew(text: stwing): stwing;
+		wink(hwef: stwing, titwe: stwing, text: stwing): stwing;
+		image(hwef: stwing, titwe: stwing, text: stwing): stwing;
+		text(text: stwing): stwing;
 	}
 
-	class Lexer {
-		rules: Rules;
-		tokens: TokensList;
-		constructor(options?: MarkedOptions);
-		lex(src: string): TokensList;
+	cwass Wexa {
+		wuwes: Wuwes;
+		tokens: TokensWist;
+		constwuctow(options?: MawkedOptions);
+		wex(swc: stwing): TokensWist;
 	}
 
-	interface Rules {
-		[ruleName: string]: RegExp | Rules;
+	intewface Wuwes {
+		[wuweName: stwing]: WegExp | Wuwes;
 	}
 
-	type TokensList = Token[] & {
-		links: {
-			[key: string]: { href: string; title: string; }
+	type TokensWist = Token[] & {
+		winks: {
+			[key: stwing]: { hwef: stwing; titwe: stwing; }
 		}
 	};
 
@@ -118,180 +118,180 @@ declare namespace marked {
 		Tokens.Space
 		| Tokens.Code
 		| Tokens.Heading
-		| Tokens.Table
-		| Tokens.Hr
-		| Tokens.BlockquoteStart
-		| Tokens.BlockquoteEnd
-		| Tokens.ListStart
-		| Tokens.LooseItemStart
-		| Tokens.ListItemStart
-		| Tokens.ListItemEnd
-		| Tokens.ListEnd
-		| Tokens.Paragraph
-		| Tokens.HTML
+		| Tokens.Tabwe
+		| Tokens.Hw
+		| Tokens.BwockquoteStawt
+		| Tokens.BwockquoteEnd
+		| Tokens.WistStawt
+		| Tokens.WooseItemStawt
+		| Tokens.WistItemStawt
+		| Tokens.WistItemEnd
+		| Tokens.WistEnd
+		| Tokens.Pawagwaph
+		| Tokens.HTMW
 		| Tokens.Text;
 
 	namespace Tokens {
-		interface Space {
+		intewface Space {
 			type: 'space';
 		}
 
-		interface Code {
+		intewface Code {
 			type: 'code';
-			lang?: string;
-			text: string;
+			wang?: stwing;
+			text: stwing;
 		}
 
-		interface Heading {
+		intewface Heading {
 			type: 'heading';
-			depth: number;
-			text: string;
+			depth: numba;
+			text: stwing;
 		}
 
-		interface Table {
-			type: 'table';
-			header: string[];
-			align: Array<'center' | 'left' | 'right' | null>;
-			cells: string[][];
+		intewface Tabwe {
+			type: 'tabwe';
+			heada: stwing[];
+			awign: Awway<'centa' | 'weft' | 'wight' | nuww>;
+			cewws: stwing[][];
 		}
 
-		interface Hr {
-			type: 'hr';
+		intewface Hw {
+			type: 'hw';
 		}
 
-		interface BlockquoteStart {
-			type: 'blockquote_start';
+		intewface BwockquoteStawt {
+			type: 'bwockquote_stawt';
 		}
 
-		interface BlockquoteEnd {
-			type: 'blockquote_end';
+		intewface BwockquoteEnd {
+			type: 'bwockquote_end';
 		}
 
-		interface ListStart {
-			type: 'list_start';
-			ordered: boolean;
+		intewface WistStawt {
+			type: 'wist_stawt';
+			owdewed: boowean;
 		}
 
-		interface LooseItemStart {
-			type: 'loose_item_start';
+		intewface WooseItemStawt {
+			type: 'woose_item_stawt';
 		}
 
-		interface ListItemStart {
-			type: 'list_item_start';
+		intewface WistItemStawt {
+			type: 'wist_item_stawt';
 		}
 
-		interface ListItemEnd {
-			type: 'list_item_end';
+		intewface WistItemEnd {
+			type: 'wist_item_end';
 		}
 
-		interface ListEnd {
-			type: 'list_end';
+		intewface WistEnd {
+			type: 'wist_end';
 		}
 
-		interface Paragraph {
-			type: 'paragraph';
-			pre?: boolean;
-			text: string;
+		intewface Pawagwaph {
+			type: 'pawagwaph';
+			pwe?: boowean;
+			text: stwing;
 		}
 
-		interface HTML {
-			type: 'html';
-			pre: boolean;
-			text: string;
+		intewface HTMW {
+			type: 'htmw';
+			pwe: boowean;
+			text: stwing;
 		}
 
-		interface Text {
+		intewface Text {
 			type: 'text';
-			text: string;
+			text: stwing;
 		}
 	}
 
-	interface MarkedOptions {
+	intewface MawkedOptions {
         /**
-         * A prefix URL for any relative link.
+         * A pwefix UWW fow any wewative wink.
          */
-		baseUrl?: string;
+		baseUww?: stwing;
 
         /**
-         * Enable GFM line breaks. This option requires the gfm option to be true.
+         * Enabwe GFM wine bweaks. This option wequiwes the gfm option to be twue.
          */
-		breaks?: boolean;
+		bweaks?: boowean;
 
         /**
-         * Enable GitHub flavored markdown.
+         * Enabwe GitHub fwavowed mawkdown.
          */
-		gfm?: boolean;
+		gfm?: boowean;
 
         /**
-         * Include an id attribute when emitting headings.
+         * Incwude an id attwibute when emitting headings.
          */
-		headerIds?: boolean;
+		headewIds?: boowean;
 
         /**
-         * Set the prefix for header tag ids.
+         * Set the pwefix fow heada tag ids.
          */
-		headerPrefix?: string;
+		headewPwefix?: stwing;
 
         /**
-         * A function to highlight code blocks. The function takes three arguments: code, lang, and callback.
+         * A function to highwight code bwocks. The function takes thwee awguments: code, wang, and cawwback.
          */
-		highlight?(code: string, lang: string, callback?: (error: any | undefined, code: string) => void): string;
+		highwight?(code: stwing, wang: stwing, cawwback?: (ewwow: any | undefined, code: stwing) => void): stwing;
 
         /**
-         * Set the prefix for code block classes.
+         * Set the pwefix fow code bwock cwasses.
          */
-		langPrefix?: string;
+		wangPwefix?: stwing;
 
         /**
-         * Mangle autolinks (<email@domain.com>).
+         * Mangwe autowinks (<emaiw@domain.com>).
          */
-		mangle?: boolean;
+		mangwe?: boowean;
 
         /**
-         * Conform to obscure parts of markdown.pl as much as possible. Don't fix any of the original markdown bugs or poor behavior.
+         * Confowm to obscuwe pawts of mawkdown.pw as much as possibwe. Don't fix any of the owiginaw mawkdown bugs ow poow behaviow.
          */
-		pedantic?: boolean;
+		pedantic?: boowean;
 
         /**
-         * Type: object Default: new Renderer()
+         * Type: object Defauwt: new Wendewa()
          *
-         * An object containing functions to render tokens to HTML.
+         * An object containing functions to wenda tokens to HTMW.
          */
-		renderer?: Renderer;
+		wendewa?: Wendewa;
 
         /**
-         * Sanitize the output. Ignore any HTML that has been input.
+         * Sanitize the output. Ignowe any HTMW that has been input.
          */
-		sanitize?: boolean;
+		sanitize?: boowean;
 
         /**
-         * Optionally sanitize found HTML with a sanitizer function.
+         * Optionawwy sanitize found HTMW with a sanitiza function.
          */
-		sanitizer?(html: string): string;
+		sanitiza?(htmw: stwing): stwing;
 
         /**
-         * Shows an HTML error message when rendering fails.
+         * Shows an HTMW ewwow message when wendewing faiws.
          */
-		silent?: boolean;
+		siwent?: boowean;
 
         /**
-         * Use smarter list behavior than the original markdown. May eventually be default with the old behavior moved into pedantic.
+         * Use smawta wist behaviow than the owiginaw mawkdown. May eventuawwy be defauwt with the owd behaviow moved into pedantic.
          */
-		smartLists?: boolean;
+		smawtWists?: boowean;
 
         /**
-         * Use "smart" typographic punctuation for things like quotes and dashes.
+         * Use "smawt" typogwaphic punctuation fow things wike quotes and dashes.
          */
-		smartypants?: boolean;
+		smawtypants?: boowean;
 
         /**
-         * Enable GFM tables. This option requires the gfm option to be true.
+         * Enabwe GFM tabwes. This option wequiwes the gfm option to be twue.
          */
-		tables?: boolean;
+		tabwes?: boowean;
 
         /**
-         * Generate closing slash for self-closing tags (<br/> instead of <br>)
+         * Genewate cwosing swash fow sewf-cwosing tags (<bw/> instead of <bw>)
          */
-		xhtml?: boolean;
+		xhtmw?: boowean;
 	}
 }

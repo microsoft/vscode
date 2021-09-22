@@ -1,442 +1,442 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copywight (c) Micwosoft Cowpowation. Aww wights wesewved.
+ *  Wicensed unda the MIT Wicense. See Wicense.txt in the pwoject woot fow wicense infowmation.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookDiff';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import * as DOM from 'vs/base/browser/dom';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { isMacintosh } from 'vs/base/common/platform';
-import { DeletedElement, fixedDiffEditorOptions, fixedEditorOptions, getOptimizedNestedCodeEditorWidgetOptions, InsertElement, ModifiedElement } from 'vs/workbench/contrib/notebook/browser/diff/diffComponents';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+impowt 'vs/css!./notebookDiff';
+impowt { IWistWendewa, IWistViwtuawDewegate } fwom 'vs/base/bwowsa/ui/wist/wist';
+impowt * as DOM fwom 'vs/base/bwowsa/dom';
+impowt { IWistStywes, IStyweContwowwa } fwom 'vs/base/bwowsa/ui/wist/wistWidget';
+impowt { DisposabweStowe, IDisposabwe } fwom 'vs/base/common/wifecycwe';
+impowt { IConfiguwationSewvice } fwom 'vs/pwatfowm/configuwation/common/configuwation';
+impowt { IContextKeySewvice } fwom 'vs/pwatfowm/contextkey/common/contextkey';
+impowt { IInstantiationSewvice } fwom 'vs/pwatfowm/instantiation/common/instantiation';
+impowt { IKeybindingSewvice } fwom 'vs/pwatfowm/keybinding/common/keybinding';
+impowt { IWistSewvice, IWowkbenchWistOptions, WowkbenchWist } fwom 'vs/pwatfowm/wist/bwowsa/wistSewvice';
+impowt { IThemeSewvice } fwom 'vs/pwatfowm/theme/common/themeSewvice';
+impowt { DiffEwementViewModewBase, SideBySideDiffEwementViewModew, SingweSideDiffEwementViewModew } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffEwementViewModew';
+impowt { CewwDiffSideBySideWendewTempwate, CewwDiffSingweSideWendewTempwate, DIFF_CEWW_MAWGIN, INotebookTextDiffEditow } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/notebookDiffEditowBwowsa';
+impowt { isMacintosh } fwom 'vs/base/common/pwatfowm';
+impowt { DewetedEwement, fixedDiffEditowOptions, fixedEditowOptions, getOptimizedNestedCodeEditowWidgetOptions, InsewtEwement, ModifiedEwement } fwom 'vs/wowkbench/contwib/notebook/bwowsa/diff/diffComponents';
+impowt { CodeEditowWidget } fwom 'vs/editow/bwowsa/widget/codeEditowWidget';
+impowt { DiffEditowWidget } fwom 'vs/editow/bwowsa/widget/diffEditowWidget';
+impowt { ToowBaw } fwom 'vs/base/bwowsa/ui/toowbaw/toowbaw';
+impowt { IMenuSewvice, MenuItemAction } fwom 'vs/pwatfowm/actions/common/actions';
+impowt { IContextMenuSewvice } fwom 'vs/pwatfowm/contextview/bwowsa/contextView';
+impowt { INotificationSewvice } fwom 'vs/pwatfowm/notification/common/notification';
+impowt { CodiconActionViewItem } fwom 'vs/wowkbench/contwib/notebook/bwowsa/view/wendewews/cewwActionView';
+impowt { IMouseWheewEvent } fwom 'vs/base/bwowsa/mouseEvent';
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
-	// private readonly lineHeight: number;
+expowt cwass NotebookCewwTextDiffWistDewegate impwements IWistViwtuawDewegate<DiffEwementViewModewBase> {
+	// pwivate weadonwy wineHeight: numba;
 
-	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService
+	constwuctow(
+		@IConfiguwationSewvice weadonwy configuwationSewvice: IConfiguwationSewvice
 	) {
-		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		// const editowOptions = this.configuwationSewvice.getVawue<IEditowOptions>('editow');
+		// this.wineHeight = BaweFontInfo.cweateFwomWawSettings(editowOptions, getZoomWevew()).wineHeight;
 	}
 
-	getHeight(element: DiffElementViewModelBase): number {
-		return 100;
+	getHeight(ewement: DiffEwementViewModewBase): numba {
+		wetuwn 100;
 	}
 
-	hasDynamicHeight(element: DiffElementViewModelBase): boolean {
-		return false;
+	hasDynamicHeight(ewement: DiffEwementViewModewBase): boowean {
+		wetuwn fawse;
 	}
 
-	getTemplateId(element: DiffElementViewModelBase): string {
-		switch (element.type) {
-			case 'delete':
-			case 'insert':
-				return CellDiffSingleSideRenderer.TEMPLATE_ID;
+	getTempwateId(ewement: DiffEwementViewModewBase): stwing {
+		switch (ewement.type) {
+			case 'dewete':
+			case 'insewt':
+				wetuwn CewwDiffSingweSideWendewa.TEMPWATE_ID;
 			case 'modified':
 			case 'unchanged':
-				return CellDiffSideBySideRenderer.TEMPLATE_ID;
+				wetuwn CewwDiffSideBySideWendewa.TEMPWATE_ID;
 		}
 
 	}
 }
-export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffElementViewModel, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate> {
-	static readonly TEMPLATE_ID = 'cell_diff_single';
+expowt cwass CewwDiffSingweSideWendewa impwements IWistWendewa<SingweSideDiffEwementViewModew, CewwDiffSingweSideWendewTempwate | CewwDiffSideBySideWendewTempwate> {
+	static weadonwy TEMPWATE_ID = 'ceww_diff_singwe';
 
-	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
+	constwuctow(
+		weadonwy notebookEditow: INotebookTextDiffEditow,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice
 	) { }
 
-	get templateId() {
-		return CellDiffSingleSideRenderer.TEMPLATE_ID;
+	get tempwateId() {
+		wetuwn CewwDiffSingweSideWendewa.TEMPWATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): CellDiffSingleSideRenderTemplate {
-		const body = DOM.$('.cell-body');
-		DOM.append(container, body);
-		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
-		DOM.append(body, diffEditorContainer);
+	wendewTempwate(containa: HTMWEwement): CewwDiffSingweSideWendewTempwate {
+		const body = DOM.$('.ceww-body');
+		DOM.append(containa, body);
+		const diffEditowContaina = DOM.$('.ceww-diff-editow-containa');
+		DOM.append(body, diffEditowContaina);
 
-		const diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
+		const diagonawFiww = DOM.append(body, DOM.$('.diagonaw-fiww'));
 
-		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const editor = this._buildSourceEditor(sourceContainer);
+		const souwceContaina = DOM.append(diffEditowContaina, DOM.$('.souwce-containa'));
+		const editow = this._buiwdSouwceEditow(souwceContaina);
 
-		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
-		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+		const metadataHeadewContaina = DOM.append(diffEditowContaina, DOM.$('.metadata-heada-containa'));
+		const metadataInfoContaina = DOM.append(diffEditowContaina, DOM.$('.metadata-info-containa'));
 
-		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
-		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+		const outputHeadewContaina = DOM.append(diffEditowContaina, DOM.$('.output-heada-containa'));
+		const outputInfoContaina = DOM.append(diffEditowContaina, DOM.$('.output-info-containa'));
 
-		const borderContainer = DOM.append(body, DOM.$('.border-container'));
-		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
-		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
-		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
-		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+		const bowdewContaina = DOM.append(body, DOM.$('.bowda-containa'));
+		const weftBowda = DOM.append(bowdewContaina, DOM.$('.weft-bowda'));
+		const wightBowda = DOM.append(bowdewContaina, DOM.$('.wight-bowda'));
+		const topBowda = DOM.append(bowdewContaina, DOM.$('.top-bowda'));
+		const bottomBowda = DOM.append(bowdewContaina, DOM.$('.bottom-bowda'));
 
-		return {
+		wetuwn {
 			body,
-			container,
-			diffEditorContainer,
-			diagonalFill,
-			sourceEditor: editor,
-			metadataHeaderContainer,
-			metadataInfoContainer,
-			outputHeaderContainer,
-			outputInfoContainer,
-			leftBorder,
-			rightBorder,
-			topBorder,
-			bottomBorder,
-			elementDisposables: new DisposableStore()
+			containa,
+			diffEditowContaina,
+			diagonawFiww,
+			souwceEditow: editow,
+			metadataHeadewContaina,
+			metadataInfoContaina,
+			outputHeadewContaina,
+			outputInfoContaina,
+			weftBowda,
+			wightBowda,
+			topBowda,
+			bottomBowda,
+			ewementDisposabwes: new DisposabweStowe()
 		};
 	}
 
-	private _buildSourceEditor(sourceContainer: HTMLElement) {
-		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+	pwivate _buiwdSouwceEditow(souwceContaina: HTMWEwement) {
+		const editowContaina = DOM.append(souwceContaina, DOM.$('.editow-containa'));
 
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
-			...fixedEditorOptions,
+		const editow = this.instantiationSewvice.cweateInstance(CodeEditowWidget, editowContaina, {
+			...fixedEditowOptions,
 			dimension: {
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				width: (this.notebookEditow.getWayoutInfo().width - 2 * DIFF_CEWW_MAWGIN) / 2 - 18,
 				height: 0
 			},
-			automaticLayout: false,
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			automaticWayout: fawse,
+			ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode()
 		}, {});
 
-		return editor;
+		wetuwn editow;
 	}
 
-	renderElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate, height: number | undefined): void {
-		templateData.body.classList.remove('left', 'right', 'full');
+	wendewEwement(ewement: SingweSideDiffEwementViewModew, index: numba, tempwateData: CewwDiffSingweSideWendewTempwate, height: numba | undefined): void {
+		tempwateData.body.cwassWist.wemove('weft', 'wight', 'fuww');
 
-		switch (element.type) {
-			case 'delete':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedElement, this.notebookEditor, element, templateData));
-				return;
-			case 'insert':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertElement, this.notebookEditor, element, templateData));
-				return;
-			default:
-				break;
+		switch (ewement.type) {
+			case 'dewete':
+				tempwateData.ewementDisposabwes.add(this.instantiationSewvice.cweateInstance(DewetedEwement, this.notebookEditow, ewement, tempwateData));
+				wetuwn;
+			case 'insewt':
+				tempwateData.ewementDisposabwes.add(this.instantiationSewvice.cweateInstance(InsewtEwement, this.notebookEditow, ewement, tempwateData));
+				wetuwn;
+			defauwt:
+				bweak;
 		}
 	}
 
-	disposeTemplate(templateData: CellDiffSingleSideRenderTemplate): void {
-		templateData.container.innerText = '';
-		templateData.sourceEditor.dispose();
+	disposeTempwate(tempwateData: CewwDiffSingweSideWendewTempwate): void {
+		tempwateData.containa.innewText = '';
+		tempwateData.souwceEditow.dispose();
 	}
 
-	disposeElement(element: SingleSideDiffElementViewModel, index: number, templateData: CellDiffSingleSideRenderTemplate): void {
-		templateData.elementDisposables.clear();
+	disposeEwement(ewement: SingweSideDiffEwementViewModew, index: numba, tempwateData: CewwDiffSingweSideWendewTempwate): void {
+		tempwateData.ewementDisposabwes.cweaw();
 	}
 }
 
 
-export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffElementViewModel, CellDiffSideBySideRenderTemplate> {
-	static readonly TEMPLATE_ID = 'cell_diff_side_by_side';
+expowt cwass CewwDiffSideBySideWendewa impwements IWistWendewa<SideBySideDiffEwementViewModew, CewwDiffSideBySideWendewTempwate> {
+	static weadonwy TEMPWATE_ID = 'ceww_diff_side_by_side';
 
-	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IKeybindingService protected readonly keybindingService: IKeybindingService,
-		@IMenuService protected readonly menuService: IMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@INotificationService protected readonly notificationService: INotificationService,
+	constwuctow(
+		weadonwy notebookEditow: INotebookTextDiffEditow,
+		@IInstantiationSewvice pwotected weadonwy instantiationSewvice: IInstantiationSewvice,
+		@IContextMenuSewvice pwotected weadonwy contextMenuSewvice: IContextMenuSewvice,
+		@IKeybindingSewvice pwotected weadonwy keybindingSewvice: IKeybindingSewvice,
+		@IMenuSewvice pwotected weadonwy menuSewvice: IMenuSewvice,
+		@IContextKeySewvice pwotected weadonwy contextKeySewvice: IContextKeySewvice,
+		@INotificationSewvice pwotected weadonwy notificationSewvice: INotificationSewvice,
 	) { }
 
-	get templateId() {
-		return CellDiffSideBySideRenderer.TEMPLATE_ID;
+	get tempwateId() {
+		wetuwn CewwDiffSideBySideWendewa.TEMPWATE_ID;
 	}
 
-	renderTemplate(container: HTMLElement): CellDiffSideBySideRenderTemplate {
-		const body = DOM.$('.cell-body');
-		DOM.append(container, body);
-		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
-		DOM.append(body, diffEditorContainer);
+	wendewTempwate(containa: HTMWEwement): CewwDiffSideBySideWendewTempwate {
+		const body = DOM.$('.ceww-body');
+		DOM.append(containa, body);
+		const diffEditowContaina = DOM.$('.ceww-diff-editow-containa');
+		DOM.append(body, diffEditowContaina);
 
-		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
-		const { editor, editorContainer } = this._buildSourceEditor(sourceContainer);
+		const souwceContaina = DOM.append(diffEditowContaina, DOM.$('.souwce-containa'));
+		const { editow, editowContaina } = this._buiwdSouwceEditow(souwceContaina);
 
-		const inputToolbarContainer = DOM.append(sourceContainer, DOM.$('.editor-input-toolbar-container'));
-		const cellToolbarContainer = DOM.append(inputToolbarContainer, DOM.$('div.property-toolbar'));
-		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
-			actionViewItemProvider: action => {
+		const inputToowbawContaina = DOM.append(souwceContaina, DOM.$('.editow-input-toowbaw-containa'));
+		const cewwToowbawContaina = DOM.append(inputToowbawContaina, DOM.$('div.pwopewty-toowbaw'));
+		const toowbaw = new ToowBaw(cewwToowbawContaina, this.contextMenuSewvice, {
+			actionViewItemPwovida: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
-					return item;
+					const item = new CodiconActionViewItem(action, this.keybindingSewvice, this.notificationSewvice, this.contextKeySewvice);
+					wetuwn item;
 				}
 
-				return undefined;
+				wetuwn undefined;
 			}
 		});
 
-		const metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
-		const metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+		const metadataHeadewContaina = DOM.append(diffEditowContaina, DOM.$('.metadata-heada-containa'));
+		const metadataInfoContaina = DOM.append(diffEditowContaina, DOM.$('.metadata-info-containa'));
 
-		const outputHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.output-header-container'));
-		const outputInfoContainer = DOM.append(diffEditorContainer, DOM.$('.output-info-container'));
+		const outputHeadewContaina = DOM.append(diffEditowContaina, DOM.$('.output-heada-containa'));
+		const outputInfoContaina = DOM.append(diffEditowContaina, DOM.$('.output-info-containa'));
 
-		const borderContainer = DOM.append(body, DOM.$('.border-container'));
-		const leftBorder = DOM.append(borderContainer, DOM.$('.left-border'));
-		const rightBorder = DOM.append(borderContainer, DOM.$('.right-border'));
-		const topBorder = DOM.append(borderContainer, DOM.$('.top-border'));
-		const bottomBorder = DOM.append(borderContainer, DOM.$('.bottom-border'));
+		const bowdewContaina = DOM.append(body, DOM.$('.bowda-containa'));
+		const weftBowda = DOM.append(bowdewContaina, DOM.$('.weft-bowda'));
+		const wightBowda = DOM.append(bowdewContaina, DOM.$('.wight-bowda'));
+		const topBowda = DOM.append(bowdewContaina, DOM.$('.top-bowda'));
+		const bottomBowda = DOM.append(bowdewContaina, DOM.$('.bottom-bowda'));
 
 
-		return {
+		wetuwn {
 			body,
-			container,
-			diffEditorContainer,
-			sourceEditor: editor,
-			editorContainer,
-			inputToolbarContainer,
-			toolbar,
-			metadataHeaderContainer,
-			metadataInfoContainer,
-			outputHeaderContainer,
-			outputInfoContainer,
-			leftBorder,
-			rightBorder,
-			topBorder,
-			bottomBorder,
-			elementDisposables: new DisposableStore()
+			containa,
+			diffEditowContaina,
+			souwceEditow: editow,
+			editowContaina,
+			inputToowbawContaina,
+			toowbaw,
+			metadataHeadewContaina,
+			metadataInfoContaina,
+			outputHeadewContaina,
+			outputInfoContaina,
+			weftBowda,
+			wightBowda,
+			topBowda,
+			bottomBowda,
+			ewementDisposabwes: new DisposabweStowe()
 		};
 	}
 
-	private _buildSourceEditor(sourceContainer: HTMLElement) {
-		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+	pwivate _buiwdSouwceEditow(souwceContaina: HTMWEwement) {
+		const editowContaina = DOM.append(souwceContaina, DOM.$('.editow-containa'));
 
-		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
-			...fixedDiffEditorOptions,
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-			originalEditable: false,
-			ignoreTrimWhitespace: false,
-			automaticLayout: false,
+		const editow = this.instantiationSewvice.cweateInstance(DiffEditowWidget, editowContaina, {
+			...fixedDiffEditowOptions,
+			ovewfwowWidgetsDomNode: this.notebookEditow.getOvewfwowContainewDomNode(),
+			owiginawEditabwe: fawse,
+			ignoweTwimWhitespace: fawse,
+			automaticWayout: fawse,
 			dimension: {
 				height: 0,
 				width: 0
 			}
 		}, {
-			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
-			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+			owiginawEditow: getOptimizedNestedCodeEditowWidgetOptions(),
+			modifiedEditow: getOptimizedNestedCodeEditowWidgetOptions()
 		});
 
-		return {
-			editor,
-			editorContainer
+		wetuwn {
+			editow,
+			editowContaina
 		};
 	}
 
-	renderElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate, height: number | undefined): void {
-		templateData.body.classList.remove('left', 'right', 'full');
+	wendewEwement(ewement: SideBySideDiffEwementViewModew, index: numba, tempwateData: CewwDiffSideBySideWendewTempwate, height: numba | undefined): void {
+		tempwateData.body.cwassWist.wemove('weft', 'wight', 'fuww');
 
-		switch (element.type) {
+		switch (ewement.type) {
 			case 'unchanged':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedElement, this.notebookEditor, element, templateData));
-				return;
+				tempwateData.ewementDisposabwes.add(this.instantiationSewvice.cweateInstance(ModifiedEwement, this.notebookEditow, ewement, tempwateData));
+				wetuwn;
 			case 'modified':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedElement, this.notebookEditor, element, templateData));
-				return;
-			default:
-				break;
+				tempwateData.ewementDisposabwes.add(this.instantiationSewvice.cweateInstance(ModifiedEwement, this.notebookEditow, ewement, tempwateData));
+				wetuwn;
+			defauwt:
+				bweak;
 		}
 	}
 
-	disposeTemplate(templateData: CellDiffSideBySideRenderTemplate): void {
-		templateData.container.innerText = '';
-		templateData.sourceEditor.dispose();
-		templateData.toolbar?.dispose();
+	disposeTempwate(tempwateData: CewwDiffSideBySideWendewTempwate): void {
+		tempwateData.containa.innewText = '';
+		tempwateData.souwceEditow.dispose();
+		tempwateData.toowbaw?.dispose();
 	}
 
-	disposeElement(element: SideBySideDiffElementViewModel, index: number, templateData: CellDiffSideBySideRenderTemplate): void {
-		templateData.elementDisposables.clear();
+	disposeEwement(ewement: SideBySideDiffEwementViewModew, index: numba, tempwateData: CewwDiffSideBySideWendewTempwate): void {
+		tempwateData.ewementDisposabwes.cweaw();
 	}
 }
 
-export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase> implements IDisposable, IStyleController {
-	private styleElement?: HTMLStyleElement;
+expowt cwass NotebookTextDiffWist extends WowkbenchWist<DiffEwementViewModewBase> impwements IDisposabwe, IStyweContwowwa {
+	pwivate styweEwement?: HTMWStyweEwement;
 
-	get rowsContainer(): HTMLElement {
-		return this.view.containerDomNode;
+	get wowsContaina(): HTMWEwement {
+		wetuwn this.view.containewDomNode;
 	}
 
-	constructor(
-		listUser: string,
-		container: HTMLElement,
-		delegate: IListVirtualDelegate<DiffElementViewModelBase>,
-		renderers: IListRenderer<DiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
-		contextKeyService: IContextKeyService,
-		options: IWorkbenchListOptions<DiffElementViewModelBase>,
-		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+	constwuctow(
+		wistUsa: stwing,
+		containa: HTMWEwement,
+		dewegate: IWistViwtuawDewegate<DiffEwementViewModewBase>,
+		wendewews: IWistWendewa<DiffEwementViewModewBase, CewwDiffSingweSideWendewTempwate | CewwDiffSideBySideWendewTempwate>[],
+		contextKeySewvice: IContextKeySewvice,
+		options: IWowkbenchWistOptions<DiffEwementViewModewBase>,
+		@IWistSewvice wistSewvice: IWistSewvice,
+		@IThemeSewvice themeSewvice: IThemeSewvice,
+		@IConfiguwationSewvice configuwationSewvice: IConfiguwationSewvice,
+		@IKeybindingSewvice keybindingSewvice: IKeybindingSewvice) {
+		supa(wistUsa, containa, dewegate, wendewews, options, contextKeySewvice, wistSewvice, themeSewvice, configuwationSewvice, keybindingSewvice);
 	}
 
-	getAbsoluteTopOfElement(element: DiffElementViewModelBase): number {
-		const index = this.indexOf(element);
-		// if (index === undefined || index < 0 || index >= this.length) {
-		// 	this._getViewIndexUpperBound(element);
-		// 	throw new ListError(this.listUser, `Invalid index ${index}`);
+	getAbsowuteTopOfEwement(ewement: DiffEwementViewModewBase): numba {
+		const index = this.indexOf(ewement);
+		// if (index === undefined || index < 0 || index >= this.wength) {
+		// 	this._getViewIndexUppewBound(ewement);
+		// 	thwow new WistEwwow(this.wistUsa, `Invawid index ${index}`);
 		// }
 
-		return this.view.elementTop(index);
+		wetuwn this.view.ewementTop(index);
 	}
 
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
+	twiggewScwowwFwomMouseWheewEvent(bwowsewEvent: IMouseWheewEvent) {
+		this.view.twiggewScwowwFwomMouseWheewEvent(bwowsewEvent);
 	}
 
-	clear() {
-		super.splice(0, this.length);
+	cweaw() {
+		supa.spwice(0, this.wength);
 	}
 
 
-	updateElementHeight2(element: DiffElementViewModelBase, size: number) {
-		const viewIndex = this.indexOf(element);
+	updateEwementHeight2(ewement: DiffEwementViewModewBase, size: numba) {
+		const viewIndex = this.indexOf(ewement);
 		const focused = this.getFocus();
 
-		this.view.updateElementHeight(viewIndex, size, focused.length ? focused[0] : null);
+		this.view.updateEwementHeight(viewIndex, size, focused.wength ? focused[0] : nuww);
 	}
 
-	override style(styles: IListStyles) {
-		const selectorSuffix = this.view.domId;
-		if (!this.styleElement) {
-			this.styleElement = DOM.createStyleSheet(this.view.domNode);
+	ovewwide stywe(stywes: IWistStywes) {
+		const sewectowSuffix = this.view.domId;
+		if (!this.styweEwement) {
+			this.styweEwement = DOM.cweateStyweSheet(this.view.domNode);
 		}
-		const suffix = selectorSuffix && `.${selectorSuffix}`;
-		const content: string[] = [];
+		const suffix = sewectowSuffix && `.${sewectowSuffix}`;
+		const content: stwing[] = [];
 
-		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
+		if (stywes.wistBackgwound) {
+			if (stywes.wistBackgwound.isOpaque()) {
+				content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows { backgwound: ${stywes.wistBackgwound}; }`);
+			} ewse if (!isMacintosh) { // subpixew AA doesn't exist in macOS
+				consowe.wawn(`Wist with id '${sewectowSuffix}' was stywed with a non-opaque backgwound cowow. This wiww bweak sub-pixew antiawiasing.`);
 			}
 		}
 
-		if (styles.listFocusBackground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
+		if (stywes.wistFocusBackgwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`);
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused:hova { backgwound-cowow: ${stywes.wistFocusBackgwound}; }`); // ovewwwite :hova stywe in this case!
 		}
 
-		if (styles.listFocusForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		if (stywes.wistFocusFowegwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { cowow: ${stywes.wistFocusFowegwound}; }`);
 		}
 
-		if (styles.listActiveSelectionBackground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
+		if (stywes.wistActiveSewectionBackgwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`);
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected:hova { backgwound-cowow: ${stywes.wistActiveSewectionBackgwound}; }`); // ovewwwite :hova stywe in this case!
 		}
 
-		if (styles.listActiveSelectionForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		if (stywes.wistActiveSewectionFowegwound) {
+			content.push(`.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { cowow: ${stywes.wistActiveSewectionFowegwound}; }`);
 		}
 
-		if (styles.listFocusAndSelectionBackground) {
+		if (stywes.wistFocusAndSewectionBackgwound) {
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected.focused { backgwound-cowow: ${stywes.wistFocusAndSewectionBackgwound}; }
 			`);
 		}
 
-		if (styles.listFocusAndSelectionForeground) {
+		if (stywes.wistFocusAndSewectionFowegwound) {
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected.focused { cowow: ${stywes.wistFocusAndSewectionFowegwound}; }
 			`);
 		}
 
-		if (styles.listInactiveFocusBackground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
+		if (stywes.wistInactiveFocusBackgwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { backgwound-cowow:  ${stywes.wistInactiveFocusBackgwound}; }`);
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused:hova { backgwound-cowow:  ${stywes.wistInactiveFocusBackgwound}; }`); // ovewwwite :hova stywe in this case!
 		}
 
-		if (styles.listInactiveSelectionBackground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
+		if (stywes.wistInactiveSewectionBackgwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { backgwound-cowow:  ${stywes.wistInactiveSewectionBackgwound}; }`);
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected:hova { backgwound-cowow:  ${stywes.wistInactiveSewectionBackgwound}; }`); // ovewwwite :hova stywe in this case!
 		}
 
-		if (styles.listInactiveSelectionForeground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
+		if (stywes.wistInactiveSewectionFowegwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { cowow: ${stywes.wistInactiveSewectionFowegwound}; }`);
 		}
 
-		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target) > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover:not(.selected):not(.focused) { background-color:  ${styles.listHoverBackground}; }`);
+		if (stywes.wistHovewBackgwound) {
+			content.push(`.monaco-wist${suffix}:not(.dwop-tawget) > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova:not(.sewected):not(.focused) { backgwound-cowow:  ${stywes.wistHovewBackgwound}; }`);
 		}
 
-		if (styles.listHoverForeground) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
+		if (stywes.wistHovewFowegwound) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova:not(.sewected):not(.focused) { cowow:  ${stywes.wistHovewFowegwound}; }`);
 		}
 
-		if (styles.listSelectionOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; outline-offset: -1px; }`);
+		if (stywes.wistSewectionOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.sewected { outwine: 1px dotted ${stywes.wistSewectionOutwine}; outwine-offset: -1px; }`);
 		}
 
-		if (styles.listFocusOutline) {
+		if (stywes.wistFocusOutwine) {
 			content.push(`
-				.monaco-drag-image,
-				.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }
+				.monaco-dwag-image,
+				.monaco-wist${suffix}:focus > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { outwine: 1px sowid ${stywes.wistFocusOutwine}; outwine-offset: -1px; }
 			`);
 		}
 
-		if (styles.listInactiveFocusOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
+		if (stywes.wistInactiveFocusOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow.focused { outwine: 1px dotted ${stywes.wistInactiveFocusOutwine}; outwine-offset: -1px; }`);
 		}
 
-		if (styles.listHoverOutline) {
-			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+		if (stywes.wistHovewOutwine) {
+			content.push(`.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows > .monaco-wist-wow:hova { outwine: 1px dashed ${stywes.wistHovewOutwine}; outwine-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (stywes.wistDwopBackgwound) {
 			content.push(`
-				.monaco-list${suffix}.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-wist${suffix}.dwop-tawget,
+				.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wows.dwop-tawget,
+				.monaco-wist${suffix} > div.monaco-scwowwabwe-ewement > .monaco-wist-wow.dwop-tawget { backgwound-cowow: ${stywes.wistDwopBackgwound} !impowtant; cowow: inhewit !impowtant; }
 			`);
 		}
 
-		if (styles.listFilterWidgetBackground) {
-			content.push(`.monaco-list-type-filter { background-color: ${styles.listFilterWidgetBackground} }`);
+		if (stywes.wistFiwtewWidgetBackgwound) {
+			content.push(`.monaco-wist-type-fiwta { backgwound-cowow: ${stywes.wistFiwtewWidgetBackgwound} }`);
 		}
 
-		if (styles.listFilterWidgetOutline) {
-			content.push(`.monaco-list-type-filter { border: 1px solid ${styles.listFilterWidgetOutline}; }`);
+		if (stywes.wistFiwtewWidgetOutwine) {
+			content.push(`.monaco-wist-type-fiwta { bowda: 1px sowid ${stywes.wistFiwtewWidgetOutwine}; }`);
 		}
 
-		if (styles.listFilterWidgetNoMatchesOutline) {
-			content.push(`.monaco-list-type-filter.no-matches { border: 1px solid ${styles.listFilterWidgetNoMatchesOutline}; }`);
+		if (stywes.wistFiwtewWidgetNoMatchesOutwine) {
+			content.push(`.monaco-wist-type-fiwta.no-matches { bowda: 1px sowid ${stywes.wistFiwtewWidgetNoMatchesOutwine}; }`);
 		}
 
-		if (styles.listMatchesShadow) {
-			content.push(`.monaco-list-type-filter { box-shadow: 1px 1px 1px ${styles.listMatchesShadow}; }`);
+		if (stywes.wistMatchesShadow) {
+			content.push(`.monaco-wist-type-fiwta { box-shadow: 1px 1px 1px ${stywes.wistMatchesShadow}; }`);
 		}
 
-		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.textContent) {
-			this.styleElement.textContent = newStyles;
+		const newStywes = content.join('\n');
+		if (newStywes !== this.styweEwement.textContent) {
+			this.styweEwement.textContent = newStywes;
 		}
 	}
 }
