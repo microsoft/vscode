@@ -488,6 +488,7 @@ suite('ExtensionsListView Tests', () => {
 			}
 		}]);
 
+		testableView.resetSearchExperiments();
 		testableView.dispose();
 		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
 
