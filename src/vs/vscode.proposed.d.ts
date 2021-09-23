@@ -2293,7 +2293,7 @@ declare module 'vscode' {
 		 * @param index The index to move the tab to
 		 * @param viewColumn The column to move the tab into
 		 */
-		move(index: number, viewColumn: ViewColumn): void;
+		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 	}
 
 	export namespace window {

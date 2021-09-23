@@ -20,7 +20,7 @@ export interface IEditorTab {
 	viewId?: string;
 	isActive: boolean;
 	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[];
-	move(index: number, viewColumn: ViewColumn): void;
+	move(index: number, viewColumn: ViewColumn): Promise<void>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -72,7 +72,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 				viewId: dto.editorId,
 				isActive: dto.isActive,
-				move: (index: number, viewColumn: ViewColumn) => this._proxy.$moveTab(dto, index, typeConverters.ViewColumn.from(viewColumn)),
+				move: async (index: number, viewColumn: ViewColumn) => {
+					this._proxy.$moveTab(dto, index, typeConverters.ViewColumn.from(viewColumn));
+					await Event.toPromise(this._onDidChangeTabs.event);
+					return;
+				},
 			});
 		});
 		this._tabs = this._tabs.sort((t1, t2) => {
