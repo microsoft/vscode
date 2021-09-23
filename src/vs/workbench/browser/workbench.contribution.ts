@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -354,7 +355,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.experimental.auxiliaryBar.enabled': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the auxiliary bar opposite the side bar is enabled.")
+				'description': localize('auxiliaryBarEnabled', "Controls whether the auxiliary bar opposite the side bar is enabled."),
+				'included': product.quality !== 'stable'
 			},
 		}
 	});
