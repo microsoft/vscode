@@ -457,9 +457,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
+				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
+					title: { original: `Focus on ${viewDescriptor.name} View`, value: title },
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -473,11 +474,29 @@ export class ViewsService extends Disposable implements IViewsService {
 						linux: viewDescriptor.focusCommand?.keybindings?.linux,
 						mac: viewDescriptor.focusCommand?.keybindings?.mac,
 						win: viewDescriptor.focusCommand?.keybindings?.win
+					},
+					description: {
+						description: title,
+						args: [
+							{
+								name: 'focusOptions',
+								description: 'Focus Options',
+								schema: {
+									type: 'object',
+									properties: {
+										'preserveFocus': {
+											type: 'boolean',
+											default: false
+										}
+									},
+								}
+							}
+						]
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): void {
-				accessor.get(IViewsService).openView(viewDescriptor.id, true);
+			run(accessor: ServicesAccessor, showOptions?: { preserveFocus?: boolean }): void {
+				accessor.get(IViewsService).openView(viewDescriptor.id, !preserveFocus);
 			}
 		});
 	}
