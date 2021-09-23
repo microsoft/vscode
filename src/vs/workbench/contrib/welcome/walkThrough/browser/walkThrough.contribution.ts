@@ -30,7 +30,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
 		SyncActionDescriptor.from(EditorWalkThroughAction),
-		'Help: Interactive Playground', CATEGORIES.Help.value);
+		'Help: Interactive Editor Playground', CATEGORIES.Help.value);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
@@ -49,7 +49,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '1_welcome',
 	command: {
 		id: 'workbench.action.showInteractivePlayground',
-		title: localize({ key: 'miPlayground', comment: ['&& denotes a mnemonic'] }, "Playgrou&&nd")
+		title: localize({ key: 'miPlayground', comment: ['&& denotes a mnemonic'] }, "Editor Playgrou&&nd")
 	},
 	order: 3
 });

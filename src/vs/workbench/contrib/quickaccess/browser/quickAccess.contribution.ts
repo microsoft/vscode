@@ -57,11 +57,11 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	order: 1
 });
 
-MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '1_welcome',
 	command: {
 		id: ShowAllCommandsAction.ID,
-		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "Search All &&Commands")
+		title: localize({ key: 'miShowAllCommands', comment: ['&& denotes a mnemonic'] }, "Show All Commands")
 	},
 	order: 2
 });
