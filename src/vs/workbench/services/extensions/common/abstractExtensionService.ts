@@ -987,6 +987,53 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public abstract _onExtensionHostExit(code: number): void;
 }
 
+class ExtensionWithKind {
+
+	constructor(
+		public readonly desc: IExtensionDescription,
+		public readonly kind: ExtensionKind[]
+	) { }
+
+	public get key(): string {
+		return ExtensionIdentifier.toKey(this.desc.identifier);
+	}
+
+	public get isUnderDevelopment(): boolean {
+		return this.desc.isUnderDevelopment;
+	}
+}
+
+class ExtensionInfo {
+
+	constructor(
+		public readonly local: ExtensionWithKind | null,
+		public readonly remote: ExtensionWithKind | null,
+	) { }
+
+	public get key(): string {
+		if (this.local) {
+			return this.local.key;
+		}
+		if (this.remote) {
+			return this.remote.key;
+		}
+		throw new Error('not possible');
+	}
+
+	public get kind(): ExtensionKind[] {
+		// in case of disagreements between extension kinds, it is always
+		// better to pick the local extension because it has a much higher
+		// chance of being up-to-date
+		if (this.local) {
+			return this.local.kind;
+		}
+		if (this.remote) {
+			return this.remote.kind;
+		}
+		throw new Error(`not possible`);
+	}
+}
+
 export class ExtensionRunningLocationClassifier {
 	constructor(
 		public readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
@@ -994,37 +1041,39 @@ export class ExtensionRunningLocationClassifier {
 	) {
 	}
 
-	public determineRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation> {
-		const allExtensionKinds = new Map<string, ExtensionKind[]>();
-		localExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), this.getExtensionKind(ext)));
-		remoteExtensions.forEach(ext => allExtensionKinds.set(ExtensionIdentifier.toKey(ext.identifier), this.getExtensionKind(ext)));
-
-		const localExtensionsSet = new Set<string>();
-		localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
-
-		const localUnderDevelopmentExtensionsSet = new Set<string>();
-		localExtensions.forEach((ext) => {
-			if (ext.isUnderDevelopment) {
-				localUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
-			}
+	private _toExtensionWithKind(extensions: IExtensionDescription[]): Map<string, ExtensionWithKind> {
+		const result = new Map<string, ExtensionWithKind>();
+		extensions.forEach((desc) => {
+			const ext = new ExtensionWithKind(desc, this.getExtensionKind(desc));
+			result.set(ext.key, ext);
 		});
+		return result;
+	}
 
-		const remoteExtensionsSet = new Set<string>();
-		remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
+	public determineRunningLocation(_localExtensions: IExtensionDescription[], _remoteExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation> {
+		const localExtensions = this._toExtensionWithKind(_localExtensions);
+		const remoteExtensions = this._toExtensionWithKind(_remoteExtensions);
 
-		const remoteUnderDevelopmentExtensionsSet = new Set<string>();
-		remoteExtensions.forEach((ext) => {
-			if (ext.isUnderDevelopment) {
-				remoteUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
+		const allExtensions = new Map<string, ExtensionInfo>();
+		const collectExtension = (ext: ExtensionWithKind) => {
+			if (allExtensions.has(ext.key)) {
+				return;
 			}
-		});
+			const local = localExtensions.get(ext.key) || null;
+			const remote = remoteExtensions.get(ext.key) || null;
+			const info = new ExtensionInfo(local, remote);
+			allExtensions.set(info.key, info);
+		};
+		localExtensions.forEach((ext) => collectExtension(ext));
+		remoteExtensions.forEach((ext) => collectExtension(ext));
 
-		const pickRunningLocation = (extensionIdentifier: ExtensionIdentifier): ExtensionRunningLocation => {
-			const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
-			const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+		const runningLocation = new Map<string, ExtensionRunningLocation>();
+		allExtensions.forEach((ext) => {
+			const isInstalledLocally = Boolean(ext.local);
+			const isInstalledRemotely = Boolean(ext.remote);
 
-			const isLocallyUnderDevelopment = localUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
-			const isRemotelyUnderDevelopment = remoteUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+			const isLocallyUnderDevelopment = Boolean(ext.local && ext.local.isUnderDevelopment);
+			const isRemotelyUnderDevelopment = Boolean(ext.remote && ext.remote.isUnderDevelopment);
 
 			let preference = ExtensionRunningPreference.None;
 			if (isLocallyUnderDevelopment && !isRemotelyUnderDevelopment) {
@@ -1033,13 +1082,9 @@ export class ExtensionRunningLocationClassifier {
 				preference = ExtensionRunningPreference.Remote;
 			}
 
-			const extensionKinds = allExtensionKinds.get(ExtensionIdentifier.toKey(extensionIdentifier)) || [];
-			return this.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
-		};
+			runningLocation.set(ext.key, this.pickRunningLocation(ext.kind, isInstalledLocally, isInstalledRemotely, preference));
+		});
 
-		const runningLocation = new Map<string, ExtensionRunningLocation>();
-		localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
-		remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
 		return runningLocation;
 	}
 }
