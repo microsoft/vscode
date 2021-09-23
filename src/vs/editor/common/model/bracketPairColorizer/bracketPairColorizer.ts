@@ -75,7 +75,7 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	}
 
 	private updateCache() {
-		if (this.textModel.isAttachedToEditor() && this.isDocumentSupported && (this.options.enabled || this.bracketsRequested)) {
+		if (this.bracketsRequested || (this.textModel.isAttachedToEditor() && this.isDocumentSupported && this.options.enabled)) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
 				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel)), store);

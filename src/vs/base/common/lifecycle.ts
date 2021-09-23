@@ -394,3 +394,12 @@ export class ImmortalReference<T> implements IReference<T> {
 	constructor(public object: T) { }
 	dispose(): void { /* noop */ }
 }
+
+export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
+	const store = new DisposableStore();
+	try {
+		fn(store);
+	} finally {
+		store.dispose();
+	}
+}
