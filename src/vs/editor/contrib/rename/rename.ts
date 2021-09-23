@@ -357,6 +357,15 @@ registerModelAndPositionCommand('_executeDocumentRenameProvider', function (mode
 	return rename(model, position, newName);
 });
 
+registerModelAndPositionCommand('_executePrepareRename', async function (model, position) {
+	const skeleton = new RenameSkeleton(model, position);
+	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
+	if (loc?.rejectReason) {
+		throw new Error(loc.rejectReason);
+	}
+	return loc;
+});
+
 
 //todo@jrieken use editor options world
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({

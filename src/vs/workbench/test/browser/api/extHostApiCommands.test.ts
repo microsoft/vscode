@@ -245,6 +245,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 
 	// --- rename
+	test('vscode.prepareRename', async function () {
+		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
+
+			prepareRename(document: vscode.TextDocument, position: vscode.Position) {
+				return {
+					range: new types.Range(0, 12, 0, 24),
+					placeholder: 'foooPlaceholder'
+				};
+			}
+
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
+				const edit = new types.WorkspaceEdit();
+				edit.insert(document.uri, <types.Position>position, newName);
+				return edit;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const data = await commands.executeCommand<{ range: vscode.Range, placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
+
+		assert.ok(data);
+		assert.strictEqual(data.placeholder, 'foooPlaceholder');
+		assert.strictEqual(data.range.start.line, 0);
+		assert.strictEqual(data.range.start.character, 12);
+		assert.strictEqual(data.range.end.line, 0);
+		assert.strictEqual(data.range.end.character, 24);
+
+	});
+
 	test('vscode.executeDocumentRenameProvider', async function () {
 		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
 			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
