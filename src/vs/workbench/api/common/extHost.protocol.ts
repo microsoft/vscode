@@ -87,6 +87,7 @@ export interface IEnvironment {
 export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
+	transient?: boolean;
 	configuration?: UriComponents | null;
 	isUntitled?: boolean | null;
 }

@@ -534,6 +534,10 @@ export class WorkspaceConfiguration extends Disposable {
 		return Promise.resolve();
 	}
 
+	isTransient(): boolean {
+		return this._workspaceConfiguration.isTransient();
+	}
+
 	getConfiguration(): ConfigurationModel {
 		return this._workspaceConfiguration.getWorkspaceSettings();
 	}
@@ -648,6 +652,10 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
+	}
+
 	getWorkspaceSettings(): ConfigurationModel {
 		return this.workspaceSettings;
 	}
@@ -717,6 +725,10 @@ class CachedWorkspaceConfiguration {
 
 	getFolders(): IStoredWorkspaceFolder[] {
 		return this.workspaceConfigurationModelParser.folders;
+	}
+
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
 	}
 
 	getWorkspaceSettings(): ConfigurationModel {
