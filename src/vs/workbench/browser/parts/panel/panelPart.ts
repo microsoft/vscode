@@ -171,7 +171,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				]);
 			},
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
-			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)!.id,
+			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)?.id,
 			hidePart: () => this.layoutService.setPartHidden(true, this.partId),
 			dndHandler: this.dndHandler,
 			compositeSize: 0,
