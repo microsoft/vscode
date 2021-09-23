@@ -125,6 +125,7 @@ export class SuggestModel implements IDisposable {
 
 	private _requestToken?: CancellationTokenSource;
 	private _context?: LineContext;
+	private _lastTriggerOptions?: { onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[], clipboardText: string | undefined } };
 	private _currentSelection: Selection;
 
 	private _completionModel: CompletionModel | undefined;
@@ -289,6 +290,7 @@ export class SuggestModel implements IDisposable {
 			this._state = State.Idle;
 			this._completionModel = undefined;
 			this._context = undefined;
+			this._lastTriggerOptions = undefined;
 			this._onDidCancel.fire({ retrigger });
 		}
 	}
@@ -331,7 +333,19 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
+		if (this._state !== State.Idle && e.reason === CursorChangeReason.NotSet && !this._completionModel && this._context?.leadingWord.word.length === 0) {
+			const cachedContext = this._context;
+			// It can takes too long and incomplete (retrigger after long wait) if there are huge candidates,
+			// so cancel previous and retrigger with word prefix after certain wait time.
+
+			this._triggerQuickSuggest.cancelAndSet(() => {
+				if (this._context === cachedContext && !this._completionModel) {
+					// still waiting for previous request
+					this.trigger(this._context, true, this._lastTriggerOptions?.onlyFrom, this._lastTriggerOptions?.existing);
+				}
+			}, this._quickSuggestDelay);
+
+		} else if (this._state === State.Idle && e.reason === CursorChangeReason.NotSet) {
 
 			if (this._editor.getOption(EditorOption.quickSuggestions) === false) {
 				// not enabled
@@ -436,6 +450,7 @@ export class SuggestModel implements IDisposable {
 
 		// Capture context when request was sent
 		this._context = ctx;
+		this._lastTriggerOptions = { onlyFrom, existing };
 
 		// Build context for request
 		let suggestCtx: CompletionContext = { triggerKind: context.triggerKind ?? CompletionTriggerKind.Invoke };
