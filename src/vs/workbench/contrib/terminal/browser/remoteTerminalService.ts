@@ -249,8 +249,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				icon: termDto.icon,
 				color: termDto.color,
 				isOrphan: termDto.isOrphan,
-				fixedCols: termDto.fixedCols,
-				fixedRows: termDto.fixedRows
+				fixedDimensions: termDto.fixedDimensions
 			};
 		});
 	}

@@ -15,7 +15,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -154,6 +154,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } }, color?: string): Promise<void> {
 		await this._localPtyService.updateIcon(id, icon, color);
+	}
+
+	updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+		return this._localPtyService.updateProperty(id, property, value);
 	}
 
 	async createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, unicodeVersion: '6' | '11', env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess> {

@@ -79,7 +79,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
-		fixedDimensions: { fixedCols: undefined, fixedRows: undefined }
+		fixedDimensions: { cols: undefined, rows: undefined }
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -401,7 +401,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<any> {
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		if (type === ProcessPropertyType.Cwd) {
 			const newCwd = await this.getCwd();
 			if (newCwd !== this._properties.cwd) {
@@ -409,13 +409,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 			}
 			return newCwd;
-		} else if (type === ProcessPropertyType.InitialCwd) {
+		} else {
 			return this.getInitialCwd();
 		}
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<any> {
-		if (type === ProcessPropertyType.FixedDimensions) {
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+		//TODO: why is the type check necessary?
+		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string') {
 			this._properties.fixedDimensions = value;
 		}
 	}

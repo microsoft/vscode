@@ -93,7 +93,7 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxSupportedCols = 500
+	MaxSupportedCols = 1000
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -144,8 +144,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
 	private _rows: number = 0;
-	private _fixedCols: number | undefined = undefined;
-	private _fixedRows: number | undefined = undefined;
+	private _fixedCols: number | undefined;
+	private _fixedRows: number | undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
@@ -331,8 +331,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
-		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedCols;
-		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedRows;
+
+		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
@@ -375,7 +376,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 			}
-
 			if (this._fixedCols && this._fixedCols > this.maxCols) {
 				await this._addScrollbar();
 			}
@@ -1752,10 +1752,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
-				this._onDimensionsChanged.fire();
 				if (this._fixedRows || this._fixedCols) {
-					await this.updateProperty(ProcessPropertyType.FixedDimensions, { fixedCols: this._fixedCols, fixedRows: this._fixedRows });
+					await this.updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
 				}
+				this._onDimensionsChanged.fire();
 			}
 
 			this._xterm.resize(cols, rows);

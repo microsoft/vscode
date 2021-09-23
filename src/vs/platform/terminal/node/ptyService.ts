@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -203,7 +203,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			windowsEnableConpty
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedCols, shellLaunchConfig.fixedRows);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -372,7 +372,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
-		this._logService.trace('cols', persistentProcess.fixedCols);
 		return {
 			id,
 			title: persistentProcess.title,
@@ -384,8 +383,7 @@ export class PtyService extends Disposable implements IPtyService {
 			isOrphan,
 			icon: persistentProcess.icon,
 			color: persistentProcess.color,
-			fixedCols: persistentProcess.fixedCols,
-			fixedRows: persistentProcess.fixedRows
+			fixedDimensions: persistentProcess.fixedDimensions
 		};
 	}
 
@@ -444,8 +442,7 @@ export class PersistentTerminalProcess extends Disposable {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _serializer: ITerminalSerializer;
 	private _wasRevived: boolean;
-	private _fixedCols: number | undefined;
-	private _fixedRows: number | undefined;
+	private _fixedDimensions: IFixedTerminalDimensions | undefined;
 
 	get pid(): number { return this._pid; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
@@ -453,8 +450,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
-	get fixedCols(): number | undefined { return this._fixedCols; }
-	get fixedRows(): number | undefined { return this._fixedRows; }
+	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		this._title = title;
@@ -466,9 +462,8 @@ export class PersistentTerminalProcess extends Disposable {
 		this._color = color;
 	}
 
-	setFixedDimensions(fixedDimensions?: { fixedCols?: number, fixedRows?: number }): void {
-		this._fixedCols = fixedDimensions?.fixedCols;
-		this._fixedRows = fixedDimensions?.fixedRows;
+	private _setFixedDimensions(fixedDimensions?: IFixedTerminalDimensions): void {
+		this._fixedDimensions = fixedDimensions;
 	}
 
 	constructor(
@@ -486,8 +481,7 @@ export class PersistentTerminalProcess extends Disposable {
 		reviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
 		private _color?: string,
-		fixedCols?: number,
-		fixedRows?: number
+		fixedDimensions?: IFixedTerminalDimensions
 	) {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
@@ -499,8 +493,7 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
-		this._fixedRows = fixedRows;
-		this._fixedCols = fixedCols;
+		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new ProcessTimeRunOnceScheduler(() => {
@@ -555,9 +548,9 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
 		if (type === ProcessPropertyType.FixedDimensions) {
-			this._logService.trace('updating property', value);
-			this.setFixedDimensions(value);
+			this._setFixedDimensions(value);
 		}
+		//TODO: migrate icon and title to use this
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {

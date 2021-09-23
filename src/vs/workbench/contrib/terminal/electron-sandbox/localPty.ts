@@ -18,7 +18,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
-		fixedDimensions: { fixedCols: undefined, fixedRows: undefined }
+		fixedDimensions: { cols: undefined, rows: undefined }
 	};
 	private _capabilities: ProcessCapability[] = [];
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
@@ -87,8 +87,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._localPtyService.refreshProperty(this.id, type);
 	}
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
-		console.log('updating property', type, value);
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._localPtyService.updateProperty(this.id, type, value);
 	}
 	getLatency(): Promise<number> {
@@ -135,8 +134,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			this._properties.cwd = e.value;
 		} else if (e.type === ProcessPropertyType.InitialCwd) {
 			this._properties.initialCwd = e.value;
-		} else if (e.type === ProcessPropertyType.FixedDimensions) {
-			this._properties.fixedDimensions = e.value;
 		}
 		this._onDidChangeProperty.fire(e);
 	}

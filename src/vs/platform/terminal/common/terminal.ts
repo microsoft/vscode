@@ -134,8 +134,7 @@ export interface IPtyHostAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
-	fixedCols: number | undefined;
-	fixedRows: number | undefined;
+	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
 export enum TitleEventSource {
@@ -192,10 +191,21 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: TerminalDimensions
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions
 }
 
-type TerminalDimensions = { fixedCols?: number, fixedRows?: number };
+export interface IFixedTerminalDimensions {
+	/**
+	 * The fixed columns of the terminal.
+	 */
+	cols?: number;
+
+	/**
+	 * The fixed rows of the terminal.
+	 */
+	rows?: number;
+}
+
 
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
@@ -380,7 +390,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedCols?: number, fixedRows?: number };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedDimensions?: IFixedTerminalDimensions };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -436,8 +446,11 @@ export interface IShellLaunchConfig {
 	 */
 	parentTerminalId?: number;
 
-	fixedCols?: number;
-	fixedRows?: number;
+	/**
+	 * The dimensions for the instance as set by the user
+	 * or via Size to Content Width
+	 */
+	fixedDimensions?: IFixedTerminalDimensions;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
@@ -561,8 +574,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): Promise<any>;
-	updateProperty(property: ProcessPropertyType, value: any): Promise<void>;
+	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
 export interface IReconnectConstants {

@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -266,11 +266,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
-	refreshProperty(property: ProcessPropertyType): Promise<any> {
+	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return Promise.resolve('');
 	}
 
-	async updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+	async updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
 		Promise.resolve('');
 	}
 
