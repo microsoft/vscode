@@ -310,7 +310,8 @@ suite('ViewModel', () => {
 							description: 'test',
 							before: {
 								content: 'bar'
-							}
+							},
+							showIfCollapsed: true
 						}
 					},
 					{
@@ -319,7 +320,8 @@ suite('ViewModel', () => {
 							description: 'test',
 							before: {
 								content: 'bz'
-							}
+							},
+							showIfCollapsed: true
 						}
 					},
 				]);

@@ -754,6 +754,7 @@ class TestMessageDecoration implements ITestDecoration {
 			content: renderStringAsPlaintext(message),
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
 		};
+		options.showIfCollapsed = true;
 
 		const rulerColor = severity === TestMessageType.Error
 			? overviewRulerError
