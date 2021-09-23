@@ -71,7 +71,7 @@ interface ITunnelOptions {
 	label?: string;
 
 	/**
-	 * @deprecated
+	 * @deprecated Use privacy instead
 	 */
 	public?: boolean;
 
@@ -98,7 +98,7 @@ interface ITunnel {
 	localAddress: string;
 
 	/**
-	 * @deprecated
+	 * @deprecated Use privacy instead
 	 */
 	public?: boolean;
 

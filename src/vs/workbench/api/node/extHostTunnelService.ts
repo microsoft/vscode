@@ -298,7 +298,6 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				this._forwardPortProvider = provider.tunnelFactory;
 				let privacyOptions = provider.tunnelFeatures?.privacyOptions ?? [];
 				if (provider.tunnelFeatures?.public && (privacyOptions.length === 0)) {
-					this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) setting privacy options`);
 					privacyOptions = [
 						{
 							id: 'private',

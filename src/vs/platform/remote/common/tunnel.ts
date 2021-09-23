@@ -93,6 +93,9 @@ export interface ITunnel {
 	 */
 	localAddress: string;
 
+	/**
+	 * @deprecated Use privacy instead
+	 */
 	public?: boolean;
 
 	privacy?: string;

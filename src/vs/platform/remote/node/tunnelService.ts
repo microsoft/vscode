@@ -27,7 +27,6 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	public tunnelLocalPort!: number;
 	public tunnelRemoteHost: string;
 	public localAddress!: string;
-	public readonly public = false;
 	public readonly privacy = TunnelPrivacyId.Private;
 
 	private readonly _options: IConnectionOptions;

@@ -25,10 +25,10 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 		super();
 		const tunnelFactory = environmentService.options?.tunnelProvider?.tunnelFactory;
 		if (tunnelFactory) {
-			if (environmentService.options?.tunnelProvider?.features?.public &&
-				(!environmentService.options?.tunnelProvider?.features.privacyOptions
-					|| (environmentService.options?.tunnelProvider?.features.privacyOptions.length === 0))) {
-				environmentService.options.tunnelProvider.features.privacyOptions = [
+			let privacyOptions = environmentService.options?.tunnelProvider?.features?.privacyOptions ?? [];
+			if (environmentService.options?.tunnelProvider?.features?.public
+				&& (privacyOptions.length === 0)) {
+				privacyOptions = [
 					{
 						id: 'private',
 						label: nls.localize('tunnelPrivacy.private', "Private"),
@@ -78,7 +78,11 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						resolve(remoteTunnel);
 					});
 				}
-			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false, privacyOptions: [] }));
+			}, {
+				elevation: !!environmentService.options?.tunnelProvider?.features?.elevation,
+				public: !!environmentService.options?.tunnelProvider?.features?.public,
+				privacyOptions
+			}));
 			remoteExplorerService.setTunnelInformation(undefined);
 		}
 	}
