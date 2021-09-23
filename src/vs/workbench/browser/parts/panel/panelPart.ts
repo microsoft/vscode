@@ -120,7 +120,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(
@@ -158,16 +158,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPaneComposite(compositeId)), this.viewContainerLocation),
-			fillExtraContextMenuActions: actions => {
-				actions.push(...[
-					new Separator(),
-					...PositionPanelActionConfigs
-						// show the contextual menu item if it is not in that position
-						.filter(({ when }) => contextKeyService.contextMatchesRules(when))
-						.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
-					this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
-				]);
-			},
+			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => viewDescriptorService.getDefaultViewContainer(this.viewContainerLocation)?.id,
 			hidePart: () => this.layoutService.setPartHidden(true, this.partId),
@@ -191,6 +182,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
+	protected abstract fillExtraContextMenuActions(actions: IAction[]): void;
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
 		const result: IAction[] = [];
@@ -858,6 +850,17 @@ export class PanelPart extends BasePanelPart {
 		return {
 			position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 		};
+	}
+
+	protected fillExtraContextMenuActions(actions: IAction[]): void {
+		actions.push(...[
+			new Separator(),
+			...PositionPanelActionConfigs
+				// show the contextual menu item if it is not in that position
+				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
+				.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
+			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+		]);
 	}
 
 	override createTitleArea(parent: HTMLElement): HTMLElement {

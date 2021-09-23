@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/auxiliaryBarPart';
-import 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
+import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,6 +24,8 @@ import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/
 import { Dimension } from 'vs/base/browser/dom';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IAction, Separator } from 'vs/base/common/actions';
+import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -77,6 +79,13 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		return {
 			position: () => HoverPosition.BELOW
 		};
+	}
+
+	protected fillExtraContextMenuActions(actions: IAction[]): void {
+		actions.push(...[
+			new Separator(),
+			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide AuxiliaryBar"))
+		]);
 	}
 
 	override layout(width: number, height: number): void {
