@@ -24,6 +24,7 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
+				Mimes.latex,
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
@@ -34,6 +35,7 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
+				Mimes.latex,
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
@@ -44,6 +46,7 @@ suite('NotebookCommon', () => {
 		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
+				Mimes.latex,
 				Mimes.markdown,
 				'application/javascript',
 				'text/html',
@@ -57,6 +60,7 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
+				Mimes.latex,
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',

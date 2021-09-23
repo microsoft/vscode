@@ -47,7 +47,8 @@
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js",
         "mimeTypes": [
-          "text/markdown"
+          "text/markdown",
+          "text/latex"
         ]
       }
     ],

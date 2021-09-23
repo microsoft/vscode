@@ -217,7 +217,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	getMimetypes() {
-		return [Mimes.markdown];
+		return [Mimes.markdown, Mimes.latex];
 	}
 
 	constructor(

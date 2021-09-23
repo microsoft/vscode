@@ -1155,7 +1155,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			await renderers.render(this, this.element);
 
-			if (this.mime === 'text/markdown') {
+			if (this.mime === 'text/markdown' || this.mime === 'text/latex') {
 				const root = this.element.shadowRoot;
 				if (root) {
 					if (!hasPostedRenderedMathTelemetry) {
