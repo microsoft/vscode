@@ -299,10 +299,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) tunnel features public ${provider.tunnelFeatures?.public}`);
 				this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) tunnel features privacy ${provider.tunnelFeatures?.privacyOptions}`);
 				this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) tunnel features privacy length ${provider.tunnelFeatures?.privacyOptions?.length}`);
-
-				if (provider.tunnelFeatures?.public && (!provider.tunnelFeatures.privacyOptions || (provider.tunnelFeatures.privacyOptions.length === 0))) {
+				let privacyOptions = provider.tunnelFeatures?.privacyOptions ?? [];
+				if (provider.tunnelFeatures?.public && (privacyOptions.length === 0)) {
 					this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) setting privacy options`);
-					provider.tunnelFeatures.privacyOptions = [
+					privacyOptions = [
 						{
 							id: 'private',
 							label: nls.localize('tunnelPrivacy.private', "Private"),
@@ -315,12 +315,12 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 						}
 					];
 				}
-				this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) sending privacy options ${provider.tunnelFeatures?.privacyOptions.length}`);
+				this.logService.debug(`ForwardedPorts: (ExtHostTunnelService) sending privacy options ${privacyOptions.length}`);
 
-				this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
-					elevation: false,
-					public: false,
-					privacyOptions: []
+				this._proxy.$setTunnelProvider({
+					elevation: !!provider.tunnelFeatures?.elevation,
+					public: !!provider.tunnelFeatures?.public,
+					privacyOptions
 				});
 			}
 		} else {
