@@ -57,7 +57,14 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	constructor() {
 		super();
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Error handling on process
 		process.on('uncaughtException', (error: Error | string) => this.onError(error));
+		process.on('unhandledRejection', (error: Error | string) => this.onError(error));
 	}
 
 	async watch(requests: IWatchRequest[]): Promise<void> {
@@ -307,8 +314,8 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		return Array.from(requestTrie).map(([, request]) => request);
 	}
 
-	private isPathIgnored(absolutePath: string, ignored: ParsedPattern[] | undefined): boolean {
-		return Array.isArray(ignored) && ignored.some(ignore => ignore(absolutePath));
+	private isPathIgnored(absolutePath: string, ignored: ParsedPattern[]): boolean {
+		return ignored.some(ignore => ignore(absolutePath));
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {

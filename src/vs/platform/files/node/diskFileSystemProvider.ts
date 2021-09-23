@@ -620,7 +620,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						enableLegacyWatcher = product.quality === 'stable' && isLinux;
 					}
 
-					// Single Folder Watcher (stable only)
+					// Legacy Watcher
 					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
@@ -629,7 +629,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						}
 					}
 
-					// NSFW: Multi Folder Watcher or insiders
+					// Standard Watcher
 					else {
 						watcherImpl = NsfwWatcherService;
 					}
@@ -652,9 +652,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				if (!this.recursiveWatcherLogLevelListener) {
 					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
-						if (this.recursiveWatcher) {
-							this.recursiveWatcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-						}
+						this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 					});
 				}
 			}

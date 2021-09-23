@@ -9,7 +9,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IFilesConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -71,9 +70,6 @@ export class WorkspaceWatcher extends Disposable {
 
 	private onError(error: Error): void {
 		const msg = error.toString();
-
-		// Forward to unexpected error handler
-		onUnexpectedError(msg);
 
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
