@@ -451,9 +451,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (position === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
+			this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 10]);
 		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 4]);
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 4]);
+			this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 10]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 10]);
 		}
 
 		this.layout();
