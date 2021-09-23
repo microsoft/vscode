@@ -19,15 +19,6 @@
 	justify-content: space-between;
 }
 
-.monaco-workbench .part.auxiliarybar.bottom .composite.title {
-	border-top-width: 1px;
-	border-top-style: solid;
-}
-
-.monaco-workbench.noeditorarea .part.auxiliarybar.bottom .composite.title {
-	border-top-width: 0; /* no border when editor area is hiden */
-}
-
 .monaco-workbench .part.auxiliarybar.right {
 	border-left-width: 1px;
 	border-left-style: solid;

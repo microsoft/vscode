@@ -605,7 +605,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		if (this.contentDimension && this.dimension) {
 			let availableWidth = this.contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
+				availableWidth = Math.max(BasePanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}
 
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));

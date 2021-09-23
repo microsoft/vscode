@@ -426,6 +426,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private setSideBarPosition(position: Position): void {
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
+		const auxiliaryBar = this.getPart(Parts.AUXILIARYBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
 		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
@@ -434,14 +435,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Adjust CSS
 		const activityBarContainer = assertIsDefined(activityBar.getContainer());
 		const sideBarContainer = assertIsDefined(sideBar.getContainer());
+		const auxiliaryBarContainer = assertIsDefined(auxiliaryBar.getContainer());
 		activityBarContainer.classList.remove(oldPositionValue);
 		sideBarContainer.classList.remove(oldPositionValue);
 		activityBarContainer.classList.add(newPositionValue);
 		sideBarContainer.classList.add(newPositionValue);
 
+		// Auxiliary Bar has opposite values
+		auxiliaryBarContainer.classList.remove(newPositionValue);
+		auxiliaryBarContainer.classList.add(oldPositionValue);
+
 		// Update Styles
 		activityBar.updateStyles();
 		sideBar.updateStyles();
+		auxiliaryBar.updateStyles();
 
 		// Layout
 		if (!wasHidden) {
