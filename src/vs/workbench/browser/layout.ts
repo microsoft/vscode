@@ -59,7 +59,7 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 
-	AUXILIARYBAR_ENABLED = 'workbench.experimental.auxiliaryBar.enabled',
+	AUXILIARYBAR_ENABLED = 'workbench.experimental.sidePanel.enabled',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 }

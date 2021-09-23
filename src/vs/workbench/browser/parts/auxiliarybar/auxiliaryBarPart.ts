@@ -84,7 +84,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
 		actions.push(...[
 			new Separator(),
-			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide AuxiliaryBar"))
+			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
 		]);
 	}
 

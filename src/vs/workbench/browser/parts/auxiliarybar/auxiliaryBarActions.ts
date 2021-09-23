@@ -18,7 +18,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 export class ToggleAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Auxiliary Bar");
+	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Side Panel");
 
 	constructor(
 		id: string,
@@ -36,7 +36,7 @@ export class ToggleAuxiliaryBarAction extends Action {
 class FocusAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.focusAuxiliaryBar';
-	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Auxiliary Bar");
+	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Side Panel");
 
 	constructor(
 		id: string,
@@ -69,10 +69,10 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Au&&xiliary Bar"),
+				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
 				toggled: ActiveAuxiliaryContext
 			},
-			when: ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true),
+			when: ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true),
 			order: 5
 		}
 	}, {
@@ -81,7 +81,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: { value: localize('hideAuxiliaryBar', "Hide Auxiliary Bar"), original: 'Hide Auxiliary Bar' },
+				title: { value: localize('hideAuxiliaryBar', "Hide Side Panel"), original: 'Hide Side Panel' },
 			},
 			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 			order: 2
@@ -90,5 +90,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B }), 'View: Toggle Auxiliary Bar', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true));
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Auxiliary Bar', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.auxiliaryBar.enabled', true));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B }), 'View: Toggle Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));

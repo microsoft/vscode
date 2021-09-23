@@ -352,10 +352,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
 			},
-			'workbench.experimental.auxiliaryBar.enabled': {
+			'workbench.experimental.sidePanel.enabled': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('auxiliaryBarEnabled', "Controls whether the auxiliary bar opposite the side bar is enabled."),
+				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
 				'included': product.quality !== 'stable'
 			},
 		}
