@@ -294,6 +294,10 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			pinnedAction.setActivity(activity);
 		}
 
+		// Composite Bar Swither needs to refresh tabs sizes and overflow action
+		this.compositeBar.recomputeSizes();
+		this.layoutCompositeBar();
+
 		// only update our cached panel info after extensions are done registering
 		if (this.extensionsRegistered) {
 			this.saveCachedPanels();

@@ -304,6 +304,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
+	recomputeSizes(): void {
+		this.computeSizes(this.model.visibleItems);
+	}
+
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {
