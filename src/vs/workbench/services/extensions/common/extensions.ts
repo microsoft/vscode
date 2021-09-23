@@ -43,6 +43,19 @@ export const enum ExtensionRunningLocation {
 	Remote
 }
 
+export function extensionRunningLocationToString(location: ExtensionRunningLocation) {
+	switch (location) {
+		case ExtensionRunningLocation.None:
+			return 'None';
+		case ExtensionRunningLocation.LocalProcess:
+			return 'LocalProcess';
+		case ExtensionRunningLocation.LocalWebWorker:
+			return 'LocalWebWorker';
+		case ExtensionRunningLocation.Remote:
+			return 'Remote';
+	}
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;

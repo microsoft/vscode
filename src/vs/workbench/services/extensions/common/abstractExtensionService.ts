@@ -51,6 +51,17 @@ export const enum ExtensionRunningPreference {
 	Remote
 }
 
+export function extensionRunningPreferenceToString(preference: ExtensionRunningPreference) {
+	switch (preference) {
+		case ExtensionRunningPreference.None:
+			return 'None';
+		case ExtensionRunningPreference.Local:
+			return 'Local';
+		case ExtensionRunningPreference.Remote:
+			return 'Remote';
+	}
+}
+
 class LockCustomer {
 	public readonly promise: Promise<IDisposable>;
 	private _resolve!: (value: IDisposable) => void;
@@ -133,6 +144,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
+	protected readonly _runningLocationClassifier: ExtensionRunningLocationClassifier;
 	protected readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _registryLock: Lock;
 
@@ -156,7 +168,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
 
 	constructor(
-		protected readonly _runningLocationClassifier: ExtensionRunningLocationClassifier,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
@@ -171,6 +182,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 	) {
 		super();
+
+		this._runningLocationClassifier = new ExtensionRunningLocationClassifier(
+			(extension) => this._getExtensionKind(extension),
+			(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickRunningLocation(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
+		);
 
 		// help the file service to activate providers by activating extensions by file system event
 		this._register(this._fileService.onWillActivateFileSystemProvider(e => {
@@ -234,13 +250,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 	}
 
-	protected _getExtensionKind(extensionDescription: IExtensionDescription): ExtensionKind[] {
+	private _getExtensionKind(extensionDescription: IExtensionDescription): ExtensionKind[] {
 		if (extensionDescription.isUnderDevelopment && this._environmentService.extensionDevelopmentKind) {
 			return this._environmentService.extensionDevelopmentKind;
 		}
 
 		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
 	}
+
+	protected abstract _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation;
 
 	protected _getExtensionHostManager(kind: ExtensionHostKind): IExtensionHostManager | null {
 		for (const extensionHostManager of this._extensionHostManagers) {
@@ -364,7 +382,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-			const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
+			const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
 		}
 		groupAdd(ExtensionHostKind.LocalProcess, ExtensionRunningLocation.LocalProcess);
@@ -401,7 +419,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extensionKind = this._getExtensionKind(extension);
 		const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-		const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
+		const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 		if (runningLocation === ExtensionRunningLocation.None) {
 			return false;
 		}
@@ -1014,10 +1032,14 @@ class ExtensionInfo {
 		if (this.local) {
 			return this.local.key;
 		}
-		if (this.remote) {
-			return this.remote.key;
+		return this.remote!.key;
+	}
+
+	public get identifier(): ExtensionIdentifier {
+		if (this.local) {
+			return this.local.desc.identifier;
 		}
-		throw new Error('not possible');
+		return this.remote!.desc.identifier;
 	}
 
 	public get kind(): ExtensionKind[] {
@@ -1027,17 +1049,14 @@ class ExtensionInfo {
 		if (this.local) {
 			return this.local.kind;
 		}
-		if (this.remote) {
-			return this.remote.kind;
-		}
-		throw new Error(`not possible`);
+		return this.remote!.kind;
 	}
 }
 
-export class ExtensionRunningLocationClassifier {
+class ExtensionRunningLocationClassifier {
 	constructor(
-		public readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
-		public readonly pickRunningLocation: (extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
+		private readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
+		private readonly pickRunningLocation: (extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
 	) {
 	}
 
@@ -1082,7 +1101,7 @@ export class ExtensionRunningLocationClassifier {
 				preference = ExtensionRunningPreference.Remote;
 			}
 
-			runningLocation.set(ext.key, this.pickRunningLocation(ext.kind, isInstalledLocally, isInstalledRemotely, preference));
+			runningLocation.set(ext.key, this.pickRunningLocation(ext.identifier, ext.kind, isInstalledLocally, isInstalledRemotely, preference));
 		});
 
 		return runningLocation;
