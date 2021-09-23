@@ -184,14 +184,14 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.strictEqual(container.renderedOutputEntries.length, 5);
 				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
 				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12');
+				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer?.innerText, '12');
 
 				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[2].element.innerContainer.innerText, '1000');
+				assert.strictEqual(container.renderedOutputEntries[2].element.innerContainer?.innerText, '1000');
 
 				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, true);
 				assert.strictEqual(container.renderedOutputEntries[4].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer.innerText, '45');
+				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer?.innerText, '45');
 
 
 				editor.textModel.applyEdits([{
@@ -224,7 +224,7 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[3].element.innerContainer);
 				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[4].element.innerContainer);
 
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12756');
+				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer?.innerText, '12756');
 			},
 			instantiationService
 		);
