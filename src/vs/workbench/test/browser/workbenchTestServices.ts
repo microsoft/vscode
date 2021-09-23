@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -59,13 +59,11 @@ import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
@@ -82,7 +80,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
-import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
+import { IProgressService, IProgressOptions, IProgressWindowOptions, IProgressNotificationOptions, IProgressCompositeOptions, IProgress, IProgressStep, Progress, IProgressDialogOptions, IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -127,7 +125,7 @@ import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService }
 import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ICreateTerminalOptions, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { isArray } from 'vs/base/common/types';
+import { assertIsDefined, isArray } from 'vs/base/common/types';
 import { ILocalTerminalService, IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorResolverService } from 'vs/workbench/services/editor/browser/editorResolverService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
@@ -140,6 +138,8 @@ import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IPaneCompositePart, IPaneCompositeSelectorPart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -258,7 +258,7 @@ export function workbenchInstantiationService(
 	const textEditorService = overrides?.textEditorService ? overrides.textEditorService(instantiationService) : instantiationService.createInstance(TextEditorService);
 	instantiationService.stub(ITextEditorService, textEditorService);
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
-	instantiationService.stub(IViewletService, new TestViewletService());
+	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
@@ -569,6 +569,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	isSideBarHidden(): boolean { return false; }
 	async setEditorHidden(_hidden: boolean): Promise<void> { }
 	async setSideBarHidden(_hidden: boolean): Promise<void> { }
+	async setAuxiliaryBarHidden(_hidden: boolean): Promise<void> { }
+	async setPartHidden(_hidden: boolean, part: Parts): Promise<void> { }
 	isPanelHidden(): boolean { return false; }
 	async setPanelHidden(_hidden: boolean): Promise<void> { }
 	toggleMaximizedPanel(): void { }
@@ -594,7 +596,64 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 let activeViewlet: PaneComposite = {} as any;
 
-export class TestViewletService implements IViewletService {
+export class TestPaneCompositeService extends Disposable implements IPaneCompositePartService {
+	declare readonly _serviceBrand: undefined;
+
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+
+	private parts = new Map<ViewContainerLocation, IPaneCompositePart>();
+
+	constructor() {
+		super();
+
+		this.parts.set(ViewContainerLocation.Panel, new TestPanelPart());
+		this.parts.set(ViewContainerLocation.Sidebar, new TestSideBarPart());
+
+		this.onDidPaneCompositeOpen = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }))));
+		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
+	}
+
+	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
+		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
+	}
+	getActivePaneComposite(viewContainerLocation: ViewContainerLocation): IPaneComposite | undefined {
+		return this.getPartByLocation(viewContainerLocation).getActivePaneComposite();
+	}
+	getPaneComposite(id: string, viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor | undefined {
+		return this.getPartByLocation(viewContainerLocation).getPaneComposite(id);
+	}
+	getPaneComposites(viewContainerLocation: ViewContainerLocation): PaneCompositeDescriptor[] {
+		return this.getPartByLocation(viewContainerLocation).getPaneComposites();
+	}
+	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {
+		return this.getPartByLocation(viewContainerLocation).getProgressIndicator(id);
+	}
+	hideActivePaneComposite(viewContainerLocation: ViewContainerLocation): void {
+		this.getPartByLocation(viewContainerLocation).hideActivePaneComposite();
+	}
+	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string {
+		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
+	}
+
+	getPinnedPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getVisiblePaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
+		return assertIsDefined(this.parts.get(viewContainerLocation));
+	}
+}
+
+export class TestSideBarPart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 
 	onDidViewletRegisterEmitter = new Emitter<PaneCompositeDescriptor>();
@@ -602,40 +661,39 @@ export class TestViewletService implements IViewletService {
 	onDidViewletOpenEmitter = new Emitter<IPaneComposite>();
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
-	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
-	onDidViewletDeregister = this.onDidViewletDeregisterEmitter.event;
-	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
-	onDidViewletClose = this.onDidViewletCloseEmitter.event;
+	onDidPaneCompositeOpen = this.onDidViewletOpenEmitter.event;
+	onDidPaneCompositeClose = this.onDidViewletCloseEmitter.event;
 
-	openViewlet(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
-	getViewlets(): PaneCompositeDescriptor[] { return []; }
+	openPaneComposite(id: string, focus?: boolean): Promise<IPaneComposite | undefined> { return Promise.resolve(undefined); }
+	getPaneComposites(): PaneCompositeDescriptor[] { return []; }
 	getAllViewlets(): PaneCompositeDescriptor[] { return []; }
-	getActiveViewlet(): IPaneComposite { return activeViewlet; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	getDefaultViewletId(): string { return 'workbench.view.explorer'; }
-	getViewlet(id: string): PaneCompositeDescriptor | undefined { return undefined; }
+	getPaneComposite(id: string): PaneCompositeDescriptor | undefined { return undefined; }
 	getProgressIndicator(id: string) { return undefined; }
-	hideActiveViewlet(): void { }
-	getLastActiveViewletId(): string { return undefined!; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
 }
 
-export class TestPanelService implements IPanelService {
+export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPanelOpen = new Emitter<{ panel: IPaneComposite, focus: boolean; }>().event;
-	onDidPanelClose = new Emitter<IPaneComposite>().event;
+	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
+	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 
-	async openPanel(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
-	getPanel(id: string): any { return activeViewlet; }
-	getPanels() { return []; }
-	getPinnedPanels() { return []; }
-	getActivePanel(): IPaneComposite { return activeViewlet; }
+	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
+	getPaneComposite(id: string): any { return activeViewlet; }
+	getPaneComposites() { return []; }
+	getPinnedPaneCompositeIds() { return []; }
+	getVisiblePaneCompositeIds() { return []; }
+	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
-	hideActivePanel(): void { }
-	getLastActivePanelId(): string { return undefined!; }
+	hideActivePaneComposite(): void { }
+	getLastActivePaneCompositeId(): string { return undefined!; }
 }
 
 export class TestViewsService implements IViewsService {
@@ -753,15 +811,15 @@ export class TestEditorGroupView implements IEditorGroupView {
 	getEditorByIndex(_index: number): EditorInput { throw new Error('not implemented'); }
 	getIndexOfEditor(_editor: EditorInput): number { return -1; }
 	openEditor(_editor: EditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
-	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
+	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: EditorInput): boolean { return false; }
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	moveEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
+	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	copyEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
-	copyEditors(_editors: IEditorInputWithOptions[], _target: IEditorGroup): void { }
+	copyEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): void { }
 	async closeEditor(_editor?: EditorInput, options?: ICloseEditorOptions): Promise<void> { }
 	async closeEditors(_editors: EditorInput[] | ICloseEditorsFilter, options?: ICloseEditorOptions): Promise<void> { }
 	async closeAllEditors(options?: ICloseAllEditorsOptions): Promise<void> { }

@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairColorizer/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
+import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -19,15 +19,8 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 	test('Basic', () => {
 		const languageId = 2;
 		const mode1 = new LanguageIdentifier('testMode1', languageId);
+
 		const denseKeyProvider = new DenseKeyProvider<string>();
-		const getImmutableSet = (elements: string[]) => {
-			let newSet = SmallImmutableSet.getEmpty();
-			elements.forEach(x => newSet = newSet.add(`${languageId}:::${x}`, denseKeyProvider));
-			return newSet;
-		};
-		const getKey = (value: string) => {
-			return denseKeyProvider.getKey(`${languageId}:::${value}`);
-		};
 
 		const tStandard = (text: string) => new TokenInfo(text, mode1.id, StandardTokenType.Other);
 		const tComment = (text: string) => new TokenInfo(text, mode1.id, StandardTokenType.Comment);
@@ -49,17 +42,42 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 
 		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
 
-		assert.deepStrictEqual(toArr(tokens, model), [
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'OpeningBracket', text: '{', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'ClosingBracket', text: '}', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']), kind: 'OpeningBracket', text: 'begin', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: ' ', },
-			{ bracketId: getKey('begin'), bracketIds: getImmutableSet(['begin']), kind: 'ClosingBracket', text: 'end', },
-			{ bracketId: -1, bracketIds: getImmutableSet([]), kind: 'Text', text: '\nhello{', },
-			{ bracketId: getKey('{'), bracketIds: getImmutableSet(['{']), kind: 'ClosingBracket', text: '}', }
+		assert.deepStrictEqual(toArr(tokens, model, denseKeyProvider), [
+			{ text: ' ', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '{',
+				bracketId: '2:::{',
+				bracketIds: ['2:::{'],
+				kind: 'OpeningBracket',
+			},
+			{ text: ' ', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '}',
+				bracketId: '2:::{',
+				bracketIds: ['2:::{'],
+				kind: 'ClosingBracket',
+			},
+			{ text: ' ', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: 'begin',
+				bracketId: '2:::begin',
+				bracketIds: ['2:::begin'],
+				kind: 'OpeningBracket',
+			},
+			{ text: ' ', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: 'end',
+				bracketId: '2:::begin',
+				bracketIds: ['2:::begin'],
+				kind: 'ClosingBracket',
+			},
+			{ text: '\nhello{', bracketId: null, bracketIds: [], kind: 'Text' },
+			{
+				text: '}',
+				bracketId: '2:::{',
+				bracketIds: ['2:::{'],
+				kind: 'ClosingBracket',
+			},
 		]);
 
 		disposableStore.dispose();
@@ -78,21 +96,21 @@ function readAllTokens(tokenizer: Tokenizer): Token[] {
 	return tokens;
 }
 
-function toArr(tokens: Token[], model: TextModel): any[] {
+function toArr(tokens: Token[], model: TextModel, keyProvider: DenseKeyProvider<string>): any[] {
 	const result = new Array<any>();
 	let offset = lengthZero;
 	for (const token of tokens) {
-		result.push(tokenToObj(token, offset, model));
+		result.push(tokenToObj(token, offset, model, keyProvider));
 		offset = lengthAdd(offset, token.length);
 	}
 	return result;
 }
 
-function tokenToObj(token: Token, offset: Length, model: TextModel): any {
+function tokenToObj(token: Token, offset: Length, model: TextModel, keyProvider: DenseKeyProvider<any>): any {
 	return {
 		text: model.getValueInRange(lengthsToRange(offset, lengthAdd(offset, token.length))),
-		bracketId: token.bracketId,
-		bracketIds: token.bracketIds,
+		bracketId: keyProvider.reverseLookup(token.bracketId) || null,
+		bracketIds: keyProvider.reverseLookupSet(token.bracketIds),
 		kind: {
 			[TokenKind.ClosingBracket]: 'ClosingBracket',
 			[TokenKind.OpeningBracket]: 'OpeningBracket',

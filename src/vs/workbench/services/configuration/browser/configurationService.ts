@@ -473,19 +473,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const workspaceConfigPath = workspaceIdentifier.configPath;
 		const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
 		const workspaceId = workspaceIdentifier.id;
-		const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = this.workspaceConfiguration.initialized;
 		return workspace;
 	}
 
 	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier): Workspace {
-		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri)], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri)], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return workspace;
 	}
 
 	private createEmptyWorkspace(emptyWorkspaceIdentifier: IEmptyWorkspaceIdentifier): Promise<Workspace> {
-		const workspace = new Workspace(emptyWorkspaceIdentifier.id, [], null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(emptyWorkspaceIdentifier.id, [], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
 		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}

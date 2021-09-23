@@ -129,7 +129,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
 			folders: workspace.folders,
 			id: workspace.id,
-			name: this._labelService.getWorkspaceLabel(workspace)
+			name: this._labelService.getWorkspaceLabel(workspace),
+			transient: workspace.transient
 		};
 	}
 

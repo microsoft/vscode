@@ -47,7 +47,7 @@ enum Path {
 	UNC
 }
 
-suite('Normalizer', () => {
+suite('Watcher Events Normalizer', () => {
 
 	test('simple add/update/delete', function (done: () => void) {
 		const watch = new TestFileWatcher();

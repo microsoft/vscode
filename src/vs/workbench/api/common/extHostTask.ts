@@ -318,7 +318,7 @@ export namespace TaskDTO {
 		}
 		if (value.group !== undefined) {
 			result.group = types.TaskGroup.from(value.group._id);
-			if (result.group) {
+			if (result.group && value.group.isDefault) {
 				result.group = new types.TaskGroup(result.group.id, result.group.label);
 				if (value.group.isDefault) {
 					result.group.isDefault = value.group.isDefault;

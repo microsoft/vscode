@@ -14,13 +14,13 @@ const azure = require('gulp-azure-storage');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 function main() {
-    return es.merge(vfs.src('out-vscode-min/nls.metadata.json', { base: 'out-vscode-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
+    return es.merge(vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
         .pipe(merge({
         fileName: 'combined.nls.metadata.json',
         jsonSpace: '',
         edit: (parsedJson, file) => {
             let key;
-            if (file.base === 'out-vscode-min') {
+            if (file.base === 'out-vscode-web-min') {
                 return { vscode: parsedJson };
             }
             // Handle extensions and follow the same structure as the Core nls file.

@@ -543,7 +543,7 @@ export function isEditorInput(editor: unknown): editor is EditorInput {
 	return editor instanceof AbstractEditorInput;
 }
 
-export interface IEditorInputWithPreferredResource {
+export interface EditorInputWithPreferredResource {
 
 	/**
 	 * An editor may provide an additional preferred resource alongside
@@ -565,8 +565,8 @@ export interface IEditorInputWithPreferredResource {
 	readonly preferredResource: URI;
 }
 
-function isEditorInputWithPreferredResource(editor: unknown): editor is IEditorInputWithPreferredResource {
-	const candidate = editor as IEditorInputWithPreferredResource | undefined;
+function isEditorInputWithPreferredResource(editor: unknown): editor is EditorInputWithPreferredResource {
+	const candidate = editor as EditorInputWithPreferredResource | undefined;
 
 	return URI.isUri(candidate?.preferredResource);
 }
@@ -621,7 +621,7 @@ export interface IUntypedFileEditorInput extends ITextResourceEditorInput {
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
+export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSupport, EditorInputWithPreferredResource {
 
 	/**
 	 * Gets the resource this file input is about. This will always be the
@@ -680,23 +680,23 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, IModeSu
 	isResolved(): boolean;
 }
 
-export interface IEditorInputWithOptions {
+export interface EditorInputWithOptions {
 	editor: EditorInput;
 	options?: IEditorOptions;
 }
 
-export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
+export interface EditorInputWithOptionsAndGroup extends EditorInputWithOptions {
 	group: IEditorGroup;
 }
 
-export function isEditorInputWithOptions(editor: unknown): editor is IEditorInputWithOptions {
-	const candidate = editor as IEditorInputWithOptions | undefined;
+export function isEditorInputWithOptions(editor: unknown): editor is EditorInputWithOptions {
+	const candidate = editor as EditorInputWithOptions | undefined;
 
 	return isEditorInput(candidate?.editor);
 }
 
-export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is IEditorInputWithOptionsAndGroup {
-	const candidate = editor as IEditorInputWithOptionsAndGroup | undefined;
+export function isEditorInputWithOptionsAndGroup(editor: unknown): editor is EditorInputWithOptionsAndGroup {
+	const candidate = editor as EditorInputWithOptionsAndGroup | undefined;
 
 	return isEditorInputWithOptions(editor) && candidate?.group !== undefined;
 }

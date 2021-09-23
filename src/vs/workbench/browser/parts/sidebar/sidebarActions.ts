@@ -6,12 +6,13 @@
 import 'vs/css!./media/sidebarpart';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class FocusSideBarAction extends Action2 {
 
@@ -31,16 +32,16 @@ export class FocusSideBarAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
 		// Show side bar
 		if (!layoutService.isVisible(Parts.SIDEBAR_PART)) {
-			layoutService.setSideBarHidden(false);
+			layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
 			return;
 		}
 
 		// Focus into active viewlet
-		const viewlet = viewletService.getActiveViewlet();
+		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		if (viewlet) {
 			viewlet.focus();
 		}

@@ -17,7 +17,7 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { firstSessionDateStorageKey, ITelemetryService, TelemetryConfiguration } from 'vs/platform/telemetry/common/telemetry';
+import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -67,7 +67,7 @@ import { GettingStartedIndexList } from './gettingStartedList';
 import product from 'vs/platform/product/common/product';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { getTelemetryConfiguration } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1261,9 +1261,7 @@ export class GettingStartedPage extends EditorPane {
 					if (typeof node === 'string') {
 						append(p, renderFormattedText(node, { inline: true, renderCodeSegments: true }));
 					} else {
-						const link = this.instantiationService.createInstance(Link, node, { opener: (href) => this.runStepCommand(href) });
-
-						append(p, link.el);
+						const link = this.instantiationService.createInstance(Link, p, node, { opener: (href) => this.runStepCommand(href) });
 						this.detailsPageDisposables.add(link);
 					}
 				}
@@ -1394,7 +1392,7 @@ export class GettingStartedPage extends EditorPane {
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
 		const categoryFooter = $('.getting-started-footer');
-		if (this.editorInput.showTelemetryNotice && getTelemetryConfiguration(this.configurationService) !== TelemetryConfiguration.OFF && product.enableTelemetry) {
+		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && product.enableTelemetry) {
 			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
 
 			const privacyStatementCopy = localize('privacy statement', "privacy statement");

@@ -44,12 +44,22 @@ declare module 'vscode' {
 		isTrusted?: boolean;
 	}
 
+	export interface TunnelPrivacy {
+		themeIcon: string;
+		id: string;
+		label: string;
+	}
+
 	export interface TunnelOptions {
 		remoteAddress: { port: number, host: string; };
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
 		public?: boolean;
+		privacy?: string;
 		protocol?: string;
 	}
 
@@ -57,7 +67,11 @@ declare module 'vscode' {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
 		public?: boolean;
+		privacy?: string;
 		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
 		protocol?: string;
 	}
@@ -144,7 +158,11 @@ declare module 'vscode' {
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
+			/**
+			 * @deprecated Use privacy instead
+			 */
 			public: boolean;
+			privacyOptions: TunnelPrivacy[];
 		};
 
 		candidatePortSource?: CandidatePortSource;
@@ -2233,7 +2251,12 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The position of the tab
+		 * The index of the tab within the column
+		 */
+		readonly index: number;
+
+		/**
+		 * The column which the tab belongs to
 		 */
 		readonly viewColumn: ViewColumn;
 
@@ -2249,6 +2272,13 @@ declare module 'vscode' {
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
 		readonly viewId?: string;
+
+		/**
+		 * All the resources and viewIds represented by a tab
+		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * always be at index 0.
+		 */
+		additionalResourcesAndViewIds: { resource?: Uri, viewId?: string }[];
 
 		/**
 		 * Whether or not the tab is currently active

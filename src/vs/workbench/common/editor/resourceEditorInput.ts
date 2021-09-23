@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -13,7 +13,7 @@ import { dirname, isEqual } from 'vs/base/common/resources';
 /**
  * The base class for all editor inputs that open resources.
  */
-export abstract class AbstractResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
+export abstract class AbstractResourceEditorInput extends EditorInput implements EditorInputWithPreferredResource {
 
 	override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.CanSplitInGroup;

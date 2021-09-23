@@ -242,7 +242,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
 				id: workspace.id,
-				name: this._labelService.getWorkspaceLabel(workspace)
+				name: this._labelService.getWorkspaceLabel(workspace),
+				transient: workspace.transient
 			},
 			remote: {
 				isRemote: true,

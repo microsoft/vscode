@@ -37,7 +37,6 @@ import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewConta
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
@@ -74,6 +73,7 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspa
 import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Event } from 'vs/base/common/event';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -349,8 +349,8 @@ CommandsRegistry.registerCommand({
 		]
 	},
 	handler: async (accessor, query: string = '') => {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 
 		if (!viewlet) {
 			return;
@@ -404,7 +404,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1042,7 +1042,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}],
 				toggled: ExtensionsSortByContext.isEqualTo(id),
 				run: async () => {
-					const viewlet = await this.viewletService.openViewlet(VIEWLET_ID, true);
+					const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 					const extensionsViewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 					const currentQuery = Query.parse(extensionsViewPaneContainer.searchValue || '');
 					extensionsViewPaneContainer.search(new Query(currentQuery.value, id, currentQuery.groupBy).toString());

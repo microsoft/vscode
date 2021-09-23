@@ -24,7 +24,6 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -32,6 +31,8 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { diffSets, diffMaps } from 'vs/base/common/collections';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 
 class TextEditorSnapshot {
@@ -122,7 +123,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IPanelService private readonly _panelService: IPanelService
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
@@ -132,8 +133,8 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._codeEditorService.onCodeEditorRemove(this._onDidRemoveEditor, this, this._toDispose);
 		this._codeEditorService.listCodeEditors().forEach(this._onDidAddEditor, this);
 
-		this._panelService.onDidPanelOpen(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
-		this._panelService.onDidPanelClose(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
+		Event.filter(this._paneCompositeService.onDidPaneCompositeOpen, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Panel, undefined, this._toDispose);
+		Event.filter(this._paneCompositeService.onDidPaneCompositeClose, event => event.viewContainerLocation === ViewContainerLocation.Panel)(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 		this._editorService.onDidVisibleEditorsChange(_ => this._activeEditorOrder = ActiveEditorOrder.Editor, undefined, this._toDispose);
 
 		this._updateState();
@@ -252,7 +253,7 @@ class MainThreadDocumentAndEditorStateComputer {
 	}
 
 	private _getActiveEditorFromPanel(): IEditor | undefined {
-		const panel = this._panelService.getActivePanel();
+		const panel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (panel instanceof BaseTextEditor) {
 			const control = panel.getControl();
 			if (isCodeEditor(control)) {
@@ -300,7 +301,7 @@ export class MainThreadDocumentsAndEditors {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -316,7 +317,7 @@ export class MainThreadDocumentsAndEditors {
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, panelService));
+		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
 
 		this._toDispose.add(this._onTextEditorAdd);
 		this._toDispose.add(this._onTextEditorRemove);

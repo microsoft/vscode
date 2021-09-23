@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
@@ -21,6 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, IRenderOutput, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -31,9 +33,9 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, CellUri, IOrderedMimeType, NotebookCellOutputsSplice, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -68,9 +70,14 @@ export class CellOutputElement extends Disposable {
 
 	public useDedicatedDOM: boolean = true;
 
+	private _height: number = -1;
 	get domOffsetHeight() {
 		if (this.useDedicatedDOM) {
-			return this.innerContainer.offsetHeight;
+			if (this._height === -1) {
+				return this.innerContainer.offsetHeight;
+			} else {
+				return this._height;
+			}
 		} else {
 			return 0;
 		}
@@ -81,7 +88,7 @@ export class CellOutputElement extends Disposable {
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
-		private outputContainer: HTMLElement,
+		private outputContainer: FastDomNode<HTMLElement>,
 		readonly output: ICellOutputViewModel,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -89,7 +96,7 @@ export class CellOutputElement extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 	) {
 		super();
 
@@ -169,21 +176,21 @@ export class CellOutputElement extends Disposable {
 					this.useDedicatedDOM = true;
 					this.innerContainer = DOM.$('.output-inner-container');
 					if (previousSibling.nextElementSibling) {
-						this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+						this.outputContainer.domNode.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
 					} else {
-						this.outputContainer.appendChild(this.innerContainer);
+						this.outputContainer.domNode.appendChild(this.innerContainer);
 					}
 				}
 			} else {
 				// no previousSibling, append it to the very last
-				if (this._divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+				if (this._divSupportAppend(this.outputContainer.domNode.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
 					// last element allows append
 					this.useDedicatedDOM = false;
-					this.innerContainer = this.outputContainer.lastChild as HTMLElement;
+					this.innerContainer = this.outputContainer.domNode.lastChild as HTMLElement;
 				} else {
 					this.useDedicatedDOM = true;
 					this.innerContainer = DOM.$('.output-inner-container');
-					this.outputContainer.appendChild(this.innerContainer);
+					this.outputContainer.domNode.appendChild(this.innerContainer);
 				}
 			}
 		} else {
@@ -191,13 +198,23 @@ export class CellOutputElement extends Disposable {
 			this.innerContainer = DOM.$('.output-inner-container');
 
 			if (previousSibling && previousSibling.nextElementSibling) {
-				this.outputContainer.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
+				this.outputContainer.domNode.insertBefore(this.innerContainer, previousSibling.nextElementSibling);
 			} else if (this.useDedicatedDOM) {
-				this.outputContainer.appendChild(this.innerContainer);
+				this.outputContainer.domNode.appendChild(this.innerContainer);
 			}
 		}
 
 		this.innerContainer.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
+	}
+
+	private _initHeightChecked = false;
+
+	probeHeight(index: number) {
+		if (!this._initHeightChecked && this.renderResult?.type === RenderOutputType.Mainframe) {
+			// postponed DOM read
+			const offsetHeight = this.domOffsetHeight;
+			this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
+		}
 	}
 
 	render(previousSibling?: HTMLElement): IRenderResult | undefined {
@@ -264,12 +281,27 @@ export class CellOutputElement extends Disposable {
 			return { initRenderIsSynchronous: true };
 		}
 
-		// let's use resize listener for them
-		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.innerContainer.offsetHeight);
+		let offsetHeight = 0;
+		if (this.renderResult?.initHeight) {
+			offsetHeight = this.renderResult.initHeight;
+			this._initHeightChecked = true;
+		} else {
+			const outputIndex = this.viewCell.outputsViewModels.indexOf(this.output);
+			const oldHeight = this.viewCell.getOutputHeight(outputIndex);
+			if (oldHeight >= 0) {
+				offsetHeight = oldHeight;
+				this._initHeightChecked = true;
+			} else {
+				this._initHeightChecked = false;
+			}
+		}
+
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
 		};
+
+		// let's use resize listener for them
 		this._bindResizeListener(dimension);
 		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
 		const top = this.viewCell.getOutputOffsetInContainer(index);
@@ -279,8 +311,8 @@ export class CellOutputElement extends Disposable {
 
 	private _bindResizeListener(dimension: DOM.IDimension) {
 		const elementSizeObserver = getResizesObserver(this.innerContainer, dimension, () => {
-			if (this.outputContainer && document.body.contains(this.outputContainer)) {
-				const height = this.innerContainer.offsetHeight;
+			if (this.outputContainer && document.body.contains(this.outputContainer.domNode)) {
+				const height = elementSizeObserver.getHeight() + OutputInnerContainerTopPadding * 2;
 
 				if (dimension.height === height) {
 					return;
@@ -296,6 +328,8 @@ export class CellOutputElement extends Disposable {
 					height: height
 				};
 
+				this._initHeightChecked = true;
+				this._height = height;
 				this._validateFinalOutputHeight(true);
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
 				this._relayoutCell();
@@ -439,7 +473,7 @@ export class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.viewletService.openViewlet(EXTENSION_VIEWLET_ID, true);
+		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
@@ -537,6 +571,15 @@ export class CellOutputContainer extends Disposable {
 		}));
 	}
 
+	probeHeight() {
+		this._outputEntries.forEach(entry => {
+			const index = this.viewCell.outputsViewModels.indexOf(entry.model);
+			if (index >= 0) {
+				entry.element.probeHeight(index);
+			}
+		});
+	}
+
 	render(editorHeight: number) {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
@@ -544,7 +587,7 @@ export class CellOutputContainer extends Disposable {
 				this._relayoutCell();
 			}
 
-			DOM.show(this.templateData.outputContainer);
+			DOM.show(this.templateData.outputContainer.domNode);
 			for (let index = 0; index < Math.min(this.options.limit, this.viewCell.outputsViewModels.length); index++) {
 				const currOutput = this.viewCell.outputsViewModels[index];
 				const entry = this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput);
@@ -554,7 +597,7 @@ export class CellOutputContainer extends Disposable {
 
 			this.viewCell.editorHeight = editorHeight;
 			if (this.viewCell.outputsViewModels.length > this.options.limit) {
-				DOM.show(this.templateData.outputShowMoreContainer);
+				DOM.show(this.templateData.outputShowMoreContainer.domNode);
 				this.viewCell.updateOutputShowMoreContainerHeight(46);
 			}
 
@@ -564,26 +607,26 @@ export class CellOutputContainer extends Disposable {
 			// noop
 			this.viewCell.editorHeight = editorHeight;
 			this._relayoutCell();
-			DOM.hide(this.templateData.outputContainer);
+			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 
-		this.templateData.outputShowMoreContainer.innerText = '';
+		this.templateData.outputShowMoreContainer.domNode.innerText = '';
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
+			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
 		}
 	}
 
-	viewUpdateShowOutputs(): void {
+	viewUpdateShowOutputs(initRendering: boolean): void {
 		for (let index = 0; index < this._outputEntries.length; index++) {
 			const viewHandler = this._outputEntries[index];
 			const outputEntry = viewHandler.element;
 			if (outputEntry.renderResult) {
 				if (outputEntry.renderResult.type !== RenderOutputType.Mainframe) {
 					this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
-				} else {
+				} else if (!initRendering) {
 					this.viewCell.updateOutputHeight(index, outputEntry.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
 				}
 			} else {
@@ -625,9 +668,9 @@ export class CellOutputContainer extends Disposable {
 		this.viewCell.updateOutputMinHeight(previousOutputHeight);
 
 		if (this.viewCell.outputsViewModels.length) {
-			DOM.show(this.templateData.outputContainer);
+			DOM.show(this.templateData.outputContainer.domNode);
 		} else {
-			DOM.hide(this.templateData.outputContainer);
+			DOM.hide(this.templateData.outputContainer.domNode);
 		}
 
 		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
@@ -772,13 +815,13 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		if (this.viewCell.outputsViewModels.length > this.options.limit) {
-			DOM.show(this.templateData.outputShowMoreContainer);
-			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
-				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement(this.templateData.disposables));
+			DOM.show(this.templateData.outputShowMoreContainer.domNode);
+			if (!this.templateData.outputShowMoreContainer.domNode.hasChildNodes()) {
+				this.templateData.outputShowMoreContainer.domNode.appendChild(this._generateShowMoreElement(this.templateData.disposables));
 			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
-			DOM.hide(this.templateData.outputShowMoreContainer);
+			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 		}
 
 		const editorHeight = this.templateData.editor.getContentHeight();

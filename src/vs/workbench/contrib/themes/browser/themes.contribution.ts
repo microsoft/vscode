@@ -12,7 +12,6 @@ import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/c
 import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
@@ -21,6 +20,8 @@ import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThe
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class SelectColorThemeAction extends Action {
 
@@ -33,7 +34,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
 	) {
 		super(id, label);
 	}
@@ -79,7 +80,7 @@ export class SelectColorThemeAction extends Action {
 				quickpick.onDidAccept(_ => {
 					const theme = quickpick.activeItems[0];
 					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						openExtensionViewlet(this.viewletService, `category:themes ${quickpick.value}`);
+						openExtensionViewlet(this.paneCompositeService, `category:themes ${quickpick.value}`);
 					} else {
 						selectTheme(theme, true);
 					}
@@ -106,7 +107,7 @@ abstract class AbstractIconThemeAction extends Action {
 		label: string,
 		private readonly quickInputService: IQuickInputService,
 		private readonly extensionGalleryService: IExtensionGalleryService,
-		private readonly viewletService: IViewletService
+		private readonly paneCompositeService: IPaneCompositePartService
 
 	) {
 		super(id, label);
@@ -156,7 +157,7 @@ abstract class AbstractIconThemeAction extends Action {
 			quickpick.onDidAccept(_ => {
 				const theme = quickpick.activeItems[0];
 				if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-					openExtensionViewlet(this.viewletService, `${this.marketplaceTag} ${quickpick.value}`);
+					openExtensionViewlet(this.paneCompositeService, `${this.marketplaceTag} ${quickpick.value}`);
 				} else {
 					selectTheme(theme, true);
 				}
@@ -187,10 +188,10 @@ class SelectFileIconThemeAction extends AbstractIconThemeAction {
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IViewletService viewletService: IViewletService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 
 	) {
-		super(id, label, quickInputService, extensionGalleryService, viewletService);
+		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable File Icons') };
@@ -218,10 +219,10 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IViewletService viewletService: IViewletService
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
 
 	) {
-		super(id, label, quickInputService, extensionGalleryService, viewletService);
+		super(id, label, quickInputService, extensionGalleryService, paneCompositeService);
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
@@ -253,8 +254,8 @@ function configurationEntries(extensionGalleryService: IExtensionGalleryService,
 	return [];
 }
 
-function openExtensionViewlet(viewletService: IViewletService, query: string) {
-	return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
+	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
 		if (viewlet) {
 			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
 			viewlet.focus();

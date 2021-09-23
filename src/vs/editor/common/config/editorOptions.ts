@@ -117,6 +117,10 @@ export interface IEditorOptions {
 	 */
 	glyphMargin?: boolean;
 	/**
+	 * Defines a right-padding between the glyph margin and the editor content.
+	 */
+	glyphMarginRightPadding?: number;
+	/**
 	 * The width reserved for line decorations (in px).
 	 * Line decorations are placed between line numbers and the editor content.
 	 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
@@ -2275,12 +2279,13 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			glyphMarginWidth = lineHeight;
 		}
 
+		let glyphMarginRightPadding = showGlyphMargin ? (options.get(EditorOption.glyphMarginRightPadding) ?? 0) : 0;
 		let glyphMarginLeft = 0;
-		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth + glyphMarginRightPadding;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		let contentLeft = decorationsLeft + lineDecorationsWidth;
 
-		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
+		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth - glyphMarginRightPadding;
 
 		let isWordWrapMinified = false;
 		let isViewportWrapping = false;
@@ -4056,6 +4061,7 @@ export const enum EditorOption {
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
+	glyphMarginRightPadding,
 	gotoLocation,
 	hideCursorInOverviewRuler,
 	hover,
@@ -4418,6 +4424,10 @@ export const EditorOptions = {
 	glyphMargin: register(new EditorBooleanOption(
 		EditorOption.glyphMargin, 'glyphMargin', true,
 		{ description: nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.") }
+	)),
+	glyphMarginRightPadding: register(new EditorIntOption(
+		EditorOption.glyphMarginRightPadding, 'glyphMarginRightPadding', 0, 0, 1000,
+		{ description: nls.localize('glyphMarginRightPadding', "Defines a right-padding between the glyph margin and the editor content.") }
 	)),
 	gotoLocation: register(new EditorGoToLocation()),
 	hideCursorInOverviewRuler: register(new EditorBooleanOption(

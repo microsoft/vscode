@@ -3,44 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .hover-language-status-element {
+.monaco-workbench .hover-language-status {
 	display: flex;
-	justify-content: space-between;
 	padding: 4px 8px;
-	vertical-align: middle;
 }
 
-.monaco-workbench .hover-language-status-element:not(:last-child) {
+.monaco-workbench .hover-language-status:not(:last-child) {
 	border-bottom: 1px solid var(--code-notifications-border);
 }
 
-.monaco-workbench .hover-language-status-element > .left > .detail:not(:empty)::before {
+.monaco-workbench .hover-language-status > .severity {
+	padding-right: 8px;
+	flex: 1;
+	margin: auto;
+	display: none;
+}
+
+.monaco-workbench .hover-language-status > .severity.sev3 {
+	color: var(--code-language-status-error-color)
+}
+
+.monaco-workbench .hover-language-status > .severity.sev2 {
+	color: var(--code-language-status-warning-color)
+}
+
+.monaco-workbench .hover-language-status > .severity.sev1 {
+	color: var(--code-language-status-info-color)
+}
+
+.monaco-workbench .hover-language-status > .severity.show {
+	display: inherit;
+}
+
+.monaco-workbench .hover-language-status > .element {
+	display: flex;
+	justify-content: space-between;
+	vertical-align: middle;
+	flex-grow: 100;
+}
+
+.monaco-workbench .hover-language-status > .element > .left > .detail:not(:empty)::before {
 	content: '–';
 	padding: 0 4px;
 	opacity: 0.6;
 }
 
-.monaco-workbench .hover-language-status-element > .left > .label:empty {
+.monaco-workbench .hover-language-status > .element > .left > .label:empty {
 	display: none;
 }
 
-.monaco-workbench .hover-language-status-element .left {
+.monaco-workbench .hover-language-status > .element .left {
 	margin: auto 0;
 }
 
-.monaco-workbench .hover-language-status-element .right {
+.monaco-workbench .hover-language-status > .element .right {
 	margin: auto 0;
 	display: flex;
 }
 
-.monaco-workbench .hover-language-status-element .right:not(:empty) {
+.monaco-workbench .hover-language-status > .element .right:not(:empty) {
 	padding-left: 16px;
 }
 
-.monaco-workbench .hover-language-status-element .right .monaco-link {
+.monaco-workbench .hover-language-status > .element .right .monaco-link {
 	margin: auto 0;
 }
 
-.monaco-workbench .hover-language-status-element .right .monaco-action-bar:not(:first-child) {
+.monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {
 	padding-left: 8px;
 }

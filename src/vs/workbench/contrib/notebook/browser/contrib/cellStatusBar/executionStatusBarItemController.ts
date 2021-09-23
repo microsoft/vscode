@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { formatCellDuration, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -217,17 +217,10 @@ class TimerCellStatusBarItem extends Disposable {
 	private _getTimeItem(startTime: number, endTime: number, adjustment: number = 0): INotebookCellStatusBarItem {
 		const duration = endTime - startTime + adjustment;
 		return <INotebookCellStatusBarItem>{
-			text: this._formatDuration(duration),
+			text: formatCellDuration(duration),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 1
 		};
-	}
-
-	private _formatDuration(duration: number) {
-		const seconds = Math.floor(duration / 1000);
-		const tenths = String(duration - seconds * 1000).charAt(0);
-
-		return `${seconds}.${tenths}s`;
 	}
 
 	override dispose() {

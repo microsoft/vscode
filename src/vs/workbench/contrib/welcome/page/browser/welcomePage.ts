@@ -22,8 +22,8 @@ import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/con
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/product/common/product';
-import { getTelemetryConfiguration } from 'vs/platform/telemetry/common/telemetryUtils';
-import { TelemetryConfiguration } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -52,7 +52,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
 			product.enableTelemetry
-			&& getTelemetryConfiguration(this.configurationService) !== TelemetryConfiguration.OFF
+			&& getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE
 			&& !this.environmentService.skipWelcome
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
 		) {

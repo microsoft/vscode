@@ -283,7 +283,8 @@ class DecorationsWidget implements IDisposable {
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
 				options: shouldUseInjectedText ? {
 					description: 'ghost-text',
-					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' }
+					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
+					showIfCollapsed: true,
 				} : {
 					...decorationType.resolve()
 				}

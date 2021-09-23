@@ -7,27 +7,25 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
+import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 
 export class FileWatcher extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
 	private service: IWatcherService | undefined;
-	private isDisposed: boolean;
-	private restartCounter: number;
+
+	private isDisposed = false;
+	private restartCounter = 0;
 
 	constructor(
-		private folders: IWatcherRequest[],
+		private requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 	) {
 		super();
-
-		this.isDisposed = false;
-		this.restartCounter = 0;
 
 		this.startWatching();
 	}
@@ -69,13 +67,14 @@ export class FileWatcher extends Disposable {
 		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
-		this.setFolders(this.folders);
+		this.watch(this.requests);
 	}
 
 	setVerboseLogging(verboseLogging: boolean): void {
 		this.verboseLogging = verboseLogging;
-		if (!this.isDisposed && this.service) {
-			this.service.setVerboseLogging(verboseLogging);
+
+		if (!this.isDisposed) {
+			this.service?.setVerboseLogging(verboseLogging);
 		}
 	}
 
@@ -83,12 +82,10 @@ export class FileWatcher extends Disposable {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (nsfw)] ${message}` });
 	}
 
-	setFolders(folders: IWatcherRequest[]): void {
-		this.folders = folders;
+	watch(requests: IWatchRequest[]): void {
+		this.requests = requests;
 
-		if (this.service) {
-			this.service.setRoots(folders);
-		}
+		this.service?.watch(requests);
 	}
 
 	override dispose(): void {

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as DOM from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { IMenuService } from 'vs/platform/actions/common/actions';
@@ -91,8 +92,8 @@ suite('NotebookViewModel Outputs', async () => {
 			],
 			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
+					outputContainer: new FastDomNode(document.createElement('div')),
+					outputShowMoreContainer: new FastDomNode(document.createElement('div')),
 					editor: {
 						getContentHeight: () => {
 							return 100;
@@ -170,8 +171,8 @@ suite('NotebookViewModel Outputs', async () => {
 			],
 			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
+					outputContainer: new FastDomNode(document.createElement('div')),
+					outputShowMoreContainer: new FastDomNode(document.createElement('div')),
 					editor: {
 						getContentHeight: () => {
 							return 100;

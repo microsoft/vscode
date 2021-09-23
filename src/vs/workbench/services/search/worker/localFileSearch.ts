@@ -7,13 +7,13 @@ import * as glob from 'vs/base/common/glob';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, IWorkerFileSearchComplete, IWorkerTextSearchComplete } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
-import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
+import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
-import { createRegExp } from 'vs/workbench/services/search/common/searchRegexp';
-import { parseIgnoreFile } from '../common/parseIgnoreFile';
+import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
+import { createRegExp } from 'vs/base/common/strings';
 
 const PERF = false;
 
@@ -109,7 +109,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 			const results: IFileMatch[] = [];
 
-			const pattern = createRegExp(query.contentPattern);
+			const pattern = createSearchRegExp(query.contentPattern);
 
 			const onGoingProcesses: Promise<void>[] = [];
 
@@ -169,18 +169,20 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	private async walkFolderQuery(handle: FileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
-		const globalFolderExcludes = glob.parse(folderQuery.excludePattern ?? {}) as unknown as (path: string) => boolean;
+		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
 
 		// For folders, only check if the folder is explicitly excluded so walking continues.
-		const isFolderExcluded = (path: string, folderExcludes: (path: string) => boolean) => {
-			if (folderExcludes(path)) { return true; }
+		const isFolderExcluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
+			path = path.slice(1);
+			if (folderExcludes(path, basename, hasSibling)) { return true; }
 			if (pathExcludedInQuery(queryProps, path)) { return true; }
 			return false;
 		};
 
 		// For files ensure the full check takes place.
-		const isFileIncluded = (path: string, folderExcludes: (path: string) => boolean) => {
-			if (folderExcludes(path)) { return false; }
+		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
+			path = path.slice(1);
+			if (folderExcludes(path, basename, hasSibling)) { return false; }
 			if (!pathIncludedInQuery(queryProps, path)) { return false; }
 			return true;
 		};
@@ -198,45 +200,49 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 
 
-		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, priorFolderExcludes: (path: string) => boolean): Promise<DirNode> => {
+		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
 
 			const ignoreFiles = await Promise.all([
 				directory.getFileHandle('.gitignore').catch(e => undefined),
 				directory.getFileHandle('.ignore').catch(e => undefined),
 			]);
 
-			let folderExcludes = priorFolderExcludes;
-
 			await Promise.all(ignoreFiles.map(async file => {
 				if (!file) { return; }
 
 				const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-				const checker = parseIgnoreFile(ignoreContents);
-				priorFolderExcludes = folderExcludes;
-
-				folderExcludes = (path: string) => {
-					if (checker('/' + path)) {
-						return false;
-					}
-
-					return priorFolderExcludes(path);
-				};
+				ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
 			}));
 
 			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];
+
+				const entries: [string, FileSystemHandle][] = [];
+				const sibilings = new Set<string>();
+
 				for await (const entry of directory.entries()) {
+					entries.push(entry);
+					sibilings.add(entry[0]);
+				}
+
+				for (const [basename, handle] of entries) {
 					if (token.isCancellationRequested) {
 						break;
 					}
 
-					const path = prior ? prior + '/' + entry[0] : entry[0];
+					const path = prior + basename;
 
-					if (entry[1].kind === 'directory' && !isFolderExcluded(path, folderExcludes)) {
-						dirs.push(processDirectory(entry[1], path, folderExcludes));
-					} else if (entry[1].kind === 'file' && isFileIncluded(path, folderExcludes)) {
-						files.push(proccessFile(entry[1], path));
+					if (ignoreFile && !ignoreFile.isPathIncludedInTraversal(path, handle.kind === 'directory')) {
+						continue;
+					}
+
+					const hasSibling = (query: string) => sibilings.has(query);
+
+					if (handle.kind === 'directory' && !isFolderExcluded(path, basename, hasSibling)) {
+						dirs.push(processDirectory(handle, path + '/', ignoreFile));
+					} else if (handle.kind === 'file' && isFileIncluded(path, basename, hasSibling)) {
+						files.push(proccessFile(handle, path));
 					}
 				}
 				c([...await Promise.all(dirs), ...files]);
@@ -257,20 +263,31 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 					.sort((a, b) => -(a.type === 'dir' ? 0 : 1) + (b.type === 'dir' ? 0 : 1))
 					.map(async entry => {
 						if (entry.type === 'dir') {
-							await resolveDirectory(entry, onFile);
+							return resolveDirectory(entry, onFile);
 						}
 						else {
-							await onFile(entry);
+							return onFile(entry);
 						}
 					}));
 		};
 
-		const processed = await time('process', () => processDirectory(handle, '', globalFolderExcludes));
+		const processed = await time('process', () => processDirectory(handle, '/'));
 		await time('resolve', () => resolveDirectory(processed, onFile));
 	}
 }
 
-export function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
+function createSearchRegExp(options: IPatternInfo): RegExp {
+	return createRegExp(options.pattern, !!options.isRegExp, {
+		wholeWord: options.isWordMatch,
+		global: true,
+		matchCase: options.isCaseSensitive,
+		multiline: true,
+		unicode: true,
+	});
+}
+
+
+function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return true;
 	}
@@ -278,7 +295,7 @@ export function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>
 	return false;
 }
 
-export function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
+function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return false;
 	}

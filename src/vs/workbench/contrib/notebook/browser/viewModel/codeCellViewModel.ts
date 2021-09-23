@@ -23,6 +23,8 @@ import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
+	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
+	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
@@ -285,6 +287,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return false;
 	}
 
+	getDynamicHeight() {
+		this._onLayoutInfoRead.fire();
+		return this._layoutInfo.totalHeight;
+	}
+
 	firstLine(): string {
 		return this.getText().split('\n')[0];
 	}
@@ -365,6 +372,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		if (this._outputsTop!.changeValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
 		}
+	}
+
+	getOutputHeight(index: number) {
+		if (index >= this._outputCollection.length) {
+			return -1;
+		}
+
+		this._ensureOutputsTop();
+		return this._outputCollection[index];
 	}
 
 	getOutputOffsetInContainer(index: number) {

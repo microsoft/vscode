@@ -24,6 +24,7 @@ import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 // Actions
 (function registerActions(): void {
@@ -233,7 +234,8 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 				'type': 'boolean',
 				'description': localize('telemetry.enableCrashReporting', "Enable crash reports to be collected. This helps us improve stability. \nThis option requires restart to take effect."),
 				'default': true,
-				'tags': ['usesOnlineServices', 'telemetry']
+				'tags': ['usesOnlineServices', 'telemetry'],
+				'markdownDeprecationMessage': localize('enableCrashReporterDeprecated', "Deprecated due to being combined into the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			}
 		}
 	});

@@ -17,13 +17,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/panel';
 import { getRemoteName, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { Schemas } from 'vs/base/common/network';
+import { AuxiliaryBarVisibleContext } from 'vs/workbench/common/auxiliarybar';
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
@@ -84,6 +85,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelPositionContext: IContextKey<string>;
 	private panelVisibleContext: IContextKey<boolean>;
 	private panelMaximizedContext: IContextKey<boolean>;
+	private auxiliaryBarVisibleContext: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -94,7 +96,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
@@ -201,6 +203,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.panelMaximizedContext = PanelMaximizedContext.bindTo(this.contextKeyService);
 		this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 
+		// Auxiliarybar
+		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
+		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+
 		this.registerListeners();
 	}
 
@@ -236,13 +242,14 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.layoutService.onDidChangeCenteredLayout(centered => this.isCenteredLayoutContext.set(centered)));
 		this._register(this.layoutService.onDidChangePanelPosition(position => this.panelPositionContext.set(position)));
 
-		this._register(this.viewletService.onDidViewletClose(() => this.updateSideBarContextKeys()));
-		this._register(this.viewletService.onDidViewletOpen(() => this.updateSideBarContextKeys()));
+		this._register(this.paneCompositeService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
 			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
+			this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
 		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));

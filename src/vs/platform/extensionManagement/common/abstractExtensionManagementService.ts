@@ -387,6 +387,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw new ExtensionManagementError(nls.localize('malicious extension', "Can't install '{0}' extension since it was reported to be problematic.", extension.identifier.id), INSTALL_ERROR_MALICIOUS);
 		}
 
+		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion);
+		if (!compatibleExtension) {
+			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, product.version), INSTALL_ERROR_INCOMPATIBLE);
+		}
+
+		return compatibleExtension;
+	}
+
+	protected async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension | null> {
 		const targetPlatform = await this.getTargetPlatform();
 		let compatibleExtension: IGalleryExtension | null = null;
 		if (await this.galleryService.isExtensionCompatible(extension, targetPlatform)) {
@@ -395,10 +404,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		if (!compatibleExtension && fetchCompatibleVersion) {
 			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, targetPlatform);
-		}
-
-		if (!compatibleExtension) {
-			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, product.version), INSTALL_ERROR_INCOMPATIBLE);
 		}
 
 		return compatibleExtension;

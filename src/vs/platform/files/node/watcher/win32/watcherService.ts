@@ -6,16 +6,19 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { rtrim } from 'vs/base/common/strings';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
 
+/**
+ * @deprecated
+ */
 export class FileWatcher implements IDisposable {
 
-	private folder: { path: string, excludes: string[] };
+	private folder: IWatchRequest;
 	private service: OutOfProcessWin32FolderWatcher | undefined = undefined;
 
 	constructor(
-		folders: { path: string, excludes: string[] }[],
+		folders: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean

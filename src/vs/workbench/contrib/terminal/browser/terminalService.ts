@@ -537,7 +537,17 @@ export class TerminalService implements ITerminalService {
 		return this._defaultProfileName;
 	}
 
-	private async _onBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
+	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		// Never veto on web as this would block all windows from being closed. This disables
+		// process revive as we can't handle it on shutdown.
+		if (isWeb) {
+			this._isShuttingDown = true;
+			return false;
+		}
+		return this._onBeforeShutdownAsync(reason);
+	}
+
+	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
 		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
@@ -559,7 +569,7 @@ export class TerminalService implements ITerminalService {
 				(this.configHelper.config.confirmOnExit === 'hasChildProcesses' && this.instances.some(e => e.hasChildProcesses))
 			);
 			if (hasDirtyInstances) {
-				return this._onBeforeShutdownAsync(reason);
+				return this._onBeforeShutdownConfirmation(reason);
 			}
 		}
 
@@ -589,7 +599,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private async _onBeforeShutdownAsync(reason: ShutdownReason): Promise<boolean> {
+	private async _onBeforeShutdownConfirmation(reason: ShutdownReason): Promise<boolean> {
 		// veto if configured to show confirmation and the user chose not to exit
 		const veto = await this._showTerminalCloseConfirmation();
 		if (!veto) {

@@ -87,6 +87,7 @@ export interface IEnvironment {
 export interface IStaticWorkspaceData {
 	id: string;
 	name: string;
+	transient?: boolean;
 	configuration?: UriComponents | null;
 	isUntitled?: boolean | null;
 }
@@ -645,6 +646,7 @@ export interface IEditorTabDto {
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
+	additionalResourcesAndViewIds: { resource?: UriComponents, viewId?: string }[]
 }
 
 export interface IExtHostEditorTabsShape {

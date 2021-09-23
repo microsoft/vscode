@@ -398,7 +398,7 @@ export class DecorationsService implements IDecorationsService {
 			this._onDidChangeDecorationsDelayed,
 			this._onDidChangeDecorations
 		);
-		const remove = this._data.push(wrapper);
+		const remove = this._data.unshift(wrapper);
 
 		this._onDidChangeDecorations.fire({
 			// everything might have changed

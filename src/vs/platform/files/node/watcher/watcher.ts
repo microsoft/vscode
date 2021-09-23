@@ -7,6 +7,19 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
+export interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
 export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;
@@ -36,8 +49,9 @@ export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChang
 }
 
 class EventNormalizer {
-	private normalized: IDiskFileChange[] = [];
-	private mapPathToChange: Map<string, IDiskFileChange> = new Map();
+
+	private readonly normalized: IDiskFileChange[] = [];
+	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
 
 	processEvent(event: IDiskFileChange): void {
 		const existingEvent = this.mapPathToChange.get(event.path);
@@ -75,7 +89,7 @@ class EventNormalizer {
 	}
 
 	normalize(): IDiskFileChange[] {
-		const addedChangeEvents: IDiskFileChange[] = [];
+		const addOrChangeEvents: IDiskFileChange[] = [];
 		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
@@ -87,7 +101,7 @@ class EventNormalizer {
 		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
 		return this.normalized.filter(e => {
 			if (e.type !== FileChangeType.DELETED) {
-				addedChangeEvents.push(e);
+				addOrChangeEvents.push(e);
 
 				return false; // remove ADD / CHANGE
 			}
@@ -104,6 +118,6 @@ class EventNormalizer {
 			deletedPaths.push(e.path);
 
 			return true;
-		}).concat(addedChangeEvents);
+		}).concat(addOrChangeEvents);
 	}
 }

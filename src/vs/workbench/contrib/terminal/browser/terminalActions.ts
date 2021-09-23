@@ -1835,6 +1835,53 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SetDimensions,
+				title: { value: localize('workbench.action.terminal.setFixedDimensions', "Set Fixed Dimensions"), original: 'Set Fixed Dimensions' },
+				f1: true,
+				category,
+				precondition: TerminalContextKeys.isOpen
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.setFixedDimensions());
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SizeToContentWidth,
+				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.KEY_Z,
+					weight: KeybindingWeight.WorkbenchContrib
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).doWithActiveInstance(t => t.toggleSizeToContentWidth());
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.SizeToContentWidthInstance,
+				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth();
+		}
+	});
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {
