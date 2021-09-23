@@ -153,4 +153,22 @@ export class DenseKeyProvider<T> {
 		}
 		return existing;
 	}
+
+	reverseLookup(value: number): T | undefined {
+		return [...this.items].find(([_key, v]) => v === value)?.[0];
+	}
+
+	reverseLookupSet(set: SmallImmutableSet<T>): T[] {
+		const result: T[] = [];
+		for (const [key, value] of this.items) {
+			if (set.has(key, this)) {
+				result.push(key);
+			}
+		}
+		return result;
+	}
+
+	keys(): IterableIterator<T> {
+		return this.items.keys();
+	}
 }
