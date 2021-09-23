@@ -3,7 +3,7 @@
 ## Prerequisites
 
 To complete this guide, you need:
-* a GCP account
+* a [Google Cloud Platform](https://cloud.google.com/) account
 * a project where you can create a virtual machine
 
 ## Start the interactive tutorial

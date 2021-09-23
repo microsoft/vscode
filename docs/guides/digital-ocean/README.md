@@ -1,13 +1,20 @@
-# Deploying an OpenVSCode Server to Digital Ocean
+# Deploy OpenVSCode Server to Digital Ocean
 
-## Creating the Droplet
+## Prerequisites
+
+To complete this guide, you need:
+* a [Digital Ocean](https://www.digitalocean.com/) account
+
+## Setup
+
+### Create the Droplet
 
 First, you need to create a Virtual Machine to host your server. If you don't have one already, you can start with [our template](https://cloud.digitalocean.com/droplets/new?use_case=droplet&i=59c3b0&fleetUuid=a8fdcc26-2bf0-449d-8113-e458327192fe&distro=ubuntu&distroImage=ubuntu-20-04-x64&size=s-1vcpu-1gb-amd&region=fra1&options=ipv6), then change a couple of settings as explained below.
 
 - You either need to set a password or add an SSH key. For demonstration purposes, it's easier to use a password. **Caution**: This is for demo purposes, please follow security best practices for a production environment.
 - We need to do is to check the checkbox <kbd>User data</kbd> and add the following script to the text field below: **TODO: What script, cc @filiptronicek**
 
-## Initial setup
+### Prepare the Droplet
 
 - First things first, you need to turn on the Droplet by selecting it in the dashboard and toggling the switch on the top right of the page.
 - Then, you need to copy the Droplet's IP address, available on the same page in the top bar. If you are unsure whether to copy the **ipv4** or **ipv6** address, select **ipv4**.
@@ -17,7 +24,7 @@ First, you need to create a Virtual Machine to host your server. If you don't ha
 		```
 - When prompted, enter the password you chose during the configuration.
 
-### Downloading OpenVSCode Server
+### Download & extract OpenVSCode Server
 
 **Caution**: Make sure you successfully connected to the Droplet before you execute the following commands.
 
@@ -35,7 +42,9 @@ tar -xzf code-server.tar.gz
 rm code-server.tar.gz
 ```
 
-While you are still connected to the VM, execute the following commands to start OpenVSCode Server:
+## Start the server
+
+While you are still connected to the Droplet, execute the following commands to start OpenVSCode Server:
 
 ```bash
 cd openvscode-server-v$SERVER_VERSION-linux-x64
@@ -47,7 +56,15 @@ cd openvscode-server-v$SERVER_VERSION-linux-x64
 ./server.sh >/dev/null 2>&1 &
 ```
 
-You're all set! You can now access your IDE at `http://<your-droplet-ip>:3000`.
+You're all set!
+
+## Access OpenVSCode Server
+
+You can now access your IDE at `http://<your-droplet-ip>:3000`.
+
+## Teardown
+
+Delete the Droplet through the Digital Ocean web interface.
 
 ## Further steps
 
@@ -61,10 +78,10 @@ If you want to run the server on boot, you can add this to your Crontab file (`c
 
 Make sure you replace `REPLACE_WITH_LATEST_VERSION` with the version you used earlier.
 
-### Adding a custom domain
+### Add a custom domain
 
 You can follow the official [DNS Quickstart](https://docs.digitalocean.com/products/networking/dns/quickstart/) guide for setting up a custom domain with your Droplet.
 
-### Securing the Droplet
+### Secure the Droplet
 
 There is an awesome video by Mason Egger called [Securing Your Droplet](https://youtu.be/L8e_eAm4fFM), which explains some key steps for hardening the security of the Droplet.
