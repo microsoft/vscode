@@ -98,7 +98,7 @@ export class WorkspaceWatcher extends Disposable {
 				}],
 				{
 					sticky: true,
-					neverShowAgain: { id: 'ignoreEshutdownError', isSecondary: true, scope: NeverShowAgainScope.WORKSPACE }
+					silent: true // reduce potential spam since we don't really know how often this fires
 				}
 			);
 		}
