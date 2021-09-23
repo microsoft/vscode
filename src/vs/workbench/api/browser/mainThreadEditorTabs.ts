@@ -41,7 +41,14 @@ export class MainThreadEditorTabs {
 		this._dispoables.dispose();
 	}
 
+	/**
+	 * Creates a tab object with the correct properties
+	 * @param editor The editor input represented by the tab
+	 * @param group The group the tab is in
+	 * @returns A tab object
+	 */
 	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
+		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor instanceof DiffEditorInput ? 'diff' : editor instanceof SideBySideEditorInput ? 'sideBySide' : editor.editorId;
 		const tab: IEditorTabDto = {
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
@@ -58,6 +65,9 @@ export class MainThreadEditorTabs {
 		return tab;
 	}
 
+	/**
+	 * Builds the model from scratch based on the current state of the editor service.
+	 */
 	private _createTabsModel(): void {
 		this._tabModel.clear();
 		let tabs: IEditorTabDto[] = [];
@@ -135,6 +145,9 @@ export class MainThreadEditorTabs {
 		this._findAndUpdateActiveTab();
 	}
 
+	/**
+	 * Updates the currently active tab so that `this._currentlyActiveTab` is up to date.
+	 */
 	private _findAndUpdateActiveTab() {
 		// Go to the active group and update the active tab
 		const activeGroupId = this._editorGroupsService.activeGroup.id;
@@ -173,6 +186,10 @@ export class MainThreadEditorTabs {
 	// 	console.log(eventString);
 	// }
 
+	/**
+	 * The main handler for the tab events
+	 * @param events The list of events to process
+	 */
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
 		events.forEach(event => {
 			// Call the correct function for the change type
