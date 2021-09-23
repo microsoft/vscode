@@ -3267,13 +3267,13 @@ class DecorationsTrees {
 	public getInjectedTextInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
 	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean): model.IModelDecoration[] {
