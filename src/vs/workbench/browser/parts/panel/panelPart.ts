@@ -22,7 +22,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { IActivityHoverOptions, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper, $ } from 'vs/base/browser/dom';
@@ -91,7 +91,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
 
 	private blockOpeningPanel = false;
-	private contentDimension: Dimension | undefined;
+	protected contentDimension: Dimension | undefined;
 
 	private extensionsRegistered = false;
 
@@ -153,9 +153,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			activityHoverOptions: {
-				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
-			},
+			activityHoverOptions: this.getActivityHoverOptions(),
 			openComposite: (compositeId, preserveFocus) => this.openPaneComposite(compositeId, !preserveFocus).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
@@ -191,6 +189,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		this.registerListeners();
 		this.onDidRegisterPanels([...this.getPaneComposites()]);
 	}
+
+	protected abstract getActivityHoverOptions(): IActivityHoverOptions;
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
 		const result: IAction[] = [];
@@ -597,11 +597,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 			return;
 		}
 
-		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
-			this.contentDimension = new Dimension(width, height);
-		}
+		this.contentDimension = new Dimension(width, height);
 
 		// Layout contents
 		super.layout(this.contentDimension.width, this.contentDimension.height);
@@ -858,6 +854,12 @@ export class PanelPart extends BasePanelPart {
 		this._register(this.globalActions.onDidChange(() => this.updateGlobalToolbarActions()));
 	}
 
+	protected getActivityHoverOptions(): IActivityHoverOptions {
+		return {
+			position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+		};
+	}
+
 	override createTitleArea(parent: HTMLElement): HTMLElement {
 		const element = super.createTitleArea(parent);
 		const globalTitleActionsContainer = element.appendChild($('.global-actions'));
@@ -874,6 +876,18 @@ export class PanelPart extends BasePanelPart {
 		this.updateGlobalToolbarActions();
 
 		return element;
+	}
+
+	override layout(width: number, height: number): void {
+		let dimensions: Dimension;
+		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
+			dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+		} else {
+			dimensions = new Dimension(width, height);
+		}
+
+		// Layout contents
+		super.layout(dimensions.width, dimensions.height);
 	}
 
 	private updateGlobalToolbarActions(): void {
