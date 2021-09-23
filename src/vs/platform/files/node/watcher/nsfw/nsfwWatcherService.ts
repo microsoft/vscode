@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nsfw from 'nsfw';
+import * as nsfw from 'vscode-nsfw';
 import { existsSync } from 'fs';
 import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
