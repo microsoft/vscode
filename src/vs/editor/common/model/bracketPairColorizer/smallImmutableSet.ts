@@ -160,7 +160,7 @@ export class DenseKeyProvider<T> {
 
 	reverseLookupSet(set: SmallImmutableSet<T>): T[] {
 		const result: T[] = [];
-		for (const [key, value] of this.items) {
+		for (const [key] of this.items) {
 			if (set.has(key, this)) {
 				result.push(key);
 			}
