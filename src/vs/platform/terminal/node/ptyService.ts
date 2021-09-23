@@ -203,7 +203,7 @@ export class PtyService extends Disposable implements IPtyService {
 			executableEnv,
 			windowsEnableConpty
 		};
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedCols, shellLaunchConfig.fixedRows);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -236,8 +236,12 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).setIcon(icon, color);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return this._throwIfNoPty(id).refreshProperty(property);
+	async refreshProperty<T extends ProcessPropertyType>(id: number, type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		return this._throwIfNoPty(id).refreshProperty(type);
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(id: number, type: ProcessPropertyType, value: any): Promise<void> {
+		return this._throwIfNoPty(id).updateProperty(type, value);
 	}
 
 	async detachFromProcess(id: number): Promise<void> {
@@ -368,6 +372,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
+		this._logService.trace('cols', persistentProcess.fixedCols);
 		return {
 			id,
 			title: persistentProcess.title,
@@ -378,7 +383,9 @@ export class PtyService extends Disposable implements IPtyService {
 			cwd,
 			isOrphan,
 			icon: persistentProcess.icon,
-			color: persistentProcess.color
+			color: persistentProcess.color,
+			fixedCols: persistentProcess.fixedCols,
+			fixedRows: persistentProcess.fixedRows
 		};
 	}
 
@@ -437,6 +444,8 @@ export class PersistentTerminalProcess extends Disposable {
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _serializer: ITerminalSerializer;
 	private _wasRevived: boolean;
+	private _fixedCols: number | undefined;
+	private _fixedRows: number | undefined;
 
 	get pid(): number { return this._pid; }
 	get shellLaunchConfig(): IShellLaunchConfig { return this._terminalProcess.shellLaunchConfig; }
@@ -444,6 +453,8 @@ export class PersistentTerminalProcess extends Disposable {
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
+	get fixedCols(): number | undefined { return this._fixedCols; }
+	get fixedRows(): number | undefined { return this._fixedRows; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		this._title = title;
@@ -453,6 +464,11 @@ export class PersistentTerminalProcess extends Disposable {
 	setIcon(icon: TerminalIcon, color?: string): void {
 		this._icon = icon;
 		this._color = color;
+	}
+
+	setFixedDimensions(fixedDimensions?: { fixedCols?: number, fixedRows?: number }): void {
+		this._fixedCols = fixedDimensions?.fixedCols;
+		this._fixedRows = fixedDimensions?.fixedRows;
 	}
 
 	constructor(
@@ -469,7 +485,9 @@ export class PersistentTerminalProcess extends Disposable {
 		private readonly _logService: ILogService,
 		reviveBuffer: string | undefined,
 		private _icon?: TerminalIcon,
-		private _color?: string
+		private _color?: string,
+		fixedCols?: number,
+		fixedRows?: number
 	) {
 		super();
 		this._logService.trace('persistentTerminalProcess#ctor', _persistentProcessId, arguments);
@@ -481,6 +499,8 @@ export class PersistentTerminalProcess extends Disposable {
 			unicodeVersion,
 			reviveBuffer
 		);
+		this._fixedRows = fixedRows;
+		this._fixedCols = fixedCols;
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new ProcessTimeRunOnceScheduler(() => {
@@ -531,6 +551,13 @@ export class PersistentTerminalProcess extends Disposable {
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._terminalProcess.refreshProperty(type);
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+		if (type === ProcessPropertyType.FixedDimensions) {
+			this._logService.trace('updating property', value);
+			this.setFixedDimensions(value);
+		}
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {

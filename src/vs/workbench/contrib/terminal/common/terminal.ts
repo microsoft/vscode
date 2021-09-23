@@ -241,6 +241,8 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
 	color: string | undefined;
+	fixedCols: number | undefined;
+	fixedRows: number | undefined;
 }
 
 export interface ICommandTracker {
@@ -316,6 +318,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 	refreshProperty(property: ProcessPropertyType): any;
+	updateProperty(property: ProcessPropertyType, value: any): any;
 }
 
 export const enum ProcessState {

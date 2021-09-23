@@ -134,6 +134,8 @@ export interface IPtyHostAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
+	fixedCols: number | undefined;
+	fixedRows: number | undefined;
 }
 
 export enum TitleEventSource {
@@ -178,7 +180,8 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
-	InitialCwd = 'initialCwd'
+	InitialCwd = 'initialCwd',
+	FixedDimensions = 'fixedDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -189,7 +192,10 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
+	[ProcessPropertyType.FixedDimensions]: TerminalDimensions
 }
+
+type TerminalDimensions = { fixedCols?: number, fixedRows?: number };
 
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
@@ -272,6 +278,7 @@ export interface IPtyService {
 	 */
 	reviveTerminalProcesses(state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
+	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -373,7 +380,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedCols?: number, fixedRows?: number };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -428,6 +435,9 @@ export interface IShellLaunchConfig {
 	 * directly to the right of its parent.
 	 */
 	parentTerminalId?: number;
+
+	fixedCols?: number;
+	fixedRows?: number;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
@@ -552,6 +562,7 @@ export interface ITerminalChildProcess {
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 	refreshProperty(property: ProcessPropertyType): Promise<any>;
+	updateProperty(property: ProcessPropertyType, value: any): Promise<void>;
 }
 
 export interface IReconnectConstants {

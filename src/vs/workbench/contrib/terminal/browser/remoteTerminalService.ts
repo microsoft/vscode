@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IRequestResolveVariablesEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
@@ -248,9 +248,15 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				workspaceName: termDto.workspaceName,
 				icon: termDto.icon,
 				color: termDto.color,
-				isOrphan: termDto.isOrphan
+				isOrphan: termDto.isOrphan,
+				fixedCols: termDto.fixedCols,
+				fixedRows: termDto.fixedRows
 			};
 		});
+	}
+
+	async updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+		await this._remoteTerminalChannel?.updateProperty(id, property, value);
 	}
 
 	async updateTitle(id: number, title: string): Promise<void> {

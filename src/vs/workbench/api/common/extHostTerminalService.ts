@@ -270,6 +270,10 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		return Promise.resolve('');
 	}
 
+	async updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		Promise.resolve('');
+	}
+
 	async start(): Promise<undefined> {
 		return undefined;
 	}

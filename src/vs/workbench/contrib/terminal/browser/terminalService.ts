@@ -397,6 +397,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
+		console.log('reconnecting', layoutInfo);
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			await this._recreateTerminalGroups(layoutInfo);
 		}
@@ -408,6 +409,7 @@ export class TerminalService implements ITerminalService {
 	private async _recreateTerminalGroups(layoutInfo?: ITerminalsLayoutInfo): Promise<number> {
 		let reconnectCounter = 0;
 		let activeGroup: ITerminalGroup | undefined;
+		let terminalsWithFixedDimensions: ITerminalInstance[] = [];
 		if (layoutInfo) {
 			for (const groupLayout of layoutInfo.tabs) {
 				const terminalLayouts = groupLayout.terminals.filter(t => t.terminal && t.terminal.isOrphan);
@@ -426,9 +428,15 @@ export class TerminalService implements ITerminalService {
 							if (groupLayout.isActive) {
 								activeGroup = group;
 							}
+							if (terminalLayout.terminal?.fixedCols || terminalLayout.terminal?.fixedRows) {
+								terminalsWithFixedDimensions.push(terminalInstance);
+							}
 						} else {
 							// add split terminals to this group
-							await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
+							const splitInstance = await this.createTerminal({ config: { attachPersistentProcess: terminalLayout.terminal! }, location: { parentTerminal: terminalInstance } });
+							if (terminalLayout.terminal?.fixedCols || terminalLayout.terminal?.fixedRows) {
+								terminalsWithFixedDimensions.push(splitInstance);
+							}
 						}
 					}
 					const activeInstance = this.instances.find(t => {
@@ -440,6 +448,9 @@ export class TerminalService implements ITerminalService {
 					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
 				}
 			}
+			// for (const terminal of terminalsWithFixedDimensions) {
+			// 	terminal.resize
+			// }
 			if (layoutInfo.tabs.length) {
 				this._terminalGroupService.activeGroup = activeGroup;
 			}

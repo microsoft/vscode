@@ -567,6 +567,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return this._process?.refreshProperty(type);
 	}
 
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+		return this._process?.updateProperty(type, value);
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		this._ackDataBufferer.ack(charCount);
 	}

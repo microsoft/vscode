@@ -58,6 +58,8 @@ export interface IProcessDetails {
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
 	color: string | undefined;
+	fixedCols: number | undefined;
+	fixedRows: number | undefined;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;

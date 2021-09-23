@@ -93,6 +93,7 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
+	MaxSupportedCols = 500
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -138,7 +139,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
-	private _scrollable: DomScrollableElement | undefined;
+	private _scrollbar: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
@@ -213,6 +214,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return this._rows;
 	}
+	get fixedCols(): number | undefined { return this._fixedCols; }
+	get fixedRows(): number | undefined { return this._fixedRows; }
 	get maxCols(): number { return this._cols; }
 	get maxRows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
@@ -328,6 +331,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
+		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedCols;
+		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedRows;
 
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
@@ -369,6 +374,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
+			}
+
+			if (this._fixedCols && this._fixedCols > this.maxCols) {
+				await this._addScrollbar();
 			}
 		});
 
@@ -1043,9 +1052,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._scrollable) {
-				this._scrollable.dispose();
-				this._scrollable = undefined;
+			if (this._scrollbar) {
+				this._scrollbar.dispose();
+				this._scrollbar = undefined;
 			}
 		}
 		if (this._xterm) {
@@ -1539,6 +1548,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _updateProcessCwd(): Promise<string> {
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
+		if (typeof cwd !== 'string') {
+			throw new Error('cwd is not a string');
+		}
 		if (cwd && this._linkManager) {
 			this._linkManager.processCwd = cwd;
 		}
@@ -1700,10 +1712,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		// if (this._xterm && this._xterm.element) {
-		// 	this._xterm.element.style.width = terminalWidth + 'px';
-		// }
-
 		this._resize();
 
 		// Signal the container is ready
@@ -1745,6 +1753,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
+				if (this._fixedRows || this._fixedCols) {
+					await this.updateProperty(ProcessPropertyType.FixedDimensions, { fixedCols: this._fixedCols, fixedRows: this._fixedRows });
+				}
 			}
 
 			this._xterm.resize(cols, rows);
@@ -1911,10 +1922,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._hasScrollBar = false;
 			this._initDimensions();
 			await this._resize();
-			this._scrollable?.setScrollDimensions(
-				{
-					scrollWidth: 0
-				});
+			this._scrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
 			let maxCols = 0;
 			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
@@ -1922,32 +1930,41 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				maxCols = Math.max(maxCols, lineWidth.width || 0);
 				i = lineWidth.newIndex;
 			}
-			maxCols = Math.min(1000, maxCols);
+			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
 			if (maxCols > this.cols) {
 				this._fixedCols = maxCols;
-				this._hasScrollBar = true;
-				this._initDimensions();
-				this._fixedRows = this.rows;
-				await this._resize();
-				this._terminalHasFixedWidth.set(true);
-				if (!this._scrollable && this._xtermElement && this._wrapperElement && this._container) {
-					this._scrollable = new DomScrollableElement(this._wrapperElement, {
-						vertical: ScrollbarVisibility.Hidden,
-						horizontal: ScrollbarVisibility.Visible
-					});
-					this._container.appendChild(this._scrollable.getDomNode());
-				}
-				this._scrollable?.setScrollDimensions(
-					{
-						width: this._xterm.element?.clientWidth,
-						scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
-					});
-				this._scrollable!.getDomNode().style.paddingBottom = '16px';
-				for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
-					let line = this._xterm.buffer.active.getLine(j);
-					(line as any)._line.isWrapped = false;
-				}
+				await this._addScrollbar();
 			}
+		}
+	}
+
+	private async _addScrollbar(): Promise<void> {
+		if (!this._xterm || !this._fixedCols || !this._wrapperElement || !this._container) {
+			return;
+		}
+		this._hasScrollBar = true;
+		this._initDimensions();
+		this._fixedRows = this.rows;
+		await this._resize();
+		this._terminalHasFixedWidth.set(true);
+		if (!this._scrollbar) {
+			this._scrollbar = new DomScrollableElement(this._wrapperElement, {
+				vertical: ScrollbarVisibility.Hidden,
+				horizontal: ScrollbarVisibility.Visible
+			});
+			this._container.appendChild(this._scrollbar.getDomNode());
+		}
+		this._scrollbar.setScrollDimensions(
+			{
+				width: this._xterm.element?.clientWidth,
+				scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
+			});
+		this._scrollbar!.getDomNode().style.paddingBottom = '16px';
+
+		// work around for https://github.com/xtermjs/xterm.js/issues/3482
+		for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
+			let line = this._xterm.buffer.active.getLine(j);
+			(line as any)._line.isWrapped = false;
 		}
 	}
 
@@ -2098,6 +2115,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._processManager.refreshProperty(type);
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+		return this._processManager.updateProperty(type, value);
 	}
 
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable {

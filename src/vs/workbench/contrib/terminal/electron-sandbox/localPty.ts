@@ -17,7 +17,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	private _inReplay = false;
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
-		initialCwd: ''
+		initialCwd: '',
+		fixedDimensions: { fixedCols: undefined, fixedRows: undefined }
 	};
 	private _capabilities: ProcessCapability[] = [];
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
@@ -86,6 +87,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._localPtyService.refreshProperty(this.id, type);
 	}
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+		console.log('updating property', type, value);
+		return this._localPtyService.updateProperty(this.id, type, value);
+	}
 	getLatency(): Promise<number> {
 		// TODO: The idea here was to add the result plus the time it took to get the latency
 		return this._localPtyService.getLatency(this.id);
@@ -130,6 +135,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			this._properties.cwd = e.value;
 		} else if (e.type === ProcessPropertyType.InitialCwd) {
 			this._properties.initialCwd = e.value;
+		} else if (e.type === ProcessPropertyType.FixedDimensions) {
+			this._properties.fixedDimensions = e.value;
 		}
 		this._onDidChangeProperty.fire(e);
 	}

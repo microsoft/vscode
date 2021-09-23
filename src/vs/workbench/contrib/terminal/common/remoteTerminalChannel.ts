@@ -297,6 +297,10 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$refreshProperty', [id, property]);
 	}
 
+	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+		return this._channel.call('$updateProperty', [id, property, value]);
+	}
+
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
 		const workspace = this._workspaceContextService.getWorkspace();
 		const args: IGetTerminalLayoutInfoArgs = {
