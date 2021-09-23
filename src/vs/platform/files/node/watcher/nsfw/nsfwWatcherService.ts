@@ -356,7 +356,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				}
 
 				// Watcher path came back! Restart watching...
-				if (path === watcher.request.path && type === 'added' || type === 'changed') {
+				if (path === watcher.request.path && (type === 'added' || type === 'changed')) {
 
 					// Stop watching that parent folder
 					disposable.dispose();
@@ -366,6 +366,10 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 					// Restart the file watching delayed
 					const scheduler = new RunOnceScheduler(() => {
+						if (watcher.token.isCancellationRequested) {
+							return; // return early when disposed
+						}
+
 						this.warn('Watcher service restarts for watched path got created again', watcher);
 
 						this.restartWatching(watcher);
