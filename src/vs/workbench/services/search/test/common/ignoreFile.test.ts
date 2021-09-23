@@ -502,7 +502,7 @@ suite('Parsing .gitignore files', () => {
 			],
 		});
 
-
+		// TODO: the rest of these :)
 		runTest({
 			pattern: `*.pbxuser
 			!default.pbxuser
