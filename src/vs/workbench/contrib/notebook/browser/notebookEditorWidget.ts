@@ -612,11 +612,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 		const styleSheets: string[] = [];
+		if (!this._fontInfo) {
+			this._generateFontInfo();
+		}
+
 		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
 
 		styleSheets.push(`
 		:root {
 			--notebook-cell-output-font-size: ${fontSize}px;
+			--notebook-cell-output-font-family: ${fontFamily};
 			--notebook-cell-input-preview-font-size: ${fontSize}px;
 			--notebook-cell-input-preview-font-family: ${fontFamily};
 		}

@@ -245,14 +245,14 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
-	font-family: var(--monaco-monospace-font);
+	font-family: var(--notebook-cell-output-font-family);
 	white-space: pre-wrap;
 	word-wrap: break-word;
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
-	font-family: var(--monaco-monospace-font);
+	font-family: var(--notebook-cell-output-font-family);
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
