@@ -277,7 +277,10 @@ function defineTasks(options) {
 			const nodeStream = gulp.src([nodePath], { base: path.dirname(nodePath) });
 
 			const resourcesBase = path.join(root, 'resources/' + qualifier);
-			const binStream = gulp.src([path.join(resourcesBase, '**/*.' + (process.platform === 'win32' ? 'cmd' : 'sh'))], { base: resourcesBase })
+			const binStream = gulp.src([
+				path.join(resourcesBase, 'bin/code.' + (process.platform === 'win32' ? 'cmd' : 'sh')),
+				path.join(resourcesBase, 'server.' + (process.platform === 'win32' ? 'cmd' : 'sh'))
+			], { base: resourcesBase })
 				.pipe(util.setExecutableBit(['**/*.sh']))
 				.pipe(rename(path => {
 					if (path.basename === 'code' && path.extname === '.sh') {
