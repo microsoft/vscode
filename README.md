@@ -47,4 +47,4 @@ This project really only adds the minimal bits required to run VS Code in a serv
 
 ## Contributing
 
-[See development docs.](./doc/development.md)
+[See development docs.](./docs/development.md)
