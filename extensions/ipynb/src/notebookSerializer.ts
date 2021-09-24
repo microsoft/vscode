@@ -91,6 +91,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount);
+		// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecesary changes, resulting from a missing trailing new line).
+		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount) + '\n';
 	}
 }
