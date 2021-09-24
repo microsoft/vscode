@@ -249,7 +249,8 @@ suite('PersistentProtocol reconnection', () => {
 	test('ack gets sent after a while', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 			const loadEstimator: ILoadEstimator = {
-				hasHighLoad: () => false
+				hasHighLoad: () => false,
+				load: () => 1
 			};
 			const ether = new Ether();
 			const aSocket = new NodeSocket(ether.a);
@@ -294,7 +295,8 @@ suite('PersistentProtocol reconnection', () => {
 				await timeout(60 * 60 * 1000);
 
 				const loadEstimator: ILoadEstimator = {
-					hasHighLoad: () => false
+					hasHighLoad: () => false,
+					load: () => 1
 				};
 				const ether = new Ether();
 				const aSocket = new NodeSocket(ether.a);
