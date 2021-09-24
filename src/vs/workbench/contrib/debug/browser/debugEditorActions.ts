@@ -178,8 +178,8 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 
 class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 
-	public static readonly ID = 'editor.debug.action.toggleDisassemblyViewSourceCode';
-	public static readonly configID: string = 'editor.debug.disassemblyview.showSourceCode';
+	public static readonly ID = 'debug.action.toggleDisassemblyViewSourceCode';
+	public static readonly configID: string = 'debug.disassemblyview.showSourceCode';
 
 	constructor() {
 		super({
@@ -203,14 +203,14 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'editor',
+	id: 'debug',
 	order: 100,
 	type: 'object',
 	'properties': {
-		'editor.debug.disassemblyview.showSourceCode': {
+		'debug.disassemblyview.showSourceCode': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('editor.debug.disassemblyview.showSourceCode', "Show Source Code in Disassembly View (require debugger restart)")
+			description: nls.localize('debug.disassemblyview.showSourceCode', "Show Source Code in Disassembly View.")
 		},
 	}
 });
