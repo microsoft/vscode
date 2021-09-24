@@ -493,7 +493,7 @@ export class DebugService implements IDebugService {
 				}
 
 				if (!this.adapterManager.isDebuggerEnabled(dbg)) {
-					const message = nls.localize('debuggerDisabled', "Configured debug type '{0}' is disabled", dbg.type);
+					const message = nls.localize('debuggerDisabled', "Configured debug type '{0}' is installed but not supported in this environment.", dbg.type);
 					await this.showError(message, []);
 					return false;
 				}
