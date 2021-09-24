@@ -376,6 +376,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return lastInstance;
 	}
 
+	public getFirstInstance(task: Task): Task | undefined {
+		const recentKey = task.getRecentlyUsedKey();
+		for (let task of this.getActiveTasks()) {
+			if (recentKey && recentKey === task.getRecentlyUsedKey()) {
+				return task;
+			}
+		}
+		return undefined;
+	}
+
 	public getBusyTasks(): Task[] {
 		return Object.keys(this.busyTasks).map(key => this.busyTasks[key]);
 	}
