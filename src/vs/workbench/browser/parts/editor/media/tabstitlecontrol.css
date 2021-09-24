@@ -279,6 +279,11 @@
 	overflow: visible; /* fixes https://github.com/microsoft/vscode/issues/20182 */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) .monaco-icon-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fit.last-in-row:not(:last-child) .monaco-icon-label > .monaco-icon-label-container {
+	flex: none; /* fixes https://github.com/microsoft/vscode/issues/126532 */
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: clip;
 	flex: none;
