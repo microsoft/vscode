@@ -8,7 +8,7 @@ import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
-import { createJupyterCellFromNotebookCell, pruneCell } from './serializers';
+import { createJupyterCellFromNotebookCell, pruneCell, sortObjectPropertiesRecursively } from './serializers';
 import * as fnv from '@enonic/fnv-plus';
 
 export class NotebookSerializer implements vscode.NotebookSerializer {
@@ -81,7 +81,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const notebookContent: Partial<nbformat.INotebookContent> = data.metadata?.custom || {};
 		notebookContent.cells = notebookContent.cells || [];
 		notebookContent.nbformat = notebookContent.nbformat || 4;
-		notebookContent.nbformat_minor = notebookContent.nbformat_minor || 2;
+		notebookContent.nbformat_minor = notebookContent.nbformat_minor ?? 2;
 		notebookContent.metadata = notebookContent.metadata || { orig_nbformat: 4 };
 
 		notebookContent.cells = data.cells
@@ -91,6 +91,6 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
 			data.metadata.indentAmount :
 			' ';
-		return JSON.stringify(notebookContent, undefined, indentAmount);
+		return JSON.stringify(sortObjectPropertiesRecursively(notebookContent), undefined, indentAmount);
 	}
 }
