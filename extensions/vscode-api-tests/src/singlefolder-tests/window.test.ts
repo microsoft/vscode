@@ -408,6 +408,46 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 
 		assert.ok(!window.activeTab);
+	});
+
+	test('Tabs - Move Tab', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		// Move the first tab of Group 1 to be the first tab of Group 2
+		await tabs[0].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[2].move(0, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> C -> A
+		assert.strictEqual(tabs[1].resource?.toString(), docC.uri.toString());
+
+		await tabs[1].move(0, ViewColumn.Three);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should now be B -> A -> C With C in a new group
+		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
+		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Three);
+
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+
+		assert.ok(!window.activeTab);
 
 	});
 

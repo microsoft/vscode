@@ -289,6 +289,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._proxy.refreshProperty(id, property);
+
+	}
+	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: any): Promise<void> {
+		return this._proxy.updateProperty(id, property, value);
 	}
 
 	async restartPtyHost(): Promise<void> {

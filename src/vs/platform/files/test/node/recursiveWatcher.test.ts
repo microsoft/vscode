@@ -34,6 +34,17 @@ flakySuite('Recursive Watcher', () => {
 				await watcher.instance;
 			}
 		}
+
+		protected override getOptions(watcher: any) {
+			return {
+				...super.getOptions(watcher),
+
+				// required to let tests pass properly. with a smaller value
+				// somehow `fsevents` on macOS seems to report events from
+				// the past so that the event listening will assume wrongly
+				debounceMS: 500
+			};
+		}
 	}
 
 	let testDir: string;

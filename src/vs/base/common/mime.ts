@@ -15,6 +15,7 @@ export namespace Mimes {
 	export const binary = 'application/octet-stream';
 	export const unknown = 'application/unknown';
 	export const markdown = 'text/markdown';
+	export const latex = 'text/latex';
 }
 
 export interface ITextMimeAssociation {

@@ -397,6 +397,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
+		console.log('reconnecting', layoutInfo);
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			await this._recreateTerminalGroups(layoutInfo);
 		}

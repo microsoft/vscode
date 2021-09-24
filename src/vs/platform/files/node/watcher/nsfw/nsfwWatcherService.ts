@@ -84,8 +84,8 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	private registerListeners(): void {
 
 		// Error handling on process
-		process.on('uncaughtException', (error: Error | string) => this.onError(error));
-		process.on('unhandledRejection', (error: Error | string) => this.onError(error));
+		process.on('uncaughtException', error => this.onError(error));
+		process.on('unhandledRejection', error => this.onError(error));
 	}
 
 	async watch(requests: IWatchRequest[]): Promise<void> {
@@ -204,13 +204,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				const normalizedEvents = normalizeFileChanges(this.normalizeEvents(events, request, realBasePathDiffers, realBasePathLength));
 				this.emitEvents(normalizedEvents);
 			});
-		}, {
-			errorCallback: error => {
-				if (!watcher.token.isCancellationRequested) {
-					this.onError(error, watcher); // error handling only if we are not disposed yet
-				}
-			}
-		}).then(async nsfwWatcher => {
+		}, this.getOptions(watcher)).then(async nsfwWatcher => {
 
 			// Begin watching unless disposed already
 			if (!watcher.token.isCancellationRequested) {
@@ -223,6 +217,23 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 			nsfwPromiseResolve(nsfwWatcher);
 		});
+	}
+
+	protected getOptions(watcher: IWatcher): nsfw.Options {
+		return {
+
+			// We must install an error callback, otherwise any error
+			// that is thrown from the watcher will result in process exit
+			errorCallback: error => {
+				if (!watcher.token.isCancellationRequested) {
+					this.onError(error, watcher); // error handling only if we are not disposed yet
+				}
+			},
+
+			// The default delay of NSFW is 500 but we already do some
+			// debouncing in our code so we reduce the delay slightly
+			debounceMS: 100
+		};
 	}
 
 	private emitEvents(events: IDiskFileChange[]): void {
@@ -357,6 +368,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 				// Watcher path came back! Restart watching...
 				if (path === watcher.request.path && (type === 'added' || type === 'changed')) {
+					this.warn('Watcher service restarts for watched path got created again', watcher);
 
 					// Stop watching that parent folder
 					disposable.dispose();
@@ -365,18 +377,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 					this.emitEvents([{ path: watcher.request.path, type: FileChangeType.ADDED }]);
 
 					// Restart the file watching delayed
-					const scheduler = new RunOnceScheduler(() => {
-						if (watcher.token.isCancellationRequested) {
-							return; // return early when disposed
-						}
-
-						this.warn('Watcher service restarts for watched path got created again', watcher);
-
-						this.restartWatching(watcher);
-						scheduler.dispose();
-					}, 800);
-					scheduler.schedule();
-					watcher.token.onCancellationRequested(() => scheduler.dispose());
+					this.restartWatching(watcher);
 				}
 			}, error => {
 				// Ignore
@@ -399,9 +400,22 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		this.watchers.clear();
 	}
 
-	private restartWatching(watcher: IWatcher): void {
-		this.stopWatching(watcher.request.path);
-		this.startWatching(watcher.request, watcher.restarts + 1);
+	private restartWatching(watcher: IWatcher, delay = 800): void {
+
+		// Restart watcher delayed to accomodate for
+		// changes on disk that have triggered the
+		// need for a restart in the first place.
+		const scheduler = new RunOnceScheduler(() => {
+			if (watcher.token.isCancellationRequested) {
+				return; // return early when disposed
+			}
+
+			// Stop/start watcher counting the restarts
+			this.stopWatching(watcher.request.path);
+			this.startWatching(watcher.request, watcher.restarts + 1);
+		}, delay);
+		scheduler.schedule();
+		watcher.token.onCancellationRequested(() => scheduler.dispose());
 	}
 
 	private stopWatching(path: string): void {

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -158,11 +158,17 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		});
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<any> {
 		if (type === ProcessPropertyType.Cwd) {
 			return this.getCwd();
-		} else {
+		} else if (type === ProcessPropertyType.InitialCwd) {
 			return this.getInitialCwd();
+		}
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
+		if (type === ProcessPropertyType.FixedDimensions) {
+
 		}
 	}
 }

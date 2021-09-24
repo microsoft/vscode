@@ -93,7 +93,7 @@ enum CellOutputMimeTypes {
 	stdout = 'application/vnd.code.notebook.stdout'
 }
 
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
+export const textMimeTypes = ['text/plain', 'text/markdown', 'text/latex', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
 
 function concatMultilineString(str: string | string[], trim?: boolean): string {
 	const nonLineFeedWhiteSpaceTrim = /(^[\t\f\v\r ]+|[\t\f\v\r ]+$)/g;

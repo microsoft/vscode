@@ -5,11 +5,12 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IExtHostEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IEditorTab {
 	label: string;
@@ -18,7 +19,8 @@ export interface IEditorTab {
 	resource?: vscode.Uri;
 	viewId?: string;
 	isActive: boolean;
-	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[]
+	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[];
+	move(index: number, viewColumn: ViewColumn): Promise<void>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -33,6 +35,7 @@ export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostE
 
 export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
+	private readonly _proxy: MainThreadEditorTabsShape;
 
 	private readonly _onDidChangeTabs = new Emitter<IEditorTab[]>();
 	readonly onDidChangeTabs: Event<IEditorTab[]> = this._onDidChangeTabs.event;
@@ -42,6 +45,10 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private _tabs: IEditorTab[] = [];
 	private _activeTab: IEditorTab | undefined;
+
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadEditorTabs);
+	}
 
 	get tabs(): readonly IEditorTab[] {
 		return this._tabs;
@@ -64,7 +71,12 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				resource: URI.revive(dto.resource),
 				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 				viewId: dto.editorId,
-				isActive: dto.isActive
+				isActive: dto.isActive,
+				move: async (index: number, viewColumn: ViewColumn) => {
+					this._proxy.$moveTab(dto, index, typeConverters.ViewColumn.from(viewColumn));
+					await Event.toPromise(this._onDidChangeTabs.event);
+					return;
+				},
 			});
 		});
 		this._tabs = this._tabs.sort((t1, t2) => {

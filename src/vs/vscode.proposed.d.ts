@@ -2285,6 +2285,15 @@ declare module 'vscode' {
 		 * Dictated by being the selected tab in the active group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 * @param index The index to move the tab to
+		 * @param viewColumn The column to move the tab into
+		 */
+		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 	}
 
 	export namespace window {
