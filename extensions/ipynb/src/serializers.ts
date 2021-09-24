@@ -35,7 +35,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeC
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\\r\\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
@@ -46,7 +46,7 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\\r\\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -293,7 +293,7 @@ function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IM
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\\r\\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
