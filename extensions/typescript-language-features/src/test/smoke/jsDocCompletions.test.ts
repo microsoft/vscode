@@ -37,7 +37,7 @@ suite('JSDoc Completions', () => {
 		return vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test('Should complete jsdoc inside single line comment', async () => {
+	test.skip('Should complete jsdoc inside single line comment', async () => {
 		await enumerateConfig(testDocumentUri, Config.insertMode, insertModesValues, async config => {
 
 			const editor = await createTestEditor(testDocumentUri,
