@@ -644,9 +644,6 @@ class ClipboardEventUtils {
 		if (e.clipboardData) {
 			return true;
 		}
-		if ((<any>window).clipboardData) {
-			return true;
-		}
 		return false;
 	}
 
@@ -671,12 +668,6 @@ class ClipboardEventUtils {
 			return [text, metadata];
 		}
 
-		if ((<any>window).clipboardData) {
-			e.preventDefault();
-			const text: string = (<any>window).clipboardData.getData('Text');
-			return [text, null];
-		}
-
 		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
 	}
 
@@ -687,12 +678,6 @@ class ClipboardEventUtils {
 				e.clipboardData.setData('text/html', html);
 			}
 			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-			e.preventDefault();
-			return;
-		}
-
-		if ((<any>window).clipboardData) {
-			(<any>window).clipboardData.setData('Text', text);
 			e.preventDefault();
 			return;
 		}
