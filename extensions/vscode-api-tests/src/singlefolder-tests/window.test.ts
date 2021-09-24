@@ -453,7 +453,36 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 
 		assert.ok(!window.activeTab);
+	});
 
+	test('Tabs - Close Tabs', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		let tabs = window.tabs;
+		assert.strictEqual(tabs.length, 3);
+
+		await tabs[0].close();
+		assert.strictEqual(tabs.length, 2);
+		tabs = window.tabs;
+		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
+
+		await tabs[0].close();
+		assert.strictEqual(tabs.length, 1);
+		tabs = window.tabs;
+		assert.strictEqual(tabs[0].resource?.toString(), docC.uri.toString());
+
+		await tabs[0].close();
+		assert.strictEqual(tabs.length, 0);
+		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 0);
+		assert.ok(!window.activeTab);
 	});
 
 	//#endregion

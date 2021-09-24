@@ -22,6 +22,7 @@ export interface IEditorTab {
 	isActive: boolean;
 	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
+	close(): Promise<void>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -78,6 +79,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
 					return;
 				},
+				close: async () => {
+					await this._proxy.$closeTab(dto);
+					await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
+					return;
+				}
 			});
 		});
 		this._tabs = this._tabs.sort((t1, t2) => {

@@ -2294,6 +2294,12 @@ declare module 'vscode' {
 		 * @param viewColumn The column to move the tab into
 		 */
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 */
+		close(): Thenable<void>;
 	}
 
 	export namespace window {

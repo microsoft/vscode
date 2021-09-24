@@ -270,5 +270,17 @@ export class MainThreadEditorTabs {
 		// Move the editor to the target group
 		sourceGroup.moveEditor(editorInput, targetGroup, { index, preserveFocus: true });
 	}
+
+	async $closeTab(tab: IEditorTabDto): Promise<void> {
+		const group = this._editorGroupsService.getGroup(columnToEditorGroup(this._editorGroupsService, tab.viewColumn));
+		if (!group) {
+			return;
+		}
+		const editor = group.editors.find(editor => editor.matches(this._tabToUntypedEditorInput(tab)));
+		if (!editor) {
+			return;
+		}
+		return group.closeEditor(editor);
+	}
 	//#endregion
 }
