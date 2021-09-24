@@ -5,12 +5,12 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { ITableRenderer } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchTable } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -44,6 +44,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -63,13 +64,15 @@ const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	instructionAddress: BigInt(-1)
 };
 
+const TEMPLATE_ID = 'disassemblyViewTemplate';
+
 export class DisassemblyView extends EditorPane {
 
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
 
 	// Used in instruction renderer
 	private _fontInfo: BareFontInfo;
-	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
+	private _disassembledInstructions: WorkbenchList<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _previousDebuggingState: State;
 	private _instructionBpList: readonly IInstructionBreakpoint[] = [];
@@ -145,8 +148,10 @@ export class DisassemblyView extends EditorPane {
 		this._enableSourceCodeRender = this._configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
-		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
-			headerRowHeight: number = 0; // No header
+		const delegate = new class implements IListVirtualDelegate<IDisassembledInstructionEntry>{
+			getTemplateId(element: IDisassembledInstructionEntry): string {
+				return TEMPLATE_ID;
+			}
 			getHeight(row: IDisassembledInstructionEntry): number {
 				if (thisOM.isSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
 					if (row.instruction.endLine) {
@@ -162,30 +167,8 @@ export class DisassemblyView extends EditorPane {
 
 		const instructionRenderer = this._register(this._instantiationService.createInstance(InstructionRenderer, this));
 
-		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchTable,
-			'DisassemblyView', parent, delegate,
-			[
-				{
-					label: '',
-					tooltip: '',
-					weight: 0,
-					minimumWidth: this.fontInfo.lineHeight,
-					maximumWidth: this.fontInfo.lineHeight,
-					templateId: BreakpointRenderer.TEMPLATE_ID,
-					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
-				},
-				{
-					label: 'instructions',
-					tooltip: '',
-					weight: 0.3,
-					templateId: InstructionRenderer.TEMPLATE_ID,
-					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
-				},
-			],
-			[
-				this._instantiationService.createInstance(BreakpointRenderer, this),
-				instructionRenderer,
-			],
+		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchList,
+			'DisassemblyView', parent, delegate, [instructionRenderer],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
 				horizontalScrolling: true,
@@ -198,7 +181,7 @@ export class DisassemblyView extends EditorPane {
 				accessibilityProvider: new AccessibilityProvider(),
 				mouseSupport: false
 			}
-		)) as WorkbenchTable<IDisassembledInstructionEntry>;
+		)) as WorkbenchList<IDisassembledInstructionEntry>;
 
 		this.reloadDisassembly();
 
@@ -238,7 +221,7 @@ export class DisassemblyView extends EditorPane {
 					if (bp instanceof InstructionBreakpoint) {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
-							this._disassembledInstructions!.row(index).isBreakpointSet = true;
+							this._disassembledInstructions!.element(index).isBreakpointSet = true;
 							changed = true;
 						}
 					}
@@ -248,7 +231,7 @@ export class DisassemblyView extends EditorPane {
 					if (bp instanceof InstructionBreakpoint) {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
-							this._disassembledInstructions!.row(index).isBreakpointSet = false;
+							this._disassembledInstructions!.element(index).isBreakpointSet = false;
 							changed = true;
 						}
 					}
@@ -312,7 +295,7 @@ export class DisassemblyView extends EditorPane {
 
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
+			const address: string | undefined = this._disassembledInstructions?.element(0).instruction.address;
 			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
 		}
 
@@ -321,7 +304,7 @@ export class DisassemblyView extends EditorPane {
 
 	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
-			const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
+			const address: string | undefined = this._disassembledInstructions?.element(this._disassembledInstructions?.length - 1).instruction.address;
 			return this.loadDisassembledInstructions(address, 1, instructionCount);
 		}
 
@@ -394,8 +377,8 @@ export class DisassemblyView extends EditorPane {
 			if (address) {
 				let startIndex = 0;
 				let endIndex = this._disassembledInstructions.length - 1;
-				const start = this._disassembledInstructions.row(startIndex);
-				const end = this._disassembledInstructions.row(endIndex);
+				const start = this._disassembledInstructions.element(startIndex);
+				const end = this._disassembledInstructions.element(endIndex);
 
 				this.ensureAddressParsed(start);
 				this.ensureAddressParsed(end);
@@ -410,7 +393,7 @@ export class DisassemblyView extends EditorPane {
 
 				while (endIndex > startIndex) {
 					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
-					const mid = this._disassembledInstructions.row(midIndex);
+					const mid = this._disassembledInstructions.element(midIndex);
 
 					this.ensureAddressParsed(mid);
 					if (mid.instructionAddress! > address) {
@@ -461,58 +444,81 @@ export class DisassemblyView extends EditorPane {
 	}
 }
 
-interface IBreakpointColumnTemplateData {
+interface IDisassemblyViewTemplateData {
 	currentElement: { element?: IDisassembledInstructionEntry };
-	icon: HTMLElement;
+	// TODO: hover widget?
+	breakpointIcon: HTMLElement;
+	instruction: HTMLElement;
+	sourcecode: HTMLElement;
 	disposables: IDisposable[];
 }
 
-class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
-
-	static readonly TEMPLATE_ID = 'breakpoint';
-
-	templateId: string = BreakpointRenderer.TEMPLATE_ID;
+class InstructionRenderer extends Disposable implements ITableRenderer<IDisassembledInstructionEntry, IDisassemblyViewTemplateData> {
+	private static readonly INSTRUCTION_ADDR_MIN_LENGTH = 25;
+	private static readonly INSTRUCTION_BYTES_MIN_LENGTH = 30;
 
 	private readonly _breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
 	private readonly _breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
 	private readonly _debugStackframe = 'codicon-' + icons.debugStackframe.id;
 	private readonly _debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
 
+	private _topStackFrameColor: Color | undefined;
+	private _focusedStackFrameColor: Color | undefined;
+
+	templateId: string = TEMPLATE_ID;
+
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
+		@IThemeService themeService: IThemeService,
 		@IDebugService private readonly _debugService: IDebugService
 	) {
+		super();
+
+		this._topStackFrameColor = themeService.getColorTheme().getColor(topStackFrameColor);
+		this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
+
+		this._register(themeService.onDidColorThemeChange(e => {
+			this._topStackFrameColor = e.getColor(topStackFrameColor);
+			this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
+		}));
 	}
 
-	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
+	renderTemplate(container: HTMLElement): IDisassemblyViewTemplateData {
 		// align from the bottom so that it lines up with instruction when source code is present.
-		container.style.alignSelf = 'flex-end';
+		// container.style.alignSelf = 'flex-end';
 
-		const icon = append(container, $('.disassembly-view'));
-		icon.classList.add('codicon');
-		icon.style.display = 'flex';
-		icon.style.alignItems = 'center';
-		icon.style.justifyContent = 'center';
-		icon.style.height = this._disassemblyView.fontInfo.lineHeight + 'px';
+		// Source code
+		const sourcecode = append(container, $('.sourcecode'));
+		this.applyFontInfo(sourcecode);
+
+		// Breakpoint
+		const breakpointContainer = append(container, $('.breakpoint-container'));
+		this.setBreakpointContainerStyle(breakpointContainer);
+		const breakpointIcon = append(breakpointContainer, $('.breakpoint-icon'));
+		breakpointIcon.classList.add('codicon');
+		breakpointIcon.style.display = 'flex';
+		breakpointIcon.style.alignItems = 'center';
+		breakpointIcon.style.justifyContent = 'center';
+		breakpointIcon.style.height = this._disassemblyView.fontInfo.lineHeight + 'px';
 
 		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
 
 		const disposables = [
-			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderDebugStackframe(icon, currentElement.element)),
-			addStandardDisposableListener(container, 'mouseover', () => {
+			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderDebugStackframe(breakpointIcon, currentElement.element)),
+			addStandardDisposableListener(breakpointContainer, 'mouseover', () => {
 				if (currentElement.element?.allowBreakpoint) {
-					icon.classList.add(this._breakpointHintIcon);
+					breakpointIcon.classList.add(this._breakpointHintIcon);
 				}
 			}),
-			addStandardDisposableListener(container, 'mouseout', () => {
+			addStandardDisposableListener(breakpointContainer, 'mouseout', () => {
 				if (currentElement.element?.allowBreakpoint) {
-					icon.classList.remove(this._breakpointHintIcon);
+					breakpointIcon.classList.remove(this._breakpointHintIcon);
 				}
 			}),
-			addStandardDisposableListener(container, 'click', () => {
+			addStandardDisposableListener(breakpointContainer, 'click', () => {
 				if (currentElement.element?.allowBreakpoint) {
 					// click show hint while waiting for BP to resolve.
-					icon.classList.add(this._breakpointHintIcon);
+					breakpointIcon.classList.add(this._breakpointHintIcon);
 					if (currentElement.element.isBreakpointSet) {
 						this._debugService.removeInstructionBreakpoints(currentElement.element.instruction.address);
 
@@ -523,17 +529,17 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			})
 		];
 
-		return { currentElement, icon, disposables };
-	}
+		// Instruction
+		const instruction = append(container, $('.instruction'));
+		instruction.style.float = 'left';
+		this.applyFontInfo(instruction);
 
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		templateData.currentElement.element = element;
-		this.rerenderDebugStackframe(templateData.icon, element);
-	}
+		disposables.push(
+			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
+			addStandardDisposableListener(sourcecode, 'click', () => this.openSourceCode(currentElement.element?.instruction!)),
+		);
 
-	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
-		dispose(templateData.disposables);
-		templateData.disposables = [];
+		return { currentElement, breakpointIcon, instruction, sourcecode, disposables };
 	}
 
 	private rerenderDebugStackframe(icon: HTMLElement, element?: IDisassembledInstructionEntry) {
@@ -554,63 +560,16 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			icon.classList.remove(this._breakpointIcon);
 		}
 	}
-}
 
-interface IInstructionColumnTemplateData {
-	currentElement: { element?: IDisassembledInstructionEntry };
-	// TODO: hover widget?
-	instruction: HTMLElement;
-	sourcecode: HTMLElement;
-	disposables: IDisposable[];
-}
-
-class InstructionRenderer extends Disposable implements ITableRenderer<IDisassembledInstructionEntry, IInstructionColumnTemplateData> {
-
-	static readonly TEMPLATE_ID = 'instruction';
-
-	private static readonly INSTRUCTION_ADDR_MIN_LENGTH = 25;
-	private static readonly INSTRUCTION_BYTES_MIN_LENGTH = 30;
-
-	templateId: string = InstructionRenderer.TEMPLATE_ID;
-
-	private _topStackFrameColor: Color | undefined;
-	private _focusedStackFrameColor: Color | undefined;
-
-	constructor(
-		private readonly _disassemblyView: DisassemblyView,
-		@IThemeService themeService: IThemeService
-	) {
-		super();
-
-		this._topStackFrameColor = themeService.getColorTheme().getColor(topStackFrameColor);
-		this._focusedStackFrameColor = themeService.getColorTheme().getColor(focusedStackFrameColor);
-
-		this._register(themeService.onDidColorThemeChange(e => {
-			this._topStackFrameColor = e.getColor(topStackFrameColor);
-			this._focusedStackFrameColor = e.getColor(focusedStackFrameColor);
-		}));
-	}
-
-	renderTemplate(container: HTMLElement): IInstructionColumnTemplateData {
-		const sourcecode = append(container, $('.sourcecode'));
-		const instruction = append(container, $('.instruction'));
-		this.applyFontInfo(sourcecode);
-		this.applyFontInfo(instruction);
-		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
-
-		const disposables = [
-			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
-			addStandardDisposableListener(sourcecode, 'click', () => this.openSourceCode(currentElement.element?.instruction!)),
-		];
-
-		return { currentElement, instruction, sourcecode, disposables };
-	}
-
-	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
+	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IDisassemblyViewTemplateData, height: number | undefined): void {
+		// Breakpoint
+		templateData.currentElement.element = element;
+		this.rerenderDebugStackframe(templateData.breakpointIcon, element);
+		// Source code and Instruction
 		this.renderElementInner(element, index, templateData, height);
 	}
 
-	private async renderElementInner(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): Promise<void> {
+	private async renderElementInner(element: IDisassembledInstructionEntry, index: number, templateData: IDisassemblyViewTemplateData, height: number | undefined): Promise<void> {
 		templateData.currentElement.element = element;
 		const instruction = element.instruction;
 		templateData.sourcecode.innerText = '';
@@ -621,7 +580,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 			if (sourceURI) {
 				let textModel: ITextModel | undefined = undefined;
-				const sourceSB = createStringBuilder(10000);
 
 				try {
 					const ref = await this._disassemblyView.textModelService.createModelReference(sourceURI);
@@ -636,10 +594,18 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				if (textModel) {
 					let lineNumber = instruction.line;
 
+					// Clear children to rerender
+					while (templateData.sourcecode.firstChild) {
+						templateData.sourcecode.removeChild(templateData.sourcecode.firstChild);
+					}
+
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
 						const lineContent = textModel.getLineContent(lineNumber);
-						sourceSB.appendASCIIString(`\u00A0\u00A0${lineNumber}:\u00A0`);
-						sourceSB.appendASCIIString(lineContent.replace(/[ ]/g, '\u00A0') + '\n');
+						// Insert a space with same width as lines that allow breakpoints
+						const breakpointSpace = append(templateData.sourcecode, $('.breakpoint-space'));
+						this.setBreakpointContainerStyle(breakpointSpace);
+						const sourceLine = append(templateData.sourcecode, $('.source-line'));
+						sourceLine.innerText = `\u00A0\u00A0${lineNumber}:\u00A0${lineContent.replace(/[ ]/g, '\u00A0')}`;
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
@@ -648,8 +614,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 						break;
 					}
-
-					templateData.sourcecode.innerText = sourceSB.build();
 				}
 			}
 		}
@@ -683,9 +647,22 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
 	}
 
-	disposeTemplate(templateData: IInstructionColumnTemplateData): void {
+	disposeTemplate(templateData: IDisassemblyViewTemplateData): void {
 		dispose(templateData.disposables);
 		templateData.disposables = [];
+	}
+
+	private get _breakpointContainerWidth() {
+		return this._disassemblyView.fontInfo.lineHeight + 'px';
+	}
+
+	private setBreakpointContainerStyle(element: HTMLElement) {
+		element.style.display = 'inline';
+		element.style.alignItems = 'center';
+		element.style.justifyContent = 'center';
+		element.style.float = 'left';
+		element.style.height = this._disassemblyView.fontInfo.lineHeight + 'px';
+		element.style.width = this._breakpointContainerWidth;
 	}
 
 	private rerenderBackground(instruction: HTMLElement, sourceCode: HTMLElement, element?: IDisassembledInstructionEntry) {
