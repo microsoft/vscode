@@ -679,6 +679,9 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onSocketTimeout = new BufferedEmitter<void>();
 	readonly onSocketTimeout: Event<void> = this._onSocketTimeout.event;
 
+	private readonly _onTelemetryEvent = new BufferedEmitter<{ event: string, data: Object }>();
+	readonly onTelemetryEvent: Event<{ event: string, data: Object }> = this._onTelemetryEvent.event;
+
 	public get unacknowledgedCount(): number {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
@@ -735,6 +738,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._incomingKeepAliveTimeout = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
+	}
+
+	logTelemetry(event: string, data: Object): void {
+		this._onTelemetryEvent.fire({ event, data });
 	}
 
 	drain(): Promise<void> {
