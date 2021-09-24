@@ -88,6 +88,12 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandb
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
 import { ExtensionHostStarter } from 'vs/platform/extensions/node/extensionHostStarter';
+import { ISignService } from 'vs/platform/sign/common/sign';
+import { SignService } from 'vs/platform/sign/node/signService';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
+import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
 
 class SharedProcessMain extends Disposable {
 
@@ -294,6 +300,13 @@ class SharedProcessMain extends Disposable {
 		// Extension Host
 		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
 
+		// Signing
+		services.set(ISignService, new SyncDescriptor(SignService));
+
+		// Tunnel
+		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
+
 		return new InstantiationService(services);
 	}
 
@@ -348,6 +361,10 @@ class SharedProcessMain extends Disposable {
 		// Extension Host
 		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
 		this.server.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
+
+		// Tunnel
+		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
+		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
