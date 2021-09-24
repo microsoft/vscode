@@ -213,7 +213,7 @@ export function workbenchInstantiationService(
 		}
 	});
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService)));
+	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService)));
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
