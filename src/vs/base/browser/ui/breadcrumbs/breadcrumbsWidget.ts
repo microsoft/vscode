@@ -63,6 +63,8 @@ export class BreadcrumbsWidget {
 	private _pendingLayout: IDisposable | undefined;
 	private _dimension: dom.Dimension | undefined;
 
+	private _overrideSeparatorText: string | undefined;
+
 	constructor(
 		container: HTMLElement,
 		horizontalScrollbarSize: number,
@@ -168,6 +170,10 @@ export class BreadcrumbsWidget {
 		this._domNode.classList.toggle('disabled', !this._enabled);
 	}
 
+	setOverrideSeparatorText(text: string | undefined) {
+		this._overrideSeparatorText = text;
+	}
+
 	domFocus(): void {
 		let idx = this._focusedItemIdx >= 0 ? this._focusedItemIdx : this._items.length - 1;
 		if (idx >= 0 && idx < this._items.length) {
@@ -252,6 +258,17 @@ export class BreadcrumbsWidget {
 		this._select(this._items.indexOf(item!), payload);
 	}
 
+	getBreadcrumSeparatorIconElement() {
+		if (this._overrideSeparatorText) {
+			let div = document.createElement('div');
+			let text = document.createTextNode(this._overrideSeparatorText);
+			div.classList.add('breadcrumb-override-separator');
+			div.append(text);
+			return div;
+		}
+		return dom.$(breadcrumbSeparatorIcon.cssSelector);
+	}
+
 	private _select(nth: number, payload: any): void {
 		this._selectedItemIdx = -1;
 		for (let i = 0; i < this._nodes.length; i++) {
@@ -327,7 +344,7 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
-		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
+		const iconContainer = this.getBreadcrumSeparatorIconElement();
 		container.appendChild(iconContainer);
 	}
 

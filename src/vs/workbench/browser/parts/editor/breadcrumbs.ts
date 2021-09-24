@@ -67,6 +67,8 @@ export abstract class BreadcrumbsConfig<T> {
 	}
 
 	static readonly IsEnabled = BreadcrumbsConfig._stub<boolean>('breadcrumbs.enabled');
+	static readonly OverrideSeparatorText = BreadcrumbsConfig._stub<string>('breadcrumbs.overrideSeparatorText');
+	static readonly SeparatorSuggest = BreadcrumbsConfig._stub<'os' | 'default'>('breadcrumbs.separatorSuggest');
 	static readonly UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
@@ -319,6 +321,24 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: true,
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 			markdownDescription: localize('filteredTypes.typeParameter', "When enabled breadcrumbs show `typeParameter`-symbols.")
+		},
+		'breadcrumbs.overrideSeparatorText': {
+			type: 'string',
+			default: undefined,
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			markdownDescription: localize('breadcrumbs.overrideSeparatorText', "Override separator with given text")
+
+		},
+		'breadcrumbs.separatorSuggest': {
+			type: 'string',
+			default: 'default',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			enum: ['default', 'os'],
+			enumDescriptions: [
+				localize('breadcrumbs.separatorSuggest.default', "Use > as a separator"),
+				localize('breadcrumbs.separatorSuggest.os', "Use specific os as a separator"),
+			]
+
 		}
 	}
 });

@@ -35,3 +35,7 @@
 .monaco-breadcrumbs .monaco-breadcrumb-item:first-of-type::before {
 	content: ' ';
 }
+
+.breadcrumb-override-separator {
+	margin: 0 2px;
+}
