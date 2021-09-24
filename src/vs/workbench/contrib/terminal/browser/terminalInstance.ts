@@ -870,6 +870,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			xterm.focus();
 		}));
 
+		this._register(dom.addDisposableListener(xterm.element, 'wheel', (e) => {
+			if (this._hasScrollBar && e.shiftKey) {
+				e.stopImmediatePropagation();
+				e.preventDefault();
+			}
+		}));
+
 		// xterm.js currently drops selection on keyup as we need to handle this case.
 		this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
 			// Wait until keyup has propagated through the DOM before evaluating
@@ -1951,10 +1958,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
 		if (!this._horizontalScrollbar) {
-			this._horizontalScrollbar = new DomScrollableElement(this._wrapperElement, {
+			this._horizontalScrollbar = this._register(new DomScrollableElement(this._wrapperElement, {
 				vertical: ScrollbarVisibility.Hidden,
-				horizontal: ScrollbarVisibility.Visible
-			});
+				horizontal: ScrollbarVisibility.Auto,
+				useShadows: false,
+				scrollYToX: false,
+				consumeMouseWheelIfScrollbarIsNeeded: false
+			}));
 			this._container.appendChild(this._horizontalScrollbar.getDomNode());
 		}
 
