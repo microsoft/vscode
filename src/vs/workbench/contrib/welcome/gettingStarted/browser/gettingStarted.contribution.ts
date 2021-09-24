@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize('Welcome', "Welcome"),
+			title: localize({ key: 'miGetStarted', comment: ['&& denotes a mnemonic'] }, "&&Get Started"),
 			category: localize('help', "Help"),
 			f1: true,
 			menu: {
@@ -93,14 +93,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('welcome', "Welcome")
+		localize('getStarted', "Get Started")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize('welcome', "Welcome");
+const category = localize('getStarted', "Get Started");
 
 registerAction2(class extends Action2 {
 	constructor() {
