@@ -32,7 +32,6 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IURLService } from 'vs/platform/url/common/url';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -84,13 +83,6 @@ export class DisassemblyView extends EditorPane {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDebugService private readonly _debugService: IDebugService,
-		@IEditorService readonly editorService: IEditorService,
-		@ISearchService readonly searchService: ISearchService,
-		@IURLService readonly urlService: IURLService,
-		@IUriIdentityService readonly uriService: IUriIdentityService,
-		@ITextFileService readonly nativeTextFileService: ITextFileService,
-		@ITextModelService readonly textModelService: ITextModelService,
-		@IUndoRedoService readonly undoRedoService: IUndoRedoService,
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
@@ -102,9 +94,11 @@ export class DisassemblyView extends EditorPane {
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
 				this._fontInfo = BareFontInfo.createFromRawSettings(_configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+			}
 
+			if (e.affectsConfiguration('debug')) {
 				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
-				const newValue = this._configurationService.getValue<boolean>('editor.debug.disassemblyview.showSourceCode');
+				const newValue = this._configurationService.getValue<boolean>('debug.disassemblyview.showSourceCode');
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
 					this.reloadDisassembly(undefined);
@@ -143,7 +137,7 @@ export class DisassemblyView extends EditorPane {
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
-		this._enableSourceCodeRender = this._configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
+		this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyview.showSourceCode');
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
@@ -189,7 +183,7 @@ export class DisassemblyView extends EditorPane {
 			],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
-				horizontalScrolling: true,
+				horizontalScrolling: false,
 				overrideStyles: {
 					listBackground: editorBackground
 				},
@@ -269,7 +263,7 @@ export class DisassemblyView extends EditorPane {
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-				this._enableSourceCodeRender = this._configurationService.getValue('editor.debug.disassemblyview.showSourceCode');
+				this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyview.showSourceCode');
 			}
 			this._previousDebuggingState = e;
 		}));
@@ -579,7 +573,12 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	constructor(
 		private readonly _disassemblyView: DisassemblyView,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITextFileService private readonly nativeTextFileService: ITextFileService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IUriIdentityService readonly uriService: IUriIdentityService,
 	) {
 		super();
 
@@ -625,13 +624,13 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				const sourceSB = createStringBuilder(10000);
 
 				try {
-					const ref = await this._disassemblyView.textModelService.createModelReference(sourceURI);
+					const ref = await this.textModelService.createModelReference(sourceURI);
 					textModel = ref.object.textEditorModel;
 					templateData.disposables.push(ref);
-
 				} catch {
-					const textFileContent = await this._disassemblyView.nativeTextFileService.read(sourceURI);
-					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._disassemblyView.undoRedoService);
+					const textFileContent = await this.nativeTextFileService.read(sourceURI);
+					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService);
+					templateData.disposables.push(textModel);
 				}
 
 				if (textModel) {
@@ -702,8 +701,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	private openSourceCode(instruction: DebugProtocol.DisassembledInstruction | undefined) {
 		if (instruction) {
 			let sourceURI = this.getUriFromSource(instruction);
-			// let range = { startLineNumber: instruction.line!, startColumn: instruction.column ?? 0, endLineNumber: undefined, endColumn: undefined };
-			// let range = { startLineNumber: instruction.line!, startColumn: instruction.column ?? 0, endLineNumber: instruction.endLine, endColumn: instruction.endColumn };
 			const selection = instruction.endLine ? {
 				startLineNumber: instruction.line!,
 				endLineNumber: instruction.endLine!,
@@ -716,7 +713,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
 			};
 
-			this._disassemblyView.editorService.openEditor({
+			this.editorService.openEditor({
 				resource: sourceURI,
 				description: 'from disassembly',
 				options: {
@@ -734,14 +731,14 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		// Try to resolve path before consulting the debugSession.
 		const path = instruction.location!.path;
 		if (path && isUri(path)) {	// path looks like a uri
-			return this._disassemblyView.uriService.asCanonicalUri(URI.parse(path));
+			return this.uriService.asCanonicalUri(URI.parse(path));
 		}
 		// assume a filesystem path
 		if (path && isAbsolute(path)) {
-			return this._disassemblyView.uriService.asCanonicalUri(URI.file(path));
+			return this.uriService.asCanonicalUri(URI.file(path));
 		}
 
-		return getUriFromSource(instruction.location!, instruction.location!.path, this._disassemblyView.debugSession!.getId(), this._disassemblyView.uriService);
+		return getUriFromSource(instruction.location!, instruction.location!.path, this._disassemblyView.debugSession!.getId(), this.uriService);
 	}
 
 	private applyFontInfo(element: HTMLElement) {
