@@ -1617,7 +1617,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			try {
 				cwd = await this.resolveVariable(resolver, '${workspaceFolder}');
 			} catch (e) {
-				// No workspace
+				// If we don't have a cwd, then the terminal uses the home dir.
+				let cwd_uri: URI;
+				cwd_uri = await this.pathService.userHome();
+				cwd = cwd_uri.toString();
 			}
 			return { cwd };
 		}
