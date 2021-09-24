@@ -9,7 +9,7 @@ import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
-	describe.skip('Notebooks', () => {
+	describe('Notebooks', () => {
 		beforeSuite(opts);
 
 		afterEach(async function () {
@@ -26,7 +26,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		afterSuite(opts);
 
-		it.skip('inserts/edits code cell', async function () {
+		it('inserts/edits code cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -35,7 +35,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.notebook.stopEditingCell();
 		});
 
-		it.skip('inserts/edits markdown cell', async function () {
+		it('inserts/edits markdown cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.focusNextCell();
@@ -45,7 +45,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
 		});
 
-		it.skip('moves focus as it inserts/deletes a cell', async function () {
+		it('moves focus as it inserts/deletes a cell', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
@@ -55,7 +55,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.notebook.waitForMarkdownContents('p', 'Markdown Cell');
 		});
 
-		it.skip('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
+		it('moves focus in and out of output', async function () { // TODO@rebornix https://github.com/microsoft/vscode/issues/113882
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.executeActiveCell();
@@ -64,7 +64,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.notebook.waitForActiveCellEditorContents('code()');
 		});
 
-		it.skip('cell action execution', async function () {
+		it('cell action execution', async function () {
 			const app = this.app as Application;
 			await app.workbench.notebook.openNotebook();
 			await app.workbench.notebook.insertNotebookCell('code');
