@@ -53,21 +53,39 @@ class EventNormalizer {
 	private readonly normalized = new Set<IDiskFileChange>();
 	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
 
+	private toKey(event: IDiskFileChange): string {
+		if (isLinux) {
+			return event.path;
+		}
+
+		return event.path.toLowerCase(); // normalise to file system case sensitivity
+	}
+
 	processEvent(event: IDiskFileChange): void {
-		const existingEvent = this.mapPathToChange.get(event.path);
+		const existingEvent = this.mapPathToChange.get(this.toKey(event));
+
+		let keepEvent = false;
 
 		// Event path already exists
 		if (existingEvent) {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// ignore CREATE followed by DELETE in one go
-			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
-				this.mapPathToChange.delete(event.path);
+			// macOS/Windows: track renames to different case but
+			// same name by changing previous event to DELETED
+			// whenever new event with different case occurs
+			if (existingEvent.path !== event.path && (newChangeType === FileChangeType.ADDED || newChangeType === FileChangeType.UPDATED)) {
+				existingEvent.type = FileChangeType.DELETED;
+				keepEvent = true;
+			}
+
+			// Ignore CREATE followed by DELETE in one go
+			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
+				this.mapPathToChange.delete(this.toKey(event));
 				this.normalized.delete(existingEvent);
 			}
 
-			// flatten DELETE followed by CREATE into CHANGE
+			// Flatten DELETE followed by CREATE into CHANGE
 			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
 				existingEvent.type = FileChangeType.UPDATED;
 			}
@@ -81,10 +99,14 @@ class EventNormalizer {
 			}
 		}
 
-		// Otherwise store new
+		// Otherwise keep
 		else {
+			keepEvent = true;
+		}
+
+		if (keepEvent) {
 			this.normalized.add(event);
-			this.mapPathToChange.set(event.path, event);
+			this.mapPathToChange.set(this.toKey(event), event);
 		}
 	}
 

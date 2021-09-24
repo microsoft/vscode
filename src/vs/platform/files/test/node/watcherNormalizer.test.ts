@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isEqual } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
@@ -218,6 +219,47 @@ suite('Watcher Events Normalizer', () => {
 			assert.ok(e.contains(deleted, FileChangeType.DELETED));
 			assert.ok(!e.contains(updated, FileChangeType.UPDATED));
 			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
+
+			done();
+		});
+
+		watch.report(raw);
+	});
+
+	test('event normalization: track case renames', function (done: () => void) {
+		const watch = new TestFileWatcher();
+
+		const updated = uri.file('/users/data/src/related');
+		const updated2 = uri.file('/users/data/src/Related');
+
+		const added = uri.file('/users/data/src/added');
+		const added2 = uri.file('/users/data/src/ADDED');
+
+		const raw: IDiskFileChange[] = [
+			{ path: updated.fsPath, type: FileChangeType.UPDATED },
+			{ path: updated2.fsPath, type: FileChangeType.UPDATED },
+			{ path: added.fsPath, type: FileChangeType.ADDED },
+			{ path: added2.fsPath, type: FileChangeType.ADDED },
+		];
+
+		watch.onDidFilesChange(({ event: e, raw }) => {
+			assert.ok(e);
+			assert.strictEqual(raw.length, 4);
+
+
+			for (const r of raw) {
+				if (isEqual(r.resource, updated)) {
+					assert.strictEqual(r.type, isLinux ? FileChangeType.UPDATED : FileChangeType.DELETED);
+				} else if (isEqual(r.resource, updated2)) {
+					assert.strictEqual(r.type, FileChangeType.UPDATED);
+				} else if (isEqual(r.resource, added)) {
+					assert.strictEqual(r.type, isLinux ? FileChangeType.ADDED : FileChangeType.DELETED);
+				} else if (isEqual(r.resource, added2)) {
+					assert.strictEqual(r.type, FileChangeType.ADDED);
+				} else {
+					assert.fail();
+				}
+			}
 
 			done();
 		});
