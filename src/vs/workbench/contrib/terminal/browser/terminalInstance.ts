@@ -332,6 +332,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._titleReadyComplete = c;
 		});
 
+		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
+		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
+
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
@@ -373,9 +376,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 			}
-			this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
-			if (_shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols && _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols > this.maxCols) {
-				await this._addScrollbar(_shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols);
+
+			if (this._fixedCols) {
+				await this._addScrollbar();
 			}
 		});
 
@@ -1895,6 +1898,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._fixedRows = this._parseFixedDimension(rows);
+		this._addScrollbar();
 		this._resize();
 	}
 
@@ -1929,45 +1933,42 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				i = lineWidth.newIndex;
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
-			if (maxCols > this.cols) {
-				await this._addScrollbar(maxCols);
+			if (maxCols > this.maxCols) {
+				this._fixedCols = maxCols;
+				await this._addScrollbar();
 			}
 		}
 	}
 
-	private async _addScrollbar(cols: number): Promise<void> {
+	private async _addScrollbar(): Promise<void> {
 		const charWidth = this._configHelper?.getFont(this._xtermCore).charWidth;
-		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth) {
+		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
-		const colsBefore = this.cols;
-		this._fixedCols = cols;
 		this._hasScrollBar = true;
 		this._initDimensions();
 		this._fixedRows = this.rows;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
-		if (this._fixedCols > colsBefore) {
-			if (!this._horizontalScrollbar) {
-				this._horizontalScrollbar = new DomScrollableElement(this._wrapperElement, {
-					vertical: ScrollbarVisibility.Hidden,
-					horizontal: ScrollbarVisibility.Visible
-				});
-				this._container.appendChild(this._horizontalScrollbar.getDomNode());
-			}
+		if (!this._horizontalScrollbar) {
+			this._horizontalScrollbar = new DomScrollableElement(this._wrapperElement, {
+				vertical: ScrollbarVisibility.Hidden,
+				horizontal: ScrollbarVisibility.Visible
+			});
+			this._container.appendChild(this._horizontalScrollbar.getDomNode());
+		}
 
-			this._horizontalScrollbar.setScrollDimensions(
-				{
-					width: this._xterm.element.clientWidth,
-					scrollWidth: ((((this._fixedCols - colsBefore) * charWidth) + this._xterm.element.clientWidth))
-				});
-			this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
+		this._horizontalScrollbar.setScrollDimensions(
+			{
+				width: this._xterm.element.clientWidth,
+				scrollWidth: ((((this._fixedCols - this.maxCols) * charWidth) + this._xterm.element.clientWidth))
+			});
+		this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
 
-			// work around for https://github.com/xtermjs/xterm.js/issues/3482
-			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
-				let line = this._xterm.buffer.active.getLine(i);
-				(line as any)._line.isWrapped = false;
-			}
+		// work around for https://github.com/xtermjs/xterm.js/issues/3482
+		for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
+			let line = this._xterm.buffer.active.getLine(i);
+			(line as any)._line.isWrapped = false;
 		}
 	}
 
