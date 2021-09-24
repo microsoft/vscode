@@ -20,9 +20,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Action } from 'vs/base/common/actions';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { registerAction2, MenuId, Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
@@ -172,6 +175,45 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 		}
 	}
 }
+
+class ToggleDisassemblyViewSourceCodeAction extends Action2 {
+
+	public static readonly ID = 'debug.action.toggleDisassemblyViewSourceCode';
+	public static readonly configID: string = 'debug.disassemblyview.showSourceCode';
+
+	constructor() {
+		super({
+			id: ToggleDisassemblyViewSourceCodeAction.ID,
+			title: {
+				value: nls.localize('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
+				original: 'Toggle Source Code in Disassembly View',
+				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource")
+			},
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		if (configService) {
+			const value = configService.getValue(ToggleDisassemblyViewSourceCodeAction.configID);
+			configService.updateValue(ToggleDisassemblyViewSourceCodeAction.configID, !value);
+		}
+	}
+}
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'debug',
+	order: 100,
+	type: 'object',
+	'properties': {
+		'debug.disassemblyview.showSourceCode': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('debug.disassemblyview.showSourceCode', "Show Source Code in Disassembly View.")
+		},
+	}
+});
 
 export class RunToCursorAction extends EditorAction {
 
@@ -439,6 +481,7 @@ registerAction2(ToggleBreakpointAction);
 registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
 registerAction2(OpenDisassemblyViewAction);
+registerAction2(ToggleDisassemblyViewSourceCodeAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);
