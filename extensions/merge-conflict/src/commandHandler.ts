@@ -32,10 +32,12 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.current', this.acceptCurrent),
 			this.registerTextEditorCommand('merge-conflict.accept.incoming', this.acceptIncoming),
 			this.registerTextEditorCommand('merge-conflict.accept.selection', this.acceptSelection),
-			this.registerTextEditorCommand('merge-conflict.accept.both', this.acceptBoth),
+			this.registerTextEditorCommand('merge-conflict.accept.current-then-incoming', this.acceptCurrentThenIncoming),
+			this.registerTextEditorCommand('merge-conflict.accept.incoming-then-current', this.acceptIncomingThenCurrent),
 			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this.acceptAllCurrentResources),
 			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this.acceptAllIncomingResources),
-			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
+			this.registerTextEditorCommand('merge-conflict.accept.all-current-then-incoming', this.acceptAllCurrentThenIncoming),
+			this.registerTextEditorCommand('merge-conflict.accept.all-incoming-then-current', this.acceptAllIncomingThenCurrent),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
 			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
@@ -60,8 +62,12 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.accept(interfaces.CommitType.Incoming, editor, ...args);
 	}
 
-	acceptBoth(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
-		return this.accept(interfaces.CommitType.Both, editor, ...args);
+	acceptCurrentThenIncoming(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+		return this.accept(interfaces.CommitType.CurrentThenIncoming, editor, ...args);
+	}
+
+	acceptIncomingThenCurrent(editor: vscode.TextEditor, ...args: any[]): Promise<void> {
+		return this.accept(interfaces.CommitType.IncomingThenCurrent, editor, ...args);
 	}
 
 	acceptAllCurrent(editor: vscode.TextEditor): Promise<void> {
@@ -80,8 +86,12 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.acceptAllResources(interfaces.CommitType.Incoming, resources);
 	}
 
-	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
-		return this.acceptAll(interfaces.CommitType.Both, editor);
+	acceptAllCurrentThenIncoming(editor: vscode.TextEditor): Promise<void> {
+		return this.acceptAll(interfaces.CommitType.CurrentThenIncoming, editor);
+	}
+
+	acceptAllIncomingThenCurrent(editor: vscode.TextEditor): Promise<void> {
+		return this.acceptAll(interfaces.CommitType.IncomingThenCurrent, editor);
 	}
 
 	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {

@@ -75,9 +75,15 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 				arguments: ['known-conflict', conflict]
 			};
 
-			let acceptBothCommand: vscode.Command = {
-				command: 'merge-conflict.accept.both',
-				title: localize('acceptBothChanges', 'Accept Both Changes'),
+			let acceptCurrentThenIncomingCommand: vscode.Command = {
+				command: 'merge-conflict.accept.current-then-incoming',
+				title: localize('acceptCurrentThenIncomingChanges', 'Accept Current Then Incoming Changes'),
+				arguments: ['known-conflict', conflict]
+			};
+
+			let acceptIncomingThenCurrentCommand: vscode.Command = {
+				command: 'merge-conflict.accept.incoming-then-current',
+				title: localize('acceptIncomingThenCurrentChanges', 'Accept Incoming Then Current Changes'),
 				arguments: ['known-conflict', conflict]
 			};
 
@@ -90,8 +96,9 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 			items.push(
 				new vscode.CodeLens(conflict.range, acceptCurrentCommand),
 				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 1 })), acceptIncomingCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 2 })), acceptBothCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 3 })), diffCommand)
+				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 2 })), acceptCurrentThenIncomingCommand),
+				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 3 })), acceptIncomingThenCurrentCommand),
+				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 4 })), diffCommand)
 			);
 		});
 

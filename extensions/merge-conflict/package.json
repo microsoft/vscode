@@ -4,7 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "icon": "media/icon.png",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
@@ -44,9 +44,15 @@
       },
       {
         "category": "%command.category%",
-        "title": "%command.accept.all-both%",
-        "original": "Accept All Both",
-        "command": "merge-conflict.accept.all-both"
+        "title": "%command.accept.all-current-then-incoming%",
+        "original": "Accept All Current Then Incoming",
+        "command": "merge-conflict.accept.all-current-then-incoming"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.all-incoming-then-current%",
+        "original": "Accept All Incoming Then Current",
+        "command": "merge-conflict.accept.all-incoming-then-current"
       },
       {
         "category": "%command.category%",
@@ -68,9 +74,15 @@
       },
       {
         "category": "%command.category%",
-        "title": "%command.accept.both%",
-        "original": "Accept Both",
-        "command": "merge-conflict.accept.both"
+        "title": "%command.accept.current-then-incoming%",
+        "original": "Accept Current Then Incoming",
+        "command": "merge-conflict.accept.current-then-incoming"
+      },
+      {
+        "category": "%command.category%",
+        "title": "%command.accept.incoming-then-current%",
+        "original": "Accept Incoming Then Current",
+        "command": "merge-conflict.accept.incoming-then-current"
       },
       {
         "category": "%command.category%",
