@@ -1766,6 +1766,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 		readonly shouldPersist: boolean
 	) {
 	}
+	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;

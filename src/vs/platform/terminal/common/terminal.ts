@@ -134,6 +134,7 @@ export interface IPtyHostAttachTarget {
 	workspaceName: string;
 	isOrphan: boolean;
 	icon: TerminalIcon | undefined;
+	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
 export enum TitleEventSource {
@@ -178,7 +179,8 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
-	InitialCwd = 'initialCwd'
+	InitialCwd = 'initialCwd',
+	FixedDimensions = 'fixedDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -189,7 +191,21 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions
 }
+
+export interface IFixedTerminalDimensions {
+	/**
+	 * The fixed columns of the terminal.
+	 */
+	cols?: number;
+
+	/**
+	 * The fixed rows of the terminal.
+	 */
+	rows?: number;
+}
+
 
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
@@ -272,6 +288,7 @@ export interface IPtyService {
 	 */
 	reviveTerminalProcesses(state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
+	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -373,7 +390,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedDimensions?: IFixedTerminalDimensions };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -428,6 +445,12 @@ export interface IShellLaunchConfig {
 	 * directly to the right of its parent.
 	 */
 	parentTerminalId?: number;
+
+	/**
+	 * The dimensions for the instance as set by the user
+	 * or via Size to Content Width
+	 */
+	fixedDimensions?: IFixedTerminalDimensions;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
@@ -551,7 +574,8 @@ export interface ITerminalChildProcess {
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
-	refreshProperty(property: ProcessPropertyType): Promise<any>;
+	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]>;
+	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void>;
 }
 
 export interface IReconnectConstants {

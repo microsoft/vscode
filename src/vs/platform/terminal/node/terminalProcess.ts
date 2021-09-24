@@ -78,7 +78,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
-		initialCwd: ''
+		initialCwd: '',
+		fixedDimensions: { cols: undefined, rows: undefined }
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -410,6 +411,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return newCwd;
 		} else {
 			return this.getInitialCwd();
+		}
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+		//TODO: why is the type check necessary?
+		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string') {
+			this._properties.fixedDimensions = value;
 		}
 	}
 
