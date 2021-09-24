@@ -4,7 +4,7 @@ echo "Syncing openvscode-server with upstream"
 
 upstream_url="https://github.com/microsoft/vscode.git"
 upstream_branch=${1:-"upstream/main"}
-local_branch=${2:-"next"}
+local_branch=${2:-"main"}
 base_commit_msg=${3:-"code web server initial commit"}
 only_sync=${4:-"false"}
 
