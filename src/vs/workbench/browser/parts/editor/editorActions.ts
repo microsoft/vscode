@@ -366,7 +366,7 @@ export class FocusRightGroup extends AbstractFocusGroupAction {
 export class FocusAboveGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusAboveGroup';
-	static readonly LABEL = localize('focusAboveGroup', "Focus Above Editor Group");
+	static readonly LABEL = localize('focusAboveGroup', "Focus Editor Group Above");
 
 	constructor(
 		id: string,
@@ -380,7 +380,7 @@ export class FocusAboveGroup extends AbstractFocusGroupAction {
 export class FocusBelowGroup extends AbstractFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusBelowGroup';
-	static readonly LABEL = localize('focusBelowGroup', "Focus Below Editor Group");
+	static readonly LABEL = localize('focusBelowGroup', "Focus Editor Group Below");
 
 	constructor(
 		id: string,
@@ -1657,7 +1657,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.moveEditorToAboveGroup';
-	static readonly LABEL = localize('moveEditorToAboveGroup', "Move Editor into Above Group");
+	static readonly LABEL = localize('moveEditorToAboveGroup', "Move Editor into Group Above");
 
 	constructor(
 		id: string,
@@ -1671,7 +1671,7 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.moveEditorToBelowGroup';
-	static readonly LABEL = localize('moveEditorToBelowGroup', "Move Editor into Below Group");
+	static readonly LABEL = localize('moveEditorToBelowGroup', "Move Editor into Group Below");
 
 	constructor(
 		id: string,
@@ -1769,7 +1769,7 @@ export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
 export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.splitEditorToAboveGroup';
-	static readonly LABEL = localize('splitEditorToAboveGroup', "Split Editor into Above Group");
+	static readonly LABEL = localize('splitEditorToAboveGroup', "Split Editor into Group Above");
 
 	constructor(
 		id: string,
@@ -1783,7 +1783,7 @@ export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.splitEditorToBelowGroup';
-	static readonly LABEL = localize('splitEditorToBelowGroup', "Split Editor into Below Group");
+	static readonly LABEL = localize('splitEditorToBelowGroup', "Split Editor into Group Below");
 
 	constructor(
 		id: string,
