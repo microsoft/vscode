@@ -149,7 +149,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textModel = m;
 		if (this._textModel) {
 			// Init language from text model
-			this.language = this._textModel.getLanguageIdentifier().language;
+			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback (plaintext)
+			// If so let's not modify the language
+			if (!(this._modeService.getModeId(this.language) === null && this._textModel.getLanguageIdentifier().language === 'plaintext')) {
+				this.language = this._textModel.getLanguageIdentifier().language;
+			}
 
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
