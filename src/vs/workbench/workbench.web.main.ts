@@ -24,6 +24,8 @@ import 'vs/workbench/browser/parts/dialogs/dialog.web.contribution';
 
 //#endregion
 
+import 'vs/platform/localizations/browser/localization';
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
 
 //#region --- workbench (web main)
 
