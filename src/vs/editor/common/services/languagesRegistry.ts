@@ -15,6 +15,7 @@ import { NULL_LANGUAGE_IDENTIFIER, NULL_MODE_ID } from 'vs/editor/common/modes/n
 import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -26,6 +27,7 @@ export interface IResolvedLanguage {
 	extensions: string[];
 	filenames: string[];
 	configurationFiles: URI[];
+	icons: ThemeIcon[];
 }
 
 export class LanguagesRegistry extends Disposable {
@@ -129,7 +131,8 @@ export class LanguagesRegistry extends Disposable {
 				aliases: [],
 				extensions: [],
 				filenames: [],
-				configurationFiles: []
+				configurationFiles: [],
+				icons: []
 			};
 			this._languages[langId] = resolvedLanguage;
 		}
@@ -227,6 +230,10 @@ export class LanguagesRegistry extends Disposable {
 		if (lang.configuration) {
 			resolvedLanguage.configurationFiles.push(lang.configuration);
 		}
+
+		if (lang.icon) {
+			resolvedLanguage.icons.push({ id: lang.icon });
+		}
 	}
 
 	public isRegisteredMode(mimetypeOrModeId: string): boolean {
@@ -273,6 +280,14 @@ export class LanguagesRegistry extends Disposable {
 		}
 		const language = this._languages[modeId];
 		return (language.mimetypes[0] || null);
+	}
+
+	public getIconForMode(modeId: string): ThemeIcon | null {
+		if (!hasOwnProperty.call(this._languages, modeId)) {
+			return null;
+		}
+		const language = this._languages[modeId];
+		return (language.icons[0] || null);
 	}
 
 	public extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): string[] {
