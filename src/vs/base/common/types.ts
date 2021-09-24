@@ -33,7 +33,7 @@ export function isStringArray(value: unknown): value is string[] {
  */
 export function isObject(obj: unknown): obj is Object {
 	// The method can't do a type cast since there are type (like strings) which
-	// are subclasses of any put not positvely matched by the function. Hence type
+	// are subclasses of any put not positively matched by the function. Hence type
 	// narrowing results in wrong results.
 	return typeof obj === 'object'
 		&& obj !== null
