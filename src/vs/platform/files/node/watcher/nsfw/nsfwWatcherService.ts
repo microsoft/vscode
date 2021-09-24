@@ -204,13 +204,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				const normalizedEvents = normalizeFileChanges(this.normalizeEvents(events, request, realBasePathDiffers, realBasePathLength));
 				this.emitEvents(normalizedEvents);
 			});
-		}, {
-			errorCallback: error => {
-				if (!watcher.token.isCancellationRequested) {
-					this.onError(error, watcher); // error handling only if we are not disposed yet
-				}
-			}
-		}).then(async nsfwWatcher => {
+		}, this.getOptions(watcher)).then(async nsfwWatcher => {
 
 			// Begin watching unless disposed already
 			if (!watcher.token.isCancellationRequested) {
@@ -223,6 +217,23 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 			nsfwPromiseResolve(nsfwWatcher);
 		});
+	}
+
+	protected getOptions(watcher: IWatcher): nsfw.Options {
+		return {
+
+			// We must install an error callback, otherwise any error
+			// that is thrown from the watcher will result in process exit
+			errorCallback: error => {
+				if (!watcher.token.isCancellationRequested) {
+					this.onError(error, watcher); // error handling only if we are not disposed yet
+				}
+			},
+
+			// The default delay of NSFW is 500 but we already do some
+			// debouncing in our code so we reduce the delay slightly
+			debounceMS: 100
+		};
 	}
 
 	private emitEvents(events: IDiskFileChange[]): void {

@@ -50,7 +50,7 @@ export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChang
 
 class EventNormalizer {
 
-	private readonly normalized: IDiskFileChange[] = [];
+	private readonly normalized = new Set<IDiskFileChange>();
 	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
 
 	processEvent(event: IDiskFileChange): void {
@@ -64,7 +64,7 @@ class EventNormalizer {
 			// ignore CREATE followed by DELETE in one go
 			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
 				this.mapPathToChange.delete(event.path);
-				this.normalized.splice(this.normalized.indexOf(existingEvent), 1);
+				this.normalized.delete(existingEvent);
 			}
 
 			// flatten DELETE followed by CREATE into CHANGE
@@ -83,7 +83,7 @@ class EventNormalizer {
 
 		// Otherwise store new
 		else {
-			this.normalized.push(event);
+			this.normalized.add(event);
 			this.mapPathToChange.set(event.path, event);
 		}
 	}
@@ -99,7 +99,7 @@ class EventNormalizer {
 		// 1.) split ADD/CHANGE and DELETED events
 		// 2.) sort short deleted paths to the top
 		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
-		return this.normalized.filter(e => {
+		return Array.from(this.normalized).filter(e => {
 			if (e.type !== FileChangeType.DELETED) {
 				addOrChangeEvents.push(e);
 
