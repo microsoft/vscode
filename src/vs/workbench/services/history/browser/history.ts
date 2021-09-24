@@ -59,7 +59,7 @@ class TextEditorState {
 
 	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
 		if (event?.source === 'api') {
-			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
+			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
 		if (!this._editorInput.matches(other._editorInput)) {

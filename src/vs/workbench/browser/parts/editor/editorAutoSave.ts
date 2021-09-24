@@ -95,8 +95,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			return; // no auto save for readonly or untitled editors
 		}
 
-		// Determine if we need to save all. In case of a window focus change we also save if 
-		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
+		// Determine if we need to save all. In case of a window focus change we also save if 
+		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
 		const mode = this.filesConfigurationService.getAutoSaveMode();
 		if (
 			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||

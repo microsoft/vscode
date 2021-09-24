@@ -8473,7 +8473,7 @@ declare module 'vscode' {
 		 * ```
 		 *
 		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
 		 * `asExternalUri`.
 		 *
 		 * #### Any other scheme
