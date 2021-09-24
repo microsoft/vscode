@@ -588,6 +588,7 @@ export namespace Codicon {
 	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
 	export const runErrors = new Codicon('run-errors', { fontCharacter: '\\ebde' });
 	export const folderLibrary = new Codicon('folder-library', { fontCharacter: '\\ebdf' });
+	export const debugContinueSmall = new Codicon('debug-continue-small', { fontCharacter: '\\ebe0' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
