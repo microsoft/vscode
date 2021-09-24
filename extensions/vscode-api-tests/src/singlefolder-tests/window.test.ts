@@ -455,7 +455,7 @@ suite('vscode API - window', () => {
 		assert.ok(!window.activeTab);
 	});
 
-	test('Tabs - Close Tabs', async () => {
+	test.skip('Tabs - Close Tabs', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
