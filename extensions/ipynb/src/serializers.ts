@@ -5,7 +5,7 @@
 
 import { nbformat } from '@jupyterlab/coreutils';
 import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
+import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
@@ -62,6 +62,9 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeC
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
+	if (cellMetadata?.id) {
+		codeCell.id = cellMetadata.id;
+	}
 	return codeCell;
 }
 
@@ -74,6 +77,9 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 	};
 	if (cellMetadata?.attachments) {
 		rawCell.attachments = cellMetadata.attachments;
+	}
+	if (cellMetadata?.id) {
+		rawCell.id = cellMetadata.id;
 	}
 	return rawCell;
 }
@@ -322,22 +328,10 @@ function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IM
 	if (cellMetadata?.attachments) {
 		markdownCell.attachments = cellMetadata.attachments;
 	}
+	if (cellMetadata?.id) {
+		markdownCell.id = cellMetadata.id;
+	}
 	return markdownCell;
-}
-
-/**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
- */
-interface CellMetadata {
-	/**
-	 * Stores attachments for cells.
-	 */
-	attachments?: nbformat.IAttachments;
-	/**
-	 * Stores cell metadata.
-	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
 }
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
