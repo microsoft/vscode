@@ -90,5 +90,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_B }), 'View: Toggle Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Side Panel', CATEGORIES.View.value, ContextKeyExpr.equals('config.workbench.experimental.sidePanel.enabled', true));
