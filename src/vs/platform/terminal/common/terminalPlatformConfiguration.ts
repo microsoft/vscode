@@ -264,6 +264,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				},
 				'pwsh': {
 					path: 'pwsh',
+					args: ['-l'],
 					icon: 'terminal-powershell'
 				}
 			},
