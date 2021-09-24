@@ -67,23 +67,23 @@ class ExtensionHostProcess {
 	private readonly _id: string;
 
 	public get onStdout(): Event<string> {
-		return this._extensionHostStarter.onScopedStdout(this._id);
+		return this._extensionHostStarter.onDynamicStdout(this._id);
 	}
 
 	public get onStderr(): Event<string> {
-		return this._extensionHostStarter.onScopedStderr(this._id);
+		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
 	public get onMessage(): Event<any> {
-		return this._extensionHostStarter.onScopedMessage(this._id);
+		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
 	public get onError(): Event<{ error: SerializedError; }> {
-		return this._extensionHostStarter.onScopedError(this._id);
+		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
 	public get onExit(): Event<{ code: number; signal: string }> {
-		return this._extensionHostStarter.onScopedExit(this._id);
+		return this._extensionHostStarter.onDynamicExit(this._id);
 	}
 
 	constructor(

@@ -134,23 +134,23 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return extHostProcess;
 	}
 
-	onScopedStdout(id: string): Event<string> {
+	onDynamicStdout(id: string): Event<string> {
 		return this._getExtHost(id).onStdout;
 	}
 
-	onScopedStderr(id: string): Event<string> {
+	onDynamicStderr(id: string): Event<string> {
 		return this._getExtHost(id).onStderr;
 	}
 
-	onScopedMessage(id: string): Event<any> {
+	onDynamicMessage(id: string): Event<any> {
 		return this._getExtHost(id).onMessage;
 	}
 
-	onScopedError(id: string): Event<{ error: SerializedError; }> {
+	onDynamicError(id: string): Event<{ error: SerializedError; }> {
 		return this._getExtHost(id).onError;
 	}
 
-	onScopedExit(id: string): Event<{ code: number; signal: string; }> {
+	onDynamicExit(id: string): Event<{ code: number; signal: string; }> {
 		return this._getExtHost(id).onExit;
 	}
 

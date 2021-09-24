@@ -1178,8 +1178,8 @@ export namespace ProxyChannel {
 	}
 
 	function propertyIsDynamicEvent(name: string): boolean {
-		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onScopedSomething"
-		return /^onScoped/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(8));
+		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
+		return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
 	}
 }
 
