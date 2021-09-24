@@ -229,7 +229,7 @@ export function activate(context: vscode.ExtensionContext) {
 				cancellable: false
 			}, (progress) => doResolve(_authority, progress));
 		},
-		// tunnelFactory,
+		tunnelFactory,
 		tunnelFeatures: {
 			elevation: true,
 			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts'),
