@@ -11,6 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { raceTimeout } from 'vs/base/common/async';
 
 export interface IEditorTab {
 	label: string;
@@ -74,7 +75,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				isActive: dto.isActive,
 				move: async (index: number, viewColumn: ViewColumn) => {
 					this._proxy.$moveTab(dto, index, typeConverters.ViewColumn.from(viewColumn));
-					await Event.toPromise(this._onDidChangeTabs.event);
+					await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
 					return;
 				},
 			});
