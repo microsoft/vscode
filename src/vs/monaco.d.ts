@@ -3185,7 +3185,7 @@ declare namespace monaco.editor {
 		 * Selects the folding strategy. 'auto' uses the strategies contributed for the current document, 'indentation' uses the indentation based folding strategy.
 		 * Defaults to 'auto'.
 		 */
-		foldingStrategy?: 'auto' | 'indentation';
+		foldingStrategy?: string;
 		/**
 		 * Enable highlight for folded regions.
 		 * Defaults to true.
@@ -4280,7 +4280,7 @@ declare namespace monaco.editor {
 		find: IEditorOption<EditorOption.find, EditorFindOptions>;
 		fixedOverflowWidgets: IEditorOption<EditorOption.fixedOverflowWidgets, boolean>;
 		folding: IEditorOption<EditorOption.folding, boolean>;
-		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, 'auto' | 'indentation'>;
+		foldingStrategy: IEditorOption<EditorOption.foldingStrategy, string>;
 		foldingHighlight: IEditorOption<EditorOption.foldingHighlight, boolean>;
 		foldingImportsByDefault: IEditorOption<EditorOption.foldingImportsByDefault, boolean>;
 		unfoldOnClickAfterEndOfLine: IEditorOption<EditorOption.unfoldOnClickAfterEndOfLine, boolean>;
@@ -6552,6 +6552,10 @@ declare namespace monaco.languages {
 		 * An optional event to signal that the folding ranges from this provider have changed.
 		 */
 		onDidChange?: IEvent<this>;
+		/**
+		 * Provides the id of the provider.
+		 */
+		id?: string;
 		/**
 		 * Provides the folding ranges for a specific model.
 		 */
