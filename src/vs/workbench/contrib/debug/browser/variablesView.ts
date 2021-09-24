@@ -6,8 +6,8 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_CAN_VIEW_MEMORY } from 'vs/workbench/contrib/debug/common/debug';
+import { Variable, Scope, ErrorScope, StackFrame, Expression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -45,6 +45,7 @@ let variableInternalContext: Variable | undefined;
 let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
 
 interface IVariablesContext {
+	sessionId: string | undefined;
 	container: DebugProtocol.Variable | DebugProtocol.Scope;
 	variable: DebugProtocol.Variable;
 }
@@ -63,6 +64,7 @@ export class VariablesView extends ViewPane {
 	private breakWhenValueIsReadSupported: IContextKey<boolean>;
 	private variableEvaluateName: IContextKey<boolean>;
 	private variableReadonly: IContextKey<boolean>;
+	private viewMemorySupported: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -87,6 +89,7 @@ export class VariablesView extends ViewPane {
 		this.breakWhenValueIsAccessedSupported = CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.bindTo(contextKeyService);
 		this.breakWhenValueIsReadSupported = CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.bindTo(contextKeyService);
 		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
+		this.viewMemorySupported = CONTEXT_CAN_VIEW_MEMORY.bindTo(contextKeyService);
 		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
@@ -213,6 +216,7 @@ export class VariablesView extends ViewPane {
 			variableInternalContext = variable;
 			const session = this.debugService.getViewModel().focusedSession;
 			this.variableEvaluateName.set(!!variable.evaluateName);
+			this.viewMemorySupported.set(!!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined);
 			const attributes = variable.presentationHint?.attributes;
 			this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0);
 			this.breakWhenValueChangesSupported.reset();
@@ -243,6 +247,7 @@ export class VariablesView extends ViewPane {
 			}
 
 			const context: IVariablesContext = {
+				sessionId: variable.getSession()?.getId(),
 				container: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
 				variable: variable.toDebugProtocolObject()
 			};
@@ -466,6 +471,21 @@ CommandsRegistry.registerCommand({
 			const result = elements.map(element => element.value);
 			clipboardService.writeText(result.join('\n'));
 		}
+	}
+});
+
+export const VIEW_MEMORY_ID = 'workbench.debug.viewlet.action.viewMemory';
+CommandsRegistry.registerCommand({
+	id: VIEW_MEMORY_ID,
+	handler: async (accessor: ServicesAccessor, arg: IVariablesContext, ctx?: (Variable | Expression)[]) => {
+		if (!arg.sessionId || !arg.variable.memoryReference) {
+			return;
+		}
+
+		accessor.get(IOpenerService).open(getUriForDebugMemory(
+			arg.sessionId,
+			arg.variable.memoryReference,
+		));
 	}
 });
 
