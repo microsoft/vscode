@@ -4,6 +4,37 @@
 # We need to handle that case and reset $SNAP
 SNAP=$(echo "$SNAP" | sed -e "s|/var/lib/snapd||g")
 
+#
+# Exports are based on https://github.com/snapcore/snapcraft/blob/master/extensions/desktop/common/desktop-exports
+#
+
+# ensure_dir_exists calls `mkdir -p` if the given path is not a directory.
+# This speeds up execution time by avoiding unnecessary calls to mkdir.
+#
+# Usage: ensure_dir_exists <path> [<mkdir-options>]...
+#
+function ensure_dir_exists() {
+  [ -d "$1" ] ||  mkdir -p "$@"
+}
+
+function prepend_dir() {
+  local -n var="$1"
+  local dir="$2"
+  # We can't check if the dir exists when the dir contains variables
+  if [[ "$dir" == *"\$"*  || -d "$dir" ]]; then
+    export "${!var}=${dir}${var:+:$var}"
+  fi
+}
+
+function append_dir() {
+  local -n var="$1"
+  local dir="$2"
+  # We can't check if the dir exists when the dir contains variables
+  if [[ "$dir" == *"\$"*  || -d "$dir" ]]; then
+    export "${!var}=${var:+$var:}${dir}"
+  fi
+}
+
 if [ "$SNAP_ARCH" == "amd64" ]; then
   ARCH="x86_64-linux-gnu"
 elif [ "$SNAP_ARCH" == "armhf" ]; then
@@ -14,18 +45,70 @@ else
   ARCH="$SNAP_ARCH-linux-gnu"
 fi
 
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/lib/$ARCH"
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH"
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib"
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/lib"
+append_dir PATH "$SNAP_DESKTOP_RUNTIME/usr/bin"
+
+# Mesa Libs for OpenGL support
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/mesa"
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/mesa-egl"
+
+# Tell libGL and libva where to find the drivers
+export LIBGL_DRIVERS_PATH="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
+append_dir LD_LIBRARY_PATH "$LIBGL_DRIVERS_PATH"
+export LIBVA_DRIVERS_PATH="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
+
+# Set where the VDPAU drivers are located
+export VDPAU_DRIVER_PATH="/usr/lib/$ARCH/vdpau/"
+if [ -e "/var/lib/snapd/lib/gl/vdpau/libvdpau_nvidia.so" ]; then
+  export VDPAU_DRIVER_PATH="/var/lib/snapd/lib/gl/vdpau"
+  # Prevent picking VA-API (Intel/AMD) over NVIDIA VDPAU; on PRIME systems for example
+  unset LIBVA_DRIVERS_PATH
+fi
+
+# Workaround in snapd for proprietary nVidia drivers mounts the drivers in
+# /var/lib/snapd/lib/gl that needs to be in LD_LIBRARY_PATH
+# Without that OpenGL using apps do not work with the nVidia drivers.
+# Ref.: https://bugs.launchpad.net/snappy/+bug/1588192
+append_dir LD_LIBRARY_PATH "/var/lib/snapd/lib/gl"
+append_dir LD_LIBRARY_PATH "/var/lib/snapd/lib/gl/vdpau"
+
+# Unity7 export (workaround for https://launchpad.net/bugs/1638405)
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/libunity"
+
+# Pulseaudio export
+append_dir LD_LIBRARY_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/pulseaudio"
+
+# EGL vendor files on glvnd enabled systems
+prepend_dir __EGL_VENDOR_LIBRARY_DIRS "/var/lib/snapd/lib/glvnd/egl_vendor.d"
+append_dir __EGL_VENDOR_LIBRARY_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share/glvnd/egl_vendor.d"
+
+# XDG Config
+prepend_dir XDG_CONFIG_DIRS "$SNAP_DESKTOP_RUNTIME/etc/xdg"
+prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
+
+# Define snaps' own data dir
+prepend_dir XDG_DATA_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/usr/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/data-dir"
+prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA"
+
+# Set cache folder to local path
 GDK_CACHE_DIR="$SNAP_USER_COMMON/.cache"
 if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$GDK_CACHE_DIR" ]]; then
   # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
   mv "$SNAP_USER_DATA/.cache" "$SNAP_USER_COMMON/"
 fi
-[ ! -d "$GDK_CACHE_DIR" ] && mkdir -p "$GDK_CACHE_DIR"
+ensure_dir_exists "$GDK_CACHE_DIR"
 
 # Gdk-pixbuf loaders
 export GDK_PIXBUF_MODULE_FILE="$GDK_CACHE_DIR/gdk-pixbuf-loaders.cache"
-export GDK_PIXBUF_MODULEDIR="$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
-if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
-  "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+export GDK_PIXBUF_MODULEDIR="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
+if [ -f "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
+  "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
 fi
 
 # Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
