@@ -13470,15 +13470,7 @@ declare module 'vscode' {
 		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.
 		 */
-		export function getExtension(extensionId: string): Extension<any> | undefined;
-
-		/**
-		 * Get an extension by its full identifier in the form of: `publisher.name`.
-		 *
-		 * @param extensionId An extension identifier.
-		 * @return An extension or `undefined`.
-		 */
-		export function getExtension<T>(extensionId: string): Extension<T> | undefined;
+		export function getExtension<T = any>(extensionId: string): Extension<T> | undefined;
 
 		/**
 		 * All extensions currently known to the system.
