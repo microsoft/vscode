@@ -359,6 +359,12 @@ export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], tar
 	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
+function compareNullableIntegers(a?: number, b?: number) {
+	const firstElem = a ?? Number.MAX_SAFE_INTEGER;
+	const secondElem = b ?? Number.MAX_SAFE_INTEGER;
+	return firstElem - secondElem;
+}
+
 export async function resolveExtensionsSettings(extensionService: IExtensionService, groups: ISettingsGroup[]): Promise<ITOCEntry<ISetting>> {
 	const extGroupTree = new Map<string, ITOCEntry<ISetting>>();
 	const addEntryToTree = (extensionId: string, extensionName: string, childEntry: ITOCEntry<ISetting>) => {
@@ -396,8 +402,14 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const value of extGroupTree.values()) {
+			for (const child of value.children!) {
+				// Sort the individual settings
+				child.settings?.sort((a, b) => {
+					return compareNullableIntegers(a.order, b.order);
+				});
+			}
 			if (value.children!.length === 1) {
-				// push a flattened setting
+				// Push a flattened setting
 				extGroups.push({
 					id: value.id,
 					label: value.children![0].label,
@@ -405,12 +417,7 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 				});
 			} else {
 				value.children!.sort((a, b) => {
-					if (a.order !== undefined && b.order !== undefined) {
-						return a.order - b.order;
-					} else {
-						// leave things as-is
-						return 0;
-					}
+					return compareNullableIntegers(a.order, b.order);
 				});
 				extGroups.push(value);
 			}

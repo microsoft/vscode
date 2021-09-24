@@ -69,6 +69,7 @@ export interface ISetting {
 
 	scope?: ConfigurationScope;
 	type?: string | string[];
+	order?: number;
 	arrayItemType?: string;
 	objectProperties?: IJSONSchemaMap,
 	objectPatternProperties?: IJSONSchemaMap,

@@ -677,7 +677,8 @@ export class DefaultSettings extends Disposable {
 					validator: createValidator(prop),
 					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
-					editPresentation: prop.editPresentation
+					editPresentation: prop.editPresentation,
+					order: prop.order
 				});
 			}
 		}
