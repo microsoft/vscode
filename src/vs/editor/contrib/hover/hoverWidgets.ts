@@ -29,7 +29,7 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 		this._showAtLineNumber = -1;
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.hover)) {
 				this.updateFont();
 			}
 		}));
@@ -92,7 +92,28 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
 
-		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const fontFamily = fontInfo.getMassagedFontFamily();
+		const fontFeatureSettings = fontInfo.fontFeatureSettings;
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const letterSpacing = fontInfo.letterSpacing;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+		const letterSpacingPx = `${letterSpacing}px`;
+
+		[...codeTags, ...codeClasses].forEach(domNode => {
+			domNode.style.fontFamily = fontFamily;
+			domNode.style.fontWeight = fontWeight;
+			domNode.style.fontSize = fontSizePx;
+			domNode.style.fontFeatureSettings = fontFeatureSettings;
+			domNode.style.lineHeight = lineHeightPx;
+			domNode.style.letterSpacing = letterSpacingPx;
+		});
+
+
 	}
 
 	protected updateContents(node: Node): void {

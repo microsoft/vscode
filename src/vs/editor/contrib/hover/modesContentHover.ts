@@ -230,7 +230,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		});
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.hover)) {
 				this._updateFont();
 			}
 		}));
@@ -379,7 +379,27 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const fontFamily = fontInfo.getMassagedFontFamily();
+		const fontFeatureSettings = fontInfo.fontFeatureSettings;
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const letterSpacing = fontInfo.letterSpacing;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+		const letterSpacingPx = `${letterSpacing}px`;
+
+		codeClasses.forEach(domNode => {
+			domNode.style.fontFamily = fontFamily;
+			domNode.style.fontWeight = fontWeight;
+			domNode.style.fontSize = fontSizePx;
+			domNode.style.fontFeatureSettings = fontFeatureSettings;
+			domNode.style.lineHeight = lineHeightPx;
+			domNode.style.letterSpacing = letterSpacingPx;
+		});
 	}
 
 	private _updateContents(node: Node): void {
@@ -392,13 +412,19 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const maxWidth = HoverInfo.maxWidth || Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
+		const maxHeight = HoverInfo.maxHeight || Math.max(this._editor.getLayoutInfo().height / 4, 250);
 
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
 		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
-		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${maxWidth}px`;
+
 	}
 
 	public onModelDecorationsChanged(): void {
