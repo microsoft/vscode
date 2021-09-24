@@ -1355,6 +1355,7 @@ export class Repository {
 		if (opts.amend && !message) {
 			args.push('--amend', '--no-edit');
 		} else {
+			args.push('--cleanup', 'strip');
 			args.push('--file', '-');
 		}
 
@@ -2109,7 +2110,7 @@ export class Repository {
 			}
 
 			const raw = await fs.readFile(templatePath, 'utf8');
-			return this.stripCommitMessageComments(raw);
+			return raw;
 		} catch (err) {
 			return '';
 		}
