@@ -73,6 +73,9 @@ const terminalProfileSchema: IJSONSchema = {
 const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
 const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
 const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
+const automationShellDeprecationMessageLinux = localize('terminal.integrated.automationShell.linux.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.linux#`');
+const automationShellDeprecationMessageOsx = localize('terminal.integrated.automationShell.osx.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.osx#`');
+const automationShellDeprecationMessageWindows = localize('terminal.integrated.automationShell.windows.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.windows#`');
 
 const terminalPlatformConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -87,7 +90,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageLinux
 		},
 		[TerminalSettingId.AutomationShellMacOs]: {
 			restricted: true,
@@ -96,7 +100,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageOsx
 		},
 		[TerminalSettingId.AutomationShellWindows]: {
 			restricted: true,
@@ -105,7 +110,38 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageWindows
+		},
+		[TerminalSettingId.AutomationProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.linux#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileMacOs]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.osx#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
+		},
+		[TerminalSettingId.AutomationProfileWindows]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.windows#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalProfileSchema
+			]
 		},
 		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
