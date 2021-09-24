@@ -550,7 +550,6 @@ export class PersistentTerminalProcess extends Disposable {
 		if (type === ProcessPropertyType.FixedDimensions) {
 			this._setFixedDimensions(value);
 		}
-		//TODO: migrate icon and title to use this
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {

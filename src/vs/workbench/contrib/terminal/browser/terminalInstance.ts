@@ -93,7 +93,7 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxSupportedCols = 1000
+	MaxSupportedCols = 5000
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -332,9 +332,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._titleReadyComplete = c;
 		});
 
-		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
-		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
-
 		// the resource is already set when it's been moved from another window
 		this._resource = resource || getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
 
@@ -376,8 +373,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this.shellLaunchConfig.attachPersistentProcess) {
 				this.refreshTabLabels(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 			}
-			if (this._fixedCols && this._fixedCols > this.maxCols) {
-				await this._addScrollbar();
+			this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
+			if (_shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols && _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols > this.maxCols) {
+				await this._addScrollbar(_shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols);
 			}
 		});
 
@@ -1932,39 +1930,44 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
 			if (maxCols > this.cols) {
-				this._fixedCols = maxCols;
-				await this._addScrollbar();
+				await this._addScrollbar(maxCols);
 			}
 		}
 	}
 
-	private async _addScrollbar(): Promise<void> {
-		if (!this._xterm || !this._fixedCols || !this._wrapperElement || !this._container) {
+	private async _addScrollbar(cols: number): Promise<void> {
+		const charWidth = this._configHelper?.getFont(this._xtermCore).charWidth;
+		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth) {
 			return;
 		}
+		const colsBefore = this.cols;
+		this._fixedCols = cols;
 		this._hasScrollBar = true;
 		this._initDimensions();
 		this._fixedRows = this.rows;
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
-		if (!this._scrollbar) {
-			this._scrollbar = new DomScrollableElement(this._wrapperElement, {
-				vertical: ScrollbarVisibility.Hidden,
-				horizontal: ScrollbarVisibility.Visible
-			});
-			this._container.appendChild(this._scrollbar.getDomNode());
-		}
-		this._scrollbar.setScrollDimensions(
-			{
-				width: this._xterm.element?.clientWidth,
-				scrollWidth: this._fixedCols * this._configHelper.getFont(this._xtermCore).charWidth! - this._xterm.element!.clientWidth
-			});
-		this._scrollbar!.getDomNode().style.paddingBottom = '16px';
+		if (this._fixedCols > colsBefore) {
+			if (!this._scrollbar) {
+				this._scrollbar = new DomScrollableElement(this._wrapperElement, {
+					vertical: ScrollbarVisibility.Hidden,
+					horizontal: ScrollbarVisibility.Visible
+				});
+				this._container.appendChild(this._scrollbar.getDomNode());
+			}
 
-		// work around for https://github.com/xtermjs/xterm.js/issues/3482
-		for (let j = this._xterm.buffer.active.viewportY; j < this._xterm.buffer.active.length; j++) {
-			let line = this._xterm.buffer.active.getLine(j);
-			(line as any)._line.isWrapped = false;
+			this._scrollbar.setScrollDimensions(
+				{
+					width: this._xterm.element.clientWidth,
+					scrollWidth: ((((this._fixedCols - colsBefore) * charWidth) + this._xterm.element.clientWidth))
+				});
+			this._scrollbar!.getDomNode().style.paddingBottom = '16px';
+
+			// work around for https://github.com/xtermjs/xterm.js/issues/3482
+			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
+				let line = this._xterm.buffer.active.getLine(i);
+				(line as any)._line.isWrapped = false;
+			}
 		}
 	}
 
