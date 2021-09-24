@@ -243,8 +243,11 @@ const requestHandler = (req, res) => {
 				'short_name': 'Code - OSS',
 				'start_url': '/',
 				'lang': 'en-US',
-				'display': 'standalone'
-			}));
+				'display': 'standalone',
+				'display_override': [
+					'window-controls-overlay'
+				]
+			}, undefined, 2));
 		}
 		if (/^\/static\//.test(pathname)) {
 			// static requests

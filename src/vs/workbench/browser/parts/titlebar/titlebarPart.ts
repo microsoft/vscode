@@ -55,7 +55,17 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	get minimumHeight(): number { return 30 / (this.currentMenubarVisibility === 'hidden' ? getZoomFactor() : 1); }
+	get minimumHeight(): number {
+		if ('windowControlsOverlay' in navigator) {
+			const windowControlsOverlay = (navigator as any).windowControlsOverlay!;
+			if (windowControlsOverlay.visible) {
+				return windowControlsOverlay.getBoundingClientRect().height;
+			}
+		}
+
+		// Fallback to html element height
+		return 30 / (this.currentMenubarVisibility === 'hidden' ? getZoomFactor() : 1);
+	}
 	get maximumHeight(): number { return this.minimumHeight; }
 
 	//#endregion
