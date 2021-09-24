@@ -66,6 +66,11 @@
         "category": "Git"
       },
       {
+        "command": "git.closeOthers",
+        "title": "%command.closeOthers%",
+        "category": "Git"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -975,6 +980,11 @@
       "scm/sourceControl": [
         {
           "command": "git.close",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.closeOthers",
           "group": "navigation",
           "when": "scmProvider == git"
         }

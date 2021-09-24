@@ -390,6 +390,17 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		openRepository.dispose();
 	}
 
+	closeOthers(repository: Repository): void {
+		const otherRepositories = this.openRepositories.filter(r => r.repository !== repository);
+
+		for (const openRepository of otherRepositories) {
+			const repository = openRepository.repository;
+
+			this.outputChannel.appendLine(`Close repository: ${repository.root}`);
+			openRepository.dispose();
+		}
+	}
+
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(localize('no repositories', "There are no available repositories"));
