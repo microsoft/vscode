@@ -139,7 +139,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _xtermSearch: SearchAddon | undefined;
 	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
-	private _scrollbar: DomScrollableElement | undefined;
+	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
 	private _cols: number = 0;
@@ -1050,9 +1050,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._scrollbar) {
-				this._scrollbar.dispose();
-				this._scrollbar = undefined;
+			if (this._horizontalScrollbar) {
+				this._horizontalScrollbar.dispose();
+				this._horizontalScrollbar = undefined;
 			}
 		}
 		if (this._xterm) {
@@ -1920,7 +1920,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._hasScrollBar = false;
 			this._initDimensions();
 			await this._resize();
-			this._scrollbar?.setScrollDimensions({ scrollWidth: 0 });
+			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
 			let maxCols = 0;
 			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
@@ -1948,20 +1948,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		await this._resize();
 		this._terminalHasFixedWidth.set(true);
 		if (this._fixedCols > colsBefore) {
-			if (!this._scrollbar) {
-				this._scrollbar = new DomScrollableElement(this._wrapperElement, {
+			if (!this._horizontalScrollbar) {
+				this._horizontalScrollbar = new DomScrollableElement(this._wrapperElement, {
 					vertical: ScrollbarVisibility.Hidden,
 					horizontal: ScrollbarVisibility.Visible
 				});
-				this._container.appendChild(this._scrollbar.getDomNode());
+				this._container.appendChild(this._horizontalScrollbar.getDomNode());
 			}
 
-			this._scrollbar.setScrollDimensions(
+			this._horizontalScrollbar.setScrollDimensions(
 				{
 					width: this._xterm.element.clientWidth,
 					scrollWidth: ((((this._fixedCols - colsBefore) * charWidth) + this._xterm.element.clientWidth))
 				});
-			this._scrollbar!.getDomNode().style.paddingBottom = '16px';
+			this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
 
 			// work around for https://github.com/xtermjs/xterm.js/issues/3482
 			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
