@@ -963,7 +963,6 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	}
 
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void {
-		console.log('setting edit ' + data);
 		if (!data) {
 			this._editable = undefined;
 		} else {

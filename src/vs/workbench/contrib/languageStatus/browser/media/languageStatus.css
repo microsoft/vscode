@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .statusbar DIV#status\.languageStatus .codicon-circle-large-filled::before {
+	font-size: 12px;
+	line-height: 18px;
+}
+
 .monaco-workbench .hover-language-status {
 	display: flex;
 	padding: 4px 8px;

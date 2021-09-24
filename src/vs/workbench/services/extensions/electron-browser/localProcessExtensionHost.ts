@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Server, Socket, createServer } from 'net';
+import { findFreePort } from 'vs/base/node/ports';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+
 import * as nls from 'vs/nls';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { timeout } from 'vs/base/common/async';
@@ -42,10 +46,6 @@ import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-
-import { Server, Socket, createServer } from 'net';
-import { findFreePort } from 'vs/base/node/ports';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { SerializedError } from 'vs/base/common/errors';
 
 export interface ILocalProcessExtensionHostInitData {
@@ -67,23 +67,23 @@ class ExtensionHostProcess {
 	private readonly _id: string;
 
 	public get onStdout(): Event<string> {
-		return this._extensionHostStarter.onScopedStdout(this._id);
+		return this._extensionHostStarter.onDynamicStdout(this._id);
 	}
 
 	public get onStderr(): Event<string> {
-		return this._extensionHostStarter.onScopedStderr(this._id);
+		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
 	public get onMessage(): Event<any> {
-		return this._extensionHostStarter.onScopedMessage(this._id);
+		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
 	public get onError(): Event<{ error: SerializedError; }> {
-		return this._extensionHostStarter.onScopedError(this._id);
+		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
 	public get onExit(): Event<{ code: number; signal: string }> {
-		return this._extensionHostStarter.onScopedExit(this._id);
+		return this._extensionHostStarter.onDynamicExit(this._id);
 	}
 
 	constructor(

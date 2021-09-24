@@ -3222,16 +3222,6 @@ declare namespace monaco.editor {
 		 */
 		renderControlCharacters?: boolean;
 		/**
-		 * Enable rendering of indent guides.
-		 * Defaults to true.
-		 */
-		renderIndentGuides?: boolean;
-		/**
-		 * Enable highlighting of the active indent guide.
-		 * Defaults to true.
-		 */
-		highlightActiveIndentGuide?: boolean;
-		/**
 		 * Enable rendering of current line highlight.
 		 * Defaults to all.
 		 */
@@ -3291,6 +3281,10 @@ declare namespace monaco.editor {
 		 * Control if the editor should use shadow DOM.
 		 */
 		useShadowDOM?: boolean;
+		/**
+		 * Controls the behavior of editor guides.
+		*/
+		guides?: IGuidesOptions;
 	}
 
 	export interface IDiffEditorBaseOptions {
@@ -3898,6 +3892,25 @@ declare namespace monaco.editor {
 
 	export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketPairColorizationOptions>>;
 
+	export interface IGuidesOptions {
+		/**
+		 * Enable rendering of bracket pair guides.
+		*/
+		bracketPairs?: boolean;
+		/**
+		 * Enable rendering of indent guides.
+		 * Defaults to true.
+		 */
+		indentation?: boolean;
+		/**
+		 * Enable highlighting of the active indent guide.
+		 * Defaults to true.
+		 */
+		highlightActiveIndentation?: boolean;
+	}
+
+	export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
+
 	/**
 	 * Configuration options for editor suggest widget
 	 */
@@ -4107,46 +4120,46 @@ declare namespace monaco.editor {
 		automaticLayout = 10,
 		autoSurround = 11,
 		bracketPairColorization = 12,
-		codeLens = 13,
-		codeLensFontFamily = 14,
-		codeLensFontSize = 15,
-		colorDecorators = 16,
-		columnSelection = 17,
-		comments = 18,
-		contextmenu = 19,
-		copyWithSyntaxHighlighting = 20,
-		cursorBlinking = 21,
-		cursorSmoothCaretAnimation = 22,
-		cursorStyle = 23,
-		cursorSurroundingLines = 24,
-		cursorSurroundingLinesStyle = 25,
-		cursorWidth = 26,
-		disableLayerHinting = 27,
-		disableMonospaceOptimizations = 28,
-		domReadOnly = 29,
-		dragAndDrop = 30,
-		emptySelectionClipboard = 31,
-		extraEditorClassName = 32,
-		fastScrollSensitivity = 33,
-		find = 34,
-		fixedOverflowWidgets = 35,
-		folding = 36,
-		foldingStrategy = 37,
-		foldingHighlight = 38,
-		foldingImportsByDefault = 39,
-		unfoldOnClickAfterEndOfLine = 40,
-		fontFamily = 41,
-		fontInfo = 42,
-		fontLigatures = 43,
-		fontSize = 44,
-		fontWeight = 45,
-		formatOnPaste = 46,
-		formatOnType = 47,
-		glyphMargin = 48,
-		glyphMarginRightPadding = 49,
-		gotoLocation = 50,
-		hideCursorInOverviewRuler = 51,
-		highlightActiveIndentGuide = 52,
+		guides = 13,
+		codeLens = 14,
+		codeLensFontFamily = 15,
+		codeLensFontSize = 16,
+		colorDecorators = 17,
+		columnSelection = 18,
+		comments = 19,
+		contextmenu = 20,
+		copyWithSyntaxHighlighting = 21,
+		cursorBlinking = 22,
+		cursorSmoothCaretAnimation = 23,
+		cursorStyle = 24,
+		cursorSurroundingLines = 25,
+		cursorSurroundingLinesStyle = 26,
+		cursorWidth = 27,
+		disableLayerHinting = 28,
+		disableMonospaceOptimizations = 29,
+		domReadOnly = 30,
+		dragAndDrop = 31,
+		emptySelectionClipboard = 32,
+		extraEditorClassName = 33,
+		fastScrollSensitivity = 34,
+		find = 35,
+		fixedOverflowWidgets = 36,
+		folding = 37,
+		foldingStrategy = 38,
+		foldingHighlight = 39,
+		foldingImportsByDefault = 40,
+		unfoldOnClickAfterEndOfLine = 41,
+		fontFamily = 42,
+		fontInfo = 43,
+		fontLigatures = 44,
+		fontSize = 45,
+		fontWeight = 46,
+		formatOnPaste = 47,
+		formatOnType = 48,
+		glyphMargin = 49,
+		glyphMarginRightPadding = 50,
+		gotoLocation = 51,
+		hideCursorInOverviewRuler = 52,
 		hover = 53,
 		inDiffEditor = 54,
 		inlineSuggest = 55,
@@ -4178,55 +4191,54 @@ declare namespace monaco.editor {
 		readOnly = 81,
 		renameOnType = 82,
 		renderControlCharacters = 83,
-		renderIndentGuides = 84,
-		renderFinalNewline = 85,
-		renderLineHighlight = 86,
-		renderLineHighlightOnlyWhenFocus = 87,
-		renderValidationDecorations = 88,
-		renderWhitespace = 89,
-		revealHorizontalRightPadding = 90,
-		roundedSelection = 91,
-		rulers = 92,
-		scrollbar = 93,
-		scrollBeyondLastColumn = 94,
-		scrollBeyondLastLine = 95,
-		scrollPredominantAxis = 96,
-		selectionClipboard = 97,
-		selectionHighlight = 98,
-		selectOnLineNumbers = 99,
-		showFoldingControls = 100,
-		showUnused = 101,
-		snippetSuggestions = 102,
-		smartSelect = 103,
-		smoothScrolling = 104,
-		stickyTabStops = 105,
-		stopRenderingLineAfter = 106,
-		suggest = 107,
-		suggestFontSize = 108,
-		suggestLineHeight = 109,
-		suggestOnTriggerCharacters = 110,
-		suggestSelection = 111,
-		tabCompletion = 112,
-		tabIndex = 113,
-		unusualLineTerminators = 114,
-		useShadowDOM = 115,
-		useTabStops = 116,
-		wordSeparators = 117,
-		wordWrap = 118,
-		wordWrapBreakAfterCharacters = 119,
-		wordWrapBreakBeforeCharacters = 120,
-		wordWrapColumn = 121,
-		wordWrapOverride1 = 122,
-		wordWrapOverride2 = 123,
-		wrappingIndent = 124,
-		wrappingStrategy = 125,
-		showDeprecated = 126,
-		inlayHints = 127,
-		editorClassName = 128,
-		pixelRatio = 129,
-		tabFocusMode = 130,
-		layoutInfo = 131,
-		wrappingInfo = 132
+		renderFinalNewline = 84,
+		renderLineHighlight = 85,
+		renderLineHighlightOnlyWhenFocus = 86,
+		renderValidationDecorations = 87,
+		renderWhitespace = 88,
+		revealHorizontalRightPadding = 89,
+		roundedSelection = 90,
+		rulers = 91,
+		scrollbar = 92,
+		scrollBeyondLastColumn = 93,
+		scrollBeyondLastLine = 94,
+		scrollPredominantAxis = 95,
+		selectionClipboard = 96,
+		selectionHighlight = 97,
+		selectOnLineNumbers = 98,
+		showFoldingControls = 99,
+		showUnused = 100,
+		snippetSuggestions = 101,
+		smartSelect = 102,
+		smoothScrolling = 103,
+		stickyTabStops = 104,
+		stopRenderingLineAfter = 105,
+		suggest = 106,
+		suggestFontSize = 107,
+		suggestLineHeight = 108,
+		suggestOnTriggerCharacters = 109,
+		suggestSelection = 110,
+		tabCompletion = 111,
+		tabIndex = 112,
+		unusualLineTerminators = 113,
+		useShadowDOM = 114,
+		useTabStops = 115,
+		wordSeparators = 116,
+		wordWrap = 117,
+		wordWrapBreakAfterCharacters = 118,
+		wordWrapBreakBeforeCharacters = 119,
+		wordWrapColumn = 120,
+		wordWrapOverride1 = 121,
+		wordWrapOverride2 = 122,
+		wrappingIndent = 123,
+		wrappingStrategy = 124,
+		showDeprecated = 125,
+		inlayHints = 126,
+		editorClassName = 127,
+		pixelRatio = 128,
+		tabFocusMode = 129,
+		layoutInfo = 130,
+		wrappingInfo = 131
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4242,6 +4254,7 @@ declare namespace monaco.editor {
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
 		autoSurround: IEditorOption<EditorOption.autoSurround, 'languageDefined' | 'never' | 'quotes' | 'brackets'>;
 		bracketPairColorization: IEditorOption<EditorOption.bracketPairColorization, any>;
+		bracketPairGuides: IEditorOption<EditorOption.guides, any>;
 		stickyTabStops: IEditorOption<EditorOption.stickyTabStops, boolean>;
 		codeLens: IEditorOption<EditorOption.codeLens, boolean>;
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
@@ -4282,7 +4295,6 @@ declare namespace monaco.editor {
 		glyphMarginRightPadding: IEditorOption<EditorOption.glyphMarginRightPadding, number>;
 		gotoLocation: IEditorOption<EditorOption.gotoLocation, GoToLocationOptions>;
 		hideCursorInOverviewRuler: IEditorOption<EditorOption.hideCursorInOverviewRuler, boolean>;
-		highlightActiveIndentGuide: IEditorOption<EditorOption.highlightActiveIndentGuide, boolean>;
 		hover: IEditorOption<EditorOption.hover, EditorHoverOptions>;
 		inDiffEditor: IEditorOption<EditorOption.inDiffEditor, boolean>;
 		letterSpacing: IEditorOption<EditorOption.letterSpacing, number>;
@@ -4313,7 +4325,6 @@ declare namespace monaco.editor {
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
-		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
 		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;

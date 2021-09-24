@@ -13,7 +13,7 @@
 
 	/**
 	 * @param {string} channel
-	 * @returns {true | never}
+	 * @returns {true | never}
 	 */
 	function validateIPC(channel) {
 		if (!channel || !channel.startsWith('vscode:')) {
@@ -37,7 +37,7 @@
 
 	/**
 	 * @param {string} key the name of the process argument to parse
-	 * @returns {string | undefined}
+	 * @returns {string | undefined}
 	 */
 	function parseArgv(key) {
 		for (const arg of process.argv) {
@@ -57,7 +57,7 @@
 	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 */
 
-	/** @type {ISandboxConfiguration | undefined} */
+	/** @type {ISandboxConfiguration | undefined} */
 	let configuration = undefined;
 
 	/** @type {Promise<ISandboxConfiguration>} */
@@ -322,7 +322,7 @@
 			 * actual value will be set after `resolveConfiguration`
 			 * has finished.
 			 *
-			 * @returns {ISandboxConfiguration | undefined}
+			 * @returns {ISandboxConfiguration | undefined}
 			 */
 			configuration() {
 				return configuration;

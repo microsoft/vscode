@@ -9,7 +9,7 @@ import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions, PositionAffinity } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel, InjectedTextOptions, PositionAffinity, IndentGuide } from 'vs/editor/common/model';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -333,6 +333,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineLength(lineNumber: number): number;
 	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
+	getBracketGuidesInRangeByLine(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;

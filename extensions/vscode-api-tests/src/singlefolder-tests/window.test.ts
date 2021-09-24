@@ -435,6 +435,11 @@ suite('vscode API - window', () => {
 		tabs = window.tabs;
 		// Tabs should now be B -> C -> A
 		assert.strictEqual(tabs[1].resource?.toString(), docC.uri.toString());
+		await tabs[2].move(1000, ViewColumn.Two);
+		assert.strictEqual(tabs.length, 3);
+		tabs = window.tabs;
+		// Tabs should still be B -> C -> A
+		assert.strictEqual(tabs[2].resource?.toString(), docA.uri.toString());
 
 		await tabs[1].move(0, ViewColumn.Three);
 		assert.strictEqual(tabs.length, 3);

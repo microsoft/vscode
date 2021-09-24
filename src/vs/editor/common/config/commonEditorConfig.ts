@@ -271,6 +271,20 @@ function migrateOptions(options: IEditorOptions): void {
 	} else if (<any>matchBrackets === false) {
 		options.matchBrackets = 'never';
 	}
+
+	const { renderIndentGuides, highlightActiveIndentGuide } = options as any as {
+		renderIndentGuides: boolean;
+		highlightActiveIndentGuide: boolean;
+	};
+	if (!options.guides) {
+		options.guides = {};
+	}
+	if (renderIndentGuides !== undefined) {
+		options.guides.indentation = !!renderIndentGuides;
+	}
+	if (highlightActiveIndentGuide !== undefined) {
+		options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {

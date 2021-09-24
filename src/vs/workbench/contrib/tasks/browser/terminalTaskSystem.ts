@@ -1239,7 +1239,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			args = resolvedResult.args;
 			commandExecutable = CommandString.value(command);
 
-			this.currentTask.shellLaunchConfig = launchConfigs = (this.isRerun && this.lastTask) ? this.lastTask.getVerifiedTask().shellLaunchConfig : await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
+			this.currentTask.shellLaunchConfig = launchConfigs = await this.createShellLaunchConfig(task, workspaceFolder, resolver, platform, options, command, args, waitOnExit);
 			if (launchConfigs === undefined) {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
