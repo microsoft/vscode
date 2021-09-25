@@ -10408,10 +10408,10 @@ vscode-nls-dev@^3.3.1:
     xml2js "^0.4.19"
     yargs "^13.2.4"
 
-vscode-nsfw@2.1.4:
-  version "2.1.4"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.4.tgz#8965413e41a7099e36813921d3b468c12d1b6e59"
-  integrity sha512-EsYWpACwojUjLgJFPhtnk/omId+oyuHpctWQiCLblf53eOxzYC7HT30NljEigl/sFmuTZM0IEMrsonj3GKDYPw==
+vscode-nsfw@2.1.5:
+  version "2.1.5"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.5.tgz#46ae8da8024fb4f2f398f33a8f164f4ead1de3f8"
+  integrity sha512-n62HAIVYUl+4ae6VlE5hBP0NFwTNygI13X0ovd5IXGRDD3lztL/Yj/Rm5SfXtYZ1KUeVNOPWDPx6+F31eIrCdw==
   dependencies:
     node-addon-api "*"
 
