@@ -73,7 +73,7 @@ Please include the following with each issue:
 
 Please remember to do the following:
 
-* [ ] Search the issue repository to ensure your report is a new issue
+* [ ] Search the issue in repository to ensure your report is a new issue
 
 * [ ] Recreate the issue after disabling all extensions
 
