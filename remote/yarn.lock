@@ -556,10 +556,10 @@ universalify@^0.1.0:
   resolved "https://registry.yarnpkg.com/universalify/-/universalify-0.1.2.tgz#b646f69be3942dabcecc9d6639c80dc105efaa66"
   integrity sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
 
-vscode-nsfw@2.1.6:
-  version "2.1.6"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.6.tgz#51148fad0e7ff3b72fe0b3500903ab24af00f308"
-  integrity sha512-3RCPQ1/yBvwJuaUG6bJMOcmlRKuDHFn2xx04u8hWYOkNQODK7LncP5qXwU/NNN32/Vgp/cDy4P1o5HoGAHFOfg==
+vscode-nsfw@2.1.4:
+  version "2.1.4"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.4.tgz#8965413e41a7099e36813921d3b468c12d1b6e59"
+  integrity sha512-EsYWpACwojUjLgJFPhtnk/omId+oyuHpctWQiCLblf53eOxzYC7HT30NljEigl/sFmuTZM0IEMrsonj3GKDYPw==
   dependencies:
     node-addon-api "*"
 

@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
 import { join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/node/pfs';
@@ -39,31 +38,25 @@ flakySuite('Recursive Watcher', () => {
 		protected override getOptions(watcher: any) {
 			return {
 				...super.getOptions(watcher),
-				debounceMS: 1
+
+				// required to let tests pass properly. with a smaller value
+				// somehow `fsevents` on macOS seems to report events from
+				// the past so that the event listening will assume wrongly
+				debounceMS: 500
 			};
 		}
 	}
 
 	let testDir: string;
 	let service: TestNsfwWatcherService;
-
-	let loggingEnabled = false;
-
-	function enableLogging(enable: boolean) {
-		loggingEnabled = enable;
-		service?.setVerboseLogging(enable);
-	}
-
-	enableLogging(false);
+	let enableLogging = false;
 
 	setup(async () => {
 		service = new TestNsfwWatcherService();
 
-		service.onDidLogMessage(e => {
-			if (loggingEnabled) {
-				console.log(`[recursive watcher test message] ${e.message}`);
-			}
-		});
+		if (enableLogging) {
+			service.onDidLogMessage(e => console.log(`[recursive watcher test message] ${e.message}`));
+		}
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
@@ -127,7 +120,7 @@ flakySuite('Recursive Watcher', () => {
 		await Promises.rename(newFolderPath, renamedFolderPath);
 		await changeFuture;
 
-		// Case rename is currently broken on macOS (https://github.com/Axosoft/nsfw/issues/146)
+		// TODO: case rename is currently broken on macOS (https://github.com/Axosoft/nsfw/issues/146)
 		if (isWindows) {
 
 			// Rename file (same name, different case)
@@ -182,7 +175,6 @@ flakySuite('Recursive Watcher', () => {
 		await changeFuture;
 
 		// Change file
-		await timeout(1100); // nsfw cannot distinguish a create from a change when time period from create to change is <1s
 		changeFuture = awaitEvent(service, copiedFilepath, FileChangeType.UPDATED);
 		await Promises.writeFile(copiedFilepath, 'Hello Change');
 		await changeFuture;
