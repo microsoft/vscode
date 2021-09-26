@@ -35,8 +35,10 @@ export function stdinDataListener(durationinMs: number): Promise<boolean> {
 	});
 }
 
-export function getStdinFilePath(): string {
-	return paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}`);
+export function getStdinFilePath(ext?: string | undefined): string {
+	const suffix = ext ? `.${ext}` : '';
+	const rnd = Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3);
+	return paths.join(os.tmpdir(), `code-stdin-${rnd}${suffix}`);
 }
 
 export async function readFromStdin(targetPath: string, verbose: boolean): Promise<void> {
