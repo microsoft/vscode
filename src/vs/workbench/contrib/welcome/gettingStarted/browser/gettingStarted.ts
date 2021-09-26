@@ -1159,13 +1159,13 @@ export class GettingStartedPage extends EditorPane {
 			bar.style.width = `${progress}%`;
 
 
-			(element.parentElement as HTMLElement).classList[stats.stepsComplete === 0 ? 'add' : 'remove']('no-progress');
+			(element.parentElement as HTMLElement).classList.toggle('no-progress', stats.stepsComplete === 0);
 
 			if (stats.stepsTotal === stats.stepsComplete) {
 				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", stats.stepsComplete);
 			}
 			else {
-				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", stats.stepsTotal, stats.stepsComplete);
+				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", stats.stepsComplete, stats.stepsTotal);
 			}
 		});
 	}
