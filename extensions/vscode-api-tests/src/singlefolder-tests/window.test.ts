@@ -455,7 +455,7 @@ suite('vscode API - window', () => {
 		assert.ok(!window.activeTab);
 	});
 
-	test.skip('Tabs - Close Tabs', async () => {
+	test('Tabs - Close Tabs', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -469,18 +469,18 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs.length, 3);
 
 		await tabs[0].close();
-		assert.strictEqual(tabs.length, 2);
 		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 2);
 		assert.strictEqual(tabs[0].resource?.toString(), docB.uri.toString());
 
 		await tabs[0].close();
-		assert.strictEqual(tabs.length, 1);
 		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 1);
 		assert.strictEqual(tabs[0].resource?.toString(), docC.uri.toString());
 
 		await tabs[0].close();
-		assert.strictEqual(tabs.length, 0);
 		tabs = window.tabs;
+		assert.strictEqual(tabs.length, 0);
 		assert.strictEqual(tabs.length, 0);
 		assert.ok(!window.activeTab);
 	});
