@@ -423,7 +423,10 @@ export class DebugService implements IDebugService {
 			if (activeEditor && activeEditor.resource) {
 				type = this.chosenEnvironments[activeEditor.resource.toString()];
 			}
-			if (!type) {
+
+			if (this.configurationManager.hasDebugConfigurationProvider('*') && this.configurationManager.hasDebugConfigurationProvider('vslsJoin')) {
+				type = 'vslsJoin';
+			} else {
 				guess = await this.adapterManager.guessDebugger(false);
 				if (guess) {
 					type = guess.type;
