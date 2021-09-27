@@ -113,7 +113,7 @@ export class ContextMenuController implements IEditorContribution {
 			}
 		}
 
-		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
+		// Unless the user triggered the context menu through Shift+F10, use the mouse position as menu position
 		let anchor: IAnchor | null = null;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			anchor = { x: e.event.posx - 1, width: 2, y: e.event.posy - 1, height: 2 };
