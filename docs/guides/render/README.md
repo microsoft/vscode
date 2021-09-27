@@ -9,7 +9,7 @@ To complete this guide, you need:
 
 To deploy to Render, click the following button and follow the instructions:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/gitpod-vscode-example)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/gitpod-openvscode-server-example.git)
 
 After that, create a name for the service group (for example `OpenVSCode Server`) and click <kbd>Apply</kbd>.
 
@@ -21,7 +21,7 @@ Render starts the server automatically.
 
 When the deployment is complete, you will see your server listed in the <kbd>Services</kbd> section of the Dashboard. In there, you can see your server URL to access OpenVSCode Server.
 
-![image showing where the URL can be found](https://user-images.githubusercontent.com/29888641/133103443-c20a6eab-7d35-46d2-80b0-107dd9237870.png)
+![image showing where the URL can be found](https://user-images.githubusercontent.com/36797588/134728867-54de3d3f-31e5-4c08-a239-f6d2babeec7b.png)
 
 ## Teardown
 
