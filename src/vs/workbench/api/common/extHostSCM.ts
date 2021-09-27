@@ -511,8 +511,12 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
 	private _actionButton: vscode.Command | undefined;
-	get actionButton(): vscode.Command | undefined { return this._actionButton; }
+	get actionButton(): vscode.Command | undefined {
+		checkProposedApiEnabled(this._extension);
+		return this._actionButton;
+	}
 	set actionButton(actionButton: vscode.Command | undefined) {
+		checkProposedApiEnabled(this._extension);
 		this._actionButtonDisposables.value = new DisposableStore();
 
 		this._actionButton = actionButton;
@@ -554,7 +558,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
-		_extension: IExtensionDescription,
+		private readonly _extension: IExtensionDescription,
 		private _proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
 		private _id: string,
