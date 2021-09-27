@@ -358,6 +358,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.outputMinHeight = height;
 	}
 
+	unlockOutputHeight() {
+		this.outputMinHeight = 0;
+		this.layoutChange({ outputHeight: true });
+	}
+
 	updateOutputHeight(index: number, height: number, source?: string) {
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');

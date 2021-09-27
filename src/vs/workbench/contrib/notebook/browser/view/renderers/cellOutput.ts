@@ -301,7 +301,7 @@ export class CellOutputElement extends Disposable {
 		} else {
 			const outputIndex = this.viewCell.outputsViewModels.indexOf(this.output);
 			const oldHeight = this.viewCell.getOutputHeight(outputIndex);
-			if (oldHeight >= 0) {
+			if (oldHeight > 0) {
 				offsetHeight = oldHeight;
 				this._initHeightChecked = true;
 			} else {
@@ -316,10 +316,12 @@ export class CellOutputElement extends Disposable {
 
 		// let's use resize listener for them
 		this._bindResizeListener(innerContainer, dimension);
-		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
+		if (this._initHeightChecked) {
+			this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
+		}
 		const top = this.viewCell.getOutputOffsetInContainer(index);
 		innerContainer.style.top = `${top}px`;
-		return { initRenderIsSynchronous: true };
+		return { initRenderIsSynchronous: this._initHeightChecked };
 	}
 
 	private _bindResizeListener(innerContainer: HTMLElement, dimension: DOM.IDimension) {
@@ -514,12 +516,10 @@ export class CellOutputElement extends Disposable {
 		}
 
 		if (synchronous) {
-			this.viewCell.updateOutputMinHeight(0);
-			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_sync');
+			this.viewCell.unlockOutputHeight();
 		} else {
 			this._outputHeightTimer = setTimeout(() => {
-				this.viewCell.updateOutputMinHeight(0);
-				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_async_1000');
+				this.viewCell.unlockOutputHeight();
 			}, 1000);
 		}
 	}
@@ -529,9 +529,8 @@ export class CellOutputElement extends Disposable {
 	}
 
 	override dispose() {
-		this.viewCell.updateOutputMinHeight(0);
-
 		if (this._outputHeightTimer) {
+			this.viewCell.unlockOutputHeight();
 			clearTimeout(this._outputHeightTimer);
 		}
 
@@ -664,12 +663,10 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		if (synchronous) {
-			this.viewCell.updateOutputMinHeight(0);
-			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_sync');
+			this.viewCell.unlockOutputHeight();
 		} else {
 			this._outputHeightTimer = setTimeout(() => {
-				this.viewCell.updateOutputMinHeight(0);
-				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_async_1000');
+				this.viewCell.unlockOutputHeight();
 			}, 1000);
 		}
 	}
