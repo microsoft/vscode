@@ -18,6 +18,38 @@ enum NavigationDirection {
 	Backwards
 }
 
+type GetRegionFunction = (conflict: interfaces.IDocumentMergeConflict) => interfaces.IMergeRegion;
+
+interface IComparisonChoice {
+	getLeftRegion: GetRegionFunction,
+	getRightRegion: GetRegionFunction,
+	windowString: (fileName: string) => string
+}
+
+interface ICompareType {
+	currentIncoming: IComparisonChoice,
+	currentOriginal: IComparisonChoice,
+	originalIncoming: IComparisonChoice
+}
+
+const CompareType: ICompareType = {
+	currentIncoming: {
+		getLeftRegion: conflict => conflict.current,
+		getRightRegion: conflict => conflict.incoming,
+		windowString: fileName => localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName)
+	},
+	currentOriginal: {
+		getLeftRegion: conflict => conflict.current,
+		getRightRegion: conflict => conflict.commonAncestors[0],
+		windowString: fileName => localize('compareChangesCurrentOriginalTitle', '{0}: Current Changes ⟷ Original', fileName)
+	},
+	originalIncoming: {
+		getLeftRegion: conflict => conflict.commonAncestors[0],
+		getRightRegion: conflict => conflict.incoming,
+		windowString: fileName => localize('compareChangesOriginalIncomingTitle', '{0}: Original ⟷ Incoming Changes', fileName)
+	}
+};
+
 export default class CommandHandler implements vscode.Disposable {
 
 	private disposables: vscode.Disposable[] = [];
@@ -38,7 +70,9 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
-			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
+			this.registerTextEditorCommand('merge-conflict.compare', this.compareCurrentIncoming),
+			this.registerTextEditorCommand('merge-conflict.compare-current-original', this.compareCurrentOriginal),
+			this.registerTextEditorCommand('merge-conflict.compare-original-incoming', this.compareOriginalIncoming)
 		);
 	}
 
@@ -84,7 +118,19 @@ export default class CommandHandler implements vscode.Disposable {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
 	}
 
-	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {
+	compareCurrentIncoming(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null): Promise<void> {
+		return this.compare(editor, CompareType.currentIncoming, conflict);
+	}
+
+	compareCurrentOriginal(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null): Promise<void> {
+		return this.compare(editor, CompareType.currentOriginal, conflict);
+	}
+
+	compareOriginalIncoming(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null): Promise<void> {
+		return this.compare(editor, CompareType.originalIncoming, conflict);
+	}
+
+	async compare(editor: vscode.TextEditor, which: IComparisonChoice, conflict: interfaces.IDocumentMergeConflict | null) {
 
 		// No conflict, command executed from command palette
 		if (!conflict) {
@@ -105,18 +151,24 @@ export default class CommandHandler implements vscode.Disposable {
 			return;
 		}
 
+		if ((which === CompareType.currentOriginal || which === CompareType.originalIncoming) &&
+			conflict.commonAncestors.length === 0) {
+			vscode.window.showWarningMessage(localize('noOriginalConflictRegion', 'Conflict region does not include original code'));
+			return;
+		}
+
 		const scheme = editor.document.uri.scheme;
-		let range = conflict.current.content;
-		let leftRanges = conflicts.map(conflict => [conflict.current.content, conflict.range]);
-		let rightRanges = conflicts.map(conflict => [conflict.incoming.content, conflict.range]);
+		let range = which.getLeftRegion(conflict).content;
+
+		let leftRanges = conflicts.map(conflict => [which.getLeftRegion(conflict).content, conflict.range]);
+		let rightRanges = conflicts.map(conflict => [which.getRightRegion(conflict).content, conflict.range]);
 
 		const leftUri = editor.document.uri.with({
 			scheme: ContentProvider.scheme,
 			query: JSON.stringify({ scheme, range: range, ranges: leftRanges })
 		});
 
-
-		range = conflict.incoming.content;
+		range = which.getRightRegion(conflict).content;
 		const rightUri = leftUri.with({ query: JSON.stringify({ scheme, ranges: rightRanges }) });
 
 		let mergeConflictLineOffsets = 0;
@@ -124,6 +176,7 @@ export default class CommandHandler implements vscode.Disposable {
 			if (nextconflict.range.isEqual(conflict.range)) {
 				break;
 			} else {
+				// Not sure about this calculation
 				mergeConflictLineOffsets += (nextconflict.range.end.line - nextconflict.range.start.line) - (nextconflict.incoming.content.end.line - nextconflict.incoming.content.start.line);
 			}
 		}
@@ -134,7 +187,7 @@ export default class CommandHandler implements vscode.Disposable {
 
 		const docPath = editor.document.uri.path;
 		const fileName = docPath.substring(docPath.lastIndexOf('/') + 1); // avoid NodeJS path to keep browser webpack small
-		const title = localize('compareChangesTitle', '{0}: Current Changes ⟷ Incoming Changes', fileName);
+		const title = which.windowString(fileName);
 		const mergeConflictConfig = vscode.workspace.getConfiguration('merge-conflict');
 		const openToTheSide = mergeConflictConfig.get<string>('diffViewPosition');
 		const opts: vscode.TextDocumentShowOptions = {

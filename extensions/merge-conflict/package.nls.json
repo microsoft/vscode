@@ -12,6 +12,8 @@
 	"command.next": "Next Conflict",
 	"command.previous": "Previous Conflict",
 	"command.compare": "Compare Current Conflict",
+	"command.compare-current-original": "Compare Current Against Original",
+	"command.compare-original-incoming": "Compare Original Against Incoming",
 	"config.title": "Merge Conflict",
 	"config.autoNavigateNextConflictEnabled": "Whether to automatically navigate to the next merge conflict after resolving a merge conflict.",
 	"config.codeLensEnabled": "Create a CodeLens for merge conflict blocks within editor.",
