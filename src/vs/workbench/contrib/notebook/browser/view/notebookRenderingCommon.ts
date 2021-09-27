@@ -60,6 +60,7 @@ export interface INotebookCellList {
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
+	isScrolledToBottom(): boolean;
 	scrollToBottom(): void;
 	revealElementInView(element: ICellViewModel): void;
 	revealElementInViewAtTop(element: ICellViewModel): void;

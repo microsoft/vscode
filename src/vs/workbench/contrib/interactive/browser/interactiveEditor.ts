@@ -22,7 +22,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutChangeEvent, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -43,6 +43,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -399,7 +400,7 @@ export class InteractiveEditor extends EditorPane {
 	 * - receive a scroll event (scroll even already happened). If the last cell is at bottom, false, 0, true, state 1
 	 * - height change of the last cell, if state 0, do nothing, if state 1, scroll the last cell fully into view
 	 */
-	#registerExecutionScrollListener(widget: IActiveNotebookEditorDelegate) {
+	#registerExecutionScrollListener(widget: NotebookEditorWidget & IActiveNotebookEditorDelegate) {
 		this.#widgetDisposableStore.add(widget.textModel.onWillAddRemoveCells(e => {
 			const lastViewCell = widget.cellAt(widget.getLength() - 1);
 
@@ -446,6 +447,10 @@ export class InteractiveEditor extends EditorPane {
 		this.#lastCellDisposable.add(this.#lastCell.onDidChangeLayout((e) => {
 			if (e.totalHeight === undefined) {
 				// not cell height change
+				return;
+			}
+
+			if (this.#lastCell instanceof CodeCellViewModel && (e as CodeCellLayoutChangeEvent).outputHeight === undefined && !this.#notebookWidget.value!.isScrolledToBottom()) {
 				return;
 			}
 

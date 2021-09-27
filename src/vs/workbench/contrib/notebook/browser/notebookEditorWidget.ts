@@ -84,6 +84,10 @@ export class ListViewInfoAccessor extends Disposable {
 		this.list.scrollTop = scrollTop;
 	}
 
+	isScrolledToBottom() {
+		return this.list.isScrolledToBottom();
+	}
+
 	scrollToBottom() {
 		this.list.scrollToBottom();
 	}
@@ -1777,6 +1781,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			primary: cell.handle,
 			selections: [cell.handle]
 		});
+	}
+
+	isScrolledToBottom() {
+		return this._listViewInfoAccessor.isScrolledToBottom();
 	}
 
 	scrollToBottom() {
