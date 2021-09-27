@@ -12,7 +12,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = new class implements ITelemetryService {
+export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
 
@@ -39,7 +39,9 @@ export const NullTelemetryService = new class implements ITelemetryService {
 			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
-};
+}
+
+export const NullTelemetryService = new NullTelemetryServiceShape();
 
 export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	_serviceBrand: undefined;
