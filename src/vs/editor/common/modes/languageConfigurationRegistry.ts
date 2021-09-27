@@ -207,7 +207,7 @@ class LanguageConfigurationEntries {
 
 export class LanguageConfigurationRegistryImpl {
 
-	private readonly _entries2 = new Map<LanguageId, LanguageConfigurationEntries>();
+	private readonly _entries = new Map<LanguageId, LanguageConfigurationEntries>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
@@ -216,10 +216,10 @@ export class LanguageConfigurationRegistryImpl {
 	 * @param priority Use a higher number for higher priority
 	 */
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
-		let entries = this._entries2.get(languageIdentifier.id);
+		let entries = this._entries.get(languageIdentifier.id);
 		if (!entries) {
 			entries = new LanguageConfigurationEntries(languageIdentifier);
-			this._entries2.set(languageIdentifier.id, entries);
+			this._entries.set(languageIdentifier.id, entries);
 		}
 
 		const disposable = entries.register(configuration, priority);
@@ -232,7 +232,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | null {
-		const entries = this._entries2.get(languageId);
+		const entries = this._entries.get(languageId);
 		return entries ? entries.getRichEditSupport() : null;
 	}
 
@@ -329,7 +329,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	public getWordDefinitions(): [LanguageId, RegExp][] {
 		let result: [LanguageId, RegExp][] = [];
-		for (const [language, entries] of this._entries2) {
+		for (const [language, entries] of this._entries) {
 			const value = entries.getRichEditSupport();
 			if (value) {
 				result.push([language, value.wordDefinition]);
