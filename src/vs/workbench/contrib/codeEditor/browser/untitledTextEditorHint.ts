@@ -101,6 +101,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
+			language.tabIndex = 1;
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
 			this.domNode.appendChild(language);
@@ -114,6 +115,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.appendChild(dontShow);
 
 			const thisAgain = $('span');
+			thisAgain.tabIndex = 1;
 			thisAgain.innerText = localize('thisAgain', " this again.");
 			this.domNode.appendChild(thisAgain);
 			this.toDispose.push(Gesture.addTarget(this.domNode));
