@@ -108,9 +108,8 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_modeService.onDidCreateMode((e) => {
-			const id = e.getId();
-			registerCodeRendererContrib(`text/x-${id}`, id);
+		this._register(_modeService.onDidEncounterLanguage((languageIdentifier) => {
+			registerCodeRendererContrib(`text/x-${languageIdentifier.language}`, languageIdentifier.language);
 		}));
 
 		registerCodeRendererContrib('application/json', 'json');

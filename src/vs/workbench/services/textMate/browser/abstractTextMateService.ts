@@ -173,10 +173,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		}
 		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
-		this._modeService.onDidCreateMode((mode) => {
-			let modeId = mode.getId();
-			this._createdModes.push(modeId);
-			this._registerDefinitionIfAvailable(modeId);
+		this._modeService.onDidEncounterLanguage((languageIdentifier) => {
+			this._createdModes.push(languageIdentifier.language);
+			this._registerDefinitionIfAvailable(languageIdentifier.language);
 		});
 	}
 

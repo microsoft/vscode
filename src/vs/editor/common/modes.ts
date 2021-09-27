@@ -52,18 +52,6 @@ export class LanguageIdentifier {
 }
 
 /**
- * A mode. Will soon be obsolete.
- * @internal
- */
-export interface IMode {
-
-	getId(): string;
-
-	getLanguageIdentifier(): LanguageIdentifier;
-
-}
-
-/**
  * A font style. Values are 2^x such that a bit mask can be used.
  * @internal
  */

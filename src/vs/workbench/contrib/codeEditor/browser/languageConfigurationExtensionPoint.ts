@@ -90,8 +90,7 @@ export class LanguageConfigurationFileHandler {
 		this._done = [];
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidCreateMode((mode) => {
-			const languageIdentifier = mode.getLanguageIdentifier();
+		this._modeService.onDidEncounterLanguage((languageIdentifier) => {
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this._loadConfigurationsForMode(languageIdentifier);
