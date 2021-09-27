@@ -424,12 +424,15 @@ export class DebugService implements IDebugService {
 				type = this.chosenEnvironments[activeEditor.resource.toString()];
 			}
 
-			if (this.configurationManager.hasDebugConfigurationProvider('*') && this.configurationManager.hasDebugConfigurationProvider('vslsJoin')) {
-				type = 'vslsJoin';
-			} else {
-				guess = await this.adapterManager.guessDebugger(false);
-				if (guess) {
-					type = guess.type;
+			if (!type) {
+				// Set the Live Share guest debug type when the user has joined a collaboration session
+				if (this.configurationManager.hasDebugConfigurationProvider('*') && this.configurationManager.hasDebugConfigurationProvider('vslsJoin')) {
+					type = 'vslsJoin';
+				} else {
+					guess = await this.adapterManager.guessDebugger(false);
+					if (guess) {
+						type = guess.type;
+					}
 				}
 			}
 		}
