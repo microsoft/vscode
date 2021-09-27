@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize({ key: 'miGetStarted', comment: ['&& denotes a mnemonic'] }, "&&Get Started"),
+			title: localize('miGetStarted', "Get Started"),
 			category: localize('help', "Help"),
 			f1: true,
 			menu: {
