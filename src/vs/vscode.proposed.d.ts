@@ -1405,7 +1405,7 @@ declare module 'vscode' {
 	export interface NotebookDecorationRenderOptions {
 		backgroundColor?: string | ThemeColor;
 		borderColor?: string | ThemeColor;
-		top: ThemableDecorationAttachmentRenderOptions;
+		top?: ThemableDecorationAttachmentRenderOptions;
 	}
 
 	export interface NotebookEditorDecorationType {
