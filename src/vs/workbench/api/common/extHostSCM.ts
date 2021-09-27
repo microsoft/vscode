@@ -509,6 +509,19 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
+	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
+	private _actionButton: vscode.Command | undefined;
+	get actionButton(): vscode.Command | undefined { return this._actionButton; }
+	set actionButton(actionButton: vscode.Command | undefined) {
+		this._actionButtonDisposables.value = new DisposableStore();
+
+		this._actionButton = actionButton;
+
+		const internal = actionButton !== undefined ? this._commands.converter.toInternal(this._actionButton, this._actionButtonDisposables.value) : undefined;
+		this._proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
+	}
+
+
 	private _statusBarDisposables = new MutableDisposable<DisposableStore>();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;
 
@@ -630,6 +643,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	dispose(): void {
 		this._acceptInputDisposables.dispose();
+		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
 
 		this._groups.forEach(group => group.dispose());

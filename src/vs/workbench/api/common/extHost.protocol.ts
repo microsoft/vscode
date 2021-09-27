@@ -1053,6 +1053,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
+	actionButton?: ICommandDto | null;
 	statusBarCommands?: ICommandDto[];
 }
 

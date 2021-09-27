@@ -2820,4 +2820,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	export interface SourceControl {
+		actionButton?: Command;
+	}
 }
