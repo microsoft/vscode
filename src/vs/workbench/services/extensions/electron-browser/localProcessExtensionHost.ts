@@ -449,7 +449,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					this._namedPipeServer.close();
 					this._namedPipeServer = null;
 				}
-				reject('timeout');
+				reject('The local extension host took longer than 60s to connect.');
 			}, 60 * 1000);
 
 			this._namedPipeServer!.on('connection', socket => {
@@ -475,7 +475,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
 					timeoutHandle = setTimeout(() => {
-						reject('timeout');
+						reject('The local extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 				};
 				const uninstallTimeoutCheck = () => {
