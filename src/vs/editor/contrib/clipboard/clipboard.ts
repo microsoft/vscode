@@ -224,7 +224,7 @@ if (PasteAction) {
 			const result = document.execCommand('paste');
 			// Use the clipboard service if document.execCommand('paste') was not successful
 			if (!result && platform.isWeb) {
-				(async () => {
+				return (async () => {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
@@ -244,7 +244,6 @@ if (PasteAction) {
 						});
 					}
 				})();
-				return true;
 			}
 			return true;
 		}
