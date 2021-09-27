@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult } from 'vscode';
+import { Disposable, Event, ProviderResult, Uri } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -137,6 +137,8 @@ export interface CommitOptions {
 	empty?: boolean;
 	noVerify?: boolean;
 	requireUserConfig?: boolean;
+	useEditor?: boolean;
+	verbose?: boolean;
 }
 
 export interface FetchOptions {
@@ -324,4 +326,5 @@ export const enum GitErrorCodes {
 	PatchDoesNotApply = 'PatchDoesNotApply',
 	NoPathFound = 'NoPathFound',
 	UnknownPath = 'UnknownPath',
+	EmptyCommitMessage = 'EmptyCommitMessage'
 }

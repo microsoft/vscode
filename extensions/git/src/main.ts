@@ -13,6 +13,7 @@ import { CommandCenter } from './commands';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
+import { GitEditor } from './gitEditor';
 import { toDisposable, filterEvent, eventToPromise } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { GitExtension } from './api/git';
@@ -24,6 +25,8 @@ import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
+import { createIPCServer, IIPCServer } from './ipc/ipcServer';
+import { GitCommitFileSystemProvider } from './commitFileSystemProvider';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -59,10 +62,21 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		return !skip;
 	});
 
-	const askpass = await Askpass.create(outputChannel, context.storagePath);
+	let ipc: IIPCServer | undefined = undefined;
+
+	try {
+		ipc = await createIPCServer(context.storagePath);
+	} catch (err) {
+		outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
+	}
+
+	const askpass = new Askpass(ipc);
 	disposables.push(askpass);
 
-	const environment = askpass.getEnv();
+	const gitEditor = new GitEditor(ipc);
+	disposables.push(gitEditor);
+
+	const environment = { ...askpass.getEnv(), ...gitEditor.getEnv() };
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 
@@ -99,6 +113,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	disposables.push(
 		cc,
 		new GitFileSystemProvider(model),
+		new GitCommitFileSystemProvider(),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
 		new GitTimelineProvider(model, cc)

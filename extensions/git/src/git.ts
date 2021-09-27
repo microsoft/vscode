@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises as fs, exists, realpath } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import * as cp from 'child_process';
-import * as which from 'which';
-import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
-import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
-import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
+import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import * as filetype from 'file-type';
+import { exists, promises as fs, realpath } from 'fs';
+import * as iconv from 'iconv-lite-umd';
+import * as os from 'os';
+import * as path from 'path';
 import { StringDecoder } from 'string_decoder';
+import { CancellationToken, Progress, Uri } from 'vscode';
+import * as which from 'which';
+import { Branch, BranchQuery, Change, CommitOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { detectEncoding } from './encoding';
+import { assign, detectUnicodeEncoding, dispose, Encoding, groupBy, IDisposable, Limiter, mkdirp, onceEvent, readBytes, splitInChunks, toDisposable, Versions } from './util';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
@@ -1342,7 +1342,15 @@ export class Repository {
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
-		const args = ['commit', '--quiet', '--allow-empty-message'];
+		const args = ['commit', '--quiet'];
+		const options: SpawnOptions = {};
+
+		if (!opts.useEditor || message) {
+			options.input = message;
+			args.push(...['--allow-empty-message', '--file', '-']);
+		} else if (opts.verbose) {
+			args.push('--verbose');
+		}
 
 		if (opts.all) {
 			args.push('--all');
@@ -1353,9 +1361,11 @@ export class Repository {
 		}
 
 		if (opts.amend && !message) {
-			args.push('--amend', '--no-edit');
-		} else {
-			args.push('--file', '-');
+			if (opts.useEditor) {
+				args.push('--amend');
+			} else {
+				args.push('--amend', '--no-edit');
+			}
 		}
 
 		if (opts.signoff) {
@@ -1380,7 +1390,7 @@ export class Repository {
 		}
 
 		try {
-			await this.exec(args, !opts.amend || message ? { input: message || '' } : {});
+			await this.exec(args, options);
 		} catch (commitErr) {
 			await this.handleCommitError(commitErr);
 		}
@@ -1403,6 +1413,9 @@ export class Repository {
 	private async handleCommitError(commitErr: any): Promise<void> {
 		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
+			throw commitErr;
+		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
 
