@@ -454,7 +454,8 @@ export function getParentFoldLine(lineNumber: number, foldingModel: FoldingModel
  */
 export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
 	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
-	if (foldingRegion !== null) {
+	// If on the folding range start line, go to previous sibling.
+	if (foldingRegion !== null && foldingRegion.startLineNumber === lineNumber) {
 		// If current line is not the start of the current fold, go to top line of current fold. If not, go to previous fold.
 		if (lineNumber !== foldingRegion.startLineNumber) {
 			return foldingRegion.startLineNumber;
@@ -487,8 +488,8 @@ export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingMod
 		if (foldingModel.regions.length > 0) {
 			foldingRegion = foldingModel.regions.toRegion(foldingModel.regions.length - 1);
 			while (foldingRegion !== null) {
-				// Found non-parent fold before current line.
-				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber < lineNumber) {
+				// Found fold before current line.
+				if (foldingRegion.startLineNumber < lineNumber) {
 					return foldingRegion.startLineNumber;
 				}
 				if (foldingRegion.regionIndex > 0) {
@@ -511,7 +512,8 @@ export function getPreviousFoldLine(lineNumber: number, foldingModel: FoldingMod
  */
 export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel): number | null {
 	let foldingRegion = foldingModel.getRegionAtLine(lineNumber);
-	if (foldingRegion !== null) {
+	// If on the folding range start line, go to next sibling.
+	if (foldingRegion !== null && foldingRegion.startLineNumber === lineNumber) {
 		// Find max line number to stay within parent.
 		let expectedParentIndex = foldingRegion.parentIndex;
 		let maxLineNumber = 0;
@@ -543,8 +545,8 @@ export function getNextFoldLine(lineNumber: number, foldingModel: FoldingModel):
 		if (foldingModel.regions.length > 0) {
 			foldingRegion = foldingModel.regions.toRegion(0);
 			while (foldingRegion !== null) {
-				// Found non-parent fold after current line.
-				if (foldingRegion.parentIndex === -1 && foldingRegion.startLineNumber > lineNumber) {
+				// Found fold after current line.
+				if (foldingRegion.startLineNumber > lineNumber) {
 					return foldingRegion.startLineNumber;
 				}
 				if (foldingRegion.regionIndex < foldingModel.regions.length) {
