@@ -6930,15 +6930,15 @@ node-abi@^2.21.0:
   dependencies:
     semver "^5.4.1"
 
-node-addon-api@*:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.2.0.tgz#117cbb5a959dff0992e1c586ae0393573e4d2a87"
-  integrity sha512-eazsqzwG2lskuzBqCGPi7Ac2UgOoMz8JVOXVhTvvPDYhthvNpefx8jWD8Np7Gv+2Sz0FlPWZk0nJV0z598Wn8Q==
-
 node-addon-api@^3.0.0, node-addon-api@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
   integrity sha512-flmrDNB06LIl5lywUz7YlNGZH/5p0M7W28k8hzd9Lshtdh1wshD2Y+U4h9LD6KObOy1f+fEVdgprPrEymjM5uw==
+
+node-addon-api@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.2.0.tgz#117cbb5a959dff0992e1c586ae0393573e4d2a87"
+  integrity sha512-eazsqzwG2lskuzBqCGPi7Ac2UgOoMz8JVOXVhTvvPDYhthvNpefx8jWD8Np7Gv+2Sz0FlPWZk0nJV0z598Wn8Q==
 
 node-fetch@^2.6.1:
   version "2.6.2"
@@ -10408,12 +10408,12 @@ vscode-nls-dev@^3.3.1:
     xml2js "^0.4.19"
     yargs "^13.2.4"
 
-vscode-nsfw@2.1.6:
-  version "2.1.6"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.6.tgz#51148fad0e7ff3b72fe0b3500903ab24af00f308"
-  integrity sha512-3RCPQ1/yBvwJuaUG6bJMOcmlRKuDHFn2xx04u8hWYOkNQODK7LncP5qXwU/NNN32/Vgp/cDy4P1o5HoGAHFOfg==
+vscode-nsfw@2.1.7:
+  version "2.1.7"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.7.tgz#b184cf538e8dcec2bb959a5fe36d95ec84299648"
+  integrity sha512-CYdbAl/GJuQ0vG3+lSirk2l9kQdZBZjcfyM7wHJ0RJ5CNbiGseSURAC8OorC6Kbd5SUp862PUhXZZVV15nnwmw==
   dependencies:
-    node-addon-api "*"
+    node-addon-api "^4.2.0"
 
 vscode-oniguruma@1.5.1:
   version "1.5.1"

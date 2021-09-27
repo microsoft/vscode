@@ -78,7 +78,7 @@
     "sudo-prompt": "9.2.1",
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.22",
-    "vscode-nsfw": "2.1.6",
+    "vscode-nsfw": "2.1.7",
     "vscode-oniguruma": "1.5.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
