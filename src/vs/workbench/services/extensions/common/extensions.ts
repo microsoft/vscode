@@ -288,10 +288,30 @@ export interface IExtensionService {
 	 */
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
+	/**
+	 * Please do not use!
+	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
+	 */
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 }
 
