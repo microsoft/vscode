@@ -9,13 +9,49 @@ import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IAddress, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
+import { DeferredPromise } from 'vs/base/common/async';
+
+class TunnelData extends Disposable implements IAddressProvider {
+
+	private _address: IAddress | null;
+	private _addressPromise: DeferredPromise<IAddress> | null;
+
+	constructor() {
+		super();
+		this._address = null;
+		this._addressPromise = null;
+	}
+
+	async getAddress(): Promise<IAddress> {
+		if (this._address) {
+			// address is resolved
+			return this._address;
+		}
+		if (!this._addressPromise) {
+			this._addressPromise = new DeferredPromise<IAddress>();
+		}
+		return this._addressPromise.p;
+	}
+
+	setAddress(address: IAddress): void {
+		this._address = address;
+		if (this._addressPromise) {
+			this._addressPromise.complete(address);
+			this._addressPromise = null;
+		}
+	}
+
+	setTunnel(tunnel: RemoteTunnel): void {
+		this._register(tunnel);
+	}
+}
 
 export class SharedProcessTunnelService extends Disposable implements ISharedProcessTunnelService {
 	_serviceBrand: undefined;
 
 	private static _lastId = 0;
 
-	private readonly _tunnels: Map<string, RemoteTunnel> = new Map<string, RemoteTunnel>();
+	private readonly _tunnels: Map<string, TunnelData> = new Map<string, TunnelData>();
 	private readonly _disposedTunnels: Set<string> = new Set<string>();
 
 	constructor(
@@ -35,27 +71,26 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 		return { id };
 	}
 
-	async startTunnel(id: string, address: IAddress, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
-		const addressProvider = new class implements IAddressProvider {
-			async getAddress(): Promise<IAddress> {
-				return address;
-			}
-		};
+	async startTunnel(id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
+		const tunnelData = new TunnelData();
 
-		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(addressProvider, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded));
+		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded));
 		if (!tunnel) {
 			this._logService.info(`[SharedProcessTunnelService] Could not create a tunnel to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
+			tunnelData.dispose();
 			throw new Error(`Could not create tunnel`);
 		}
 
 		if (this._disposedTunnels.has(id)) {
 			// This tunnel was disposed in the meantime
 			this._disposedTunnels.delete(id);
+			tunnelData.dispose();
 			await tunnel.dispose();
 			throw canceled();
 		}
 
-		this._tunnels.set(id, tunnel);
+		tunnelData.setTunnel(tunnel);
+		this._tunnels.set(id, tunnelData);
 
 		this._logService.info(`[SharedProcessTunnelService] Created tunnel ${id}: ${tunnel.localAddress} (local) to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
 		const result: ISharedProcessTunnel = {
@@ -63,6 +98,14 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 			localAddress: tunnel.localAddress
 		};
 		return result;
+	}
+
+	async setAddress(id: string, address: IAddress): Promise<void> {
+		const tunnel = this._tunnels.get(id);
+		if (!tunnel) {
+			return;
+		}
+		tunnel.setAddress(address);
 	}
 
 	async destroyTunnel(id: string): Promise<void> {
