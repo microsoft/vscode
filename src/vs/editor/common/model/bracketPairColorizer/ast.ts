@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tail } from 'vs/base/common/arrays';
-import { DenseKeyProvider, SmallImmutableSet } from './smallImmutableSet';
+import { SmallImmutableSet } from './smallImmutableSet';
 import { lengthAdd, lengthZero, Length, lengthHash } from './length';
+import { OpeningBracketId } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
 
 export const enum AstNodeKind {
 	Text = 0,
@@ -17,73 +17,134 @@ export const enum AstNodeKind {
 
 export type AstNode = PairAstNode | ListAstNode | BracketAstNode | InvalidBracketAstNode | TextAstNode;
 
+/**
+ * The base implementation for all AST nodes.
+*/
 abstract class BaseAstNode {
-	abstract readonly kind: AstNodeKind;
-	abstract readonly children: readonly AstNode[];
-	abstract readonly unopenedBrackets: SmallImmutableSet<number>;
+	public abstract readonly kind: AstNodeKind;
+
+	public abstract readonly childrenLength: number;
+
+	/**
+	 * Might return null even if {@link idx} is smaller than {@link BaseAstNode.childrenLength}.
+	*/
+	public abstract getChild(idx: number): AstNode | null;
+
+	/**
+	 * Try to avoid using this property, as implementations might need to allocate the resulting array.
+	*/
+	public abstract readonly children: readonly AstNode[];
+
+	/**
+	 * Represents the set of all (potentially) missing opening bracket ids in this node.
+	 * E.g. in `{ ] ) }` that set is {`[`, `(` }.
+	*/
+	public abstract readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>;
 
 	/**
 	 * In case of a list, determines the height of the (2,3) tree.
 	*/
-	abstract readonly listHeight: number;
+	public abstract readonly listHeight: number;
 
-	abstract canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+	protected _length: Length;
+
+	/**
+	 * The length of the entire node, which should equal the sum of lengths of all children.
+	*/
+	public get length(): Length {
+		return this._length;
+	}
+
+	public constructor(length: Length) {
+		this._length = length;
+	}
+
+	/**
+	 * @param openBracketIds The set of all opening brackets that have not yet been closed.
+	 */
+	public abstract canBeReused(
+		openBracketIds: SmallImmutableSet<OpeningBracketId>,
 		endLineDidChange: boolean
 	): boolean;
 
 	/**
-	 * Flattenes all lists in this AST. Only for debugging.
+	 * Flattens all lists in this AST. Only for debugging.
 	 */
-	abstract flattenLists(): AstNode;
+	public abstract flattenLists(): AstNode;
 
 	/**
 	 * Creates a deep clone.
 	 */
-	abstract clone(): AstNode;
-
-	protected _length: Length;
-
-	get length(): Length {
-		return this._length;
-	}
-
-	constructor(length: Length) {
-		this._length = length;
-	}
+	public abstract deepClone(): AstNode;
 }
 
+/**
+ * Represents a bracket pair including its child (e.g. `{ ... }`).
+ * Might be unclosed.
+ * Immutable, if all children are immutable.
+*/
 export class PairAstNode extends BaseAstNode {
 	public static create(
-		category: number,
 		openingBracket: BracketAstNode,
 		child: AstNode | null,
 		closingBracket: BracketAstNode | null
 	) {
-		const length = computeLength(openingBracket, child, closingBracket);
-
-		const children = new Array(1);
-		children[0] = openingBracket;
+		let length = openingBracket.length;
 		if (child) {
-			children.push(child);
+			length = lengthAdd(length, child.length);
 		}
 		if (closingBracket) {
-			children.push(closingBracket);
+			length = lengthAdd(length, closingBracket.length);
 		}
-
-		return new PairAstNode(length, category, children, child ? child.unopenedBrackets : SmallImmutableSet.getEmpty());
+		return new PairAstNode(length, openingBracket, child, closingBracket, child ? child.missingOpeningBracketIds : SmallImmutableSet.getEmpty());
 	}
 
-	get kind(): AstNodeKind.Pair {
+	public get kind(): AstNodeKind.Pair {
 		return AstNodeKind.Pair;
 	}
-	get listHeight() {
+	public get listHeight() {
 		return 0;
 	}
+	public get childrenLength(): number {
+		return 3;
+	}
+	public getChild(idx: number): AstNode | null {
+		switch (idx) {
+			case 0: return this.openingBracket;
+			case 1: return this.child;
+			case 2: return this.closingBracket;
+		}
+		throw new Error('Invalid child index');
+	}
 
-	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
-		endLineDidChange: boolean
+	/**
+	 * Avoid using this property, it allocates an array!
+	*/
+	public get children() {
+		const result = new Array<AstNode>();
+		result.push(this.openingBracket);
+		if (this.child) {
+			result.push(this.child);
+		}
+		if (this.closingBracket) {
+			result.push(this.closingBracket);
+		}
+		return result;
+	}
+
+	private constructor(
+		length: Length,
+		public readonly openingBracket: BracketAstNode,
+		public readonly child: AstNode | null,
+		public readonly closingBracket: BracketAstNode | null,
+		public readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	) {
+		super(length);
+	}
+
+	public canBeReused(
+		openBracketIds: SmallImmutableSet<OpeningBracketId>,
+		_endLineDidChange: boolean
 	) {
 		if (this.closingBracket === null) {
 			// Unclosed pair ast nodes only
@@ -96,140 +157,176 @@ export class PairAstNode extends BaseAstNode {
 			return false;
 		}
 
-		if (expectedClosingCategories.intersects(this.unopenedBrackets)) {
+		if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
 			return false;
 		}
 
 		return true;
 	}
 
-	flattenLists(): PairAstNode {
+	public flattenLists(): PairAstNode {
 		return PairAstNode.create(
-			this.category,
 			this.openingBracket.flattenLists(),
 			this.child && this.child.flattenLists(),
 			this.closingBracket && this.closingBracket.flattenLists()
 		);
 	}
 
-	get openingBracket(): BracketAstNode {
-		return this.children[0] as BracketAstNode;
-	}
-
-	get child(): AstNode | null {
-		if (this.children.length <= 1) {
-			return null;
-		}
-		if (this.children[1].kind === AstNodeKind.Bracket) {
-			return null;
-		}
-		return this.children[1] || null;
-	}
-
-	get closingBracket(): BracketAstNode | null {
-		if (this.children.length <= 1) {
-			return null;
-		}
-		if (this.children[1].kind === AstNodeKind.Bracket) {
-			return this.children[1] || null;
-		}
-		return (this.children[2] as BracketAstNode) || null;
-	}
-
-	private constructor(
-		length: Length,
-		public readonly category: number,
-		public readonly children: readonly AstNode[],
-		public readonly unopenedBrackets: SmallImmutableSet<number>
-	) {
-		super(length);
-	}
-
-	clone(): PairAstNode {
+	public deepClone(): PairAstNode {
 		return new PairAstNode(
 			this.length,
-			this.category,
-			clone(this.children),
-			this.unopenedBrackets
+			this.openingBracket.deepClone(),
+			this.child && this.child.deepClone(),
+			this.closingBracket && this.closingBracket.deepClone(),
+			this.missingOpeningBracketIds
 		);
 	}
 }
 
-function computeLength(openingBracket: BracketAstNode, child: AstNode | null, closingBracket: BracketAstNode | null): Length {
-	let length = openingBracket.length;
-	if (child) {
-		length = lengthAdd(length, child.length);
-	}
-	if (closingBracket) {
-		length = lengthAdd(length, closingBracket.length);
-	}
-	return length;
-}
+export abstract class ListAstNode extends BaseAstNode {
+	/**
+	 * This method uses more memory-efficient list nodes that can only store 2 or 3 children.
+	*/
+	public static create23(item1: AstNode, item2: AstNode, item3: AstNode | null, immutable: boolean = false): ListAstNode {
+		let length = item1.length;
+		let missingBracketIds = item1.missingOpeningBracketIds;
 
-export class ListAstNode extends BaseAstNode {
-	public static create(items: AstNode[]) {
+		if (item1.listHeight !== item2.listHeight) {
+			throw new Error('Invalid list heights');
+		}
+
+		length = lengthAdd(length, item2.length);
+		missingBracketIds = missingBracketIds.merge(item2.missingOpeningBracketIds);
+
+		if (item3) {
+			if (item1.listHeight !== item3.listHeight) {
+				throw new Error('Invalid list heights');
+			}
+			length = lengthAdd(length, item3.length);
+			missingBracketIds = missingBracketIds.merge(item3.missingOpeningBracketIds);
+		}
+		return immutable
+			? new Immutable23ListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds)
+			: new TwoThreeListAstNode(length, item1.listHeight + 1, item1, item2, item3, missingBracketIds);
+	}
+
+	public static create(items: AstNode[], immutable: boolean = false): ListAstNode {
 		if (items.length === 0) {
-			return new ListAstNode(lengthZero, 0, items, SmallImmutableSet.getEmpty());
+			return this.getEmpty();
 		} else {
 			let length = items[0].length;
-			let unopenedBrackets = items[0].unopenedBrackets;
+			let unopenedBrackets = items[0].missingOpeningBracketIds;
 			for (let i = 1; i < items.length; i++) {
 				length = lengthAdd(length, items[i].length);
-				unopenedBrackets = unopenedBrackets.merge(items[i].unopenedBrackets);
+				unopenedBrackets = unopenedBrackets.merge(items[i].missingOpeningBracketIds);
 			}
-			return new ListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets);
+			return immutable
+				? new ImmutableArrayListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets)
+				: new ArrayListAstNode(length, items[0].listHeight + 1, items, unopenedBrackets);
 		}
 	}
 
-	get kind(): AstNodeKind.List {
-		return AstNodeKind.List;
-	}
-	get children(): readonly AstNode[] {
-		return this._items;
-	}
-	get unopenedBrackets(): SmallImmutableSet<number> {
-		return this._unopenedBrackets;
+	public static getEmpty() {
+		return new ImmutableArrayListAstNode(lengthZero, 0, [], SmallImmutableSet.getEmpty());
 	}
 
-	private constructor(
+	public get kind(): AstNodeKind.List {
+		return AstNodeKind.List;
+	}
+
+	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
+		return this._missingOpeningBracketIds;
+	}
+
+	/**
+	 * Use ListAstNode.create.
+	*/
+	constructor(
 		length: Length,
 		public readonly listHeight: number,
-		private readonly _items: AstNode[],
-		private _unopenedBrackets: SmallImmutableSet<number>
+		private _missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
 	) {
 		super(length);
 	}
 
-	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
+	protected throwIfImmutable(): void {
+		// NOOP
+	}
+
+	protected abstract setChild(idx: number, child: AstNode): void;
+
+	public makeLastElementMutable(): AstNode | undefined {
+		this.throwIfImmutable();
+		const childCount = this.childrenLength;
+		if (childCount === 0) {
+			return undefined;
+		}
+		const lastChild = this.getChild(childCount - 1)!;
+		const mutable = lastChild.kind === AstNodeKind.List ? lastChild.toMutable() : lastChild;
+		if (lastChild !== mutable) {
+			this.setChild(childCount - 1, mutable);
+		}
+		return mutable;
+	}
+
+	public makeFirstElementMutable(): AstNode | undefined {
+		this.throwIfImmutable();
+		const childCount = this.childrenLength;
+		if (childCount === 0) {
+			return undefined;
+		}
+		const firstChild = this.getChild(0)!;
+		const mutable = firstChild.kind === AstNodeKind.List ? firstChild.toMutable() : firstChild;
+		if (firstChild !== mutable) {
+			this.setChild(0, mutable);
+		}
+		return mutable;
+	}
+
+	public canBeReused(
+		openBracketIds: SmallImmutableSet<OpeningBracketId>,
 		endLineDidChange: boolean
 	): boolean {
-		if (this._items.length === 0) {
-			// might not be very helpful
-			return true;
-		}
-
-		if (expectedClosingCategories.intersects(this.unopenedBrackets)) {
+		if (openBracketIds.intersects(this.missingOpeningBracketIds)) {
 			return false;
 		}
 
-		let lastChild: AstNode = this;
-		while (lastChild.children.length > 0 && lastChild.kind === AstNodeKind.List) {
-			lastChild = tail(lastChild.children);
+		let lastChild: ListAstNode = this;
+		let lastLength: number;
+		while (lastChild.kind === AstNodeKind.List && (lastLength = lastChild.childrenLength) > 0) {
+			lastChild = lastChild.getChild(lastLength! - 1) as ListAstNode;
 		}
 
 		return lastChild.canBeReused(
-			expectedClosingCategories,
+			openBracketIds,
 			endLineDidChange
 		);
 	}
 
-	flattenLists(): ListAstNode {
+	public handleChildrenChanged(): void {
+		this.throwIfImmutable();
+
+		const count = this.childrenLength;
+
+		let length = this.getChild(0)!.length;
+		let unopenedBrackets = this.getChild(0)!.missingOpeningBracketIds;
+
+		for (let i = 1; i < count; i++) {
+			const child = this.getChild(i)!;
+			length = lengthAdd(length, child.length);
+			unopenedBrackets = unopenedBrackets.merge(child.missingOpeningBracketIds);
+		}
+
+		this._length = length;
+		this._missingOpeningBracketIds = unopenedBrackets;
+	}
+
+	public flattenLists(): ListAstNode {
 		const items = new Array<AstNode>();
 		for (const c of this.children) {
 			const normalized = c.flattenLists();
 			if (normalized.kind === AstNodeKind.List) {
-				items.push(...normalized._items);
+				items.push(...normalized.children);
 			} else {
 				items.push(normalized);
 			}
@@ -237,163 +334,258 @@ export class ListAstNode extends BaseAstNode {
 		return ListAstNode.create(items);
 	}
 
-	clone(): ListAstNode {
-		return new ListAstNode(this.length, this.listHeight, clone(this._items), this.unopenedBrackets);
-	}
-
-	private handleChildrenChanged(): void {
-		const items = this._items;
-		if (items.length === 0) {
-			return;
-		}
-
-		let length = items[0].length;
-		let unopenedBrackets = items[0].unopenedBrackets;
-		for (let i = 1; i < items.length; i++) {
-			length = lengthAdd(length, items[i].length);
-			unopenedBrackets = unopenedBrackets.merge(items[i].unopenedBrackets);
-		}
-		this._length = length;
-		this._unopenedBrackets = unopenedBrackets;
-	}
-
 	/**
-	 * Appends the given node to the end of this (2,3) tree.
-	 * Returns the new root.
-	*/
-	append(nodeToAppend: AstNode): AstNode {
-		const newNode = this._append(nodeToAppend);
-		if (newNode) {
-			return ListAstNode.create([this, newNode]);
+	 * Creates a shallow clone that is mutable, or itself if it is already mutable.
+	 */
+	public abstract toMutable(): ListAstNode;
+
+	public abstract appendChildOfSameHeight(node: AstNode): void;
+	public abstract unappendChild(): AstNode | undefined;
+	public abstract prependChildOfSameHeight(node: AstNode): void;
+	public abstract unprependChild(): AstNode | undefined;
+}
+
+class TwoThreeListAstNode extends ListAstNode {
+	public get childrenLength(): number {
+		return this._item3 !== null ? 3 : 2;
+	}
+	public getChild(idx: number): AstNode | null {
+		switch (idx) {
+			case 0: return this._item1;
+			case 1: return this._item2;
+			case 2: return this._item3;
 		}
+		throw new Error('Invalid child index');
+	}
+	public setChild(idx: number, node: AstNode): void {
+		switch (idx) {
+			case 0: this._item1 = node; return;
+			case 1: this._item2 = node; return;
+			case 2: this._item3 = node; return;
+		}
+		throw new Error('Invalid child index');
+	}
+
+	public get children(): readonly AstNode[] {
+		return this._item3 ? [this._item1, this._item2, this._item3] : [this._item1, this._item2];
+	}
+
+	public get item1(): AstNode {
+		return this._item1;
+	}
+	public get item2(): AstNode {
+		return this._item2;
+	}
+	public get item3(): AstNode | null {
+		return this._item3;
+	}
+
+	public constructor(
+		length: Length,
+		listHeight: number,
+		private _item1: AstNode,
+		private _item2: AstNode,
+		private _item3: AstNode | null,
+		missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	) {
+		super(length, listHeight, missingOpeningBracketIds);
+	}
+
+	public deepClone(): ListAstNode {
+		return new TwoThreeListAstNode(
+			this.length,
+			this.listHeight,
+			this._item1.deepClone(),
+			this._item2.deepClone(),
+			this._item3 ? this._item3.deepClone() : null,
+			this.missingOpeningBracketIds
+		);
+	}
+
+	public appendChildOfSameHeight(node: AstNode): void {
+		if (this._item3) {
+			throw new Error('Cannot append to a full (2,3) tree node');
+		}
+		this.throwIfImmutable();
+		this._item3 = node;
+		this.handleChildrenChanged();
+	}
+
+	public unappendChild(): AstNode | undefined {
+		if (!this._item3) {
+			throw new Error('Cannot remove from a non-full (2,3) tree node');
+		}
+		this.throwIfImmutable();
+		const result = this._item3;
+		this._item3 = null;
+		this.handleChildrenChanged();
+		return result;
+	}
+
+	public prependChildOfSameHeight(node: AstNode): void {
+		if (this._item3) {
+			throw new Error('Cannot prepend to a full (2,3) tree node');
+		}
+		this.throwIfImmutable();
+		this._item3 = this._item2;
+		this._item2 = this._item1;
+		this._item1 = node;
+		this.handleChildrenChanged();
+	}
+
+	public unprependChild(): AstNode | undefined {
+		if (!this._item3) {
+			throw new Error('Cannot remove from a non-full (2,3) tree node');
+		}
+		this.throwIfImmutable();
+		const result = this._item1;
+		this._item1 = this._item2;
+		this._item2 = this._item3;
+		this._item3 = null;
+
+		this.handleChildrenChanged();
+		return result;
+	}
+
+	override toMutable(): ListAstNode {
 		return this;
-	}
-
-	/**
-	 * @returns Additional node after tree
-	*/
-	private _append(nodeToAppend: AstNode): AstNode | undefined {
-		// assert nodeToInsert.listHeight <= tree.listHeight
-
-		if (nodeToAppend.listHeight === this.listHeight) {
-			return nodeToAppend;
-		}
-
-		const lastItem = this._items[this._items.length - 1];
-		const newNodeAfter = (lastItem.kind === AstNodeKind.List) ? lastItem._append(nodeToAppend) : nodeToAppend;
-
-		if (!newNodeAfter) {
-			this.handleChildrenChanged();
-			return undefined;
-		}
-
-		// Can we take the element?
-		if (this._items.length >= 3) {
-			// assert tree.items.length === 3
-
-			// we need to split to maintain (2,3)-tree property.
-			// Send the third element + the new element to the parent.
-			const third = this._items.pop()!;
-			this.handleChildrenChanged();
-			return ListAstNode.create([third, newNodeAfter]);
-		} else {
-			this._items.push(newNodeAfter);
-			this.handleChildrenChanged();
-			return undefined;
-		}
-	}
-
-	/**
-	 * Prepends the given node to the end of this (2,3) tree.
-	 * Returns the new root.
-	*/
-	prepend(nodeToPrepend: AstNode): AstNode {
-		const newNode = this._prepend(nodeToPrepend);
-		if (newNode) {
-			return ListAstNode.create([newNode, this]);
-		}
-		return this;
-	}
-
-	/**
-	 * @returns Additional node before tree
-	*/
-	private _prepend(nodeToPrepend: AstNode): AstNode | undefined {
-		// assert nodeToInsert.listHeight <= tree.listHeight
-
-		if (nodeToPrepend.listHeight === this.listHeight) {
-			return nodeToPrepend;
-		}
-
-		if (this.kind !== AstNodeKind.List) {
-			throw new Error('unexpected');
-		}
-
-		const first = this._items[0];
-		const newNodeBefore = (first.kind === AstNodeKind.List) ? first._prepend(nodeToPrepend) : nodeToPrepend;
-
-		if (!newNodeBefore) {
-			this.handleChildrenChanged();
-			return undefined;
-		}
-
-		if (this._items.length >= 3) {
-			// assert this.items.length === 3
-
-			// we need to split to maintain (2,3)-this property.
-			const first = this._items.shift()!;
-			this.handleChildrenChanged();
-			return ListAstNode.create([newNodeBefore, first]);
-		} else {
-			this._items.unshift(newNodeBefore);
-			this.handleChildrenChanged();
-			return undefined;
-		}
 	}
 }
 
-function clone(arr: readonly AstNode[]): AstNode[] {
-	const result = new Array<AstNode>(arr.length);
-	for (let i = 0; i < arr.length; i++) {
-		result[i] = arr[i].clone();
+/**
+ * Immutable, if all children are immutable.
+*/
+class Immutable23ListAstNode extends TwoThreeListAstNode {
+	override toMutable(): ListAstNode {
+		return new TwoThreeListAstNode(this.length, this.listHeight, this.item1, this.item2, this.item3, this.missingOpeningBracketIds);
 	}
-	return result;
+
+	protected override throwIfImmutable(): void {
+		throw new Error('this instance is immutable');
+	}
+}
+
+/**
+ * For debugging.
+*/
+class ArrayListAstNode extends ListAstNode {
+	get childrenLength(): number {
+		return this._children.length;
+	}
+	getChild(idx: number): AstNode | null {
+		return this._children[idx];
+	}
+	setChild(idx: number, child: AstNode): void {
+		this._children[idx] = child;
+	}
+	get children(): readonly AstNode[] {
+		return this._children;
+	}
+
+	constructor(
+		length: Length,
+		listHeight: number,
+		private readonly _children: AstNode[],
+		missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>
+	) {
+		super(length, listHeight, missingOpeningBracketIds);
+	}
+
+	deepClone(): ListAstNode {
+		const children = new Array<AstNode>(this._children.length);
+		for (let i = 0; i < this._children.length; i++) {
+			children[i] = this._children[i].deepClone();
+		}
+		return new ArrayListAstNode(this.length, this.listHeight, children, this.missingOpeningBracketIds);
+	}
+
+	public appendChildOfSameHeight(node: AstNode): void {
+		this.throwIfImmutable();
+		this._children.push(node);
+		this.handleChildrenChanged();
+	}
+
+	public unappendChild(): AstNode | undefined {
+		this.throwIfImmutable();
+		const item = this._children.pop();
+		this.handleChildrenChanged();
+		return item;
+	}
+
+	public prependChildOfSameHeight(node: AstNode): void {
+		this.throwIfImmutable();
+		this._children.unshift(node);
+		this.handleChildrenChanged();
+	}
+
+	public unprependChild(): AstNode | undefined {
+		this.throwIfImmutable();
+		const item = this._children.shift();
+		this.handleChildrenChanged();
+		return item;
+	}
+
+	public override toMutable(): ListAstNode {
+		return this;
+	}
+}
+
+/**
+ * Immutable, if all children are immutable.
+*/
+class ImmutableArrayListAstNode extends ArrayListAstNode {
+	override toMutable(): ListAstNode {
+		return new ArrayListAstNode(this.length, this.listHeight, [...this.children], this.missingOpeningBracketIds);
+	}
+
+	protected override throwIfImmutable(): void {
+		throw new Error('this instance is immutable');
+	}
 }
 
 const emptyArray: readonly AstNode[] = [];
 
-export class TextAstNode extends BaseAstNode {
-	get kind(): AstNodeKind.Text {
-		return AstNodeKind.Text;
-	}
-	get listHeight() {
+abstract class ImmutableLeafAstNode extends BaseAstNode {
+	public get listHeight() {
 		return 0;
 	}
-	get children(): readonly AstNode[] {
+	public get childrenLength(): number {
+		return 0;
+	}
+	public getChild(idx: number): AstNode | null {
+		return null;
+	}
+	public get children(): readonly AstNode[] {
 		return emptyArray;
 	}
-	get unopenedBrackets(): SmallImmutableSet<number> {
-		return SmallImmutableSet.getEmpty();
-	}
 
-	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
-		endLineDidChange: boolean
-	) {
-		// Don't reuse text from a line that got changed.
-		// Otherwise, long brackes might not be detected.
-		return !endLineDidChange;
+	public flattenLists(): this & AstNode {
+		return this as this & AstNode;
 	}
-
-	flattenLists(): TextAstNode {
-		return this;
-	}
-	clone(): TextAstNode {
-		return this;
+	public deepClone(): this & AstNode {
+		return this as this & AstNode;
 	}
 }
 
-export class BracketAstNode extends BaseAstNode {
+export class TextAstNode extends ImmutableLeafAstNode {
+	public get kind(): AstNodeKind.Text {
+		return AstNodeKind.Text;
+	}
+	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
+		return SmallImmutableSet.getEmpty();
+	}
+
+	public canBeReused(
+		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		endLineDidChange: boolean
+	) {
+		// Don't reuse text from a line that got changed.
+		// Otherwise, long brackets might not be detected.
+		return !endLineDidChange;
+	}
+}
+
+export class BracketAstNode extends ImmutableLeafAstNode {
 	private static cacheByLength = new Map<number, BracketAstNode>();
 
 	public static create(length: Length): BracketAstNode {
@@ -408,73 +600,45 @@ export class BracketAstNode extends BaseAstNode {
 		return node;
 	}
 
+	public get kind(): AstNodeKind.Bracket {
+		return AstNodeKind.Bracket;
+	}
+
+	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
+		return SmallImmutableSet.getEmpty();
+	}
+
 	private constructor(length: Length) {
 		super(length);
 	}
 
-	get kind(): AstNodeKind.Bracket {
-		return AstNodeKind.Bracket;
-	}
-	get listHeight() {
-		return 0;
-	}
-	get children(): readonly AstNode[] {
-		return emptyArray;
-	}
-
-	get unopenedBrackets(): SmallImmutableSet<number> {
-		return SmallImmutableSet.getEmpty();
-	}
-
-	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
-		endLineDidChange: boolean
+	public canBeReused(
+		_openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		_endLineDidChange: boolean
 	) {
 		// These nodes could be reused,
 		// but not in a general way.
 		// Their parent may be reused.
 		return false;
 	}
-
-	flattenLists(): BracketAstNode {
-		return this;
-	}
-
-	clone(): BracketAstNode {
-		return this;
-	}
 }
 
-export class InvalidBracketAstNode extends BaseAstNode {
-	get kind(): AstNodeKind.UnexpectedClosingBracket {
+export class InvalidBracketAstNode extends ImmutableLeafAstNode {
+	public get kind(): AstNodeKind.UnexpectedClosingBracket {
 		return AstNodeKind.UnexpectedClosingBracket;
 	}
-	get listHeight() {
-		return 0;
-	}
-	get children(): readonly AstNode[] {
-		return emptyArray;
-	}
 
-	public readonly unopenedBrackets: SmallImmutableSet<number>;
+	public readonly missingOpeningBracketIds: SmallImmutableSet<OpeningBracketId>;
 
-	constructor(category: number, length: Length, denseKeyProvider: DenseKeyProvider<number>) {
+	public constructor(closingBrackets: SmallImmutableSet<OpeningBracketId>, length: Length) {
 		super(length);
-		this.unopenedBrackets = SmallImmutableSet.getEmpty().add(category, denseKeyProvider);
+		this.missingOpeningBracketIds = closingBrackets;
 	}
 
-	canBeReused(
-		expectedClosingCategories: SmallImmutableSet<number>,
-		endLineDidChange: boolean
+	public canBeReused(
+		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		_endLineDidChange: boolean
 	) {
-		return !expectedClosingCategories.intersects(this.unopenedBrackets);
-	}
-
-	flattenLists(): InvalidBracketAstNode {
-		return this;
-	}
-
-	clone(): InvalidBracketAstNode {
-		return this;
+		return !openedBracketIds.intersects(this.missingOpeningBracketIds);
 	}
 }

@@ -227,7 +227,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}));
 		this._register(this.viewDescriptorService.onDidChangeLocation(({ views, from, to }) => {
 			if (views.some(v => v.id === this.id)) {
-				this.tree?.updateOptions({ overrideStyles: { listBackground: this.viewLocation === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND } });
+				this.tree?.updateOptions({ overrideStyles: { listBackground: this.viewLocation === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND } });
 			}
 		}));
 		this.registerActions();
@@ -487,7 +487,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dataSource, {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
-				getAriaLabel(element: ITreeItem): string {
+				getAriaLabel(element: ITreeItem): string | null {
 					if (element.accessibilityInformation) {
 						return element.accessibilityInformation.label;
 					}
@@ -495,6 +495,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					if (isString(element.tooltip)) {
 						return element.tooltip;
 					} else {
+						if (element.resourceUri && !element.label) {
+							// The custom tree has no good information on what should be used for the aria label.
+							// Allow the tree widget's default aria label to be used.
+							return null;
+						}
 						let buildAriaLabel: string = '';
 						if (element.label) {
 							buildAriaLabel += element.label.label + ' ';
@@ -872,9 +877,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	) {
 		super();
 		this._hoverDelegate = {
-			showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
-				return this.hoverService.showHover(options);
-			},
+			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};
 	}

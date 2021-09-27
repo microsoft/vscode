@@ -251,6 +251,10 @@ export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebu
 	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
+export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
+	return parseDebugPort(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild);
+}
+
 function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
 	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);

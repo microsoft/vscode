@@ -14,7 +14,7 @@ export class Workspace extends BaseWorkspace {
 		configuration: URI | null = null,
 		ignorePathCasing: (key: URI) => boolean = () => !isLinux
 	) {
-		super(id, folders, configuration, ignorePathCasing);
+		super(id, folders, false, configuration, ignorePathCasing);
 	}
 }
 

@@ -306,7 +306,9 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 		const test = tests[i];
 		const resultItem = states[i];
 		const state = resultItem?.computedState ?? TestResultState.Unset;
-		hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		if (hoverMessageParts.length < 10) {
+			hoverMessageParts.push(labelForTestInState(test.item.label, state));
+		}
 		computedState = maxPriority(computedState, state);
 		retired = retired || !!resultItem?.retired;
 		if (!testIdWithMessages && resultItem?.tasks.some(t => t.messages.length)) {
@@ -752,6 +754,7 @@ class TestMessageDecoration implements ITestDecoration {
 			content: renderStringAsPlaintext(message),
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
 		};
+		options.showIfCollapsed = true;
 
 		const rulerColor = severity === TestMessageType.Error
 			? overviewRulerError

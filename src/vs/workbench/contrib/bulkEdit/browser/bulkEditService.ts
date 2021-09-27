@@ -21,6 +21,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ResourceMap } from 'vs/base/common/map';
 
 class BulkEdit {
 
@@ -40,14 +41,28 @@ class BulkEdit {
 	}
 
 	ariaMessage(): string {
-		const editCount = this._edits.length;
-		const resourceCount = this._edits.length;
-		if (editCount === 0) {
+
+		let otherResources = new ResourceMap<boolean>();
+		let textEditResources = new ResourceMap<boolean>();
+		let textEditCount = 0;
+		for (let edit of this._edits) {
+			if (edit instanceof ResourceTextEdit) {
+				textEditCount += 1;
+				textEditResources.set(edit.resource, true);
+			} else if (edit instanceof ResourceFileEdit) {
+				otherResources.set(edit.oldResource ?? edit.newResource!, true);
+			}
+		}
+		if (this._edits.length === 0) {
 			return localize('summary.0', "Made no edits");
-		} else if (editCount > 1 && resourceCount > 1) {
-			return localize('summary.nm', "Made {0} text edits in {1} files", editCount, resourceCount);
+		} else if (otherResources.size === 0) {
+			if (textEditCount > 1 && textEditResources.size > 1) {
+				return localize('summary.nm', "Made {0} text edits in {1} files", textEditCount, textEditResources.size);
+			} else {
+				return localize('summary.n0', "Made {0} text edits in one file", textEditCount);
+			}
 		} else {
-			return localize('summary.n0', "Made {0} text edits in one file", editCount, resourceCount);
+			return localize('summary.textFiles', "Made {0} text edits in {1} files, also created or deleted {2} files", textEditCount, textEditResources.size, otherResources.size);
 		}
 	}
 

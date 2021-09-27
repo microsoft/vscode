@@ -17,11 +17,14 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
+	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
+	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
@@ -134,12 +137,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
-		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
-				this.layoutChange({});
-			}
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -157,6 +154,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			bottomToolbarOffset: 0,
 			layoutState: CellLayoutState.Uninitialized
 		};
+	}
+
+	updateOptions(e: NotebookOptionsChangeEvent) {
+		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+			this.layoutChange({});
+		}
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
@@ -284,6 +287,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return false;
 	}
 
+	getDynamicHeight() {
+		this._onLayoutInfoRead.fire();
+		return this._layoutInfo.totalHeight;
+	}
+
 	firstLine(): string {
 		return this.getText().split('\n')[0];
 	}
@@ -350,6 +358,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.outputMinHeight = height;
 	}
 
+	unlockOutputHeight() {
+		this.outputMinHeight = 0;
+		this.layoutChange({ outputHeight: true });
+	}
+
 	updateOutputHeight(index: number, height: number, source?: string) {
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
@@ -364,6 +377,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		if (this._outputsTop!.changeValue(index, height)) {
 			this.layoutChange({ outputHeight: true }, source);
 		}
+	}
+
+	getOutputHeight(index: number) {
+		if (index >= this._outputCollection.length) {
+			return -1;
+		}
+
+		this._ensureOutputsTop();
+		return this._outputCollection[index];
 	}
 
 	getOutputOffsetInContainer(index: number) {

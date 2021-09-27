@@ -13,6 +13,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
@@ -23,7 +24,8 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _commands: CommandsConverter
+		private readonly _commands: CommandsConverter,
+		private readonly _uriTransformer: IURITransformer | undefined
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguages);
 	}
@@ -108,7 +110,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					id: fullyQualifiedId,
 					name: data.name ?? extension.displayName ?? extension.name,
 					source: extension.displayName ?? extension.name,
-					selector: data.selector,
+					selector: typeConvert.DocumentSelector.from(data.selector, this._uriTransformer),
 					label: data.text,
 					detail: data.detail ?? '',
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,

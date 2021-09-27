@@ -64,6 +64,7 @@ registerThemingParticipant((theme, collector) => {
 const CONTEXT_BANNER_FOCUSED = new RawContextKey<boolean>('bannerFocused', false, localize('bannerFocused', "Whether the banner has keyboard focus"));
 
 export class BannerPart extends Part implements IBannerService {
+
 	declare readonly _serviceBrand: undefined;
 
 	// #region IView
@@ -80,8 +81,7 @@ export class BannerPart extends Part implements IBannerService {
 		return this.visible ? this.height : 0;
 	}
 
-	private _onDidChangeSize = new Emitter<{ width: number; height: number; } | undefined>();
-
+	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	override get onDidChange() { return this._onDidChangeSize.event; }
 
 	//#endregion
@@ -179,7 +179,7 @@ export class BannerPart extends Part implements IBannerService {
 			this.visible = visible;
 			this.focusedActionIndex = -1;
 
-			this.layoutService.setBannerHidden(!visible);
+			this.layoutService.setPartHidden(!visible, Parts.BANNER_PART);
 			this._onDidChangeSize.fire(undefined);
 		}
 	}
@@ -250,10 +250,7 @@ export class BannerPart extends Part implements IBannerService {
 			this.messageActionsContainer = append(this.element, $('div.message-actions-container'));
 
 			for (const action of item.actions) {
-				const actionLink = this._register(this.instantiationService.createInstance(Link, action, {}));
-				actionLink.el.tabIndex = -1;
-				actionLink.el.setAttribute('role', 'button');
-				this.messageActionsContainer.appendChild(actionLink.el);
+				this._register(this.instantiationService.createInstance(Link, this.messageActionsContainer, { ...action, tabIndex: -1 }, {}));
 			}
 		}
 

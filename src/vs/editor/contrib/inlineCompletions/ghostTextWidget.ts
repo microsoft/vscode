@@ -283,7 +283,8 @@ class DecorationsWidget implements IDisposable {
 				range: Range.fromPositions(new Position(lineNumber, p.column)),
 				options: shouldUseInjectedText ? {
 					description: 'ghost-text',
-					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' }
+					after: { content: contentText, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
+					showIfCollapsed: true,
 				} : {
 					...decorationType.resolve()
 				}
@@ -497,9 +498,10 @@ registerThemingParticipant((theme, collector) => {
 		const opacity = String(foreground.rgba.a);
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
-		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity}; color: ${color}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()}; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity}; color: ${color}; }`);
+		// `!important` ensures that other decorations don't cause a style conflict (#132017).
+		collector.addRule(`.monaco-editor .ghost-text-decoration { opacity: ${opacity} !important; color: ${color} !important; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { opacity: ${opacity} !important; color: ${color} !important; }`);
 	}
 
 	const border = theme.getColor(ghostTextBorder);

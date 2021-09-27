@@ -94,7 +94,7 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
+		if (this.description.modeIds.indexOf(doc.languageId) >= 0) {
 			return true;
 		}
 

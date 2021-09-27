@@ -7,12 +7,13 @@ import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/brow
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState, CellFocusMode, expandCellRangesWithHiddenCells, IActiveNotebookEditor, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellReplaceEdit, IOutputDto, ISelectionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangeContains, cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export async function changeCellToKind(kind: CellKind, context: INotebookActionContext, language?: string, mime?: string): Promise<void> {
@@ -67,11 +68,6 @@ export async function changeCellToKind(kind: CellKind, context: INotebookActionC
 			};
 		}, undefined, true);
 		const newCell = notebookEditor.cellAt(idx);
-
-		if (!newCell) {
-			return;
-		}
-
 		notebookEditor.focusNotebookCell(newCell, cell.getEditState() === CellEditState.Editing ? 'editor' : 'container');
 	} else if (context.selectedCells) {
 		const selectedCells = context.selectedCells;
@@ -131,7 +127,7 @@ export function runDeleteAction(editor: IActiveNotebookEditor, cell: ICellViewMo
 			editType: CellEditType.Replace, index: selection.start, count: selection.end - selection.start, cells: []
 		}));
 
-		const nextCellAfterContainingSelection = editor.cellAt(containingSelection.end);
+		const nextCellAfterContainingSelection = containingSelection.end >= editor.getLength() ? undefined : editor.cellAt(containingSelection.end);
 
 		textModel.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => {
 			if (nextCellAfterContainingSelection) {
@@ -575,4 +571,105 @@ export function computeCellLinesContents(cell: ICellViewModel, splitPoints: IPos
 	}
 
 	return newLineModels;
+}
+
+export function insertCell(
+	modeService: IModeService,
+	editor: IActiveNotebookEditor,
+	index: number,
+	type: CellKind,
+	direction: 'above' | 'below' = 'above',
+	initialText: string = '',
+	ui: boolean = false
+) {
+	const viewModel = editor._getViewModel();
+	const activeKernel = editor.activeKernel;
+	if (viewModel.options.isReadOnly) {
+		return null;
+	}
+
+	const cell = editor.cellAt(index);
+	const nextIndex = ui ? viewModel.getNextVisibleCellIndex(index) : index + 1;
+	let language;
+	if (type === CellKind.Code) {
+		const supportedLanguages = activeKernel?.supportedLanguages ?? modeService.getRegisteredModes();
+		const defaultLanguage = supportedLanguages[0] || 'plaintext';
+		if (cell?.cellKind === CellKind.Code) {
+			language = cell.language;
+		} else if (cell?.cellKind === CellKind.Markup) {
+			const nearestCodeCellIndex = viewModel.nearestCodeCellIndex(index);
+			if (nearestCodeCellIndex > -1) {
+				language = viewModel.cellAt(nearestCodeCellIndex)!.language;
+			} else {
+				language = defaultLanguage;
+			}
+		} else {
+			if (cell === undefined && direction === 'above') {
+				// insert cell at the very top
+				language = viewModel.viewCells.find(cell => cell.cellKind === CellKind.Code)?.language || defaultLanguage;
+			} else {
+				language = defaultLanguage;
+			}
+		}
+
+		if (!supportedLanguages.includes(language)) {
+			// the language no longer exists
+			language = defaultLanguage;
+		}
+	} else {
+		language = 'markdown';
+	}
+
+	const insertIndex = cell ?
+		(direction === 'above' ? index : nextIndex) :
+		index;
+	return insertCellAtIndex(viewModel, insertIndex, initialText, language, type, undefined, [], true);
+}
+
+export function insertCellAtIndex(viewModel: NotebookViewModel, index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
+	const endSelections: ISelectionState = { kind: SelectionStateType.Index, focus: { start: index, end: index + 1 }, selections: [{ start: index, end: index + 1 }] };
+	viewModel.notebookDocument.applyEdits([
+		{
+			editType: CellEditType.Replace,
+			index,
+			count: 0,
+			cells: [
+				{
+					cellKind: type,
+					language: language,
+					mime: undefined,
+					outputs: outputs,
+					metadata: metadata,
+					source: source
+				}
+			]
+		}
+	], synchronous, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => endSelections, undefined, pushUndoStop);
+	return viewModel.cellAt(index)!;
+}
+
+
+/**
+ *
+ * @param index
+ * @param length
+ * @param newIdx in an index scheme for the state of the tree after the current cell has been "removed"
+ * @param synchronous
+ * @param pushedToUndoStack
+ */
+export function moveCellToIdx(editor: IActiveNotebookEditor, index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
+	const viewCell = editor.cellAt(index) as CellViewModel | undefined;
+	if (!viewCell) {
+		return false;
+	}
+
+	editor.textModel.applyEdits([
+		{
+			editType: CellEditType.Move,
+			index,
+			length,
+			newIdx
+		}
+	], synchronous, { kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
+	return true;
 }

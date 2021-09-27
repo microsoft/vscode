@@ -7,7 +7,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/model';
+import { BracketPair, BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
@@ -25,7 +25,15 @@ import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthO
 import { parseDocument } from './parser';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
 
-export class BracketPairColorizer extends Disposable implements DecorationProvider {
+export interface IBracketPairs {
+	/**
+	 * Gets all bracket pairs that intersect the given position.
+	 * The result is sorted by the start position.
+	 */
+	getBracketPairsInRange(range: Range): BracketPair[];
+}
+
+export class BracketPairColorizer extends Disposable implements DecorationProvider, IBracketPairs {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
 	private readonly cache = this._register(new MutableDisposable<IReference<BracketPairColorizerImpl>>());
 
@@ -34,8 +42,13 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		return this.textModel.getValueLength() <= maxSupportedDocumentLength;
 	}
 
+	private bracketsRequested = false;
+	private options: BracketPairColorizationOptions;
+
 	constructor(private readonly textModel: TextModel) {
 		super();
+
+		this.options = textModel.getOptions().bracketPairColorizationOptions;
 
 		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
 			if (this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
@@ -45,6 +58,13 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		}));
 
 		this._register(textModel.onDidChangeOptions(e => {
+			this.options = textModel.getOptions().bracketPairColorizationOptions;
+
+			this.cache.clear();
+			this.updateCache();
+		}));
+
+		this._register(textModel.onDidChangeLanguage(e => {
 			this.cache.clear();
 			this.updateCache();
 		}));
@@ -55,8 +75,7 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	}
 
 	private updateCache() {
-		const options = this.textModel.getOptions().bracketPairColorizationOptions;
-		if (this.textModel.isAttachedToEditor() && this.isDocumentSupported && options.enabled) {
+		if (this.bracketsRequested || (this.textModel.isAttachedToEditor() && this.isDocumentSupported && this.options.enabled)) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
 				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel)), store);
@@ -77,6 +96,9 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		if (ownerId === undefined) {
 			return [];
 		}
+		if (!this.options.enabled) {
+			return [];
+		}
 		return this.cache.value?.object.getDecorationsInRange(range, ownerId, filterOutValidation) || [];
 	}
 
@@ -84,11 +106,24 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		if (ownerId === undefined) {
 			return [];
 		}
+		if (!this.options.enabled) {
+			return [];
+		}
 		return this.cache.value?.object.getAllDecorations(ownerId, filterOutValidation) || [];
 	}
 
 	onDidChangeDecorations(listener: () => void): IDisposable {
 		return this.didChangeDecorationsEmitter.event(listener);
+	}
+
+	/**
+	 * Returns all bracket pairs that intersect the given range.
+	 * The result is sorted by the start position.
+	*/
+	getBracketPairsInRange(range: Range): BracketPair[] {
+		this.bracketsRequested = true;
+		this.updateCache();
+		return this.cache.value?.object.getBracketPairsInRange(range) || [];
 	}
 }
 
@@ -99,7 +134,7 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
+class BracketPairColorizerImpl extends Disposable implements DecorationProvider, IBracketPairs {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
 	private readonly colorProvider = new ColorProvider();
 
@@ -115,12 +150,14 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 	private initialAstWithoutTokens: AstNode | undefined;
 	private astWithTokens: AstNode | undefined;
 
-	private readonly brackets = new LanguageAgnosticBracketTokens([]);
-	private readonly denseKeyProvider = new DenseKeyProvider<number>();
+	private readonly denseKeyProvider = new DenseKeyProvider<string>();
+	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider);
 
 	public didLanguageChange(languageId: LanguageId): boolean {
 		return this.brackets.didLanguageChange(languageId);
 	}
+
+	readonly onDidChangeDecorations = this.didChangeDecorationsEmitter.event;
 
 	constructor(private readonly textModel: TextModel) {
 		super();
@@ -144,7 +181,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 					toLength(r.toLineNumber - r.fromLineNumber + 1, 0)
 				)
 			);
-			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens);
+			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 			if (!this.initialAstWithoutTokens) {
 				this.didChangeDecorationsEmitter.fire();
 			}
@@ -154,16 +191,16 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			// There are no token information yet
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
-			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, this.denseKeyProvider);
-			this.astWithTokens = this.initialAstWithoutTokens.clone();
+			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
+			this.astWithTokens = this.initialAstWithoutTokens;
 		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 			// Skip the initial ast, as there is no flickering.
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
-			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined);
+			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
 		} else if (textModel.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined);
-			this.astWithTokens = this.initialAstWithoutTokens.clone();
+			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
+			this.astWithTokens = this.initialAstWithoutTokens;
 		}
 	}
 
@@ -177,21 +214,21 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			);
 		}).reverse();
 
-		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens);
+		this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 		if (this.initialAstWithoutTokens) {
-			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens);
+			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer(edits, this.initialAstWithoutTokens, false);
 		}
 	}
 
 	/**
 	 * @pure (only if isPure = true)
 	*/
-	private parseDocumentFromTextBuffer(edits: TextEditInfo[], previousAst: AstNode | undefined): AstNode {
+	private parseDocumentFromTextBuffer(edits: TextEditInfo[], previousAst: AstNode | undefined, immutable: boolean): AstNode {
 		// Is much faster if `isPure = false`.
 		const isPure = false;
-		const previousAstClone = isPure ? previousAst?.clone() : previousAst;
+		const previousAstClone = isPure ? previousAst?.deepClone() : previousAst;
 		const tokenizer = new TextBufferTokenizer(this.textModel, this.brackets);
-		const result = parseDocument(tokenizer, edits, previousAstClone, this.denseKeyProvider);
+		const result = parseDocument(tokenizer, edits, previousAstClone, immutable);
 		return result;
 	}
 
@@ -221,7 +258,17 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		return this.getDecorationsInRange(new Range(1, 1, this.textModel.getLineCount(), 1), ownerId, filterOutValidation);
 	}
 
-	readonly onDidChangeDecorations = this.didChangeDecorationsEmitter.event;
+	getBracketPairsInRange(range: Range): BracketPair[] {
+		const result = new Array<BracketPair>();
+
+		const startLength = positionToLength(range.getStartPosition());
+		const endLength = positionToLength(range.getEndPosition());
+
+		const node = this.initialAstWithoutTokens || this.astWithTokens!;
+		collectBracketPairs(node, lengthZero, node.length, startLength, endLength, result);
+
+		return result;
+	}
 }
 
 function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketInfo[], level: number = 0): void {
@@ -231,16 +278,67 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
 		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
 		result.push(new BracketInfo(range, level - 1, true));
-	} else {
-		if (node.kind === AstNodeKind.Pair) {
-			level++;
-		}
+	} else if (node.kind === AstNodeKind.List) {
 		for (const child of node.children) {
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
 			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
 				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
 			}
 			nodeOffsetStart = nodeOffsetEnd;
+		}
+	} else if (node.kind === AstNodeKind.Pair) {
+		// Don't use node.children here to improve performance
+		level++;
+
+		{
+			const child = node.openingBracket;
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+
+		if (node.child) {
+			const child = node.child;
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+		if (node.closingBracket) {
+			const child = node.closingBracket;
+			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
+			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
+				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+			}
+			nodeOffsetStart = nodeOffsetEnd;
+		}
+	}
+}
+
+function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketPair[], level: number = 0) {
+	if (node.kind === AstNodeKind.Pair) {
+		const openingBracketEnd = lengthAdd(nodeOffset, node.openingBracket.length);
+		result.push(new BracketPair(
+			lengthsToRange(nodeOffset, nodeOffsetEnd),
+			lengthsToRange(nodeOffset, openingBracketEnd),
+			node.closingBracket
+				? lengthsToRange(lengthAdd(openingBracketEnd, node.child?.length || lengthZero), nodeOffsetEnd)
+				: undefined,
+			level
+		));
+		level++;
+	}
+
+	let curOffset = nodeOffset;
+	for (const child of node.children) {
+		const childOffset = curOffset;
+		curOffset = lengthAdd(curOffset, child.length);
+
+		if (lengthLessThanEqual(childOffset, endOffset) && lengthLessThanEqual(startOffset, curOffset)) {
+			collectBracketPairs(child, childOffset, curOffset, startOffset, endOffset, result, level);
 		}
 	}
 }

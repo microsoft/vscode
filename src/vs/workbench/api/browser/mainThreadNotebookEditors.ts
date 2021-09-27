@@ -150,10 +150,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		if (!notebookEditor.hasModel()) {
 			return;
 		}
-		const cell = notebookEditor.cellAt(range.start);
-		if (!cell) {
+
+		if (range.start >= notebookEditor.getLength()) {
 			return;
 		}
+
+		const cell = notebookEditor.cellAt(range.start);
 
 		switch (revealType) {
 			case NotebookEditorRevealType.Default:

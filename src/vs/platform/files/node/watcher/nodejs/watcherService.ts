@@ -15,7 +15,7 @@ import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean | undefined;
 
-	private fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
+	private readonly fileChangesDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(CHANGE_BUFFER_DELAY * 2 /* sync on delay from underlying library */));
 	private fileChangesBuffer: IDiskFileChange[] = [];
 
 	constructor(
@@ -100,8 +100,8 @@ export class FileWatcher extends Disposable {
 
 			// Logging
 			if (this.verboseLogging) {
-				for (const e of normalizedFileChanges) {
-					this.onVerbose(`>> normalized ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
+				for (const event of normalizedFileChanges) {
+					this.onVerbose(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
 				}
 			}
 

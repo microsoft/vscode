@@ -9,10 +9,10 @@ import { URI } from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
 
@@ -30,6 +30,20 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		super(extensionGalleryService, telemetryService, logService);
 	}
 
+	async getTargetPlatform(): Promise<TargetPlatform> {
+		return TargetPlatform.WEB;
+	}
+
+	override async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+		if (await super.canInstall(gallery)) {
+			return true;
+		}
+		if (this.isConfiguredToExecuteOnWeb(gallery)) {
+			return true;
+		}
+		return false;
+	}
+
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
 		const extensions = [];
 		if (type === undefined || type === ExtensionType.System) {
@@ -43,21 +57,6 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return Promise.all(extensions.map(e => toLocalExtension(e)));
 	}
 
-	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
-		const compatibleExtension = await this.galleryService.getCompatibleExtension(gallery, TargetPlatform.WEB);
-		if (!compatibleExtension) {
-			return false;
-		}
-		const manifest = await this.galleryService.getManifest(compatibleExtension, CancellationToken.None);
-		if (!manifest) {
-			return false;
-		}
-		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
-			return false;
-		}
-		return true;
-	}
-
 	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', location.toString());
 		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
@@ -65,6 +64,22 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
 		}
 		return this.installExtension(manifest, location, options);
+	}
+
+	protected override async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, fetchCompatibleVersion);
+		if (compatibleExtension) {
+			return compatibleExtension;
+		}
+		if (this.isConfiguredToExecuteOnWeb(extension)) {
+			return extension;
+		}
+		return null;
+	}
+
+	private isConfiguredToExecuteOnWeb(gallery: IGalleryExtension): boolean {
+		const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(gallery.identifier);
+		return !!configuredExtensionKind && configuredExtensionKind.includes('web');
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {

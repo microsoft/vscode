@@ -17,14 +17,7 @@ export interface IRemoteTerminalProcessReplayEvent {
 	events: ReplayEntry[];
 }
 
-export interface ITerminalSerializer {
-	handleData(data: string): void;
-	handleResize(cols: number, rows: number): void;
-	generateReplayEvent(): Promise<IPtyHostProcessReplayEvent>;
-	setUnicodeVersion?(version: '6' | '11'): void;
-}
-
-export class TerminalRecorder implements ITerminalSerializer {
+export class TerminalRecorder {
 
 	private _entries: RecorderEntry[];
 	private _totalDataLength: number = 0;

@@ -7,6 +7,19 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
+export interface IWatchRequest {
+
+	/**
+	 * The path to watch.
+	 */
+	path: string;
+
+	/**
+	 * A set of glob patterns or paths to exclude from watching.
+	 */
+	excludes: string[];
+}
+
 export interface IDiskFileChange {
 	type: FileChangeType;
 	path: string;
@@ -36,24 +49,43 @@ export function normalizeFileChanges(changes: IDiskFileChange[]): IDiskFileChang
 }
 
 class EventNormalizer {
-	private normalized: IDiskFileChange[] = [];
-	private mapPathToChange: Map<string, IDiskFileChange> = new Map();
+
+	private readonly normalized = new Set<IDiskFileChange>();
+	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
+
+	private toKey(event: IDiskFileChange): string {
+		if (isLinux) {
+			return event.path;
+		}
+
+		return event.path.toLowerCase(); // normalise to file system case sensitivity
+	}
 
 	processEvent(event: IDiskFileChange): void {
-		const existingEvent = this.mapPathToChange.get(event.path);
+		const existingEvent = this.mapPathToChange.get(this.toKey(event));
+
+		let keepEvent = false;
 
 		// Event path already exists
 		if (existingEvent) {
 			const currentChangeType = existingEvent.type;
 			const newChangeType = event.type;
 
-			// ignore CREATE followed by DELETE in one go
-			if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
-				this.mapPathToChange.delete(event.path);
-				this.normalized.splice(this.normalized.indexOf(existingEvent), 1);
+			// macOS/Windows: track renames to different case but
+			// same name by changing previous event to DELETED
+			// whenever new event with different case occurs
+			if (existingEvent.path !== event.path && (newChangeType === FileChangeType.ADDED || newChangeType === FileChangeType.UPDATED)) {
+				existingEvent.type = FileChangeType.DELETED;
+				keepEvent = true;
 			}
 
-			// flatten DELETE followed by CREATE into CHANGE
+			// Ignore CREATE followed by DELETE in one go
+			else if (currentChangeType === FileChangeType.ADDED && newChangeType === FileChangeType.DELETED) {
+				this.mapPathToChange.delete(this.toKey(event));
+				this.normalized.delete(existingEvent);
+			}
+
+			// Flatten DELETE followed by CREATE into CHANGE
 			else if (currentChangeType === FileChangeType.DELETED && newChangeType === FileChangeType.ADDED) {
 				existingEvent.type = FileChangeType.UPDATED;
 			}
@@ -67,15 +99,19 @@ class EventNormalizer {
 			}
 		}
 
-		// Otherwise store new
+		// Otherwise keep
 		else {
-			this.normalized.push(event);
-			this.mapPathToChange.set(event.path, event);
+			keepEvent = true;
+		}
+
+		if (keepEvent) {
+			this.normalized.add(event);
+			this.mapPathToChange.set(this.toKey(event), event);
 		}
 	}
 
 	normalize(): IDiskFileChange[] {
-		const addedChangeEvents: IDiskFileChange[] = [];
+		const addOrChangeEvents: IDiskFileChange[] = [];
 		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
@@ -85,9 +121,9 @@ class EventNormalizer {
 		// 1.) split ADD/CHANGE and DELETED events
 		// 2.) sort short deleted paths to the top
 		// 3.) for each DELETE, check if there is a deleted parent and ignore the event in that case
-		return this.normalized.filter(e => {
+		return Array.from(this.normalized).filter(e => {
 			if (e.type !== FileChangeType.DELETED) {
-				addedChangeEvents.push(e);
+				addOrChangeEvents.push(e);
 
 				return false; // remove ADD / CHANGE
 			}
@@ -104,6 +140,6 @@ class EventNormalizer {
 			deletedPaths.push(e.path);
 
 			return true;
-		}).concat(addedChangeEvents);
+		}).concat(addOrChangeEvents);
 	}
 }

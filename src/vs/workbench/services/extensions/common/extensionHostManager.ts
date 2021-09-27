@@ -373,6 +373,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not use a resolver
+			return uri;
+		}
 		const proxy = await this._getProxy();
 		if (!proxy) {
 			throw new Error(`Cannot resolve canonical URI`);

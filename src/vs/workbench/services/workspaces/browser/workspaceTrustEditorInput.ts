@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEditorInput, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export class WorkspaceTrustEditorInput extends EditorInput {
@@ -25,7 +25,7 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 		path: `workspaceTrustEditor`
 	});
 
-	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
 		return super.matches(otherInput) || otherInput instanceof WorkspaceTrustEditorInput;
 	}
 

@@ -22,14 +22,18 @@ import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { setImmediate } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { disposableTimeout } from 'vs/base/common/async';
+import { isWeb } from 'vs/base/common/platform';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -90,7 +94,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IProductService productService: IProductService,
@@ -99,8 +103,12 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
+		@IFileService private readonly fileService: IFileService,
+		@ITASExperimentService private tasExperimentService: ITASExperimentService,
 	) {
 		super();
+
+		this.tasExperimentService = tasExperimentService;
 
 		if (productService.extensionTips) {
 			forEach(productService.extensionTips, ({ key, value }) => this.extensionTips.set(key.toLowerCase(), value));
@@ -154,9 +162,22 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private onModelAdded(model: ITextModel): void {
 		const uri = model.uri.scheme === Schemas.vscodeNotebookCell ? CellUri.parse(model.uri)?.notebook : model.uri;
-		const supportedSchemes = [Schemas.untitled, Schemas.file, Schemas.vscodeRemote];
-		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+		if (!uri) {
 			return;
+		}
+
+		/* In Web, recommend only when the file can be handled */
+		if (isWeb) {
+			if (!this.fileService.canHandleResource(uri)) {
+				return;
+			}
+		}
+
+		/* In Desktop, recommend only for files with these schemes */
+		else {
+			if (![Schemas.untitled, Schemas.file, Schemas.vscodeRemote].includes(uri.scheme)) {
+				return;
+			}
 		}
 
 		this.promptRecommendationsForModel(model);
@@ -181,7 +202,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.processedFileExtensions.push(fileExtension);
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		setImmediate(() => this.promptRecommendations(uri, language, fileExtension));
+		this._register(disposableTimeout(() => this.promptRecommendations(uri, language, fileExtension), 0));
 	}
 
 	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
@@ -261,7 +282,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`, RecommendationSource.FILE)
+		const message = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+
+		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], message, `@id:${extensionId}`, RecommendationSource.FILE)
 			.then(result => {
 				if (result === RecommendationsNotificationResult.Accepted) {
 					this.addToPromptedRecommendations(language, [extensionId]);
@@ -320,7 +343,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				run: () => {
 					this.addToPromptedFileExtensions(fileExtension);
 					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
-					this.viewletService.openViewlet('workbench.view.extensions', true)
+					this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => {
 							viewlet.search(`ext:${fileExtension}`);

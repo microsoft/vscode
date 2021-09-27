@@ -4,17 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getRanges, ICellViewModel, reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { formatCellDuration, getRanges, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 suite('notebookBrowser', () => {
-	test('Reduce ranges', function () {
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
-		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
-	});
-
 	suite('getRanges', function () {
 		const predicate = (cell: ICellViewModel) => cell.cellKind === CellKind.Code;
 
@@ -54,5 +47,14 @@ suite('notebookBrowser', () => {
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), [{ start: 0, end: 2 }, { start: 3, end: 4 }, { start: 6, end: 7 }]);
 		});
+	});
+
+	test('formatCellDuration', function () {
+		assert.strictEqual(formatCellDuration(0), '0.0s');
+		assert.strictEqual(formatCellDuration(10), '0.1s');
+		assert.strictEqual(formatCellDuration(200), '0.2s');
+		assert.strictEqual(formatCellDuration(3300), '3.3s');
+		assert.strictEqual(formatCellDuration(180000), '3m 0.0s');
+		assert.strictEqual(formatCellDuration(189412), '3m 9.4s');
 	});
 });

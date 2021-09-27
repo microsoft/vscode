@@ -194,6 +194,17 @@
 	justify-content: center;
 }
 
+.scm-view .button-container {
+	margin-left: 8px;
+	height: 100%;
+	display: flex;
+	align-items: center;
+}
+
+.scm-view .button-container .codicon {
+	font-size: small !important;
+}
+
 .scm-view .scm-editor.hidden {
 	display: none;
 }

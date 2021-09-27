@@ -875,12 +875,19 @@ suite('Folding Model', () => {
 			assert.strictEqual(getPreviousFoldLine(9, foldingModel), 5);
 			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 3);
 			assert.strictEqual(getPreviousFoldLine(3, foldingModel), null);
+			// Test when not on a folding region start line.
+			assert.strictEqual(getPreviousFoldLine(4, foldingModel), 3);
+			assert.strictEqual(getPreviousFoldLine(7, foldingModel), 6);
+			assert.strictEqual(getPreviousFoldLine(8, foldingModel), 6);
 
 			// Test jump to next.
 			assert.strictEqual(getNextFoldLine(3, foldingModel), 5);
-			assert.strictEqual(getNextFoldLine(4, foldingModel), 5);
 			assert.strictEqual(getNextFoldLine(5, foldingModel), 9);
 			assert.strictEqual(getNextFoldLine(9, foldingModel), null);
+			// Test when not on a folding region start line.
+			assert.strictEqual(getNextFoldLine(4, foldingModel), 5);
+			assert.strictEqual(getNextFoldLine(7, foldingModel), 9);
+			assert.strictEqual(getNextFoldLine(8, foldingModel), 9);
 
 		} finally {
 			textModel.dispose();

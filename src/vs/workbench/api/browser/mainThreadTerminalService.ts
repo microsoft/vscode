@@ -140,13 +140,15 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
-		this._extHostTerminals.set(extHostTerminalId, new Promise(async r => {
+		const terminal = new Promise<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
 				location: await this._deserializeParentTerminal(launchConfig.location)
 			});
 			r(terminal);
-		}));
+		});
+		this._extHostTerminals.set(extHostTerminalId, terminal);
+		await terminal;
 	}
 
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean, location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
@@ -306,7 +308,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// event.
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
-			instance.setTitle(title, TitleEventSource.Api);
+			instance.refreshTabLabels(title, TitleEventSource.Api);
 		}
 	}
 

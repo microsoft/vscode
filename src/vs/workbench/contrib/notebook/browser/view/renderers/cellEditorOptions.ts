@@ -109,10 +109,18 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers, folding: lineNumbers === 'on' },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.isReadOnly
+			readOnly: this.notebookEditor.isReadOnly,
+			glyphMarginRightPadding: lineNumbers ? 0 : 4
 		};
 
 		return computed;
+	}
+
+	getUpdatedValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+		const options = this.getValue(internalMetadata);
+		delete options.hover; // This is toggled by a debug editor contribution
+
+		return options;
 	}
 
 	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {

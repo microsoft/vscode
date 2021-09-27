@@ -367,6 +367,10 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 	}
 
 	const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
-	controller.replace();
-	return true;
+	if (controller) {
+		controller.replace();
+		return true;
+	}
+
+	return false;
 });

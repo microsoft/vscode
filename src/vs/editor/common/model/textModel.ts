@@ -39,9 +39,10 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { BracketPairColorizer } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
+import { ArrayQueue, findLast } from 'vs/base/common/arrays';
+import { BracketPairColorizer, IBracketPairs } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -311,7 +312,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
-	private readonly _bracketPairColorizer;
+	private readonly _bracketPairColorizer: BracketPairColorizer;
+	public get bracketPairs(): IBracketPairs { return this._bracketPairColorizer; }
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
@@ -3076,6 +3078,92 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return { startLineNumber, endLineNumber, indent };
 	}
 
+	public getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): model.IndentGuide[][] {
+		const result: model.IndentGuide[][] = [];
+
+		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRange(
+			new Range(
+				startLineNumber,
+				1,
+				endLineNumber,
+				this.getLineMaxColumn(endLineNumber)
+			)
+		);
+
+		let activeBracketPairRange: Range | undefined = undefined;
+		if (activePosition && bracketPairs.length > 0) {
+			const bracketsContainingActivePosition =
+				(startLineNumber <= activePosition.lineNumber && activePosition.lineNumber <= endLineNumber)
+					// Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
+					? bracketPairs.filter(bp => bp.range.containsPosition(activePosition))
+					: this._bracketPairColorizer.getBracketPairsInRange(
+						Range.fromPositions(activePosition)
+					);
+
+			activeBracketPairRange = findLast(
+				bracketsContainingActivePosition,
+				/* Exclude single line bracket pairs for cases such as
+				 * ```
+				 * function test() {
+				 * 		if (true) { | }
+				 * }
+				 * ```
+				 */
+				(i) => i.range.startLineNumber !== i.range.endLineNumber
+			)?.range;
+		}
+
+		const queue = new ArrayQueue(bracketPairs);
+		const activeBracketPairs = new Array<model.BracketPair>();
+		const colorProvider = new BracketPairGuidesClassNames();
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const guides = new Array<model.IndentGuide>();
+			result.push(guides);
+
+			for (const pair of queue.takeWhile(b => b.openingBracketRange.startLineNumber < lineNumber) || []) {
+				activeBracketPairs[pair.nestingLevel] = pair;
+			}
+
+			let lastVisibleColumnCount = Number.MAX_SAFE_INTEGER;
+			// Going backwards, so the last guide is before the others
+			for (let i = activeBracketPairs.length - 1; i >= 0; i--) {
+				const pair = activeBracketPairs[i];
+				if (pair.range.endLineNumber <= lineNumber) {
+					continue;
+				}
+
+				const minIndentation = Math.min(
+					this.getVisibleColumnFromPosition(pair.openingBracketRange.getStartPosition()),
+					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition())
+				);
+
+				if (minIndentation > lastVisibleColumnCount) {
+					continue;
+				}
+				lastVisibleColumnCount = minIndentation;
+
+				const isActive = highlightActiveGuides && activeBracketPairRange &&
+					pair.range.equalsRange(activeBracketPairRange);
+
+				const className =
+					colorProvider.getInlineClassNameOfLevel(pair.nestingLevel) +
+					(isActive ? ' ' + colorProvider.activeClassName : '');
+
+				if (isActive || includeNonActiveGuides) {
+					guides.push(new model.IndentGuide(minIndentation, className));
+				}
+			}
+
+			guides.reverse();
+		}
+		return result;
+	}
+
+	private getVisibleColumnFromPosition(position: Position): number {
+		return CursorColumns.visibleColumnFromColumn(this.getLineContent(position.lineNumber), position.column, this._options.tabSize) + 1;
+	}
+
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
 		this._assertNotDisposed();
 		const lineCount = this.getLineCount();
@@ -3200,6 +3288,16 @@ function indentOfLine(line: string): number {
 	return indent;
 }
 
+export class BracketPairGuidesClassNames {
+	public readonly activeClassName = 'indent-active';
+
+	getInlineClassNameOfLevel(level: number): string {
+		// To support a dynamic amount of colors up to 6 colors,
+		// we use a number that is a lcm of all numbers from 1 to 6.
+		return `bracket-indent-guide lvl-${level % 30}`;
+	}
+}
+
 //#region Decorations
 
 function isNodeInOverviewRuler(node: IntervalNode): boolean {
@@ -3267,13 +3365,13 @@ class DecorationsTrees {
 	public getInjectedTextInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
 	public getAllInjectedText(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._injectedTextDecorationsTree.search(filterOwnerId, false, versionId);
-		return this._ensureNodesHaveRanges(host, result);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => i.options.showIfCollapsed || !i.range.isEmpty());
 	}
 
 	public getAll(host: IDecorationsTreesHost, filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean): model.IModelDecoration[] {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
@@ -11,9 +10,9 @@ import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = new class implements ITelemetryService {
+export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
 
@@ -31,8 +30,7 @@ export const NullTelemetryService = new class implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	setEnabled() { }
-	isOptedIn = true;
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
@@ -41,7 +39,9 @@ export const NullTelemetryService = new class implements ITelemetryService {
 			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
-};
+}
+
+export const NullTelemetryService = new NullTelemetryServiceShape();
 
 export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	_serviceBrand: undefined;
@@ -58,13 +58,6 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
-}
-
-export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return {
-		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promises.settled(appenders.map(a => a.flush())),
-	};
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
@@ -104,32 +97,43 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	});
 }
 
-export const enum TelemetryLevel {
-	NONE = 0,
-	LOG = 1,
-	USER = 2
-}
-
 /**
  * Determines how telemetry is handled based on the current running configuration.
  * To log telemetry locally, the client must not disable telemetry via the CLI
- * If client is a built product and telemetry is enabled via the product.json, defer to user setting
- * Note that when running from sources, we log telemetry locally but do not send it
+ * If client is a built product and telemetry is enabled via the product.json, telemetry is supported
+ * This function is only used to determine if telemetry contructs should occur, but is not impacted by user configuration
  *
  * @param productService
  * @param environmentService
- * @returns NONE - telemetry is completely disabled, LOG - telemetry is logged locally but not sent, USER - verify with user setting
+ * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
  */
-export function getTelemetryLevel(productService: IProductService, environmentService: IEnvironmentService): TelemetryLevel {
-	if (environmentService.disableTelemetry || !productService.enableTelemetry) {
+export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+}
+
+/**
+ * Determines how telemetry is handled based on the user's configuration.
+ *
+ * @param configurationService
+ * @returns OFF, ERROR, ON
+ */
+export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
+	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
+	const oldConfig = configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
+
+	// Check old config for disablement
+	if (oldConfig !== undefined && oldConfig === false) {
 		return TelemetryLevel.NONE;
 	}
 
-	if (!environmentService.isBuilt) {
-		return TelemetryLevel.LOG;
+	switch (newConfig ?? TelemetryConfiguration.ON) {
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
 	}
-
-	return TelemetryLevel.USER;
 }
 
 export interface Properties {

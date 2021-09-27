@@ -13,9 +13,10 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
@@ -28,7 +29,7 @@ export class ConfigureLocaleAction extends Action {
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IHostService private readonly hostService: IHostService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IProductService private readonly productService: IProductService
 	) {
@@ -57,7 +58,7 @@ export class ConfigureLocaleAction extends Action {
 				});
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
-				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+				return this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 					.then(viewlet => viewlet?.getViewPaneContainer())
 					.then(viewlet => {
 						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;

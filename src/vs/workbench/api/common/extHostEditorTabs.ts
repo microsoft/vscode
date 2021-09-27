@@ -5,18 +5,24 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IExtHostEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IEditorTabDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { raceTimeout } from 'vs/base/common/async';
 
 export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
-	resource?: vscode.Uri | { primary?: vscode.Uri, secondary?: vscode.Uri };
-	editorId?: string;
+	index: number;
+	resource?: vscode.Uri;
+	viewId?: string;
 	isActive: boolean;
+	additionalResourcesAndViewIds: { resource?: vscode.Uri, viewId?: string }[];
+	move(index: number, viewColumn: ViewColumn): Promise<void>;
+	close(): Promise<void>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -31,6 +37,7 @@ export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostE
 
 export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
+	private readonly _proxy: MainThreadEditorTabsShape;
 
 	private readonly _onDidChangeTabs = new Emitter<IEditorTab[]>();
 	readonly onDidChangeTabs: Event<IEditorTab[]> = this._onDidChangeTabs.event;
@@ -40,6 +47,10 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private _tabs: IEditorTab[] = [];
 	private _activeTab: IEditorTab | undefined;
+
+	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadEditorTabs);
+	}
 
 	get tabs(): readonly IEditorTab[] {
 		return this._tabs;
@@ -55,26 +66,28 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			if (dto.isActive) {
 				activeIndex = index;
 			}
-			// Resolve resource into the right shape for either normal or side by side
-			let resource = undefined;
-			if (dto.resource) {
-				const resourceAsSidebySide = dto.resource as ({ primary?: UriComponents, secondary?: UriComponents });
-				if (resourceAsSidebySide.primary || resourceAsSidebySide.secondary) {
-					resource = {
-						primary: URI.revive(resourceAsSidebySide.primary),
-						secondary: URI.revive(resourceAsSidebySide.secondary)
-					};
-				} else {
-					resource = URI.revive(dto.resource as UriComponents | undefined);
-				}
-			}
 			return Object.freeze({
 				label: dto.label,
 				viewColumn: typeConverters.ViewColumn.to(dto.viewColumn),
-				resource,
-				editorId: dto.editorId,
-				isActive: dto.isActive
+				index,
+				resource: URI.revive(dto.resource),
+				additionalResourcesAndViewIds: dto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
+				viewId: dto.editorId,
+				isActive: dto.isActive,
+				move: async (index: number, viewColumn: ViewColumn) => {
+					this._proxy.$moveTab(dto, index, typeConverters.ViewColumn.from(viewColumn));
+					await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
+					return;
+				},
+				close: async () => {
+					await this._proxy.$closeTab(dto);
+					await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
+					return;
+				}
 			});
+		});
+		this._tabs = this._tabs.sort((t1, t2) => {
+			return t1.viewColumn === t2.viewColumn ? t1.index - t2.index : t1.viewColumn - t2.viewColumn;
 		});
 		const oldActiveTab = this._activeTab;
 		this._activeTab = activeIndex === -1 ? undefined : this._tabs[activeIndex];

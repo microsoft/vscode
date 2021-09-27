@@ -1071,10 +1071,17 @@ export namespace ProxyChannel {
 
 		return new class implements IServerChannel {
 
-			listen<T>(_: unknown, event: string): Event<T> {
+			listen<T>(_: unknown, event: string, arg: any): Event<T> {
 				const eventImpl = mapEventNameToEvent.get(event);
 				if (eventImpl) {
 					return eventImpl as Event<T>;
+				}
+
+				if (propertyIsDynamicEvent(event)) {
+					const target = handler[event];
+					if (typeof target === 'function') {
+						return target.call(handler, arg);
+					}
 				}
 
 				throw new Error(`Event not found: ${event}`);
@@ -1126,6 +1133,13 @@ export namespace ProxyChannel {
 						return options.properties.get(propKey);
 					}
 
+					// Dynamic Event
+					if (propertyIsDynamicEvent(propKey)) {
+						return function (arg: any) {
+							return channel.listen(propKey, arg);
+						};
+					}
+
 					// Event
 					if (propertyIsEvent(propKey)) {
 						return channel.listen(propKey);
@@ -1161,6 +1175,11 @@ export namespace ProxyChannel {
 	function propertyIsEvent(name: string): boolean {
 		// Assume a property is an event if it has a form of "onSomething"
 		return name[0] === 'o' && name[1] === 'n' && strings.isUpperAsciiLetter(name.charCodeAt(2));
+	}
+
+	function propertyIsDynamicEvent(name: string): boolean {
+		// Assume a property is a dynamic event (a method that returns an event) if it has a form of "onDynamicSomething"
+		return /^onDynamic/.test(name) && strings.isUpperAsciiLetter(name.charCodeAt(9));
 	}
 }
 

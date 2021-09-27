@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
-import { Barrier } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+
+import { Barrier } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
-import { AbstractTunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
-import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+import { AbstractTunnelService, isAllInterfaces, isLocalhost, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {
@@ -27,7 +28,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 	public tunnelLocalPort!: number;
 	public tunnelRemoteHost: string;
 	public localAddress!: string;
-	public readonly public = false;
+	public readonly privacy = TunnelPrivacyId.Private;
 
 	private readonly _options: IConnectionOptions;
 	private readonly _server: net.Server;
@@ -98,7 +99,8 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		// pause reading on the socket until we have a chance to forward its data
 		localSocket.pause();
 
-		const protocol = await connectRemoteAgentTunnel(this._options, this.tunnelRemoteHost, this.tunnelRemotePort);
+		const tunnelRemoteHost = (isLocalhost(this.tunnelRemoteHost) || isAllInterfaces(this.tunnelRemoteHost)) ? 'localhost' : this.tunnelRemoteHost;
+		const protocol = await connectRemoteAgentTunnel(this._options, tunnelRemoteHost, this.tunnelRemotePort);
 		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
@@ -148,7 +150,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		return (this.configurationService.getValue('remote.localPortHost') === 'localhost') ? '127.0.0.1' : '0.0.0.0';
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, isPublic: boolean, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -156,7 +158,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic, protocol);
+			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
 		} else {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {

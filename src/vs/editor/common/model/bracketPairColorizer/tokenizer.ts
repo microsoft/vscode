@@ -6,7 +6,8 @@
 import { NotSupportedError } from 'vs/base/common/errors';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageId, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { SmallImmutableSet } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
+import { StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
 import { lengthGetColumnCountIfZeroLineCount, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
@@ -28,12 +29,24 @@ export const enum TokenKind {
 	ClosingBracket = 2,
 }
 
+export type OpeningBracketId = number;
+
 export class Token {
 	constructor(
 		readonly length: Length,
 		readonly kind: TokenKind,
-		readonly category: number,
-		readonly languageId: LanguageId,
+		/**
+		 * If this token is an opening bracket, this is the id of the opening bracket.
+		 * If this token is a closing bracket, this is the id of the first opening bracket that is closed by this bracket.
+		 * Otherwise, it is -1.
+		 */
+		readonly bracketId: OpeningBracketId,
+		/**
+		 * If this token is an opening bracket, this just contains `bracketId`.
+		 * If this token is a closing bracket, this lists all opening bracket ids, that it closes.
+		 * Otherwise, it is empty.
+		 */
+		readonly bracketIds: SmallImmutableSet<OpeningBracketId>,
 		readonly astNode: BracketAstNode | TextAstNode | undefined,
 	) { }
 }
@@ -165,7 +178,7 @@ class NonPeekableTextBufferTokenizer {
 			let peekedBracketToken: Token | null = null;
 
 			if (this.lineTokenOffset < tokenCount) {
-				let tokenMetadata = lineTokens.getMetadata(this.lineTokenOffset);
+				const tokenMetadata = lineTokens.getMetadata(this.lineTokenOffset);
 				while (this.lineTokenOffset + 1 < tokenCount && tokenMetadata === lineTokens.getMetadata(this.lineTokenOffset + 1)) {
 					// Skip tokens that are identical.
 					// Sometimes, (bracket) identifiers are split up into multiple tokens.
@@ -229,7 +242,7 @@ class NonPeekableTextBufferTokenizer {
 		}
 
 		const length = lengthDiff(startLineIdx, startLineCharOffset, this.lineIdx, this.lineCharOffset);
-		return new Token(length, TokenKind.Text, -1, -1, new TextAstNode(length));
+		return new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
 	}
 }
 
@@ -255,7 +268,7 @@ export class FastTokenizer implements Tokenizer {
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens0Line.push(
 				new Token(
-					toLength(0, i), TokenKind.Text, -1, -1,
+					toLength(0, i), TokenKind.Text, -1, SmallImmutableSet.getEmpty(),
 					new TextAstNode(toLength(0, i))
 				)
 			);
@@ -265,7 +278,7 @@ export class FastTokenizer implements Tokenizer {
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens1Line.push(
 				new Token(
-					toLength(1, i), TokenKind.Text, -1, -1,
+					toLength(1, i), TokenKind.Text, -1, SmallImmutableSet.getEmpty(),
 					new TextAstNode(toLength(1, i))
 				)
 			);
@@ -288,7 +301,7 @@ export class FastTokenizer implements Tokenizer {
 								token = smallTextTokens0Line[colCount];
 							} else {
 								const length = toLength(0, colCount);
-								token = new Token(length, TokenKind.Text, -1, -1, new TextAstNode(length));
+								token = new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
 							}
 						} else {
 							const lineCount = curLineCount - lastTokenEndLine;
@@ -297,7 +310,7 @@ export class FastTokenizer implements Tokenizer {
 								token = smallTextTokens1Line[colCount];
 							} else {
 								const length = toLength(lineCount, colCount);
-								token = new Token(length, TokenKind.Text, -1, -1, new TextAstNode(length));
+								token = new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
 							}
 						}
 						tokens.push(token);
@@ -318,7 +331,7 @@ export class FastTokenizer implements Tokenizer {
 			const length = (lastTokenEndLine === curLineCount)
 				? toLength(0, offset - lastTokenEndOffset)
 				: toLength(curLineCount - lastTokenEndLine, offset - lastLineBreakOffset);
-			tokens.push(new Token(length, TokenKind.Text, -1, -1, new TextAstNode(length)));
+			tokens.push(new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length)));
 		}
 
 		this.length = toLength(curLineCount, offset - lastLineBreakOffset);

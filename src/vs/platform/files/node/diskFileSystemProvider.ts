@@ -23,9 +23,10 @@ import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
 import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import product from 'vs/platform/product/common/product';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -35,6 +36,7 @@ export interface IWatcherOptions {
 export interface IDiskFileSystemProviderOptions {
 	bufferSize?: number;
 	watcher?: IWatcherOptions;
+	enableLegacyRecursiveWatcher?: boolean;
 }
 
 export class DiskFileSystemProvider extends Disposable implements
@@ -289,7 +291,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await Promises.fdatasync(fd);
+					await Promises.fdatasync(fd); // https://github.com/microsoft/vscode/issues/9589
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -531,23 +533,23 @@ export class DiskFileSystemProvider extends Disposable implements
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
-	private readonly recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
+	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
-			return this.watchRecursive(resource, opts.excludes);
+			return this.watchRecursive(resource, opts);
 		}
 
 		return this.watchNonRecursive(resource);
 	}
 
-	private watchRecursive(resource: URI, excludes: string[]): IDisposable {
+	private watchRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of folders to watch recursively
-		const folderToWatch = { path: this.toFilePath(resource), excludes };
+		const folderToWatch: IWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes };
 		const remove = insert(this.recursiveFoldersToWatch, folderToWatch);
 
 		// Trigger update
@@ -576,7 +578,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		// Reuse existing
 		if (this.recursiveWatcher instanceof NsfwWatcherService) {
-			this.recursiveWatcher.setFolders(this.recursiveFoldersToWatch);
+			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
 		}
 
 		// Create new
@@ -590,7 +592,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			if (this.recursiveFoldersToWatch.length > 0) {
 				let watcherImpl: {
 					new(
-						folders: { path: string, excludes: string[] }[],
+						folders: IWatchRequest[],
 						onChange: (changes: IDiskFileChange[]) => void,
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
@@ -608,8 +610,18 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				else {
 
-					// Single Folder Watcher
-					if (this.recursiveFoldersToWatch.length === 1) {
+					// Conditionally fallback to our legacy file watcher:
+					// - If provided as option from the outside (i.e. via settings)
+					// - Linux: until we support ignore patterns (unless insiders)
+					let enableLegacyWatcher: boolean;
+					if (this.options?.enableLegacyRecursiveWatcher) {
+						enableLegacyWatcher = true;
+					} else {
+						enableLegacyWatcher = product.quality === 'stable' && isLinux;
+					}
+
+					// Legacy Watcher
+					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
 						if (isWindows) {
 							watcherImpl = WindowsWatcherService;
 						} else {
@@ -617,7 +629,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						}
 					}
 
-					// Multi Folder Watcher
+					// Standard Watcher
 					else {
 						watcherImpl = NsfwWatcherService;
 					}
@@ -640,9 +652,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 				if (!this.recursiveWatcherLogLevelListener) {
 					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
-						if (this.recursiveWatcher) {
-							this.recursiveWatcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-						}
+						this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 					});
 				}
 			}

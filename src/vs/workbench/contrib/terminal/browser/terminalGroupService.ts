@@ -20,7 +20,7 @@ import { getInstanceFromResource } from 'vs/workbench/contrib/terminal/browser/t
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
@@ -84,7 +84,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (location === ViewContainerLocation.Panel) {
 			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
 			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
-				this._layoutService.setPanelHidden(true);
+				this._layoutService.setPartHidden(true, Parts.PANEL_PART);
 				TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 			}
 		}
@@ -399,6 +399,18 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	joinInstances(instances: ITerminalInstance[]) {
+		const group = this.getGroupForInstance(instances[0]);
+		let allInSameGroup = true;
+		if (group) {
+			for (let i = 1; i < group.terminalInstances.length; i++) {
+				if (!group.terminalInstances.includes(instances[i])) {
+					allInSameGroup = false;
+				}
+			}
+			if (allInSameGroup) {
+				return;
+			}
+		}
 		// Find the group of the first instance that is the only instance in the group, if one exists
 		let candidateInstance: ITerminalInstance | undefined = undefined;
 		let candidateGroup: ITerminalGroup | undefined = undefined;

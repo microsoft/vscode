@@ -722,20 +722,6 @@ suite('TextModelSearch', () => {
 		);
 	});
 
-	test('issue #65281. \w should match line break.', () => {
-		assertFindMatches(
-			[
-				'this/is{',
-				'a test',
-				'}',
-			].join('\n'),
-			'this/\\w*[^}]*', true, false, null,
-			[
-				[1, 1, 3, 1]
-			]
-		);
-	});
-
 	test('Simple find using unicode escape sequences', () => {
 		assertFindMatches(
 			regularText.join('\n'),

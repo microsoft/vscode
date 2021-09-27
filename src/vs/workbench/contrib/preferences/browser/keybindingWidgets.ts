@@ -54,12 +54,12 @@ export class KeybindingsSearchWidget extends SearchWidget {
 
 	constructor(parent: HTMLElement, options: KeybindingsSearchOptions,
 		@IContextViewService contextViewService: IContextViewService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService);
+		super(parent, options, contextViewService, instantiationService, themeService, contextKeyService, keybindingService);
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this._register(toDisposable(() => this.stopRecordingKeys()));
 		this._firstPart = null;

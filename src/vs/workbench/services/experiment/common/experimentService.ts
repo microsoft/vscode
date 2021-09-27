@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation'; import * as platform from 'vs/base/common/platform';
 import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client-umd';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryData } from 'vs/base/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -199,7 +199,7 @@ export class ExperimentService implements ITASExperimentService {
 		@IProductService private productService: IProductService
 	) {
 
-		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
+		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
 			this.tasClient = this.setupTASClient();
 		}
 

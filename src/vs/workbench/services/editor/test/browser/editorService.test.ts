@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -511,7 +511,7 @@ suite('EditorService', () => {
 			rootGroup = part.activeGroup;
 		}
 
-		async function openEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined> {
+		async function openEditor(editor: EditorInputWithOptions | IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined> {
 			if (useOpenEditors) {
 				const panes = await service.openEditors([editor], group);
 
@@ -1245,8 +1245,8 @@ suite('EditorService', () => {
 			{
 				let untypedEditor1: IResourceEditorInput = { resource: URI.file('file1.editor-service-override-tests') };
 				let untypedEditor2: IResourceEditorInput = { resource: URI.file('file2.editor-service-override-tests'), options: { override: EditorResolution.DISABLED } };
-				let untypedEditor3: IEditorInputWithOptions = { editor: new TestFileEditorInput(URI.file('file3.editor-service-override-tests'), TEST_EDITOR_INPUT_ID) };
-				let untypedEditor4: IEditorInputWithOptions = { editor: new TestFileEditorInput(URI.file('file4.editor-service-override-tests'), TEST_EDITOR_INPUT_ID), options: { override: EditorResolution.DISABLED } };
+				let untypedEditor3: EditorInputWithOptions = { editor: new TestFileEditorInput(URI.file('file3.editor-service-override-tests'), TEST_EDITOR_INPUT_ID) };
+				let untypedEditor4: EditorInputWithOptions = { editor: new TestFileEditorInput(URI.file('file4.editor-service-override-tests'), TEST_EDITOR_INPUT_ID), options: { override: EditorResolution.DISABLED } };
 				let untypedEditor5: IResourceEditorInput = { resource: URI.file('file5.editor-service-override-tests') };
 				let pane = (await service.openEditors([untypedEditor1, untypedEditor2, untypedEditor3, untypedEditor4, untypedEditor5]))[0];
 
@@ -1357,7 +1357,7 @@ suite('EditorService', () => {
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput);
+		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput, service);
 
 		const editor1 = await service.openEditor(sideBySideInput, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 1);
@@ -1416,7 +1416,7 @@ suite('EditorService', () => {
 
 		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4, service);
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -1461,7 +1461,7 @@ suite('EditorService', () => {
 
 		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
-		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4, service);
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -2424,5 +2424,51 @@ suite('EditorService', () => {
 			const found2 = service.findEditors(input);
 			assert.strictEqual(found2.length, 0);
 		}
+	});
+
+	test('side by side editor is not matching all other editors (https://github.com/microsoft/vscode/issues/132859)', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, input, service);
+		const otherSideBySideInput = new SideBySideEditorInput(undefined, undefined, otherInput, otherInput, service);
+
+		await service.openEditor(sideBySideInput, undefined, SIDE_GROUP);
+
+		part.activateGroup(rootGroup);
+
+		await service.openEditor(otherSideBySideInput, { revealIfOpened: true, revealIfVisible: true });
+
+		assert.strictEqual(rootGroup.count, 1);
+	});
+
+	test('onDidCloseEditor indicates proper context when moving editor across groups', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor2'), TEST_EDITOR_INPUT_ID);
+
+		await service.openEditor(input1, { pinned: true });
+		await service.openEditor(input2, { pinned: true });
+
+		const sidegroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		const events: IEditorCloseEvent[] = [];
+		service.onDidCloseEditor(e => {
+			events.push(e);
+		});
+
+		rootGroup.moveEditor(input1, sidegroup);
+
+		assert.strictEqual(events[0].context, EditorCloseContext.MOVE);
+
+		await sidegroup.closeEditor(input1);
+
+		assert.strictEqual(events[1].context, EditorCloseContext.UNKNOWN);
 	});
 });

@@ -38,7 +38,7 @@ suite('Native Modules (all platforms)', () => {
 	});
 
 	test('nsfw', async () => {
-		const nsfWatcher = await import('nsfw');
+		const nsfWatcher = await import('vscode-nsfw');
 		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('nsfw'));
 	});
 

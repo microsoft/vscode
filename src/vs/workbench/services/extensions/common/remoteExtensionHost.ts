@@ -148,7 +148,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
 					let handle = setTimeout(() => {
-						reject('timeout');
+						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
 					let logFile: URI;
@@ -242,7 +242,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
 				id: workspace.id,
-				name: this._labelService.getWorkspaceLabel(workspace)
+				name: this._labelService.getWorkspaceLabel(workspace),
+				transient: workspace.transient
 			},
 			remote: {
 				isRemote: true,

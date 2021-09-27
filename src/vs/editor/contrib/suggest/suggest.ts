@@ -412,3 +412,16 @@ export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.Co
 		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));
 	}, 0);
 }
+
+export interface ISuggestItemPreselector {
+	/**
+	 * The preselector with highest priority is asked first.
+	*/
+	readonly priority: number;
+
+	/**
+	 * Is called to preselect a suggest item.
+	 * When -1 is returned, item preselectors with lower priority are asked.
+	*/
+	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
+}

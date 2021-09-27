@@ -27,7 +27,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 
 		const searchConfig = _configurationService.getValue<ISearchConfiguration>().search;
-		if (searchConfig.experimental.forceExtensionHostSearch) {
+		if (!searchConfig.forceSearchProcess) {
 			this._proxy.$enableExtensionHostSearch();
 		}
 	}

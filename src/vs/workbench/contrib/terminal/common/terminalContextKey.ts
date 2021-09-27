@@ -11,6 +11,7 @@ export const enum TerminalContextKeyStrings {
 	Count = 'terminalCount',
 	GroupCount = 'terminalGroupCount',
 	TabsNarrow = 'isTerminalTabsNarrow',
+	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
 	EditorFocus = 'terminalEditorFocus',
@@ -45,6 +46,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal tabs view is narrow. */
 	export const tabsNarrow = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsNarrow, false, true);
+
+	/** Whether the terminal tabs view is narrow. */
+	export const terminalHasFixedWidth = new RawContextKey<boolean>(TerminalContextKeyStrings.HasFixedWidth, false, true);
 
 	/** Whether the terminal tabs widget is focused. */
 	export const tabsFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsFocus, false, localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused."));

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
@@ -14,7 +13,7 @@ import { dirname, isEqual } from 'vs/base/common/resources';
 /**
  * The base class for all editor inputs that open resources.
  */
-export abstract class AbstractResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
+export abstract class AbstractResourceEditorInput extends EditorInput implements EditorInputWithPreferredResource {
 
 	override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.CanSplitInGroup;
@@ -84,12 +83,12 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	}
 
 	private _name: string | undefined = undefined;
-	override getName(skipDecorate?: boolean): string {
+	override getName(): string {
 		if (typeof this._name !== 'string') {
 			this._name = this.labelService.getUriBasenameLabel(this._preferredResource);
 		}
 
-		return skipDecorate ? this._name : this.decorateLabel(this._name);
+		return this._name;
 	}
 
 	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
@@ -134,7 +133,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	private _shortTitle: string | undefined = undefined;
 	private get shortTitle(): string {
 		if (typeof this._shortTitle !== 'string') {
-			this._shortTitle = this.getName(true /* skip decorations */);
+			this._shortTitle = this.getName();
 		}
 
 		return this._shortTitle;
@@ -161,39 +160,12 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	override getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
-				return this.decorateLabel(this.shortTitle);
+				return this.shortTitle;
 			case Verbosity.LONG:
-				return this.decorateLabel(this.longTitle);
+				return this.longTitle;
 			default:
 			case Verbosity.MEDIUM:
-				return this.decorateLabel(this.mediumTitle);
+				return this.mediumTitle;
 		}
 	}
-
-	private decorateLabel(label: string): string {
-		const readonly = this.hasCapability(EditorInputCapabilities.Readonly);
-		const orphaned = this.isOrphaned();
-
-		return decorateFileEditorLabel(label, { orphaned, readonly });
-	}
-
-	isOrphaned(): boolean {
-		return false;
-	}
-}
-
-export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
-	if (state.orphaned && state.readonly) {
-		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-	}
-
-	if (state.orphaned) {
-		return localize('orphanedFile', "{0} (deleted)", label);
-	}
-
-	if (state.readonly) {
-		return localize('readonlyFile', "{0} (read-only)", label);
-	}
-
-	return label;
 }

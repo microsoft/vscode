@@ -5,7 +5,8 @@
 
 import { nbformat } from '@jupyterlab/coreutils';
 import { NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
-import { CellOutputMetadata } from './common';
+import { CellMetadata, CellOutputMetadata } from './common';
+import { textMimeTypes } from './deserializers';
 
 const textDecoder = new TextDecoder();
 
@@ -14,8 +15,6 @@ enum CellOutputMimeTypes {
 	stderr = 'application/vnd.code.notebook.stderr',
 	stdout = 'application/vnd.code.notebook.stdout'
 }
-
-const textMimeTypes = ['text/plain', 'text/markdown', CellOutputMimeTypes.stderr, CellOutputMimeTypes.stdout];
 
 export function createJupyterCellFromNotebookCell(
 	vscCell: NotebookCellData
@@ -31,15 +30,41 @@ export function createJupyterCellFromNotebookCell(
 	return cell;
 }
 
+
+/**
+ * Sort the JSON to minimize unnecessary SCM changes.
+ * Jupyter notbeooks/labs sorts the JSON keys in alphabetical order.
+ * https://github.com/microsoft/vscode-python/issues/13155
+ */
+export function sortObjectPropertiesRecursively(obj: any): any {
+	if (Array.isArray(obj)) {
+		return obj.map(sortObjectPropertiesRecursively);
+	}
+	if (obj !== undefined && obj !== null && typeof obj === 'object' && Object.keys(obj).length > 0) {
+		return (
+			Object.keys(obj)
+				.sort()
+				.reduce<Record<string, any>>((sortedObj, prop) => {
+					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
+					return sortedObj;
+				}, {}) as any
+		);
+	}
+	return obj;
+}
+
 function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
+	if (cellMetadata?.id) {
+		codeCell.id = cellMetadata.id;
+	}
 	return codeCell;
 }
 
@@ -47,11 +72,14 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
 		rawCell.attachments = cellMetadata.attachments;
+	}
+	if (cellMetadata?.id) {
+		rawCell.id = cellMetadata.id;
 	}
 	return rawCell;
 }
@@ -276,11 +304,7 @@ function convertOutputMimeToJupyterOutput(mime: string, value: Uint8Array) {
 			if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
 				return Buffer.from(value).toString('base64');
 			} else {
-				// https://developer.mozilla.org/en-US/docs/Glossary/Base64#solution_1_%E2%80%93_escaping_the_string_before_encoding_it
-				const stringValue = textDecoder.decode(value);
-				return btoa(encodeURIComponent(stringValue).replace(/%([0-9A-F]{2})/g, function (_match, p1) {
-					return String.fromCharCode(Number.parseInt('0x' + p1));
-				}));
+				return btoa(value.reduce((s: string, b: number) => s + String.fromCharCode(b), ''));
 			}
 		} else if (mime.toLowerCase().includes('json')) {
 			const stringValue = textDecoder.decode(value);
@@ -298,28 +322,16 @@ function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbformat.IM
 	const cellMetadata = cell.metadata?.custom as CellMetadata | undefined;
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString(cell.value),
+		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
 		markdownCell.attachments = cellMetadata.attachments;
 	}
+	if (cellMetadata?.id) {
+		markdownCell.id = cellMetadata.id;
+	}
 	return markdownCell;
-}
-
-/**
- * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
- */
-interface CellMetadata {
-	/**
-	 * Stores attachments for cells.
-	 */
-	attachments?: nbformat.IAttachments;
-	/**
-	 * Stores cell metadata.
-	 */
-	metadata?: Partial<nbformat.ICellMetadata>;
 }
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {

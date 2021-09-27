@@ -53,6 +53,7 @@
     "extract-zip": "^2.0.1",
     "fs-extra": "^9.1.0",
     "got": "11.8.1",
+    "gulp-merge-json": "^2.1.1",
     "iconv-lite-umd": "0.6.8",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
@@ -61,8 +62,8 @@
     "plist": "^3.0.1",
     "source-map": "0.6.1",
     "tmp": "^0.2.1",
-    "typescript": "^4.5.0-dev.20210902",
-    "vsce": "1.48.0",
+    "typescript": "^4.5.0-dev.20210927",
+    "vsce": "^1.100.0",
     "vscode-universal-bundler": "^0.0.2"
   },
   "scripts": {
