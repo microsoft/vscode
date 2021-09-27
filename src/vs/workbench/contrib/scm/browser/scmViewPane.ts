@@ -106,6 +106,9 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	static readonly TEMPLATE_ID = 'actionButton';
 	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
 
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
 	constructor(
 		@ICommandService private commandService: ICommandService,
 		@IThemeService private themeService: IThemeService,
@@ -115,14 +118,15 @@ class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
 		const buttonContainer = append(container, $('.button-container'));
 		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const disposable = actionButton.onDidChange(this._onDidChange.fire, this);
 
-		return { actionButton, disposable: Disposable.None, templateDisposable: actionButton };
+		return { actionButton, disposable: Disposable.None, templateDisposable: combinedDisposable(disposable, actionButton) };
 	}
 
 	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate, height: number | undefined): void {
 		templateData.disposable.dispose();
 
-		templateData.actionButton.setCommand(node.element.button);
+		templateData.actionButton.setCommand(node.element.repository, node.element.button);
 	}
 
 	renderCompressedElements(): void {
@@ -1066,6 +1070,7 @@ class ViewModel {
 	constructor(
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
+		actionButtonRenderer: ActionButtonRenderer,
 		private _mode: ViewModelMode,
 		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -1092,6 +1097,7 @@ class ViewModel {
 			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
+		this.disposables.add(actionButtonRenderer.onDidChange(() => this.refresh()));
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -2042,10 +2048,11 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
 
+		const actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
-			this.instantiationService.createInstance(ActionButtonRenderer),
+			actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
 		];
@@ -2101,7 +2108,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, actionButtonRenderer, viewMode, viewState);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2393,6 +2400,9 @@ registerThemingParticipant((theme, collector) => {
 });
 
 export class ScmActionButton implements IDisposable {
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
 	private button: Button | undefined;
 	private readonly disposables = new MutableDisposable<DisposableStore>();
 
@@ -2409,7 +2419,7 @@ export class ScmActionButton implements IDisposable {
 	}
 
 
-	setCommand(command: Command | undefined): void {
+	setCommand(repository: ISCMRepository, command: Command | undefined): void {
 		// Clear old button
 		this.clear();
 		if (!command) {
@@ -2428,7 +2438,7 @@ export class ScmActionButton implements IDisposable {
 
 		this.disposables.value!.add(this.button);
 		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
-
+		this.disposables.value!.add(repository.provider.onDidChange(this._onDidChange.fire, this));
 	}
 
 	private clear(): void {
