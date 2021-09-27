@@ -36,7 +36,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -450,6 +450,10 @@ export class InteractiveEditor extends EditorPane {
 			}
 
 			if (this.#state !== ScrollingState.StickyToBottom) {
+				return;
+			}
+
+			if (this.#lastCell?.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 				return;
 			}
 
