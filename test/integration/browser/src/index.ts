@@ -53,6 +53,16 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error('log err', err);
 		}
 	});
+	page.on('requestfailed', e => {
+		console.log('__requestfailed__', e.url(), e.failure()?.errorText);
+	});
+
+	page.on('close', e => {
+		console.log('__close__');
+	});
+	page.on('popup', e => {
+		console.log('popup');
+	});
 
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
