@@ -47,6 +47,7 @@ import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { SerializedError } from 'vs/base/common/errors';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -195,6 +196,16 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this.terminate();
 	}
 
+	private async _createExtensionHost(): Promise<{ id: string; }> {
+		const sw = new StopWatch(false);
+		const result = await this._extensionHostStarter.createExtensionHost();
+		if (sw.elapsed() > 20) {
+			// communicating to the shared process took more than 20ms
+			this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.createExtensionHost() took ${sw.elapsed()} ms.`);
+		}
+		return result;
+	}
+
 	public start(): Promise<IMessagePassingProtocol> | null {
 		if (this._terminating) {
 			// .terminate() was called
@@ -203,7 +214,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
-				this._extensionHostStarter.createExtensionHost(),
+				this._createExtensionHost(),
 				this._tryListenOnPipe(),
 				this._tryFindDebugPort(),
 				this._shellEnvironmentService.getShellEnv(),
@@ -361,7 +372,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}, 10000);
 				}
 
+				const sw = new StopWatch(false);
 				return this._extensionHostProcess.start(opts).then(() => {
+					if (sw.elapsed() > 20) {
+						// communicating to the shared process took more than 20ms
+						this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
+					}
 					// Initialize extension host process with hand shakes
 					return this._tryExtHostHandshake().then((protocol) => {
 						clearTimeout(startupTimeoutHandle);
