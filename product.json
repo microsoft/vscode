@@ -29,8 +29,7 @@
 		"ms-vscode.remotehub",
 		"ms-vscode.remotehub-insiders",
 		"GitHub.remotehub",
-		"GitHub.remotehub-insiders",
-		"ms-vsliveshare.vsliveshare"
+		"GitHub.remotehub-insiders"
 	],
 	"builtInExtensions": [
 		{
