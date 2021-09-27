@@ -33,6 +33,7 @@ import 'vs/workbench/electron-sandbox/desktop.main';
 
 //#region --- workbench services
 
+import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
 
 //#endregion
 

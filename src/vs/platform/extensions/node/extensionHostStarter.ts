@@ -12,6 +12,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class ExtensionHostProcess extends Disposable {
 
@@ -181,3 +182,5 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		this._getExtHost(id).kill();
 	}
 }
+
+registerSingleton(IExtensionHostStarter, ExtensionHostStarter, true);
