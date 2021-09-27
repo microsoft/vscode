@@ -978,12 +978,16 @@ declare function cancelIdleCallback(handle: number): void;
 
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		const dummyIdle: IdleDeadline = Object.freeze({
-			didTimeout: true,
-			timeRemaining() { return 15; }
-		});
 		runWhenIdle = (runner) => {
-			const handle = setTimeout(() => runner(dummyIdle));
+			const handle = setTimeout(() => {
+				const end = Date.now() + 15; // one frame at 64fps
+				runner(Object.freeze({
+					didTimeout: true,
+					timeRemaining() {
+						return Math.max(0, end - Date.now());
+					}
+				}));
+			});
 			let disposed = false;
 			return {
 				dispose() {
