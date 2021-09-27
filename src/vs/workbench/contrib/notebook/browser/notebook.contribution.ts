@@ -273,10 +273,11 @@ class CellContentProvider implements ITextModelContentProvider {
 						return cell.textBuffer.getLineContent(1).substr(0, limit);
 					}
 				};
-				const language = cell.language ? this._modeService.create(cell.language) : (cell.cellKind === CellKind.Markup ? this._modeService.create('markdown') : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
+				const modeId = this._modeService.getModeId(cell.language);
+				const languageSelection = modeId ? this._modeService.create(modeId) : (cell.cellKind === CellKind.Markup ? this._modeService.create('markdown') : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				result = this._modelService.createModel(
 					bufferFactory,
-					language,
+					languageSelection,
 					resource
 				);
 				break;

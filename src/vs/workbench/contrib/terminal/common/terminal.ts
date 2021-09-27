@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -241,6 +241,7 @@ export interface IRemoteTerminalAttachTarget {
 	isOrphan: boolean;
 	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
 	color: string | undefined;
+	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
 export interface ICommandTracker {
@@ -316,6 +317,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	getCwd(): Promise<string>;
 	getLatency(): Promise<number>;
 	refreshProperty(property: ProcessPropertyType): any;
+	updateProperty(property: ProcessPropertyType, value: any): any;
 }
 
 export const enum ProcessState {

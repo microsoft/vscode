@@ -7,11 +7,12 @@ import * as assert from 'assert';
 import { EventEmitter } from 'events';
 import { createServer, Socket } from 'net';
 import { tmpdir } from 'os';
-import { timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { ILoadEstimator, PersistentProtocol, Protocol, ProtocolConstants, SocketCloseEvent } from 'vs/base/parts/ipc/common/ipc.net';
+import { createRandomIPCHandle, createStaticIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import product from 'vs/platform/product/common/product';
@@ -395,4 +396,131 @@ suite('IPC, create handle', () => {
 		});
 	}
 
+});
+
+suite('WebSocketNodeSocket', () => {
+
+	function toUint8Array(data: number[]): Uint8Array {
+		const result = new Uint8Array(data.length);
+		for (let i = 0; i < data.length; i++) {
+			result[i] = data[i];
+		}
+		return result;
+	}
+
+	function fromUint8Array(data: Uint8Array): number[] {
+		const result = [];
+		for (let i = 0; i < data.length; i++) {
+			result[i] = data[i];
+		}
+		return result;
+	}
+
+	function fromCharCodeArray(data: number[]): string {
+		let result = '';
+		for (let i = 0; i < data.length; i++) {
+			result += String.fromCharCode(data[i]);
+		}
+		return result;
+	}
+
+	class FakeNodeSocket extends Disposable {
+
+		private readonly _onData = new Emitter<VSBuffer>();
+		public readonly onData = this._onData.event;
+
+		private readonly _onClose = new Emitter<SocketCloseEvent>();
+		public readonly onClose = this._onClose.event;
+
+		constructor() {
+			super();
+		}
+
+		public fireData(data: number[]): void {
+			this._onData.fire(VSBuffer.wrap(toUint8Array(data)));
+		}
+	}
+
+	async function testReading(frames: number[][], permessageDeflate: boolean): Promise<string> {
+		const disposables = new DisposableStore();
+		const socket = new FakeNodeSocket();
+		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, permessageDeflate, null, false));
+
+		const barrier = new Barrier();
+		let remainingFrameCount = frames.length;
+
+		let receivedData: string = '';
+		disposables.add(webSocket.onData((buff) => {
+			receivedData += fromCharCodeArray(fromUint8Array(buff.buffer));
+			remainingFrameCount--;
+			if (remainingFrameCount === 0) {
+				barrier.open();
+			}
+		}));
+
+		for (let i = 0; i < frames.length; i++) {
+			socket.fireData(frames[i]);
+		}
+
+		await barrier.wait();
+
+		disposables.dispose();
+
+		return receivedData;
+	}
+
+	test('A single-frame unmasked text message', async () => {
+		const frames = [
+			[0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f] // contains "Hello"
+		];
+		const actual = await testReading(frames, false);
+		assert.deepStrictEqual(actual, 'Hello');
+	});
+
+	test('A single-frame masked text message', async () => {
+		const frames = [
+			[0x81, 0x85, 0x37, 0xfa, 0x21, 0x3d, 0x7f, 0x9f, 0x4d, 0x51, 0x58] // contains "Hello"
+		];
+		const actual = await testReading(frames, false);
+		assert.deepStrictEqual(actual, 'Hello');
+	});
+
+	test('A fragmented unmasked text message', async () => {
+		// contains "Hello"
+		const frames = [
+			[0x01, 0x03, 0x48, 0x65, 0x6c], // contains "Hel"
+			[0x80, 0x02, 0x6c, 0x6f], // contains "lo"
+		];
+		const actual = await testReading(frames, false);
+		assert.deepStrictEqual(actual, 'Hello');
+	});
+
+	suite('compression', () => {
+		test('A single-frame compressed text message', async () => {
+			// contains "Hello"
+			const frames = [
+				[0xc1, 0x07, 0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00], // contains "Hello"
+			];
+			const actual = await testReading(frames, true);
+			assert.deepStrictEqual(actual, 'Hello');
+		});
+
+		test('A fragmented compressed text message', async () => {
+			// contains "Hello"
+			const frames = [  // contains "Hello"
+				[0x41, 0x03, 0xf2, 0x48, 0xcd],
+				[0x80, 0x04, 0xc9, 0xc9, 0x07, 0x00]
+			];
+			const actual = await testReading(frames, true);
+			assert.deepStrictEqual(actual, 'Hello');
+		});
+
+		test('A single-frame non-compressed text message', async () => {
+			const frames = [
+				[0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f] // contains "Hello"
+			];
+			const actual = await testReading(frames, true);
+			assert.deepStrictEqual(actual, 'Hello');
+		});
+	});
 });

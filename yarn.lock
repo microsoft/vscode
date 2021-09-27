@@ -6930,15 +6930,15 @@ node-abi@^2.21.0:
   dependencies:
     semver "^5.4.1"
 
-node-addon-api@*:
-  version "4.2.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.2.0.tgz#117cbb5a959dff0992e1c586ae0393573e4d2a87"
-  integrity sha512-eazsqzwG2lskuzBqCGPi7Ac2UgOoMz8JVOXVhTvvPDYhthvNpefx8jWD8Np7Gv+2Sz0FlPWZk0nJV0z598Wn8Q==
-
 node-addon-api@^3.0.0, node-addon-api@^3.0.2:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
   integrity sha512-flmrDNB06LIl5lywUz7YlNGZH/5p0M7W28k8hzd9Lshtdh1wshD2Y+U4h9LD6KObOy1f+fEVdgprPrEymjM5uw==
+
+node-addon-api@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-4.2.0.tgz#117cbb5a959dff0992e1c586ae0393573e4d2a87"
+  integrity sha512-eazsqzwG2lskuzBqCGPi7Ac2UgOoMz8JVOXVhTvvPDYhthvNpefx8jWD8Np7Gv+2Sz0FlPWZk0nJV0z598Wn8Q==
 
 node-fetch@^2.6.1:
   version "2.6.2"
@@ -7652,10 +7652,10 @@ pkg-dir@^4.1.0, pkg-dir@^4.2.0:
   dependencies:
     find-up "^4.0.0"
 
-playwright@1.14.1:
-  version "1.14.1"
-  resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.14.1.tgz#73913d3044a85a58edf13148245279231072532e"
-  integrity sha512-JYNjhwWcfsBkg0FMGLbFO9e58FVdmICE4k97/glIQV7cBULL7oxNjRQC7Ffe+Y70XVNnP0HSJLaA0W5SukyftQ==
+playwright@1.15.0:
+  version "1.15.0"
+  resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.15.0.tgz#c8c75287541e75317988b973a306d2f61065aefb"
+  integrity sha512-JtagFVjNvccP1rIixHB/4KbR+BzMTJLty6mo71YLatvJR9ZH+PX8DLlhw1KDdIH2YGMSQGf2ihh4KAp9tsklxQ==
   dependencies:
     commander "^6.1.0"
     debug "^4.1.1"
@@ -10014,10 +10014,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.5.0-dev.20210914:
-  version "4.5.0-dev.20210914"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-dev.20210914.tgz#c6954939c125bf3bffe085594d58f0029f21ba94"
-  integrity sha512-ZV7f9sBWGz5ySBIKZrlTGtebI7X4oxI9/A+bDq+Rf3gfqzNOsgZjThL1gSiaJu7OvpNbtIF/dbraoIrfqVLNnA==
+typescript@^4.5.0-dev.20210927:
+  version "4.5.0-dev.20210927"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-dev.20210927.tgz#708d676e1d5664d341f1efd6da74e59df4530a79"
+  integrity sha512-SwH1rcPWT0rtRerrAsVExE1RiXhqKZdVOLVo0T9iT2+Lehq3WT5zMbTPIf/LAZ6mQlYT5XxNMSMjJl+EHr2byQ==
 
 typical@^4.0.0:
   version "4.0.0"
@@ -10408,12 +10408,12 @@ vscode-nls-dev@^3.3.1:
     xml2js "^0.4.19"
     yargs "^13.2.4"
 
-vscode-nsfw@2.1.4:
-  version "2.1.4"
-  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.4.tgz#8965413e41a7099e36813921d3b468c12d1b6e59"
-  integrity sha512-EsYWpACwojUjLgJFPhtnk/omId+oyuHpctWQiCLblf53eOxzYC7HT30NljEigl/sFmuTZM0IEMrsonj3GKDYPw==
+vscode-nsfw@2.1.8:
+  version "2.1.8"
+  resolved "https://registry.yarnpkg.com/vscode-nsfw/-/vscode-nsfw-2.1.8.tgz#88f5e56b22b2fd0be582e73eb1158ea8257f6c6c"
+  integrity sha512-tFnxPIuM65czw/Kjz8KXD88fIJtnCjzQ0ighS0a1yasVv6jKkANAlGffiOitTLMkDjvFCY8OyP6xjarTkpu/VQ==
   dependencies:
-    node-addon-api "*"
+    node-addon-api "^4.2.0"
 
 vscode-oniguruma@1.5.1:
   version "1.5.1"

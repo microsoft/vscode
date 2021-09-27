@@ -155,7 +155,7 @@ export interface ICompositeBarOptions {
 	fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	getContextMenuActionsForComposite: (compositeId: string) => IAction[];
 	openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
-	getDefaultCompositeId: () => string;
+	getDefaultCompositeId: () => string | undefined;
 	hidePart: () => void;
 }
 
@@ -304,6 +304,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
+	recomputeSizes(): void {
+		this.computeSizes(this.model.visibleItems);
+	}
+
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {
@@ -417,7 +421,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Case: composite is not the default composite and default composite is still showing
 		// Solv: we open the default composite
-		if (defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
+		if (defaultCompositeId && defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
 			this.options.openComposite(defaultCompositeId, true);
 		}
 

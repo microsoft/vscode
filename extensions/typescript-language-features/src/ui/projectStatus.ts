@@ -131,28 +131,37 @@ export class ProjectStatus extends Disposable {
 
 		this._state = newState;
 
-		const rootPath = this._state.type === ProjectInfoState.Type.Resolved ? this._client.getWorkspaceRootForResource(this._state.resource) : undefined;
-		if (!rootPath) {
-			return;
-		}
+		switch (this._state.type) {
+			case ProjectInfoState.Type.None:
+				break;
 
-		if (this._state.type === ProjectInfoState.Type.Resolved) {
-			if (isImplicitProjectConfigFile(this._state.configFile)) {
-				this._statusItem.detail = localize('item.noTsConfig.detail', "None");
-				this._statusItem.command = {
-					command: this.createConfigCommandId,
-					title: localize('create.command', "Create tsconfig"),
-					arguments: [rootPath],
-				};
-				return;
-			}
-		}
+			case ProjectInfoState.Type.Pending:
+				this._statusItem.detail = '$(loading~spin)';
+				this._statusItem.command = undefined;
+				break;
 
-		this._statusItem.detail = this._state.type === ProjectInfoState.Type.Resolved ? vscode.workspace.asRelativePath(this._state.configFile) : '';
-		this._statusItem.command = {
-			command: this.openOpenConfigCommandId,
-			title: localize('item.command', "Open config file"),
-			arguments: [rootPath],
-		};
+			case ProjectInfoState.Type.Resolved:
+				const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
+				if (!rootPath) {
+					return;
+				}
+
+				if (isImplicitProjectConfigFile(this._state.configFile)) {
+					this._statusItem.detail = localize('item.noTsConfig.detail', "None");
+					this._statusItem.command = {
+						command: this.createConfigCommandId,
+						title: localize('create.command', "Create tsconfig"),
+						arguments: [rootPath],
+					};
+				} else {
+					this._statusItem.detail = vscode.workspace.asRelativePath(this._state.configFile);
+					this._statusItem.command = {
+						command: this.openOpenConfigCommandId,
+						title: localize('item.command', "Open config file"),
+						arguments: [rootPath],
+					};
+				}
+				break;
+		}
 	}
 }

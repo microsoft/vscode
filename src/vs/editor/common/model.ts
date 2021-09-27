@@ -1024,6 +1024,11 @@ export interface ITextModel {
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
+	 * @internal
+	 */
+	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][];
+
+	/**
 	 * Change the decorations. The callback will be called with a change accessor
 	 * that becomes invalid as soon as the callback finishes executing.
 	 * This allows for all events to be queued up until the change
@@ -1326,6 +1331,31 @@ export interface ITextModel {
 	 * @internal
 	*/
 	getLineIndentColumn(lineNumber: number): number;
+}
+
+/**
+ * @internal
+ */
+export class IndentGuide {
+	constructor(
+		public readonly visibleColumn: number,
+		public readonly className: string
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class BracketPair {
+	constructor(
+		public readonly range: Range,
+		public readonly openingBracketRange: Range,
+		public readonly closingBracketRange: Range | undefined,
+		/**
+		 * 0-based
+		*/
+		public readonly nestingLevel: number,
+	) { }
 }
 
 /**

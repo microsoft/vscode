@@ -487,7 +487,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dataSource, {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
-				getAriaLabel(element: ITreeItem): string {
+				getAriaLabel(element: ITreeItem): string | null {
 					if (element.accessibilityInformation) {
 						return element.accessibilityInformation.label;
 					}
@@ -495,6 +495,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					if (isString(element.tooltip)) {
 						return element.tooltip;
 					} else {
+						if (element.resourceUri && !element.label) {
+							// The custom tree has no good information on what should be used for the aria label.
+							// Allow the tree widget's default aria label to be used.
+							return null;
+						}
 						let buildAriaLabel: string = '';
 						if (element.label) {
 							buildAriaLabel += element.label.label + ' ';

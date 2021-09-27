@@ -1906,6 +1906,33 @@ export class Repository implements Disposable {
 			return undefined;
 		});
 
+		let actionButton: SourceControl['actionButton'];
+		if (HEAD !== undefined && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0) {
+			if (HEAD.name && HEAD.commit) {
+				if (HEAD.upstream) {
+					if (HEAD.ahead) {
+						const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+						const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+						actionButton = {
+							command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+							title: localize('scm button sync title', ' Sync Changes \u00a0$(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+							tooltip: this.syncTooltip,
+							arguments: [this._sourceControl],
+						};
+					}
+				} else {
+					actionButton = {
+						command: 'git.publish',
+						title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
+						tooltip: localize('scm button publish tooltip', "Publish Changes"),
+						arguments: [this._sourceControl],
+					};
+				}
+			}
+		}
+		this._sourceControl.actionButton = actionButton;
+
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;
 		this.indexGroup.resourceStates = index;

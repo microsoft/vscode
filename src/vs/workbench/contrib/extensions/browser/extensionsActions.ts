@@ -128,7 +128,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", this.extension.displayName || this.extension.identifier.id, productName);
 			const result = await this.dialogService.show(Severity.Info, message, [localize('close', "Close"), localize('more information', "More Information")], { cancelId: 0 });
 			if (result.choice === 1) {
-				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser') : URI.parse('https://aka.ms/vscode-remote'));
+				this.openerService.open(isWeb ? URI.parse('https://aka.ms/vscode-web-extensions-guide') : URI.parse('https://aka.ms/vscode-remote'));
 			}
 			return;
 		}
@@ -2032,7 +2032,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 			if (this.extensionManagementServerService.webExtensionManagementServer) {
 				const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
-				const message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName)} [${localize('learn more', "Learn More")}](https://aka.ms/vscode-remote-codespaces#_why-is-an-extension-not-installable-in-the-browser)`);
+				const message = new MarkdownString(`${localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName)} [${localize('learn why', "Learn Why")}](https://aka.ms/vscode-web-extensions-guide)`);
 				this.updateStatus({ icon: warningIcon, message }, true);
 				return;
 			}

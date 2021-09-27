@@ -142,10 +142,10 @@ suite('SuggestModel - Context', function () {
 		const model = createTextModel('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
 		disposables.push(model);
 
-		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
+		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
 		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');
 		assertAutoTrigger(model, 3, false, 'a<x|x —  should NOT trigger in middle of word');
-		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
+		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
 		assertAutoTrigger(model, 5, false, 'a<xx>|a — should NOT trigger at start of word');
 		assertAutoTrigger(model, 6, true, 'a<xx>a|< — should trigger at end of word');
 		assertAutoTrigger(model, 8, true, 'a<xx>a<x|> — should trigger at end of word at boundary');

@@ -6,7 +6,6 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { setImmediate } from 'vs/base/common/platform';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -110,9 +109,9 @@ export class WebviewViewPane extends ViewPane {
 
 		if (!this._resizeObserver) {
 			this._resizeObserver = new ResizeObserver(() => {
-				setImmediate(() => {
+				setTimeout(() => {
 					this.layoutWebview();
-				});
+				}, 0);
 			});
 
 			this._register(toDisposable(() => {

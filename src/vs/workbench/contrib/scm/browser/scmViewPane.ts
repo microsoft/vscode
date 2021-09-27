@@ -6,11 +6,11 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -23,8 +23,8 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, registerThemingParticipant, IFileIconTheme, ThemeIcon, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider } from './util';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton } from './util';
+import { attachBadgeStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
@@ -82,13 +82,65 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { Command } from 'vs/editor/common/modes';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
-type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
 interface ISCMLayout {
 	height: number | undefined;
 	width: number | undefined;
 	readonly onDidChange: Event<void>;
+}
+
+interface ActionButtonTemplate {
+	readonly actionButton: ScmActionButton;
+	disposable: IDisposable;
+	readonly templateDisposable: IDisposable;
+}
+
+class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActionButton, FuzzyScore, ActionButtonTemplate> {
+	static readonly DEFAULT_HEIGHT = 30;
+
+	static readonly TEMPLATE_ID = 'actionButton';
+	get templateId(): string { return ActionButtonRenderer.TEMPLATE_ID; }
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	constructor(
+		@ICommandService private commandService: ICommandService,
+		@IThemeService private themeService: IThemeService,
+		@INotificationService private notificationService: INotificationService,
+	) { }
+
+	renderTemplate(container: HTMLElement): ActionButtonTemplate {
+		const buttonContainer = append(container, $('.button-container'));
+		const actionButton = new ScmActionButton(buttonContainer, this.commandService, this.themeService, this.notificationService);
+		const disposable = actionButton.onDidChange(this._onDidChange.fire, this);
+
+		return { actionButton, disposable: Disposable.None, templateDisposable: combinedDisposable(disposable, actionButton) };
+	}
+
+	renderElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, templateData: ActionButtonTemplate, height: number | undefined): void {
+		templateData.disposable.dispose();
+
+		templateData.actionButton.setCommand(node.element.repository, node.element.button);
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	disposeElement(node: ITreeNode<ISCMActionButton, FuzzyScore>, index: number, template: ActionButtonTemplate): void {
+		template.disposable.dispose();
+	}
+
+	disposeTemplate(templateData: ActionButtonTemplate): void {
+		templateData.disposable.dispose();
+		templateData.templateDisposable.dispose();
+	}
 }
 
 interface InputTemplate {
@@ -529,6 +581,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 	getHeight(element: TreeElement) {
 		if (isSCMInput(element)) {
 			return this.inputRenderer.getHeight(element);
+		} else if (isSCMActionButton(element)) {
+			return ActionButtonRenderer.DEFAULT_HEIGHT + 10;
 		} else {
 			return 22;
 		}
@@ -539,6 +593,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return RepositoryRenderer.TEMPLATE_ID;
 		} else if (isSCMInput(element)) {
 			return InputRenderer.TEMPLATE_ID;
+		} else if (isSCMActionButton(element)) {
+			return ActionButtonRenderer.TEMPLATE_ID;
 		} else if (ResourceTree.isResourceNode(element) || isSCMResource(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
 		} else {
@@ -579,6 +635,12 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		if (isSCMInput(one)) {
 			return -1;
 		} else if (isSCMInput(other)) {
+			return 1;
+		}
+
+		if (isSCMActionButton(one)) {
+			return -1;
+		} else if (isSCMActionButton(other)) {
 			return 1;
 		}
 
@@ -642,9 +704,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | { toString(): string; }[] | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
-		} else if (isSCMRepository(element)) {
-			return undefined;
-		} else if (isSCMInput(element)) {
+		} else if (isSCMRepository(element) || isSCMInput(element) || isSCMActionButton(element)) {
 			return undefined;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
@@ -682,6 +742,9 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMInput(element)) {
 		const provider = element.repository.provider;
 		return `input:${provider.id}`;
+	} else if (isSCMActionButton(element)) {
+		const provider = element.repository.provider;
+		return `actionButton:${provider.id}`;
 	} else if (isSCMResource(element)) {
 		const group = element.resourceGroup;
 		const provider = group.provider;
@@ -727,6 +790,8 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return `${folderName} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
+		} else if (isSCMActionButton(element)) {
+			return element.button?.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
@@ -990,6 +1055,7 @@ class ViewModel {
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private alwaysShowRepositories = false;
+	private showActionButtons = false;
 	private firstVisible = true;
 	private disposables = new DisposableStore();
 
@@ -1004,6 +1070,7 @@ class ViewModel {
 	constructor(
 		private tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>,
 		private inputRenderer: InputRenderer,
+		actionButtonRenderer: ActionButtonRenderer,
 		private _mode: ViewModelMode,
 		private _treeViewState: ITreeViewState | undefined,
 		@IInstantiationService protected instantiationService: IInstantiationService,
@@ -1030,11 +1097,13 @@ class ViewModel {
 			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		this.disposables.add(this.tree.onDidChangeCollapseState(() => this._treeViewStateIsStale = true));
+		this.disposables.add(actionButtonRenderer.onDidChange(() => this.refresh()));
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.showActionButtons')) {
 			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+			this.showActionButtons = this.configurationService.getValue<boolean>('scm.showActionButtons');
 			this.refresh();
 		}
 	}
@@ -1176,8 +1245,21 @@ class ViewModel {
 				children.push({ element: item.element.input, incompressible: true, collapsible: false });
 			}
 
-			if (this.items.size === 1 || hasSomeChanges) {
+			if (hasSomeChanges || (this.items.size === 1 && (!this.showActionButtons || !item.element.provider.actionButton))) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
+			}
+
+			if (this.showActionButtons && item.element.provider.actionButton) {
+				const button: ICompressedTreeElement<ISCMActionButton> = {
+					element: {
+						type: 'actionButton',
+						repository: item.element,
+						button: item.element.provider.actionButton,
+					},
+					incompressible: true,
+					collapsible: false
+				};
+				children.push(button);
 			}
 
 			const collapsed = treeViewState ? treeViewState.collapsed.indexOf(getSCMResourceId(item.element)) > -1 : false;
@@ -1966,9 +2048,11 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onBeforeRun(() => this.tree.domFocus()));
 
+		const actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.inputRenderer,
+			actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 			this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
 		];
@@ -2024,7 +2108,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, viewState);
+		this._viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, actionButtonRenderer, viewMode, viewState);
 		this._register(this._viewModel);
 
 		this.listContainer.classList.add('file-icon-themable-tree');
@@ -2119,6 +2203,10 @@ export class SCMViewPane extends ViewPane {
 			}
 
 			return;
+		} else if (isSCMActionButton(e.element)) {
+			this.scmViewService.focus(e.element.repository);
+
+			return;
 		}
 
 		// ISCMResource
@@ -2170,7 +2258,7 @@ export class SCMViewPane extends ViewPane {
 			const menu = menus.repositoryMenu;
 			context = element.provider;
 			[actions, disposable] = collectContextMenuActions(menu);
-		} else if (isSCMInput(element)) {
+		} else if (isSCMInput(element) || isSCMActionButton(element)) {
 			// noop
 		} else if (isSCMResourceGroup(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
@@ -2310,3 +2398,52 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.scm-view .scm-provider > .status > .monaco-action-bar > .actions-container { border-color: ${repositoryStatusActionsBorderColor}; }`);
 	}
 });
+
+export class ScmActionButton implements IDisposable {
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private button: Button | undefined;
+	private readonly disposables = new MutableDisposable<DisposableStore>();
+
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly commandService: ICommandService,
+		private readonly themeService: IThemeService,
+		private readonly notificationService: INotificationService
+	) {
+	}
+
+	dispose(): void {
+		this.disposables?.dispose();
+	}
+
+
+	setCommand(repository: ISCMRepository, command: Command | undefined): void {
+		// Clear old button
+		this.clear();
+		if (!command) {
+			return;
+		}
+
+		this.button = new Button(this.container, { title: command.tooltip, supportIcons: true });
+		this.button.label = command.title;
+		this.button.onDidClick(async () => {
+			try {
+				await this.commandService.executeCommand(command!.id, ...(command!.arguments || []));
+			} catch (ex) {
+				this.notificationService.error(ex);
+			}
+		}, null, this.disposables.value);
+
+		this.disposables.value!.add(this.button);
+		this.disposables.value!.add(attachButtonStyler(this.button, this.themeService));
+		this.disposables.value!.add(repository.provider.onDidChange(this._onDidChange.fire, this));
+	}
+
+	private clear(): void {
+		this.disposables.value = new DisposableStore();
+		this.button = undefined;
+		clearNode(this.container);
+	}
+}

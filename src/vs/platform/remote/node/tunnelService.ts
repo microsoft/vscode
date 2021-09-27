@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as net from 'net';
-import { Barrier } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { findFreePortFaster } from 'vs/base/node/ports';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
+
+import { Barrier } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { connectRemoteAgentTunnel, IAddressProvider, IConnectionOptions, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { AbstractTunnelService, isAllInterfaces, isLocalhost, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/remote/common/tunnel';
-import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 async function createRemoteTunnel(options: IConnectionOptions, defaultTunnelHost: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort?: number): Promise<RemoteTunnel> {

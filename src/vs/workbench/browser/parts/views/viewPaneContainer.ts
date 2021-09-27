@@ -316,6 +316,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
+	private lastMergedCollapsedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
@@ -608,11 +609,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private get orientation(): Orientation {
-		if (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Sidebar) {
-			return Orientation.VERTICAL;
-		} else {
-			return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		switch (this.viewDescriptorService.getViewContainerLocation(this.viewContainer)) {
+			case ViewContainerLocation.Sidebar:
+			case ViewContainerLocation.AuxiliaryBar:
+				return Orientation.VERTICAL;
+			case ViewContainerLocation.Panel:
+				return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		}
+
+		return Orientation.VERTICAL;
 	}
 
 	layout(dimension: Dimension): void {
@@ -1046,10 +1051,21 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private updateViewHeaders(): void {
 		if (this.isViewMergedWithContainer()) {
-			this.paneItems[0].pane.setExpanded(true);
+			if (this.paneItems[0].pane.isExpanded()) {
+				this.lastMergedCollapsedPane = undefined;
+			} else {
+				this.lastMergedCollapsedPane = this.paneItems[0].pane;
+				this.paneItems[0].pane.setExpanded(true);
+			}
 			this.paneItems[0].pane.headerVisible = false;
 		} else {
-			this.paneItems.forEach(i => i.pane.headerVisible = true);
+			this.paneItems.forEach(i => {
+				i.pane.headerVisible = true;
+				if (i.pane === this.lastMergedCollapsedPane) {
+					i.pane.setExpanded(false);
+				}
+			});
+			this.lastMergedCollapsedPane = undefined;
 		}
 	}
 

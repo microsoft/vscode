@@ -1857,7 +1857,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen, TerminalContextKeys.focus),
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_Z,
 					weight: KeybindingWeight.WorkbenchContrib

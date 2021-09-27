@@ -23,7 +23,7 @@ const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
 const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
-const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
+export const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 
 registerAction2(class extends NotebookCellAction {

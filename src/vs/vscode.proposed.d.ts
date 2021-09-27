@@ -1405,7 +1405,7 @@ declare module 'vscode' {
 	export interface NotebookDecorationRenderOptions {
 		backgroundColor?: string | ThemeColor;
 		borderColor?: string | ThemeColor;
-		top: ThemableDecorationAttachmentRenderOptions;
+		top?: ThemableDecorationAttachmentRenderOptions;
 	}
 
 	export interface NotebookEditorDecorationType {
@@ -2285,6 +2285,21 @@ declare module 'vscode' {
 		 * Dictated by being the selected tab in the active group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 * @param index The index to move the tab to
+		 * @param viewColumn The column to move the tab into
+		 */
+		move(index: number, viewColumn: ViewColumn): Thenable<void>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 */
+		close(): Thenable<void>;
 	}
 
 	export namespace window {
@@ -2805,4 +2820,8 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	export interface SourceControl {
+		actionButton?: Command;
+	}
 }

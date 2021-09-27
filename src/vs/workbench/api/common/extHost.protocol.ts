@@ -634,10 +634,12 @@ export interface ExtHostEditorInsetsShape {
 	$onDidReceiveMessage(handle: number, message: any): void;
 }
 
-//#region --- open editors model
+//#region --- tabs model
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
+	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void;
+	$closeTab(tab: IEditorTabDto): Promise<void>;
 }
 
 export interface IEditorTabDto {
@@ -1051,6 +1053,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: modes.Command;
+	actionButton?: ICommandDto | null;
 	statusBarCommands?: ICommandDto[];
 }
 
@@ -2242,7 +2245,7 @@ export const MainContext = {
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
-	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting'),
+	MainThreadTesting: createMainId<MainThreadTestingShape>('MainThreadTesting')
 };
 
 export const ExtHostContext = {

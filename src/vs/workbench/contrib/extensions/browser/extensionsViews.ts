@@ -698,6 +698,7 @@ export class ExtensionsListView extends ViewPane {
 
 	}
 
+	resetSearchExperiments() { ExtensionsListView.searchExperiments = undefined; }
 	private static searchExperiments: Promise<IExperiment[]> | undefined;
 	private getSearchExperiments(): Promise<IExperiment[]> {
 		if (!ExtensionsListView.searchExperiments) {

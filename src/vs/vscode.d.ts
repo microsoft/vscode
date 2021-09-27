@@ -8473,7 +8473,7 @@ declare module 'vscode' {
 		 * ```
 		 *
 		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
-		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
 		 * `asExternalUri`.
 		 *
 		 * #### Any other scheme
@@ -13470,15 +13470,7 @@ declare module 'vscode' {
 		 * @param extensionId An extension identifier.
 		 * @return An extension or `undefined`.
 		 */
-		export function getExtension(extensionId: string): Extension<any> | undefined;
-
-		/**
-		 * Get an extension by its full identifier in the form of: `publisher.name`.
-		 *
-		 * @param extensionId An extension identifier.
-		 * @return An extension or `undefined`.
-		 */
-		export function getExtension<T>(extensionId: string): Extension<T> | undefined;
+		export function getExtension<T = any>(extensionId: string): Extension<T> | undefined;
 
 		/**
 		 * All extensions currently known to the system.

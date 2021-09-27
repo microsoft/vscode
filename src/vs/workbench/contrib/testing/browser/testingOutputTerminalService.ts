@@ -147,6 +147,9 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 }
 
 class TestOutputProcess extends Disposable implements ITerminalChildProcess {
+	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;

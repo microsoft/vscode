@@ -381,14 +381,16 @@ export class CursorMoveCommands {
 			return new CursorState(cursor.modelState, cursor.viewState);
 
 		} else {
+			let newViewLineNumber: number;
 			if (viewLineNumber > visibleViewRange.endLineNumber - 1) {
-				viewLineNumber = visibleViewRange.endLineNumber - 1;
+				newViewLineNumber = visibleViewRange.endLineNumber - 1;
+			} else if (viewLineNumber < visibleViewRange.startLineNumber) {
+				newViewLineNumber = visibleViewRange.startLineNumber;
+			} else {
+				newViewLineNumber = viewLineNumber;
 			}
-			if (viewLineNumber < visibleViewRange.startLineNumber) {
-				viewLineNumber = visibleViewRange.startLineNumber;
-			}
-			const viewColumn = viewModel.getLineFirstNonWhitespaceColumn(viewLineNumber);
-			return this._moveToViewPosition(viewModel, cursor, inSelectionMode, viewLineNumber, viewColumn);
+			const position = MoveOperations.vertical(viewModel.cursorConfig, viewModel, viewLineNumber, cursor.viewState.position.column, cursor.viewState.leftoverVisibleColumns, newViewLineNumber, false);
+			return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, position.lineNumber, position.column, position.leftoverVisibleColumns));
 		}
 	}
 

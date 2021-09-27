@@ -120,6 +120,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
+	get actionButton(): Command | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 

@@ -69,29 +69,35 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadAndInstall(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		this.logService.info(`Downloading the '${extension.identifier.id}' extension locally and install`);
+		const compatible = await this.checkAndGetCompatible(extension);
 		installOptions = { ...installOptions, donotIncludePackAndDependencies: true };
 		const installed = await this.getInstalled(ExtensionType.User);
-		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(extension, CancellationToken.None);
+		const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(compatible, CancellationToken.None);
 		if (workspaceExtensions.length) {
-			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${extension.identifier.id}' locally and install`);
+			this.logService.info(`Downloading the workspace dependencies and packed extensions of '${compatible.identifier.id}' locally and install`);
 			for (const workspaceExtension of workspaceExtensions) {
 				await this.downloadCompatibleAndInstall(workspaceExtension, installed, installOptions);
 			}
 		}
-		return await this.downloadCompatibleAndInstall(extension, installed, installOptions);
+		return await this.downloadCompatibleAndInstall(compatible, installed, installOptions);
 	}
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
-		const compatible = await this.galleryService.getCompatibleExtension(extension, await this.getTargetPlatform());
-		if (!compatible) {
-			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
-		}
+		const compatible = await this.checkAndGetCompatible(extension);
 		const location = joinPath(this.environmentService.tmpDir, generateUuid());
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
 		const local = await super.install(location, installOptions);
 		this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
 		return local;
+	}
+
+	private async checkAndGetCompatible(extension: IGalleryExtension): Promise<IGalleryExtension> {
+		const compatible = await this.galleryService.getCompatibleExtension(extension, await this.getTargetPlatform());
+		if (!compatible) {
+			return Promise.reject(new Error(localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extension.identifier.id, this.productService.version)));
+		}
+		return compatible;
 	}
 
 	private async installUIDependenciesAndPackedExtensions(local: ILocalExtension): Promise<void> {

@@ -125,7 +125,7 @@ export class RichEditBracket {
  *   { open: ['{'], close: ['}'] }
  *
  */
-function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
+function groupFuzzyBrackets(brackets: readonly CharacterPair[]): InternalBracket[] {
 	const N = brackets.length;
 
 	brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
@@ -215,7 +215,7 @@ export class RichEditBrackets {
 	 */
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
-	constructor(languageIdentifier: LanguageIdentifier, _brackets: CharacterPair[]) {
+	constructor(languageIdentifier: LanguageIdentifier, _brackets: readonly CharacterPair[]) {
 		const brackets = groupFuzzyBrackets(_brackets);
 
 		this.brackets = brackets.map((b, index) => {

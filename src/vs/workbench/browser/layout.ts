@@ -59,7 +59,7 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 
-	AUXILIARYBAR_ENABLED = 'workbench.experimental.auxiliaryBar.enabled',
+	AUXILIARYBAR_ENABLED = 'workbench.experimental.sidePanel.enabled',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 }
@@ -426,6 +426,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private setSideBarPosition(position: Position): void {
 		const activityBar = this.getPart(Parts.ACTIVITYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
+		const auxiliaryBar = this.getPart(Parts.AUXILIARYBAR_PART);
 		const wasHidden = this.state.sideBar.hidden;
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
 		const oldPositionValue = (this.state.sideBar.position === Position.LEFT) ? 'left' : 'right';
@@ -434,14 +435,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Adjust CSS
 		const activityBarContainer = assertIsDefined(activityBar.getContainer());
 		const sideBarContainer = assertIsDefined(sideBar.getContainer());
+		const auxiliaryBarContainer = assertIsDefined(auxiliaryBar.getContainer());
 		activityBarContainer.classList.remove(oldPositionValue);
 		sideBarContainer.classList.remove(oldPositionValue);
 		activityBarContainer.classList.add(newPositionValue);
 		sideBarContainer.classList.add(newPositionValue);
 
+		// Auxiliary Bar has opposite values
+		auxiliaryBarContainer.classList.remove(newPositionValue);
+		auxiliaryBarContainer.classList.add(oldPositionValue);
+
 		// Update Styles
 		activityBar.updateStyles();
 		sideBar.updateStyles();
+		auxiliaryBar.updateStyles();
 
 		// Layout
 		if (!wasHidden) {
@@ -451,9 +458,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (position === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
 			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 1]);
+			this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 10]);
 		} else {
-			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 4]);
-			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 4]);
+			this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
+			this.workbenchGrid.moveViewTo(this.sideBarPartView, [2, 10]);
+			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 10]);
 		}
 
 		this.layout();

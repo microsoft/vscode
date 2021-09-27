@@ -59,7 +59,7 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
+import 'vs/platform/extensions/node/extensionHostStarter';
 
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

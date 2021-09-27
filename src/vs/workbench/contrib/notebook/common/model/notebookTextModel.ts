@@ -555,6 +555,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					&& last.cellIndex === edit.cellIndex
 				) {
 					last.edit.outputs = [...last.edit.outputs, ...edit.edit.outputs];
+				} else if (last.edit.editType === CellEditType.Output
+					&& !last.edit.append // last cell is not append
+					&& last.edit.outputs.length === 0 // last cell is clear outputs
+					&& edit.edit.editType === CellEditType.Output
+					&& edit.edit.append
+					&& last.cellIndex === edit.cellIndex
+				) {
+					last.edit.append = false;
+					last.edit.outputs = edit.edit.outputs;
 				} else {
 					mergedEdits.push(edit);
 				}

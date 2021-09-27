@@ -12,6 +12,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 class ExtensionHostProcess extends Disposable {
 
@@ -27,7 +28,7 @@ class ExtensionHostProcess extends Disposable {
 	readonly _onError = this._register(new Emitter<{ error: SerializedError; }>());
 	readonly onError = this._onError.event;
 
-	readonly _onExit = this._register(new Emitter<{ code: number; signal: string }>());
+	readonly _onExit = this._register(new Emitter<{ pid: number; code: number; signal: string }>());
 	readonly onExit = this._onExit.event;
 
 	private _process: ChildProcess | null = null;
@@ -45,8 +46,9 @@ class ExtensionHostProcess extends Disposable {
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
 		this._process = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
+		const pid = this._process.pid;
 
-		this._logService.info(`Starting extension host with pid ${this._process.pid}.`);
+		this._logService.info(`Starting extension host with pid ${pid}.`);
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {
@@ -69,10 +71,10 @@ class ExtensionHostProcess extends Disposable {
 		});
 
 		this._process.on('exit', (code: number, signal: string) => {
-			this._onExit.fire({ code, signal });
+			this._onExit.fire({ pid, code, signal });
 		});
 
-		return { pid: this._process.pid };
+		return { pid };
 	}
 
 	enableInspectPort(): boolean {
@@ -134,23 +136,23 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return extHostProcess;
 	}
 
-	onScopedStdout(id: string): Event<string> {
+	onDynamicStdout(id: string): Event<string> {
 		return this._getExtHost(id).onStdout;
 	}
 
-	onScopedStderr(id: string): Event<string> {
+	onDynamicStderr(id: string): Event<string> {
 		return this._getExtHost(id).onStderr;
 	}
 
-	onScopedMessage(id: string): Event<any> {
+	onDynamicMessage(id: string): Event<any> {
 		return this._getExtHost(id).onMessage;
 	}
 
-	onScopedError(id: string): Event<{ error: SerializedError; }> {
+	onDynamicError(id: string): Event<{ error: SerializedError; }> {
 		return this._getExtHost(id).onError;
 	}
 
-	onScopedExit(id: string): Event<{ code: number; signal: string; }> {
+	onDynamicExit(id: string): Event<{ code: number; signal: string; }> {
 		return this._getExtHost(id).onExit;
 	}
 
@@ -158,7 +160,8 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		const id = String(++ExtensionHostStarter._lastId);
 		const extHost = new ExtensionHostProcess(id, this._logService);
 		this._extHosts.set(id, extHost);
-		extHost.onExit(() => {
+		extHost.onExit(({ pid, code, signal }) => {
+			this._logService.info(`Extension host with pid ${pid} exited with code: ${code}, signal: ${signal}.`);
 			setTimeout(() => {
 				extHost.dispose();
 				this._extHosts.delete(id);
@@ -179,3 +182,5 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		this._getExtHost(id).kill();
 	}
 }
+
+registerSingleton(IExtensionHostStarter, ExtensionHostStarter, true);

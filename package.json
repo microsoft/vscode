@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.61.0",
-  "distro": "fc0beeb3a36dcfc4fe9115e790852597090c4bc7",
+  "distro": "08220dd245eb3d2375a124932e0af6e6bde54282",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,7 +78,7 @@
     "sudo-prompt": "9.2.1",
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.0.22",
-    "vscode-nsfw": "2.1.4",
+    "vscode-nsfw": "2.1.8",
     "vscode-oniguruma": "1.5.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
@@ -185,7 +185,7 @@
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "playwright": "1.14.1",
+    "playwright": "1.15.0",
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
@@ -198,7 +198,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.5.0-dev.20210914",
+    "typescript": "^4.5.0-dev.20210927",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

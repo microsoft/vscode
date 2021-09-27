@@ -84,6 +84,10 @@ export class ListViewInfoAccessor extends Disposable {
 		this.list.scrollTop = scrollTop;
 	}
 
+	isScrolledToBottom() {
+		return this.list.isScrolledToBottom();
+	}
+
 	scrollToBottom() {
 		this.list.scrollToBottom();
 	}
@@ -612,11 +616,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 		const styleSheets: string[] = [];
+		if (!this._fontInfo) {
+			this._generateFontInfo();
+		}
+
 		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
 
 		styleSheets.push(`
 		:root {
 			--notebook-cell-output-font-size: ${fontSize}px;
+			--notebook-cell-output-font-family: ${fontFamily};
 			--notebook-cell-input-preview-font-size: ${fontSize}px;
 			--notebook-cell-input-preview-font-family: ${fontFamily};
 		}
@@ -762,10 +771,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		// top insert toolbar
 		const topInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
-		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight}px }`);
+		styleSheets.push(`.notebookOverlay .cell-list-top-cell-toolbar-container { top: -${topInsertToolbarHeight - 3}px }`);
 		styleSheets.push(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element,
 		.notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element {
-			padding-top: ${topInsertToolbarHeight}px;
+			padding-top: ${topInsertToolbarHeight}px !important;
 			box-sizing: border-box;
 		}`);
 
@@ -981,7 +990,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (e.scrollTop !== e.oldScrollTop) {
 				this._renderedEditors.forEach((editor, cell) => {
 					if (this.getActiveCell() === cell && editor) {
-						SuggestController.get(editor).cancelSuggestWidget();
+						SuggestController.get(editor)?.cancelSuggestWidget();
 					}
 				});
 			}
@@ -1009,7 +1018,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _registerNotebookActionsToolbar() {
-		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookTopToolbarContainer));
+		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
 		this._register(this._notebookTopToolbar.onDidChangeState(() => {
 			if (this._dimension && this._isVisible) {
 				this.layout(this._dimension);
@@ -1772,6 +1781,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			primary: cell.handle,
 			selections: [cell.handle]
 		});
+	}
+
+	isScrolledToBottom() {
+		return this._listViewInfoAccessor.isScrolledToBottom();
 	}
 
 	scrollToBottom() {

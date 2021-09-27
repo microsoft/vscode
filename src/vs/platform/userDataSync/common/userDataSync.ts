@@ -37,6 +37,14 @@ export function getDefaultIgnoredSettings(): string[] {
 	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
 
+export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
+
+export interface IUserDataSyncConfiguration {
+	keybindingsPerPlatform?: boolean;
+	ignoredExtensions?: string[];
+	ignoredSettings?: string[];
+}
+
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -382,7 +390,7 @@ export interface IUserDataSynchroniser {
 	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
-	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	preview(manifest: IUserDataManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<ISyncResourcePreview | null>;
 	accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null>;
 	merge(resource: URI): Promise<ISyncResourcePreview | null>;
 	discard(resource: URI): Promise<ISyncResourcePreview | null>;

@@ -409,6 +409,11 @@ export class ExtensionEditor extends EditorPane {
 		template.extensionActionBar.clear();
 		template.extensionActionBar.push(actions, { icon: true, label: true });
 		template.extensionActionBar.setFocusable(true);
+		// update focusable elements when the enablement of an action changes
+		this.transientDisposables.add(Event.any(...actions.map(a => Event.filter(a.onDidChange, e => e.enabled !== undefined)))(() => {
+			template.extensionActionBar.setFocusable(false);
+			template.extensionActionBar.setFocusable(true);
+		}));
 		for (const disposable of [...actions, ...widgets, extensionContainers]) {
 			this.transientDisposables.add(disposable);
 		}

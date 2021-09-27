@@ -21,6 +21,7 @@ import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNote
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor, KERNEL_EXTENSIONS, NOTEBOOK_MISSING_KERNEL_EXTENSION, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -31,7 +32,7 @@ import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/no
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -414,7 +415,12 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const entry = { name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"), text: newText, ariaLabel: newText };
+		const entry: IStatusbarEntry = {
+			name: nls.localize('notebook.activeCellStatusName', "Notebook Editor Selections"),
+			text: newText,
+			ariaLabel: newText,
+			command: CENTER_ACTIVE_CELL
+		};
 		if (!this._accessor.value) {
 			this._accessor.value = this._statusbarService.addEntry(
 				entry,

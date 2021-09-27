@@ -120,13 +120,14 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'topLevelCommandPalette',
-		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),
-		description: localize('gettingStarted.topLevelCommandPalette.description', "Use the command palette to view and run all of vscode's commands"),
-		icon: Codicon.symbolColor,
+		id: 'topLevelGitClone',
+		title: localize('gettingStarted.topLevelGitClone.title', "Clone Git Repository..."),
+		description: localize('gettingStarted.topLevelGitClone.description', "Clone a remote repository to a local folder"),
+		when: 'config.git.enabled',
+		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.showCommands',
+			command: 'git.clone',
 		}
 	},
 	{
@@ -166,28 +167,19 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'markdown', path: 'example_markdown_media', }
 				},
 				{
-					id: 'settingsSyncWeb',
-					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'workspacePlatform == \'webworker\' && syncStatus != uninitialized',
+					id: 'settingsSync',
+					title: localize('gettingStarted.settingsSync.title', "Sync to and from other devices"),
+					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
+					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
 						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
 					},
 				},
 				{
-					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
-					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
-					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
-					},
-				},
-				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands Palette is the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequently used commands to save time and keep in the flow.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands are the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequent ones to save time.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
@@ -200,12 +192,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
-					id: 'workspaceTrust',
-					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
-					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
-					when: 'workspacePlatform != \'webworker\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
+					id: 'findLanguageExtensions',
+					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
+					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
+					when: 'workspacePlatform != \'webworker\'',
 					media: {
-						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
+						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
 					},
 				},
 				{
@@ -261,9 +253,9 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'playground',
 					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
-					description: localize('gettingStarted.playground.description.interpolated', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n{0}", Button(localize('openInteractivePlayground', "Open Interactive Playground"), 'command:toSide:workbench.action.showInteractivePlayground')),
+					description: localize('gettingStarted.playground.description.interpolated', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n{0}", Button(localize('openEditorPlayground', "Open Editor Playground"), 'command:toSide:workbench.action.showInteractivePlayground')),
 					media: {
-						type: 'svg', altText: 'Interactive Playground.', path: 'interactivePlayground.svg'
+						type: 'svg', altText: 'Editor Playground.', path: 'interactivePlayground.svg'
 					},
 				},
 				{
@@ -293,13 +285,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
-					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'workspacePlatform != \'webworker\' && syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
+					id: 'workspaceTrust',
+					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
+					description: localize('gettingStarted.workspaceTrust.description.interpolated', "{0} lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always {1} later.", Button(localize('workspaceTrust', "Workspace Trust"), 'https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md'), Button(localize('enableTrust', "enable trust"), 'command:toSide:workbench.action.manageTrustedDomain')),
+					when: 'workspacePlatform != \'webworker\' && !isWorkspaceTrusted && workspaceFolderCount == 0',
 					media: {
-						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
+						type: 'svg', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: 'workspaceTrust.svg'
 					},
 				},
 				{

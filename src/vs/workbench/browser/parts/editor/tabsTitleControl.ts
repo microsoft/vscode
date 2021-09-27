@@ -61,6 +61,24 @@ interface EditorInputLabel {
 	ariaLabel?: string;
 }
 
+interface ITabsTitleControlLayoutOtions {
+
+	/**
+	 * Whether to force revealing the active tab, even when
+	 * the dimensions have not changed. This can be the case
+	 * when a tab was made active and needs to be revealed.
+	 */
+	forceRevealActiveTab?: true;
+}
+
+interface IScheduledTabsTitleControlLayout extends IDisposable {
+
+	/**
+	 * Associated options with the layout call.
+	 */
+	options?: ITabsTitleControlLayoutOtions;
+}
+
 type EditorInputLabelAndEditor = EditorInputLabel & { editor: EditorInput };
 
 export class TabsTitleControl extends TitleControl {
@@ -100,7 +118,7 @@ export class TabsTitleControl extends TitleControl {
 		available: Dimension.None
 	};
 
-	private readonly layoutScheduled = this._register(new MutableDisposable());
+	private readonly layoutScheduler = this._register(new MutableDisposable<IScheduledTabsTitleControlLayout>());
 	private blockRevealActiveTab: boolean | undefined;
 
 	private path: IPath = isWindows ? win32 : posix;
@@ -412,7 +430,7 @@ export class TabsTitleControl extends TitleControl {
 		this.computeTabLabels();
 
 		// Redraw all tabs
-		this.redraw();
+		this.redraw({ forceRevealActiveTab: true });
 
 		// Update Breadcrumbs
 		this.breadcrumbsControl?.update();
@@ -446,7 +464,7 @@ export class TabsTitleControl extends TitleControl {
 			this.computeTabLabels();
 
 			// Redraw all tabs
-			this.redraw();
+			this.redraw({ forceRevealActiveTab: true });
 		}
 
 		// No tabs to show
@@ -482,7 +500,7 @@ export class TabsTitleControl extends TitleControl {
 		);
 
 		// Moving an editor requires a layout to keep the active editor visible
-		this.layout(this.dimensions);
+		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
 	pinEditor(editor: EditorInput): void {
@@ -509,7 +527,7 @@ export class TabsTitleControl extends TitleControl {
 		});
 
 		// A change to the sticky state requires a layout to keep the active editor visible
-		this.layout(this.dimensions);
+		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
 	setActive(isGroupActive: boolean): void {
@@ -521,7 +539,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Activity has an impact on the toolbar, so we need to update and layout
 		this.updateEditorActionsToolbar();
-		this.layout(this.dimensions);
+		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
 	private updateEditorLabelScheduler = this._register(new RunOnceScheduler(() => this.doUpdateEditorLabels(), 0));
@@ -1058,7 +1076,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redraw(): void {
+	private redraw(options?: ITabsTitleControlLayoutOtions): void {
 
 		// Border below tabs if any
 		const tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
@@ -1081,7 +1099,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		this.layout(this.dimensions);
+		this.layout(this.dimensions, options);
 	}
 
 	private redrawTab(editor: EditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: EditorInputLabel, tabActionBar: ActionBar): void {
@@ -1366,7 +1384,7 @@ export class TabsTitleControl extends TitleControl {
 		return { total, offset };
 	}
 
-	layout(dimensions: ITitleControlDimensions): Dimension {
+	layout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): Dimension {
 
 		// Remember dimensions that we get
 		Object.assign(this.dimensions, dimensions);
@@ -1374,12 +1392,22 @@ export class TabsTitleControl extends TitleControl {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
-		if (!this.layoutScheduled.value) {
-			this.layoutScheduled.value = scheduleAtNextAnimationFrame(() => {
-				this.doLayout(this.dimensions);
+		if (!this.layoutScheduler.value) {
+			const scheduledLayout = scheduleAtNextAnimationFrame(() => {
+				this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
-				this.layoutScheduled.clear();
+				this.layoutScheduler.clear();
 			});
+
+			this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
+		}
+
+		// Make sure to keep options updated
+		if (options?.forceRevealActiveTab) {
+			this.layoutScheduler.value.options = {
+				...this.layoutScheduler.value.options,
+				forceRevealActiveTab: true
+			};
 		}
 
 		// First time layout: compute the dimensions and store it
@@ -1390,7 +1418,7 @@ export class TabsTitleControl extends TitleControl {
 		return this.dimensions.used;
 	}
 
-	private doLayout(dimensions: ITitleControlDimensions): void {
+	private doLayout(dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
 
 		// Only layout if we have valid tab index and dimensions
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1401,7 +1429,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Tabs
 			const [activeTab, activeIndex] = activeTabAndIndex;
-			this.doLayoutTabs(activeTab, activeIndex, dimensions);
+			this.doLayoutTabs(activeTab, activeIndex, dimensions, options);
 		}
 
 		// Remember the dimensions used in the control so that we can
@@ -1429,7 +1457,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions): void {
+	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number, dimensions: ITitleControlDimensions, options?: ITabsTitleControlLayoutOtions): void {
 
 		// Always first layout tabs with wrapping support even if wrapping
 		// is disabled. The result indicates if tabs wrap and if not, we
@@ -1438,7 +1466,7 @@ export class TabsTitleControl extends TitleControl {
 		// wrapping is disabled (e.g. due to space constraints)
 		const tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		if (!tabsWrapMultiLine) {
-			this.doLayoutTabsNonWrapping(activeTab, activeIndex);
+			this.doLayoutTabsNonWrapping(activeTab, activeIndex, options);
 		}
 	}
 
@@ -1571,7 +1599,7 @@ export class TabsTitleControl extends TitleControl {
 		return tabsWrapMultiLine;
 	}
 
-	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number): void {
+	private doLayoutTabsNonWrapping(activeTab: HTMLElement, activeIndex: number, options?: ITabsTitleControlLayoutOtions): void {
 		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
 
 		//
@@ -1639,15 +1667,21 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Update scrollbar
+		const { width: oldVisibleTabsWidth, scrollWidth: oldAllTabsWidth } = tabsScrollbar.getScrollDimensions();
 		tabsScrollbar.setScrollDimensions({
 			width: visibleTabsWidth,
 			scrollWidth: allTabsWidth
 		});
+		const dimensionsChanged = oldVisibleTabsWidth !== visibleTabsWidth || oldAllTabsWidth !== allTabsWidth;
 
-		// Return now if we are blocked to reveal the active tab and clear flag
-		// We also return if the active tab is positioned static because this
-		// means it is always visible anyway.
-		if (this.blockRevealActiveTab || typeof activeTabPosX !== 'number' || typeof activeTabWidth !== 'number' || activeTabPositionStatic) {
+		// Revealing the active tab is skipped under some conditions:
+		if (
+			this.blockRevealActiveTab ||							// explicitly disabled
+			typeof activeTabPosX !== 'number' ||					// invalid dimension
+			typeof activeTabWidth !== 'number' ||					// invalid dimension
+			activeTabPositionStatic ||								// static tab (sticky)
+			(!dimensionsChanged && !options?.forceRevealActiveTab) 	// dimensions did not change and we have low layout priority (https://github.com/microsoft/vscode/issues/133631)
+		) {
 			this.blockRevealActiveTab = false;
 			return;
 		}

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Server, Socket, createServer } from 'net';
+import { findFreePort } from 'vs/base/node/ports';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+
 import * as nls from 'vs/nls';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { timeout } from 'vs/base/common/async';
@@ -42,11 +46,8 @@ import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-
-import { Server, Socket, createServer } from 'net';
-import { findFreePort } from 'vs/base/node/ports';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { SerializedError } from 'vs/base/common/errors';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -67,23 +68,23 @@ class ExtensionHostProcess {
 	private readonly _id: string;
 
 	public get onStdout(): Event<string> {
-		return this._extensionHostStarter.onScopedStdout(this._id);
+		return this._extensionHostStarter.onDynamicStdout(this._id);
 	}
 
 	public get onStderr(): Event<string> {
-		return this._extensionHostStarter.onScopedStderr(this._id);
+		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
 	public get onMessage(): Event<any> {
-		return this._extensionHostStarter.onScopedMessage(this._id);
+		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
 	public get onError(): Event<{ error: SerializedError; }> {
-		return this._extensionHostStarter.onScopedError(this._id);
+		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
 	public get onExit(): Event<{ code: number; signal: string }> {
-		return this._extensionHostStarter.onScopedExit(this._id);
+		return this._extensionHostStarter.onDynamicExit(this._id);
 	}
 
 	constructor(
@@ -195,6 +196,16 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this.terminate();
 	}
 
+	private async _createExtensionHost(): Promise<{ id: string; }> {
+		const sw = new StopWatch(false);
+		const result = await this._extensionHostStarter.createExtensionHost();
+		if (sw.elapsed() > 20) {
+			// communicating to the shared process took more than 20ms
+			this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.createExtensionHost() took ${sw.elapsed()} ms.`);
+		}
+		return result;
+	}
+
 	public start(): Promise<IMessagePassingProtocol> | null {
 		if (this._terminating) {
 			// .terminate() was called
@@ -203,7 +214,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
-				this._extensionHostStarter.createExtensionHost(),
+				this._createExtensionHost(),
 				this._tryListenOnPipe(),
 				this._tryFindDebugPort(),
 				this._shellEnvironmentService.getShellEnv(),
@@ -361,7 +372,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}, 10000);
 				}
 
+				const sw = new StopWatch(false);
 				return this._extensionHostProcess.start(opts).then(() => {
+					if (sw.elapsed() > 20) {
+						// communicating to the shared process took more than 20ms
+						this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
+					}
 					// Initialize extension host process with hand shakes
 					return this._tryExtHostHandshake().then((protocol) => {
 						clearTimeout(startupTimeoutHandle);
@@ -433,7 +449,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					this._namedPipeServer.close();
 					this._namedPipeServer = null;
 				}
-				reject('timeout');
+				reject('The local extension host took longer than 60s to connect.');
 			}, 60 * 1000);
 
 			this._namedPipeServer!.on('connection', socket => {
@@ -459,7 +475,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
 					timeoutHandle = setTimeout(() => {
-						reject('timeout');
+						reject('The local extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 				};
 				const uninstallTimeoutCheck = () => {

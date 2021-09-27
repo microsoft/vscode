@@ -13,6 +13,7 @@ import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -81,7 +82,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -196,6 +198,12 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	get isHotExitEnabled(): boolean {
+		if (this.contextService.getWorkspace().transient) {
+			// Transient workspace: hot exit is disabled because
+			// transient workspaces are not restored upon restart
+			return false;
+		}
+
 		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 
