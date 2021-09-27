@@ -379,7 +379,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
 				} else if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-					extraLabel = `$(rocket) web worker`;
+					extraLabel = `$(globe) web worker`;
 				}
 
 				if (extraLabel) {
