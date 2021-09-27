@@ -316,6 +316,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
+	private lastMergedCollapsedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
@@ -1050,10 +1051,21 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private updateViewHeaders(): void {
 		if (this.isViewMergedWithContainer()) {
-			this.paneItems[0].pane.setExpanded(true);
+			if (this.paneItems[0].pane.isExpanded()) {
+				this.lastMergedCollapsedPane = undefined;
+			} else {
+				this.lastMergedCollapsedPane = this.paneItems[0].pane;
+				this.paneItems[0].pane.setExpanded(true);
+			}
 			this.paneItems[0].pane.headerVisible = false;
 		} else {
-			this.paneItems.forEach(i => i.pane.headerVisible = true);
+			this.paneItems.forEach(i => {
+				i.pane.headerVisible = true;
+				if (i.pane === this.lastMergedCollapsedPane) {
+					i.pane.setExpanded(false);
+				}
+			});
+			this.lastMergedCollapsedPane = undefined;
 		}
 	}
 
