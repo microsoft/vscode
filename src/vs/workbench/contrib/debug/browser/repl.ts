@@ -143,78 +143,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	private registerListeners(): void {
-		this._register(this.debugService.getViewModel().onDidFocusSession(async session => {
-			if (session) {
-				sessionsToIgnore.delete(session);
-				if (this.completionItemProvider) {
-					this.completionItemProvider.dispose();
-				}
-				if (session.capabilities.supportsCompletionsRequest) {
-					this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
-						triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
-						provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
-							// Disable history navigation because up and down are used to navigate through the suggest widget
-							this.setHistoryNavigationEnablement(false);
+		if (this.debugService.getViewModel().focusedSession) {
+			this.onDidFocusSession(this.debugService.getViewModel().focusedSession);
+		}
 
-							const model = this.replInput.getModel();
-							if (model) {
-								const word = model.getWordAtPosition(position);
-								const overwriteBefore = word ? word.word.length : 0;
-								const text = model.getValue();
-								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-								const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
-								const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, overwriteBefore, token);
-
-								const suggestions: CompletionItem[] = [];
-								const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
-								if (response && response.body && response.body.targets) {
-									response.body.targets.forEach(item => {
-										if (item && item.label) {
-											let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
-											let insertText = item.text || item.label;
-											if (typeof item.selectionStart === 'number') {
-												// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
-												insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
-												const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
-												const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
-												insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
-											}
-
-											suggestions.push({
-												label: item.label,
-												insertText,
-												kind: completionKindFromString(item.type || 'property'),
-												filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
-												range: computeRange(item.length || overwriteBefore),
-												sortText: item.sortText,
-												insertTextRules
-											});
-										}
-									});
-								}
-
-								if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
-									const history = this.history.getHistory();
-									history.forEach(h => suggestions.push({
-										label: h,
-										insertText: h,
-										kind: CompletionItemKind.Text,
-										range: computeRange(h.length),
-										sortText: 'ZZZ'
-									}));
-								}
-
-								return { suggestions };
-							}
-
-							return Promise.resolve({ suggestions: [] });
-						}
-					});
-				}
-			}
-
-			await this.selectSession();
-		}));
+		this._register(this.debugService.getViewModel().onDidFocusSession(async session => this.onDidFocusSession(session)));
 		this._register(this.debugService.onWillNewSession(async newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
 			const input = this.tree.getInput();
@@ -277,6 +210,79 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.tree.refilter();
 			revealLastElement(this.tree);
 		}));
+	}
+
+	private async onDidFocusSession(session: IDebugSession | undefined): Promise<void> {
+		if (session) {
+			sessionsToIgnore.delete(session);
+			if (this.completionItemProvider) {
+				this.completionItemProvider.dispose();
+			}
+			if (session.capabilities.supportsCompletionsRequest) {
+				this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
+					provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
+						// Disable history navigation because up and down are used to navigate through the suggest widget
+						this.setHistoryNavigationEnablement(false);
+
+						const model = this.replInput.getModel();
+						if (model) {
+							const word = model.getWordAtPosition(position);
+							const overwriteBefore = word ? word.word.length : 0;
+							const text = model.getValue();
+							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+							const frameId = focusedStackFrame ? focusedStackFrame.frameId : undefined;
+							const response = await session.completions(frameId, focusedStackFrame?.thread.threadId || 0, text, position, overwriteBefore, token);
+
+							const suggestions: CompletionItem[] = [];
+							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
+							if (response && response.body && response.body.targets) {
+								response.body.targets.forEach(item => {
+									if (item && item.label) {
+										let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
+										let insertText = item.text || item.label;
+										if (typeof item.selectionStart === 'number') {
+											// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
+											insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+											const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
+											const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
+											insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
+										}
+
+										suggestions.push({
+											label: item.label,
+											insertText,
+											kind: completionKindFromString(item.type || 'property'),
+											filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
+											range: computeRange(item.length || overwriteBefore),
+											sortText: item.sortText,
+											insertTextRules
+										});
+									}
+								});
+							}
+
+							if (this.configurationService.getValue<IDebugConfiguration>('debug').console.historySuggestions) {
+								const history = this.history.getHistory();
+								history.forEach(h => suggestions.push({
+									label: h,
+									insertText: h,
+									kind: CompletionItemKind.Text,
+									range: computeRange(h.length),
+									sortText: 'ZZZ'
+								}));
+							}
+
+							return { suggestions };
+						}
+
+						return Promise.resolve({ suggestions: [] });
+					}
+				});
+			}
+		}
+
+		await this.selectSession();
 	}
 
 	getFilterStats(): { total: number, filtered: number } {
@@ -379,7 +385,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	async selectSession(session?: IDebugSession): Promise<void> {
-		const treeInput = this.tree.getInput();
+		const treeInput = this.tree && this.tree.getInput();
 		if (!session) {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
