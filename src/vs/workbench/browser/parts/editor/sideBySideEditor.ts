@@ -257,8 +257,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Set input to both sides
 		await Promise.all([
-			this.secondaryEditorPane?.setInput(input.secondary as EditorInput, secondary, context, token),
-			this.primaryEditorPane?.setInput(input.primary as EditorInput, primary, context, token)
+			this.secondaryEditorPane?.setInput(input.secondary, secondary, context, token),
+			this.primaryEditorPane?.setInput(input.primary, primary, context, token)
 		]);
 	}
 
@@ -283,8 +283,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	private createEditors(newInput: SideBySideEditorInput): void {
 
 		// Create editors
-		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary as EditorInput, assertIsDefined(this.secondaryEditorContainer));
-		this.primaryEditorPane = this.doCreateEditor(newInput.primary as EditorInput, assertIsDefined(this.primaryEditorContainer));
+		this.secondaryEditorPane = this.doCreateEditor(newInput.secondary, assertIsDefined(this.secondaryEditorContainer));
+		this.primaryEditorPane = this.doCreateEditor(newInput.primary, assertIsDefined(this.primaryEditorContainer));
 
 		// Layout
 		this.layout(this.dimension);
@@ -326,7 +326,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	}
 
 	override setOptions(options: IEditorOptions | undefined): void {
-		this.primaryEditorPane?.setOptions(options);
+		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
