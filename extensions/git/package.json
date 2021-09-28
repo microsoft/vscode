@@ -2128,6 +2128,7 @@
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         },
         "git.timeline.date": {
+          "type": "string",
           "enum": [
             "committed",
             "authored"
@@ -2145,6 +2146,22 @@
           "default": true,
           "description": "%config.timeline.showAuthor%",
           "scope": "window"
+        },
+        "git.showUnpublishedCommitsButton": {
+          "type": "string",
+          "enum": [
+            "always",
+            "whenEmpty",
+            "never"
+          ],
+          "enumDescriptions": [
+            "%config.showUnpublishedCommitsButton.always%",
+            "%config.showUnpublishedCommitsButton.whenEmpty%",
+            "%config.showUnpublishedCommitsButton.never%"
+          ],
+          "default": "whenEmpty",
+          "description": "%config.showUnpublishedCommitsButton%",
+          "scope": "resource"
         }
       }
     },

@@ -917,6 +917,8 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
+			|| e.affectsConfiguration('git.rebaseWhenSync', root)
+			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -1907,27 +1909,31 @@ export class Repository implements Disposable {
 		});
 
 		let actionButton: SourceControl['actionButton'];
-		if (HEAD !== undefined && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0) {
-			if (HEAD.name && HEAD.commit) {
-				if (HEAD.upstream) {
-					if (HEAD.ahead) {
-						const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-						const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+		if (HEAD !== undefined) {
+			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
 
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0)) {
+				if (HEAD.name && HEAD.commit) {
+					if (HEAD.upstream) {
+						if (HEAD.ahead) {
+							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+							actionButton = {
+								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+								title: localize('scm button sync title', ' Sync Changes \u00a0$(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								tooltip: this.syncTooltip,
+								arguments: [this._sourceControl],
+							};
+						}
+					} else {
 						actionButton = {
-							command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-							title: localize('scm button sync title', ' Sync Changes \u00a0$(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-							tooltip: this.syncTooltip,
+							command: 'git.publish',
+							title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
+							tooltip: localize('scm button publish tooltip', "Publish Changes"),
 							arguments: [this._sourceControl],
 						};
 					}
-				} else {
-					actionButton = {
-						command: 'git.publish',
-						title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
-						tooltip: localize('scm button publish tooltip', "Publish Changes"),
-						arguments: [this._sourceControl],
-					};
 				}
 			}
 		}
