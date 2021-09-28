@@ -1887,7 +1887,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async setFixedDimensions(): Promise<void> {
 		const cols = await this._quickInputService.input({
 			title: nls.localize('setTerminalDimensionsColumn', "Set Fixed Dimensions: Column"),
-			placeHolder: 'Enter a number or leave empty for automatic width',
+			placeHolder: 'Enter a number of columns or leave empty for automatic width',
 			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
 		});
 		if (cols === undefined) {
@@ -1897,7 +1897,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalHasFixedWidth.set(!!this._fixedCols);
 		const rows = await this._quickInputService.input({
 			title: nls.localize('setTerminalDimensionsRow', "Set Fixed Dimensions: Row"),
-			placeHolder: 'Enter a number or leave empty for automatic height',
+			placeHolder: 'Enter a number of rows or leave empty for automatic height',
 			validateInput: async (text) => text.length > 0 && !text.match(/^\d+$/) ? { content: 'Enter a number or leave empty size automatically', severity: Severity.Error } : undefined
 		});
 		if (rows === undefined) {
@@ -1906,6 +1906,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._fixedRows = this._parseFixedDimension(rows);
 		this._addScrollbar();
 		this._resize();
+		this.focus();
 	}
 
 	private _parseFixedDimension(value: string): number | undefined {
