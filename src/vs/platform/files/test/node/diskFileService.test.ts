@@ -442,7 +442,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
+	test('resolve - symbolic link pointing to nonexistent file does not break', async () => {
 		await Promises.symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
 
 		const resolved = await service.resolve(URI.file(testDir));
@@ -513,7 +513,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(existsSync(target.fsPath), true); // target the link pointed to is never deleted
 	});
 
-	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
+	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (pointing to nonexistent file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
 		await Promises.symlink(target.fsPath, link.fsPath);
@@ -2055,7 +2055,7 @@ flakySuite('Disk File Service', function () {
 		assert.ok(!error);
 	});
 
-	test('writeFile - no error when writing to same non-existing folder multiple times different new files', async () => {
+	test('writeFile - no error when writing to same nonexistent folder multiple times different new files', async () => {
 		const newFolder = URI.file(join(testDir, 'some', 'new', 'folder'));
 
 		const file1 = joinPath(newFolder, 'file-1');

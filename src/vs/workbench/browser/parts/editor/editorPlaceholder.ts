@@ -222,6 +222,6 @@ export class UnavailableResourceErrorEditor extends AbstractErrorEditor {
 	}
 
 	protected override getErrorMessage(): string {
-		return localize('unavailableResourceErrorEditorText', "The editor could not be opened due to an unavailable resource.");
+		return localize('unavailableResourceErrorEditorText', "The editor could not be opened because the file was not found.");
 	}
 }
