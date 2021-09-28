@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
 import { Throttler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -224,13 +222,8 @@ class IndexedDBChangesBroadcastChannel extends Disposable {
 	constructor(private readonly changesKey: string) {
 		super();
 
-		// BroadcastChannel is not supported. Use storage.
-		if (isSafari || isIOS) {
-			this.createStorageBroadcastChannel(changesKey);
-		}
-
 		// Use BroadcastChannel
-		else {
+		if ('BroadcastChannel' in window) {
 			try {
 				this.broadcastChannel = new BroadcastChannel(changesKey);
 				const listener = (event: MessageEvent) => {
@@ -249,6 +242,11 @@ class IndexedDBChangesBroadcastChannel extends Disposable {
 				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
 				this.createStorageBroadcastChannel(changesKey);
 			}
+		}
+
+		// BroadcastChannel is not supported. Use storage.
+		else {
+			this.createStorageBroadcastChannel(changesKey);
 		}
 	}
 
