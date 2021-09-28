@@ -2457,7 +2457,7 @@ export class TerminalLabelComputer extends Disposable {
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
 		if (!labelTemplate) {
-			return '';
+			return this._instance.processName || '';
 		}
 		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
@@ -2469,7 +2469,7 @@ export class TerminalLabelComputer extends Disposable {
 
 		//Remove special characters that could mess with rendering
 		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
-		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+		return label.trim() === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 
 	pathsEqual(path1?: string | null, path2?: string) {
