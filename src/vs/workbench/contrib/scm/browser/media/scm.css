@@ -202,7 +202,13 @@
 }
 
 .scm-view .button-container .codicon {
+	margin: 0 0.4em;
+}
+
+.scm-view .button-container .codicon.codicon-arrow-up,
+.scm-view .button-container .codicon.codicon-arrow-down {
 	font-size: small !important;
+	margin: 0 0.2em 0 0;
 }
 
 .scm-view .scm-editor.hidden {

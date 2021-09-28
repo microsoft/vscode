@@ -1921,7 +1921,7 @@ export class Repository implements Disposable {
 
 							actionButton = {
 								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-								title: localize('scm button sync title', ' Sync Changes \u00a0$(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								title: localize('scm button sync title', ' Sync Changes $(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
 								tooltip: this.syncTooltip,
 								arguments: [this._sourceControl],
 							};
