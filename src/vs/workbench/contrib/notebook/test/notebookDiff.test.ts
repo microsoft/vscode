@@ -375,4 +375,24 @@ suite('NotebookCommon', () => {
 			assert.strictEqual(diffViewModels.viewModels[1].checkIfOutputsModified(), true);
 		});
 	});
+
+	test('diff output fast check', async () => {
+		await withTestNotebookDiffModel([
+			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([4])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+		], [
+			['x', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([3])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+			['y', 'javascript', CellKind.Code, [{ outputId: 'someOtherId', outputs: [{ mime: Mimes.text, data: VSBuffer.wrap(new Uint8Array([5])) }] }], { custom: { metadata: { collapsed: false } }, executionOrder: 3 }],
+		], (model, accessor) => {
+			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
+			const diffResult = diff.ComputeDiff(false);
+			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+				cellsDiff: diffResult
+			});
+			assert.strictEqual(diffViewModels.viewModels.length, 2);
+			assert.strictEqual(diffViewModels.viewModels[0].original!.textModel.equal(diffViewModels.viewModels[0].modified!.textModel), true);
+			assert.strictEqual(diffViewModels.viewModels[1].original!.textModel.equal(diffViewModels.viewModels[1].modified!.textModel), false);
+		});
+	});
 });
