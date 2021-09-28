@@ -585,8 +585,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._wrapperElement) {
 			return undefined;
 		}
-
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar ? -scrollbarHeight : 0)/* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
