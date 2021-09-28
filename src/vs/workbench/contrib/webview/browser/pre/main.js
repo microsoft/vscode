@@ -643,6 +643,7 @@ function areServiceWorkersEnabled() {
  *     options: {
  *         readonly allowScripts: boolean;
  *         readonly allowForms: boolean;
+ *         readonly allowPopups: boolean;
  *         readonly allowMultipleAPIAcquire: boolean;
  *     }
  *     state: any;
@@ -811,6 +812,9 @@ onDomReady(() => {
 		if (options.allowScripts) {
 			sandboxRules.add('allow-scripts');
 			sandboxRules.add('allow-downloads');
+		}
+		if (options.allowPopups) {
+			sandboxRules.add('allow-popups');
 		}
 		if (options.allowForms) {
 			sandboxRules.add('allow-forms');

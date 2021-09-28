@@ -541,7 +541,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { allowPopups: true }, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
 			webview.html = await this.renderSVG(media.path);
@@ -569,7 +569,7 @@ export class GettingStartedPage extends EditorPane {
 			}));
 
 			this.stepDisposables.add(webview.onDidClickLink(link => {
-				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
+				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.command)) {
 					this.openerService.open(link, { allowCommands: true });
 				}
 			}));

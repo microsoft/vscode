@@ -370,7 +370,7 @@ export class IFrameWebview extends Disposable implements Webview {
 		const element = document.createElement('iframe');
 		element.name = this.id;
 		element.className = `webview ${options.customClasses || ''}`;
-		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads');
+		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads', 'allow-popups');
 		if (!isFirefox) {
 			element.setAttribute('allow', 'clipboard-read; clipboard-write;');
 		}
@@ -555,12 +555,14 @@ export class IFrameWebview extends Disposable implements Webview {
 
 		this.content = newContent;
 
+		const allowPopups = !!this.content.options.allowPopups;
 		const allowScripts = !!this.content.options.allowScripts;
 		this._send('content', {
 			contents: this.content.html,
 			options: {
 				allowMultipleAPIAcquire: !!this.content.options.allowMultipleAPIAcquire,
 				allowScripts: allowScripts,
+				allowPopups: allowPopups,
 				allowForms: this.content.options.allowForms ?? allowScripts, // For back compat, we allow forms by default when scripts are enabled
 			},
 			state: this.content.state,
