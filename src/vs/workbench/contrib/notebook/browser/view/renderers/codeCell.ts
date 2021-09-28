@@ -88,7 +88,7 @@ export class CodeCell extends Disposable {
 
 				const realContentHeight = templateData.editor?.getContentHeight();
 				if (realContentHeight !== undefined && realContentHeight !== editorHeight) {
-					this.onCellHeightChange(realContentHeight);
+					this.onCellEditorHeightChange(realContentHeight);
 				}
 
 				focusEditorIfNeeded();
@@ -141,9 +141,7 @@ export class CodeCell extends Disposable {
 					this.onCellWidthChange();
 				}
 			}
-		}));
 
-		this._register(viewCell.onDidChangeLayout((e) => {
 			if (e.totalHeight) {
 				this.relayoutCell();
 			}
@@ -152,7 +150,7 @@ export class CodeCell extends Disposable {
 		this._register(templateData.editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
-					this.onCellHeightChange(e.contentHeight);
+					this.onCellEditorHeightChange(e.contentHeight);
 				}
 			}
 		}));
@@ -393,7 +391,7 @@ export class CodeCell extends Disposable {
 		);
 	}
 
-	private onCellHeightChange(newHeight: number): void {
+	private onCellEditorHeightChange(newHeight: number): void {
 		const viewLayout = this.templateData.editor.getLayoutInfo();
 		this.viewCell.editorHeight = newHeight;
 		this.relayoutCell();
