@@ -2821,7 +2821,11 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region @eamodio https://github.com/microsoft/vscode/issues/133935
+
 	export interface SourceControl {
 		actionButton?: Command;
 	}
+
+	//#endregion
 }
