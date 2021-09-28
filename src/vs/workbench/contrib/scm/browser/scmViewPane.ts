@@ -1051,7 +1051,7 @@ class ViewModel {
 	private visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private alwaysShowRepositories = false;
-	private showActionButtons = false;
+	private showActionButton = false;
 	private firstVisible = true;
 	private disposables = new DisposableStore();
 
@@ -1095,9 +1095,9 @@ class ViewModel {
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.showActionButtons')) {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.showActionButton')) {
 			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-			this.showActionButtons = this.configurationService.getValue<boolean>('scm.showActionButtons');
+			this.showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 			this.refresh();
 		}
 	}
@@ -1108,7 +1108,7 @@ class ViewModel {
 				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
 				repository.input.onDidChangeVisibility(() => this.refresh(item)),
 				repository.provider.onDidChange(() => {
-					if (this.showActionButtons) {
+					if (this.showActionButton) {
 						this.refresh(item);
 					}
 				})
@@ -1244,11 +1244,11 @@ class ViewModel {
 				children.push({ element: item.element.input, incompressible: true, collapsible: false });
 			}
 
-			if (hasSomeChanges || (this.items.size === 1 && (!this.showActionButtons || !item.element.provider.actionButton))) {
+			if (hasSomeChanges || (this.items.size === 1 && (!this.showActionButton || !item.element.provider.actionButton))) {
 				children.push(...item.groupItems.map(i => this.render(i, treeViewState)));
 			}
 
-			if (this.showActionButtons && item.element.provider.actionButton) {
+			if (this.showActionButton && item.element.provider.actionButton) {
 				const button: ICompressedTreeElement<ISCMActionButton> = {
 					element: {
 						type: 'actionButton',

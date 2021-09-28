@@ -208,9 +208,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
 			default: 10
 		},
-		'scm.showActionButtons': {
+		'scm.showActionButton': {
 			type: 'boolean',
-			markdownDescription: localize('showActionButtons', "Controls whether action buttons are visible in the SCM view."),
+			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the SCM view."),
 			default: true
 		}
 	}
