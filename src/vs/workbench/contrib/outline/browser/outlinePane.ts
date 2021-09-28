@@ -201,6 +201,8 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
+		this._editorDisposables.add(pane.onDidChangeControl(() => this._handleEditorChanged(pane)));
+
 		let loadingMessage: IDisposable | undefined;
 		if (!didCapture) {
 			loadingMessage = new TimeoutTimer(() => {
