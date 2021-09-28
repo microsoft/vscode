@@ -9,7 +9,7 @@ To complete this guide, you need:
 
 To deploy to Render, click the following button and follow the instructions:
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/gitpod-openvscode-server.git)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/render-examples/gitpod-openvscode-server)
 
 After that, create a name for the service group (for example `OpenVSCode Server`) and click <kbd>Apply</kbd>.
 
