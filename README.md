@@ -43,7 +43,7 @@ _Note_: You can use [pre-releases](https://github.com/gitpod-io/openvscode-serve
 
 ### Deployment guides
 
-Please refer to [Guides](./docs/guides/README.md) to learn how to deploy OpenVSCode Server to your cloud provider of choice.
+Please refer to [Guides](./docs/guides/) to learn how to deploy OpenVSCode Server to your cloud provider of choice.
 
 ## The scope of this project
 
