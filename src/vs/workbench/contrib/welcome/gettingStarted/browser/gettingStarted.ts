@@ -541,7 +541,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepsContent.classList.remove('markdown');
 
 			const media = stepToExpand.media;
-			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { allowPopups: true }, undefined));
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { allowPopups: true, enableCommandUris: true, }, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
 			webview.html = await this.renderSVG(media.path);
