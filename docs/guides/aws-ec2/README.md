@@ -39,7 +39,7 @@ To access OpenVSCode Server on port 3000 later, we have to create an inbound rul
 1. In the "Security groups" section, click on the link to open the security group page
 1. In the "Inbound rules" table, click the "Edit inbound rules" button on the right side
 1. Click "Add rule" and populate the following fields (use default values for everything else):
-  * Type: Custom TCP
+    * Type: Custom TCP
 	* Port range: 3000
 	* Source: Anywhere-IPv4
 1. Click "Save rules"
