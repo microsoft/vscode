@@ -1872,7 +1872,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
-				title: { value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
+				title: terminalStrings.toggleSizeToContentWidth,
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
