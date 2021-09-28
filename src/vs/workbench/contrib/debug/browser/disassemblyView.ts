@@ -98,7 +98,7 @@ export class DisassemblyView extends EditorPane {
 
 			if (e.affectsConfiguration('debug')) {
 				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
-				const newValue = this._configurationService.getValue<boolean>('debug.disassemblyview.showSourceCode');
+				const newValue = this._configurationService.getValue<boolean>('debug.disassemblyviewShowSourceCode');
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
 					this.reloadDisassembly(undefined);
@@ -137,20 +137,23 @@ export class DisassemblyView extends EditorPane {
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
-		this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyview.showSourceCode');
+		this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyviewShowSourceCode');
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
 				if (thisOM.isSourceCodeRender && row.instruction.location?.path && row.instruction.line) {
+					// instruction line + source lines
 					if (row.instruction.endLine) {
 						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
 					} else {
+						// source is only a single line.
 						return lineHeight * 2;
 					}
 				}
 
+				// just instruction line
 				return lineHeight;
 			}
 		};
@@ -263,7 +266,7 @@ export class DisassemblyView extends EditorPane {
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-				this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyview.showSourceCode');
+				this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyviewShowSourceCode');
 			}
 			this._previousDebuggingState = e;
 		}));
@@ -600,7 +603,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 		const disposables = [
 			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
-			addStandardDisposableListener(sourcecode, 'click', () => this.openSourceCode(currentElement.element?.instruction!)),
+			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction!)),
 		];
 
 		return { currentElement, instruction, sourcecode, disposables };
@@ -638,8 +641,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
 						const lineContent = textModel.getLineContent(lineNumber);
-						sourceSB.appendASCIIString(`\u00A0\u00A0${lineNumber}:\u00A0`);
-						sourceSB.appendASCIIString(lineContent.replace(/[ ]/g, '\u00A0') + '\n');
+						sourceSB.appendASCIIString(`  ${lineNumber}: `);
+						sourceSB.appendASCIIString(lineContent.replace(/[ ]/g, ' ') + '\n');
 
 						if (instruction.endLine && lineNumber < instruction.endLine) {
 							lineNumber++;
@@ -662,7 +665,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCII(0x00A0);
+				sb.appendASCIIString(' ');
 			}
 		}
 
@@ -673,7 +676,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
 			}
 			for (let i = 0; i < spacesToAppend; i++) {
-				sb.appendASCII(0x00A0);
+				sb.appendASCIIString(' ');
 			}
 		}
 
@@ -749,6 +752,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
 		element.style.lineHeight = fontInfo.lineHeight + 'px';
+		element.style.whiteSpace = 'pre';
 	}
 }
 

@@ -23,8 +23,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { registerAction2, MenuId, Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class ToggleBreakpointAction extends EditorAction2 {
@@ -179,7 +177,7 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 
 	public static readonly ID = 'debug.action.toggleDisassemblyViewSourceCode';
-	public static readonly configID: string = 'debug.disassemblyview.showSourceCode';
+	public static readonly configID: string = 'debug.disassemblyviewShowSourceCode';
 
 	constructor() {
 		super({
@@ -201,19 +199,6 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		}
 	}
 }
-
-Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	id: 'debug',
-	order: 100,
-	type: 'object',
-	'properties': {
-		'debug.disassemblyview.showSourceCode': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('debug.disassemblyview.showSourceCode', "Show Source Code in Disassembly View.")
-		},
-	}
-});
 
 export class RunToCursorAction extends EditorAction {
 
