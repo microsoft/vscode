@@ -1944,6 +1944,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this._addScrollbar();
 			}
 		}
+		this.focus();
 	}
 
 	private async _addScrollbar(): Promise<void> {
