@@ -1580,7 +1580,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	order: 2,
 	submenu: MenuId.TunnelPrivacy,
 	title: nls.localize('tunnelContext.privacyMenu', "Port Privacy"),
-	when: TunnelPrivacyEnabledContextKey
+	when: ContextKeyExpr.and(isForwardedExpr, TunnelPrivacyEnabledContextKey)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
