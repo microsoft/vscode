@@ -246,7 +246,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
-		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.outputCollapsed === undefined) {
+		if (this.viewCell.metadata.outputCollapsed === undefined && this.viewCell.metadata.inputCollapsed === undefined) {
 			this.initialViewUpdateExpanded();
 			this.viewCell.layoutChange({});
 		}
