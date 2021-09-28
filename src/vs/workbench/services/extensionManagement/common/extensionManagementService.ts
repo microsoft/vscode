@@ -294,7 +294,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				installOptions = { isMachineScoped, isBuiltin: false };
 			}
 			if (!installOptions.isMachineScoped && this.isExtensionsSyncEnabled()) {
-				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer)) {
+				if (this.extensionManagementServerService.localExtensionManagementServer && !servers.includes(this.extensionManagementServerService.localExtensionManagementServer) && (await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.canInstall(gallery))) {
 					servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 				}
 			}
