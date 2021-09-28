@@ -467,7 +467,8 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
-		}
+		},
+		resolveCodeAction: provider.resolveCodeAction
 	});
 }
 
@@ -588,6 +589,11 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+
+	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: modes.CodeAction, token: CancellationToken): modes.ProviderResult<modes.CodeAction>;
 }
 
 

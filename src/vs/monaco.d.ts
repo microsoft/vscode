@@ -5477,6 +5477,10 @@ declare namespace monaco.languages {
 		 * Provide commands for the given document and range.
 		 */
 		provideCodeActions(model: editor.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
+		/**
+		 * Given a code action fill in the edit. Will only invoked when missing.
+		 */
+		resolveCodeAction?(codeAction: CodeAction, token: CancellationToken): ProviderResult<CodeAction>;
 	}
 
 	/**
