@@ -188,7 +188,7 @@
 	"config.showUnpublishedCommitsButton": "Controls whether to show an action button to sync or publish, if there are unpublished commits.",
 	"config.showUnpublishedCommitsButton.always": "Always shows the action button, if there are unpublished commits.",
 	"config.showUnpublishedCommitsButton.whenEmpty": "Only shows the action button if there are no other changes and there are unpublished commits.",
-	"config.showUnpublishedCommitsButton.never": "Nevers shows the action button.",
+	"config.showUnpublishedCommitsButton.never": "Never shows the action button.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
