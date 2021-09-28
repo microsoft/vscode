@@ -635,9 +635,9 @@ export class GettingStartedPage extends EditorPane {
 
 				webview.onMessage(e => {
 					const message: string = e.message as string;
-					if (message.startsWith('command:')) {
-						this.openerService.open(message, { allowCommands: true });
-					} else if (message.startsWith('setTheme:')) {
+					if (message.startsWith('command$')) {
+						this.openerService.open(message.replace('$', ':'), { allowCommands: true });
+					} else if (message.startsWith('setTheme$')) {
 						this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
 					} else {
 						console.error('Unexpected message', message);
@@ -794,9 +794,9 @@ export class GettingStartedPage extends EditorPane {
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
-				document.querySelectorAll('[on-checked]').forEach(el => {
+				document.querySelectorAll('[when-checked]').forEach(el => {
 					el.addEventListener('click', () => {
-						vscode.postMessage(el.getAttribute('on-checked'));
+						vscode.postMessage(el.getAttribute('when-checked'));
 					});
 				});
 

@@ -180,7 +180,7 @@ function sanitize(documentContent: string): string {
 			ALLOWED_ATTR: [
 				'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
 				'width', 'height', 'align', 'x-dispatch',
-				'required', 'checked', 'placeholder', 'on-checked', 'checked-on',
+				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
 			],
 		});
 	} finally {
