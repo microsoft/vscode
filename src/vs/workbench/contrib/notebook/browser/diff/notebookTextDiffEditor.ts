@@ -562,7 +562,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
 
 		for (let j = 0; j < modifiedLen; j++) {
-			const isTheSame = originalModel.cells[change.originalStart + j].getHashValue() === modifiedModel.cells[change.modifiedStart + j].getHashValue();
+			const isTheSame = originalModel.cells[change.originalStart + j].equal(modifiedModel.cells[change.modifiedStart + j]);
 			result.push(new SideBySideDiffElementViewModel(
 				modifiedModel,
 				originalModel,

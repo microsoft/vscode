@@ -99,10 +99,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
-	public get contentHash(): number {
-		return this.model.getHashValue();
-	}
-
 	private readonly _onDidHideInput = this._register(new Emitter<void>());
 	readonly onDidHideInput = this._onDidHideInput.event;
 
