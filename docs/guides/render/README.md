@@ -69,7 +69,7 @@ After that, use your connected GitHub account or the full URL of your public OAu
 
 Create a name for the service group (for example, `Secure Access To Open VSCode`). Next, enter the environment variable values to configure OAuth.
 
-- For `OAUTH2_PROXY_UPSTREAMS` enter http://<Service Address for Private Open VSCode Server>
+- For `OAUTH2_PROXY_UPSTREAMS` enter the Service Address for Private Open VSCode Server appended by http://
 - For `OAUTH2_PROXY_CLIENT_ID` enter the Client ID from your OAuth App
 - For `OAUTH2_PROXY_CLIENT_SECRET` enter the Client Secret from your OAuth App or password manager
 - For `OAUTH2_PROXY_PROVIDER` enter the name of your OAuth provider
