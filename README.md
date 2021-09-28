@@ -1,6 +1,6 @@
 # OpenVSCode Server
 
-[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-908a85?logo=gitpod)](https://github.com/gitpod-io/openvscode-server/) ![GitHub](https://img.shields.io/github/license/gitpod-io/openvscode-server) ![Discord](https://img.shields.io/discord/816244985187008514)
+[![Gitpod ready-to-code](https://img.shields.io/badge/Gitpod-ready--to--code-908a85?logo=gitpod)](https://gitpod.io/from-referrer) ![GitHub](https://img.shields.io/github/license/gitpod-io/openvscode-server) ![Discord](https://img.shields.io/discord/816244985187008514)
 
 ## What is this?
 
@@ -59,15 +59,9 @@ The project is supported by companies such as [GitLab](https://gitlab.com/), [VM
 
 Thanks for your interest in contributing to the project 🙏. You can start a development environment with the following button:
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/gitpod-io/website)
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/from-referrer)
 
 To learn about the code structure and other topics related to contributing, please refer to the [development docs](./docs/development.md).
-
-## Authors
-
-- [Anton Kosyakov](https://www.github.com/akosyakov)
-- [Jean Pierre Huaroto](https://www.github.com/jeanp413)
-- [Filip Troníček](https://www.github.com/filiptronicek)
 
 ## Community & Feedback
 
