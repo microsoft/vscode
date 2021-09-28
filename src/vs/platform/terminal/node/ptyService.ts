@@ -145,7 +145,7 @@ export class PtyService extends Disposable implements IPtyService {
 				{
 					...state.shellLaunchConfig,
 					cwd: state.processDetails.cwd,
-					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;247;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
+					initialText: state.replayEvent.events[0].data + '\x1b[0m\n\n\r\x1b[1;48;5;252;38;5;234m ' + restoreMessage + ' \x1b[K\x1b[0m\n\r'
 				},
 				state.processDetails.cwd,
 				state.replayEvent.events[0].cols,
