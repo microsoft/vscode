@@ -18,14 +18,14 @@ export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompare
 	return (a, b) => comparator(selector(a), selector(b));
 }
 
-export function compareByNumberAsc<T>(): Comparator<number> {
+export function compareByNumber(): Comparator<number> {
 	return (a, b) => a - b;
 }
 
-export function findMinBy<T>(items: T[], comparator: Comparator<T>): T | undefined {
+export function findMaxBy<T>(items: T[], comparator: Comparator<T>): T | undefined {
 	let min: T | undefined = undefined;
 	for (const item of items) {
-		if (min === undefined || comparator(item, min) < 0) {
+		if (min === undefined || comparator(item, min) > 0) {
 			min = item;
 		}
 	}
