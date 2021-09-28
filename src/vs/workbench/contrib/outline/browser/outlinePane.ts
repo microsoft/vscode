@@ -201,6 +201,7 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
+		// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
 		this._editorDisposables.add(pane.onDidChangeControl(() => this._handleEditorChanged(pane)));
 
 		let loadingMessage: IDisposable | undefined;
