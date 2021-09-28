@@ -6,7 +6,7 @@ Each directory contains a `README.md` file as the main guide. Additional, suppor
 
 ## Add a new guide
 
-We welcome community contributions 🙏. Please open an issue and/or pull request if you would like to add new deployment guides.
+We welcome community contributions 🙏. Please open an issue and/or pull request if you would like to add a new deployment guide.
 
 To add a new guide:
 1. Copy the `_template` directory and name it based on the deployment platform you write a guide for
