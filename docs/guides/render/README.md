@@ -41,7 +41,7 @@ To complete this guide, you need:
 
 ## Set up provider account
 
-Consult the [OAuth2-Proxy Provider Configuration Documentation](https://oauth2-proxy.github.io/oauth2-proxy/docs/configuration/oauth_provider/), and select at least one provider to use for authenticating users of Open VSCode. Create an OAuth application with your provider of choice. For the Homepage/Base URI, enter a placeholder like `https:openvscode-secure-server.onrender.com`, and for the Callback/Redirect URI, enter a placeholder like `https:openvscode-secure-server.onrender.com/oauth2/callback`. You will update the OAuth2 app with your URIs once your OAuth2-Proxy Server deployment is complete. Save the Client Secret and ID in a secure place like a password manager for later reference.
+Consult the [OAuth2-Proxy Provider Configuration Documentation](https://oauth2-proxy.github.io/oauth2-proxy/docs/configuration/oauth_provider/), and select at least one provider to use for authenticating users of Open VSCode. Create an OAuth application with your provider of choice. For the Homepage/Base URI, enter a placeholder like `https://openvscode-secure-server.onrender.com`, and for the Callback/Redirect URI, enter a placeholder like `https://openvscode-secure-server.onrender.com/oauth2/callback`. You will update the OAuth2 app with your URIs once your OAuth2-Proxy Server deployment is complete. Save the Client Secret and ID in a secure place like a password manager for later reference.
 
 
 ## Set up Open VSCode Server
