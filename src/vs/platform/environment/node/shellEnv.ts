@@ -80,9 +80,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 
 				// Resolve shell env and handle errors
 				try {
-					const shellEnv = await doResolveUnixShellEnv(logService, cts.token);
-
-					resolve(shellEnv);
+					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
 					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
 						reject(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error)));
