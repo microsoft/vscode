@@ -865,6 +865,38 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "javascript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
+        "typescript.preferences.jsxAttributeCompletionStyle": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "braces",
+            "none"
+          ],
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
+            "%typescript.preferences.jsxAttributeCompletionStyle.none%"
+          ],
+          "default": "auto",
+          "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
+          "scope": "resource"
+        },
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
           "enum": [
