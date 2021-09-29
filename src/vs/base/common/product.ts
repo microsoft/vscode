@@ -114,7 +114,7 @@ export interface IProductConfiguration {
 	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
 	readonly privacyStatementUrl?: string;
-	readonly telemetryOptOutUrl?: string;
+	readonly showTelemetryOptOut?: boolean;
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
