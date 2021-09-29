@@ -16,7 +16,7 @@ import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -124,7 +124,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	}
 }
 
-suite('WorkingCopyBackupService', () => {
+flakySuite('WorkingCopyBackupService', () => {
 
 	let testDir: string;
 	let backupHome: string;
