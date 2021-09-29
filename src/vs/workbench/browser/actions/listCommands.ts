@@ -61,6 +61,7 @@ async function navigate(widget: WorkbenchListWidget | undefined, updateFocusFn: 
 		widget.reveal(listFocus[0]);
 	}
 
+	widget.setAnchor(listFocus[0]);
 	ensureDOMFocus(widget);
 }
 
@@ -404,6 +405,7 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
 		list.setSelection(list.getFocus(), fakeKeyboardEvent);
+		list.setAnchor(list.getFocus()[0]);
 	}
 
 	// Trees
@@ -425,6 +427,7 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 			}
 		}
 		tree.setSelection(focus, fakeKeyboardEvent);
+		tree.setAnchor(focus[0]);
 	}
 }
 
