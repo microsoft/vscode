@@ -50,7 +50,7 @@ export const fixedEditorOptions: IEditorOptions = {
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
-		vertical: 'hidden',
+		vertical: 'auto',
 		useShadows: true,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
