@@ -233,6 +233,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 				});
 
+				// Unset `DEBUG`, as an invalid value might lead to extension host crashes
+				// See https://github.com/microsoft/vscode/issues/130072
+				delete env['DEBUG'];
+
 				if (platform.isMacintosh) {
 					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
 					// See https://github.com/microsoft/vscode/issues/104525
