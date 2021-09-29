@@ -392,7 +392,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
 		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
-		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		let possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
 				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
@@ -405,6 +405,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			associationsFromSetting[0]?.viewType || possibleEditors[0].editorInfo.id;
 
 		let conflictingDefault = false;
+
+		// Filter out exclusive before we check for conflicts as exclusive editors cannot be manually chosen
+		possibleEditors = possibleEditors.filter(editor => editor.editorInfo.priority !== RegisteredEditorPriority.exclusive);
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
 		}
