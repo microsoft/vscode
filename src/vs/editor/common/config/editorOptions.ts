@@ -4286,7 +4286,7 @@ export const EditorOptions = {
 	)),
 	codeLensFontFamily: register(new EditorStringOption(
 		EditorOption.codeLensFontFamily, 'codeLensFontFamily', '',
-		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens. When set to empty, the `#editor.fontFamily#` is used.") }
+		{ description: nls.localize('codeLensFontFamily', "Controls the font family for CodeLens.") }
 	)),
 	codeLensFontSize: register(new EditorIntOption(EditorOption.codeLensFontSize, 'codeLensFontSize', 0, 0, 100, {
 		type: 'number',
