@@ -490,6 +490,14 @@ export class Git {
 
 				return path.normalize(pathUri.fsPath);
 			}
+
+			// MSYS2 Git (not Git for Windows) rev-parse returns Cygwin style path. (Git for Windows returns Windows style path with rev-parse)
+			// Convert Cygwin style path -> Windows style path
+			let cygpathRegex = /^\\([a-z])\\/;
+			if (cygpathRegex.test(r))
+			{
+				return r.replace(cygpathRegex, "$1:\\");
+			}
 		}
 
 		return repoPath;
