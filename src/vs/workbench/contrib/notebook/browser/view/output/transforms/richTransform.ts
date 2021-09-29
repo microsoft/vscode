@@ -135,18 +135,20 @@ class JSErrorRendererContrib implements IOutputRendererContribution {
 			return { type: RenderOutputType.Mainframe };
 		}
 
-		const header = document.createElement('div');
-		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
-		if (headerMessage) {
-			header.innerText = headerMessage;
-			container.appendChild(header);
-		}
-		const stack = document.createElement('pre');
-		stack.classList.add('traceback');
 		if (err.stack) {
+			const stack = document.createElement('pre');
+			stack.classList.add('traceback');
 			stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
+			container.appendChild(stack);
+		} else {
+			const header = document.createElement('div');
+			const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+			if (headerMessage) {
+				header.innerText = headerMessage;
+				container.appendChild(header);
+			}
 		}
-		container.appendChild(stack);
+
 		container.classList.add('error');
 
 		return { type: RenderOutputType.Mainframe };
