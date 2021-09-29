@@ -13,7 +13,7 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -326,9 +326,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`:root {
 		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
-		--code-language-status-info-color: ${theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND)};
-		--code-language-status-warning-color: ${theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND)};
-		--code-language-status-error-color: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
+		--code-language-status-color2: ${theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND)};
+		--code-language-status-color3: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
 	}`);
 });
 
