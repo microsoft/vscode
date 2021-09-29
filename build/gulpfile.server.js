@@ -50,8 +50,6 @@ function defineTasks(options) {
 		'out-build/vs/workbench/contrib/webview/browser/pre/**',
 
 		// Extension Worker
-		'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js',
-		'out-build/vs/workbench/services/extensions/worker/extensionHostWorkerMain.js.map',
 		'out-build/vs/workbench/services/extensions/worker/*.html',
 
 		// Excludes
@@ -86,6 +84,7 @@ function defineTasks(options) {
 		buildfile.base,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
+		buildfile.workerLanguageDetection,
 		buildfile.keyboardMaps,
 		buildfile.workbenchWeb
 	]).map(p => {

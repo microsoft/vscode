@@ -37,7 +37,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { OptionDescriptions, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
+import { ExtensionGalleryServiceWithNoStorageService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -331,7 +331,10 @@ export async function main(options: IServerOptions): Promise<void> {
 	const connectionToken = generateUuid();
 
 	const parsedArgs = parseArgs(process.argv, SERVER_OPTIONS);
-	parsedArgs['user-data-dir'] = URI.file(path.join(os.homedir(), product.dataFolderName)).fsPath;
+
+	// VSCODE_AGENT_FOLDER used by smoke and integration tests.
+	parsedArgs['user-data-dir'] = process.env.VSCODE_AGENT_FOLDER || path.join(os.homedir(), product.dataFolderName);
+
 	const productService = { _serviceBrand: undefined, ...product };
 	const environmentService = new NativeEnvironmentService(parsedArgs, productService);
 
@@ -624,7 +627,7 @@ export async function main(options: IServerOptions): Promise<void> {
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
-	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
+	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 	services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 
 	services.set(IRequestService, new SyncDescriptor(RequestService));
