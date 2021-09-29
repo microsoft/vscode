@@ -30,6 +30,19 @@ At Gitpod, we've been asked a lot about how we do it. So we thought we might as 
 
 _Note_: Feel free to use the `nightly` tag to test the latest version, i.e. `gitpod/openvscode-server:nightly`.
 
+#### Custom Environment
+- If you want to add dependencies to this Docker image, here is a template to help:
+	```Dockerfile
+	
+	FROM gitpod/openvscode-server:latest
+
+	USER root # to get permissions to install packages and such
+	RUN # the installation process for software needed
+	USER vscode-server # to restore permissions for the web interface
+	
+	```
+- For additional possibilities, please consult the `Dockerfile` for OpenVSCode Server at https://github.com/gitpod-io/openvscode-releases/
+
 ### Linux
 
 - [Download the latest release](https://github.com/gitpod-io/openvscode-server/releases/latest)
