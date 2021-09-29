@@ -101,18 +101,38 @@ function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
 	return editor.getOption(EditorOption.suggest).preview;
 }
 
-function shouldPreventQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	return (
-		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions') ?? isSuggestPreviewEnabled(editor))
-	);
+function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+		// Allow if there is no inline suggestion.
+		return true;
+	}
+
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions');
+	if (allowQuickSuggestions !== undefined) {
+		// Use setting if available.
+		return Boolean(allowQuickSuggestions);
+	}
+
+	// Don't allow if inline suggestions are visible and no suggest preview is configured.
+	// TODO disabled for copilot
+	return false && isSuggestPreviewEnabled(editor);
 }
 
-function shouldPreventSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	return (
-		Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))
-		&& !Boolean(configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters') ?? isSuggestPreviewEnabled(editor))
-	);
+function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+		// Allow if there is no inline suggestion.
+		return true;
+	}
+
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters');
+	if (allowQuickSuggestions !== undefined) {
+		// Use setting if available.
+		return Boolean(allowQuickSuggestions);
+	}
+
+	// Don't allow if inline suggestions are visible and no suggest preview is configured.
+	// TODO disabled for copilot
+	return false && isSuggestPreviewEnabled(editor);
 }
 
 export class SuggestModel implements IDisposable {
@@ -235,7 +255,7 @@ export class SuggestModel implements IDisposable {
 
 		const checkTriggerCharacter = (text?: string) => {
 
-			if (shouldPreventSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)) {
+			if (!canShowSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)) {
 				return;
 			}
 
@@ -382,7 +402,7 @@ export class SuggestModel implements IDisposable {
 					}
 				}
 
-				if (shouldPreventQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
+				if (!canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
 					// do not trigger quick suggestions if inline suggestions are shown
 					return;
 				}
