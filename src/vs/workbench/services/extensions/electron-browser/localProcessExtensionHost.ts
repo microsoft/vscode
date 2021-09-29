@@ -374,8 +374,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				const sw = new StopWatch(false);
 				return this._extensionHostProcess.start(opts).then(() => {
-					if (sw.elapsed() > 20) {
-						// communicating to the shared process took more than 20ms
+					if (sw.elapsed() > 500) {
+						// communicating to the shared process took more than 500ms
 						this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
 					}
 					// Initialize extension host process with hand shakes
