@@ -185,7 +185,7 @@ export class IntellisenseStatus extends Disposable {
 					title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
 					command: 'vscode.open',
 					arguments: [
-						vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=2114477'), // TODO: add proper link once published
+						vscode.Uri.parse('https://aka.ms/vscode/jsts/partial-mode'),
 					]
 				};
 				break;
