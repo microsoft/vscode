@@ -5,34 +5,32 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import {
-	IExtensionManagementService, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension, InstallExtensionResult
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { OS } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { DidUninstallExtensionEvent, IExtensionIdentifier, IExtensionManagementService, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { timeout } from 'vs/base/common/async';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { OS } from 'vs/base/common/platform';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IURLService } from 'vs/platform/url/common/url';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { currentSchemaVersion, ExperimentActionType, ExperimentService, ExperimentState, getCurrentActivationRecord, IExperiment } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
+import { IExtensionService, IWillActivateEvent } from 'vs/workbench/services/extensions/common/extensions';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -387,6 +385,35 @@ suite('Experiment Service', () => {
 					condition: {
 						activationEvent: {
 							event: 'my:event',
+							minEvents: 5,
+						}
+					}
+				}
+			]
+		};
+
+		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
+			return a === 'experimentEventRecord-my-event'
+				? JSON.stringify({ count: [10], mostRecentBucket: Date.now() })
+				: undefined;
+		});
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.strictEqual(result.enabled, true);
+			assert.strictEqual(result.state, ExperimentState.Run);
+		});
+	});
+
+	test('Activation event allows multiple', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						activationEvent: {
+							event: ['other:event', 'my:event'],
 							minEvents: 5,
 						}
 					}
