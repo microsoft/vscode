@@ -38,5 +38,5 @@ export function logRemoteEntryIfError(logService: ILogService, entry: IRemoteCon
 		return;
 	}
 
-	logService.error(`[${label}]` + firstArg, ...args);
+	logService.error(`[${label}] ` + firstArg, ...args);
 }
