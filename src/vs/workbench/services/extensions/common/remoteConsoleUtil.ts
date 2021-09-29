@@ -30,3 +30,13 @@ export function logRemoteEntry(logService: ILogService, entry: IRemoteConsoleLog
 			break;
 	}
 }
+
+export function logRemoteEntryIfError(logService: ILogService, entry: IRemoteConsoleLog, label: string): void {
+	const args = parse(entry).args;
+	const firstArg = args.shift();
+	if (typeof firstArg !== 'string' || entry.severity !== 'error') {
+		return;
+	}
+
+	logService.error(`[${label}]` + firstArg, ...args);
+}

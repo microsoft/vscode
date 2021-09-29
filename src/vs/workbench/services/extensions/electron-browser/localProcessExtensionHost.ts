@@ -17,7 +17,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
+import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -568,14 +568,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-
 		if (this._isExtensionDevTestFromCli) {
-
-			// Log on main side if running tests from cli
+			// If running tests from cli, log to the log service everything
 			logRemoteEntry(this._logService, entry);
 		} else {
-
-			// Send to local console
+			// Log to the log service only errors and log everything to local console
+			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
 			log(entry, 'Extension Host');
 		}
 	}
