@@ -186,6 +186,16 @@ export class NativeWindow extends Disposable {
 		// Message support
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
+		// Shell Environment Issue Notifications
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			message,
+			[{
+				label: localize('learnMore', "Learn More"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+			}]
+		));
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
 		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
