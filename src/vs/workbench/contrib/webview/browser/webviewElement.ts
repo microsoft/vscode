@@ -98,7 +98,17 @@ export class IFrameWebview extends Disposable implements Webview {
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
 
 	private _focused: boolean | undefined;
-	public get isFocused(): boolean { return !!this._focused; }
+	public get isFocused(): boolean {
+		if (!this._focused) {
+			return false;
+		}
+		if (document.activeElement && document.activeElement !== this.element) {
+			// looks like https://github.com/microsoft/vscode/issues/132641
+			// where the focus is actually not in the `<iframe>`
+			return false;
+		}
+		return true;
+	}
 
 	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
