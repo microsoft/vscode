@@ -175,11 +175,20 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {
-		return this._getExtHost(id).enableInspectPort();
+		const extHostProcess = this._extHosts.get(id);
+		if (!extHostProcess) {
+			return false;
+		}
+		return extHostProcess.enableInspectPort();
 	}
 
 	async kill(id: string): Promise<void> {
-		this._getExtHost(id).kill();
+		const extHostProcess = this._extHosts.get(id);
+		if (!extHostProcess) {
+			// already gone!
+			return;
+		}
+		extHostProcess.kill();
 	}
 }
 
