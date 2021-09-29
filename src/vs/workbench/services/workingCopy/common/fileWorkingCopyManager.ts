@@ -219,6 +219,12 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 					}
 				}));
 
+				// Removals: once a stored working copy is no longer
+				// under our control, make sure to signal this as
+				// decoration change because from this point on we
+				// have no way of updating the decoration anymore.
+				this._register(this.stored.onDidRemove(workingCopyUri => this._onDidChange.fire([workingCopyUri])));
+
 				// Changes
 				this._register(this.stored.onDidChangeReadonly(workingCopy => this._onDidChange.fire([workingCopy.resource])));
 				this._register(this.stored.onDidChangeOrphaned(workingCopy => this._onDidChange.fire([workingCopy.resource])));
@@ -226,7 +232,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 
 			provideDecorations(uri: URI): IDecorationData | undefined {
 				const workingCopy = this.stored.get(uri);
-				if (!workingCopy) {
+				if (!workingCopy || workingCopy.isDisposed()) {
 					return undefined;
 				}
 

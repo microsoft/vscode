@@ -109,6 +109,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 					}
 				}));
 
+				// Removals: once a text file model is no longer
+				// under our control, make sure to signal this as
+				// decoration change because from this point on we
+				// have no way of updating the decoration anymore.
+				this._register(this.files.onDidRemove(modelUri => this._onDidChange.fire([modelUri])));
+
 				// Changes
 				this._register(this.files.onDidChangeReadonly(model => this._onDidChange.fire([model.resource])));
 				this._register(this.files.onDidChangeOrphaned(model => this._onDidChange.fire([model.resource])));
@@ -116,7 +122,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 			provideDecorations(uri: URI): IDecorationData | undefined {
 				const model = this.files.get(uri);
-				if (!model) {
+				if (!model || model.isDisposed()) {
 					return undefined;
 				}
 

@@ -34,6 +34,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private readonly _onDidResolve = this._register(new Emitter<ITextFileResolveEvent>());
 	readonly onDidResolve = this._onDidResolve.event;
 
+	private readonly _onDidRemove = this._register(new Emitter<URI>());
+	readonly onDidRemove = this._onDidRemove.event;
+
 	private readonly _onDidChangeDirty = this._register(new Emitter<TextFileEditorModel>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
@@ -446,7 +449,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	}
 
 	protected remove(resource: URI): void {
-		this.mapResourceToModel.delete(resource);
+		const removed = this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
 		if (disposeListener) {
@@ -458,6 +461,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		if (modelListener) {
 			dispose(modelListener);
 			this.mapResourceToModelListeners.delete(resource);
+		}
+
+		if (removed) {
+			this._onDidRemove.fire(resource);
 		}
 	}
 

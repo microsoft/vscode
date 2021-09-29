@@ -187,6 +187,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		const resource2 = toResource.call(this, '/path/other.txt');
 
 		let resolvedCounter = 0;
+		let removedCounter = 0;
 		let gotDirtyCounter = 0;
 		let gotNonDirtyCounter = 0;
 		let revertedCounter = 0;
@@ -196,6 +197,12 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.onDidResolve(({ model }) => {
 			if (model.resource.toString() === resource1.toString()) {
 				resolvedCounter++;
+			}
+		});
+
+		manager.onDidRemove(resource => {
+			if (resource.toString() === resource1.toString() || resource.toString() === resource2.toString()) {
+				removedCounter++;
 			}
 		});
 
@@ -247,6 +254,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model2.dispose();
 
 		await model1.revert();
+		assert.strictEqual(removedCounter, 2);
 		assert.strictEqual(gotDirtyCounter, 2);
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);

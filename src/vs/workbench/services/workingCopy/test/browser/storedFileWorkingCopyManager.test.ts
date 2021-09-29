@@ -182,6 +182,7 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		let createdCounter = 0;
 		let resolvedCounter = 0;
+		let removedCounter = 0;
 		let gotDirtyCounter = 0;
 		let gotNonDirtyCounter = 0;
 		let revertedCounter = 0;
@@ -190,6 +191,12 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		manager.onDidCreate(workingCopy => {
 			createdCounter++;
+		});
+
+		manager.onDidRemove(resource => {
+			if (resource.toString() === resource1.toString() || resource.toString() === resource2.toString()) {
+				removedCounter++;
+			}
 		});
 
 		manager.onDidResolve(workingCopy => {
@@ -256,6 +263,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		workingCopy2.dispose();
 
 		await workingCopy1.revert();
+		assert.strictEqual(removedCounter, 2);
 		assert.strictEqual(gotDirtyCounter, 3);
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);

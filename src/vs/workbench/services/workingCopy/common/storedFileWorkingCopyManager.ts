@@ -72,6 +72,11 @@ export interface IStoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyM
 	readonly onDidRevert: Event<IStoredFileWorkingCopy<M>>;
 
 	/**
+	 * An event for when a stored file working copy is removed from the manager.
+	 */
+	readonly onDidRemove: Event<URI>;
+
+	/**
 	 * Allows to resolve a stored file working copy. If the manager already knows
 	 * about a stored file working copy with the same `URI`, it will return that
 	 * existing stored file working copy. There will never be more than one
@@ -151,6 +156,9 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 	private readonly _onDidRevert = this._register(new Emitter<IStoredFileWorkingCopy<M>>());
 	readonly onDidRevert = this._onDidRevert.event;
+
+	private readonly _onDidRemove = this._register(new Emitter<URI>());
+	readonly onDidRemove = this._onDidRemove.event;
 
 	//#endregion
 
@@ -549,8 +557,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
 	}
 
-	protected override remove(resource: URI): void {
-		super.remove(resource);
+	protected override remove(resource: URI): boolean {
+		const removed = super.remove(resource);
 
 		// Dispose any exsting working copy listeners
 		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
@@ -558,6 +566,12 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			dispose(workingCopyListener);
 			this.mapResourceToWorkingCopyListeners.delete(resource);
 		}
+
+		if (removed) {
+			this._onDidRemove.fire(resource);
+		}
+
+		return removed;
 	}
 
 	//#endregion
