@@ -16,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, ICommandActionTitle, ILocalizedString, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, ICommandActionTitle, ILocalizedString, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -1872,16 +1872,10 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.SizeToContentWidthInstance,
-				title: terminalStrings.sizeToContentWidth,
+				title: terminalStrings.toggleSizeToContentWidth,
 				f1: false,
 				category,
-				toggled: TerminalContextKeys.terminalHasFixedWidth,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
-				menu: [{
-					id: MenuId.TerminalTabContext
-				}, {
-					id: MenuId.TerminalInlineTabContext
-				}]
+				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
