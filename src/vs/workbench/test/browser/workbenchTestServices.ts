@@ -1057,7 +1057,7 @@ export class TestFileService implements IFileService {
 		return this.providers.get(scheme);
 	}
 
-	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
+	async activateProvider(_scheme: string): Promise<void> { return; }
 	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {
 		return [
