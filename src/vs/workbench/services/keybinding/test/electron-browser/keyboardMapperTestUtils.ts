@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, KeybindingModifier, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -20,7 +20,7 @@ export interface IResolvedKeybinding {
 	isWYSIWYG: boolean;
 	isChord: boolean;
 	dispatchParts: (string | null)[];
-	singleModifierDispatchParts: (string | null)[];
+	singleModifierDispatchParts: (KeybindingModifier | null)[];
 }
 
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {

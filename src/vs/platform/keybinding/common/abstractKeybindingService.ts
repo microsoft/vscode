@@ -7,7 +7,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeybindingModifier, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -37,7 +37,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
-	private _currentSingleModifier: null | string;
+	private _currentSingleModifier: KeybindingModifier | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
 
 	protected _logging: boolean;
