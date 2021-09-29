@@ -9,7 +9,7 @@ import { CommandManager } from '../commands/commandManager';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
 import { Disposable } from '../utils/dispose';
-import { jsTsLanguageModes, isSupportedLanguageMode } from '../utils/languageModeIds';
+import { isSupportedLanguageMode, isTypeScriptDocument, jsTsLanguageModes } from '../utils/languageModeIds';
 import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFile, openProjectConfigOrPromptToCreate, ProjectType } from '../utils/tsconfig';
 
 const localize = nls.loadMessageBundle();
@@ -29,6 +29,7 @@ namespace IntellisenseState {
 
 		constructor(
 			public readonly resource: vscode.Uri,
+			public readonly projectType: ProjectType,
 		) { }
 	}
 
@@ -37,6 +38,7 @@ namespace IntellisenseState {
 
 		constructor(
 			public readonly resource: vscode.Uri,
+			public readonly projectType: ProjectType,
 			public readonly configFile: string,
 		) { }
 	}
@@ -66,18 +68,18 @@ export class IntellisenseStatus extends Disposable {
 
 		commandManager.register({
 			id: this.openOpenConfigCommandId,
-			execute: async (rootPath: string) => {
+			execute: async (rootPath: string, projectType: ProjectType) => {
 				if (this._state.type === IntellisenseState.Type.Resolved) {
-					await openProjectConfigOrPromptToCreate(ProjectType.TypeScript, this._client, rootPath, this._state.configFile);
+					await openProjectConfigOrPromptToCreate(projectType, this._client, rootPath, this._state.configFile);
 				} else if (this._state.type === IntellisenseState.Type.Pending) {
-					await openProjectConfigForFile(ProjectType.TypeScript, this._client, this._state.resource);
+					await openProjectConfigForFile(projectType, this._client, this._state.resource);
 				}
 			},
 		});
 		commandManager.register({
 			id: this.createConfigCommandId,
-			execute: async (rootPath: string) => {
-				await openOrCreateConfig(ProjectType.TypeScript, rootPath, this._client.configuration);
+			execute: async (rootPath: string, projectType: ProjectType) => {
+				await openOrCreateConfig(projectType, rootPath, this._client.configuration);
 			},
 		});
 
@@ -111,13 +113,15 @@ export class IntellisenseStatus extends Disposable {
 			return;
 		}
 
-		const pendingState = new IntellisenseState.Pending(doc.uri);
+		const projectType = isTypeScriptDocument(doc) ? ProjectType.TypeScript : ProjectType.JavaScript;
+
+		const pendingState = new IntellisenseState.Pending(doc.uri, projectType);
 		this.updateState(pendingState);
 
 		const response = await this._client.execute('projectInfo', { file, needFileNameList: false }, pendingState.cancellation.token);
 		if (response.type === 'response' && response.body) {
 			if (this._state === pendingState) {
-				this.updateState(new IntellisenseState.Resolved(doc.uri, response.body.configFileName));
+				this.updateState(new IntellisenseState.Resolved(doc.uri, projectType, response.body.configFileName));
 			}
 		}
 	}
@@ -151,11 +155,16 @@ export class IntellisenseStatus extends Disposable {
 				}
 
 				if (isImplicitProjectConfigFile(this._state.configFile)) {
-					this._statusItem.text = localize('resolved.detail.noTsConfig', "No tsconfig");
+					this._statusItem.text = this._state.projectType === ProjectType.TypeScript
+						? localize('resolved.detail.noTsConfig', "No tsconfig")
+						: localize('resolved.detail.noJsConfig', "No jsconfig");
+
 					this._statusItem.detail = undefined;
 					this._statusItem.command = {
 						command: this.createConfigCommandId,
-						title: localize('resolved.command.title.create', "Create tsconfig"),
+						title: this._state.projectType === ProjectType.TypeScript
+							? localize('resolved.command.title.createTsconfig', "Create tsconfig")
+							: localize('resolved.command.title.createJsconfig', "Create jsconfig"),
 						arguments: [rootPath],
 					};
 				} else {
