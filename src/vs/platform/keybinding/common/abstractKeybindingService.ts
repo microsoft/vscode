@@ -204,6 +204,14 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
 		}
 
+		if (this._currentSingleModifier !== null) {
+			if (singleModifier) {
+				this._log(`+ Clearing single modifier due to modifier mismatch: ${this._currentSingleModifier} ${singleModifier}`);
+			} else {
+				this._log(`+ Clearing single modifier due to other key up.`);
+			}
+		}
+
 		this._currentSingleModifierClearTimeout.cancel();
 		this._currentSingleModifier = null;
 		return false;
