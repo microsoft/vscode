@@ -505,16 +505,6 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInlineTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SizeToContentWidthInstance,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
-					},
-					group: ContextMenuGroup.Edit
-				}
-			},
-			{
-				id: MenuId.TerminalInlineTabContext,
-				item: {
-					command: {
 						id: TerminalCommandId.Kill,
 						title: terminalStrings.kill.value
 					},
@@ -574,16 +564,6 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.ChangeColorInstance,
 						title: localize('workbench.action.terminal.changeColor', "Change Color...")
-					},
-					group: ContextMenuGroup.Edit
-				}
-			},
-			{
-				id: MenuId.TerminalTabContext,
-				item: {
-					command: {
-						id: TerminalCommandId.SizeToContentWidthInstance,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -661,7 +641,7 @@ export function setupTerminalMenus(): void {
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
 			id: TerminalCommandId.SizeToContentWidth,
-			title: terminalStrings.toggleSizeToContentWidth
+			title: terminalStrings.sizeToContentWidth
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
 		group: '3_files'
