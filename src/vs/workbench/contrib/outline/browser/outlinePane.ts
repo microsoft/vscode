@@ -66,7 +66,8 @@ export class OutlinePane extends ViewPane {
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _editorDisposables = new DisposableStore();
+	private readonly _editorControlDisposables = new DisposableStore();
+	private readonly _editorPaneDisposables = new DisposableStore();
 	private readonly _outlineViewState = new OutlineViewState();
 
 	private readonly _editorListener = new MutableDisposable();
@@ -120,7 +121,8 @@ export class OutlinePane extends ViewPane {
 
 	override dispose(): void {
 		this._disposables.dispose();
-		this._editorDisposables.dispose();
+		this._editorPaneDisposables.dispose();
+		this._editorControlDisposables.dispose();
 		this._editorListener.dispose();
 		super.dispose();
 	}
@@ -148,7 +150,8 @@ export class OutlinePane extends ViewPane {
 			if (!visible) {
 				// stop everything when not visible
 				this._editorListener.clear();
-				this._editorDisposables.clear();
+				this._editorPaneDisposables.clear();
+				this._editorControlDisposables.clear();
 
 			} else if (!this._editorListener.value) {
 				const event = Event.any(this._editorService.onDidActiveEditorChange, this._outlineService.onDidChange);
@@ -189,13 +192,26 @@ export class OutlinePane extends ViewPane {
 		return false;
 	}
 
-	private async _handleEditorChanged(pane: IEditorPane | undefined): Promise<void> {
+	private _handleEditorChanged(pane: IEditorPane | undefined): void {
+		this._editorPaneDisposables.clear();
+
+		if (pane) {
+			// react to control changes from within pane (https://github.com/microsoft/vscode/issues/134008)
+			this._editorPaneDisposables.add(pane.onDidChangeControl(() => {
+				this._handleEditorControlChanged(pane);
+			}));
+		}
+
+		this._handleEditorControlChanged(pane);
+	}
+
+	private async _handleEditorControlChanged(pane: IEditorPane | undefined): Promise<void> {
 
 		// persist state
 		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
 		const didCapture = this._captureViewState(resource);
 
-		this._editorDisposables.clear();
+		this._editorControlDisposables.clear();
 
 		if (!pane || !this._outlineService.canCreateOutline(pane) || !resource) {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
@@ -211,7 +227,7 @@ export class OutlinePane extends ViewPane {
 		this._progressBar.infinite().show(500);
 
 		const cts = new CancellationTokenSource();
-		this._editorDisposables.add(toDisposable(() => cts.dispose(true)));
+		this._editorControlDisposables.add(toDisposable(() => cts.dispose(true)));
 
 		const newOutline = await this._outlineService.createOutline(pane, OutlineTarget.OutlinePane, cts.token);
 		loadingMessage?.dispose();
@@ -225,7 +241,7 @@ export class OutlinePane extends ViewPane {
 			return;
 		}
 
-		this._editorDisposables.add(newOutline);
+		this._editorControlDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
 		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
@@ -270,21 +286,21 @@ export class OutlinePane extends ViewPane {
 			}
 		};
 		updateTree();
-		this._editorDisposables.add(newOutline.onDidChange(updateTree));
+		this._editorControlDisposables.add(newOutline.onDidChange(updateTree));
 
 		// feature: apply panel background to tree
-		this._editorDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
+		this._editorControlDisposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
 				tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
 		}));
 
 		// feature: filter on type - keep tree and menu in sync
-		this._editorDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
+		this._editorControlDisposables.add(tree.onDidUpdateOptions(e => this._outlineViewState.filterOnType = Boolean(e.filterOnType)));
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
+		this._editorControlDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
@@ -307,10 +323,10 @@ export class OutlinePane extends ViewPane {
 			}
 		};
 		revealActiveElement();
-		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));
+		this._editorControlDisposables.add(newOutline.onDidChange(revealActiveElement));
 
 		// feature: update view when user state changes
-		this._editorDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
+		this._editorControlDisposables.add(this._outlineViewState.onDidChange((e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) => {
 			this._outlineViewState.persist(this._storageService);
 			if (e.filterOnType) {
 				tree.updateOptions({ filterOnType: this._outlineViewState.filterOnType });
@@ -326,7 +342,7 @@ export class OutlinePane extends ViewPane {
 
 		// feature: expand all nodes when filtering (not when finding)
 		let viewState: IDataTreeViewState | undefined;
-		this._editorDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
+		this._editorControlDisposables.add(tree.onDidChangeTypeFilterPattern(pattern => {
 			if (!tree.options.filterOnType) {
 				return;
 			}
@@ -342,7 +358,7 @@ export class OutlinePane extends ViewPane {
 		// last: set tree property
 		tree.layout(this._treeDimensions?.height, this._treeDimensions?.width);
 		this._tree = tree;
-		this._editorDisposables.add(toDisposable(() => {
+		this._editorControlDisposables.add(toDisposable(() => {
 			tree.dispose();
 			this._tree = undefined;
 		}));
