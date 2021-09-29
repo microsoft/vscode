@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { CommandManager } from '../commands/commandManager';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { ActiveJsTsEditorTracker } from '../utils/activeJsTsEditorTracker';
 import { Disposable } from '../utils/dispose';
 import { jsTsLanguageModes, isSupportedLanguageMode } from '../utils/languageModeIds';
@@ -15,10 +15,12 @@ import { isImplicitProjectConfigFile, openOrCreateConfig, openProjectConfigForFi
 const localize = nls.loadMessageBundle();
 
 
-namespace ProjectInfoState {
-	export const enum Type { None, Pending, Resolved }
+namespace IntellisenseState {
+	export const enum Type { None, Pending, Resolved, SyntaxOnly }
 
 	export const None = Object.freeze({ type: Type.None } as const);
+
+	export const SyntaxOnly = Object.freeze({ type: Type.SyntaxOnly } as const);
 
 	export class Pending {
 		public readonly type = Type.Pending;
@@ -39,10 +41,10 @@ namespace ProjectInfoState {
 		) { }
 	}
 
-	export type State = typeof None | Pending | Resolved;
+	export type State = typeof None | Pending | Resolved | typeof SyntaxOnly;
 }
 
-export class ProjectStatus extends Disposable {
+export class IntellisenseStatus extends Disposable {
 
 	public readonly openOpenConfigCommandId = '_typescript.openConfig';
 	public readonly createConfigCommandId = '_typescript.createConfig';
@@ -50,7 +52,7 @@ export class ProjectStatus extends Disposable {
 	private readonly _statusItem: vscode.LanguageStatusItem;
 
 	private _ready = false;
-	private _state: ProjectInfoState.State = ProjectInfoState.None;
+	private _state: IntellisenseState.State = IntellisenseState.None;
 
 	constructor(
 		private readonly _client: ITypeScriptServiceClient,
@@ -60,15 +62,14 @@ export class ProjectStatus extends Disposable {
 		super();
 
 		this._statusItem = this._register(vscode.languages.createLanguageStatusItem('typescript.projectStatus', jsTsLanguageModes));
-		this._statusItem.name = localize('statusItem.name', "Project config");
-		this._statusItem.text = 'TSConfig';
+		this._statusItem.name = localize('statusItem.name', "JS/TS IntelliSense Status");
 
 		commandManager.register({
 			id: this.openOpenConfigCommandId,
 			execute: async (rootPath: string) => {
-				if (this._state.type === ProjectInfoState.Type.Resolved) {
+				if (this._state.type === IntellisenseState.Type.Resolved) {
 					await openProjectConfigOrPromptToCreate(ProjectType.TypeScript, this._client, rootPath, this._state.configFile);
-				} else if (this._state.type === ProjectInfoState.Type.Pending) {
+				} else if (this._state.type === IntellisenseState.Type.Pending) {
 					await openProjectConfigForFile(ProjectType.TypeScript, this._client, this._state.resource);
 				}
 			},
@@ -89,42 +90,44 @@ export class ProjectStatus extends Disposable {
 	}
 
 	private async updateStatus() {
-		const editor = this._activeTextEditorManager.activeJsTsEditor;
-		if (!editor) {
-			this.updateState(ProjectInfoState.None);
+		const doc = this._activeTextEditorManager.activeJsTsEditor?.document;
+		if (!doc || !isSupportedLanguageMode(doc)) {
+			this.updateState(IntellisenseState.None);
 			return;
 		}
 
-		const doc = editor.document;
-		if (isSupportedLanguageMode(doc)) {
-			const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
-			if (file) {
-				if (!this._ready) {
-					return;
-				}
-
-				const pendingState = new ProjectInfoState.Pending(doc.uri);
-				this.updateState(pendingState);
-
-				const response = await this._client.execute('projectInfo', { file, needFileNameList: false }, pendingState.cancellation.token);
-				if (response.type === 'response' && response.body) {
-					if (this._state === pendingState) {
-						this.updateState(new ProjectInfoState.Resolved(doc.uri, response.body.configFileName));
-					}
-				}
-				return;
-			}
+		if (!this._client.hasCapabilityForResource(doc.uri, ClientCapability.Semantic)) {
+			this.updateState(IntellisenseState.SyntaxOnly);
+			return;
 		}
 
-		this.updateState(ProjectInfoState.None);
+		const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
+		if (!file) {
+			this.updateState(IntellisenseState.None);
+			return;
+		}
+
+		if (!this._ready) {
+			return;
+		}
+
+		const pendingState = new IntellisenseState.Pending(doc.uri);
+		this.updateState(pendingState);
+
+		const response = await this._client.execute('projectInfo', { file, needFileNameList: false }, pendingState.cancellation.token);
+		if (response.type === 'response' && response.body) {
+			if (this._state === pendingState) {
+				this.updateState(new IntellisenseState.Resolved(doc.uri, response.body.configFileName));
+			}
+		}
 	}
 
-	private updateState(newState: ProjectInfoState.State): void {
+	private updateState(newState: IntellisenseState.State): void {
 		if (this._state === newState) {
 			return;
 		}
 
-		if (this._state.type === ProjectInfoState.Type.Pending) {
+		if (this._state.type === IntellisenseState.Type.Pending) {
 			this._state.cancellation.cancel();
 			this._state.cancellation.dispose();
 		}
@@ -132,35 +135,50 @@ export class ProjectStatus extends Disposable {
 		this._state = newState;
 
 		switch (this._state.type) {
-			case ProjectInfoState.Type.None:
+			case IntellisenseState.Type.None:
 				break;
 
-			case ProjectInfoState.Type.Pending:
-				this._statusItem.detail = '$(loading~spin)';
+			case IntellisenseState.Type.Pending:
+				this._statusItem.text = '$(loading~spin)';
+				this._statusItem.detail = localize('pending.detail', 'Loading IntelliSense status');
 				this._statusItem.command = undefined;
 				break;
 
-			case ProjectInfoState.Type.Resolved:
+			case IntellisenseState.Type.Resolved:
 				const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
 				if (!rootPath) {
 					return;
 				}
 
 				if (isImplicitProjectConfigFile(this._state.configFile)) {
-					this._statusItem.detail = localize('item.noTsConfig.detail', "None");
+					this._statusItem.text = localize('resolved.detail.noTsConfig', "No tsconfig");
+					this._statusItem.detail = undefined;
 					this._statusItem.command = {
 						command: this.createConfigCommandId,
-						title: localize('create.command', "Create tsconfig"),
+						title: localize('resolved.command.title.create', "Create tsconfig"),
 						arguments: [rootPath],
 					};
 				} else {
-					this._statusItem.detail = vscode.workspace.asRelativePath(this._state.configFile);
+					this._statusItem.text = vscode.workspace.asRelativePath(this._state.configFile);
+					this._statusItem.detail = undefined;
 					this._statusItem.command = {
 						command: this.openOpenConfigCommandId,
-						title: localize('item.command', "Open config file"),
+						title: localize('resolved.command.title.open', "Open config file"),
 						arguments: [rootPath],
 					};
 				}
+				break;
+
+			case IntellisenseState.Type.SyntaxOnly:
+				this._statusItem.text = localize('syntaxOnly.text', 'Partial Mode');
+				this._statusItem.detail = localize('syntaxOnly.detail', 'Project Wide IntelliSense not available');
+				this._statusItem.command = {
+					title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
+					command: 'vscode.open',
+					arguments: [
+						vscode.Uri.parse('https://go.microsoft.com/fwlink/?linkid=2114477'), // TODO: add proper link once published
+					]
+				};
 				break;
 		}
 	}

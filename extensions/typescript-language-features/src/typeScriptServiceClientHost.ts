@@ -20,8 +20,7 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { CapabilitiesStatus } from './ui/capabilitiesStatus';
-import { ProjectStatus } from './ui/projectStatus';
+import { IntellisenseStatus } from './ui/intellisenseStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { coalesce, flatten } from './utils/arrays';
@@ -94,9 +93,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this._register(new CapabilitiesStatus(this.client));
 		this._register(new VersionStatus(this.client));
-		this._register(new ProjectStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
+		this._register(new IntellisenseStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this._register(LargeProjectStatus.create(this.client));
