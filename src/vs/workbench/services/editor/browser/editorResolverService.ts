@@ -159,7 +159,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// We ask the file service to activate a provider for the scheme in case
 		// anyone depends on that provider being available
-		this.fileService.activateProvider(resource.scheme);
+		await this.fileService.activateProvider(resource.scheme);
 
 		if (untypedEditor.options?.override === EditorResolution.PICK) {
 			const picked = await this.doPickEditor(untypedEditor);
