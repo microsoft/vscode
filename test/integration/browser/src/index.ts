@@ -47,21 +47,13 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	});
 	page.on('console', async msg => {
 		try {
-			console.log('prelog', msg.text());
 			consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 		} catch (err) {
-			console.error('log err', err);
+			console.error('Error logging console', err);
 		}
 	});
 	page.on('requestfailed', e => {
-		console.log('__requestfailed__', e.url(), e.failure()?.errorText);
-	});
-
-	page.on('close', e => {
-		console.log('__close__');
-	});
-	page.on('popup', e => {
-		console.log('popup');
+		console.error('Request Failed', e.url(), e.failure()?.errorText);
 	});
 
 	const host = endpoint.host;

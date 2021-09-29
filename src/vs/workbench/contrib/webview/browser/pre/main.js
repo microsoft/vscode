@@ -198,7 +198,7 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 }
 
 /** @type {Promise<void>} */
-const workerReady = new Promise(async (resolve, reject) => {
+const workerReady = new Promise((resolve, reject) => {
 	if (!areServiceWorkersEnabled()) {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
@@ -219,6 +219,7 @@ const workerReady = new Promise(async (resolve, reject) => {
 
 				navigator.serviceWorker.removeEventListener('message', versionHandler);
 				if (event.data.version === expectedWorkerVersion) {
+					console.log('SW ready and correct version');
 					return resolve();
 				} else {
 					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
@@ -754,7 +755,9 @@ onDomReady(() => {
 		const currentUpdateId = ++updateId;
 
 		try {
+			console.log('awaiting SW');
 			await workerReady;
+			console.log('awaited SW');
 		} catch (e) {
 			console.error(`Webview fatal error: ${e}`);
 			hostMessaging.postMessage('fatal-error', { message: e + '' });
