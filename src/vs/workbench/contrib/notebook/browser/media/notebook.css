@@ -908,3 +908,7 @@
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before { border-left-style: dotted; }
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before  { border-right-style: dotted; }
 
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-expanded,
+.monaco-workbench .notebookOverlay .cell-editor-container .monaco-editor .margin-view-overlays .codicon-folding-collapsed {
+	margin-left: 0;
+}
