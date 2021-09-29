@@ -69,12 +69,9 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 	}
 
 	const overallWidth = Math.round(firstLineBreakColumn * fontInfo.typicalHalfwidthCharacterWidth);
-
-	// Cannot respect WrappingIndent.Indent and WrappingIndent.DeepIndent because that would require
-	// two dom layouts, in order to first set the width of the first line, and then set the width of the wrapped lines
-	if (wrappingIndent === WrappingIndent.Indent || wrappingIndent === WrappingIndent.DeepIndent) {
-		wrappingIndent = WrappingIndent.Same;
-	}
+	const additionalIndent = (wrappingIndent === WrappingIndent.DeepIndent ? 2 : wrappingIndent === WrappingIndent.Indent ? 1 : 0);
+	const additionalIndentSize = Math.round(tabSize * additionalIndent);
+	const additionalIndentLength = Math.ceil(fontInfo.spaceWidth * additionalIndentSize);
 
 	const containerDomNode = document.createElement('div');
 	Configuration.applyFontInfoSlow(containerDomNode, fontInfo);
@@ -123,7 +120,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		}
 
 		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
-		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb);
+		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;
 		renderLineContents[i] = renderLineContent;
@@ -152,7 +149,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		}
 
 		const firstNonWhitespaceIndex = firstNonWhitespaceIndices[i];
-		const wrappedTextIndentLength = wrappedTextIndentLengths[i];
+		const wrappedTextIndentLength = wrappedTextIndentLengths[i] + additionalIndentSize;
 		const visibleColumns = allVisibleColumns[i];
 
 		const breakOffsetsVisibleColumn: number[] = [];
@@ -189,8 +186,18 @@ const enum Constants {
 	SPAN_MODULO_LIMIT = 16384
 }
 
-function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder): [number[], number[]] {
-	sb.appendASCIIString('<div style="width:');
+function renderLine(lineContent: string, initialVisibleColumn: number, tabSize: number, width: number, sb: IStringBuilder, wrappingIndentLength: number): [number[], number[]] {
+
+	if (wrappingIndentLength !== 0) {
+		let hangingOffset = String(wrappingIndentLength);
+		sb.appendASCIIString('<div style="text-indent: -');
+		sb.appendASCIIString(hangingOffset);
+		sb.appendASCIIString('px; padding-left: ');
+		sb.appendASCIIString(hangingOffset);
+		sb.appendASCIIString('px; box-sizing: border-box; width:');
+	} else {
+		sb.appendASCIIString('<div style="width:');
+	}
 	sb.appendASCIIString(String(width));
 	sb.appendASCIIString('px;">');
 	// if (containsRTL) {
