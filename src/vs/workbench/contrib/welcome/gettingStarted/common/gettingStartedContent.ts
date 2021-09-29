@@ -134,7 +134,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		id: 'topLevelGitOpen',
 		title: localize('gettingStarted.topLevelGitOpen.title', "Open Repository..."),
 		description: localize('gettingStarted.topLevelGitOpen.description', "Connect to a remote repository or pull request to browse, search, edit, and commit"),
-		when: 'isWeb',
+		when: 'workspacePlatform == \'webworker\'',
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
