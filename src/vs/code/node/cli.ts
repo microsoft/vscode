@@ -5,7 +5,7 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir, tmpdir } from 'os';
+import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
 import { isAbsolute, join, resolve } from 'vs/base/common/path';
@@ -195,6 +195,8 @@ export async function main(argv: string[]): Promise<any> {
 			}
 		}
 
+		const isBigSur = isMacintosh && release() > '20.0.0';
+
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
 		// to wait for it to be deleted to monitor that the edited file
@@ -212,8 +214,8 @@ export async function main(argv: string[]): Promise<any> {
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
 				let childExitPromise;
-				if (isMacintosh) {
-					// On macOS, we resolve the following promise only when the child,
+				if (isBigSur) {
+					// On Big Sur, we resolve the following promise only when the child,
 					// i.e. the open command, exited with a signal or error. Otherwise, we
 					// wait for the marker file to be deleted or for the child to error.
 					childExitPromise = new Promise<void>((resolve) => {
@@ -363,11 +365,11 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (!isMacintosh) {
+		if (!isBigSur) {
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
-			// On mac, we spawn using the open command to obtain behavior
+			// On Big Sur, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
 
