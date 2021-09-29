@@ -185,7 +185,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
-				id: InteractiveEditor.ID,
+				id: InteractiveEditorInput.ID,
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -202,7 +202,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`*.interactive`,
 			{
-				id: InteractiveEditor.ID,
+				id: InteractiveEditorInput.ID,
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
