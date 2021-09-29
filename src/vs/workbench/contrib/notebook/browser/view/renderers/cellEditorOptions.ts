@@ -109,8 +109,7 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers, folding: lineNumbers === 'on' },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.isReadOnly,
-			glyphMarginRightPadding: lineNumbers ? 0 : 4
+			readOnly: this.notebookEditor.isReadOnly
 		};
 
 		return computed;
