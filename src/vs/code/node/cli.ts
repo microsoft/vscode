@@ -195,7 +195,7 @@ export async function main(argv: string[]): Promise<any> {
 			}
 		}
 
-		const isBigSur = isMacintosh && release() > '20.0.0';
+		const isMacOSBigSurOrNewer = isMacintosh && release() > '20.0.0';
 
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
@@ -214,11 +214,11 @@ export async function main(argv: string[]): Promise<any> {
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
 				let childExitPromise;
-				if (isBigSur) {
+				if (isMacOSBigSurOrNewer) {
 					// On Big Sur, we resolve the following promise only when the child,
 					// i.e. the open command, exited with a signal or error. Otherwise, we
 					// wait for the marker file to be deleted or for the child to error.
-					childExitPromise = new Promise<void>((resolve) => {
+					childExitPromise = new Promise<void>(resolve => {
 						// Only resolve this promise if the child (i.e. open) exited with an error
 						child.on('exit', (code, signal) => {
 							if (code !== 0 || signal) {
@@ -365,7 +365,7 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (!isBigSur) {
+		if (!isMacOSBigSurOrNewer) {
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
@@ -390,7 +390,7 @@ export async function main(argv: string[]): Promise<any> {
 					spawnArgs.push(`--${outputType}`, tmpName);
 
 					// Listener to redirect content to stdout/stderr
-					processCallbacks.push(async (child: ChildProcess) => {
+					processCallbacks.push(async child => {
 						try {
 							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
 

@@ -231,6 +231,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
 	}
 
+	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
+
+		// Bring window to front
+		window.focus();
+
+		// Handle --wait
+		this.handleWaitMarkerFile(openConfig, [window]);
+	}
+
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
 		this.logService.trace('windowsManager#open');
 
@@ -370,6 +379,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
+		// Handle --wait
+		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		return usedWindows;
+	}
+
+	private handleWaitMarkerFile(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
 		// used for the edit operation is closed or loaded to a different folder so that the waiting
 		// process can continue. We do this by deleting the waitMarkerFilePath.
@@ -385,8 +402,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 			})();
 		}
-
-		return usedWindows;
 	}
 
 	private doOpen(
