@@ -185,33 +185,36 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keybinding = this.resolveKeyboardEvent(e);
 		const [singleModifier,] = keybinding.getSingleModifierDispatchParts();
 
-		if (singleModifier !== null && this._currentSingleModifier === null) {
-			// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
-			this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
-			this._currentSingleModifier = singleModifier;
-			this._currentSingleModifierClearTimeout.cancelAndSet(() => {
-				this._log(`+ Clearing single modifier due to 300ms elapsed.`);
+		if (singleModifier) {
+
+			if (this._currentSingleModifier === null) {
+				// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
+				this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
+				this._currentSingleModifier = singleModifier;
+				this._currentSingleModifierClearTimeout.cancelAndSet(() => {
+					this._log(`+ Clearing single modifier due to 300ms elapsed.`);
+					this._currentSingleModifier = null;
+				}, 300);
+				return false;
+			}
+
+			if (singleModifier === this._currentSingleModifier) {
+				// bingo!
+				this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
+				this._currentSingleModifierClearTimeout.cancel();
 				this._currentSingleModifier = null;
-			}, 300);
+				return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
+			}
+
+			this._log(`+ Clearing single modifier due to modifier mismatch: ${this._currentSingleModifier} ${singleModifier}`);
+			this._currentSingleModifierClearTimeout.cancel();
+			this._currentSingleModifier = null;
 			return false;
 		}
 
-		if (singleModifier !== null && singleModifier === this._currentSingleModifier) {
-			// bingo!
-			this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
-			this._currentSingleModifierClearTimeout.cancel();
-			this._currentSingleModifier = null;
-			return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
-		}
-
 		if (this._currentSingleModifier !== null) {
-			if (singleModifier) {
-				this._log(`+ Clearing single modifier due to modifier mismatch: ${this._currentSingleModifier} ${singleModifier}`);
-			} else {
-				this._log(`+ Clearing single modifier due to other key up.`);
-			}
+			this._log(`+ Clearing single modifier due to other key up.`);
 		}
-
 		this._currentSingleModifierClearTimeout.cancel();
 		this._currentSingleModifier = null;
 		return false;
