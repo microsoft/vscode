@@ -52,3 +52,6 @@ You can find gulp bundling tasks [here](../build/gulpfile.server.js).
 - Build the production server with all changes: `yarn gulp server-min`.
 - Run it and play as with the dev server: `/workspace/server-pkg/server.sh`
 - Open a PR with your changes and ask for help if needed. It should be agaist `gitpod-io/openvscode-server` repo and `main` branch!
+
+# Releases
+The Dockerfile used for creating releases is located in a separate repository in an effort to minimize clutter. Please consult: https://github.com/gitpod-io/openvscode-releases/
