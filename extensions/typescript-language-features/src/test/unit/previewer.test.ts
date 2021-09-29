@@ -87,6 +87,54 @@ suite('typescript.previewer', () => {
 			'*@param* `parámetroConDiacríticos` — this will not');
 	});
 
+	test('Should render @example blocks as code', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: 'code();'
+				}
+			], noopToResource),
+			'*@example*  \n```\ncode();\n```'
+		);
+	});
+
+	test('Should not render @example blocks as code as if they contain a codeblock', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: 'Not code\n```\ncode();\n```'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
+	});
+
+	test('Should render @example blocks as code if they contain a <caption>', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: '<caption>Not code</caption>\ncode();'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
+	});
+
+	test('Should not render @example blocks as code if they contain a <caption> and a codeblock', () => {
+		assert.strictEqual(
+			tagsMarkdownPreview([
+				{
+					name: 'example',
+					text: '<caption>Not code</caption>\n```\ncode();\n```'
+				}
+			], noopToResource),
+			'*@example*  \nNot code\n```\ncode();\n```'
+		);
+	});
+
 	test('Should render @linkcode symbol name as code', async () => {
 		assert.strictEqual(
 			plainWithLinks([
@@ -128,4 +176,3 @@ suite('typescript.previewer', () => {
 			'a [`husky`](file:///path/file.ts#L7%2C5) b');
 	});
 });
-
