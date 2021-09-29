@@ -162,6 +162,9 @@ declare module 'vscode' {
 			 * @deprecated Use privacy instead
 			 */
 			public: boolean;
+			/**
+			 * One of the the options must have the ID "private".
+			 */
 			privacyOptions: TunnelPrivacy[];
 		};
 
