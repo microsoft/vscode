@@ -300,7 +300,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			if (language) {
 				languageLabel = this.modeService.getLanguageName(language);
 			}
-			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+			const adapters = this.debuggers
+				.filter(a => this.isDebuggerEnabled(a))
+				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
 				return adapters[0];
 			}
@@ -313,7 +315,9 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
 		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
-			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
+			candidates = this.debuggers
+				.filter(a => this.isDebuggerEnabled(a))
+				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
