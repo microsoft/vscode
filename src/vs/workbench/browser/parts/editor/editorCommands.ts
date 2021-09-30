@@ -925,6 +925,8 @@ function registerCloseEditorCommands() {
 			if (!isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 				return;
 			}
+
+			// Replace editor with resolved one
 			await resolvedEditor.group.replaceEditors([
 				{
 					editor: editor,
@@ -933,6 +935,9 @@ function registerCloseEditorCommands() {
 					options: resolvedEditor.options
 				}
 			]);
+
+			// Make sure it becomes active too
+			await resolvedEditor.group.openEditor(resolvedEditor.editor);
 		}
 	});
 
