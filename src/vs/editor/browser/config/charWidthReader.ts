@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -68,7 +69,7 @@ class DomCharWidthReader {
 		container.style.width = '50000px';
 
 		const regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
+		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
@@ -77,7 +78,7 @@ class DomCharWidthReader {
 		container.appendChild(regularDomNode);
 
 		const boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
+		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
@@ -86,7 +87,7 @@ class DomCharWidthReader {
 		container.appendChild(boldDomNode);
 
 		const italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily();
+		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;

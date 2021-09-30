@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
+import { getPixelRatio, getZoomLevel, isSafari } from 'vs/base/browser/browser';
 import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -587,7 +587,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	private applyFontInfo(element: HTMLElement) {
 		const fontInfo = this._disassemblyView.fontInfo;
-		element.style.fontFamily = fontInfo.getMassagedFontFamily();
+		element.style.fontFamily = fontInfo.getMassagedFontFamily(isSafari);
 		element.style.fontWeight = fontInfo.fontWeight;
 		element.style.fontSize = fontInfo.fontSize + 'px';
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;

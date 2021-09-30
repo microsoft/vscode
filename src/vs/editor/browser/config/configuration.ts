@@ -312,7 +312,7 @@ class CSSBasedConfiguration extends Disposable {
 export class Configuration extends CommonEditorConfiguration {
 
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
@@ -321,7 +321,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
