@@ -92,9 +92,9 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 				if (!data) {
 					return undefined;
 				}
-				const [weight, bubble, tooltip, letter, themeColor] = data;
+				const [bubble, tooltip, letter, themeColor] = data;
 				return <IDecorationData>{
-					weight: weight ?? 0,
+					weight: 10,
 					bubble: bubble ?? false,
 					color: themeColor?.id,
 					tooltip,

@@ -8,23 +8,27 @@
   "activationEvents": [
     "*"
   ],
-  "main": "./out/notebookTestMain",
+  "main": "./out/extension",
   "enableProposedApi": true,
   "engines": {
     "vscode": "^1.25.0"
   },
+  "icon": "media/icon.png",
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-notebook-tests ./tsconfig.json"
   },
   "dependencies": {},
-  "devDependencies": {
+  "devDependencies":  snyk-fix-299bb15ed8199701ac380220bde874ba
     "typescript": "^3.8.3",
     "@types/node": "^12.11.7",
     "mocha-junit-reporter": "^1.17.0",
     "mocha-multi-reporters": "^1.1.7",
     "vscode": "~1.1.36",
-    "mocha": "^2.3.3"
+    "mocha": "^4.0.0"
+
+    "@types/node": "14.x"
+ master
   },
   "contributes": {
     "commands": [
@@ -38,19 +42,9 @@
         "icon": "$(debug)"
       }
     ],
-    "notebookProvider": [
+    "notebooks": [
       {
-        "viewType": "notebookCoreTest",
-        "displayName": "Notebook Core Test",
-        "selector": [
-          {
-            "filenamePattern": "*.vsctestnb",
-            "excludeFileNamePattern": ""
-          }
-        ]
-      },
-      {
-        "viewType": "notebookSmokeTest",
+        "type": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
         "selector": [
           {
@@ -60,10 +54,11 @@
         ]
       }
     ],
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
-        "viewType": "notebookCoreTestRenderer",
+        "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",
+        "entrypoint": "./src/customRenderer.js",
         "mimeTypes": [
           "text/custom"
         ]
@@ -73,10 +68,20 @@
       "notebook/cell/title": [
         {
           "command": "vscode-notebook-tests.debugAction",
-          "when": "notebookViewType == notebookSmokeTest",
+          "when": "notebookType == notebookSmokeTest",
           "group": "inline@1"
         }
       ]
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "vscode://vscode-notebook-cell-metadata/*",
+        "url": "vscode://schemas/notebook/cellmetadata"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

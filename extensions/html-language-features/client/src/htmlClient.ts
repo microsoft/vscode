@@ -7,7 +7,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import {
-	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
+	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
 	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
 } from 'vscode';
@@ -15,7 +15,6 @@ import {
 	LanguageClientOptions, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, CommonLanguageClient
 } from 'vscode-languageclient';
-import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import { RequestService } from './requests';
 import { getCustomDataSource } from './customData';
@@ -25,26 +24,22 @@ namespace CustomDataChangedNotification {
 }
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+	export const type: RequestType<TextDocumentPositionParams, string, any> = new RequestType('html/tag');
 }
-namespace OnTypeRenameRequest {
-	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
-}
-
 // experimental: semantic tokens
 interface SemanticTokenParams {
 	textDocument: TextDocumentIdentifier;
 	ranges?: LspRange[];
 }
 namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any, any> = new RequestType('html/semanticTokens');
+	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
 }
 namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
+	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 namespace SettingIds {
-	export const renameOnType = 'editor.renameOnType';
+	export const linkedEditing = 'editor.linkedEditing';
 	export const formatEnable = 'html.format.enable';
 
 }
@@ -63,6 +58,9 @@ export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
 	fs?: RequestService;
 	telemetry?: TelemetryReporter;
+	readonly timer: {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+	}
 }
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
@@ -131,7 +129,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
 			return client.sendRequest(TagCloseRequest.type, param);
 		};
-		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
+		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags', runtime);
 		toDispose.push(disposable);
 
 		disposable = client.onTelemetry(e => {
@@ -168,17 +166,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
-
-		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
-			async provideOnTypeRenameRanges(document, position) {
-				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
-
-				return response || [];
-			}
-		});
-		toDispose.push(disposable);
-
 	});
 
 	function updateFormatterRegistration() {
@@ -189,10 +176,16 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		} else if (formatEnabled && !rangeFormatting) {
 			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
 				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					const filesConfig = workspace.getConfiguration('files', document);
+					const fileFormattingOptions = {
+						trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+					};
 					let params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
 						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options)
+						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 					};
 					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
 						client.protocol2CodeConverter.asTextEdits,
@@ -205,40 +198,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			});
 		}
 	}
-
-	languages.setLanguageConfiguration('html', {
-		indentationRules: {
-			increaseIndentPattern: /<(?!\?|(?:area|base|br|col|frame|hr|html|img|input|link|meta|param)\b|[^>]*\/>)([-_\.A-Za-z0-9]+)(?=\s|>)\b[^>]*>(?!.*<\/\1>)|<!--(?!.*-->)|\{[^}"']*$/,
-			decreaseIndentPattern: /^\s*(<\/(?!html)[-_\.A-Za-z0-9]+\b[^>]*>|-->|\})/
-		},
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-		onEnterRules: [
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
-				action: { indentAction: IndentAction.IndentOutdent }
-			},
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				action: { indentAction: IndentAction.Indent }
-			}
-		],
-	});
-
-	languages.setLanguageConfiguration('handlebars', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-		onEnterRules: [
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
-				action: { indentAction: IndentAction.IndentOutdent }
-			},
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				action: { indentAction: IndentAction.Indent }
-			}
-		],
-	});
 
 	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?$/;
 	const htmlSnippetCompletionRegExpr = /^(\s*)(<(h(t(m(l)?)?)?)?)?$/;
@@ -293,25 +252,25 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		}
 	});
 
-	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
-	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
-		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
-		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
-
-	if (promptForTypeOnRename) {
-		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
-			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
-				context.globalState.update(promptForTypeOnRenameKey, false);
-				activeEditorListener.dispose();
-				const configure = localize('configureButton', 'Configure');
-				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
-				if (res === configure) {
-					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+	const promptForLinkedEditingKey = 'html.promptForLinkedEditing';
+	if (extensions.getExtension('formulahendry.auto-rename-tag') !== undefined && (context.globalState.get(promptForLinkedEditingKey) !== false)) {
+		const config = workspace.getConfiguration('editor', { languageId: 'html' });
+		if (!config.get('linkedEditing') && !config.get('renameOnType')) {
+			const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+				if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+					context.globalState.update(promptForLinkedEditingKey, false);
+					activeEditorListener.dispose();
+					const configure = localize('configureButton', 'Configure');
+					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+					if (res === configure) {
+						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
+					}
 				}
-			}
-		});
-		toDispose.push(activeEditorListener);
+			});
+			toDispose.push(activeEditorListener);
+		}
 	}
+
 
 	toDispose.push();
 }

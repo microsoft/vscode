@@ -7,7 +7,7 @@ import { Constants } from 'vs/base/common/uint';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 
 class FloatHorizontalRange {
-	_floatHorizontalRangeBrand: void;
+	_floatHorizontalRangeBrand: void = undefined;
 
 	public readonly left: number;
 	public readonly width: number;
@@ -48,7 +48,7 @@ export class RangeUtil {
 		range.selectNodeContents(endNode);
 	}
 
-	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): ClientRectList | DOMRectList | null {
+	private static _readClientRects(startElement: Node, startOffset: number, endElement: Node, endOffset: number, endNode: HTMLElement): DOMRectList | null {
 		const range = this._createRange();
 		try {
 			range.setStart(startElement, startOffset);
@@ -94,7 +94,7 @@ export class RangeUtil {
 		return result;
 	}
 
-	private static _createHorizontalRangesFromClientRects(clientRects: ClientRectList | DOMRectList | null, clientRectDeltaLeft: number): HorizontalRange[] | null {
+	private static _createHorizontalRangesFromClientRects(clientRects: DOMRectList | null, clientRectDeltaLeft: number): HorizontalRange[] | null {
 		if (!clientRects || clientRects.length === 0) {
 			return null;
 		}
@@ -121,9 +121,9 @@ export class RangeUtil {
 		startChildIndex = Math.min(max, Math.max(min, startChildIndex));
 		endChildIndex = Math.min(max, Math.max(min, endChildIndex));
 
-		if (startChildIndex === endChildIndex && startOffset === endOffset && startOffset === 0) {
+		if (startChildIndex === endChildIndex && startOffset === endOffset && startOffset === 0 && !domNode.children[startChildIndex].firstChild) {
 			// We must find the position at the beginning of a <span>
-			// To cover cases of empty <span>s, aboid using a range and use the <span>'s bounding box
+			// To cover cases of empty <span>s, avoid using a range and use the <span>'s bounding box
 			const clientRects = domNode.children[startChildIndex].getClientRects();
 			return this._createHorizontalRangesFromClientRects(clientRects, clientRectDeltaLeft);
 		}

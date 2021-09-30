@@ -3,28 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { CustomEditorInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { ComplexCustomWorkingCopyEditorHandler as ComplexCustomWorkingCopyEditorHandler, CustomEditorInputSerializer } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEditor';
+import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CustomEditorInput } from './customEditorInput';
-import { CustomEditorContribution, CustomEditorService } from './customEditors';
+import { CustomEditorService } from './customEditors';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(CustomEditorContribution, LifecyclePhase.Starting);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(
-		EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
+	.registerEditorPane(
+		EditorPaneDescriptor.create(
 			WebviewEditor,
 			WebviewEditor.ID,
 			'Webview Editor',
@@ -32,10 +28,10 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 		new SyncDescriptor(CustomEditorInput)
 	]);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerEditorInputFactory(
-		CustomEditorInputFactory.ID,
-		CustomEditorInputFactory);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
+	.registerEditorSerializer(
+		CustomEditorInputSerializer.ID,
+		CustomEditorInputSerializer);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerCustomEditorInputFactory(Schemas.vscodeCustomEditor, CustomEditorInputFactory);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(ComplexCustomWorkingCopyEditorHandler, LifecyclePhase.Starting);

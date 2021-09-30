@@ -22,7 +22,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/browser/core/editorState';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -226,7 +226,7 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
-			this._bulkEditService.apply(renameResult, {
+			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
 				label: nls.localize('label', "Renaming '{0}'", loc?.text),
@@ -281,7 +281,7 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
+	override runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
 		const [uri, pos] = Array.isArray(args) && args || [undefined, undefined];
 
@@ -358,7 +358,7 @@ registerModelAndPositionCommand('_executeDocumentRenameProvider', function (mode
 });
 
 
-//todo@joh use editor options world
+//todo@jrieken use editor options world
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {

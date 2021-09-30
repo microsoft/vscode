@@ -20,6 +20,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {
@@ -51,6 +52,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
+		this._register(this._editor.onMouseDropCanceled(() => this._onEditorMouseDropCanceled()));
 		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
@@ -144,6 +146,16 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		}
 	}
 
+	private _onEditorMouseDropCanceled() {
+		this._editor.updateOptions({
+			mouseStyle: 'text'
+		});
+
+		this._removeDecoration();
+		this._dragSelection = null;
+		this._mouseDown = false;
+	}
+
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
 		if (mouseEvent.target && (this._hitContent(mouseEvent.target) || this._hitMargin(mouseEvent.target)) && mouseEvent.target.position) {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
@@ -165,8 +177,8 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 						}
 					});
 				}
-				// Use `mouse` as the source instead of `api`.
-				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse');
+				// Use `mouse` as the source instead of `api` and setting the reason to explicit (to behave like any other mouse operation).
+				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse', CursorChangeReason.Explicit);
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
 					(
@@ -192,6 +204,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'dnd-target',
 		className: 'dnd-target'
 	});
 
@@ -220,7 +233,7 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;

@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { isThenable } from 'vs/base/common/async';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { parseJsonAndRestoreBufferRefs, stringifyJsonWithBufferRefs } from 'vs/workbench/services/extensions/common/rpcProtocol';
 
 export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRpcService {
 	return {
@@ -20,7 +22,8 @@ export function SingleProxyRPCProtocol(thing: any): IExtHostContext & IExtHostRp
 			return value;
 		},
 		assertRegistered: undefined!,
-		drain: undefined!
+		drain: undefined!,
+		extensionHostKind: ExtensionHostKind.LocalProcess
 	};
 }
 
@@ -28,6 +31,7 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 
 	public _serviceBrand: undefined;
 	public remoteAuthority = null!;
+	public extensionHostKind = ExtensionHostKind.LocalProcess;
 
 	private _callCountValue: number = 0;
 	private _idle?: Promise<any>;
@@ -140,5 +144,15 @@ function simulateWireTransfer<T>(obj: T): T {
 	if (!obj) {
 		return obj;
 	}
-	return JSON.parse(JSON.stringify(obj));
+
+	if (Array.isArray(obj)) {
+		return obj.map(simulateWireTransfer) as any;
+	}
+
+	if (obj instanceof SerializableObjectWithBuffers) {
+		const { jsonString, referencedBuffers } = stringifyJsonWithBufferRefs(obj);
+		return parseJsonAndRestoreBufferRefs(jsonString, referencedBuffers, null);
+	} else {
+		return JSON.parse(JSON.stringify(obj));
+	}
 }
