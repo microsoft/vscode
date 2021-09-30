@@ -14,10 +14,20 @@ import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
 /**
  * Non incrementally built ASTs are immutable.
 */
-export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined, createImmutableLists: boolean): AstNode {
+export function parseDocument(tokenizer: Tokenizer, edits: TextEditInfo[], oldNode: AstNode | undefined, createImmutableLists: boolean): AstNode | undefined {
 	const parser = new Parser(tokenizer, edits, oldNode, createImmutableLists);
-	return parser.parseDocument();
+	try {
+		return parser.parseDocument();
+	} catch (e) {
+		if (e instanceof TooDeepError) {
+			// We don't support documents that are too deep.
+			return undefined;
+		}
+		throw e;
+	}
 }
+
+class TooDeepError { }
 
 /**
  * Non incrementally built ASTs are immutable.
@@ -60,7 +70,7 @@ class Parser {
 		this._itemsConstructed = 0;
 		this._itemsFromCache = 0;
 
-		let result = this.parseList(SmallImmutableSet.getEmpty());
+		let result = this.parseList(SmallImmutableSet.getEmpty(), 0);
 		if (!result) {
 			result = ListAstNode.getEmpty();
 		}
@@ -70,7 +80,12 @@ class Parser {
 
 	private parseList(
 		openedBracketIds: SmallImmutableSet<OpeningBracketId>,
+		level: number,
 	): AstNode | null {
+		if (level > 500) {
+			throw new TooDeepError();
+		}
+
 		const items = new Array<AstNode>();
 
 		while (true) {
@@ -83,7 +98,7 @@ class Parser {
 				break;
 			}
 
-			const child = this.parseChild(openedBracketIds);
+			const child = this.parseChild(openedBracketIds, level + 1);
 			if (child.kind === AstNodeKind.List && child.childrenLength === 0) {
 				continue;
 			}
@@ -98,6 +113,7 @@ class Parser {
 
 	private parseChild(
 		openedBracketIds: SmallImmutableSet<number>,
+		level: number
 	): AstNode {
 		if (this.oldNodeReader) {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
@@ -133,7 +149,7 @@ class Parser {
 
 			case TokenKind.OpeningBracket:
 				const set = openedBracketIds.merge(token.bracketIds);
-				const child = this.parseList(set);
+				const child = this.parseList(set, level + 1);
 
 				const nextToken = this.tokenizer.peek();
 				if (
