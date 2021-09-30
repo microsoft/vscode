@@ -24,7 +24,7 @@ class TagClosing extends Disposable {
 	) {
 		super();
 		vscode.workspace.onDidChangeTextDocument(
-			event => this.onDidChangeTextDocument(event.document, event.contentChanges),
+			event => this.onDidChangeTextDocument(event),
 			null,
 			this._disposables);
 	}
@@ -46,11 +46,14 @@ class TagClosing extends Disposable {
 	}
 
 	private onDidChangeTextDocument(
-		document: vscode.TextDocument,
-		changes: readonly vscode.TextDocumentContentChangeEvent[]
+		{ document, contentChanges, reason }: vscode.TextDocumentChangeEvent
 	) {
+		if (contentChanges.length === 0 || reason === vscode.TextDocumentChangeReason.Undo || reason === vscode.TextDocumentChangeReason.Redo) {
+			return;
+		}
+
 		const activeDocument = vscode.window.activeTextEditor && vscode.window.activeTextEditor.document;
-		if (document !== activeDocument || changes.length === 0) {
+		if (document !== activeDocument) {
 			return;
 		}
 
@@ -69,7 +72,7 @@ class TagClosing extends Disposable {
 			this._cancel = undefined;
 		}
 
-		const lastChange = changes[changes.length - 1];
+		const lastChange = contentChanges[contentChanges.length - 1];
 		const lastCharacter = lastChange.text[lastChange.text.length - 1];
 		if (lastChange.rangeLength > 0 || lastCharacter !== '>' && lastCharacter !== '/') {
 			return;
