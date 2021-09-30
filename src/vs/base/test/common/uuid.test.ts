@@ -8,8 +8,8 @@ import * as uuid from 'vs/base/common/uuid';
 suite('UUID', () => {
 	test('generation', () => {
 		const asHex = uuid.generateUuid();
-		assert.equal(asHex.length, 36);
-		assert.equal(asHex[14], '4');
+		assert.strictEqual(asHex.length, 36);
+		assert.strictEqual(asHex[14], '4');
 		assert.ok(asHex[19] === '8' || asHex[19] === '9' || asHex[19] === 'a' || asHex[19] === 'b');
 	});
 

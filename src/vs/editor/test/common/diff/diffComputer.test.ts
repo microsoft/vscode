@@ -64,7 +64,7 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	for (let i = 0; i < changes.length; i++) {
 		extracted.push(extractLineChangeRepresentation(changes[i], <ILineChange>(i < expectedChanges.length ? expectedChanges[i] : null)));
 	}
-	assert.deepEqual(extracted, expectedChanges);
+	assert.deepStrictEqual(extracted, expectedChanges);
 }
 
 function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
@@ -462,6 +462,13 @@ suite('Editor Diff - DiffComputer', () => {
 		assertDiff(original, modified, expected, true, false, true);
 	});
 
+	test('empty diff 5', () => {
+		let original = [''];
+		let modified = [''];
+		let expected: ILineChange[] = [];
+		assertDiff(original, modified, expected, true, false, true);
+	});
+
 	test('pretty diff 1', () => {
 		let original = [
 			'suite(function () {',
@@ -848,6 +855,114 @@ suite('Editor Diff - DiffComputer', () => {
 			),
 			createLineChange(
 				25, 55, 31, 0
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('gives preference to matching longer lines', () => {
+		let original = [
+			'A',
+			'A',
+			'BB',
+			'C',
+		];
+		let modified = [
+			'A',
+			'BB',
+			'A',
+			'D',
+			'E',
+			'A',
+			'C',
+		];
+		let expected = [
+			createLineChange(
+				2, 2, 1, 0
+			),
+			createLineChange(
+				3, 0, 3, 6
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #119051: gives preference to fewer diff hunks', () => {
+		const original = [
+			'1',
+			'',
+			'',
+			'2',
+			'',
+		];
+		const modified = [
+			'1',
+			'',
+			'1.5',
+			'',
+			'',
+			'2',
+			'',
+			'3',
+			'',
+		];
+		const expected = [
+			createLineChange(
+				2, 0, 3, 4
+			),
+			createLineChange(
+				5, 0, 8, 9
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 1', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 0, 4, 4
+			)
+		];
+		assertDiff(original, modified, expected, false, false, true);
+	});
+
+	test('issue #121436: Diff chunk contains an unchanged line part 2', () => {
+		const original = [
+			'if (cond) {',
+			'    cmd',
+			'}',
+		];
+		const modified = [
+			'if (cond) {',
+			'    if (other_cond) {',
+			'        cmd',
+			'    }',
+			'}',
+		];
+		const expected = [
+			createLineChange(
+				1, 0, 2, 2
+			),
+			createLineChange(
+				2, 2, 3, 3
+			),
+			createLineChange(
+				2, 0, 4, 4
 			)
 		];
 		assertDiff(original, modified, expected, false, false, false);

@@ -4,9 +4,9 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "Microsoft/vscode-mssql",
-					"repositoryUrl": "https://github.com/Microsoft/vscode-mssql",
-					"commitHash": "750d30dc48c4c0317b63bb5f1ed3e71487bb84a1"
+					"name": "microsoft/vscode-mssql",
+					"repositoryUrl": "https://github.com/microsoft/vscode-mssql",
+					"commitHash": "61ae0eb21ac53883a23e09913a5ae77a59126ff9"
 				}
 			},
 			"license": "MIT",
