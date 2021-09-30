@@ -97,14 +97,14 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	private doGetViewPickItems(): Array<IViewQuickPickItem> {
 		const viewEntries: Array<IViewQuickPickItem> = [];
 
-		const getViewEntriesForViewlet = (viewlet: PaneCompositeDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
+		const getViewEntriesForPaneComposite = (paneComposite: PaneCompositeDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			const result: IViewQuickPickItem[] = [];
 			for (const view of viewContainerModel.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
 						label: view.name,
-						containerLabel: viewlet.name,
+						containerLabel: viewContainerModel.title,
 						accept: () => this.viewsService.openView(view.id, true)
 					});
 				}
@@ -113,37 +113,39 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			return result;
 		};
 
-		// Viewlets
-		const viewlets = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Sidebar);
-		for (const viewlet of viewlets) {
-			if (this.includeViewContainer(viewlet)) {
-				viewEntries.push({
-					label: viewlet.name,
-					containerLabel: localize('views', "Side Bar"),
-					accept: () => this.paneCompositeService.openPaneComposite(viewlet.id, ViewContainerLocation.Sidebar, true)
-				});
+		const addPaneComposites = (location: ViewContainerLocation, containerLabel: string) => {
+			const paneComposites = this.paneCompositeService.getPaneComposites(location);
+			for (const paneComposite of paneComposites) {
+				if (this.includeViewContainer(paneComposite)) {
+					const viewContainer = this.viewDescriptorService.getViewContainerById(paneComposite.id);
+					if (viewContainer) {
+						viewEntries.push({
+							label: this.viewDescriptorService.getViewContainerModel(viewContainer).title,
+							containerLabel,
+							accept: () => this.paneCompositeService.openPaneComposite(paneComposite.id, location, true)
+						});
+					}
+				}
 			}
-		}
+		};
 
-		// Panels
-		const panels = this.paneCompositeService.getPaneComposites(ViewContainerLocation.Panel);
-		for (const panel of panels) {
-			if (this.includeViewContainer(panel)) {
-				viewEntries.push({
-					label: panel.name,
-					containerLabel: localize('panels', "Panel"),
-					accept: () => this.paneCompositeService.openPaneComposite(panel.id, ViewContainerLocation.Panel, true)
-				});
-			}
-		}
+		// Viewlets / Panels
+		addPaneComposites(ViewContainerLocation.Sidebar, localize('views', "Side Bar"));
+		addPaneComposites(ViewContainerLocation.Panel, localize('panels', "Panel"));
 
-		// Viewlet Views
-		for (const viewlet of viewlets) {
-			const viewContainer = this.viewDescriptorService.getViewContainerById(viewlet.id);
-			if (viewContainer) {
-				viewEntries.push(...getViewEntriesForViewlet(viewlet, viewContainer));
+		const addPaneCompositeViews = (location: ViewContainerLocation) => {
+			const paneComposites = this.paneCompositeService.getPaneComposites(location);
+			for (const paneComposite of paneComposites) {
+				const viewContainer = this.viewDescriptorService.getViewContainerById(paneComposite.id);
+				if (viewContainer) {
+					viewEntries.push(...getViewEntriesForPaneComposite(paneComposite, viewContainer));
+				}
 			}
-		}
+		};
+
+		// Side Bar / Panel Views
+		addPaneCompositeViews(ViewContainerLocation.Sidebar);
+		addPaneCompositeViews(ViewContainerLocation.Panel);
 
 		// Terminals
 		this.terminalGroupService.groups.forEach((group, groupIndex) => {
