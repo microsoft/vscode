@@ -2166,7 +2166,7 @@
         "git.statusLimit": {
           "type": "number",
           "scope": "resource",
-          "default": 5000,
+          "default": 10000,
           "description": "%config.statusLimit%"
         }
       }
