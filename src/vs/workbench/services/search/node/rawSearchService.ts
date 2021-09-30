@@ -11,11 +11,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
-import * as objects from 'vs/base/common/objects';
 import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
+import { Arch, getPlatformLimits } from 'vs/platform/files/common/files';
 import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
@@ -30,6 +29,8 @@ export class SearchService implements IRawSearchService {
 	private static readonly BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
+
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -76,7 +77,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
-		config.maxFileSize = MAX_FILE_SIZE;
+		config.maxFileSize = getPlatformLimits(process.arch === 'ia32' ? Arch.IA32 : Arch.OTHER).maxFileSize;
 		const engine = new TextSearchEngineAdapter(config);
 
 		return engine.search(token, progressCallback, progressCallback);
@@ -103,7 +104,7 @@ export class SearchService implements IRawSearchService {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config, fileProgressCallback, token);
 			if (!sortedSearch) {
-				const walkerConfig = config.maxResults ? objects.assign({}, config, { maxResults: null }) : config;
+				const walkerConfig = config.maxResults ? Object.assign({}, config, { maxResults: null }) : config;
 				const engine = new EngineClass(walkerConfig);
 				sortedSearch = this.doSortedSearch(engine, config, progressCallback, fileProgressCallback, token);
 			}
@@ -125,7 +126,7 @@ export class SearchService implements IRawSearchService {
 				type: 'success',
 				stats: {
 					detailStats: complete.stats,
-					type: 'searchProcess',
+					type: this.processType,
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
@@ -192,10 +193,11 @@ export class SearchService implements IRawSearchService {
 							detailStats: result.stats,
 							sortingTime,
 							fromCache: false,
-							type: 'searchProcess',
+							type: this.processType,
 							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
+						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
 					} as ISerializedSearchSuccess, sortedResults];
 				});
@@ -226,7 +228,7 @@ export class SearchService implements IRawSearchService {
 						const stats: IFileSearchStats = {
 							fromCache: true,
 							detailStats: cacheStats,
-							type: 'searchProcess',
+							type: this.processType,
 							resultCount: results.length,
 							sortingTime
 						};

@@ -17,6 +17,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
 
 	private static _idPool = 1;
+	private static _extensionIdPool = new Map<string, number>();
 
 	private readonly _proxy: ExtHostOutputServiceShape;
 	private readonly _outputService: IOutputService;
@@ -41,8 +42,16 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public $register(label: string, log: boolean, file?: UriComponents): Promise<string> {
-		const id = 'extension-output-#' + (MainThreadOutputService._idPool++);
+	public $register(label: string, log: boolean, file?: UriComponents, extensionId?: string): Promise<string> {
+		let id: string;
+		if (extensionId) {
+			const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
+			MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
+			id = `extension-output-${extensionId}-#${idCounter}`;
+		} else {
+			id = `extension-output-#${(MainThreadOutputService._idPool++)}`;
+		}
+
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: file ? URI.revive(file) : undefined, log });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return Promise.resolve(id);
