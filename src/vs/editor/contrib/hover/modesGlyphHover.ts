@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -14,6 +14,9 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+
+const $ = dom.$;
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -89,7 +92,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 
 	private readonly _editor: ICodeEditor;
-	private readonly _domNode: HTMLElement;
+	private readonly _hover: HoverWidget;
 
 	private _isVisible: boolean;
 	private _messages: IHoverMessage[];
@@ -108,10 +111,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		super();
 		this._editor = editor;
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-hover hidden';
-		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.setAttribute('role', 'tooltip');
+		this._hover = this._register(new HoverWidget());
 
 		this._isVisible = false;
 		this._messages = [];
@@ -147,7 +147,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._domNode;
+		return this._hover.containerDomNode;
 	}
 
 	public getPosition(): IOverlayWidgetPosition | null {
@@ -157,30 +157,28 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 	private _showAt(lineNumber: number): void {
 		if (!this._isVisible) {
 			this._isVisible = true;
-			this._domNode.classList.toggle('hidden', !this._isVisible);
+			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 		}
 
 		const editorLayout = this._editor.getLayoutInfo();
 		const topForLineNumber = this._editor.getTopForLineNumber(lineNumber);
 		const editorScrollTop = this._editor.getScrollTop();
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const nodeHeight = this._domNode.clientHeight;
+		const nodeHeight = this._hover.containerDomNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
 
-		this._domNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
-		this._domNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}
 
 	private _updateFont(): void {
-		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
-
-		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
+		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
 	private _updateContents(node: Node): void {
-		this._domNode.textContent = '';
-		this._domNode.appendChild(node);
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
 		this._updateFont();
 	}
 
@@ -216,7 +214,7 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 			return;
 		}
 		this._isVisible = false;
-		this._domNode.classList.toggle('hidden', !this._isVisible);
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
 	private _withResult(result: IHoverMessage[]): void {
@@ -235,9 +233,11 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		const fragment = document.createDocumentFragment();
 
 		for (const msg of messages) {
-			const renderedContents = this._markdownRenderer.render(msg.value);
-			this._renderDisposeables.add(renderedContents);
-			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
+			const markdownHoverElement = $('div.hover-row.markdown-hover');
+			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+			const renderedContents = this._renderDisposeables.add(this._markdownRenderer.render(msg.value));
+			hoverContentsElement.appendChild(renderedContents.element);
+			fragment.appendChild(markdownHoverElement);
 		}
 
 		this._updateContents(fragment);
