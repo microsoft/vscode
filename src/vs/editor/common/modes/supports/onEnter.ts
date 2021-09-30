@@ -49,7 +49,7 @@ export class OnEnterSupport {
 		this._regExpRules = opts.onEnterRules || [];
 	}
 
-	public onEnter(autoIndent: EditorAutoIndentStrategy, oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
+	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
 		// (1): `regExpRules`
 		if (autoIndent >= EditorAutoIndentStrategy.Advanced) {
 			for (let i = 0, len = this._regExpRules.length; i < len; i++) {
@@ -61,10 +61,15 @@ export class OnEnterSupport {
 					reg: rule.afterText,
 					text: afterEnterText
 				}, {
-					reg: rule.oneLineAboveText,
-					text: oneLineAboveText
+					reg: rule.previousLineText,
+					text: previousLineText
 				}].every((obj): boolean => {
-					return obj.reg ? obj.reg.test(obj.text) : true;
+					if (!obj.reg) {
+						return true;
+					}
+
+					obj.reg.lastIndex = 0; // To disable the effect of the "g" flag.
+					return obj.reg.test(obj.text);
 				});
 
 				if (regResult) {

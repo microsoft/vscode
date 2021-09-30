@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./contextMenuHandler';
-
-import { ActionRunner, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, removeNode, isHTMLElement } from 'vs/base/browser/dom';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { domEvent } from 'vs/base/browser/event';
+import { $, addDisposableListener, EventType, isHTMLElement } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Menu } from 'vs/base/browser/ui/menu/menu';
+import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import 'vs/css!./contextMenuHandler';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachMenuStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 
 export interface IContextMenuHandlerOptions {
 	blockMouse: boolean;
@@ -55,6 +55,7 @@ export class ContextMenuHandler {
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
 			anchorAlignment: delegate.anchorAlignment,
+			anchorAxisAlignment: delegate.anchorAxisAlignment,
 
 			render: (container) => {
 				let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
@@ -73,13 +74,15 @@ export class ContextMenuHandler {
 					this.block.style.width = '100%';
 					this.block.style.height = '100%';
 					this.block.style.zIndex = '-1';
-					domEvent(this.block, EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
+
+					// TODO@Steven: this is never getting disposed
+					addDisposableListener(this.block, EventType.MOUSE_DOWN, e => e.stopPropagation());
 				}
 
 				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
-				actionRunner.onDidBeforeRun(this.onActionRun, this, menuDisposables);
+				actionRunner.onBeforeRun(this.onActionRun, this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
@@ -92,8 +95,8 @@ export class ContextMenuHandler {
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
-				domEvent(window, EventType.BLUR)(() => { this.contextViewService.hideContextView(true); }, null, menuDisposables);
-				domEvent(window, EventType.MOUSE_DOWN)((e: MouseEvent) => {
+				menuDisposables.add(addDisposableListener(window, EventType.BLUR, () => this.contextViewService.hideContextView(true)));
+				menuDisposables.add(addDisposableListener(window, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					if (e.defaultPrevented) {
 						return;
 					}
@@ -115,7 +118,7 @@ export class ContextMenuHandler {
 					}
 
 					this.contextViewService.hideContextView(true);
-				}, null, menuDisposables);
+				}));
 
 				return combinedDisposable(menuDisposables, menu);
 			},
@@ -132,7 +135,7 @@ export class ContextMenuHandler {
 				}
 
 				if (this.block) {
-					removeNode(this.block);
+					this.block.remove();
 					this.block = null;
 				}
 
@@ -144,9 +147,7 @@ export class ContextMenuHandler {
 	}
 
 	private onActionRun(e: IRunEvent): void {
-		if (this.telemetryService) {
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
-		}
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 
 		this.contextViewService.hideContextView(false);
 
@@ -157,7 +158,7 @@ export class ContextMenuHandler {
 	}
 
 	private onDidActionRun(e: IRunEvent): void {
-		if (e.error && this.notificationService) {
+		if (e.error && !isPromiseCanceledError(e.error)) {
 			this.notificationService.error(e.error);
 		}
 	}

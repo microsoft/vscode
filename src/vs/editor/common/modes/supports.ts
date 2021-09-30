@@ -32,7 +32,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 }
 
 export class ScopedLineTokens {
-	_scopedLineTokensBrand: void;
+	_scopedLineTokensBrand: void = undefined;
 
 	public readonly languageId: modes.LanguageId;
 	private readonly _actual: LineTokens;

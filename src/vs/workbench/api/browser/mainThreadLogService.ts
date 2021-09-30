@@ -8,14 +8,16 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { FileLogService } from 'vs/platform/log/common/fileLogService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FileLogger } from 'vs/platform/log/common/fileLog';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 @extHostNamedCustomer(MainContext.MainThreadLog)
 export class MainThreadLogService implements MainThreadLogShape {
 
-	private readonly _loggers = new Map<string, FileLogService>();
+	private readonly _loggers = new Map<string, FileLogger>();
 	private readonly _logListener: IDisposable;
 
 	constructor(
@@ -40,9 +42,26 @@ export class MainThreadLogService implements MainThreadLogShape {
 		const uri = URI.revive(file);
 		let logger = this._loggers.get(uri.toString());
 		if (!logger) {
-			logger = this._instaService.createInstance(FileLogService, basename(file.path), URI.revive(file), this._logService.getLevel());
+			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel(), false);
 			this._loggers.set(uri.toString(), logger);
 		}
 		logger.log(level, message);
 	}
 }
+
+// --- Internal commands to improve extension test runs
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
+});

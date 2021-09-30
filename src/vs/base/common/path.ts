@@ -43,7 +43,7 @@ const CHAR_QUESTION_MARK = 63; /* ? */
 
 class ErrorInvalidArgType extends Error {
 	code: 'ERR_INVALID_ARG_TYPE';
-	constructor(name: string, expected: string, actual: any) {
+	constructor(name: string, expected: string, actual: unknown) {
 		// determiner: 'must be' or 'must not be'
 		let determiner;
 		if (typeof expected === 'string' && expected.indexOf('not ') === 0) {
@@ -215,7 +215,7 @@ export const win32: IPath = {
 				// absolute path, get cwd for that drive, or the process cwd if
 				// the drive cwd is not available. We're sure the device is not
 				// a UNC path at this points, because UNC paths are always absolute.
-				path = (process.env as any)[`=${resolvedDevice}`] || process.cwd();
+				path = process.env[`=${resolvedDevice}`] || process.cwd();
 
 				// Verify that a cwd was found and that it actually points
 				// to our drive. If not, default to the drive's root.

@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient, ClientCapability } from '../typescriptService';
+import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
-import { Delayer } from '../utils/async';
+import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
@@ -72,9 +72,10 @@ class BufferSynchronizer {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		pathNormalizer: (path: vscode.Uri) => string | undefined,
 		onCaseInsenitiveFileSystem: boolean
 	) {
-		this._pending = new ResourceMap<BufferOperation>(undefined, {
+		this._pending = new ResourceMap<BufferOperation>(pathNormalizer, {
 			onCaseInsenitiveFileSystem
 		});
 	}
@@ -280,7 +281,7 @@ class PendingDiagnostics extends ResourceMap<number> {
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
-		const map = new ResourceMap<void>(undefined, this.config);
+		const map = new ResourceMap<void>(this._normalizePath, this.config);
 		for (const resource of orderedResources) {
 			map.set(resource, undefined);
 		}
@@ -302,16 +303,26 @@ class GetErrRequest {
 	private readonly _token: vscode.CancellationTokenSource = new vscode.CancellationTokenSource();
 
 	private constructor(
-		client: ITypeScriptServiceClient,
+		private readonly client: ITypeScriptServiceClient,
 		public readonly files: ResourceMap<void>,
 		onDone: () => void
 	) {
-		const allFiles = coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)));
-		if (!allFiles.length || !client.capabilities.has(ClientCapability.Semantic)) {
+		if (!this.isErrorReportingEnabled()) {
+			this._done = true;
+			setImmediate(onDone);
+			return;
+		}
+
+		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
+		const allFiles = coalesce(Array.from(files.entries)
+			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+			.map(entry => client.normalizedPath(entry.resource)));
+
+		if (!allFiles.length) {
 			this._done = true;
 			setImmediate(onDone);
 		} else {
-			const request = client.configuration.enableProjectDiagnostics
+			const request = this.areProjectDiagnosticsEnabled()
 				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
 				// too many diagnostics
 				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
@@ -325,6 +336,19 @@ class GetErrRequest {
 				onDone();
 			});
 		}
+	}
+
+	private isErrorReportingEnabled() {
+		if (this.client.apiVersion.gte(API.v440)) {
+			return true;
+		} else {
+			// Older TS versions only support `getErr` on semantic server
+			return this.client.capabilities.has(ClientCapability.Semantic);
+		}
+	}
+
+	private areProjectDiagnosticsEnabled() {
+		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
 	}
 
 	public cancel(): any {
@@ -364,7 +388,7 @@ export default class BufferSyncSupport extends Disposable {
 		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsenitiveFileSystem });
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsenitiveFileSystem });
-		this.synchronizer = new BufferSynchronizer(client, onCaseInsenitiveFileSystem);
+		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsenitiveFileSystem);
 
 		this.updateConfiguration();
 		vscode.workspace.onDidChangeConfiguration(this.updateConfiguration, this, this._disposables);
@@ -479,7 +503,7 @@ export default class BufferSyncSupport extends Disposable {
 		}
 	}
 
-	public interuptGetErr<R>(f: () => R): R {
+	public interruptGetErr<R>(f: () => R): R {
 		if (!this.pendingGetErr
 			|| this.client.configuration.enableProjectDiagnostics // `geterr` happens on seperate server so no need to cancel it.
 		) {
@@ -529,7 +553,7 @@ export default class BufferSyncSupport extends Disposable {
 		this.triggerDiagnostics();
 	}
 
-	public getErr(resources: vscode.Uri[]): any {
+	public getErr(resources: readonly vscode.Uri[]): any {
 		const handledResources = resources.filter(resource => this.handles(resource));
 		if (!handledResources.length) {
 			return;

@@ -21,9 +21,9 @@ suite('OnEnter', () => {
 		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
 			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
 			if (expected === IndentAction.None) {
-				assert.equal(actual, null);
+				assert.strictEqual(actual, null);
 			} else {
-				assert.equal(actual!.indentAction, expected);
+				assert.strictEqual(actual!.indentAction, expected);
 			}
 		};
 
@@ -47,22 +47,56 @@ suite('OnEnter', () => {
 		testIndentAction('begin', '', IndentAction.Indent);
 	});
 
+
+	test('Issue #121125: onEnterRules with global modifier', () => {
+		const support = new OnEnterSupport({
+			onEnterRules: [
+				{
+					action: {
+						appendText: '/// ',
+						indentAction: IndentAction.Outdent
+					},
+					beforeText: /^\s*\/{3}.*$/gm
+				}
+			]
+		});
+
+		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
+			if (expectedIndentAction === null) {
+				assert.strictEqual(actual, null, 'isNull:' + beforeText);
+			} else {
+				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
+				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
+				if (expectedAppendText !== null) {
+					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+				}
+				if (removeText !== 0) {
+					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
+				}
+			}
+		};
+
+		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
+		testIndentAction('/// line', '/// line', '', IndentAction.Outdent, '/// ');
+	});
+
 	test('uses regExpRules', () => {
 		let support = new OnEnterSupport({
 			onEnterRules: javascriptOnEnterRules
 		});
-		let testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
-			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, oneLineAboveText, beforeText, afterText);
+		let testIndentAction = (previousLineText: string, beforeText: string, afterText: string, expectedIndentAction: IndentAction | null, expectedAppendText: string | null, removeText: number = 0) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, previousLineText, beforeText, afterText);
 			if (expectedIndentAction === null) {
-				assert.equal(actual, null, 'isNull:' + beforeText);
+				assert.strictEqual(actual, null, 'isNull:' + beforeText);
 			} else {
-				assert.equal(actual !== null, true, 'isNotNull:' + beforeText);
-				assert.equal(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
+				assert.strictEqual(actual !== null, true, 'isNotNull:' + beforeText);
+				assert.strictEqual(actual!.indentAction, expectedIndentAction, 'indentAction:' + beforeText);
 				if (expectedAppendText !== null) {
-					assert.equal(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
+					assert.strictEqual(actual!.appendText, expectedAppendText, 'appendText:' + beforeText);
 				}
 				if (removeText !== 0) {
-					assert.equal(actual!.removeText, removeText, 'removeText:' + beforeText);
+					assert.strictEqual(actual!.removeText, removeText, 'removeText:' + beforeText);
 				}
 			}
 		};

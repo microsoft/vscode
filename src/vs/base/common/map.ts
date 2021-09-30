@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux } from 'vs/base/common/platform';
+import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -77,6 +75,57 @@ export class StringIterator implements IKeyIterator<string> {
 	}
 }
 
+export class ConfigKeysIterator implements IKeyIterator<string> {
+
+	private _value!: string;
+	private _from!: number;
+	private _to!: number;
+
+	constructor(
+		private readonly _caseSensitive: boolean = true
+	) { }
+
+	reset(key: string): this {
+		this._value = key;
+		this._from = 0;
+		this._to = 0;
+		return this.next();
+	}
+
+	hasNext(): boolean {
+		return this._to < this._value.length;
+	}
+
+	next(): this {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === CharCode.Period) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
+				}
+			} else {
+				justSeps = false;
+			}
+		}
+		return this;
+	}
+
+	cmp(a: string): number {
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
+	}
+}
+
 export class PathIterator implements IKeyIterator<string> {
 
 	private _value!: string;
@@ -140,6 +189,8 @@ export class UriIterator implements IKeyIterator<URI> {
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
 
+	constructor(private readonly _ignorePathCasing: (uri: URI) => boolean) { }
+
 	reset(key: URI): this {
 		this._value = key;
 		this._states = [];
@@ -150,10 +201,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
-			// which cannot be used because it depends on this
-			const caseSensitive = key.scheme === Schemas.file && isLinux;
-			this._pathIterator = new PathIterator(false, caseSensitive);
+			this._pathIterator = new PathIterator(false, !this._ignorePathCasing(key));
 			this._pathIterator.reset(key.path);
 			if (this._pathIterator.value()) {
 				this._states.push(UriIteratorState.Path);
@@ -185,9 +233,9 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compare(a, this._value.scheme);
+			return compareIgnoreCase(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return compareSubstringIgnoreCase(a, this._value.authority);
+			return compareIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
@@ -229,8 +277,8 @@ class TernarySearchTreeNode<K, V> {
 
 export class TernarySearchTree<K, V> {
 
-	static forUris<E>(): TernarySearchTree<URI, E> {
-		return new TernarySearchTree<URI, E>(new UriIterator());
+	static forUris<E>(ignorePathCasing: (key: URI) => boolean = () => false): TernarySearchTree<URI, E> {
+		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
 	static forPaths<E>(): TernarySearchTree<string, E> {
@@ -239,6 +287,10 @@ export class TernarySearchTree<K, V> {
 
 	static forStrings<E>(): TernarySearchTree<string, E> {
 		return new TernarySearchTree<string, E>(new StringIterator());
+	}
+
+	static forConfigKeys<E>(): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new ConfigKeysIterator());
 	}
 
 	private _iter: IKeyIterator<K>;
@@ -299,6 +351,10 @@ export class TernarySearchTree<K, V> {
 	}
 
 	get(key: K): V | undefined {
+		return this._getNode(key)?.value;
+	}
+
+	private _getNode(key: K) {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -317,11 +373,23 @@ export class TernarySearchTree<K, V> {
 				break;
 			}
 		}
-		return node ? node.value : undefined;
+		return node;
+	}
+
+	has(key: K): boolean {
+		const node = this._getNode(key);
+		return !(node?.value === undefined && node?.mid === undefined);
 	}
 
 	delete(key: K): void {
+		return this._delete(key, false);
+	}
 
+	deleteSuperstr(key: K): void {
+		return this._delete(key, true);
+	}
+
+	private _delete(key: K, superStr: boolean): void {
 		const iter = this._iter.reset(key);
 		const stack: [-1 | 0 | 1, TernarySearchTreeNode<K, V>][] = [];
 		let node = this._root;
@@ -343,8 +411,15 @@ export class TernarySearchTree<K, V> {
 				stack.push([0, node]);
 				node = node.mid;
 			} else {
-				// remove element
-				node.value = undefined;
+				if (superStr) {
+					// remove children
+					node.left = undefined;
+					node.mid = undefined;
+					node.right = undefined;
+				} else {
+					// remove element
+					node.value = undefined;
+				}
 
 				// clean up empty nodes
 				while (stack.length > 0 && node.isEmpty()) {
@@ -385,7 +460,7 @@ export class TernarySearchTree<K, V> {
 		return node && node.value || candidate;
 	}
 
-	findSuperstr(key: K): Iterator<V> | undefined {
+	findSuperstr(key: K): IterableIterator<[K, V]> | undefined {
 		const iter = this._iter.reset(key);
 		let node = this._root;
 		while (node) {
@@ -405,57 +480,45 @@ export class TernarySearchTree<K, V> {
 				if (!node.mid) {
 					return undefined;
 				} else {
-					return this._nodeIterator(node.mid);
+					return this._entries(node.mid);
 				}
 			}
 		}
 		return undefined;
 	}
 
-	private _nodeIterator(node: TernarySearchTreeNode<K, V>): Iterator<V> {
-		let res: { done: false; value: V; };
-		let idx: number;
-		let data: V[];
-		const next = (): IteratorResult<V> => {
-			if (!data) {
-				// lazy till first invocation
-				data = [];
-				idx = 0;
-				this._forEach(node, value => data.push(value));
-			}
-			if (idx >= data.length) {
-				return { done: true, value: undefined };
-			}
-
-			if (!res) {
-				res = { done: false, value: data[idx++] };
-			} else {
-				res.value = data[idx++];
-			}
-			return res;
-		};
-		return { next };
+	forEach(callback: (value: V, index: K) => any): void {
+		for (const [key, value] of this) {
+			callback(value, key);
+		}
 	}
 
-	forEach(callback: (value: V, index: K) => any) {
-		this._forEach(this._root, callback);
+	*[Symbol.iterator](): IterableIterator<[K, V]> {
+		yield* this._entries(this._root);
 	}
 
-	private _forEach(node: TernarySearchTreeNode<K, V> | undefined, callback: (value: V, index: K) => any) {
-		if (node) {
-			// left
-			this._forEach(node.left, callback);
-
-			// node
-			if (node.value) {
-				// callback(node.value, this._iter.join(parts));
-				callback(node.value, node.key);
+	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+		// DFS
+		if (!node) {
+			return;
+		}
+		const stack = [node];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			if (node) {
+				if (node.value) {
+					yield [node.key, node.value];
+				}
+				if (node.left) {
+					stack.push(node.left);
+				}
+				if (node.mid) {
+					stack.push(node.mid);
+				}
+				if (node.right) {
+					stack.push(node.right);
+				}
 			}
-			// mid
-			this._forEach(node.mid, callback);
-
-			// right
-			this._forEach(node.right, callback);
 		}
 	}
 }
@@ -831,7 +894,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			this._tail = undefined;
 		}
 		else if (item === this._head) {
-			// This can only happend if size === 1 which is handle
+			// This can only happen if size === 1 which is handled
 			// by the case above.
 			if (!item.next) {
 				throw new Error('Invalid list');
@@ -840,7 +903,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			this._head = item.next;
 		}
 		else if (item === this._tail) {
-			// This can only happend if size === 1 which is handle
+			// This can only happen if size === 1 which is handled
 			// by the case above.
 			if (!item.previous) {
 				throw new Error('Invalid list');
@@ -972,7 +1035,7 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		this.checkTrim();
 	}
 
-	get(key: K, touch: Touch = Touch.AsNew): V | undefined {
+	override get(key: K, touch: Touch = Touch.AsNew): V | undefined {
 		return super.get(key, touch);
 	}
 
@@ -980,7 +1043,7 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): this {
+	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
 		return this;
@@ -990,5 +1053,49 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		if (this.size > this._limit) {
 			this.trimOld(Math.round(this._limit * this._ratio));
 		}
+	}
+}
+
+/**
+ * Wraps the map in type that only implements readonly properties. Useful
+ * in the extension host to prevent the consumer from making any mutations.
+ */
+export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
+	readonly #source: ReadonlyMap<K, V>;
+
+	public get size() {
+		return this.#source.size;
+	}
+
+	constructor(source: ReadonlyMap<K, V>) {
+		this.#source = source;
+	}
+
+	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void {
+		this.#source.forEach(callbackfn, thisArg);
+	}
+
+	get(key: K): V | undefined {
+		return this.#source.get(key);
+	}
+
+	has(key: K): boolean {
+		return this.#source.has(key);
+	}
+
+	entries(): IterableIterator<[K, V]> {
+		return this.#source.entries();
+	}
+
+	keys(): IterableIterator<K> {
+		return this.#source.keys();
+	}
+
+	values(): IterableIterator<V> {
+		return this.#source.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this.#source.entries();
 	}
 }
