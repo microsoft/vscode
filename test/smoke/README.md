@@ -2,57 +2,58 @@
 
 Make sure you are on **Node v12.x**.
 
-### Run
+### Quick Overview
 
 ```bash
+# Build extensions in the VS Code repo (if needed)
+yarn && yarn compile
+
 # Install Dependencies and Compile
 yarn --cwd test/smoke
+
+# Prepare OSS in repo*
+node build/lib/preLaunch.js
 
 # Dev (Electron)
 yarn smoketest
 
-# Dev (Web)
+# Dev (Web - Must be run on distro)
 yarn smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
-yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
+yarn smoketest --build <path to latest version>
+example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app
 
 # Build (Web - read instructions below)
-yarn smoketest --build <path to web server folder> --web --browser [chromium|webkit]
+yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
 # Remote (Electron)
-yarn smoketest --build <path latest built version> --remote
+yarn smoketest --build <path to latest version> --remote
 ```
 
-### Run for a release
+\* This step is necessary only when running without `--build` and OSS doesn't already exist in the `.build/electron` directory.
 
-You must always run the smoketest version which matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need that version of the smoke tests too:
+### Running for a release (Endgame)
+
+You must always run the smoketest version that matches the release you are testing. So, if you want to run the smoketest for a release build (e.g. `release/1.22`), you need to check out that version of the smoke tests too:
 
 ```bash
+git fetch
 git checkout release/1.22
+yarn && yarn compile
 yarn --cwd test/smoke
 ```
 
-#### Electron
-
-In addition to the new build to be released you will need the previous stable build so that the smoketest can test the data migration.
-The recommended way to make these builds available for the smoketest is by downloading their archive version (\*.zip) and extracting
-them into two folders. Pass the folder paths to the smoketest as follows:
-
-```bash
-yarn smoketest --build <path latest built version> --stable-build <path to previous stable version>
-```
-
 #### Web
+
+There is no support for testing an old version to a new one yet.
+Instead, simply configure the `--build` command line argument to point to the absolute path of the extracted server web build folder (e.g. `<rest of path here>/vscode-server-darwin-web` for macOS). The server web build is available from the builds page (see previous subsection).
 
 **macOS**: if you have downloaded the server with web bits, make sure to run the following command before unzipping it to avoid security issues on startup:
 
 ```bash
 xattr -d com.apple.quarantine <path to server with web folder zip>
 ```
-
-There is no support for testing an old version to a new one yet, so simply configure the `--build` command line argument to point to
-the web server folder which includes the web client bits (e.g. `vscode-server-darwin-web` for macOS).
 
 **Note**: make sure to point to the server that includes the client bits!
 
@@ -68,6 +69,12 @@ the web server folder which includes the web client bits (e.g. `vscode-server-da
 cd test/smoke
 yarn watch
 ```
+
+## Troubleshooting
+
+### Error: Could not get a unique tmp filename, max tries reached
+
+On Windows, check for the folder `C:\Users\<username>\AppData\Local\Temp\t`. If this folder exists, the `tmp` module can't run properly, resulting in the error above. In this case, delete the `t` folder.
 
 ## Pitfalls
 

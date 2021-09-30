@@ -13,15 +13,24 @@ import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snip
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
+export interface ISnippetGetOptions {
+	includeDisabledSnippets?: boolean;
+	includeNoPrefixSnippets?: boolean;
+}
+
 export interface ISnippetsService {
 
 	readonly _serviceBrand: undefined;
 
 	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
 
-	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
+	isEnabled(snippet: Snippet): boolean;
 
-	getSnippetsSync(languageId: LanguageId): Snippet[];
+	updateEnablement(snippet: Snippet, enabled: boolean): void;
+
+	getSnippets(languageId: LanguageId, opt?: ISnippetGetOptions): Promise<Snippet[]>;
+
+	getSnippetsSync(languageId: LanguageId, opt?: ISnippetGetOptions): Snippet[];
 }
 
 const languageScopeSchemaId = 'vscode://schemas/snippets';
@@ -56,7 +65,7 @@ const languageScopeSchema: IJSONSchema = {
 	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
 	additionalProperties: {
 		type: 'object',
-		required: ['prefix', 'body'],
+		required: ['body'],
 		properties: snippetSchemaProperties,
 		additionalProperties: false
 	}
@@ -76,7 +85,7 @@ const globalSchema: IJSONSchema = {
 	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
 	additionalProperties: {
 		type: 'object',
-		required: ['prefix', 'body'],
+		required: ['body'],
 		properties: {
 			...snippetSchemaProperties,
 			scope: {

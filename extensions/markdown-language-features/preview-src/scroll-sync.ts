@@ -143,6 +143,7 @@ export function scrollToRevealSourceLine(line: number) {
 		const progressInElement = line - Math.floor(line);
 		scrollTo = previousTop + (rect.height * progressInElement);
 	}
+	scrollTo = Math.abs(scrollTo) < 1 ? Math.sign(scrollTo) : scrollTo;
 	window.scroll(window.scrollX, Math.max(1, window.scrollY + scrollTo));
 }
 

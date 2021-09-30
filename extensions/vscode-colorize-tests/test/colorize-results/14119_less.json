@@ -1,0 +1,233 @@
+[
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": "f",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "hm",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less string.quoted.double.css punctuation.definition.string.begin.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "broken highlighting in VS Code",
+		"t": "source.css.less string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less string.quoted.double.css punctuation.definition.string.end.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "    ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "content",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.property-list.css meta.property-value.css string.quoted.double.css punctuation.definition.string.begin.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.property-list.css meta.property-value.css string.quoted.double.css punctuation.definition.string.end.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	}
+]

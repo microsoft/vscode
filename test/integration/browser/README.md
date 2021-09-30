@@ -2,9 +2,10 @@
 
 ## Compile
 
-Make sure to run the following command to compile and install dependencies:
+Make sure to run the following commands to compile and install dependencies:
 
 	yarn --cwd test/integration/browser
+	yarn --cwd test/integration/browser compile
 
 ## Run (inside Electron)
 
