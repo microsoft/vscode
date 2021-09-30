@@ -276,7 +276,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -679,7 +679,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1048,7 +1048,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1391,7 +1391,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1699,7 +1699,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
