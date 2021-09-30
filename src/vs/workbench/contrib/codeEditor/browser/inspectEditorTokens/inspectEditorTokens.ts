@@ -30,6 +30,7 @@ import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = dom.$;
 
@@ -81,6 +82,10 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			return;
 		}
 		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (this._editor.getModel().uri.scheme === Schemas.vscodeNotebookCell) {
+			// disable in notebooks
 			return;
 		}
 		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
