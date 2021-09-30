@@ -181,7 +181,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private readonly _participants: IEditorHoverParticipant[];
 
 	private readonly _hover: HoverWidget;
-	private readonly _id: string;
 	private readonly _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private _showAtPosition: Position | null;
@@ -217,7 +216,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		];
 
 		this._hover = this._register(new HoverWidget());
-		this._id = ModesContentHoverWidget.ID;
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
@@ -285,7 +283,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public getId(): string {
-		return this._id;
+		return ModesContentHoverWidget.ID;
 	}
 
 	public getDomNode(): HTMLElement {
