@@ -156,7 +156,11 @@
     }
   },
   "dependencies": {
+ snyk-upgrade-56109a8434a1ea53278c56453a58327c
+    "vscode-nls": "^4.1.2"
+
     "vscode-nls": "^5.0.0"
+master
   },
   "devDependencies": {
     "@types/node": "14.x"
