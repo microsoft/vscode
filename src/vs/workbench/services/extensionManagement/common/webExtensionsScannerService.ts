@@ -334,7 +334,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			throw new Error('No extension gallery service configured.');
 		}
 		let extensionLocation = URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
-		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
+		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `${extensionLocation.query ? `${extensionLocation.query}&` : ''}target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
 		const packageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');
 		return this.toWebExtensionFromLocation(extensionLocation, packageNLSResource ? URI.parse(packageNLSResource) : null, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined, metadata);
