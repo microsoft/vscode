@@ -226,8 +226,7 @@ class MinimapLayout {
 	 * Compute a desired `scrollPosition` such that the slider moves by `delta`.
 	 */
 	public getDesiredScrollTopFromDelta(delta: number): number {
-		const desiredSliderPosition = this.sliderTop + delta;
-		return Math.round(desiredSliderPosition / this._computedSliderRatio);
+		return Math.round(this.scrollTop + delta / this._computedSliderRatio);
 	}
 
 	public getDesiredScrollTopFromTouchLocation(pageY: number): number {
@@ -238,6 +237,7 @@ class MinimapLayout {
 		options: MinimapOptions,
 		viewportStartLineNumber: number,
 		viewportEndLineNumber: number,
+		viewportStartLineNumberVerticalOffset: number,
 		viewportHeight: number,
 		viewportContainsWhitespaceGaps: boolean,
 		lineCount: number,
@@ -332,8 +332,10 @@ class MinimapLayout {
 			}
 
 			const endLineNumber = Math.min(lineCount, startLineNumber + minimapLinesFitting - 1);
+			const partialLine = (scrollTop - viewportStartLineNumberVerticalOffset) / lineHeight;
+			const sliderTopAligned = (viewportStartLineNumber - startLineNumber + partialLine) * minimapLineHeight / pixelRatio;
 
-			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTop, sliderHeight, startLineNumber, endLineNumber);
+			return new MinimapLayout(scrollTop, scrollHeight, true, computedSliderRatio, sliderTopAligned, sliderHeight, startLineNumber, endLineNumber);
 		}
 	}
 }
@@ -505,6 +507,7 @@ interface IMinimapRenderingContext {
 
 	readonly viewportStartLineNumber: number;
 	readonly viewportEndLineNumber: number;
+	readonly viewportStartLineNumberVerticalOffset: number;
 
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
@@ -756,7 +759,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		this._actual = new InnerMinimap(context.theme, this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._actual.dispose();
 		super.dispose();
 	}
@@ -778,27 +781,27 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 	// ---- begin view event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return this._onOptionsMaybeChanged();
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
 		this._minimapSelections = null;
 		return this._actual.onSelectionChanged();
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		if (e.affectsMinimap) {
 			return this._actual.onDecorationsChanged();
 		}
 		return false;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		if (this._samplingState) {
 			this._shouldCheckSampling = true;
 		}
 		return this._actual.onFlushed();
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		if (this._samplingState) {
 			const minimapLineRange = this._samplingState.modelLineRangeToMinimapLineRange(e.fromLineNumber, e.toLineNumber);
 			if (minimapLineRange) {
@@ -810,7 +813,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return this._actual.onLinesChanged(e.fromLineNumber, e.toLineNumber);
 		}
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		if (this._samplingState) {
 			const [changeStartIndex, changeEndIndex] = this._samplingState.onLinesDeleted(e);
 			if (changeStartIndex <= changeEndIndex) {
@@ -822,7 +825,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return this._actual.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
 		}
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		if (this._samplingState) {
 			this._samplingState.onLinesInserted(e);
 			this._shouldCheckSampling = true;
@@ -831,16 +834,16 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return this._actual.onLinesInserted(e.fromLineNumber, e.toLineNumber);
 		}
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return this._actual.onScrollChanged();
 	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		this._context.model.invalidateMinimapColorCache();
 		this._actual.onThemeChanged();
 		this._onOptionsMaybeChanged();
 		return true;
 	}
-	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
+	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		if (this._samplingState) {
 			let ranges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 			for (const range of e.ranges) {
@@ -858,10 +861,11 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			return this._actual.onTokensChanged(e.ranges);
 		}
 	}
-	public onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+	public override onTokensColorsChanged(e: viewEvents.ViewTokensColorsChangedEvent): boolean {
+		this._onOptionsMaybeChanged();
 		return this._actual.onTokensColorsChanged();
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return this._actual.onZonesChanged();
 	}
 
@@ -891,6 +895,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 
 			viewportStartLineNumber: viewportStartLineNumber,
 			viewportEndLineNumber: viewportEndLineNumber,
+			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
 
 			scrollTop: ctx.scrollTop,
 			scrollLeft: ctx.scrollLeft,
@@ -1115,7 +1120,7 @@ class InnerMinimap extends Disposable {
 			}
 			if (this._model.options.size !== 'proportional') {
 				if (e.leftButton && this._lastRenderData) {
-					// pretend the click occured in the center of the slider
+					// pretend the click occurred in the center of the slider
 					const position = dom.getDomNodePagePosition(this._slider.domNode);
 					const initialPosY = position.top + position.height / 2;
 					this._startSliderDragging(e.buttons, e.posx, initialPosY, e.posy, this._lastRenderData.renderedLayout);
@@ -1206,7 +1211,7 @@ class InnerMinimap extends Disposable {
 		this._model.setScrollTop(scrollTop);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._mouseDownListener.dispose();
 		this._sliderMouseMoveMonitor.dispose();
 		this._sliderMouseDownListener.dispose();
@@ -1344,6 +1349,7 @@ class InnerMinimap extends Disposable {
 			this._model.options,
 			renderingCtx.viewportStartLineNumber,
 			renderingCtx.viewportEndLineNumber,
+			renderingCtx.viewportStartLineNumberVerticalOffset,
 			renderingCtx.viewportHeight,
 			renderingCtx.viewportContainsWhitespaceGaps,
 			this._model.getLineCount(),

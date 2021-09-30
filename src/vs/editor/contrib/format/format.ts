@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -116,15 +116,16 @@ export abstract class FormattingConflicts {
 		if (selector) {
 			return await selector(formatter, document, mode);
 		}
-		return formatter[0];
+		return undefined;
 	}
 }
 
-export async function formatDocumentRangeWithSelectedProvider(
+export async function formatDocumentRangesWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	range: Range,
+	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
+	progress: IProgress<DocumentRangeFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -133,15 +134,16 @@ export async function formatDocumentRangeWithSelectedProvider(
 	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
+		progress.report(selected);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
 	}
 }
 
-export async function formatDocumentRangeWithProvider(
+export async function formatDocumentRangesWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	range: Range,
+	rangeOrRanges: Range | Range[],
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
@@ -156,39 +158,106 @@ export async function formatDocumentRangeWithProvider(
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	let edits: TextEdit[] | undefined;
-	try {
-		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+	// make sure that ranges don't overlap nor touch each other
+	let ranges: Range[] = [];
+	let len = 0;
+	for (let range of asArray(rangeOrRanges).sort(Range.compareRangesUsingStarts)) {
+		if (len > 0 && Range.areIntersectingOrTouching(ranges[len - 1], range)) {
+			ranges[len - 1] = Range.fromPositions(ranges[len - 1].getStartPosition(), range.getEndPosition());
+		} else {
+			len = ranges.push(range);
+		}
+	}
+
+	const computeEdits = async (range: Range) => {
+		return (await provider.provideDocumentRangeFormattingEdits(
 			model,
 			range,
 			model.getFormattingOptions(),
 			cts.token
-		);
-		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		)) || [];
+	};
 
-		if (cts.token.isCancellationRequested) {
-			return true;
+	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
+		if (!a.length || !b.length) {
+			return false;
+		}
+		// quick exit if the list of ranges are completely unrelated [O(n)]
+		const mergedA = a.reduce((acc, val) => { return Range.plusRange(acc, val.range); }, a[0].range);
+		if (!b.some(x => { return Range.intersectRanges(mergedA, x.range); })) {
+			return false;
+		}
+		// fallback to a complete check [O(n^2)]
+		for (let edit of a) {
+			for (let otherEdit of b) {
+				if (Range.intersectRanges(edit.range, otherEdit.range)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+
+	const allEdits: TextEdit[] = [];
+	const rawEditsList: TextEdit[][] = [];
+	try {
+		for (let range of ranges) {
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+			rawEditsList.push(await computeEdits(range));
 		}
 
+		for (let i = 0; i < ranges.length; ++i) {
+			for (let j = i + 1; j < ranges.length; ++j) {
+				if (cts.token.isCancellationRequested) {
+					return true;
+				}
+				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+					// Merge ranges i and j into a single range, recompute the associated edits
+					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+					const edits = await computeEdits(mergedRange);
+					ranges.splice(j, 1);
+					ranges.splice(i, 1);
+					ranges.push(mergedRange);
+					rawEditsList.splice(j, 1);
+					rawEditsList.splice(i, 1);
+					rawEditsList.push(edits);
+					// Restart scanning
+					i = 0;
+					j = 0;
+				}
+			}
+		}
+
+		for (let rawEdits of rawEditsList) {
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+			const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+			if (minimalEdits) {
+				allEdits.push(...minimalEdits);
+			}
+		}
 	} finally {
 		cts.dispose();
 	}
 
-	if (!edits || edits.length === 0) {
+	if (allEdits.length === 0) {
 		return false;
 	}
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, true);
-		alertFormattingEdits(edits);
+		FormattingEdit.execute(editorOrModel, allEdits, true);
+		alertFormattingEdits(allEdits);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
 		// use model to apply edits
-		const [{ range }] = edits;
+		const [{ range }] = allEdits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], edits.map(edit => {
+		model.pushEditOperations([initialSelection], allEdits.map(edit => {
 			return {
 				text: edit.text,
 				range: Range.lift(edit.range),

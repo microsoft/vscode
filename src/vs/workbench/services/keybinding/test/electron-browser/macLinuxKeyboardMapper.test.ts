@@ -9,8 +9,9 @@ import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
+import { MacLinuxKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
+import { IMacLinuxKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -66,6 +67,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyA]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -81,6 +83,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyB]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -96,6 +99,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyY]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -120,6 +124,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyY]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -135,6 +140,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+alt+meta+[Digit6]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -159,6 +165,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['meta+[BracketRight]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -174,6 +181,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Digit9]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -189,6 +197,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['shift+meta+[Digit7]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -204,6 +213,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['shift+meta+[Minus]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -219,6 +229,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+[KeyK]', 'ctrl+shift+alt+meta+[Digit7]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -234,6 +245,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+[KeyK]', 'shift+meta+[Digit0]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -249,6 +261,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[ArrowDown]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -264,6 +277,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[Numpad0]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -279,6 +293,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[Home]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -303,6 +318,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[Home]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -326,11 +342,12 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: false,
 				isChord: true,
 				dispatchParts: ['meta+[Comma]', 'shift+meta+[Digit7]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+	test('resolveKeyboardEvent Single Modifier MetaLeft+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -350,11 +367,12 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+	test('resolveKeyboardEvent Single Modifier MetaRight+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -374,6 +392,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
 			}
 		);
 	});
@@ -407,11 +426,12 @@ suite('keyboardMapper - MAC en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['meta+[Comma]', 'meta+[Slash]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaLeft+', () => {
+	test('resolveKeyboardEvent Single Modifier MetaLeft+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -431,11 +451,12 @@ suite('keyboardMapper - MAC en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only MetaRight+', () => {
+	test('resolveKeyboardEvent Single Modifier MetaRight+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -455,6 +476,7 @@ suite('keyboardMapper - MAC en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
 			}
 		);
 	});
@@ -507,6 +529,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyA]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -522,6 +545,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyY]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -546,6 +570,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyY]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -577,6 +602,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+[BracketRight]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -592,6 +618,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Digit0]'],
+				singleModifierDispatchParts: [null],
 			}, {
 				label: 'Ctrl+Alt+$',
 				ariaLabel: 'Control+Alt+$',
@@ -600,6 +627,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Backslash]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -615,6 +643,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+shift+[Digit7]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -630,6 +659,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+shift+[Minus]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -652,6 +682,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+shift+[Digit0]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -667,6 +698,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[ArrowDown]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -682,6 +714,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Numpad0]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -697,6 +730,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Home]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -721,6 +755,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Home]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -745,6 +780,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyX]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -763,11 +799,12 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: false,
 				isChord: true,
 				dispatchParts: ['ctrl+[Comma]', 'ctrl+shift+[Digit7]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+	test('resolveKeyboardEvent Single Modifier ControlLeft+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -787,11 +824,12 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+	test('resolveKeyboardEvent Single Modifier ControlRight+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -811,6 +849,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});
@@ -844,6 +883,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyA]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -859,6 +899,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyZ]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -883,6 +924,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyZ]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -898,6 +940,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[BracketRight]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -922,6 +965,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[BracketRight]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -937,6 +981,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['shift+[BracketRight]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -952,6 +997,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Slash]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -967,6 +1013,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+shift+[Slash]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -982,6 +1029,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Backslash]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -997,6 +1045,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Equal]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -1012,6 +1061,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[ArrowDown]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1027,6 +1077,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Numpad0]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1042,6 +1093,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Home]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1066,6 +1118,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Home]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -1081,6 +1134,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+shift+[Comma]'],
+				singleModifierDispatchParts: [null],
 			}, {
 				label: 'Ctrl+<',
 				ariaLabel: 'Control+<',
@@ -1089,6 +1143,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+[IntlBackslash]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1104,6 +1159,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Enter]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1128,6 +1184,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Enter]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -1146,6 +1203,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+[Comma]', 'ctrl+[Slash]'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -1163,11 +1221,12 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Comma]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlLeft+', () => {
+	test('resolveKeyboardEvent Single Modifier ControlLeft+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -1187,11 +1246,12 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only ControlRight+', () => {
+	test('resolveKeyboardEvent Single Modifier ControlRight+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -1211,6 +1271,182 @@ suite('keyboardMapper - LINUX en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier ShiftLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ShiftLeft'
+			},
+			{
+				label: 'Shift',
+				ariaLabel: 'Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['shift'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier ShiftRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ShiftRight'
+			},
+			{
+				label: 'Shift',
+				ariaLabel: 'Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['shift'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier AltLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: -1,
+				code: 'AltLeft'
+			},
+			{
+				label: 'Alt',
+				ariaLabel: 'Alt',
+				electronAccelerator: null,
+				userSettingsLabel: 'alt',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['alt'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier AltRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: -1,
+				code: 'AltRight'
+			},
+			{
+				label: 'Alt',
+				ariaLabel: 'Alt',
+				electronAccelerator: null,
+				userSettingsLabel: 'alt',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['alt'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier MetaLeft+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaLeft'
+			},
+			{
+				label: 'Super',
+				ariaLabel: 'Super',
+				electronAccelerator: null,
+				userSettingsLabel: 'meta',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier MetaRight+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: -1,
+				code: 'MetaRight'
+			},
+			{
+				label: 'Super',
+				ariaLabel: 'Super',
+				electronAccelerator: null,
+				userSettingsLabel: 'meta',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: true,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'ShiftLeft'
+			},
+			{
+				label: 'Ctrl+Shift',
+				ariaLabel: 'Control+Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -1247,6 +1483,7 @@ suite('keyboardMapper', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[Backquote]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -1274,6 +1511,7 @@ suite('keyboardMapper', () => {
 					isWYSIWYG: true,
 					isChord: false,
 					dispatchParts: [dispatch],
+					singleModifierDispatchParts: [null],
 				}
 			);
 		}
@@ -1314,11 +1552,12 @@ suite('keyboardMapper', () => {
 					isWYSIWYG: true,
 					isChord: false,
 					dispatchParts: [dispatch],
+					singleModifierDispatchParts: [null],
 				}
 			);
 		}
 
-		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292318497
+		// https://github.com/microsoft/vscode/issues/24107#issuecomment-292318497
 		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
 		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
@@ -1330,7 +1569,7 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 
-		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292323924
+		// https://github.com/microsoft/vscode/issues/24107#issuecomment-292323924
 		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 		assertKeyboardEvent(KeyCode.End, '', 'End', 'End', 'end', '[End]');
@@ -1372,6 +1611,7 @@ suite('keyboardMapper - LINUX ru', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyS]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1410,6 +1650,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+alt+[Minus]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -1443,6 +1684,7 @@ suite('keyboardMapper - MAC zh_hant', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['meta+[KeyC]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -1464,11 +1706,11 @@ function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: Operat
 
 	const actualHardwareKeypresses = mapper.simpleKeybindingToScanCodeBinding(runtimeKeybinding);
 	if (actualHardwareKeypresses.length === 0) {
-		assert.deepEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
+		assert.deepStrictEqual([], expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "[]" -- expected: "${expected}"`);
 		return;
 	}
 
 	const actual = actualHardwareKeypresses
 		.map(k => UserSettingsLabelProvider.toLabel(OS, [k], (keybinding) => ScanCodeUtils.toString(keybinding.scanCode)));
-	assert.deepEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
+	assert.deepStrictEqual(actual, expected, `simpleKeybindingToHardwareKeypress -- "${keybindingLabel}" -- actual: "${actual}" -- expected: "${expected}"`);
 }

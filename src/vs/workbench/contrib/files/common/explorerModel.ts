@@ -8,7 +8,7 @@ import { isEqual } from 'vs/base/common/extpath';
 import { posix } from 'vs/base/common/path';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileStat, IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { rtrim, startsWithIgnoreCase, startsWith, equalsIgnoreCase } from 'vs/base/common/strings';
+import { rtrim, startsWithIgnoreCase, equalsIgnoreCase } from 'vs/base/common/strings';
 import { coalesce } from 'vs/base/common/arrays';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -16,6 +16,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { joinPath, isEqualOrParent, basenameOrAuthority } from 'vs/base/common/resources';
 import { SortOrder } from 'vs/workbench/contrib/files/common/files';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class ExplorerModel implements IDisposable {
 
@@ -25,10 +26,11 @@ export class ExplorerModel implements IDisposable {
 
 	constructor(
 		private readonly contextService: IWorkspaceContextService,
+		private readonly uriIdentityService: IUriIdentityService,
 		fileService: IFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, false, folder.name));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -62,7 +64,7 @@ export class ExplorerModel implements IDisposable {
 	findClosest(resource: URI): ExplorerItem | null {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
-			const root = this.roots.find(r => r.resource.toString() === folder.uri.toString());
+			const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, folder.uri));
 			if (root) {
 				return root.find(resource);
 			}
@@ -87,6 +89,7 @@ export class ExplorerItem {
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
+		private _readonly?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
 		private _unknown = false
@@ -122,7 +125,7 @@ export class ExplorerItem {
 	}
 
 	get isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	get mtime(): number | undefined {
@@ -168,12 +171,16 @@ export class ExplorerItem {
 		return this.resource.toString();
 	}
 
+	toString(): string {
+		return `ExplorerItem: ${this.name}`;
+	}
+
 	get isRoot(): boolean {
 		return this === this.root;
 	}
 
 	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -279,6 +286,7 @@ export class ExplorerItem {
 			// Resolve metadata only when the mtime is needed since this can be expensive
 			// Mtime is only used when the sort order is 'modified'
 			const resolveMetadata = sortOrder === SortOrder.Modified;
+			this.isError = false;
 			try {
 				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
 				const resolved = ExplorerItem.create(this.fileService, stat, this);
@@ -363,7 +371,7 @@ export class ExplorerItem {
 		// For performance reasons try to do the comparison as fast as possible
 		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
 		if (resource && this.resource.scheme === resource.scheme && equalsIgnoreCase(this.resource.authority, resource.authority) &&
-			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : startsWith(resource.path, this.resource.path))) {
+			(ignoreCase ? startsWithIgnoreCase(resource.path, this.resource.path) : resource.path.startsWith(this.resource.path))) {
 			return this.findByPath(rtrim(resource.path, posix.sep), this.resource.path.length, ignoreCase);
 		}
 

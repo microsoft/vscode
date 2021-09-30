@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { Command } from '../commandManager';
-import { MarkdownPreviewManager, DynamicPreviewSettings } from '../features/previewManager';
+import { DynamicPreviewSettings, MarkdownPreviewManager } from '../features/previewManager';
 import { TelemetryReporter } from '../telemetryReporter';
+
 
 interface ShowPreviewSettings {
 	readonly sideBySide?: boolean;

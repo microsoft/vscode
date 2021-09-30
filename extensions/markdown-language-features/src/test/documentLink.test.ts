@@ -20,6 +20,11 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 
 suite('Markdown Document links', () => {
 
+	setup(async () => {
+		// the tests make the assumption that link providers are already registered
+		await vscode.extensions.getExtension('vscode.markdown-language-features')!.activate();
+	});
+
 	teardown(async () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
