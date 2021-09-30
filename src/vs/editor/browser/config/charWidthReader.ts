@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari } from 'vs/base/browser/browser';
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export const enum CharWidthRequestType {
@@ -63,13 +64,15 @@ class DomCharWidthReader {
 	}
 
 	private _createDomElements(): void {
+		const fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+
 		const container = document.createElement('div');
 		container.style.position = 'absolute';
 		container.style.top = '-50000px';
 		container.style.width = '50000px';
 
 		const regularDomNode = document.createElement('div');
-		regularDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
+		regularDomNode.style.fontFamily = fontFamily;
 		regularDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		regularDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		regularDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
@@ -78,7 +81,7 @@ class DomCharWidthReader {
 		container.appendChild(regularDomNode);
 
 		const boldDomNode = document.createElement('div');
-		boldDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
+		boldDomNode.style.fontFamily = fontFamily;
 		boldDomNode.style.fontWeight = 'bold';
 		boldDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		boldDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;
@@ -87,7 +90,7 @@ class DomCharWidthReader {
 		container.appendChild(boldDomNode);
 
 		const italicDomNode = document.createElement('div');
-		italicDomNode.style.fontFamily = this._bareFontInfo.getMassagedFontFamily(isSafari);
+		italicDomNode.style.fontFamily = fontFamily;
 		italicDomNode.style.fontWeight = this._bareFontInfo.fontWeight;
 		italicDomNode.style.fontSize = this._bareFontInfo.fontSize + 'px';
 		italicDomNode.style.fontFeatureSettings = this._bareFontInfo.fontFeatureSettings;

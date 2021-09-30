@@ -122,10 +122,10 @@ export class BareFontInfo {
 	/**
 	 * @internal
 	 */
-	public getMassagedFontFamily(addMonospaceFallback: boolean): string {
+	public getMassagedFontFamily(fallbackFontFamily: string | null): string {
 		const fontFamily = BareFontInfo._wrapInQuotes(this.fontFamily);
-		if (addMonospaceFallback) {
-			return `${fontFamily}, monospace`;
+		if (fallbackFontFamily && this.fontFamily !== fallbackFontFamily) {
+			return `${fontFamily}, ${fallbackFontFamily}`;
 		}
 		return fontFamily;
 	}

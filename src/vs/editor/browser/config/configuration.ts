@@ -11,7 +11,7 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorFontLigatures, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -312,7 +312,7 @@ class CSSBasedConfiguration extends Disposable {
 export class Configuration extends CommonEditorConfiguration {
 
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari);
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
@@ -321,7 +321,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari));
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily(browser.isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);

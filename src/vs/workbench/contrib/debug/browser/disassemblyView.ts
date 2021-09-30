@@ -29,6 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -587,7 +588,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 	private applyFontInfo(element: HTMLElement) {
 		const fontInfo = this._disassemblyView.fontInfo;
-		element.style.fontFamily = fontInfo.getMassagedFontFamily(isSafari);
+		element.style.fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
 		element.style.fontWeight = fontInfo.fontWeight;
 		element.style.fontSize = fontInfo.fontSize + 'px';
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
