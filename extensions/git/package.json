@@ -2390,7 +2390,15 @@
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
-    "@types/file-type": "^5.2.1",
+    "@types/file-type": "^5.2.1", snyk-fix-913b060bcfb6825cdba31a65721fecd8
+    "@types/mocha": "2.2.43",
+    "@types/node": "^12.12.31",
+    "@types/which": "^1.0.28",
+    "mocha": "^4.0.0",
+    "mocha-junit-reporter": "^1.23.3",
+    "mocha-multi-reporters": "^1.1.7",
+    "vscode": "^1.1.36"
+
     "@types/mocha": "^8.2.0",
     "@types/node": "14.x",
     "@types/which": "^1.0.28"
@@ -2398,5 +2406,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+ master
   }
 }
