@@ -2162,6 +2162,12 @@
           "default": "whenEmpty",
           "description": "%config.showUnpublishedCommitsButton%",
           "scope": "resource"
+        },
+        "git.statusLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 5000,
+          "description": "%config.statusLimit%"
         }
       }
     },
