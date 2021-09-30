@@ -1291,7 +1291,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				} else if (part === panelPart) {
 					this.setPanelHidden(!visible, true);
 				} else if (part === auxiliaryBarPart) {
-					this.setAuxiliaryBarHidden(!visible);
+					this.setAuxiliaryBarHidden(!visible, true);
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible, true);
 				}
@@ -1546,6 +1546,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
+	private hasViews(id: string): boolean {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+		if (!viewContainer) {
+			return false;
+		}
+
+		const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+		if (!viewContainerModel) {
+			return false;
+		}
+
+		return viewContainerModel.activeViewDescriptors.length >= 1;
+	}
+
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
 		const wasHidden = this.state.panel.hidden;
 		this.state.panel.hidden = hidden;
@@ -1575,26 +1589,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
 			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
-			const hasViews = (id: string): boolean => {
-				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-				if (!viewContainer) {
-					return false;
-				}
-
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (!viewContainerModel) {
-					return false;
-				}
-
-				return viewContainerModel.activeViewDescriptors.length >= 1;
-			};
 
 			// verify that the panel we try to open has views before we default to it
 			// otherwise fall back to any view that has views still refs #111463
-			if (!panelToOpen || !hasViews(panelToOpen)) {
+			if (!panelToOpen || !this.hasViews(panelToOpen)) {
 				panelToOpen = this.viewDescriptorService
 					.getViewContainersByLocation(ViewContainerLocation.Panel)
-					.find(viewContainer => hasViews(viewContainer.id))?.id;
+					.find(viewContainer => this.hasViews(viewContainer.id))?.id;
 			}
 
 			if (panelToOpen) {
@@ -1676,7 +1677,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return panelOpensMaximized === PanelOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PanelOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
 	}
 
-	private setAuxiliaryBarHidden(hidden: boolean): void {
+	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		if (!this.configurationService.getValue(Settings.AUXILIARYBAR_ENABLED)) {
 			return;
 		}
@@ -1705,12 +1706,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If auxiliary bar becomes visible, show last active pane composite or default pane composite
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
-			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
-			if (paneCompositeToOpen) {
-				const viewlet = this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar, true);
-				if (!viewlet) {
-					this.paneCompositeService.openPaneComposite(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id, ViewContainerLocation.AuxiliaryBar, true);
-				}
+			let panelToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
+
+			// verify that the panel we try to open has views before we default to it
+			// otherwise fall back to any view that has views still refs #111463
+			if (!panelToOpen || !this.hasViews(panelToOpen)) {
+				panelToOpen = this.viewDescriptorService
+					.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
+					.find(viewContainer => this.hasViews(viewContainer.id))?.id;
+			}
+
+			if (panelToOpen) {
+				const focus = !skipLayout;
+				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.AuxiliaryBar, focus);
 			}
 		}
 
