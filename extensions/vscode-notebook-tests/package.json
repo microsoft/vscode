@@ -19,8 +19,16 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-notebook-tests ./tsconfig.json"
   },
   "dependencies": {},
-  "devDependencies": {
+  "devDependencies":  snyk-fix-299bb15ed8199701ac380220bde874ba
+    "typescript": "^3.8.3",
+    "@types/node": "^12.11.7",
+    "mocha-junit-reporter": "^1.17.0",
+    "mocha-multi-reporters": "^1.1.7",
+    "vscode": "~1.1.36",
+    "mocha": "^4.0.0"
+
     "@types/node": "14.x"
+ master
   },
   "contributes": {
     "commands": [
