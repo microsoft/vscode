@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vscode';
+
 export interface ITask<T> {
 	(): T;
 }
@@ -12,7 +14,7 @@ export class Delayer<T> {
 	public defaultDelay: number;
 	private timeout: any; // Timer
 	private completionPromise: Promise<T | null> | null;
-	private onSuccess: ((value?: T | Thenable<T>) => void) | null;
+	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
 	private task: ITask<T> | null;
 
 	constructor(defaultDelay: number) {
@@ -30,7 +32,7 @@ export class Delayer<T> {
 		}
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T>((resolve) => {
+			this.completionPromise = new Promise<T | undefined>((resolve) => {
 				this.onSuccess = resolve;
 			}).then(() => {
 				this.completionPromise = null;
@@ -58,5 +60,15 @@ export class Delayer<T> {
 			clearTimeout(this.timeout);
 			this.timeout = null;
 		}
+	}
+}
+
+export function setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
+	if (global.setImmediate) {
+		const handle = global.setImmediate(callback, ...args);
+		return { dispose: () => global.clearImmediate(handle) };
+	} else {
+		const handle = setTimeout(callback, 0, ...args);
+		return { dispose: () => clearTimeout(handle) };
 	}
 }

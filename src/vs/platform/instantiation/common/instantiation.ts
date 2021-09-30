@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServiceCollection } from './serviceCollection';
 import * as descriptors from './descriptors';
+import { ServiceCollection } from './serviceCollection';
 
 // ------ internal util
 
@@ -153,6 +153,10 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 
 	_util.serviceIds.set(serviceId, id);
 	return id;
+}
+
+export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: ServiceIdentifier<T1>): ServiceIdentifier<T> {
+	return <ServiceIdentifier<T>>serviceIdentifier;
 }
 
 /**

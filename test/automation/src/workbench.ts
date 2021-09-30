@@ -20,6 +20,7 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { Terminal } from './terminal';
 import { Notebook } from './notebook';
+import { Localization } from './localization';
 
 export interface Commands {
 	runCommand(command: string): Promise<any>;
@@ -43,6 +44,7 @@ export class Workbench {
 	readonly keybindingsEditor: KeybindingsEditor;
 	readonly terminal: Terminal;
 	readonly notebook: Notebook;
+	readonly localization: Localization;
 
 	constructor(code: Code, userDataPath: string) {
 		this.editors = new Editors(code);
@@ -56,10 +58,11 @@ export class Workbench {
 		this.scm = new SCM(code);
 		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);
 		this.statusbar = new StatusBar(code);
-		this.problems = new Problems(code);
+		this.problems = new Problems(code, this.quickaccess);
 		this.settingsEditor = new SettingsEditor(code, userDataPath, this.editors, this.editor, this.quickaccess);
 		this.keybindingsEditor = new KeybindingsEditor(code);
 		this.terminal = new Terminal(code, this.quickaccess);
 		this.notebook = new Notebook(this.quickaccess, code);
+		this.localization = new Localization(code);
 	}
 }

@@ -9,11 +9,11 @@ import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 const nlsRegex = /^%([\w\d.-]+)%$/i;
 
 export interface ITranslations {
-	[key: string]: string;
+	[key: string]: string | { message: string; comment: string[] };
 }
 
 export function localizeManifest(manifest: IExtensionManifest, translations: ITranslations): IExtensionManifest {
-	const patcher = (value: string) => {
+	const patcher = (value: string): string | undefined => {
 		if (typeof value !== 'string') {
 			return undefined;
 		}
@@ -24,7 +24,8 @@ export function localizeManifest(manifest: IExtensionManifest, translations: ITr
 			return undefined;
 		}
 
-		return translations[match[1]] || value;
+		const translation = translations[match[1]] ?? value;
+		return typeof translation === 'string' ? translation : (typeof translation.message === 'string' ? translation.message : value);
 	};
 
 	return cloneAndChange(manifest, patcher);

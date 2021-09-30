@@ -11,18 +11,26 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextModel } from 'vs/editor/common/model';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ModelSemanticColoring, ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DocumentSemanticTokensProvider, DocumentSemanticTokensProviderRegistry, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend } from 'vs/editor/common/modes';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Barrier, timeout } from 'vs/base/common/async';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 
 const GENERATE_TESTS = false;
 
@@ -47,9 +55,9 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\myroot\\myfile.txt' : '/myroot/myfile.txt'));
 		const model3 = modelService.createModel('farboo', null, URI.file(platform.isWindows ? 'c:\\other\\myfile.txt' : '/other/myfile.txt'));
 
-		assert.equal(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
-		assert.equal(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
-		assert.equal(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model1.getOptions().defaultEOL, DefaultEndOfLine.LF);
+		assert.strictEqual(model2.getOptions().defaultEOL, DefaultEndOfLine.CRLF);
+		assert.strictEqual(model3.getOptions().defaultEOL, DefaultEndOfLine.LF);
 	});
 
 	test('_computeEdits no change', function () {
@@ -71,11 +79,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	test('_computeEdits first line changed', function () {
@@ -97,11 +105,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(1, 1, 2, 1), 'This is line One\n')
 		]);
 	});
@@ -125,11 +133,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, []);
+		assert.deepStrictEqual(actual, []);
 	});
 
 	test('_computeEdits EOL and other change 1', function () {
@@ -151,11 +159,11 @@ suite('ModelService', () => {
 				'and finished with the fourth.', //29
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(
 				new Range(1, 1, 4, 1),
 				[
@@ -186,11 +194,11 @@ suite('ModelService', () => {
 				''
 			].join('\r\n'),
 			DefaultEndOfLine.LF
-		);
+		).textBuffer;
 
 		const actual = ModelServiceImpl._computeEdits(model, textBuffer);
 
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			EditOperation.replaceMove(new Range(3, 2, 3, 2), '\r\n')
 		]);
 	});
@@ -317,7 +325,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		// dispose it
 		modelService.destroyModel(resource);
 
@@ -325,7 +333,7 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text1', null, resource);
 		// undo
 		model2.undo();
-		assert.equal(model2.getValue(), 'text');
+		assert.strictEqual(model2.getValue(), 'text');
 	});
 
 	test('maintains version id and alternative version id for same resource and same content', () => {
@@ -335,7 +343,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		const versionId = model1.getVersionId();
 		const alternativeVersionId = model1.getAlternativeVersionId();
 		// dispose it
@@ -343,8 +351,8 @@ suite('ModelService', () => {
 
 		// create a new model with the same content
 		const model2 = modelService.createModel('text1', null, resource);
-		assert.equal(model2.getVersionId(), versionId);
-		assert.equal(model2.getAlternativeVersionId(), alternativeVersionId);
+		assert.strictEqual(model2.getVersionId(), versionId);
+		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
 	});
 
 	test('does not maintain undo for same resource and different content', () => {
@@ -354,7 +362,7 @@ suite('ModelService', () => {
 		const model1 = modelService.createModel('text', null, resource);
 		// make an edit
 		model1.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model1.getValue(), 'text1');
+		assert.strictEqual(model1.getValue(), 'text1');
 		// dispose it
 		modelService.destroyModel(resource);
 
@@ -362,7 +370,7 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text2', null, resource);
 		// undo
 		model2.undo();
-		assert.equal(model2.getValue(), 'text2');
+		assert.strictEqual(model2.getValue(), 'text2');
 	});
 
 	test('setValue should clear undo stack', () => {
@@ -370,17 +378,98 @@ suite('ModelService', () => {
 
 		const model = modelService.createModel('text', null, resource);
 		model.pushEditOperations(null, [{ range: new Range(1, 5, 1, 5), text: '1' }], () => [new Selection(1, 5, 1, 5)]);
-		assert.equal(model.getValue(), 'text1');
+		assert.strictEqual(model.getValue(), 'text1');
 
 		model.setValue('text2');
 		model.undo();
-		assert.equal(model.getValue(), 'text2');
+		assert.strictEqual(model.getValue(), 'text2');
+	});
+});
+
+suite('ModelSemanticColoring', () => {
+
+	const disposables = new DisposableStore();
+	const ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
+	let modelService: IModelService;
+	let modeService: IModeService;
+
+	setup(() => {
+		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = 0;
+
+		const configService = new TestConfigurationService({ editor: { semanticHighlighting: true } });
+		const themeService = new TestThemeService();
+		themeService.setTheme(new TestColorTheme({}, ColorScheme.DARK, true));
+		modelService = disposables.add(new ModelServiceImpl(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			themeService,
+			new NullLogService(),
+			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+		));
+		modeService = disposables.add(new ModeServiceImpl(false));
+	});
+
+	teardown(() => {
+		disposables.clear();
+		ModelSemanticColoring.FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY = ORIGINAL_FETCH_DOCUMENT_SEMANTIC_TOKENS_DELAY;
+	});
+
+	test('DocumentSemanticTokens should be fetched when the result is empty if there are pending changes', async () => {
+
+		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode' }));
+
+		const inFirstCall = new Barrier();
+		const delayFirstResult = new Barrier();
+		const secondResultProvided = new Barrier();
+		let callCount = 0;
+
+		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode', new class implements DocumentSemanticTokensProvider {
+			getLegend(): SemanticTokensLegend {
+				return { tokenTypes: ['class'], tokenModifiers: [] };
+			}
+			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				callCount++;
+				if (callCount === 1) {
+					assert.ok('called once');
+					inFirstCall.open();
+					await delayFirstResult.wait();
+					await timeout(0); // wait for the simple scheduler to fire to check that we do actually get rescheduled
+					return null;
+				}
+				if (callCount === 2) {
+					assert.ok('called twice');
+					secondResultProvided.open();
+					return null;
+				}
+				assert.fail('Unexpected call');
+			}
+			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			}
+		}));
+
+		const textModel = disposables.add(modelService.createModel('Hello world', modeService.create('testMode')));
+
+		// wait for the provider to be called
+		await inFirstCall.wait();
+
+		// the provider is now in the provide call
+		// change the text buffer while the provider is running
+		textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }]);
+
+		// let the provider finish its first result
+		delayFirstResult.open();
+
+		// we need to check that the provider is called again, even if it returns null
+		await secondResultProvided.wait();
+
+		// assert that it got called twice
+		assert.strictEqual(callCount, 2);
 	});
 });
 
 function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	const model = createTextModel(lines1.join('\n'));
-	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF);
+	const textBuffer = createTextBuffer(lines2.join('\n'), DefaultEndOfLine.LF).textBuffer;
 
 	// compute required edits
 	// let start = Date.now();
@@ -390,7 +479,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	// apply edits
 	model.pushEditOperations([], edits, null);
 
-	assert.equal(model.getValue(), lines2.join('\n'));
+	assert.strictEqual(model.getValue(), lines2.join('\n'));
 }
 
 function getRandomInt(min: number, max: number): number {
@@ -437,23 +526,5 @@ assertComputeEdits(file1, file2);
 `);
 			break;
 		}
-	}
-}
-
-export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-	}
-
-	getEOL(resource: URI, language?: string): string {
-		const eol = this.configurationService.getValue<string>('files.eol', { overrideIdentifier: language, resource });
-		if (eol && eol !== 'auto') {
-			return eol;
-		}
-		return (platform.isLinux || platform.isMacintosh) ? '\n' : '\r\n';
 	}
 }
