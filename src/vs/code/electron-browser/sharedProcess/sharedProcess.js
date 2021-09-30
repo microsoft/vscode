@@ -4,30 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+(function () {
+	'use strict';
 
-/**
- * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
- */
-const bootstrapWindow = (() => {
-	// @ts-ignore (defined in bootstrap-window.js)
-	return window.MonacoBootstrapWindow;
-})();
+	const bootstrap = bootstrapLib();
+	const bootstrapWindow = bootstrapWindowLib();
 
-/**
- * @type {{ avoidMonkeyPatchFromAppInsights: () => void; }}
- */
-const bootstrap = (() => {
-	// @ts-ignore (defined in bootstrap.js)
-	return window.MonacoBootstrap;
-})();
+	// Avoid Monkey Patches from Application Insights
+	bootstrap.avoidMonkeyPatchFromAppInsights();
 
-// Avoid Monkey Patches from Application Insights
-bootstrap.avoidMonkeyPatchFromAppInsights();
+	// Load shared process into window
+	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
+		return sharedProcess.main(configuration);
+	},
+		{
+			configureDeveloperSettings: function () {
+				return {
+					disallowReloadKeybinding: true
+				};
+			}
+		}
+	);
 
-bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-	sharedProcess.startup({
-		machineId: configuration.machineId,
-		windowId: configuration.windowId
-	});
-});
+	/**
+	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
+	 */
+	function bootstrapLib() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 }
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
+	 */
+	function bootstrapWindowLib() {
+		// @ts-ignore (defined in bootstrap-window.js)
+		return window.MonacoBootstrapWindow;
+	}
+}());

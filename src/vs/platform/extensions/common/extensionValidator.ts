@@ -24,10 +24,12 @@ export interface INormalizedVersion {
 	minorMustEqual: boolean;
 	patchBase: number;
 	patchMustEqual: boolean;
+	notBefore: number; /* milliseconds timestamp, or 0 */
 	isMinimum: boolean;
 }
 
 const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -93,6 +95,15 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 		}
 	}
 
+	let notBefore = 0;
+	if (version.preRelease) {
+		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
+		if (match) {
+			const [, year, month, day] = match;
+			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+		}
+	}
+
 	return {
 		majorBase: majorBase,
 		majorMustEqual: majorMustEqual,
@@ -100,16 +111,24 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 		minorMustEqual: minorMustEqual,
 		patchBase: patchBase,
 		patchMustEqual: patchMustEqual,
-		isMinimum: version.hasGreaterEquals
+		isMinimum: version.hasGreaterEquals,
+		notBefore,
 	};
 }
 
-export function isValidVersion(_version: string | INormalizedVersion, _desiredVersion: string | INormalizedVersion): boolean {
+export function isValidVersion(_inputVersion: string | INormalizedVersion, _inputDate: ProductDate, _desiredVersion: string | INormalizedVersion): boolean {
 	let version: INormalizedVersion | null;
-	if (typeof _version === 'string') {
-		version = normalizeVersion(parseVersion(_version));
+	if (typeof _inputVersion === 'string') {
+		version = normalizeVersion(parseVersion(_inputVersion));
 	} else {
-		version = _version;
+		version = _inputVersion;
+	}
+
+	let productTs: number | undefined;
+	if (_inputDate instanceof Date) {
+		productTs = _inputDate.getTime();
+	} else if (typeof _inputDate === 'string') {
+		productTs = new Date(_inputDate).getTime();
 	}
 
 	let desiredVersion: INormalizedVersion | null;
@@ -130,6 +149,7 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 	let desiredMajorBase = desiredVersion.majorBase;
 	let desiredMinorBase = desiredVersion.minorBase;
 	let desiredPatchBase = desiredVersion.patchBase;
+	let desiredNotBefore = desiredVersion.notBefore;
 
 	let majorMustEqual = desiredVersion.majorMustEqual;
 	let minorMustEqual = desiredVersion.minorMustEqual;
@@ -149,6 +169,10 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 		}
 
 		if (minorBase < desiredMinorBase) {
+			return false;
+		}
+
+		if (productTs && productTs < desiredNotBefore) {
 			return false;
 		}
 
@@ -200,6 +224,11 @@ export function isValidVersion(_version: string | INormalizedVersion, _desiredVe
 	}
 
 	// at this point, patchBase are equal
+
+	if (productTs && productTs < desiredNotBefore) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -211,22 +240,24 @@ export interface IReducedExtensionDescription {
 	main?: string;
 }
 
-export function isValidExtensionVersion(version: string, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
+type ProductDate = string | Date | undefined;
+
+export function isValidExtensionVersion(version: string, date: ProductDate, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
 
 	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
 		// No version check for builtin or declarative extensions
 		return true;
 	}
 
-	return isVersionValid(version, extensionDesc.engines.vscode, notices);
+	return isVersionValid(version, date, extensionDesc.engines.vscode, notices);
 }
 
-export function isEngineValid(engine: string, version: string): boolean {
+export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
 	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
-	return engine === '*' || isVersionValid(version, engine);
+	return engine === '*' || isVersionValid(version, date, engine);
 }
 
-export function isVersionValid(currentVersion: string, requestedVersion: string, notices: string[] = []): boolean {
+function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {
 
 	let desiredVersion = normalizeVersion(parseVersion(requestedVersion));
 	if (!desiredVersion) {
@@ -251,7 +282,7 @@ export function isVersionValid(currentVersion: string, requestedVersion: string,
 		}
 	}
 
-	if (!isValidVersion(currentVersion, desiredVersion)) {
+	if (!isValidVersion(currentVersion, date, desiredVersion)) {
 		notices.push(nls.localize('versionMismatch', "Extension is not compatible with Code {0}. Extension requires: {1}.", currentVersion, requestedVersion));
 		return false;
 	}

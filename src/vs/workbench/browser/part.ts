@@ -52,7 +52,7 @@ export abstract class Part extends Component implements ISerializableView {
 		layoutService.registerPart(this);
 	}
 
-	protected onThemeChange(theme: IColorTheme): void {
+	protected override onThemeChange(theme: IColorTheme): void {
 
 		// only call if our create() method has been called
 		if (this.parent) {
@@ -60,7 +60,7 @@ export abstract class Part extends Component implements ISerializableView {
 		}
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 	}
 
@@ -159,10 +159,10 @@ class PartLayout {
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
-		if (this.options && this.options.hasTitle) {
+		if (this.options.hasTitle) {
 			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
 		} else {
-			titleSize = new Dimension(0, 0);
+			titleSize = Dimension.None;
 		}
 
 		let contentWidth = width;

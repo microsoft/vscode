@@ -46,7 +46,7 @@ body.web {
 }
 
 .monaco-workbench.web {
-	touch-action: initial; /* reenable touch events on workbench */
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -192,10 +192,10 @@ body.web {
 .monaco-workbench .select-container:after {
 	content: "\eab4";
 	font-family: codicon;
-	font-size: 14px;
-	width: 14px;
-	height: 14px;
-	line-height: 14px;
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	line-height: 16px;
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -220,6 +220,10 @@ body.web {
 	opacity: 1 !important;
 }
 
+.monaco-workbench input[type="checkbox"]:focus {
+	outline-offset: 2px;
+}
+
 .monaco-workbench [tabindex="0"]:active,
 .monaco-workbench [tabindex="-1"]:active,
 .monaco-workbench select:active,
@@ -229,7 +233,7 @@ body.web {
 }
 
 .monaco-workbench.mac select:focus {
-	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
+	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
 }
 
 .monaco-workbench .monaco-list:not(.element-focused):focus:before {
