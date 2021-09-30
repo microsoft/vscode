@@ -11,12 +11,13 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { equals } from 'vs/base/common/objects';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -74,6 +75,11 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
  */
 export interface IModelDecorationOptions {
 	/**
+	 * A debug description that can be used for inspecting model decorations.
+	 * @internal
+	 */
+	description: string;
+	/**
 	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
@@ -106,7 +112,8 @@ export interface IModelDecorationOptions {
 	collapseOnReplaceEdit?: boolean;
 	/**
 	 * Specifies the stack order of a decoration.
-	 * A decoration with greater stack order is always in front of a decoration with a lower stack order.
+	 * A decoration with greater stack order is always in front of a decoration with
+	 * a lower stack order when the decorations are on the same line.
 	 */
 	zIndex?: number;
 	/**
@@ -151,6 +158,35 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered after the text with this CSS class name.
 	 */
 	afterContentClassName?: string | null;
+	/**
+	 * If set, text will be injected in the view after the range.
+	 */
+	after?: InjectedTextOptions | null;
+
+	/**
+	 * If set, text will be injected in the view before the range.
+	 */
+	before?: InjectedTextOptions | null;
+}
+
+/**
+ * Configures text that is injected into the view without changing the underlying document.
+*/
+export interface InjectedTextOptions {
+	/**
+	 * Sets the text to inject. Must be a single line.
+	 */
+	readonly content: string;
+
+	/**
+	 * If set, the decoration will be rendered inline with the text with this CSS class name.
+	 */
+	readonly inlineClassName?: string | null;
+
+	/**
+	 * If there is an `inlineClassName` which affects letter spacing.
+	 */
+	readonly inlineClassNameAffectsLetterSpacing?: boolean;
 }
 
 /**
@@ -395,13 +431,14 @@ export interface ICursorStateComputer {
 }
 
 export class TextModelResolvedOptions {
-	_textModelResolvedOptionsBrand: void;
+	_textModelResolvedOptionsBrand: void = undefined;
 
 	readonly tabSize: number;
 	readonly indentSize: number;
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly bracketPairColorizationOptions: BracketPairColorizationOptions;
 
 	/**
 	 * @internal
@@ -412,12 +449,14 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		bracketPairColorizationOptions: BracketPairColorizationOptions;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.bracketPairColorizationOptions = src.bracketPairColorizationOptions;
 	}
 
 	/**
@@ -430,6 +469,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& equals(this.bracketPairColorizationOptions, other.bracketPairColorizationOptions)
 		);
 	}
 
@@ -458,6 +498,11 @@ export interface ITextModelCreationOptions {
 	defaultEOL: DefaultEndOfLine;
 	isForSimpleWidget: boolean;
 	largeFileOptimizations: boolean;
+	bracketPairColorizationOptions: BracketPairColorizationOptions;
+}
+
+export interface BracketPairColorizationOptions {
+	enabled: boolean;
 }
 
 export interface ITextModelUpdateOptions {
@@ -465,10 +510,11 @@ export interface ITextModelUpdateOptions {
 	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
 
 export class FindMatch {
-	_findMatchBrand: void;
+	_findMatchBrand: void = undefined;
 
 	public readonly range: Range;
 	public readonly matches: string[] | null;
@@ -601,12 +647,6 @@ export interface ITextModel {
 	setValue(newValue: string): void;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * @internal
-	 */
-	setValueFromTextBuffer(newValue: ITextBuffer): void;
-
-	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -694,6 +734,11 @@ export interface ITextModel {
 	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
 	 */
 	getEOL(): string;
+
+	/**
+	 * Get the end of line sequence predominantly used in the text buffer.
+	 */
+	getEndOfLineSequence(): EndOfLineSequence;
 
 	/**
 	 * Get the minimum legal column for line at `lineNumber`
@@ -850,7 +895,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	hasSemanticTokens(): boolean;
+	hasCompleteSemanticTokens(): boolean;
+
+	/**
+	 * @internal
+	 */
+	hasSomeSemanticTokens(): boolean;
 
 	/**
 	 * Flush all tokenization state.
@@ -1060,6 +1110,12 @@ export interface ITextModel {
 	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 
 	/**
+	 * Gets all the decorations that contain injected text.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+
+	/**
 	 * @internal
 	 */
 	_getTrackedRange(id: string): Range | null;
@@ -1089,11 +1145,16 @@ export interface ITextModel {
 	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 
 	/**
-	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-	 * The idea is to use `pushEditOperations` to edit the model and then to
-	 * `pushStackElement` to create an undo/redo stop point.
+	 * Close the current undo-redo element.
+	 * This offers a way to create an undo/redo stop point.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Open the current undo-redo element.
+	 * This offers a way to remove the current undo/redo stop point.
+	 */
+	popStackElement(): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1138,11 +1199,11 @@ export interface ITextModel {
 	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
 
 	/**
-	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
+	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): void;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1151,11 +1212,11 @@ export interface ITextModel {
 	canUndo(): boolean;
 
 	/**
-	 * Redo edit operations until the next stop point created by `pushStackElement`.
+	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): void;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
@@ -1169,7 +1230,7 @@ export interface ITextModel {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContentFast(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
+	onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable;
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -1211,7 +1272,6 @@ export interface ITextModel {
 	/**
 	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 	 * @event
-	 * @internal
 	 */
 	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
@@ -1238,7 +1298,6 @@ export interface ITextModel {
 
 	/**
 	 * Returns if this model is attached to an editor or not.
-	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 
@@ -1247,6 +1306,46 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getAttachedEditorCount(): number;
+
+	/**
+	 * Among all positions that are projected to the same position in the underlying text model as
+	 * the given position, select a unique position as indicated by the affinity.
+	 *
+	 * PositionAffinity.Left:
+	 * The normalized position must be equal or left to the requested position.
+	 *
+	 * PositionAffinity.Right:
+	 * The normalized position must be equal or right to the requested position.
+	 *
+	 * @internal
+	 */
+	normalizePosition(position: Position, affinity: PositionAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
+}
+
+/**
+ * @internal
+ */
+export const enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+
+	/**
+	 * No preference.
+	*/
+	None = 2,
 }
 
 /**
@@ -1261,7 +1360,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
 	getFirstLineText(lengthLimit: number): string;
 }
 
@@ -1312,6 +1411,7 @@ export interface IReadonlyTextBuffer {
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
 	getLineCharCode(lineNumber: number, index: number): number;
+	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;

@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { asArray } from 'vs/base/common/arrays';
@@ -104,7 +104,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._messages = [];
 		this._lastLineNumber = -1;
 
-		this._markdownRenderer = this._register(new MarkdownRenderer(this._editor, modeService, openerService));
+		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(
@@ -117,7 +117,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -147,7 +147,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
-	public hide(): void {
+	public override hide(): void {
 		this._lastLineNumber = -1;
 		this._hoverOperation.cancel();
 		super.hide();

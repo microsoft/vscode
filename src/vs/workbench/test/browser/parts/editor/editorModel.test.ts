@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,19 +25,39 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { Mimes } from 'vs/base/common/mime';
+import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-class MyEditorModel extends EditorModel { }
-class MyTextEditorModel extends BaseTextEditorModel {
-	createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
-		return super.createTextEditorModel(value, resource, preferredMode);
+suite('EditorModel', () => {
+
+	class MyEditorModel extends EditorModel { }
+	class MyTextEditorModel extends BaseTextEditorModel {
+		override createTextEditorModel(value: ITextBufferFactory, resource?: URI, preferredMode?: string) {
+			return super.createTextEditorModel(value, resource, preferredMode);
+		}
+
+		override isReadonly(): boolean {
+			return false;
+		}
 	}
 
-	isReadonly(): boolean {
-		return false;
-	}
-}
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
+		instantiationService.stub(IDialogService, dialogService);
+		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IUndoRedoService, undoRedoService);
+		instantiationService.stub(IThemeService, new TestThemeService());
 
-suite('Workbench editor model', () => {
+		return instantiationService.createInstance(ModelServiceImpl);
+	}
 
 	let instantiationService: TestInstantiationService;
 	let modeService: IModeService;
@@ -48,45 +67,32 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', async () => {
+	test('basics', async () => {
 		let counter = 0;
 
-		let m = new MyEditorModel();
+		const model = new MyEditorModel();
 
-		m.onDispose(() => {
+		model.onWillDispose(() => {
 			assert(true);
 			counter++;
 		});
 
-		const model = await m.load();
-		assert(model === m);
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
-		assert.equal(counter, 1);
+		await model.resolve();
+		assert.strictEqual(model.isDisposed(), false);
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(model.isDisposed(), true);
 	});
 
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		let m = new MyTextEditorModel(modelService, modeService);
-		const model = await m.load() as MyTextEditorModel;
+		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService));
+		await model.resolve();
 
-		assert(model === m);
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
-		assert.strictEqual(m.isResolved(), true);
-		m.dispose();
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
+		assert.strictEqual(model.isResolved(), true);
+		model.dispose();
 	});
-
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		const dialogService = new TestDialogService();
-		const notificationService = new TestNotificationService();
-		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
-		instantiationService.stub(IDialogService, dialogService);
-		instantiationService.stub(INotificationService, notificationService);
-		instantiationService.stub(IUndoRedoService, undoRedoService);
-		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
-	}
 });

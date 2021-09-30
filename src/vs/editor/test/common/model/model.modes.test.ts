@@ -21,14 +21,14 @@ suite('Editor Model - Model Modes 1', () => {
 	let calledFor: string[] = [];
 
 	function checkAndClear(arr: string[]) {
-		assert.deepEqual(calledFor, arr);
+		assert.deepStrictEqual(calledFor, arr);
 		calledFor = [];
 	}
 
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => NULL_STATE,
 		tokenize: undefined!,
-		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line.charAt(0));
 			return new TokenizationResult2(new Uint32Array(0), state);
 		}
@@ -106,7 +106,7 @@ suite('Editor Model - Model Modes 1', () => {
 		checkAndClear(['1', '2', '3', '4', '5']);
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '0\n-\n+')]);
-		assert.equal(thisModel.getLineCount(), 7);
+		assert.strictEqual(thisModel.getLineCount(), 7);
 		thisModel.forceTokenization(7);
 		checkAndClear(['0', '-', '+']);
 
@@ -174,14 +174,14 @@ suite('Editor Model - Model Modes 2', () => {
 	let calledFor: string[] = [];
 
 	function checkAndClear(arr: string[]): void {
-		assert.deepEqual(calledFor, arr);
+		assert.deepStrictEqual(calledFor, arr);
 		calledFor = [];
 	}
 
 	const tokenizationSupport: modes.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined!,
-		tokenize2: (line: string, state: modes.IState): TokenizationResult2 => {
+		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
 			return new TokenizationResult2(new Uint32Array(0), state);

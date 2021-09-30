@@ -18,11 +18,12 @@ import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class SelectionRanges {
 
@@ -47,43 +48,36 @@ class SelectionRanges {
 
 class SmartSelectController implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.smartSelectController';
+	static readonly ID = 'editor.contrib.smartSelectController';
 
 	static get(editor: ICodeEditor): SmartSelectController {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
-	private readonly _editor: ICodeEditor;
-
 	private _state?: SelectionRanges[];
 	private _selectionListener?: IDisposable;
 	private _ignoreSelection: boolean = false;
 
-	constructor(editor: ICodeEditor) {
-		this._editor = editor;
-	}
+	constructor(private readonly _editor: ICodeEditor) { }
 
 	dispose(): void {
-		dispose(this._selectionListener);
+		this._selectionListener?.dispose();
 	}
 
-	run(forward: boolean): Promise<void> | void {
+	async run(forward: boolean): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
-
 		if (!modes.SelectionRangeRegistry.has(model)) {
 			return;
 		}
 
-
-		let promise: Promise<void> = Promise.resolve(undefined);
-
 		if (!this._state) {
-			promise = provideSelectionRanges(model, selections.map(s => s.getPosition()), CancellationToken.None).then(ranges => {
+
+			await provideSelectionRanges(model, selections.map(s => s.getPosition()), this._editor.getOption(EditorOption.smartSelect), CancellationToken.None).then(ranges => {
 				if (!arrays.isNonEmptyArray(ranges) || ranges.length !== selections.length) {
 					// invalid result
 					return;
@@ -106,31 +100,28 @@ class SmartSelectController implements IEditorContribution {
 				this._state = ranges.map(ranges => new SelectionRanges(0, ranges));
 
 				// listen to caret move and forget about state
-				dispose(this._selectionListener);
+				this._selectionListener?.dispose();
 				this._selectionListener = this._editor.onDidChangeCursorPosition(() => {
 					if (!this._ignoreSelection) {
-						dispose(this._selectionListener);
+						this._selectionListener?.dispose();
 						this._state = undefined;
 					}
 				});
 			});
 		}
 
-		return promise.then(() => {
-			if (!this._state) {
-				// no state
-				return;
-			}
-			this._state = this._state.map(state => state.mov(forward));
-			const selections = this._state.map(state => Selection.fromPositions(state.ranges[state.index].getStartPosition(), state.ranges[state.index].getEndPosition()));
-			this._ignoreSelection = true;
-			try {
-				this._editor.setSelections(selections);
-			} finally {
-				this._ignoreSelection = false;
-			}
-
-		});
+		if (!this._state) {
+			// no state
+			return;
+		}
+		this._state = this._state.map(state => state.mov(forward));
+		const newSelections = this._state.map(state => Selection.fromPositions(state.ranges[state.index].getStartPosition(), state.ranges[state.index].getEndPosition()));
+		this._ignoreSelection = true;
+		try {
+			this._editor.setSelections(newSelections);
+		} finally {
+			this._ignoreSelection = false;
+		}
 	}
 }
 
@@ -213,7 +204,11 @@ registerEditorAction(ShrinkSelectionAction);
 // word selection
 modes.SelectionRangeRegistry.register('*', new WordSelectionRangeProvider());
 
-export function provideSelectionRanges(model: ITextModel, positions: Position[], token: CancellationToken): Promise<Range[][]> {
+export interface SelectionRangesOptions {
+	selectLeadingAndTrailingWhitespace: boolean
+}
+
+export async function provideSelectionRanges(model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = modes.SelectionRangeRegistry.all(model);
 
@@ -243,66 +238,69 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 		}, onUnexpectedExternalError));
 	}
 
-	return Promise.all(work).then(() => {
+	await Promise.all(work);
 
-		return allRawRanges.map(oneRawRanges => {
+	return allRawRanges.map(oneRawRanges => {
 
-			if (oneRawRanges.length === 0) {
-				return [];
+		if (oneRawRanges.length === 0) {
+			return [];
+		}
+
+		// sort all by start/end position
+		oneRawRanges.sort((a, b) => {
+			if (Position.isBefore(a.getStartPosition(), b.getStartPosition())) {
+				return 1;
+			} else if (Position.isBefore(b.getStartPosition(), a.getStartPosition())) {
+				return -1;
+			} else if (Position.isBefore(a.getEndPosition(), b.getEndPosition())) {
+				return -1;
+			} else if (Position.isBefore(b.getEndPosition(), a.getEndPosition())) {
+				return 1;
+			} else {
+				return 0;
 			}
-
-			// sort all by start/end position
-			oneRawRanges.sort((a, b) => {
-				if (Position.isBefore(a.getStartPosition(), b.getStartPosition())) {
-					return 1;
-				} else if (Position.isBefore(b.getStartPosition(), a.getStartPosition())) {
-					return -1;
-				} else if (Position.isBefore(a.getEndPosition(), b.getEndPosition())) {
-					return -1;
-				} else if (Position.isBefore(b.getEndPosition(), a.getEndPosition())) {
-					return 1;
-				} else {
-					return 0;
-				}
-			});
-
-			// remove ranges that don't contain the former range or that are equal to the
-			// former range
-			let oneRanges: Range[] = [];
-			let last: Range | undefined;
-			for (const range of oneRawRanges) {
-				if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
-					oneRanges.push(range);
-					last = range;
-				}
-			}
-
-			// add ranges that expand trivia at line starts and ends whenever a range
-			// wraps onto the a new line
-			let oneRangesWithTrivia: Range[] = [oneRanges[0]];
-			for (let i = 1; i < oneRanges.length; i++) {
-				const prev = oneRanges[i - 1];
-				const cur = oneRanges[i];
-				if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
-					// add line/block range without leading/failing whitespace
-					const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
-					if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev) && cur.containsRange(rangeNoWhitespace) && !cur.equalsRange(rangeNoWhitespace)) {
-						oneRangesWithTrivia.push(rangeNoWhitespace);
-					}
-					// add line/block range
-					const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
-					if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace) && cur.containsRange(rangeFull) && !cur.equalsRange(rangeFull)) {
-						oneRangesWithTrivia.push(rangeFull);
-					}
-				}
-				oneRangesWithTrivia.push(cur);
-			}
-			return oneRangesWithTrivia;
 		});
+
+		// remove ranges that don't contain the former range or that are equal to the
+		// former range
+		let oneRanges: Range[] = [];
+		let last: Range | undefined;
+		for (const range of oneRawRanges) {
+			if (!last || (Range.containsRange(range, last) && !Range.equalsRange(range, last))) {
+				oneRanges.push(range);
+				last = range;
+			}
+		}
+
+		if (!options.selectLeadingAndTrailingWhitespace) {
+			return oneRanges;
+		}
+
+		// add ranges that expand trivia at line starts and ends whenever a range
+		// wraps onto the a new line
+		let oneRangesWithTrivia: Range[] = [oneRanges[0]];
+		for (let i = 1; i < oneRanges.length; i++) {
+			const prev = oneRanges[i - 1];
+			const cur = oneRanges[i];
+			if (cur.startLineNumber !== prev.startLineNumber || cur.endLineNumber !== prev.endLineNumber) {
+				// add line/block range without leading/failing whitespace
+				const rangeNoWhitespace = new Range(prev.startLineNumber, model.getLineFirstNonWhitespaceColumn(prev.startLineNumber), prev.endLineNumber, model.getLineLastNonWhitespaceColumn(prev.endLineNumber));
+				if (rangeNoWhitespace.containsRange(prev) && !rangeNoWhitespace.equalsRange(prev) && cur.containsRange(rangeNoWhitespace) && !cur.equalsRange(rangeNoWhitespace)) {
+					oneRangesWithTrivia.push(rangeNoWhitespace);
+				}
+				// add line/block range
+				const rangeFull = new Range(prev.startLineNumber, 1, prev.endLineNumber, model.getLineMaxColumn(prev.endLineNumber));
+				if (rangeFull.containsRange(prev) && !rangeFull.equalsRange(rangeNoWhitespace) && cur.containsRange(rangeFull) && !cur.equalsRange(rangeFull)) {
+					oneRangesWithTrivia.push(rangeFull);
+				}
+			}
+			oneRangesWithTrivia.push(cur);
+		}
+		return oneRangesWithTrivia;
 	});
 }
 
 registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
 	const [positions] = args;
-	return provideSelectionRanges(model, positions, CancellationToken.None);
+	return provideSelectionRanges(model, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
 });

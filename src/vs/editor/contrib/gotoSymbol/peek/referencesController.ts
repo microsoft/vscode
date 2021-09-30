@@ -5,12 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReferencesModel, OneReference } from '../referencesModel';
@@ -27,7 +27,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
+export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 
 export abstract class ReferencesController implements IEditorContribution {
 
@@ -64,8 +64,8 @@ export abstract class ReferencesController implements IEditorContribution {
 	dispose(): void {
 		this._referenceSearchVisible.reset();
 		this._disposables.dispose();
-		dispose(this._widget);
-		dispose(this._model);
+		this._widget?.dispose();
+		this._model?.dispose();
 		this._widget = undefined;
 		this._model = undefined;
 	}
@@ -101,7 +101,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		this._disposables.add(this._widget.onDidClose(() => {
 			modelPromise.cancel();
 			if (this._widget) {
-				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL);
+				this._storageService.store(storageKey, JSON.stringify(this._widget.layoutData), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this._widget = undefined;
 			}
 			this.closeWidget();
@@ -117,17 +117,17 @@ export abstract class ReferencesController implements IEditorContribution {
 					if (event.source !== 'editor' || !this._configurationService.getValue('editor.stablePeek')) {
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
-						this.openReference(element, false);
+						this.openReference(element, false, false);
 					}
 					break;
 				case 'side':
-					this.openReference(element, true);
+					this.openReference(element, true, false);
 					break;
 				case 'goto':
 					if (peekMode) {
 						this._gotoReference(element);
 					} else {
-						this.openReference(element, false);
+						this.openReference(element, false, true);
 					}
 					break;
 			}
@@ -139,13 +139,11 @@ export abstract class ReferencesController implements IEditorContribution {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
+				model.dispose();
 				return undefined;
 			}
 
-			if (this._model) {
-				this._model.dispose();
-			}
-
+			this._model?.dispose();
 			this._model = model;
 
 			// show widget
@@ -226,8 +224,8 @@ export abstract class ReferencesController implements IEditorContribution {
 	}
 
 	closeWidget(focusEditor = true): void {
-		dispose(this._widget);
-		dispose(this._model);
+		this._widget?.dispose();
+		this._model?.dispose();
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
 		this._widget = undefined;
@@ -285,7 +283,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		});
 	}
 
-	openReference(ref: Location, sideBySide: boolean): void {
+	openReference(ref: Location, sideBySide: boolean, pinned: boolean): void {
 		// clear stage
 		if (!sideBySide) {
 			this.closeWidget();
@@ -294,7 +292,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		const { uri, range } = ref;
 		this._editorService.openCodeEditor({
 			resource: uri,
-			options: { selection: range }
+			options: { selection: range, pinned }
 		}, this._editor, sideBySide);
 	}
 }
@@ -404,7 +402,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();
 		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-			withController(accessor, controller => controller.openReference(focus[0], true));
+			withController(accessor, controller => controller.openReference(focus[0], true, true));
 		}
 	}
 });
@@ -413,6 +411,6 @@ CommandsRegistry.registerCommand('openReference', (accessor) => {
 	const listService = accessor.get(IListService);
 	const focus = <any[]>listService.lastFocusedList?.getFocus();
 	if (Array.isArray(focus) && focus[0] instanceof OneReference) {
-		withController(accessor, controller => controller.openReference(focus[0], false));
+		withController(accessor, controller => controller.openReference(focus[0], false, true));
 	}
 });
