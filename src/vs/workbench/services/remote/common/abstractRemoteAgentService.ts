@@ -3,20 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
+import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistentConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { RemoteExtensionEnvironmentChannelClient } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -24,6 +19,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -43,8 +39,8 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 	) {
 		super();
 		this.socketFactory = socketFactory;
-		if (this._environmentService.configuration.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.configuration.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+		if (this._environmentService.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}
@@ -73,11 +69,25 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 		return this._environment;
 	}
 
+	whenExtensionsReady(): Promise<void> {
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.whenExtensionsReady(channel),
+			undefined
+		);
+	}
+
 	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
 		return this._withChannel(
 			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanExtensions(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI, skipExtensions),
 			[]
 		).then(undefined, () => []);
+	}
+
+	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanSingleExtension(channel, connection.remoteAuthority, isBuiltin, extensionLocation),
+			null
+		).then(undefined, () => null);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
@@ -122,7 +132,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 	private readonly _onReconnecting = this._register(new Emitter<void>());
 	public readonly onReconnecting = this._onReconnecting.event;
 
-	private readonly _onDidStateChange = this._register(new Emitter<PersistenConnectionEvent>());
+	private readonly _onDidStateChange = this._register(new Emitter<PersistentConnectionEvent>());
 	public readonly onDidStateChange = this._onDidStateChange.event;
 
 	readonly remoteAuthority: string;
@@ -175,7 +185,7 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 						this._onReconnecting.fire(undefined);
 					}
 					const { authority } = await this._remoteAuthorityResolverService.resolveAuthority(this.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,
@@ -183,27 +193,10 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
+		connection.protocol.onDidDispose(() => {
+			connection.dispose();
+		});
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
 		return connection.client;
 	}
 }
-
-class RemoteConnectionFailureNotificationContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		// Let's cover the case where connecting to fetch the remote extension info fails
-		remoteAgentService.getRawEnvironment()
-			.then(undefined, err => {
-				if (!RemoteAuthorityResolverError.isHandled(err)) {
-					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
-				}
-			});
-	}
-
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteConnectionFailureNotificationContribution, LifecyclePhase.Ready);

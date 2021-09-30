@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from 'vs/workbench/common/notifications';
-import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { localize } from 'vs/nls';
@@ -20,7 +20,7 @@ export class NotificationsStatus extends Disposable {
 	private isNotificationsToastsVisible: boolean = false;
 
 	constructor(
-		private model: INotificationsModel,
+		private readonly model: INotificationsModel,
 		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
@@ -71,6 +71,7 @@ export class NotificationsStatus extends Disposable {
 
 		// Show the bell with a dot if there are unread or in-progress notifications
 		const statusProperties: IStatusbarEntry = {
+			name: localize('status.notifications', "Notifications"),
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
 			ariaLabel: localize('status.notifications', "Notifications"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
@@ -82,7 +83,6 @@ export class NotificationsStatus extends Disposable {
 			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
 				statusProperties,
 				'status.notifications',
-				localize('status.notifications', "Notifications"),
 				StatusbarAlignment.RIGHT,
 				-Number.MAX_VALUE /* towards the far end of the right hand side */
 			);
@@ -180,9 +180,12 @@ export class NotificationsStatus extends Disposable {
 		let statusMessageEntry: IStatusbarEntryAccessor;
 		let showHandle: any = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry(
-				{ text: message, ariaLabel: message },
+				{
+					name: localize('status.message', "Status Message"),
+					text: message,
+					ariaLabel: message
+				},
 				'status.message',
-				localize('status.message', "Status Message"),
 				StatusbarAlignment.LEFT,
 				-Number.MAX_VALUE /* far right on left hand side */
 			);

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as performance from 'vs/base/common/performance';
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 import { MainContext } from 'vs/workbench/api/common/extHost.protocol';
@@ -10,11 +11,12 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { connectProxyResolver } from 'vs/workbench/services/extensions/node/proxyResolver';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDownloadService } from 'vs/workbench/api/node/extHostDownloadService';
-import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
+import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
+import { realpathSync } from 'vs/base/node/extpath';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -22,7 +24,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		const that = this;
 		const node_module = <any>require.__$__nodeRequire('module');
 		const original = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
 			for (let alternativeModuleName of that._alternatives) {
 				let alternative = alternativeModuleName(request);
 				if (alternative) {
@@ -35,7 +37,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			}
 			return that._factories.get(request)!.load(
 				request,
-				URI.file(parent.filename),
+				URI.file(realpathSync(parent.filename)),
 				request => original.apply(this, [request, parent, isMain])
 			);
 		};
@@ -62,10 +64,12 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		// Module loading tricks
 		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, this._registry);
 		await interceptor.install();
+		performance.mark('code/extHost/didInitAPI');
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
+		performance.mark('code/extHost/didInitProxyResolver');
 
 		// Use IPC messages to forward console-calls, note that the console is
 		// already patched to use`process.send()`
@@ -84,7 +88,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	protected _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	protected _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
@@ -93,10 +97,16 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._logService.info(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
 		try {
+			if (extensionId) {
+				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId.value}`);
+			}
 			r = require.__$__nodeRequire<T>(module.fsPath);
 		} catch (e) {
 			return Promise.reject(e);
 		} finally {
+			if (extensionId) {
+				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId.value}`);
+			}
 			activationTimesBuilder.codeLoadingStop();
 		}
 		return Promise.resolve(r);

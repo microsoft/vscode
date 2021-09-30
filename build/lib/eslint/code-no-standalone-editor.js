@@ -21,10 +21,10 @@ module.exports = new class NoNlsInStandaloneEditorRule {
             // the vs/editor folder is allowed to use the standalone editor
             return {};
         }
-        return utils_1.createImportRuleListener((node, path) => {
+        return (0, utils_1.createImportRuleListener)((node, path) => {
             // resolve relative paths
             if (path[0] === '.') {
-                path = path_1.join(context.getFilename(), path);
+                path = (0, path_1.join)(context.getFilename(), path);
             }
             if (/vs(\/|\\)editor(\/|\\)standalone(\/|\\)/.test(path)
                 || /vs(\/|\\)editor(\/|\\)common(\/|\\)standalone(\/|\\)/.test(path)
