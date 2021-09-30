@@ -15,7 +15,7 @@ import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IGalleryExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
@@ -333,7 +333,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (!this.productService.extensionsGallery) {
 			throw new Error('No extension gallery service configured.');
 		}
-		const extensionLocation = URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+		let extensionLocation = URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }));
+		extensionLocation = galleryExtension.properties.targetPlatform === TargetPlatform.WEB ? extensionLocation.with({ query: `target=${galleryExtension.properties.targetPlatform}` }) : extensionLocation;
 		const extensionResources = await this.listExtensionResources(extensionLocation);
 		const packageNLSResource = extensionResources.find(e => basename(e) === 'package.nls.json');
 		return this.toWebExtensionFromLocation(extensionLocation, packageNLSResource ? URI.parse(packageNLSResource) : null, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined, metadata);
