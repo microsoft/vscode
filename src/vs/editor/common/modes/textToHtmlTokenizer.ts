@@ -29,6 +29,8 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 	let charIndex = startOffset;
 	let tabsCharDelta = 0;
 
+	let prevIsSpace = true;
+
 	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
 		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
 
@@ -46,25 +48,35 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
-						partContent += useNbsp ? '&#160;' : ' ';
+						if (useNbsp && prevIsSpace) {
+							partContent += '&#160;';
+							prevIsSpace = false;
+						} else {
+							partContent += ' ';
+							prevIsSpace = true;
+						}
 						insertSpacesCount--;
 					}
 					break;
 
 				case CharCode.LessThan:
 					partContent += '&lt;';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.GreaterThan:
 					partContent += '&gt;';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.Ampersand:
 					partContent += '&amp;';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.Null:
 					partContent += '&#00;';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.UTF8_BOM:
@@ -72,19 +84,28 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 				case CharCode.PARAGRAPH_SEPARATOR:
 				case CharCode.NEXT_LINE:
 					partContent += '\ufffd';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.CarriageReturn:
 					// zero width space, because carriage return would introduce a line break
 					partContent += '&#8203';
+					prevIsSpace = false;
 					break;
 
 				case CharCode.Space:
-					partContent += useNbsp ? '&#160;' : ' ';
+					if (useNbsp && prevIsSpace) {
+						partContent += '&#160;';
+						prevIsSpace = false;
+					} else {
+						partContent += ' ';
+						prevIsSpace = true;
+					}
 					break;
 
 				default:
 					partContent += String.fromCharCode(charCode);
+					prevIsSpace = false;
 			}
 		}
 
