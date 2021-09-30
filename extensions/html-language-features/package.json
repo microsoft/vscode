@@ -42,16 +42,16 @@
           "type": "string",
           "scope": "resource",
           "enum": [
-            "doubleQuotes",
-            "singleQuotes",
+            "doublequotes",
+            "singlequotes",
             "empty"
           ],
           "enumDescriptions": [
-            "%html.completion.attributeDefaultValue.doubleQuotes%",
-            "%html.completion.attributeDefaultValue.singleQuotes%",
+            "%html.completion.attributeDefaultValue.doublequotes%",
+            "%html.completion.attributeDefaultValue.singlequotes%",
             "%html.completion.attributeDefaultValue.empty%"
           ],
-          "default": "doubleQuotes",
+          "default": "doublequotes",
           "description": "%html.completion.attributeDefaultValue%"
         },
         "html.customData": {
