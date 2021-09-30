@@ -19,13 +19,13 @@ export class SettingsEditor {
 		await this.editor.waitForEditorFocus('settings.json', 1);
 
 		await this.code.dispatchKeybinding('right');
-		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value}`);
+		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
 	}
 
 	async clearUserSettings(): Promise<void> {
 		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
-		await new Promise((c, e) => fs.writeFile(settingsPath, '{\n}', 'utf8', err => err ? e(err) : c()));
+		await new Promise<void>((c, e) => fs.writeFile(settingsPath, '{\n}', 'utf8', err => err ? e(err) : c()));
 
 		await this.openSettings();
 		await this.editor.waitForEditorContents('settings.json', c => c === '{}');

@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannel, IOutputService, OUTPUT_VIEW_ID, OUTPUT_SCHEME, LOG_SCHEME, LOG_MIME, OUTPUT_MIME } from 'vs/workbench/contrib/output/common/output';
 import { IOutputChannelDescriptor, Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
@@ -15,8 +15,8 @@ import { OutputLinkProvider } from 'vs/workbench/contrib/output/common/outputLin
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IOutputChannelModel, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IOutputChannelModel, IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModel';
 import { IViewsService } from 'vs/workbench/common/views';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 
@@ -93,7 +93,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.setActiveChannel(channels && channels.length > 0 ? this.getChannel(channels[0].id) : undefined);
 		}
 
-		this._register(this.lifecycleService.onShutdown(() => this.dispose()));
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
 
 	provideTextContent(resource: URI): Promise<ITextModel> | null {
@@ -177,7 +177,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeChannel = channel;
 
 		if (this.activeChannel) {
-			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE);
+			this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannel.id, StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE);
 		}

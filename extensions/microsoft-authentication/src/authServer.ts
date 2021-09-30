@@ -53,7 +53,7 @@ export async function startServer(server: http.Server): Promise<string> {
 			reject(new Error('Closed'));
 		});
 
-		server.listen(0);
+		server.listen(0, '127.0.0.1');
 	});
 
 	port.then(cancelPortTimer, cancelPortTimer);

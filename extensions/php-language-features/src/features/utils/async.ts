@@ -105,7 +105,7 @@ export class Delayer<T> {
 	public defaultDelay: number;
 	private timeout: NodeJS.Timer | null;
 	private completionPromise: Promise<T> | null;
-	private onResolve: ((value: T | Thenable<T> | undefined) => void) | null;
+	private onResolve: ((value: T | PromiseLike<T> | undefined) => void) | null;
 	private task: ITask<T> | null;
 
 	constructor(defaultDelay: number) {
@@ -121,7 +121,7 @@ export class Delayer<T> {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T>((resolve) => {
+			this.completionPromise = new Promise<T | undefined>((resolve) => {
 				this.onResolve = resolve;
 			}).then(() => {
 				this.completionPromise = null;
@@ -179,7 +179,7 @@ export class ThrottledDelayer<T> extends Delayer<Promise<T>> {
 		this.throttler = new Throttler<T>();
 	}
 
-	public trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<Promise<T>> {
+	public override trigger(promiseFactory: ITask<Promise<T>>, delay?: number): Promise<Promise<T>> {
 		return super.trigger(() => this.throttler.queue(promiseFactory), delay);
 	}
 }

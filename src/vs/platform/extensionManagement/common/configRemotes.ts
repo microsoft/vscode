@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { endsWith } from 'vs/base/common/strings';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -76,7 +75,7 @@ function stripPort(authority: string): string | null {
 
 function normalizeRemote(host: string | null, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
-		if (stripEndingDotGit && endsWith(path, '.git')) {
+		if (stripEndingDotGit && path.endsWith('.git')) {
 			path = path.substr(0, path.length - 4);
 		}
 		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;

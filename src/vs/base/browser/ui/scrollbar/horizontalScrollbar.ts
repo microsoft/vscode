@@ -8,12 +8,12 @@ import { AbstractScrollbar, ISimplifiedMouseEvent, ScrollbarHost } from 'vs/base
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
-import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 
 
-const scrollbarButtonLeftIcon = registerIcon('scrollbar-button-left', Codicon.triangleLeft);
-const scrollbarButtonRightIcon = registerIcon('scrollbar-button-right', Codicon.triangleRight);
+const scrollbarButtonLeftIcon = registerCodicon('scrollbar-button-left', Codicon.triangleLeft);
+const scrollbarButtonRightIcon = registerCodicon('scrollbar-button-right', Codicon.triangleRight);
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
@@ -33,12 +33,13 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',
-			scrollable: scrollable
+			scrollable: scrollable,
+			scrollByPage: options.scrollByPage
 		});
 
 		if (options.horizontalHasArrows) {
-			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			const scrollbarDelta = (options.horizontalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
 				className: 'scra',
@@ -105,5 +106,12 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
 		target.scrollLeft = scrollPosition;
+	}
+
+	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
+		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
+		this._visibilityController.setVisibility(options.horizontal);
+		this._scrollByPage = options.scrollByPage;
 	}
 }
