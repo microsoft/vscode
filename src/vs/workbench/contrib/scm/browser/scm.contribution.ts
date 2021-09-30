@@ -201,7 +201,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
-			default: true
+			default: false
 		},
 		'scm.repositories.visible': {
 			type: 'number',
