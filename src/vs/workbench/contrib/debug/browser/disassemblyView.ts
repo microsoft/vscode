@@ -272,7 +272,7 @@ export class DisassemblyView extends EditorPane {
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
 			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount);
 		}
 
 		return false;
