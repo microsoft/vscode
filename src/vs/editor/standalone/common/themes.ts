@@ -68,7 +68,7 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'predefined.sql', foreground: 'C700C7' },
 	],
 	colors: {
-		[editorBackground]: '#FFFFFE',
+		[editorBackground]: '#000000',
 		[editorForeground]: '#000000',
 		[editorInactiveSelection]: '#E5EBF1',
 		[editorIndentGuides]: '#D3D3D3',
@@ -204,7 +204,7 @@ export const hc_black: IStandaloneThemeData = {
 	],
 	colors: {
 		[editorBackground]: '#000000',
-		[editorForeground]: '#FFFFFF',
+		[editorForeground]: '#000000',
 		[editorIndentGuides]: '#FFFFFF',
 		[editorActiveIndentGuides]: '#FFFFFF',
 	}
