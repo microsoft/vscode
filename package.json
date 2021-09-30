@@ -153,6 +153,8 @@ snyk-fix-b0c4bb16b4167139af59bb81ee62638d
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
+snyk-fix-464c3963e18332f87965e9f299ddfc7f
+    "electron": "11.4.11",
     snyk-fix-bb1ab5c3791b799fe341be4b4b76481f
     "electron": "11.4.11",
  snyk-fix-f7745ca40087a1908887247a86bb748d
@@ -168,6 +170,7 @@ snyk-fix-fa88476211ff808172cca8df92243506
     "electron": "12.0.13",
     "electron": "13.1.8",
 master
+
 
     "eslint": "6.8.0",
     "eslint-plugin-header": "3.1.1",
