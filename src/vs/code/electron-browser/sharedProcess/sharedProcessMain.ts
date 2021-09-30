@@ -218,11 +218,10 @@ class SharedProcessMain extends Disposable {
 
 		// Telemetry
 		let telemetryService: ITelemetryService;
-		let telemetryAppender: ITelemetryAppender;
 		const appenders: ITelemetryAppender[] = [];
 		if (supportsTelemetry(productService, environmentService)) {
-			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
-			appenders.push(telemetryAppender);
+			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
+			appenders.push(logAppender);
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;
 
 			// Application Insights
@@ -240,10 +239,11 @@ class SharedProcessMain extends Disposable {
 			}, configurationService);
 		} else {
 			telemetryService = NullTelemetryService;
-			telemetryAppender = NullAppender;
+			const nullAppender = NullAppender;
+			appenders.push(nullAppender);
 		}
 
-		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
+		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appenders));
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
