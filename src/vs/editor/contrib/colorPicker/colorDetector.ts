@@ -46,13 +46,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register(_editor.onDidChangeModel((e) => {
+		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
-		this._register(_editor.onDidChangeModelLanguage((e) => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange((e) => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration((e) => {
+		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
+		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
 			if (prevIsEnabled !== this._isEnabled) {
@@ -77,8 +77,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		const deprecatedConfig = this._configurationService.getValue<{}>(languageId.language);
-		if (deprecatedConfig) {
+		const deprecatedConfig = this._configurationService.getValue(languageId.language);
+		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
@@ -92,7 +92,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.stop();
 		this.removeAllDecorations();
 		super.dispose();
@@ -110,7 +110,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
 				this._timeoutTimer.cancelAndSet(() => {
@@ -178,7 +178,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			let key = 'colorBox-' + subKey;
 
 			if (!this._decorationsTypes.has(key) && !newDecorationsTypes[key]) {
-				this._codeEditorService.registerDecorationType(key, {
+				this._codeEditorService.registerDecorationType('color-detector-color', key, {
 					before: {
 						contentText: ' ',
 						border: 'solid 0.1em #000',

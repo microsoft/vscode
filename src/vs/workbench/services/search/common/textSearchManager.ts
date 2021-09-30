@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import { mapArrayOrNot } from 'vs/base/common/arrays';
+import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
+import { Schemas } from 'vs/base/common/network';
+import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
+import { isArray, isPromise } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
-import { nextTick } from 'vs/base/common/process';
+import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -26,7 +27,7 @@ export class TextSearchManager {
 	private isLimitHit = false;
 	private resultCount = 0;
 
-	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils) { }
+	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
 		const folderQueries = this.query.folderQueries || [];
@@ -54,7 +55,7 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					if (newResultSize > 0) {
+					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
@@ -70,8 +71,13 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
+					messages: flatten(results.map(result => {
+						if (!result?.message) { return []; }
+						if (isArray(result.message)) { return result.message; }
+						else { return [result.message]; }
+					})),
 					stats: {
-						type: 'textSearchProvider'
+						type: this.processType
 					}
 				});
 			}, (err: Error) => {
@@ -83,10 +89,15 @@ export class TextSearchManager {
 	}
 
 	private resultSize(result: TextSearchResult): number {
-		const match = <TextSearchMatch>result;
-		return Array.isArray(match.ranges) ?
-			match.ranges.length :
-			1;
+		if (extensionResultIsMatch(result)) {
+			return Array.isArray(result.ranges) ?
+				result.ranges.length :
+				1;
+		}
+		else {
+			// #104400 context lines shoudn't count towards result count
+			return 0;
+		}
 	}
 
 	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
@@ -103,7 +114,7 @@ export class TextSearchManager {
 		};
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
 		const testingPs: Promise<void>[] = [];
 		const progress = {
@@ -112,7 +123,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				const hasSibling = folderQuery.folder.scheme === 'file' ?
+				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					glob.hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
 					}) :
@@ -120,24 +131,29 @@ export class TextSearchManager {
 
 				const relativePath = resources.relativePath(folderQuery.folder, result.uri);
 				if (relativePath) {
-					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling)
-							.then(included => {
-								if (included) {
+					// This method is only async when the exclude contains sibling clauses
+					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
+					if (isPromise(included)) {
+						testingPs.push(
+							included.then(isIncluded => {
+								if (isIncluded) {
 									onResult(result);
 								}
 							}));
+					} else if (included) {
+						onResult(result);
+					}
 				}
 			}
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new Promise(resolve => nextTick(resolve))
-			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
-			.then(result => {
-				return Promise.all(testingPs)
-					.then(() => result);
-			});
+		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
+		if (testingPs.length) {
+			await Promise.all(testingPs);
+		}
+
+		return result;
 	}
 
 	private validateProviderResult(result: TextSearchResult): boolean {

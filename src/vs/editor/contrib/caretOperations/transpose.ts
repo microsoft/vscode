@@ -63,8 +63,8 @@ class TransposeLettersAction extends EditorAction {
 				selection.getPosition() :
 				MoveOperations.rightPosition(model, selection.getPosition().lineNumber, selection.getPosition().column);
 
-			let middlePosition = MoveOperations.leftPosition(model, endPosition.lineNumber, endPosition.column);
-			let beginPosition = MoveOperations.leftPosition(model, middlePosition.lineNumber, middlePosition.column);
+			let middlePosition = MoveOperations.leftPosition(model, endPosition);
+			let beginPosition = MoveOperations.leftPosition(model, middlePosition);
 
 			let leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
 			let rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));

@@ -19,7 +19,7 @@ const $ = dom.$;
 const fileService = new TestFileService();
 
 function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, name, mtime, isUnknown);
+	return new ExplorerItem(toResource.call(this, path), fileService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
 }
 
 suite('Files - ExplorerView', () => {
@@ -32,11 +32,11 @@ suite('Files - ExplorerView', () => {
 		const s4 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
 		const noNavigationController = { getCompressedNavigationController: (stat: ExplorerItem) => undefined };
 
-		assert.deepEqual(getContext([s1], [s2, s3, s4], true, noNavigationController), [s1]);
-		assert.deepEqual(getContext([s1], [s1, s3, s4], true, noNavigationController), [s1, s3, s4]);
-		assert.deepEqual(getContext([s1], [s3, s1, s4], false, noNavigationController), [s1]);
-		assert.deepEqual(getContext([], [s3, s1, s4], false, noNavigationController), []);
-		assert.deepEqual(getContext([], [s3, s1, s4], true, noNavigationController), [s3, s1, s4]);
+		assert.deepStrictEqual(getContext([s1], [s2, s3, s4], true, noNavigationController), [s1]);
+		assert.deepStrictEqual(getContext([s1], [s1, s3, s4], true, noNavigationController), [s1, s3, s4]);
+		assert.deepStrictEqual(getContext([s1], [s3, s1, s4], false, noNavigationController), [s1]);
+		assert.deepStrictEqual(getContext([], [s3, s1, s4], false, noNavigationController), []);
+		assert.deepStrictEqual(getContext([], [s3, s1, s4], true, noNavigationController), [s3, s1, s4]);
 	});
 
 	test('decoration provider', async function () {
@@ -45,19 +45,19 @@ suite('Files - ExplorerView', () => {
 		s1.isError = true;
 		const s2 = createStat.call(this, '/path/to', 'to', true, false, 8096, d, true);
 		const s3 = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d);
-		assert.equal(provideDecorations(s3), undefined);
-		assert.deepEqual(provideDecorations(s2), {
+		assert.strictEqual(provideDecorations(s3), undefined);
+		assert.deepStrictEqual(provideDecorations(s2), {
 			tooltip: 'Symbolic Link',
 			letter: '\u2937'
 		});
-		assert.deepEqual(provideDecorations(s1), {
+		assert.deepStrictEqual(provideDecorations(s1), {
 			tooltip: 'Unable to resolve workspace folder',
 			letter: '!',
 			color: listInvalidItemForeground
 		});
 
 		const unknown = createStat.call(this, '/path/to/stat', 'stat', false, false, 8096, d, false, true);
-		assert.deepEqual(provideDecorations(unknown), {
+		assert.deepStrictEqual(provideDecorations(unknown), {
 			tooltip: 'Unknown File Type',
 			letter: '?'
 		});
@@ -89,24 +89,24 @@ suite('Files - ExplorerView', () => {
 			}
 		}, 1, false);
 
-		assert.equal(navigationController.count, 3);
-		assert.equal(navigationController.index, 2);
-		assert.equal(navigationController.current, s3);
+		assert.strictEqual(navigationController.count, 3);
+		assert.strictEqual(navigationController.index, 2);
+		assert.strictEqual(navigationController.current, s3);
 		navigationController.next();
-		assert.equal(navigationController.current, s3);
+		assert.strictEqual(navigationController.current, s3);
 		navigationController.previous();
-		assert.equal(navigationController.current, s2);
+		assert.strictEqual(navigationController.current, s2);
 		navigationController.previous();
-		assert.equal(navigationController.current, s1);
+		assert.strictEqual(navigationController.current, s1);
 		navigationController.previous();
-		assert.equal(navigationController.current, s1);
+		assert.strictEqual(navigationController.current, s1);
 		navigationController.last();
-		assert.equal(navigationController.current, s3);
+		assert.strictEqual(navigationController.current, s3);
 		navigationController.first();
-		assert.equal(navigationController.current, s1);
+		assert.strictEqual(navigationController.current, s1);
 		navigationController.setIndex(1);
-		assert.equal(navigationController.current, s2);
+		assert.strictEqual(navigationController.current, s2);
 		navigationController.setIndex(44);
-		assert.equal(navigationController.current, s2);
+		assert.strictEqual(navigationController.current, s2);
 	});
 });
