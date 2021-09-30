@@ -3,52 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, INotebookEditor, NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellContextKeyManager extends Disposable {
 
-	private cellType!: IContextKey<string>;
-	private viewType!: IContextKey<string>;
+	private cellType!: IContextKey<'code' | 'markup'>;
 	private cellEditable!: IContextKey<boolean>;
-	private cellRunnable!: IContextKey<boolean>;
-	private cellRunState!: IContextKey<string>;
+	private cellFocused!: IContextKey<boolean>;
+	private cellEditorFocused!: IContextKey<boolean>;
+	private cellRunState!: IContextKey<NotebookCellExecutionStateContext>;
+	private cellExecuting!: IContextKey<boolean>;
 	private cellHasOutputs!: IContextKey<boolean>;
 	private cellContentCollapsed!: IContextKey<boolean>;
 	private cellOutputCollapsed!: IContextKey<boolean>;
+	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
 
 	private markdownEditMode!: IContextKey<boolean>;
 
-	private elementDisposables = new DisposableStore();
+	private readonly elementDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
-		private readonly notebookTextModel: INotebookTextModel,
-		private element: BaseCellViewModel
+		private readonly notebookEditor: INotebookEditor,
+		private element: CodeCellViewModel | MarkupCellViewModel
 	) {
 		super();
 
 		this.contextKeyService.bufferChangeEvents(() => {
 			this.cellType = NOTEBOOK_CELL_TYPE.bindTo(this.contextKeyService);
-			this.viewType = NOTEBOOK_VIEW_TYPE.bindTo(this.contextKeyService);
 			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
-			this.cellRunnable = NOTEBOOK_CELL_RUNNABLE.bindTo(this.contextKeyService);
+			this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this.contextKeyService);
+			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
-			this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
+			this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this.contextKeyService);
+			this.cellExecuting = NOTEBOOK_CELL_EXECUTING.bindTo(this.contextKeyService);
 			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
+			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this.contextKeyService);
 
 			this.updateForElement(element);
 		});
 	}
 
-	public updateForElement(element: BaseCellViewModel) {
+	public updateForElement(element: MarkupCellViewModel | CodeCellViewModel) {
 		this.elementDisposables.clear();
 		this.elementDisposables.add(element.onDidChangeState(e => this.onDidChangeState(e)));
 
@@ -57,32 +60,42 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.elementDisposables.add(element.model.onDidChangeMetadata(() => this.updateForCollapseState()));
+		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
 
 		this.element = element;
-		if (this.element instanceof MarkdownCellViewModel) {
-			this.cellType.set('markdown');
+		if (this.element instanceof MarkupCellViewModel) {
+			this.cellType.set('markup');
 		} else if (this.element instanceof CodeCellViewModel) {
 			this.cellType.set('code');
 		}
 
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.updateForMetadata();
+			this.updateForFocusState();
+			this.updateForInternalMetadata();
 			this.updateForEditState();
 			this.updateForCollapseState();
 			this.updateForOutputs();
 
-			this.viewType.set(this.element.viewType);
+			this.cellLineNumbers.set(this.element.lineNumbers);
 		});
 	}
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
 		this.contextKeyService.bufferChangeEvents(() => {
-			if (e.metadataChanged) {
-				this.updateForMetadata();
+			if (e.internalMetadataChanged) {
+				this.updateForInternalMetadata();
 			}
 
 			if (e.editStateChanged) {
 				this.updateForEditState();
+			}
+
+			if (e.focusModeChanged) {
+				this.updateForFocusState();
+			}
+
+			if (e.cellLineNumberChanged) {
+				this.cellLineNumbers.set(this.element.lineNumbers);
 			}
 
 			// if (e.collapseStateChanged) {
@@ -91,31 +104,60 @@ export class CellContextKeyManager extends Disposable {
 		});
 	}
 
-	private updateForMetadata() {
-		const metadata = this.element.getEvaluatedMetadata(this.notebookTextModel.metadata);
-		this.cellEditable.set(!!metadata.editable);
-		this.cellRunnable.set(!!metadata.runnable);
+	private updateForFocusState() {
+		const activeCell = this.notebookEditor.getActiveCell();
+		this.cellFocused.set(this.notebookEditor.getActiveCell() === this.element);
 
-		const runState = metadata.runState ?? NotebookCellRunState.Idle;
-		this.cellRunState.set(NotebookCellRunState[runState]);
+		if (activeCell === this.element) {
+			this.cellEditorFocused.set(this.element.focusMode === CellFocusMode.Editor);
+		} else {
+			this.cellEditorFocused.set(false);
+		}
+
+	}
+
+	private updateForInternalMetadata() {
+		const internalMetadata = this.element.internalMetadata;
+		this.cellEditable.set(!this.notebookEditor.viewModel?.options.isReadOnly);
+
+		const runState = internalMetadata.runState;
+		if (this.element instanceof MarkupCellViewModel) {
+			this.cellRunState.reset();
+			this.cellExecuting.reset();
+		} else if (runState === NotebookCellExecutionState.Executing) {
+			this.cellRunState.set('executing');
+			this.cellExecuting.set(true);
+		} else if (runState === NotebookCellExecutionState.Pending) {
+			this.cellRunState.set('pending');
+			this.cellExecuting.set(true);
+		} else if (internalMetadata.lastRunSuccess === true) {
+			this.cellRunState.set('succeeded');
+			this.cellExecuting.set(false);
+		} else if (internalMetadata.lastRunSuccess === false) {
+			this.cellRunState.set('failed');
+			this.cellExecuting.set(false);
+		} else {
+			this.cellRunState.set('idle');
+			this.cellExecuting.set(false);
+		}
 	}
 
 	private updateForEditState() {
-		if (this.element instanceof MarkdownCellViewModel) {
-			this.markdownEditMode.set(this.element.editState === CellEditState.Editing);
+		if (this.element instanceof MarkupCellViewModel) {
+			this.markdownEditMode.set(this.element.getEditState() === CellEditState.Editing);
 		} else {
 			this.markdownEditMode.set(false);
 		}
 	}
 
 	private updateForCollapseState() {
-		this.cellContentCollapsed.set(!!this.element.metadata?.inputCollapsed);
-		this.cellOutputCollapsed.set(!!this.element.metadata?.outputCollapsed);
+		this.cellContentCollapsed.set(!!this.element.metadata.inputCollapsed);
+		this.cellOutputCollapsed.set(!!this.element.metadata.outputCollapsed);
 	}
 
 	private updateForOutputs() {
 		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasOutputs.set(this.element.outputs.length > 0);
+			this.cellHasOutputs.set(this.element.outputsViewModels.length > 0);
 		} else {
 			this.cellHasOutputs.set(false);
 		}

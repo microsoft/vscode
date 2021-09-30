@@ -15,16 +15,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
-
-	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IHostService hostService: IHostService,
@@ -35,13 +34,15 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
 		@IModeService modeService: IModeService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IPathService pathService: IPathService
 	) {
-		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService);
+		super(hostService, contextService, historyService, environmentService, instantiationService,
+			configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService, pathService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -55,61 +56,65 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 	private shouldUseSimplified(schema: string): { useSimplified: boolean, isSetting: boolean } {
 		const setting = (this.configurationService.getValue('files.simpleDialog.enable') === true);
 		const newWindowSetting = (this.configurationService.getValue('window.openFilesInNewWindow') === 'on');
-		return { useSimplified: (schema !== Schemas.file) || setting, isSetting: newWindowSetting };
+		return {
+			useSimplified: ((schema !== Schemas.file) && (schema !== Schemas.userData)) || setting,
+			isSetting: newWindowSetting
+		};
 	}
 
-	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
 		const shouldUseSimplified = this.shouldUseSimplified(schema);
 		if (shouldUseSimplified.useSimplified) {
 			return this.pickFileFolderAndOpenSimplified(schema, options, shouldUseSimplified.isSetting);
 		}
-		return this.electronService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		return this.nativeHostService.pickFileFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFileAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFilePath(schema);
+			options.defaultUri = await this.defaultFilePath(schema);
 		}
 
 		const shouldUseSimplified = this.shouldUseSimplified(schema);
 		if (shouldUseSimplified.useSimplified) {
 			return this.pickFileAndOpenSimplified(schema, options, shouldUseSimplified.isSetting);
 		}
-		return this.electronService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
+		return this.nativeHostService.pickFileAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<any> {
+	async pickFolderAndOpen(options: IPickAndOpenOptions): Promise<void> {
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultFolderPath(schema);
+			options.defaultUri = await this.defaultFolderPath(schema);
 		}
 
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFolderAndOpenSimplified(schema, options);
 		}
-		return this.electronService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
+		return this.nativeHostService.pickFolderAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
+		options.availableFileSystems = this.getWorkspaceAvailableFileSystems(options);
 		const schema = this.getFileSystemSchema(options);
 
 		if (!options.defaultUri) {
-			options.defaultUri = this.defaultWorkspacePath(schema);
+			options.defaultUri = await this.defaultWorkspacePath(schema);
 		}
 
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickWorkspaceAndOpenSimplified(schema, options);
 		}
-		return this.electronService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
+		return this.nativeHostService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
 	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
@@ -118,7 +123,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
-			const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+			const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
 			if (result && !result.canceled && result.filePath) {
 				return URI.file(result.filePath);
 			}
@@ -142,7 +147,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
-		const result = await this.electronService.showSaveDialog(this.toNativeSaveDialogOptions(options));
+		const result = await this.nativeHostService.showSaveDialog(this.toNativeSaveDialogOptions(options));
 		if (result && !result.canceled && result.filePath) {
 			return URI.file(result.filePath);
 		}
@@ -180,14 +185,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			newOptions.properties.push('multiSelections');
 		}
 
-		const result = await this.electronService.showOpenDialog(newOptions);
+		const result = await this.nativeHostService.showOpenDialog(newOptions);
 		return result && Array.isArray(result.filePaths) && result.filePaths.length > 0 ? result.filePaths.map(URI.file) : undefined;
-	}
-
-	protected addFileSchemaIfNeeded(schema: string): string[] {
-		// Include File schema unless the schema is web
-		// Don't allow untitled schema through.
-		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 }
 

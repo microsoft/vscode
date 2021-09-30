@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./progressbar';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { removeClasses, addClass, hasClass, addClasses, removeClass, hide, show } from 'vs/base/browser/dom';
+import { hide, show } from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Color } from 'vs/base/common/color';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
 import { isNumber } from 'vs/base/common/types';
+import 'vs/css!./progressbar';
 
-const css_done = 'done';
-const css_active = 'active';
-const css_infinite = 'infinite';
-const css_discrete = 'discrete';
-const css_progress_container = 'monaco-progress-container';
-const css_progress_bit = 'progress-bit';
+const CSS_DONE = 'done';
+const CSS_ACTIVE = 'active';
+const CSS_INFINITE = 'infinite';
+const CSS_DISCRETE = 'discrete';
 
 export interface IProgressBarOptions extends IProgressBarStyles {
 }
@@ -58,11 +56,13 @@ export class ProgressBar extends Disposable {
 
 	private create(container: HTMLElement): void {
 		this.element = document.createElement('div');
-		addClass(this.element, css_progress_container);
+		this.element.classList.add('monaco-progress-container');
+		this.element.setAttribute('role', 'progressbar');
+		this.element.setAttribute('aria-valuemin', '0');
 		container.appendChild(this.element);
 
 		this.bit = document.createElement('div');
-		addClass(this.bit, css_progress_bit);
+		this.bit.classList.add('progress-bit');
 		this.element.appendChild(this.bit);
 
 		this.applyStyles();
@@ -71,7 +71,7 @@ export class ProgressBar extends Disposable {
 	private off(): void {
 		this.bit.style.width = 'inherit';
 		this.bit.style.opacity = '1';
-		removeClasses(this.element, css_active, css_infinite, css_discrete);
+		this.element.classList.remove(CSS_ACTIVE, CSS_INFINITE, CSS_DISCRETE);
 
 		this.workedVal = 0;
 		this.totalWork = undefined;
@@ -92,10 +92,10 @@ export class ProgressBar extends Disposable {
 	}
 
 	private doDone(delayed: boolean): ProgressBar {
-		addClass(this.element, css_done);
+		this.element.classList.add(CSS_DONE);
 
 		// let it grow to 100% width and hide afterwards
-		if (!hasClass(this.element, css_infinite)) {
+		if (!this.element.classList.contains(CSS_INFINITE)) {
 			this.bit.style.width = 'inherit';
 
 			if (delayed) {
@@ -125,8 +125,8 @@ export class ProgressBar extends Disposable {
 		this.bit.style.width = '2%';
 		this.bit.style.opacity = '1';
 
-		removeClasses(this.element, css_discrete, css_done);
-		addClasses(this.element, css_active, css_infinite);
+		this.element.classList.remove(CSS_DISCRETE, CSS_DONE);
+		this.element.classList.add(CSS_ACTIVE, CSS_INFINITE);
 
 		return this;
 	}
@@ -138,6 +138,7 @@ export class ProgressBar extends Disposable {
 	total(value: number): ProgressBar {
 		this.workedVal = 0;
 		this.totalWork = value;
+		this.element.setAttribute('aria-valuemax', value.toString());
 
 		return this;
 	}
@@ -173,21 +174,9 @@ export class ProgressBar extends Disposable {
 		this.workedVal = value;
 		this.workedVal = Math.min(totalWork, this.workedVal);
 
-		if (hasClass(this.element, css_infinite)) {
-			removeClass(this.element, css_infinite);
-		}
-
-		if (hasClass(this.element, css_done)) {
-			removeClass(this.element, css_done);
-		}
-
-		if (!hasClass(this.element, css_active)) {
-			addClass(this.element, css_active);
-		}
-
-		if (!hasClass(this.element, css_discrete)) {
-			addClass(this.element, css_discrete);
-		}
+		this.element.classList.remove(CSS_INFINITE, CSS_DONE);
+		this.element.classList.add(CSS_ACTIVE, CSS_DISCRETE);
+		this.element.setAttribute('aria-valuenow', value.toString());
 
 		this.bit.style.width = 100 * (this.workedVal / (totalWork)) + '%';
 

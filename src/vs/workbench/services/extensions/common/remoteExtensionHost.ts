@@ -19,9 +19,9 @@ import { IRemoteAuthorityResolverService, IRemoteConnectionData } from 'vs/platf
 import * as platform from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -52,11 +52,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
+	public readonly lazyStart = false;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
 
 	private _protocol: PersistentProtocol | null;
+	private _hasLostConnection: boolean;
 	private _terminating: boolean;
 	private readonly _isExtensionDevHost: boolean;
 
@@ -77,9 +79,10 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		super();
 		this.remoteAuthority = this._initDataProvider.remoteAuthority;
 		this._protocol = null;
+		this._hasLostConnection = false;
 		this._terminating = false;
 
-		this._register(this._lifecycleService.onShutdown(reason => this.dispose()));
+		this._register(this._lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -92,7 +95,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			addressProvider: {
 				getAddress: async () => {
 					const { authority } = await this.remoteAuthorityResolverService.resolveAuthority(this._initDataProvider.remoteAuthority);
-					return { host: authority.host, port: authority.port };
+					return { host: authority.host, port: authority.port, connectionToken: authority.connectionToken };
 				}
 			},
 			signService: this._signService,
@@ -130,7 +133,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
 				}
 
-				protocol.onClose(() => {
+				protocol.onDidDispose(() => {
 					this._onExtHostConnectionLost();
 				});
 
@@ -188,6 +191,11 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	}
 
 	private _onExtHostConnectionLost(): void {
+		if (this._hasLostConnection) {
+			// avoid re-entering this method
+			return;
+		}
+		this._hasLostConnection = true;
 
 		if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId) {
 			this._extensionHostDebugService.close(this._environmentService.debugExtensionHost.debugId);
@@ -205,8 +213,15 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		const [telemetryInfo, remoteInitData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 
 		// Collect all identifiers for extension ids which can be considered "resolved"
+		const remoteExtensions = new Set<string>();
+		remoteInitData.extensions.forEach((extension) => remoteExtensions.add(ExtensionIdentifier.toKey(extension.identifier.value)));
+
 		const resolvedExtensions = remoteInitData.allExtensions.filter(extension => !extension.main && !extension.browser).map(extension => extension.identifier);
-		const hostExtensions = remoteInitData.allExtensions.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier);
+		const hostExtensions = (
+			remoteInitData.allExtensions
+				.filter(extension => !remoteExtensions.has(ExtensionIdentifier.toKey(extension.identifier.value)))
+				.filter(extension => (extension.main || extension.browser) && extension.api === 'none').map(extension => extension.identifier)
+		);
 		const workspace = this._contextService.getWorkspace();
 		return {
 			commit: this._productService.commit,
@@ -216,14 +231,13 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
 				appName: this._productService.nameLong,
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
@@ -255,7 +269,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		return Promise.resolve(false);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._terminating = true;

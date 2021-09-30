@@ -4,76 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/activityaction';
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { dispose } from 'vs/base/common/lifecycle';
-import { SyncActionDescriptor, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ActivityAction, ActivityActionViewItem, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
 	private static readonly preventDoubleClickDelay = 300;
 
-	private readonly viewletService: IViewletService;
-	private readonly layoutService: IWorkbenchLayoutService;
-	private readonly telemetryService: ITelemetryService;
-	private readonly configurationService: IConfigurationService;
-
-	private lastRun: number;
+	private lastRun = 0;
 
 	constructor(
 		activity: IActivity,
-		@IViewletService viewletService: IViewletService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IViewletService private readonly viewletService: IViewletService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(activity);
-
-		this.lastRun = 0;
-		this.viewletService = viewletService;
-		this.layoutService = layoutService;
-		this.telemetryService = telemetryService;
-		this.configurationService = configurationService;
 	}
 
 	updateActivity(activity: IActivity): void {
 		this.activity = activity;
 	}
 
-	async run(event: unknown): Promise<void> {
+	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return; // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
 			return;
 		}
 		this.lastRun = now;
@@ -82,11 +74,12 @@ export class ViewContainerActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
+		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			switch (focusBehavior) {
 				case 'focus':
 					this.logAction('refocus');
-					this.viewletService.openViewlet(this.activity.id, true);
+					this.viewletService.openViewlet(this.activity.id, focus);
 					break;
 				case 'toggle':
 				default:
@@ -100,198 +93,230 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.viewletService.openViewlet(this.activity.id, true);
+		await this.viewletService.openViewlet(this.activity.id, focus);
+
 		return this.activate();
 	}
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
-export const ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+class MenuActivityActionViewItem extends ActivityActionViewItem {
 
-export class AccountsActionViewItem extends ActivityActionViewItem {
 	constructor(
+		private readonly menuId: MenuId,
 		action: ActivityAction,
+		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
+		hoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IMenuService protected menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IHoverService hoverService: IHoverService,
+		@IMenuService protected readonly menuService: IMenuService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { draggable: false, colors, icon: true }, themeService);
+		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		// Context menus are triggered on mouse down so that an item can be picked
 		// and executed with releasing the mouse over it
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
+		this._register(addDisposableListener(this.container, EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			EventHelper.stop(e, true);
+			this.showContextMenu(e);
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+		this._register(addDisposableListener(this.container, EventType.KEY_UP, (e: KeyboardEvent) => {
 			let event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(e, true);
+				EventHelper.stop(e, true);
 				this.showContextMenu();
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
-			DOM.EventHelper.stop(e, true);
+		this._register(addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			EventHelper.stop(e, true);
 			this.showContextMenu();
 		}));
 	}
 
-	private async getActions(accountsMenu: IMenu) {
+	private async showContextMenu(e?: MouseEvent): Promise<void> {
+		const disposables = new DisposableStore();
+
+		let actions: IAction[];
+		if (e?.button !== 2) {
+			const menu = disposables.add(this.menuService.createMenu(this.menuId, this.contextKeyService));
+			actions = await this.resolveMainMenuActions(menu, disposables);
+		} else {
+			actions = await this.resolveContextMenuActions(disposables);
+		}
+
+		const isUsingCustomMenu = isWeb || (getTitleBarStyle(this.configurationService) !== 'native' && !isMacintosh); // see #40262
+		const position = this.configurationService.getValue('workbench.sideBar.location');
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => isUsingCustomMenu ? this.container : e || this.container,
+			anchorAlignment: isUsingCustomMenu ? (position === 'left' ? AnchorAlignment.RIGHT : AnchorAlignment.LEFT) : undefined,
+			anchorAxisAlignment: isUsingCustomMenu ? AnchorAxisAlignment.HORIZONTAL : AnchorAxisAlignment.VERTICAL,
+			getActions: () => actions,
+			onHide: () => disposables.dispose()
+		});
+	}
+
+	protected async resolveMainMenuActions(menu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+		const actions: IAction[] = [];
+
+		disposables.add(createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: actions }));
+
+		return actions;
+	}
+
+	protected async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		return this.contextMenuActionsProvider();
+	}
+}
+
+export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
+
+	static readonly ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+
+	constructor(
+		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
+		colors: (theme: IColorTheme) => ICompositeBarColors,
+		activityHoverOptions: IActivityHoverOptions,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService,
+	) {
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+	}
+
+	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+		await super.resolveMainMenuActions(accountsMenu, disposables);
+
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
-		const allSessions = providers.map(async id => {
-			const sessions = await this.authenticationService.getSessions(id);
+		const allSessions = providers.map(async providerId => {
+			try {
+				const sessions = await this.authenticationService.getSessions(providerId);
 
-			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
-			sessions.forEach(session => {
-				if (groupedSessions[session.account.label]) {
-					groupedSessions[session.account.label].push(session);
-				} else {
-					groupedSessions[session.account.label] = [session];
-				}
-			});
+				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
+				sessions.forEach(session => {
+					if (groupedSessions[session.account.label]) {
+						groupedSessions[session.account.label].push(session);
+					} else {
+						groupedSessions[session.account.label] = [session];
+					}
+				});
 
-			return {
-				providerId: id,
-				sessions: groupedSessions
-			};
+				return { providerId, sessions: groupedSessions };
+			} catch {
+				return { providerId };
+			}
 		});
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
+		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
-			Object.keys(sessionInfo.sessions).forEach(accountName => {
-				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
-				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
-					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
-				});
-				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
-					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
-				});
 
-				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+			if (sessionInfo.sessions) {
+				Object.keys(sessionInfo.sessions).forEach(accountName => {
+					const manageExtensionsAction = disposables.add(new Action(`configureSessions${accountName}`, localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, () => {
+						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+					}));
 
-				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
-				menus.push(menu);
-			});
+					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), '', true, () => {
+						return this.authenticationService.removeAccountSessions(sessionInfo.providerId, accountName, sessionInfo.sessions[accountName]);
+					}));
+
+					const providerSubMenuActions = [manageExtensionsAction];
+
+					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id));
+					if (!hasEmbedderAccountSession || authenticationSession?.canSignOut) {
+						providerSubMenuActions.push(signOutAction);
+					}
+
+					const providerSubMenu = disposables.add(new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, providerSubMenuActions));
+					menus.push(providerSubMenu);
+				});
+			} else {
+				const providerUnavailableAction = disposables.add(new Action('providerUnavailable', localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName)));
+				menus.push(providerUnavailableAction);
+			}
 		});
 
+		if (providers.length && !menus.length) {
+			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('noAccounts', "You are not signed in to any accounts"), undefined, false));
+			menus.push(noAccountsAvailableAction);
+		}
+
 		if (menus.length && otherCommands.length) {
-			menus.push(new Separator());
+			menus.push(disposables.add(new Separator()));
 		}
 
 		otherCommands.forEach((group, i) => {
 			const actions = group[1];
 			menus = menus.concat(actions);
 			if (i !== otherCommands.length - 1) {
-				menus.push(new Separator());
+				menus.push(disposables.add(new Separator()));
 			}
 		});
-
-		if (menus.length) {
-			menus.push(new Separator());
-		}
-
-		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
-			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
-			return Promise.resolve();
-		}));
 
 		return menus;
 	}
 
-	private async showContextMenu(): Promise<void> {
-		const accountsActions: IAction[] = [];
-		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
-		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+		const actions = await super.resolveContextMenuActions(disposables);
 
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
-		const actions = await this.getActions(accountsMenu);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
-			getActions: () => actions,
-			onHide: () => {
-				accountsMenu.dispose();
-				dispose(actionsDisposable);
-			}
-		});
+		actions.unshift(...[
+			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER) }),
+			new Separator()
+		]);
+
+		return actions;
 	}
 }
 
-export class GlobalActivityActionViewItem extends ActivityActionViewItem {
+export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
+		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
+		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IHoverService hoverService: IHoverService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { draggable: false, colors, icon: true }, themeService);
-	}
-
-	render(container: HTMLElement): void {
-		super.render(container);
-
-		// Context menus are triggered on mouse down so that an item can be picked
-		// and executed with releasing the mouse over it
-
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
-		}));
-
-		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-				DOM.EventHelper.stop(e, true);
-				this.showContextMenu();
-			}
-		}));
-
-		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
-			DOM.EventHelper.stop(e, true);
-			this.showContextMenu();
-		}));
-	}
-
-	private showContextMenu(): void {
-		const globalActivityActions: IAction[] = [];
-		const globalActivityMenu = this.menuService.createMenu(MenuId.GlobalActivity, this.contextKeyService);
-		const actionsDisposable = createAndFillInActionBarActions(globalActivityMenu, undefined, { primary: [], secondary: globalActivityActions });
-
-		const containerPosition = DOM.getDomNodePagePosition(this.container);
-		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => location,
-			getActions: () => globalActivityActions,
-			onHide: () => {
-				globalActivityMenu.dispose();
-				dispose(actionsDisposable);
-			}
-		});
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 }
 
@@ -308,117 +333,64 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 	}
 }
 
-class SwitchSideBarViewAction extends Action {
+class SwitchSideBarViewAction extends Action2 {
 
 	constructor(
-		id: string,
-		name: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IActivityBarService private readonly activityBarService: IActivityBarService
+		desc: Readonly<IAction2Options>,
+		private readonly offset: number
 	) {
-		super(id, name);
+		super(desc);
 	}
 
-	async run(offset: number): Promise<void> {
-		const visibleViewletIds = this.activityBarService.getVisibleViewContainerIds();
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const activityBarService = accessor.get(IActivityBarService);
+		const viewletService = accessor.get(IViewletService);
 
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		const visibleViewletIds = activityBarService.getVisibleViewContainerIds();
+
+		const activeViewlet = viewletService.getActiveViewlet();
 		if (!activeViewlet) {
 			return;
 		}
 		let targetViewletId: string | undefined;
 		for (let i = 0; i < visibleViewletIds.length; i++) {
 			if (visibleViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + offset) % visibleViewletIds.length];
+				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + this.offset) % visibleViewletIds.length];
 				break;
 			}
 		}
 
-		await this.viewletService.openViewlet(targetViewletId, true);
+		await viewletService.openViewlet(targetViewletId, true);
 	}
 }
 
-export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
-
-	static readonly ID = 'workbench.action.previousSideBarView';
-	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
-
-	constructor(
-		id: string,
-		name: string,
-		@IViewletService viewletService: IViewletService,
-		@IActivityBarService activityBarService: IActivityBarService
-	) {
-		super(id, name, viewletService, activityBarService);
-	}
-
-	run(): Promise<void> {
-		return super.run(-1);
-	}
-}
-
-export class NextSideBarViewAction extends SwitchSideBarViewAction {
-
-	static readonly ID = 'workbench.action.nextSideBarView';
-	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
-
-	constructor(
-		id: string,
-		name: string,
-		@IViewletService viewletService: IViewletService,
-		@IActivityBarService activityBarService: IActivityBarService
-	) {
-		super(id, name, viewletService, activityBarService);
-	}
-
-	run(): Promise<void> {
-		return super.run(1);
-	}
-}
-
-export class HomeAction extends Action {
-
-	constructor(
-		private readonly href: string,
-		name: string,
-		icon: Codicon
-	) {
-		super('workbench.action.home', name, icon.classNames);
-	}
-
-	async run(event: MouseEvent): Promise<void> {
-		let openInNewWindow = false;
-		if (isMacintosh) {
-			openInNewWindow = event.metaKey;
-		} else {
-			openInNewWindow = event.ctrlKey;
-		}
-
-		if (openInNewWindow) {
-			DOM.windowOpenNoOpener(this.href);
-		} else {
-			window.location.href = this.href;
+registerAction2(
+	class PreviousSideBarViewAction extends SwitchSideBarViewAction {
+		constructor() {
+			super({
+				id: 'workbench.action.previousSideBarView',
+				title: { value: localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
+				category: CATEGORIES.View,
+				f1: true
+			}, -1);
 		}
 	}
-}
+);
 
-export class HomeActionViewItem extends ActionViewItem {
-
-	constructor(action: IAction) {
-		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
+registerAction2(
+	class NextSideBarViewAction extends SwitchSideBarViewAction {
+		constructor() {
+			super({
+				id: 'workbench.action.nextSideBarView',
+				title: { value: localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
+				category: CATEGORIES.View,
+				f1: true
+			}, 1);
+		}
 	}
-}
+);
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const activityBarBackgroundColor = theme.getColor(ACTIVITY_BAR_BACKGROUND);
-	if (activityBarBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content > .home-bar > .home-bar-icon-badge {
-				background-color: ${activityBarBackgroundColor};
-			}
-		`);
-	}
-
+registerThemingParticipant((theme, collector) => {
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
 		collector.addRule(`
@@ -427,7 +399,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
 				background-color: ${activityBarForegroundColor} !important;
 			}
-			.monaco-workbench .activitybar > .content .home-bar > .monaco-action-bar .action-item .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
@@ -480,6 +451,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 				left: 9px;
 				height: 32px;
 				width: 32px;
+				z-index: 1;
 			}
 
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active:before,
@@ -493,7 +465,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 				outline: 1px dashed;
 			}
 
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 				border-left-color: ${outline};
 			}
 
@@ -512,14 +484,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		const focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
 			collector.addRule(`
-					.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+				.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 						border-left-color: ${focusBorderColor};
 					}
 				`);
 		}
 	}
 });
-
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Terminal, ITerminalAddon } from 'xterm';
+import type { Terminal, ITerminalAddon } from 'xterm';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { INavigationMode } from 'vs/workbench/contrib/terminal/common/terminal';
 

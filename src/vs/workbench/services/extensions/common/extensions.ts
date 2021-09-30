@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -24,6 +24,7 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export type WebWorkerExtHostConfigValue = boolean | 'auto';
 export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
@@ -35,14 +36,21 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
+export const enum ExtensionRunningLocation {
+	None,
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
+	runningLocation: ExtensionRunningLocation;
 }
 
-export type ExtensionActivationError = string | MissingDependencyError;
-export class MissingDependencyError {
+export class MissingExtensionDependency {
 	constructor(readonly dependency: string) { }
 }
 
@@ -95,6 +103,7 @@ export const enum ExtensionHostKind {
 export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
+	readonly lazyStart: boolean;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -140,6 +149,11 @@ export interface IResponsiveStateChangeEvent {
 	isResponsive: boolean;
 }
 
+export const enum ActivationKind {
+	Normal = 0,
+	Immediate = 1
+}
+
 export interface IExtensionService {
 	readonly _serviceBrand: undefined;
 
@@ -177,8 +191,15 @@ export interface IExtensionService {
 
 	/**
 	 * Send an activation event and activate interested extensions.
+	 *
+	 * This will wait for the normal startup of the extension host(s).
+	 *
+	 * In extraordinary circumstances, if the activation event needs to activate
+	 * one or more extensions before the normal startup is finished, then you can use
+	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
+	 * and you understand all consequences.
 	 */
-	activateByEvent(activationEvent: string): Promise<void>;
+	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
@@ -212,7 +233,7 @@ export interface IExtensionService {
 	/**
 	 * Read all contributions to an extension point.
 	 */
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
+	readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.
@@ -226,9 +247,19 @@ export interface IExtensionService {
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 
 	/**
+	 * Stops the extension hosts.
+	 */
+	stopExtensionHosts(): void;
+
+	/**
 	 * Restarts the extension host.
 	 */
-	restartExtensionHost(): void;
+	restartExtensionHost(): Promise<void>;
+
+	/**
+	 * Starts the extension hosts.
+	 */
+	startExtensionHosts(): Promise<void>;
 
 	/**
 	 * Modify the environment of the remote extension host
@@ -236,12 +267,11 @@ export interface IExtensionService {
 	 */
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 
-	_logOrShowMessage(severity: Severity, msg: string): void;
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
+	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
-	_onExtensionHostExit(code: number): void;
 }
 
 export interface ProfileSession {
@@ -261,17 +291,19 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
 	return {
 		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
+		isBuiltin: extensionDescription.isBuiltin || extensionDescription.isUserBuiltin,
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
 	};
 }
 
-export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
 		identifier: new ExtensionIdentifier(extension.identifier.id),
 		isBuiltin: extension.type === ExtensionType.System,
-		isUnderDevelopment: false,
+		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
+		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid
@@ -293,14 +325,16 @@ export class NullExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
-	restartExtensionHost(): void { }
+	stopExtensionHosts(): void { }
+	async restartExtensionHost(): Promise<void> { }
+	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
-	_logOrShowMessage(_severity: Severity, _msg: string): void { }
 	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
 	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
 	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
+	_onDidActivateExtensionError(_extensionId: ExtensionIdentifier, _error: Error): void { }
 	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
 	_onExtensionHostExit(code: number): void { }
 }
