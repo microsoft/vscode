@@ -9,7 +9,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 export default class API {
-	private static fromSimpleString(value: string): API {
+	public static fromSimpleString(value: string): API {
 		return new API(value, value, value);
 	}
 
@@ -21,12 +21,10 @@ export default class API {
 	public static readonly v280 = API.fromSimpleString('2.8.0');
 	public static readonly v290 = API.fromSimpleString('2.9.0');
 	public static readonly v291 = API.fromSimpleString('2.9.1');
-	public static readonly v292 = API.fromSimpleString('2.9.2');
 	public static readonly v300 = API.fromSimpleString('3.0.0');
 	public static readonly v310 = API.fromSimpleString('3.1.0');
 	public static readonly v314 = API.fromSimpleString('3.1.4');
 	public static readonly v320 = API.fromSimpleString('3.2.0');
-	public static readonly v330 = API.fromSimpleString('3.3.0');
 	public static readonly v333 = API.fromSimpleString('3.3.3');
 	public static readonly v340 = API.fromSimpleString('3.4.0');
 	public static readonly v345 = API.fromSimpleString('3.4.5');
@@ -36,6 +34,9 @@ export default class API {
 	public static readonly v390 = API.fromSimpleString('3.9.0');
 	public static readonly v400 = API.fromSimpleString('4.0.0');
 	public static readonly v401 = API.fromSimpleString('4.0.1');
+	public static readonly v420 = API.fromSimpleString('4.2.0');
+	public static readonly v430 = API.fromSimpleString('4.3.0');
+	public static readonly v440 = API.fromSimpleString('4.4.0');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);

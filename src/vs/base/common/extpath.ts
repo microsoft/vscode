@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
-import { startsWithIgnoreCase, equalsIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { sep, posix, isAbsolute, join, normalize } from 'vs/base/common/path';
+import { isAbsolute, join, normalize, posix, sep } from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
+import { equalsIgnoreCase, rtrim, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { isNumber } from 'vs/base/common/types';
 
 export function isPathSeparator(code: number) {
@@ -23,12 +23,28 @@ export function toSlashes(osPath: string) {
 }
 
 /**
+ * Takes a Windows OS path (using backward or forward slashes) and turns it into a posix path:
+ * - turns backward slashes into forward slashes
+ * - makes it absolute if it starts with a drive letter
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toPosixPath(osPath: string) {
+	if (osPath.indexOf('/') === -1) {
+		osPath = toSlashes(osPath);
+	}
+	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // starts with a drive letter
+		osPath = '/' + osPath;
+	}
+	return osPath;
+}
+
+/**
  * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
  * `getRoot('files:///files/path') === files:///`,
  * or `getRoot('\\server\shares\path') === \\server\shares\`
  */
 export function getRoot(path: string, sep: string = posix.sep): string {
-
 	if (!path) {
 		return '';
 	}
@@ -142,7 +158,7 @@ export function isUNC(path: string): boolean {
 // Reference: https://en.wikipedia.org/wiki/Filename
 const WINDOWS_INVALID_FILE_CHARS = /[\\/:\*\?"<>\|]/g;
 const UNIX_INVALID_FILE_CHARS = /[\\/]/g;
-const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
+const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])(\.(.*?))?$/i;
 export function isValidBasename(name: string | null | undefined, isWindowsOS: boolean = isWindows): boolean {
 	const invalidFileChars = isWindowsOS ? WINDOWS_INVALID_FILE_CHARS : UNIX_INVALID_FILE_CHARS;
 
@@ -191,42 +207,42 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = sep): boolean {
-	if (path === candidate) {
+export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
+	if (base === parentCandidate) {
 		return true;
 	}
 
-	if (!path || !candidate) {
+	if (!base || !parentCandidate) {
 		return false;
 	}
 
-	if (candidate.length > path.length) {
+	if (parentCandidate.length > base.length) {
 		return false;
 	}
 
 	if (ignoreCase) {
-		const beginsWith = startsWithIgnoreCase(path, candidate);
+		const beginsWith = startsWithIgnoreCase(base, parentCandidate);
 		if (!beginsWith) {
 			return false;
 		}
 
-		if (candidate.length === path.length) {
+		if (parentCandidate.length === base.length) {
 			return true; // same path, different casing
 		}
 
-		let sepOffset = candidate.length;
-		if (candidate.charAt(candidate.length - 1) === separator) {
+		let sepOffset = parentCandidate.length;
+		if (parentCandidate.charAt(parentCandidate.length - 1) === separator) {
 			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
 		}
 
-		return path.charAt(sepOffset) === separator;
+		return base.charAt(sepOffset) === separator;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== separator) {
-		candidate += separator;
+	if (parentCandidate.charAt(parentCandidate.length - 1) !== separator) {
+		parentCandidate += separator;
 	}
 
-	return path.indexOf(candidate) === 0;
+	return base.indexOf(parentCandidate) === 0;
 }
 
 export function isWindowsDriveLetter(char0: number): boolean {
@@ -277,12 +293,23 @@ export function isRootOrDriveLetter(path: string): boolean {
 			return false;
 		}
 
-		return isWindowsDriveLetter(pathNormalized.charCodeAt(0))
-			&& pathNormalized.charCodeAt(1) === CharCode.Colon
-			&& (path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
+		return hasDriveLetter(pathNormalized) &&
+			(path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
 	}
 
 	return pathNormalized === posix.sep;
+}
+
+export function hasDriveLetter(path: string): boolean {
+	if (isWindows) {
+		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
+	}
+
+	return false;
+}
+
+export function getDriveLetter(path: string): string | undefined {
+	return hasDriveLetter(path) ? path[0] : undefined;
 }
 
 export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {

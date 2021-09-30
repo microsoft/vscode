@@ -7,6 +7,6 @@
   "license": "MIT",
   "devDependencies": {},
   "dependencies": {
-    "vscode-gulp-watch": "^5.0.2"
+    "vscode-gulp-watch": "^5.0.3"
   }
 }

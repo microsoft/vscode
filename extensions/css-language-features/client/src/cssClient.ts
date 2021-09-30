@@ -49,9 +49,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				}
 				function updateLabel(item: CompletionItem) {
 					if (item.kind === CompletionItemKind.Color) {
-						item.label2 = {
-							name: item.label,
-							type: (item.documentation as string)
+						item.label = {
+							label: item.label as string,
+							description: (item.documentation as string)
 						};
 					}
 				}
@@ -91,26 +91,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	// Push the disposable to the context's subscriptions so that the
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
-
-	let indentationRules = {
-		increaseIndentPattern: /(^.*\{[^}]*$)/,
-		decreaseIndentPattern: /^\s*\}/
-	};
-
-	languages.setLanguageConfiguration('css', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
-		indentationRules: indentationRules
-	});
-
-	languages.setLanguageConfiguration('less', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
-		indentationRules: indentationRules
-	});
-
-	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
-		indentationRules: indentationRules
-	});
 
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());

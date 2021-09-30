@@ -24,8 +24,6 @@ const minimatch_1 = require("minimatch");
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
     'require',
-    'atob',
-    'btoa',
     'setTimeout',
     'clearTimeout',
     'setInterval',
@@ -53,6 +51,15 @@ const CORE_TYPES = [
     'trimLeft',
     'trimRight'
 ];
+// Types that are defined in a common layer but are known to be only
+// available in native environments should not be allowed in browser
+const NATIVE_TYPES = [
+    'NativeParsedArgs',
+    'INativeEnvironmentService',
+    'AbstractNativeEnvironmentService',
+    'INativeWindowConfiguration',
+    'ICommonNativeHostService'
+];
 const RULES = [
     // Tests: skip
     {
@@ -68,6 +75,37 @@ const RULES = [
             'MessageEvent',
             'data'
         ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts',
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/environment/common/*
+    {
+        target: '**/vs/platform/environment/common/*.ts',
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        allowedTypes: CORE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts',
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/windows/common/windows.ts
+    {
+        target: '**/vs/platform/windows/common/windows.ts',
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        allowedTypes: CORE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts',
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/platform/native/common/native.ts
+    {
+        target: '**/vs/platform/native/common/native.ts',
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
+        allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -81,6 +119,7 @@ const RULES = [
             // Safe access to global
             'global'
         ],
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -90,6 +129,7 @@ const RULES = [
     {
         target: '**/vs/**/common/**',
         allowedTypes: CORE_TYPES,
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -99,6 +139,7 @@ const RULES = [
     {
         target: '**/vs/**/browser/**',
         allowedTypes: CORE_TYPES,
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]
@@ -107,6 +148,7 @@ const RULES = [
     {
         target: '**/src/vs/editor/contrib/**',
         allowedTypes: CORE_TYPES,
+        disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]
@@ -157,18 +199,24 @@ const RULES = [
         ]
     }
 ];
-const TS_CONFIG_PATH = path_1.join(__dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = (0, path_1.join)(__dirname, '../../', 'src', 'tsconfig.json');
 let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
     checkNode(sourceFile);
     function checkNode(node) {
-        var _a;
+        var _a, _b;
         if (node.kind !== ts.SyntaxKind.Identifier) {
             return ts.forEachChild(node, checkNode); // recurse down
         }
         const text = node.getText(sourceFile);
         if ((_a = rule.allowedTypes) === null || _a === void 0 ? void 0 : _a.some(allowed => allowed === text)) {
             return; // override
+        }
+        if ((_b = rule.disallowedTypes) === null || _b === void 0 ? void 0 : _b.some(disallowed => disallowed === text)) {
+            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+            hasErrors = true;
+            return;
         }
         const checker = program.getTypeChecker();
         const symbol = checker.getSymbolAtLocation(node);
@@ -202,8 +250,8 @@ function checkFile(program, sourceFile, rule) {
 }
 function createProgram(tsconfigPath) {
     const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => fs_1.readFileSync(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, path_1.resolve(path_1.dirname(tsconfigPath)), { noEmit: true });
+    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
+    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
     const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
     return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
 }
@@ -213,7 +261,7 @@ function createProgram(tsconfigPath) {
 const program = createProgram(TS_CONFIG_PATH);
 for (const sourceFile of program.getSourceFiles()) {
     for (const rule of RULES) {
-        if (minimatch_1.match([sourceFile.fileName], rule.target).length > 0) {
+        if ((0, minimatch_1.match)([sourceFile.fileName], rule.target).length > 0) {
             if (!rule.skip) {
                 checkFile(program, sourceFile, rule);
             }

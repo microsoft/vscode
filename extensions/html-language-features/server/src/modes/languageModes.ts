@@ -5,12 +5,17 @@
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
-	ClientCapabilities, DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, SelectionRange,
-	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
-	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextDocument, TextEdit,
-	Color, ColorInformation, ColorPresentation, WorkspaceEdit
+	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
 } from 'vscode-html-languageservice';
-import { WorkspaceFolder } from 'vscode-languageserver';
+import {
+	SelectionRange,
+	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
+	WorkspaceFolder
+} from 'vscode-languageserver';
+import { TextDocument } from 'vscode-languageserver-textdocument';
+
 import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
 import { getCSSMode } from './cssMode';
 import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
@@ -18,8 +23,18 @@ import { getHTMLMode } from './htmlMode';
 import { getJavaScriptMode } from './javascriptMode';
 import { RequestService } from '../requests';
 
-export * from 'vscode-html-languageservice';
-export { WorkspaceFolder } from 'vscode-languageserver';
+export {
+	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
+	DocumentLink, FoldingRange, FoldingRangeKind, FormattingOptions,
+	Hover, Location, Position, Range, SignatureHelp, SymbolInformation, SymbolKind, TextEdit,
+	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
+	SignatureInformation, ParameterInformation, DiagnosticSeverity,
+	SelectionRange, TextDocumentIdentifier
+} from 'vscode-languageserver';
+
+export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+
+export { TextDocument } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	css?: any;
@@ -45,10 +60,10 @@ export interface LanguageMode {
 	doValidation?: (document: TextDocument, settings?: Settings) => Promise<Diagnostic[]>;
 	doComplete?: (document: TextDocument, position: Position, documentContext: DocumentContext, settings?: Settings) => Promise<CompletionList>;
 	doResolve?: (document: TextDocument, item: CompletionItem) => Promise<CompletionItem>;
-	doHover?: (document: TextDocument, position: Position) => Promise<Hover | null>;
+	doHover?: (document: TextDocument, position: Position, settings?: Settings) => Promise<Hover | null>;
 	doSignatureHelp?: (document: TextDocument, position: Position) => Promise<SignatureHelp | null>;
 	doRename?: (document: TextDocument, position: Position, newName: string) => Promise<WorkspaceEdit | null>;
-	doOnTypeRename?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
+	doLinkedEditing?: (document: TextDocument, position: Position) => Promise<Range[] | null>;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => Promise<DocumentHighlight[]>;
 	findDocumentSymbols?: (document: TextDocument) => Promise<SymbolInformation[]>;
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => Promise<DocumentLink[]>;

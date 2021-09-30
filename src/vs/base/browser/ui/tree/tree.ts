@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IListRenderer, IListDragOverReaction, IListDragAndDrop, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { Event } from 'vs/base/common/event';
 
 export const enum TreeVisibility {
 
@@ -129,7 +129,7 @@ export interface ITreeModel<T, TFilterData, TRef> {
 }
 
 export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> extends IListRenderer<ITreeNode<T, TFilterData>, TTemplateData> {
-	renderTwistie?(element: T, twistieElement: HTMLElement): void;
+	renderTwistie?(element: T, twistieElement: HTMLElement): boolean;
 	onDidChangeTwistieState?: Event<T>;
 }
 

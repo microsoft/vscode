@@ -68,6 +68,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
+			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {
@@ -78,7 +79,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 		options._write(EditorOption.wordWrap, 'off');
 		options._write(EditorOption.wordWrapColumn, 80);
-		options._write(EditorOption.wordWrapMinified, true);
+		options._write(EditorOption.wordWrapOverride1, 'inherit');
+		options._write(EditorOption.wordWrapOverride2, 'inherit');
 		options._write(EditorOption.accessibilitySupport, 'auto');
 
 		const actual = EditorLayoutInfoComputer.computeLayout(options, {
@@ -93,7 +95,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxDigitWidth: input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
 		});
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	}
 
 	test('EditorLayoutProvider 1', () => {
