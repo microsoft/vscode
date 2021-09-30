@@ -309,6 +309,11 @@ export class ExtensionsActivator {
 
 			const depDesc = this._registry.getExtensionDescription(depId);
 			if (depDesc) {
+				if (!depDesc.main && !depDesc.browser) {
+					// this dependency does not need to activate because it is descriptive only
+					continue;
+				}
+
 				// must first wait for the dependency to activate
 				currentExtensionGetsGreenLight = false;
 				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
