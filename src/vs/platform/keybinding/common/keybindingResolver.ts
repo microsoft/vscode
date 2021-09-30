@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
@@ -77,7 +77,7 @@ export class KeybindingResolver {
 			if (!defaultKb.when) {
 				return false;
 			}
-			if (!when.equals(defaultKb.when)) {
+			if (!expressionsAreEqualWithConstantSubstitution(when, defaultKb.when)) {
 				return false;
 			}
 		}
