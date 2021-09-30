@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
@@ -390,7 +390,8 @@ export class ExternalFileImport {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 	}
 
@@ -495,7 +496,15 @@ export class ExternalFileImport {
 				});
 			}
 
+
+			let inaccessibleFileCount = 0;
 			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
+				const fileDoesNotExist = !(await this.fileService.exists(resource));
+				if (fileDoesNotExist) {
+					inaccessibleFileCount++;
+					return undefined;
+				}
+
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
@@ -505,6 +514,10 @@ export class ExternalFileImport {
 
 				return resource;
 			}))));
+
+			if (inaccessibleFileCount > 0) {
+				this.notificationService.error(inaccessibleFileCount > 1 ? localize('filesInaccessible', "Some or all of the dropped files could not be accessed for import.") : localize('fileInaccessible', "The dropped file could not be accessed for import."));
+			}
 
 			// Copy resources through bulk edit API
 			const resourceFileEdits = resourcesFiltered.map(resource => {
