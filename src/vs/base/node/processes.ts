@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
-import * as fs from 'fs';
-import { promisify } from 'util';
 import * as cp from 'child_process';
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
+import { Stats } from 'fs';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Objects from 'vs/base/common/objects';
 import * as extpath from 'vs/base/common/extpath';
+import { FileAccess } from 'vs/base/common/network';
+import * as Objects from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
 import * as Platform from 'vs/base/common/platform';
+import * as process from 'vs/base/common/process';
+import { CommandOptions, Executable, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
+import * as Types from 'vs/base/common/types';
 import { LineDecoder } from 'vs/base/node/decoder';
-import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import * as pfs from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
-export type ValueCallback<T> = (value?: T | Promise<T>) => void;
+export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
@@ -50,7 +51,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 				options.cwd = cwd;
 			}
 			const killProcess = cp.execFile('taskkill', ['/T', '/F', '/PID', process.pid.toString()], options);
-			return new Promise((resolve, reject) => {
+			return new Promise(resolve => {
 				killProcess.once('error', (err) => {
 					resolve({ success: false, error: err });
 				});
@@ -67,8 +68,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
-			return new Promise((resolve, reject) => {
+			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
+			return new Promise(resolve => {
 				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
 					if (err) {
 						resolve({ success: false, error: err });
@@ -86,8 +87,8 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 	return Promise.resolve({ success: true });
 }
 
-export function getWindowsShell(): string {
-	return process.env['comspec'] || 'cmd.exe';
+export function getWindowsShell(env = process.env as Platform.IProcessEnvironment): string {
+	return env['comspec'] || 'cmd.exe';
 }
 
 export abstract class AbstractProcess<TProgressData> {
@@ -98,7 +99,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess | null;
 	protected childProcessPromise: Promise<cp.ChildProcess> | null;
-	private pidResolve?: ValueCallback<number>;
+	private pidResolve: ValueCallback<number> | undefined;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -318,16 +319,16 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	private useExec(): Promise<boolean> {
-		return new Promise<boolean>((c, e) => {
+		return new Promise<boolean>(resolve => {
 			if (!this.shell || !Platform.isWindows) {
-				return c(false);
+				return resolve(false);
 			}
 			const cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				return c(true);
+				return resolve(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				return c(false);
+				return resolve(false);
 			});
 		});
 	}
@@ -378,7 +379,7 @@ export class LineProcess extends AbstractProcess<LineData> {
 		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
-	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
+	protected override handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
 		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
 		if (stdoutLine) {
 			pp({ line: stdoutLine, source: Source.stdout });
@@ -447,8 +448,8 @@ export namespace win32 {
 			// to the current working directory.
 			return path.join(cwd, command);
 		}
-		if (paths === undefined && Types.isString(process.env.PATH)) {
-			paths = process.env.PATH.split(path.delimiter);
+		if (paths === undefined && Types.isString(process.env['PATH'])) {
+			paths = process.env['PATH'].split(path.delimiter);
 		}
 		// No PATH environment. Make path absolute to the cwd.
 		if (paths === undefined || paths.length === 0) {
@@ -456,8 +457,17 @@ export namespace win32 {
 		}
 
 		async function fileExists(path: string): Promise<boolean> {
-			if (await promisify(fs.exists)(path)) {
-				return !((await promisify(fs.stat)(path)).isDirectory());
+			if (await pfs.Promises.exists(path)) {
+				let statValue: Stats | undefined;
+				try {
+					statValue = await pfs.Promises.stat(path);
+				} catch (e) {
+					if (e.message.startsWith('EACCES')) {
+						// it might be symlink
+						statValue = await pfs.Promises.lstat(path);
+					}
+				}
+				return statValue ? !statValue.isDirectory() : false;
 			}
 			return false;
 		}

@@ -14,10 +14,11 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 
 class Coordinate {
-	_coordinateBrand: void;
+	_coordinateBrand: void = undefined;
 
 	public readonly top: number;
 	public readonly left: number;
@@ -52,47 +53,47 @@ export class ViewContentWidgets extends ViewPart {
 		this.overflowingContentWidgetsDomNode.setClassName('overflowingContentWidgets');
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		this._widgets = {};
 	}
 
 	// --- begin event handlers
 
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onConfigurationChanged(e);
 		}
 		return true;
 	}
-	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
 		return true;
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
+	public override onLineMappingChanged(e: viewEvents.ViewLineMappingChangedEvent): boolean {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
 			this._widgets[widgetId].onLineMappingChanged(e);
 		}
 		return true;
 	}
-	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+	public override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -171,6 +172,11 @@ interface IBoxLayoutResult {
 	belowLeft: number;
 }
 
+interface IRenderData {
+	coordinate: Coordinate,
+	position: ContentWidgetPositionPreference
+}
+
 class Widget {
 	private readonly _context: ViewContext;
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
@@ -194,7 +200,7 @@ class Widget {
 	private _maxWidth: number;
 	private _isVisible: boolean;
 
-	private _renderData: Coordinate | null;
+	private _renderData: IRenderData | null;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -428,16 +434,26 @@ class Widget {
 		return [topLeft, bottomLeft];
 	}
 
-	private _prepareRenderWidget(ctx: RenderingContext): Coordinate | null {
+	private _prepareRenderWidget(ctx: RenderingContext): IRenderData | null {
 		const [topLeft, bottomLeft] = this._getTopAndBottomLeft(ctx);
 		if (!topLeft || !bottomLeft) {
 			return null;
 		}
 
 		if (this._cachedDomNodeClientWidth === -1 || this._cachedDomNodeClientHeight === -1) {
-			const domNode = this.domNode.domNode;
-			this._cachedDomNodeClientWidth = domNode.clientWidth;
-			this._cachedDomNodeClientHeight = domNode.clientHeight;
+
+			let preferredDimensions: IDimension | null = null;
+			if (typeof this._actual.beforeRender === 'function') {
+				preferredDimensions = safeInvoke(this._actual.beforeRender, this._actual);
+			}
+			if (preferredDimensions) {
+				this._cachedDomNodeClientWidth = preferredDimensions.width;
+				this._cachedDomNodeClientHeight = preferredDimensions.height;
+			} else {
+				const domNode = this.domNode.domNode;
+				this._cachedDomNodeClientWidth = domNode.clientWidth;
+				this._cachedDomNodeClientHeight = domNode.clientHeight;
+			}
 		}
 
 		let placement: IBoxLayoutResult | null;
@@ -458,7 +474,7 @@ class Widget {
 							return null;
 						}
 						if (pass === 2 || placement.fitsAbove) {
-							return new Coordinate(placement.aboveTop, placement.aboveLeft);
+							return { coordinate: new Coordinate(placement.aboveTop, placement.aboveLeft), position: ContentWidgetPositionPreference.ABOVE };
 						}
 					} else if (pref === ContentWidgetPositionPreference.BELOW) {
 						if (!placement) {
@@ -466,13 +482,13 @@ class Widget {
 							return null;
 						}
 						if (pass === 2 || placement.fitsBelow) {
-							return new Coordinate(placement.belowTop, placement.belowLeft);
+							return { coordinate: new Coordinate(placement.belowTop, placement.belowLeft), position: ContentWidgetPositionPreference.BELOW };
 						}
 					} else {
 						if (this.allowEditorOverflow) {
-							return this._prepareRenderWidgetAtExactPositionOverflowing(topLeft);
+							return { coordinate: this._prepareRenderWidgetAtExactPositionOverflowing(topLeft), position: ContentWidgetPositionPreference.EXACT };
 						} else {
-							return topLeft;
+							return { coordinate: topLeft, position: ContentWidgetPositionPreference.EXACT };
 						}
 					}
 				}
@@ -509,16 +525,20 @@ class Widget {
 				this._isVisible = false;
 				this.domNode.setVisibility('hidden');
 			}
+
+			if (typeof this._actual.afterRender === 'function') {
+				safeInvoke(this._actual.afterRender, this._actual, null);
+			}
 			return;
 		}
 
 		// This widget should be visible
 		if (this.allowEditorOverflow) {
-			this.domNode.setTop(this._renderData.top);
-			this.domNode.setLeft(this._renderData.left);
+			this.domNode.setTop(this._renderData.coordinate.top);
+			this.domNode.setLeft(this._renderData.coordinate.left);
 		} else {
-			this.domNode.setTop(this._renderData.top + ctx.scrollTop - ctx.bigNumbersDelta);
-			this.domNode.setLeft(this._renderData.left);
+			this.domNode.setTop(this._renderData.coordinate.top + ctx.scrollTop - ctx.bigNumbersDelta);
+			this.domNode.setLeft(this._renderData.coordinate.left);
 		}
 
 		if (!this._isVisible) {
@@ -526,5 +546,18 @@ class Widget {
 			this.domNode.setAttribute('monaco-visible-content-widget', 'true');
 			this._isVisible = true;
 		}
+
+		if (typeof this._actual.afterRender === 'function') {
+			safeInvoke(this._actual.afterRender, this._actual, this._renderData.position);
+		}
+	}
+}
+
+function safeInvoke<T extends (...args: any[]) => any>(fn: T, thisArg: ThisParameterType<T>, ...args: Parameters<T>): ReturnType<T> | null {
+	try {
+		return fn.call(thisArg, ...args);
+	} catch {
+		// ignore
+		return null;
 	}
 }

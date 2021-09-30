@@ -10,7 +10,7 @@ suite('CharCode', () => {
 	test('has good values', () => {
 
 		function assertValue(actual: CharCode, expected: string): void {
-			assert.equal(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
+			assert.strictEqual(actual, expected.charCodeAt(0), 'char code ok for <<' + expected + '>>');
 		}
 
 		assertValue(CharCode.Tab, '\t');

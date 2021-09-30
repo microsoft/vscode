@@ -7,12 +7,16 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                      (copied from Electron 7.x)                 ###
+// ###                    (copied from Electron 11.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
 
 export interface MessageBoxOptions {
+	/**
+	 * Content of the message box.
+	 */
+	message: string;
 	/**
 	 * Can be `"none"`, `"info"`, `"error"`, `"question"` or `"warning"`. On Windows,
 	 * `"question"` displays the same icon as `"info"`, unless you set an icon using
@@ -34,10 +38,6 @@ export interface MessageBoxOptions {
 	 * Title of the message box, some platforms will not show it.
 	 */
 	title?: string;
-	/**
-	 * Content of the message box.
-	 */
-	message: string;
 	/**
 	 * Extra information of the message.
 	 */
@@ -132,6 +132,7 @@ export interface SaveDialogOptions {
 	 * @platform darwin
 	 */
 	showsTagField?: boolean;
+	properties?: Array<'showHiddenFiles' | 'createDirectory' | 'treatPackageAsDirectory' | 'showOverwriteConfirmation' | 'dontAddToRecent'>;
 	/**
 	 * Create a security scoped bookmark when packaged for the Mac App Store. If this
 	 * option is enabled and the file doesn't already exist a blank file will be
@@ -155,7 +156,7 @@ export interface OpenDialogOptions {
 	 * Contains which features the dialog should use. The following values are
 	 * supported:
 	 */
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>;
 	/**
 	 * Message to display above input boxes.
 	 *
@@ -211,7 +212,7 @@ export interface SaveDialogReturnValue {
 
 export interface FileFilter {
 
-	// Docs: http://electronjs.org/docs/api/structures/file-filter
+	// Docs: https://electronjs.org/docs/api/structures/file-filter
 
 	extensions: string[];
 	name: string;
@@ -219,19 +220,19 @@ export interface FileFilter {
 
 export interface InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/input-event
+	// Docs: https://electronjs.org/docs/api/structures/input-event
 
 	/**
-	 * An array of modifiers of the event, can be `shift`, `control`, `alt`, `meta`,
-	 * `isKeypad`, `isAutoRepeat`, `leftButtonDown`, `middleButtonDown`,
-	 * `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 * An array of modifiers of the event, can be `shift`, `control`, `ctrl`, `alt`,
+	 * `meta`, `command`, `cmd`, `isKeypad`, `isAutoRepeat`, `leftButtonDown`,
+	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
 	 */
-	modifiers: Array<'shift' | 'control' | 'alt' | 'meta' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
 }
 
 export interface MouseInputEvent extends InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/mouse-input-event
+	// Docs: https://electronjs.org/docs/api/structures/mouse-input-event
 
 	/**
 	 * The button pressed, can be `left`, `middle`, `right`.
@@ -249,63 +250,4 @@ export interface MouseInputEvent extends InputEvent {
 	type: ('mouseDown' | 'mouseUp' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'mouseMove');
 	x: number;
 	y: number;
-}
-
-export interface CrashReporterStartOptions {
-	/**
-	 * URL that crash reports will be sent to as POST.
-	 */
-	submitURL: string;
-	/**
-	 * Defaults to `app.name`.
-	 */
-	productName?: string;
-	/**
-	 * Deprecated alias for `{ globalExtra: { _companyName: ... } }`.
-	 *
-	 * @deprecated
-	 */
-	companyName?: string;
-	/**
-	 * Whether crash reports should be sent to the server. If false, crash reports will
-	 * be collected and stored in the crashes directory, but not uploaded. Default is
-	 * `true`.
-	 */
-	uploadToServer?: boolean;
-	/**
-	 * If true, crashes generated in the main process will not be forwarded to the
-	 * system crash handler. Default is `false`.
-	 */
-	ignoreSystemCrashHandler?: boolean;
-	/**
-	 * If true, limit the number of crashes uploaded to 1/hour. Default is `false`.
-	 *
-	 * @platform darwin,win32
-	 */
-	rateLimit?: boolean;
-	/**
-	 * If true, crash reports will be compressed and uploaded with `Content-Encoding:
-	 * gzip`. Not all collection servers support compressed payloads. Default is
-	 * `false`.
-	 *
-	 * @platform darwin,win32
-	 */
-	compress?: boolean;
-	/**
-	 * Extra string key/value annotations that will be sent along with crash reports
-	 * that are generated in the main process. Only string values are supported.
-	 * Crashes generated in child processes will not contain these extra parameters to
-	 * crash reports generated from child processes, call `addExtraParameter` from the
-	 * child process.
-	 */
-	extra?: Record<string, string>;
-	/**
-	 * Extra string key/value annotations that will be sent along with any crash
-	 * reports generated in any process. These annotations cannot be changed once the
-	 * crash reporter has been started. If a key is present in both the global extra
-	 * parameters and the process-specific extra parameters, then the global one will
-	 * take precedence. By default, `productName` and the app version are included, as
-	 * well as the Electron version.
-	 */
-	globalExtra?: Record<string, string>;
 }

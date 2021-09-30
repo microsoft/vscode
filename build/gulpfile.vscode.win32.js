@@ -26,7 +26,7 @@ const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
 const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
-const signPS1 = path.join(repoPath, 'build', 'azure-pipelines', 'win32', 'sign.ps1');
+const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
 
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
@@ -49,12 +49,18 @@ function packageInnoSetup(iss, options, cb) {
 	const args = [
 		iss,
 		...defs,
-		`/sesrp=powershell.exe -ExecutionPolicy bypass ${signPS1} $f`
+		`/sesrp=node ${signWin32Path} $f`
 	];
 
 	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
-		.on('exit', () => cb(null));
+		.on('exit', code => {
+			if (code === 0) {
+				cb(null);
+			} else {
+				cb(new Error(`InnoSetup returned exit code: ${code}`));
+			}
+		});
 }
 
 function buildWin32Setup(arch, target) {

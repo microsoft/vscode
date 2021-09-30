@@ -126,3 +126,13 @@ export namespace SymbolKind {
 		}
 	}
 }
+
+export namespace CompletionTriggerKind {
+	export function toProtocolCompletionTriggerKind(kind: vscode.CompletionTriggerKind): Proto.CompletionTriggerKind {
+		switch (kind) {
+			case vscode.CompletionTriggerKind.Invoke: return 1;
+			case vscode.CompletionTriggerKind.TriggerCharacter: return 2;
+			case vscode.CompletionTriggerKind.TriggerForIncompleteCompletions: return 3;
+		}
+	}
+}

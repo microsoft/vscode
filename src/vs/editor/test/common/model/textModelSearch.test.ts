@@ -19,31 +19,31 @@ suite('TextModelSearch', () => {
 	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
 
 	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
-		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
+		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));
 	}
 
 	function _assertFindMatches(model: TextModel, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
-		assert.deepEqual(actual, expectedMatches, 'findMatches OK');
+		assert.deepStrictEqual(actual, expectedMatches, 'findMatches OK');
 
 		// test `findNextMatch`
 		let startPos = new Position(1, 1);
 		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
-		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
+		assert.deepStrictEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
 		for (const expectedMatch of expectedMatches) {
 			startPos = expectedMatch.range.getStartPosition();
 			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
-			assert.deepEqual(match, expectedMatch, `findNextMatch ${startPos}`);
+			assert.deepStrictEqual(match, expectedMatch, `findNextMatch ${startPos}`);
 		}
 
 		// test `findPrevMatch`
 		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
 		match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
-		assert.deepEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
+		assert.deepStrictEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
 		for (const expectedMatch of expectedMatches) {
 			startPos = expectedMatch.range.getEndPosition();
 			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
-			assert.deepEqual(match, expectedMatch, `findPrevMatch ${startPos}`);
+			assert.deepStrictEqual(match, expectedMatch, `findPrevMatch ${startPos}`);
 		}
 	}
 
@@ -486,7 +486,7 @@ suite('TextModelSearch', () => {
 		let searchParams = new SearchParams('(l(in)e)', true, false, null);
 
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			new FindMatch(new Range(1, 5, 1, 9), ['line', 'line', 'in']),
 			new FindMatch(new Range(1, 10, 1, 14), ['line', 'line', 'in']),
 			new FindMatch(new Range(2, 5, 2, 9), ['line', 'line', 'in']),
@@ -501,7 +501,7 @@ suite('TextModelSearch', () => {
 		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
 
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			new FindMatch(new Range(1, 10, 2, 1), ['line\n', 'line', 'in']),
 			new FindMatch(new Range(2, 5, 3, 1), ['line\n', 'line', 'in']),
 		]);
@@ -556,7 +556,7 @@ suite('TextModelSearch', () => {
 	test('\\n matches \\r\\n', () => {
 		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
-		assert.equal(model.getEOL(), '\r\n');
+		assert.strictEqual(model.getEOL(), '\r\n');
 
 		let searchParams = new SearchParams('h\\n', true, false, null);
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
@@ -579,12 +579,12 @@ suite('TextModelSearch', () => {
 	test('\\r can never be found', () => {
 		let model = createTextModel('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
 
-		assert.equal(model.getEOL(), '\r\n');
+		assert.strictEqual(model.getEOL(), '\r\n');
 
 		let searchParams = new SearchParams('\\r\\n', true, false, null);
 		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
-		assert.equal(actual, null);
-		assert.deepEqual(TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000), []);
+		assert.strictEqual(actual, null);
+		assert.deepStrictEqual(TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000), []);
 
 		model.dispose();
 	});
@@ -596,8 +596,8 @@ suite('TextModelSearch', () => {
 		if (expected === null) {
 			assert.ok(actual === null);
 		} else {
-			assert.deepEqual(actual!.regex, expected.regex);
-			assert.deepEqual(actual!.simpleSearch, expected.simpleSearch);
+			assert.deepStrictEqual(actual!.regex, expected.regex);
+			assert.deepStrictEqual(actual!.simpleSearch, expected.simpleSearch);
 			if (wordSeparators) {
 				assert.ok(actual!.wordSeparators !== null);
 			} else {
@@ -769,7 +769,7 @@ suite('TextModelSearch', () => {
 		let searchParams = new SearchParams('\\d*', true, false, null);
 
 		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			new FindMatch(new Range(1, 1, 1, 3), ['10']),
 			new FindMatch(new Range(1, 3, 1, 3), ['']),
 			new FindMatch(new Range(1, 4, 1, 7), ['243']),
