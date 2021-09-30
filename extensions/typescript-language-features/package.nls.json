@@ -125,7 +125,7 @@
 	"typescript.preferences.importModuleSpecifierEnding.index": "Shorten `./component/index.js` to `./component/index`.",
 	"typescript.preferences.importModuleSpecifierEnding.js": "Do not shorten path endings; include the `.js` extension.",
 	"typescript.preferences.jsxAttributeCompletionStyle": "Preferred style for JSX attribute completions.",
-	"typescript.preferences.jsxAttributeCompletionStyle.auto": "Insert `={}` or `=""` after attribute names based on the prop type.",	
+	"typescript.preferences.jsxAttributeCompletionStyle.auto": "Insert `={}` or `=\"\"` after attribute names based on the prop type.",
 	"typescript.preferences.jsxAttributeCompletionStyle.braces": "Insert `={}` after attribute names.",
 	"typescript.preferences.jsxAttributeCompletionStyle.none": "Only insert attribute names.",
 	"typescript.preferences.includePackageJsonAutoImports": "Enable/disable searching `package.json` dependencies for available auto imports.",
