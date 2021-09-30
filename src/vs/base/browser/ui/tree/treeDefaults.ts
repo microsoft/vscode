@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { Action } from 'vs/base/common/actions';
+import * as nls from 'vs/nls';
 
 export class CollapseAllAction<TInput, T, TFilterData = void> extends Action {
 
@@ -13,11 +13,9 @@ export class CollapseAllAction<TInput, T, TFilterData = void> extends Action {
 		super('vs.tree.collapse', nls.localize('collapse all', "Collapse All"), 'collapse-all', enabled);
 	}
 
-	async run(): Promise<any> {
+	override async run(): Promise<any> {
 		this.viewer.collapseAll();
 		this.viewer.setSelection([]);
 		this.viewer.setFocus([]);
-		this.viewer.domFocus();
-		this.viewer.focusFirst();
 	}
 }

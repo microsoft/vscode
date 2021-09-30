@@ -43,7 +43,7 @@ export interface IVariableTemplateData {
 
 export function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = $('.');
-	dom.addClass(treeContainer, 'debug-view-content');
+	treeContainer.classList.add('debug-view-content');
 	container.appendChild(treeContainer);
 	return treeContainer;
 }
@@ -55,9 +55,9 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	container.className = 'value';
 	// when resolving expressions we represent errors from the server as a variable with name === null.
 	if (value === null || ((expressionOrValue instanceof Expression || expressionOrValue instanceof Variable || expressionOrValue instanceof ReplEvaluationResult) && !expressionOrValue.available)) {
-		dom.addClass(container, 'unavailable');
+		container.classList.add('unavailable');
 		if (value !== Expression.DEFAULT_VALUE) {
-			dom.addClass(container, 'error');
+			container.classList.add('error');
 		}
 	} else if ((expressionOrValue instanceof ExpressionContainer) && options.showChanged && expressionOrValue.valueChanged && value !== Expression.DEFAULT_VALUE) {
 		// value changed color has priority over other colors.
@@ -67,13 +67,13 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 
 	if (options.colorize && typeof expressionOrValue !== 'string') {
 		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
-			dom.addClass(container, expressionOrValue.type);
+			container.classList.add(expressionOrValue.type);
 		} else if (!isNaN(+value)) {
-			dom.addClass(container, 'number');
+			container.classList.add('number');
 		} else if (booleanRegex.test(value)) {
-			dom.addClass(container, 'boolean');
+			container.classList.add('boolean');
 		} else if (stringRegex.test(value)) {
-			dom.addClass(container, 'string');
+			container.classList.add('string');
 		}
 	}
 
@@ -103,7 +103,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 			text += ':';
 		}
 		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
-		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
+		data.name.classList.toggle('virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
 		data.label.set(':');
 	}
@@ -159,14 +159,15 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		data.toDispose.dispose();
 		data.toDispose = Disposable.None;
 		const { element } = node;
-		if (element === this.debugService.getViewModel().getSelectedExpression() || (element instanceof Variable && element.errorMessage)) {
-			const options = this.getInputBoxOptions(element);
+		this.renderExpression(element, data, createMatches(node.filterData));
+		const selectedExpression = this.debugService.getViewModel().getSelectedExpression();
+		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
+			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
 			if (options) {
 				data.toDispose = this.renderInputBox(data.name, data.value, data.inputBoxContainer, options);
 				return;
 			}
 		}
-		this.renderExpression(element, data, createMatches(node.filterData));
 	}
 
 	renderInputBox(nameElement: HTMLElement, valueElement: HTMLElement, inputBoxContainer: HTMLElement, options: IInputBoxOptions): IDisposable {
@@ -189,7 +190,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 			dispose(toDispose);
 
 			if (finishEditing) {
-				this.debugService.getViewModel().setSelectedExpression(undefined);
+				this.debugService.getViewModel().setSelectedExpression(undefined, false);
 				options.onFinish(value, success);
 			}
 		});
@@ -222,7 +223,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 	}
 
 	protected abstract renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void;
-	protected abstract getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined;
+	protected abstract getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions | undefined;
 
 	disposeElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
 		templateData.toDispose.dispose();

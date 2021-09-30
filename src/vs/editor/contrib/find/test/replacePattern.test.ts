@@ -13,7 +13,7 @@ suite('Replace Pattern test', () => {
 		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
 			let actual = parseReplaceString(input);
 			let expected = new ReplacePattern(expectedPieces);
-			assert.deepEqual(actual, expected, 'Parsing ' + input);
+			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
 		};
 
 		// no backslash => no treatment
@@ -73,14 +73,14 @@ suite('Replace Pattern test', () => {
 		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
 			let actual = parseReplaceString(input);
 			let expected = new ReplacePattern(expectedPieces);
-			assert.deepEqual(actual, expected, 'Parsing ' + input);
+			assert.deepStrictEqual(actual, expected, 'Parsing ' + input);
 		};
 		function assertReplace(target: string, search: RegExp, replaceString: string, expected: string): void {
 			let replacePattern = parseReplaceString(replaceString);
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.equal(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
 
 		// \U, \u => uppercase  \L, \l => lowercase  \E => cancel
@@ -107,7 +107,7 @@ suite('Replace Pattern test', () => {
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.deepEqual(actual, expected, `${target}.replace(${search}, ${replaceString})`);
+			assert.deepStrictEqual(actual, expected, `${target}.replace(${search}, ${replaceString})`);
 		};
 
 		testJSReplaceSemantics('hi', /hi/, 'hello', 'hi'.replace(/hi/, 'hello'));
@@ -136,7 +136,7 @@ suite('Replace Pattern test', () => {
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.equal(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
 
 		assertReplace('bla', /bla/, 'hello', 'hello');
@@ -162,7 +162,7 @@ suite('Replace Pattern test', () => {
 			let m = search.exec(target);
 			let actual = replacePattern.buildReplaceString(m);
 
-			assert.equal(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
+			assert.strictEqual(actual, expected, `${target}.replace(${search}, ${replaceString}) === ${expected}`);
 		}
 		assertReplace('this is a bla text', /bla/, 'hello', 'hello');
 		assertReplace('this is a bla text', /this(?=.*bla)/, 'that', 'that');
@@ -184,14 +184,14 @@ suite('Replace Pattern test', () => {
 		let replacePattern = parseReplaceString('a{$1}');
 		let matches = /a(z)?/.exec('abcd');
 		let actual = replacePattern.buildReplaceString(matches);
-		assert.equal(actual, 'a{}');
+		assert.strictEqual(actual, 'a{}');
 	});
 
 	test('buildReplaceStringWithCasePreserved test', () => {
 		function assertReplace(target: string[], replaceString: string, expected: string): void {
 			let actual: string = '';
 			actual = buildReplaceStringWithCasePreserved(target, replaceString);
-			assert.equal(actual, expected);
+			assert.strictEqual(actual, expected);
 		}
 
 		assertReplace(['abc'], 'Def', 'def');
@@ -200,13 +200,16 @@ suite('Replace Pattern test', () => {
 		assertReplace(['abc', 'Abc'], 'Def', 'def');
 		assertReplace(['Abc', 'abc'], 'Def', 'Def');
 		assertReplace(['ABC', 'abc'], 'Def', 'DEF');
+		assertReplace(['aBc', 'abc'], 'Def', 'def');
 		assertReplace(['AbC'], 'Def', 'Def');
-		assertReplace(['aBC'], 'Def', 'Def');
+		assertReplace(['aBC'], 'Def', 'def');
+		assertReplace(['aBc'], 'DeF', 'deF');
 		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
 		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
 		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
 		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
 		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
+		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
 		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
 		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
 		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');
@@ -219,7 +222,7 @@ suite('Replace Pattern test', () => {
 		function assertReplace(target: string[], replaceString: string, expected: string): void {
 			let replacePattern = parseReplaceString(replaceString);
 			let actual = replacePattern.buildReplaceString(target, true);
-			assert.equal(actual, expected);
+			assert.strictEqual(actual, expected);
 		}
 
 		assertReplace(['abc'], 'Def', 'def');
@@ -228,13 +231,16 @@ suite('Replace Pattern test', () => {
 		assertReplace(['abc', 'Abc'], 'Def', 'def');
 		assertReplace(['Abc', 'abc'], 'Def', 'Def');
 		assertReplace(['ABC', 'abc'], 'Def', 'DEF');
+		assertReplace(['aBc', 'abc'], 'Def', 'def');
 		assertReplace(['AbC'], 'Def', 'Def');
-		assertReplace(['aBC'], 'Def', 'Def');
+		assertReplace(['aBC'], 'Def', 'def');
+		assertReplace(['aBc'], 'DeF', 'deF');
 		assertReplace(['Foo-Bar'], 'newfoo-newbar', 'Newfoo-Newbar');
 		assertReplace(['Foo-Bar-Abc'], 'newfoo-newbar-newabc', 'Newfoo-Newbar-Newabc');
 		assertReplace(['Foo-Bar-abc'], 'newfoo-newbar', 'Newfoo-newbar');
 		assertReplace(['foo-Bar'], 'newfoo-newbar', 'newfoo-Newbar');
 		assertReplace(['foo-BAR'], 'newfoo-newbar', 'newfoo-NEWBAR');
+		assertReplace(['foO-BAR'], 'NewFoo-NewBar', 'newFoo-NEWBAR');
 		assertReplace(['Foo_Bar'], 'newfoo_newbar', 'Newfoo_Newbar');
 		assertReplace(['Foo_Bar_Abc'], 'newfoo_newbar_newabc', 'Newfoo_Newbar_Newabc');
 		assertReplace(['Foo_Bar_abc'], 'newfoo_newbar', 'Newfoo_newbar');

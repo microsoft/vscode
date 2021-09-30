@@ -31,7 +31,7 @@ suite('Files - TextFileService', () => {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-		await model.load();
+		await model.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 		model.textEditorModel!.setValue('foo');
@@ -41,7 +41,7 @@ suite('Files - TextFileService', () => {
 		const untitled = await accessor.textFileService.untitled.resolve();
 
 		assert.ok(!accessor.textFileService.isDirty(untitled.resource));
-		untitled.textEditorModel.setValue('changed');
+		untitled.textEditorModel?.setValue('changed');
 
 		assert.ok(accessor.textFileService.isDirty(untitled.resource));
 
@@ -53,12 +53,12 @@ suite('Files - TextFileService', () => {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-		await model.load();
+		await model.resolve();
 		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.equal(res?.toString(), model.resource.toString());
+		assert.strictEqual(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -66,12 +66,12 @@ suite('Files - TextFileService', () => {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-		await model.load();
+		await model.resolve();
 		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.equal(res?.toString(), model.resource.toString());
+		assert.strictEqual(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -80,12 +80,12 @@ suite('Files - TextFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
-		await model.load();
+		await model.resolve();
 		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.saveAs(model.resource);
-		assert.equal(res!.toString(), model.resource.toString());
+		assert.strictEqual(res!.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -94,7 +94,7 @@ suite('Files - TextFileService', () => {
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
-		await model.load();
+		await model.resolve();
 		model!.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
@@ -106,7 +106,7 @@ suite('Files - TextFileService', () => {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-		await model.load();
+		await model.resolve();
 		model!.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
@@ -114,21 +114,21 @@ suite('Files - TextFileService', () => {
 
 		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
 			participate: async files => {
-				assert.equal(files[0].target, model.resource.toString());
+				assert.strictEqual(files[0].target.toString(), model.resource.toString());
 				eventCounter++;
 			}
 		});
 
 		const disposable2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.equal(e.operation, FileOperation.CREATE);
-			assert.equal(e.files[0].target.toString(), model.resource.toString());
+			assert.strictEqual(e.operation, FileOperation.CREATE);
+			assert.strictEqual(e.files[0].target.toString(), model.resource.toString());
 			eventCounter++;
 		});
 
-		await accessor.textFileService.create(model.resource, 'Foo');
+		await accessor.textFileService.create([{ resource: model.resource, value: 'Foo' }]);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 
-		assert.equal(eventCounter, 2);
+		assert.strictEqual(eventCounter, 2);
 
 		disposable1.dispose();
 		disposable2.dispose();
@@ -141,7 +141,7 @@ suite('Files - TextFileService', () => {
 		});
 
 		let suggested = accessor.textFileService.suggestFilename('shleem', 'Untitled-1');
-		assert.equal(suggested, 'Untitled-1');
+		assert.strictEqual(suggested, 'Untitled-1');
 	});
 
 	test('Filename Suggestion - Suggest prefix with first extension', () => {
@@ -152,7 +152,7 @@ suite('Files - TextFileService', () => {
 		});
 
 		let suggested = accessor.textFileService.suggestFilename('plumbus1', 'Untitled-1');
-		assert.equal(suggested, 'Untitled-1.shleem');
+		assert.strictEqual(suggested, 'Untitled-1.shleem');
 	});
 
 	test('Filename Suggestion - Suggest filename if there are no extensions', () => {
@@ -162,7 +162,6 @@ suite('Files - TextFileService', () => {
 		});
 
 		let suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
-		assert.equal(suggested, 'plumbus');
+		assert.strictEqual(suggested, 'plumbus');
 	});
-
 });
