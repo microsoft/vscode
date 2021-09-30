@@ -44,14 +44,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return false;
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
+	async getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]> {
 		const extensions = [];
 		if (type === undefined || type === ExtensionType.System) {
 			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
 			extensions.push(...systemExtensions);
 		}
 		if (type === undefined || type === ExtensionType.User) {
-			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(donotIgnoreInvalidExtensions);
 			extensions.push(...userExtensions);
 		}
 		return Promise.all(extensions.map(e => toLocalExtension(e)));

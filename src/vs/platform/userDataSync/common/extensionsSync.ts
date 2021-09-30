@@ -125,7 +125,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
-		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 

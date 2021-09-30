@@ -138,7 +138,7 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(): Promise<IScannedExtension[]>;
+	scanUserExtensions(donotIgnoreInvalidExtensions?: boolean): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
 

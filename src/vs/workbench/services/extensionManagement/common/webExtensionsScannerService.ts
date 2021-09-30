@@ -202,11 +202,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.builtinExtensionsPromise;
 	}
 
-	async scanUserExtensions(): Promise<IScannedExtension[]> {
+	async scanUserExtensions(donotIgnoreInvalidExtensions?: boolean): Promise<IScannedExtension[]> {
 		const extensions = new Map<string, IScannedExtension>();
 
 		// User Installed extensions
-		const installedExtensions = await this.scanInstalledExtensions();
+		const installedExtensions = await this.scanInstalledExtensions(donotIgnoreInvalidExtensions);
 		for (const extension of installedExtensions) {
 			extensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
@@ -314,7 +314,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		});
 	}
 
-	private async scanInstalledExtensions(): Promise<IExtension[]> {
+	private async scanInstalledExtensions(donotIgnoreInvalidExtensions?: boolean): Promise<IExtension[]> {
 		let installedExtensions = await this.readInstalledExtensions();
 		const byExtension: IWebExtension[][] = groupByExtension(installedExtensions, e => e.identifier);
 		installedExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
@@ -323,7 +323,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			try {
 				extensions.push(await this.toScannedExtension(installedExtension, false));
 			} catch (error) {
-				this.logService.error(error, 'Error while scanning user extension', installedExtension.identifier.id);
+				if (donotIgnoreInvalidExtensions) {
+					throw error;
+				} else {
+					this.logService.error(error, 'Error while scanning user extension', installedExtension.identifier.id);
+				}
 			}
 		}));
 		return extensions;
