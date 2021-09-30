@@ -226,8 +226,11 @@ master
     "opn": "^6.0.0",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
+snyk-fix-4f380501487c935c34b1bedfda864737
+    "playwright": "1.1.0",
     "path-browserify": "^1.0.1",
     "playwright": "1.12.3",
+master
     "pump": "^1.0.1",
     "queue": "3.0.6",
     "rcedit": "^1.1.0",
