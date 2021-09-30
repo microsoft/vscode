@@ -8,10 +8,11 @@ import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IHoverMessage {
@@ -83,9 +84,14 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 }
 
-export class ModesGlyphHoverWidget extends GlyphHoverWidget {
+export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
+
+	private readonly _editor: ICodeEditor;
+	private readonly _domNode: HTMLElement;
+
+	private _isVisible: boolean;
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
@@ -99,14 +105,20 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		modeService: IModeService,
 		openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesGlyphHoverWidget.ID, editor);
+		super();
+		this._editor = editor;
 
+		this._domNode = document.createElement('div');
+		this._domNode.className = 'monaco-hover hidden';
+		this._domNode.setAttribute('aria-hidden', 'true');
+		this._domNode.setAttribute('role', 'tooltip');
+
+		this._isVisible = false;
 		this._messages = [];
 		this._lastLineNumber = -1;
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);
-
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
@@ -115,15 +127,65 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			300
 		);
 
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
+				this._updateFont();
+			}
+		}));
+
+		this._editor.addOverlayWidget(this);
 	}
 
 	public override dispose(): void {
 		this._hoverOperation.cancel();
+		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
 
+	public getId(): string {
+		return ModesGlyphHoverWidget.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._domNode;
+	}
+
+	public getPosition(): IOverlayWidgetPosition | null {
+		return null;
+	}
+
+	private _showAt(lineNumber: number): void {
+		if (!this._isVisible) {
+			this._isVisible = true;
+			this._domNode.classList.toggle('hidden', !this._isVisible);
+		}
+
+		const editorLayout = this._editor.getLayoutInfo();
+		const topForLineNumber = this._editor.getTopForLineNumber(lineNumber);
+		const editorScrollTop = this._editor.getScrollTop();
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const nodeHeight = this._domNode.clientHeight;
+		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
+
+		this._domNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		this._domNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+	}
+
+	private _updateFont(): void {
+		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
+
+		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	private _updateContents(node: Node): void {
+		this._domNode.textContent = '';
+		this._domNode.appendChild(node);
+		this._updateFont();
+	}
+
 	public onModelDecorationsChanged(): void {
-		if (this.isVisible) {
+		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -147,13 +209,17 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
-	public override hide(): void {
+	public hide(): void {
 		this._lastLineNumber = -1;
 		this._hoverOperation.cancel();
-		super.hide();
+		if (!this._isVisible) {
+			return;
+		}
+		this._isVisible = false;
+		this._domNode.classList.toggle('hidden', !this._isVisible);
 	}
 
-	public _withResult(result: IHoverMessage[]): void {
+	private _withResult(result: IHoverMessage[]): void {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
@@ -174,7 +240,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
 		}
 
-		this.updateContents(fragment);
-		this.showAt(lineNumber);
+		this._updateContents(fragment);
+		this._showAt(lineNumber);
 	}
 }
