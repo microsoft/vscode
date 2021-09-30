@@ -189,6 +189,7 @@
 	"config.showUnpublishedCommitsButton.always": "Always shows the action button, if there are unpublished commits.",
 	"config.showUnpublishedCommitsButton.whenEmpty": "Only shows the action button if there are no other changes and there are unpublished commits.",
 	"config.showUnpublishedCommitsButton.never": "Never shows the action button.",
+	"config.statusLimit": "Controls how to limit the number of changes that can be parsed from Git status command. Can be set to 0 for no limit.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

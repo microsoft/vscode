@@ -7,6 +7,7 @@ import { app, BrowserWindow, contentTracing, dialog, ipcMain, protocol, session,
 import { statSync } from 'fs';
 import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { once } from 'vs/base/common/functional';
@@ -279,7 +280,7 @@ export class CodeApplication extends Disposable {
 			}
 
 			// Resolve shell env
-			return resolveShellEnv(this.logService, args, env);
+			return this.resolveShellEnvironment(args, env);
 		});
 
 		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
@@ -978,7 +979,8 @@ export class CodeApplication extends Disposable {
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
-		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
+		// We also show an error to the user in case this fails.
+		this.resolveShellEnvironment(this.environmentMainService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
@@ -1009,6 +1011,16 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+	}
+
+	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
+		try {
+			return await resolveShellEnv(this.logService, args, env);
+		} catch (error) {
+			this.windowsMainService?.sendToFocused('vscode:showResolveShellEnvError', toErrorMessage(error));
+		}
+
+		return {};
 	}
 
 	private stopTracingEventually(accessor: ServicesAccessor, windows: ICodeWindow[]): void {

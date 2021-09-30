@@ -29,6 +29,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { extUri } from 'vs/base/common/resources';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -114,7 +115,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageDetectionService languageDetectionService: ILanguageDetectionService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(modelService, modeService, languageDetectionService, accessibilityService);
 
@@ -610,7 +612,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
+	private static _whenReadyToDetectLanguage: Promise<boolean> | undefined;
+	private whenReadyToDetectLanguage(): Promise<boolean> {
+		if (TextFileEditorModel._whenReadyToDetectLanguage === undefined) {
+			// We need to wait until installed extensions are registered because if the editor is created before that (like when restoring an editor)
+			// it could be created with a mode of plaintext. This would trigger language detection even though the real issue is that the
+			// language extensions are not yet loaded to provide the actual mode.
+			TextFileEditorModel._whenReadyToDetectLanguage = this.extensionService.whenInstalledExtensionsRegistered();
+		}
+		return TextFileEditorModel._whenReadyToDetectLanguage;
+	}
+
 	protected override async autoDetectLanguage(): Promise<void> {
+		await this.whenReadyToDetectLanguage();
 		const mode = this.getMode();
 		if (
 			this.resource.scheme === this.pathService.defaultUriScheme &&	// make sure to not detect language for non-user visible documents

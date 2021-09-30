@@ -23,6 +23,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 
 	static readonly ID: string = 'workbench.input.interactive';
 
+	public override get editorId(): string {
+		return InteractiveEditorInput.ID;
+	}
+
 	override get typeId(): string {
 		return InteractiveEditorInput.ID;
 	}

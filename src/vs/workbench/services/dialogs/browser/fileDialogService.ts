@@ -211,7 +211,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "Click 'Learn More' to see a list of supported browsers."),
+				detail: localize('unsupportedBrowserDetail', "You can either upload files or open a remote repository to start editing."),
 				cancelId
 			}
 		);

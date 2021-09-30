@@ -668,6 +668,12 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				},
 			}
 		});
+
+		configurationRegistry.registerDefaultConfigurations([{
+			'[jsonc]': {
+				'configurationService.folder.languageSetting': 'languageValue'
+			}
+		}]);
 	});
 
 	setup(async () => {
@@ -1051,6 +1057,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
 			.then(() => assert.ok(target.called));
 	});
+
+	test('resource language configuration', async () => {
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValue');
+		await testObject.updateValue('configurationService.folder.languageSetting', 'languageValueUpdated', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }, ConfigurationTarget.WORKSPACE_FOLDER);
+		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValueUpdated');
+	});
+
 
 	test('remove setting from all targets', async () => {
 		const key = 'configurationService.folder.testSetting';

@@ -1800,8 +1800,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
-		const result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, false);
-		result.push(...this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
+		let result = this._decorationsTree.getAll(this, ownerId, filterOutValidation, false);
+		result = result.concat(this._decorationProvider.getAllDecorations(ownerId, filterOutValidation));
 		return result;
 	}
 

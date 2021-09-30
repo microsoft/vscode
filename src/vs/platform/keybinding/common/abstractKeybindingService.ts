@@ -7,7 +7,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, KeyCode, KeybindingModifier, ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -37,7 +37,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
-	private _currentSingleModifier: null | string;
+	private _ignoreSingleModifiers: KeybindingModifierSet;
+	private _currentSingleModifier: KeybindingModifier | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
 
 	protected _logging: boolean;
@@ -58,6 +59,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentChord = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
+		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
 		this._currentSingleModifier = null;
 		this._currentSingleModifierClearTimeout = new TimeoutTimer();
 		this._logging = false;
@@ -185,25 +187,51 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keybinding = this.resolveKeyboardEvent(e);
 		const [singleModifier,] = keybinding.getSingleModifierDispatchParts();
 
-		if (singleModifier !== null && this._currentSingleModifier === null) {
-			// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
-			this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
-			this._currentSingleModifier = singleModifier;
-			this._currentSingleModifierClearTimeout.cancelAndSet(() => {
-				this._log(`+ Clearing single modifier due to 300ms elapsed.`);
+		if (singleModifier) {
+
+			if (this._ignoreSingleModifiers.has(singleModifier)) {
+				this._log(`+ Ignoring single modifier ${singleModifier} due to it being pressed together with other keys.`);
+				this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
+				this._currentSingleModifierClearTimeout.cancel();
 				this._currentSingleModifier = null;
-			}, 300);
+				return false;
+			}
+
+			this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
+
+			if (this._currentSingleModifier === null) {
+				// we have a valid `singleModifier`, store it for the next keyup, but clear it in 300ms
+				this._log(`+ Storing single modifier for possible chord ${singleModifier}.`);
+				this._currentSingleModifier = singleModifier;
+				this._currentSingleModifierClearTimeout.cancelAndSet(() => {
+					this._log(`+ Clearing single modifier due to 300ms elapsed.`);
+					this._currentSingleModifier = null;
+				}, 300);
+				return false;
+			}
+
+			if (singleModifier === this._currentSingleModifier) {
+				// bingo!
+				this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
+				this._currentSingleModifierClearTimeout.cancel();
+				this._currentSingleModifier = null;
+				return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
+			}
+
+			this._log(`+ Clearing single modifier due to modifier mismatch: ${this._currentSingleModifier} ${singleModifier}`);
+			this._currentSingleModifierClearTimeout.cancel();
+			this._currentSingleModifier = null;
 			return false;
 		}
 
-		if (singleModifier !== null && singleModifier === this._currentSingleModifier) {
-			// bingo!
-			this._log(`/ Dispatching single modifier chord ${singleModifier} ${singleModifier}`);
-			this._currentSingleModifierClearTimeout.cancel();
-			this._currentSingleModifier = null;
-			return this._doDispatch(keybinding, target, /*isSingleModiferChord*/true);
-		}
+		// When pressing a modifier and holding it pressed with any other modifier or key combination,
+		// the pressed modifiers should no longer be considered for single modifier dispatch.
+		const [firstPart,] = keybinding.getParts();
+		this._ignoreSingleModifiers = new KeybindingModifierSet(firstPart);
 
+		if (this._currentSingleModifier !== null) {
+			this._log(`+ Clearing single modifier due to other key up.`);
+		}
 		this._currentSingleModifierClearTimeout.cancel();
 		this._currentSingleModifier = null;
 		return false;
@@ -285,5 +313,31 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return true;
 		}
 		return false;
+	}
+}
+
+class KeybindingModifierSet {
+
+	public static EMPTY = new KeybindingModifierSet(null);
+
+	private readonly _ctrlKey: boolean;
+	private readonly _shiftKey: boolean;
+	private readonly _altKey: boolean;
+	private readonly _metaKey: boolean;
+
+	constructor(source: ResolvedKeybindingPart | null) {
+		this._ctrlKey = source ? source.ctrlKey : false;
+		this._shiftKey = source ? source.shiftKey : false;
+		this._altKey = source ? source.altKey : false;
+		this._metaKey = source ? source.metaKey : false;
+	}
+
+	has(modifier: KeybindingModifier) {
+		switch (modifier) {
+			case 'ctrl': return this._ctrlKey;
+			case 'shift': return this._shiftKey;
+			case 'alt': return this._altKey;
+			case 'meta': return this._metaKey;
+		}
 	}
 }

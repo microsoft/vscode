@@ -17,7 +17,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
+import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -233,6 +233,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 				});
 
+				// Unset `DEBUG`, as an invalid value might lead to extension host crashes
+				// See https://github.com/microsoft/vscode/issues/130072
+				delete env['DEBUG'];
+
 				if (platform.isMacintosh) {
 					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
 					// See https://github.com/microsoft/vscode/issues/104525
@@ -374,8 +378,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				const sw = new StopWatch(false);
 				return this._extensionHostProcess.start(opts).then(() => {
-					if (sw.elapsed() > 20) {
-						// communicating to the shared process took more than 20ms
+					if (sw.elapsed() > 500) {
+						// communicating to the shared process took more than 500ms
 						this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
 					}
 					// Initialize extension host process with hand shakes
@@ -568,14 +572,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-
 		if (this._isExtensionDevTestFromCli) {
-
-			// Log on main side if running tests from cli
+			// If running tests from cli, log to the log service everything
 			logRemoteEntry(this._logService, entry);
 		} else {
-
-			// Send to local console
+			// Log to the log service only errors and log everything to local console
+			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
 			log(entry, 'Extension Host');
 		}
 	}

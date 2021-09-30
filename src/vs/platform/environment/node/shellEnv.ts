@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from 'path';
 import { spawn } from 'child_process';
-import * as path from 'path';
+import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
@@ -16,9 +17,22 @@ import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { ILogService } from 'vs/platform/log/common/log';
 
 /**
+ * The maximum of time we accept to wait on resolving the shell
+ * environment before giving up. This ensures we are not blocking
+ * other tasks from running for a too long time period.
+ */
+const MAX_SHELL_RESOLVE_TIME = 10000;
+
+let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
+
+/**
  * We need to get the environment from a user's shell.
  * This should only be done when Code itself is not launched
  * from within a shell.
+ *
+ * Will throw an error if:
+ * - we hit a timeout of `MAX_SHELL_RESOLVE_TIME`
+ * - any other error from spawning a shell to figure out the environment
  */
 export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
@@ -55,25 +69,21 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = new Promise(async resolve => {
+			unixShellEnvPromise = new Promise(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
-				// Give up resolving shell env after 10 seconds
+				// Give up resolving shell env after some time
 				const timeout = setTimeout(() => {
-					logService.error(`[resolve shell env] Could not resolve shell environment within 10 seconds. Proceeding without shell environment...`);
-
 					cts.dispose(true);
-					resolve({});
-				}, 10000);
+					reject(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."));
+				}, MAX_SHELL_RESOLVE_TIME);
 
 				// Resolve shell env and handle errors
 				try {
-					const shellEnv = await doResolveUnixShellEnv(logService, cts.token);
-
-					resolve(shellEnv);
+					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
-					if (!isPromiseCanceledError(error)) {
-						logService.error(`[resolve shell env] Unable to resolve shell environment (${error}). Proceeding without shell environment...`);
+					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
+						reject(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error)));
 					}
 
 					resolve({});
@@ -88,10 +98,8 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 	}
 }
 
-let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
-
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	const promise = new Promise<typeof process.env>(async (resolve, reject) => {
+	return new Promise<typeof process.env>(async (resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
@@ -116,7 +124,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		}
 
 		// handle popular non-POSIX shells
-		const name = path.basename(systemShellUnix);
+		const name = basename(systemShellUnix);
 		let command: string, shellArgs: Array<string>;
 		if (/^pwsh(-preview)?$/.test(name)) {
 			// Older versions of PowerShell removes double quotes sometimes so we use "double single quotes" which is how
@@ -144,7 +152,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 
 		child.on('error', err => {
 			logService.error('getUnixShellEnvironment#errorChildProcess', toErrorMessage(err));
-			resolve({});
+			reject(err);
 		});
 
 		const buffers: Buffer[] = [];
@@ -163,7 +171,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			}
 
 			if (code || signal) {
-				return reject(new Error(`Failed to get environment (code ${code}, signal ${signal})`));
+				return reject(new Error(localize('resolveShellEnvExitError', "Unexpected exit code from spawned shell (code {0}, signal {1})", code, signal)));
 			}
 
 			const match = regex.exec(raw);
@@ -195,12 +203,4 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 			}
 		});
 	});
-
-	try {
-		return await promise;
-	} catch (error) {
-		logService.error('getUnixShellEnvironment#error', toErrorMessage(error));
-
-		return {}; // ignore any errors
-	}
 }

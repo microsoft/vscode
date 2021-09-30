@@ -21,11 +21,12 @@ import { Workspace } from 'vs/platform/workspace/common/workspace';
 export class ConfigurationModel implements IConfigurationModel {
 
 	private isFrozen: boolean = false;
+	private readonly overrideConfigurations = new Map<string, ConfigurationModel>();
 
 	constructor(
-		private _contents: any = {},
-		private _keys: string[] = [],
-		private _overrides: IOverrides[] = []
+		private readonly _contents: any = {},
+		private readonly _keys: string[] = [],
+		private readonly _overrides: IOverrides[] = []
 	) {
 	}
 
@@ -66,34 +67,12 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	override(identifier: string): ConfigurationModel {
-		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
-
-		if (!overrideContents || typeof overrideContents !== 'object' || !Object.keys(overrideContents).length) {
-			// If there are no valid overrides, return self
-			return this;
+		let overrideConfigurationModel = this.overrideConfigurations.get(identifier);
+		if (!overrideConfigurationModel) {
+			overrideConfigurationModel = this.createOverrideConfigurationModel(identifier);
+			this.overrideConfigurations.set(identifier, overrideConfigurationModel);
 		}
-
-		let contents: any = {};
-		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
-
-			let contentsForKey = this.contents[key];
-			let overrideContentsForKey = overrideContents[key];
-
-			// If there are override contents for the key, clone and merge otherwise use base contents
-			if (overrideContentsForKey) {
-				// Clone and merge only if base contents and override contents are of type object otherwise just override
-				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
-					contentsForKey = objects.deepClone(contentsForKey);
-					this.mergeContents(contentsForKey, overrideContentsForKey);
-				} else {
-					contentsForKey = overrideContentsForKey;
-				}
-			}
-
-			contents[key] = contentsForKey;
-		}
-
-		return new ConfigurationModel(contents, this.keys, this.overrides);
+		return overrideConfigurationModel;
 	}
 
 	merge(...others: ConfigurationModel[]): ConfigurationModel {
@@ -124,6 +103,37 @@ export class ConfigurationModel implements IConfigurationModel {
 	freeze(): ConfigurationModel {
 		this.isFrozen = true;
 		return this;
+	}
+
+	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
+		const overrideContents = this.getContentsForOverrideIdentifer(identifier);
+
+		if (!overrideContents || typeof overrideContents !== 'object' || !Object.keys(overrideContents).length) {
+			// If there are no valid overrides, return self
+			return this;
+		}
+
+		let contents: any = {};
+		for (const key of arrays.distinct([...Object.keys(this.contents), ...Object.keys(overrideContents)])) {
+
+			let contentsForKey = this.contents[key];
+			let overrideContentsForKey = overrideContents[key];
+
+			// If there are override contents for the key, clone and merge otherwise use base contents
+			if (overrideContentsForKey) {
+				// Clone and merge only if base contents and override contents are of type object otherwise just override
+				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
+					contentsForKey = objects.deepClone(contentsForKey);
+					this.mergeContents(contentsForKey, overrideContentsForKey);
+				} else {
+					contentsForKey = overrideContentsForKey;
+				}
+			}
+
+			contents[key] = contentsForKey;
+		}
+
+		return new ConfigurationModel(contents, this.keys, this.overrides);
 	}
 
 	private mergeContents(source: any, target: any): void {

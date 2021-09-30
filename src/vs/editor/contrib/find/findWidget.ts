@@ -852,9 +852,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this._findInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
+			if (this._keybindingService.dispatchEvent(e, e.target)) {
+				e.preventDefault();
+				return;
+			} else {
+				this._findInput.inputBox.insertAtCursor('\n');
+				e.preventDefault();
+				return;
+			}
 		}
 
 		if (e.equals(KeyCode.Tab)) {
@@ -884,21 +889,26 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
-				// this is the first time when users press Ctrl + Enter to replace all
-				this._notificationService.info(
-					nls.localize('ctrlEnter.keybindingChanged',
-						'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
-				);
+			if (this._keybindingService.dispatchEvent(e, e.target)) {
+				e.preventDefault();
+				return;
+			} else {
+				if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
+					// this is the first time when users press Ctrl + Enter to replace all
+					this._notificationService.info(
+						nls.localize('ctrlEnter.keybindingChanged',
+							'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
+					);
 
-				this._ctrlEnterReplaceAllWarningPrompted = true;
-				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+					this._ctrlEnterReplaceAllWarningPrompted = true;
+					this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+				}
 
+				this._replaceInput.inputBox.insertAtCursor('\n');
+				e.preventDefault();
+				return;
 			}
 
-			this._replaceInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
 		}
 
 		if (e.equals(KeyCode.Tab)) {

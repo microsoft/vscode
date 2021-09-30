@@ -839,10 +839,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
-			if (isWeb && !containsDragType(originalEvent, 'Files')) {
-				// DnD from vscode to web is not supported #115535. Only if we are dragging from native finder / explorer then the "Files" data transfer will be set
-				return false;
-			}
 		}
 
 		// Other-Tree DND

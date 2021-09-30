@@ -123,7 +123,13 @@ export class LaunchMainService implements ILaunchMainService {
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, {
+				context,
+				cli: args,
+				userEnv,
+				waitMarkerFileURI,
+				remoteAuthority
+			});
 		}
 
 		// Start without file/folder arguments
@@ -173,11 +179,22 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
-					lastActive.focus();
+					this.windowsMainService.openExistingWindow(lastActive, {
+						context,
+						cli: args,
+						userEnv,
+						remoteAuthority
+					});
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
+					usedWindows = this.windowsMainService.open({
+						context,
+						cli: args,
+						userEnv,
+						forceEmpty: true,
+						remoteAuthority
+					});
 				}
 			}
 		}

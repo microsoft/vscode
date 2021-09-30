@@ -28,6 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter } from 'vs/base/common/event';
+import { IFileService } from 'vs/platform/files/common/files';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
@@ -65,7 +66,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 		// Read in the cache on statup
@@ -154,6 +156,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (untypedEditor.options?.override === EditorResolution.DISABLED) {
 			throw new Error(`Calling resolve editor when resolution is explicitly disabled!`);
 		}
+
+		// We ask the file service to activate a provider for the scheme in case
+		// anyone depends on that provider being available
+		await this.fileService.activateProvider(resource.scheme);
 
 		if (untypedEditor.options?.override === EditorResolution.PICK) {
 			const picked = await this.doPickEditor(untypedEditor);
@@ -386,7 +392,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want minPriority+ if no user defined setting is found, else we won't resolve an editor
 		const minPriority = editorId === EditorResolution.EXCLUSIVE_ONLY ? RegisteredEditorPriority.exclusive : RegisteredEditorPriority.builtin;
-		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		let possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
 				editor: associationsFromSetting[0] && minPriority !== RegisteredEditorPriority.exclusive ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
@@ -399,6 +405,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			associationsFromSetting[0]?.viewType || possibleEditors[0].editorInfo.id;
 
 		let conflictingDefault = false;
+
+		// Filter out exclusive before we check for conflicts as exclusive editors cannot be manually chosen
+		possibleEditors = possibleEditors.filter(editor => editor.editorInfo.priority !== RegisteredEditorPriority.exclusive);
 		if (associationsFromSetting.length === 0 && possibleEditors.length > 1) {
 			conflictingDefault = true;
 		}

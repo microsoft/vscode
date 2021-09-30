@@ -25,15 +25,11 @@
 }
 
 .monaco-workbench .hover-language-status > .severity.sev3 {
-	color: var(--code-language-status-error-color)
+	color: var(--code-language-status-color3)
 }
 
 .monaco-workbench .hover-language-status > .severity.sev2 {
-	color: var(--code-language-status-warning-color)
-}
-
-.monaco-workbench .hover-language-status > .severity.sev1 {
-	color: var(--code-language-status-info-color)
+	color: var(--code-language-status-color2)
 }
 
 .monaco-workbench .hover-language-status > .severity.show {

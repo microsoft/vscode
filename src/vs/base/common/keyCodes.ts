@@ -560,6 +560,8 @@ export class ResolvedKeybindingPart {
 	}
 }
 
+export type KeybindingModifier = 'ctrl' | 'shift' | 'alt' | 'meta';
+
 /**
  * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
  */
@@ -611,5 +613,5 @@ export abstract class ResolvedKeybinding {
 	 * @example keybinding "Shift" -> "shift"
 	 * @example keybinding ("D" with shift == true") -> null
 	 */
-	public abstract getSingleModifierDispatchParts(): (string | null)[];
+	public abstract getSingleModifierDispatchParts(): (KeybindingModifier | null)[];
 }

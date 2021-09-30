@@ -38,7 +38,7 @@ export class CellEditorOptions extends Disposable {
 		selectOnLineNumbers: false,
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
-		folding: false,
+		folding: true,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
 		renderValidationDecorations: 'on',
@@ -106,11 +106,10 @@ export class CellEditorOptions extends Disposable {
 		const computed = {
 			...editorOptions,
 			...CellEditorOptions.fixedEditorOptions,
-			... { lineNumbers, folding: lineNumbers === 'on' },
+			... { lineNumbers },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readOnly: this.notebookEditor.isReadOnly,
-			glyphMarginRightPadding: lineNumbers ? 0 : 4
+			readOnly: this.notebookEditor.isReadOnly
 		};
 
 		return computed;
@@ -140,10 +139,8 @@ export class CellEditorOptions extends Disposable {
 			const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 			this._value.lineNumbers = lineNumbers;
-			this._value.folding = lineNumbers === 'on';
 		} else {
 			this._value.lineNumbers = lineNumbers as LineNumbersType;
-			this._value.folding = lineNumbers === 'on';
 		}
 		this._onDidChange.fire();
 	}

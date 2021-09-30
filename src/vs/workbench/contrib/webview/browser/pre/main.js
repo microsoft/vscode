@@ -456,7 +456,7 @@ const handleInnerClick = (event) => {
 	for (const pathElement of event.composedPath()) {
 		/** @type {any} */
 		const node = pathElement;
-		if (node.tagName === 'A' && node.href) {
+		if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
@@ -487,7 +487,7 @@ const handleAuxClick =
 			for (const pathElement of event.composedPath()) {
 				/** @type {any} */
 				const node = pathElement;
-				if (node.tagName === 'A' && node.href) {
+				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 					event.preventDefault();
 					return;
 				}

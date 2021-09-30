@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
@@ -68,7 +68,7 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): string | null {
+	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): KeybindingModifier | null {
 		if ((keybinding.scanCode === ScanCode.ControlLeft || keybinding.scanCode === ScanCode.ControlRight) && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
 			return 'ctrl';
 		}

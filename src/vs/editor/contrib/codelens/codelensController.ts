@@ -95,7 +95,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private _updateLensStyle(): void {
 
 		const { codeLensHeight, fontSize } = this._getLayoutInfo();
-		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily) || this._editor.getOption(EditorOption.fontFamily);
+		const fontFamily = this._editor.getOption(EditorOption.codeLensFontFamily);
 		const editorFontInfo = this._editor.getOption(EditorOption.fontInfo);
 
 		const fontFamilyVar = `--codelens-font-family${this._styleClassName}`;

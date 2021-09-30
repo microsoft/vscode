@@ -24,6 +24,11 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
 					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",

@@ -307,7 +307,9 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.focusPrevious(1, false, e.browserEvent);
-		this.list.reveal(this.list.getFocus()[0]);
+		const el = this.list.getFocus()[0];
+		this.list.setAnchor(el);
+		this.list.reveal(el);
 		this.view.domNode.focus();
 	}
 
@@ -315,7 +317,9 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.focusNext(1, false, e.browserEvent);
-		this.list.reveal(this.list.getFocus()[0]);
+		const el = this.list.getFocus()[0];
+		this.list.setAnchor(el);
+		this.list.reveal(el);
 		this.view.domNode.focus();
 	}
 
@@ -323,7 +327,9 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.focusPreviousPage(e.browserEvent);
-		this.list.reveal(this.list.getFocus()[0]);
+		const el = this.list.getFocus()[0];
+		this.list.setAnchor(el);
+		this.list.reveal(el);
 		this.view.domNode.focus();
 	}
 
@@ -331,7 +337,9 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.focusNextPage(e.browserEvent);
-		this.list.reveal(this.list.getFocus()[0]);
+		const el = this.list.getFocus()[0];
+		this.list.setAnchor(el);
+		this.list.reveal(el);
 		this.view.domNode.focus();
 	}
 
@@ -339,6 +347,7 @@ class KeyboardController<T> implements IDisposable {
 		e.preventDefault();
 		e.stopPropagation();
 		this.list.setSelection(range(this.list.length), e.browserEvent);
+		this.list.setAnchor(undefined);
 		this.view.domNode.focus();
 	}
 
@@ -347,6 +356,7 @@ class KeyboardController<T> implements IDisposable {
 			e.preventDefault();
 			e.stopPropagation();
 			this.list.setSelection([], e.browserEvent);
+			this.list.setAnchor(undefined);
 			this.view.domNode.focus();
 		}
 	}

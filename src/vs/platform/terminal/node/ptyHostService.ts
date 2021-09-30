@@ -101,7 +101,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// remote server).
 		registerTerminalPlatformConfiguration();
 
-		this._shellEnv = isWindows ? Promise.resolve(process.env) : resolveShellEnv(this._logService, { _: [] }, process.env);
+		this._shellEnv = this._resolveShellEnv();
 
 		this._register(toDisposable(() => this._disposePtyHost()));
 
@@ -109,6 +109,20 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._resolveVariablesRequestStore.onCreateRequest(this._onPtyHostRequestResolveVariables.fire, this._onPtyHostRequestResolveVariables);
 
 		[this._client, this._proxy] = this._startPtyHost();
+	}
+
+	private async _resolveShellEnv(): Promise<typeof process.env> {
+		if (isWindows) {
+			return process.env;
+		}
+
+		try {
+			return await resolveShellEnv(this._logService, { _: [] }, process.env);
+		} catch (error) {
+			this._logService.error('ptyHost was unable to resolve shell environment', error);
+
+			return {};
+		}
 	}
 
 	private _startPtyHost(): [Client, IPtyService] {

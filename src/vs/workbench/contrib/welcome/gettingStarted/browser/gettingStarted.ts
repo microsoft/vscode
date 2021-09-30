@@ -1007,7 +1007,9 @@ export class GettingStartedPage extends EditorPane {
 				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
 				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
 
-			const updateEntries = () => { recentlyOpenedList.setEntries(workspacesWithID); };
+			const updateEntries = () => {
+				recentlyOpenedList.setEntries(workspacesWithID);
+			};
 
 			updateEntries();
 
@@ -1106,7 +1108,6 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('walkthroughs', "Walkthroughs"),
 				klass: 'getting-started',
 				limit: 5,
-				empty: undefined, more: undefined,
 				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
 				renderElement: renderGetttingStaredWalkthrough,
 				rankElement: rankWalkthrough,
