@@ -6,8 +6,9 @@
 import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
-import { IWindowsKeyboardMapping, WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
+import { WindowsKeyboardMapper } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IResolvedKeybinding, assertMapping, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding, readRawMapping } from 'vs/workbench/services/keybinding/test/electron-browser/keyboardMapperTestUtils';
+import { IWindowsKeyboardMapping } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
@@ -45,6 +46,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+A'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -61,6 +63,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -85,6 +88,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Z'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -96,11 +100,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -120,11 +125,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				electronAccelerator: 'Ctrl+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+]'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -136,11 +142,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Shift+^',
 				ariaLabel: 'Shift+^',
-				electronAccelerator: 'Shift+]',
+				electronAccelerator: null,
 				userSettingsLabel: 'shift+oem_6',
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['shift+]'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -152,11 +159,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
-				electronAccelerator: 'Ctrl+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+/'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -168,11 +176,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+§',
 				ariaLabel: 'Control+Shift+§',
-				electronAccelerator: 'Ctrl+Shift+/',
+				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift+oem_2',
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+shift+/'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -189,6 +198,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: false,
 				isChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -213,6 +223,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+DownArrow'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -229,6 +240,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+NumPad0'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -245,6 +257,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Home'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
@@ -269,6 +282,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+Home'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -291,11 +305,12 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: false,
 				isChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Single Modifier Ctrl+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -315,6 +330,7 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
 			}
 		);
 	});
@@ -344,6 +360,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+\\'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -362,6 +379,7 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+,', 'ctrl+/'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -379,11 +397,12 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+,'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});
 
-	test('resolveKeyboardEvent Modifier only Ctrl+', () => {
+	test('resolveKeyboardEvent Single Modifier Ctrl+', () => {
 		assertResolveKeyboardEvent(
 			mapper,
 			{
@@ -403,6 +422,107 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
+				singleModifierDispatchParts: ['ctrl'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: 'Shift',
+				ariaLabel: 'Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['shift'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Alt+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: KeyCode.Alt,
+				code: null!
+			},
+			{
+				label: 'Alt',
+				ariaLabel: 'Alt',
+				electronAccelerator: null,
+				userSettingsLabel: 'alt',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['alt'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Single Modifier Meta+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: false,
+				shiftKey: false,
+				altKey: false,
+				metaKey: true,
+				keyCode: KeyCode.Meta,
+				code: null!
+			},
+			{
+				label: 'Windows',
+				ariaLabel: 'Windows',
+				electronAccelerator: null,
+				userSettingsLabel: 'win',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: ['meta'],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Only Modifiers Ctrl+Shift+', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				_standardKeyboardEventBrand: true,
+				ctrlKey: true,
+				shiftKey: true,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.Shift,
+				code: null!
+			},
+			{
+				label: 'Ctrl+Shift',
+				ariaLabel: 'Control+Shift',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+shift',
+				isWYSIWYG: true,
+				isChord: false,
+				dispatchParts: [null],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -440,6 +560,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+ABNT_C1'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -464,6 +585,7 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				isWYSIWYG: false,
 				isChord: false,
 				dispatchParts: ['ctrl+ABNT_C2'],
+				singleModifierDispatchParts: [null],
 			}
 		);
 	});
@@ -493,6 +615,7 @@ suite('keyboardMapper - WINDOWS ru', () => {
 				isWYSIWYG: true,
 				isChord: true,
 				dispatchParts: ['ctrl+K', 'ctrl+K'],
+				singleModifierDispatchParts: [null, null],
 			}]
 		);
 	});
@@ -528,6 +651,7 @@ suite('keyboardMapper - misc', () => {
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+B'],
+				singleModifierDispatchParts: [null],
 			}]
 		);
 	});

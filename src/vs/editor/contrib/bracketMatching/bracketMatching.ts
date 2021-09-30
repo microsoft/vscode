@@ -235,6 +235,13 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				const [open, close] = brackets;
 				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
 				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
+
+				if (close.containsPosition(position)) {
+					// select backwards if the cursor was on the closing bracket
+					const tmp = selectFrom;
+					selectFrom = selectTo;
+					selectTo = tmp;
+				}
 			}
 
 			if (selectFrom && selectTo) {
@@ -249,6 +256,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match',
 		overviewRuler: {
@@ -258,6 +266,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	});
 
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});

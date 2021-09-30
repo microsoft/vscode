@@ -5,71 +5,65 @@
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/preferences';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
 import { ConfigureLanguageBasedSettingsAction } from 'vs/workbench/contrib/preferences/browser/preferencesActions';
-import { PreferencesEditor } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
-import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
-import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, MODIFIED_SETTING_TAG, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { SettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
+import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { SettingsEditor2, SettingsFocusContext } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
+import { CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDING_FOCUS, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SEARCH, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_SHOW_DEFAULT_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS, KEYBINDINGS_EDITOR_SHOW_USER_KEYBINDINGS, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { PreferencesContribution } from 'vs/workbench/contrib/preferences/common/preferencesContribution';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
-import { AbstractSideBySideEditorInputFactory } from 'vs/workbench/browser/parts/editor/editor.contribution';
+import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
-const SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING = 'settings.action.focusNextSetting';
-const SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING = 'settings.action.focusPreviousSetting';
 const SETTINGS_EDITOR_COMMAND_FOCUS_FILE = 'settings.action.focusSettingsFile';
-const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocusedSetting';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
+const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
+const SETTINGS_EDITOR_COMMAND_FOCUS_UP = 'settings.action.focusLevelUp';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
+const SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
+const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
 const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
-		PreferencesEditor,
-		PreferencesEditor.ID,
-		nls.localize('defaultPreferencesEditor', "Default Preferences Editor")
-	),
-	[
-		new SyncDescriptor(PreferencesEditorInput)
-	]
-);
-
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		SettingsEditor2,
 		SettingsEditor2.ID,
 		nls.localize('settingsEditor2', "Settings Editor 2")
@@ -79,8 +73,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
 		KeybindingsEditor,
 		KeybindingsEditor.ID,
 		nls.localize('keybindingsEditor', "Keybindings Editor")
@@ -90,80 +84,58 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-// Register Preferences Editor Input Factory
-class PreferencesEditorInputFactory extends AbstractSideBySideEditorInputFactory {
-
-	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
-		return new PreferencesEditorInput(name, description, secondaryInput, primaryInput);
-	}
-}
-
-class KeybindingsEditorInputFactory implements IEditorInputFactory {
+class KeybindingsEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
 
 	serialize(editorInput: EditorInput): string {
-		const input = <KeybindingsEditorInput>editorInput;
-		return JSON.stringify({
-			name: input.getName(),
-			typeId: input.getTypeId()
-		});
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService): EditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
 
-class SettingsEditor2InputFactory implements IEditorInputFactory {
+class SettingsEditor2InputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
 
 	serialize(input: SettingsEditor2Input): string {
-		return '{}';
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+	deserialize(instantiationService: IInstantiationService): SettingsEditor2Input {
 		return instantiationService.createInstance(SettingsEditor2Input);
 	}
 }
 
-interface ISerializedDefaultPreferencesEditorInput {
-	resource: string;
-}
-
-// Register Default Preferences Editor Input Factory
-class DefaultPreferencesEditorInputFactory implements IEditorInputFactory {
-
-	canSerialize(editorInput: EditorInput): boolean {
-		return true;
-	}
-
-	serialize(editorInput: EditorInput): string {
-		const input = <DefaultPreferencesEditorInput>editorInput;
-
-		const serialized: ISerializedDefaultPreferencesEditorInput = { resource: input.resource.toString() };
-
-		return JSON.stringify(serialized);
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		const deserialized: ISerializedDefaultPreferencesEditorInput = JSON.parse(serializedEditorInput);
-
-		return instantiationService.createInstance(DefaultPreferencesEditorInput, URI.parse(deserialized.resource));
-	}
-}
-
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SettingsEditor2Input.ID, SettingsEditor2InputFactory);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
 const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
+
+const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
+
+interface IOpenSettingsActionOptions {
+	openToSide?: boolean;
+	query?: string;
+}
+
+function sanitizeOpenSettingsArgs(args: any): IOpenSettingsActionOptions {
+	if (!isObject(args)) {
+		args = {};
+	}
+
+	return {
+		openToSide: args.openToSide,
+		query: args.query
+	};
+}
 
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -186,7 +158,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private registerSettingsActions() {
 		const that = this;
-		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -204,9 +175,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args: string | undefined) {
-				const query = typeof args === 'string' ? args : undefined;
-				return accessor.get(IPreferencesService).openSettings(query ? false : undefined, query);
+			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
+				// args takes a string for backcompat
+				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openSettings(opts);
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
@@ -223,11 +195,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openSettings2',
 					title: { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings(false, undefined);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: false });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -236,11 +208,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openSettingsJson',
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openSettings(true, undefined);
+				return accessor.get(IPreferencesService).openSettings({ jsonEditor: true });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -249,11 +221,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalSettings',
 					title: { value: nls.localize('openGlobalSettings', "Open User Settings"), original: 'Open User Settings' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalSettings();
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openUserSettings(args);
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -262,7 +235,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openRawDefaultSettings',
 					title: { value: nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)"), original: 'Open Default Settings (JSON)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -274,17 +247,18 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: '_workbench.openUserSettingsEditor',
 					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: { id: 'codicon/go-to-file' },
+					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
-						when: ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()),
+						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 						group: 'navigation',
 						order: 1
 					}]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalSettings(false);
+			run(accessor: ServicesAccessor, args: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -292,7 +266,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
-					icon: { id: 'codicon/go-to-file' },
+					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
 						when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
@@ -306,7 +280,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				if (editorPane instanceof SettingsEditor2) {
 					return editorPane.switchToSettingsFile();
 				}
-				return Promise.resolve(null);
+				return null;
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -315,7 +289,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: ConfigureLanguageBasedSettingsAction.ID,
 					title: ConfigureLanguageBasedSettingsAction.LABEL,
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -334,8 +308,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openWorkspaceSettings();
+			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -350,8 +325,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openWorkspaceSettings(true);
+			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+				args = sanitizeOpenSettingsArgs(args);
+				return accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: true, ...args });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -366,12 +342,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 				const commandService = accessor.get(ICommandService);
 				const preferencesService = accessor.get(IPreferencesService);
 				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 				if (workspaceFolder) {
-					await preferencesService.openFolderSettings(workspaceFolder.uri);
+					args = sanitizeOpenSettingsArgs(args);
+					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, ...args });
 				}
 			}
 		});
@@ -387,12 +364,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			async run(accessor: ServicesAccessor) {
+			async run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
 				const commandService = accessor.get(ICommandService);
 				const preferencesService = accessor.get(IPreferencesService);
 				const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 				if (workspaceFolder) {
-					await preferencesService.openFolderSettings(workspaceFolder.uri, true);
+					args = sanitizeOpenSettingsArgs(args);
+					await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri, jsonEditor: true, ...args });
 				}
 			}
 		});
@@ -411,7 +389,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 			run(accessor: ServicesAccessor, resource: URI) {
-				return accessor.get(IPreferencesService).openFolderSettings(resource);
+				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
 			}
 		});
 		registerAction2(class extends Action2 {
@@ -452,7 +430,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				if (editorPane instanceof SettingsEditor2) {
 					editorPane.focusSearch(`@tag:usesOnlineServices`);
 				} else {
-					accessor.get(IPreferencesService).openSettings(false, '@tag:usesOnlineServices');
+					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:usesOnlineServices' });
 				}
 			}
 		});
@@ -473,12 +451,46 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			order: 2
 		});
 
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FILTER_TELEMETRY,
+					title: { value: nls.localize('showTelemtrySettings', "Telemetry Settings"), original: 'Telemetry Settings' },
+					menu: {
+						id: MenuId.MenubarPreferencesMenu,
+						group: '1_settings',
+						order: 3,
+					}
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof SettingsEditor2) {
+					editorPane.focusSearch('@tag:telemetry');
+				} else {
+					accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
+				}
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED,
+					title: { value: nls.localize('filterUntrusted', "Show untrusted workspace settings"), original: 'Show untrusted workspace settings' },
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				accessor.get(IPreferencesService).openWorkspaceSettings({ jsonEditor: false, query: `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}` });
+			}
+		});
+
 		this.registerSettingsEditorActions();
 
 		this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
-				const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-				const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority) || remoteAuthority;
+				const remoteAuthority = this.environmentService.remoteAuthority;
+				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
 				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {
 					constructor() {
@@ -492,54 +504,80 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							}
 						});
 					}
-					run(accessor: ServicesAccessor) {
-						return accessor.get(IPreferencesService).openRemoteSettings();
+					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+						args = sanitizeOpenSettingsArgs(args);
+						return accessor.get(IPreferencesService).openRemoteSettings(args);
+					}
+				});
+				const jsonLabel = nls.localize('openRemoteSettingsJSON', "Open Remote Settings (JSON) ({0})", hostLabel);
+				registerAction2(class extends Action2 {
+					constructor() {
+						super({
+							id: 'workbench.action.openRemoteSettingsFile',
+							title: { value: jsonLabel, original: `Open Remote Settings (JSON) (${hostLabel})` },
+							category,
+							menu: {
+								id: MenuId.CommandPalette,
+								when: RemoteNameContext.notEqualsTo('')
+							}
+						});
+					}
+					run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
+						args = sanitizeOpenSettingsArgs(args);
+						return accessor.get(IPreferencesService).openRemoteSettings(args);
 					}
 				});
 			});
 	}
 
 	private registerSettingsEditorActions() {
-		function getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor | SettingsEditor2 | null {
+		function getPreferencesEditor(accessor: ServicesAccessor): SettingsEditor2 | null {
 			const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-			if (activeEditorPane instanceof PreferencesEditor || activeEditorPane instanceof SettingsEditor2) {
+			if (activeEditorPane instanceof SettingsEditor2) {
 				return activeEditorPane;
 			}
 			return null;
 		}
+
+		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
+			const preferencesEditor = getPreferencesEditor(accessor);
+			if (preferencesEditor) {
+				preferencesEditor.focusSearch();
+			}
+		}
+
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 						weight: KeybindingWeight.EditorContrib,
 						when: null
 					},
-					title: nls.localize('settings.focusSearch', "Focus settings search")
+					category,
+					f1: true,
+					title: nls.localize('settings.focusSearch', "Focus Settings Search")
 				});
 			}
 
-			run(accessor: ServicesAccessor) {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor) {
-					preferencesEditor.focusSearch();
-				}
-			}
+			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
 		});
 
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-					precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyCode.Escape,
 						weight: KeybindingWeight.EditorContrib,
-						when: null
+						when: CONTEXT_SETTINGS_SEARCH_FOCUS
 					},
-					title: nls.localize('settings.clearResults', "Clear settings search results")
+					category,
+					f1: true,
+					title: nls.localize('settings.clearResults', "Clear Settings Search Results")
 				});
 			}
 
@@ -567,11 +605,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor, args: any): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof PreferencesEditor) {
-					preferencesEditor.focusSettingsFileEditor();
-				} else if (preferencesEditor) {
-					preferencesEditor.focusSettings();
-				}
+				preferencesEditor?.focusSettings();
 			}
 		});
 
@@ -591,77 +625,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 			run(accessor: ServicesAccessor, args: any): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof PreferencesEditor) {
-					preferencesEditor.focusSettingsFileEditor();
-				} else if (preferencesEditor) {
-					preferencesEditor.focusSettings();
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING,
-					precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-					keybinding: {
-						primary: KeyCode.Enter,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusNextSetting', "Focus next setting")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof PreferencesEditor) {
-					preferencesEditor.focusNextResult();
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING,
-					precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-					keybinding: {
-						primary: KeyMod.Shift | KeyCode.Enter,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusPreviousSetting', "Focus previous setting")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof PreferencesEditor) {
-					preferencesEditor.focusPreviousResult();
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING,
-					precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
-					keybinding: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
-					title: nls.localize('settings.editFocusedSetting', "Edit focused setting")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof PreferencesEditor) {
-					preferencesEditor.editFocusedPreference();
-				}
+				preferencesEditor?.focusSettings();
 			}
 		});
 
@@ -692,14 +656,49 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
 					precondition: CONTEXT_SETTINGS_EDITOR,
-					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
+					f1: true,
+					keybinding: [
+						{
+							primary: KeyCode.LeftArrow,
+							weight: KeybindingWeight.WorkbenchContrib,
+							when: CONTEXT_SETTINGS_ROW_FOCUS
+						}],
+					category,
+					title: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents")
 				});
 			}
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof SettingsEditor2) {
-					preferencesEditor.focusTOC();
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
+				}
+
+				preferencesEditor.focusTOC();
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
+					precondition: CONTEXT_SETTINGS_ROW_FOCUS,
+					keybinding: {
+						primary: KeyCode.Enter,
+						weight: KeybindingWeight.WorkbenchContrib,
+					},
+					title: nls.localize('settings.focusSettingControl', "Focus Setting Control")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
+				}
+
+				if (document.activeElement?.classList.contains('monaco-list')) {
+					preferencesEditor.focusSettings(true);
 				}
 			}
 		});
@@ -708,13 +707,15 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyMod.Shift | KeyCode.F9,
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: null
 					},
-					title: nls.localize('settings.showContextMenu', "Show context menu")
+					f1: true,
+					category,
+					title: nls.localize('settings.showContextMenu', "Show Setting Context Menu")
 				});
 			}
 
@@ -722,6 +723,38 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const preferencesEditor = getPreferencesEditor(accessor);
 				if (preferencesEditor instanceof SettingsEditor2) {
 					preferencesEditor.showContextMenu();
+				}
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_UP,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS.toNegated(), CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
+					keybinding: {
+						primary: KeyCode.Escape,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					f1: true,
+					category,
+					title: nls.localize('settings.focusLevelUp', "Move Focus Up One Level")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
+				}
+
+				if (preferencesEditor.currentFocusContext === SettingsFocusContext.SettingControl) {
+					preferencesEditor.focusSettings();
+				} else if (preferencesEditor.currentFocusContext === SettingsFocusContext.SettingTree) {
+					preferencesEditor.focusTOC();
+				} else if (preferencesEditor.currentFocusContext === SettingsFocusContext.TableOfContents) {
+					preferencesEditor.focusSearch();
 				}
 			}
 		});
@@ -736,7 +769,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalKeybindings',
 					title: { value: nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts"), original: 'Open Keyboard Shortcuts' },
 					category,
-					icon: { id: 'codicon/go-to-file' },
+					icon: preferencesOpenSettingsIcon,
 					keybinding: {
 						when: null,
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -753,8 +786,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					]
 				});
 			}
-			run(accessor: ServicesAccessor) {
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false);
+			run(accessor: ServicesAccessor, args: string | undefined) {
+				const query = typeof args === 'string' ? args : undefined;
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query });
 			}
 		});
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
@@ -792,7 +826,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalKeybindingsFile',
 					title: { value: nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts (JSON)"), original: 'Open Keyboard Shortcuts (JSON)' },
 					category,
-					icon: { id: 'codicon/go-to-file' },
+					icon: preferencesOpenSettingsIcon,
 					menu: [
 						{ id: MenuId.CommandPalette },
 						{
@@ -825,6 +859,27 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
 					editorPane.search('@source:default');
+				}
+			}
+		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: KEYBINDINGS_EDITOR_SHOW_EXTENSION_KEYBINDINGS,
+					title: { value: nls.localize('showExtensionKeybindings', "Show Extension Keybindings"), original: 'Show Extension Keybindings' },
+					menu: [
+						{
+							id: MenuId.EditorTitle,
+							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+							group: '1_keyboard_preferences_actions'
+						}
+					]
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof KeybindingsEditor) {
+					editorPane.search('@source:extension');
 				}
 			}
 		});
@@ -877,11 +932,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_DEFINE,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
-			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+			primary: KeyCode.Enter,
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
-					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!);
+					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, false);
+				}
+			}
+		});
+
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: KEYBINDINGS_EDITOR_COMMAND_ADD,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+			primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_A),
+			handler: (accessor, args: any) => {
+				const editorPane = accessor.get(IEditorService).activeEditorPane;
+				if (editorPane instanceof KeybindingsEditor) {
+					editorPane.defineKeybinding(editorPane.activeKeybindingEntry!, true);
 				}
 			}
 		});
@@ -902,10 +970,10 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: KEYBINDINGS_EDITOR_COMMAND_REMOVE,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS, InputFocusedContext.toNegated()),
 			primary: KeyCode.Delete,
 			mac: {
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.Backspace)
+				primary: KeyMod.CtrlCmd | KeyCode.Backspace
 			},
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
@@ -1012,7 +1080,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			id: KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
-			primary: KeyCode.DownArrow,
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			handler: (accessor, args: any) => {
 				const editorPane = accessor.get(IEditorService).activeEditorPane;
 				if (editorPane instanceof KeybindingsEditor) {
@@ -1025,14 +1093,14 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 	private updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
-			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings(false));
+			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
 					title: OPEN_SETTINGS2_ACTION_TITLE,
-					icon: { id: 'codicon/go-to-file' }
+					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
 				group: 'navigation',
 				order: 1
 			});
@@ -1046,18 +1114,18 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			if (!CommandsRegistry.getCommand(commandId)) {
 				CommandsRegistry.registerCommand(commandId, () => {
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
-						return this.preferencesService.openWorkspaceSettings(false);
+						return this.preferencesService.openWorkspaceSettings({ jsonEditor: false });
 					} else {
-						return this.preferencesService.openFolderSettings(folder.uri, false);
+						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false });
 					}
 				});
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
 						title: OPEN_SETTINGS2_ACTION_TITLE,
-						icon: { id: 'codicon/go-to-file' }
+						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
 					group: 'navigation',
 					order: 1
 				});
@@ -1069,6 +1137,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesActionsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(PreferencesContribution, LifecyclePhase.Starting);
+
+registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution);
 
 // Preferences menu
 

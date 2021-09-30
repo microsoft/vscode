@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem } from 'vs/base/common/platform';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Modifiers, UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { AriaLabelProvider, ElectronAcceleratorLabelProvider, Modifiers, UILabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { OperatingSystem } from 'vs/base/common/platform';
 
 export abstract class BaseResolvedKeybinding<T extends Modifiers> extends ResolvedKeybinding {
 
@@ -69,10 +69,15 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 		return this._parts.map((keybinding) => this._getDispatchPart(keybinding));
 	}
 
+	public getSingleModifierDispatchParts(): (string | null)[] {
+		return this._parts.map((keybinding) => this._getSingleModifierDispatchPart(keybinding));
+	}
+
 	protected abstract _getLabel(keybinding: T): string | null;
 	protected abstract _getAriaLabel(keybinding: T): string | null;
 	protected abstract _getElectronAccelerator(keybinding: T): string | null;
 	protected abstract _getUserSettingsLabel(keybinding: T): string | null;
 	protected abstract _isWYSIWYG(keybinding: T): boolean;
 	protected abstract _getDispatchPart(keybinding: T): string | null;
+	protected abstract _getSingleModifierDispatchPart(keybinding: T): string | null;
 }

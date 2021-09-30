@@ -3,35 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { coalesce } from 'vs/base/common/arrays';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as resources from 'vs/base/common/resources';
-import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewContainer, IViewsRegistry, ITreeViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IViewDescriptor, ViewContainerLocation } from 'vs/workbench/common/views';
-import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { coalesce, } from 'vs/base/common/arrays';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
-import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
-import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
-import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/common/remote.contribution';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { localize } from 'vs/nls';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Codicon } from 'vs/base/common/codicons';
-import { CustomTreeView } from 'vs/workbench/contrib/views/browser/treeView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { CustomTreeView, TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Extensions as ViewletExtensions, ViewletRegistry } from 'vs/workbench/browser/viewlet';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { Extensions as ViewContainerExtensions, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
+import { VIEWLET_ID as DEBUG } from 'vs/workbench/contrib/debug/common/debug';
+import { VIEWLET_ID as EXPLORER } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID as REMOTE } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
+import { VIEWLET_ID as SCM } from 'vs/workbench/contrib/scm/common/scm';
+import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
+import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -76,7 +71,15 @@ export const viewsContainersContribution: IJSONSchema = {
 	}
 };
 
+enum ViewType {
+	Tree = 'tree',
+	Webview = 'webview'
+}
+
+
 interface IUserFriendlyViewDescriptor {
+	type?: ViewType;
+
 	id: string;
 	name: string;
 	when?: string;
@@ -98,9 +101,23 @@ enum InitialVisibility {
 
 const viewDescriptor: IJSONSchema = {
 	type: 'object',
+	required: ['id', 'name'],
+	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
 	properties: {
+		type: {
+			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
+			type: 'string',
+			enum: [
+				'tree',
+				'webview',
+			],
+			markdownEnumDescriptions: [
+				localize('vscode.extension.contributes.view.tree', "The view is backed by a `TreeView` created by `createTreeView`."),
+				localize('vscode.extension.contributes.view.webview', "The view is backed by a `WebviewView` registered by `registerWebviewViewProvider`."),
+			]
+		},
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			markdownDescription: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -116,7 +133,7 @@ const viewDescriptor: IJSONSchema = {
 			type: 'string'
 		},
 		contextualTitle: {
-			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used. Will be shown"),
+			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used."),
 			type: 'string'
 		},
 		visibility: {
@@ -139,6 +156,7 @@ const viewDescriptor: IJSONSchema = {
 
 const remoteViewDescriptor: IJSONSchema = {
 	type: 'object',
+	required: ['id', 'name'],
 	properties: {
 		id: {
 			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
@@ -208,10 +226,17 @@ const viewsContribution: IJSONSchema = {
 	}
 };
 
-export interface ICustomViewDescriptor extends ITreeViewDescriptor {
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
 	readonly originalContainerId: string;
 }
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
 const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
@@ -226,7 +251,8 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	jsonSchema: viewsContribution
 });
 
-const TEST_VIEW_CONTAINER_ORDER = 6;
+const CUSTOM_VIEWS_START_ORDER = 7;
+
 class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private viewContainersRegistry: IViewContainersRegistry;
@@ -242,7 +268,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private handleAndRegisterCustomViewContainers() {
-		this.registerTestViewContainer();
 		viewsContainersExtensionPoint.setHandler((extensions, { added, removed }) => {
 			if (removed.length) {
 				this.removeCustomViewContainers(removed);
@@ -255,7 +280,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private addCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		let activityBarOrder = TEST_VIEW_CONTAINER_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length + 1;
+		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
 		for (let { value, collector, description } of extensionPoints) {
 			forEach(value, entry => {
@@ -279,21 +304,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		const removedExtensions: Set<string> = extensionPoints.reduce((result, e) => { result.add(ExtensionIdentifier.toKey(e.description.identifier)); return result; }, new Set<string>());
 		for (const viewContainer of viewContainersRegistry.all) {
 			if (viewContainer.extensionId && removedExtensions.has(ExtensionIdentifier.toKey(viewContainer.extensionId))) {
-				// move only those views that do not belong to the removed extension
-				const views = this.viewsRegistry.getViews(viewContainer).filter(view => !removedExtensions.has(ExtensionIdentifier.toKey((view as ICustomViewDescriptor).extensionId)));
+				// move all views in this container into default view container
+				const views = this.viewsRegistry.getViews(viewContainer);
 				if (views.length) {
 					this.viewsRegistry.moveViews(views, this.getDefaultViewContainer());
 				}
 				this.deregisterCustomViewContainer(viewContainer);
 			}
 		}
-	}
-
-	private registerTestViewContainer(): void {
-		const title = localize('test', "Test");
-		const icon = Codicon.beaker.classNames;
-
-		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined, ViewContainerLocation.Sidebar);
 	}
 
 	private isValidViewsContainer(viewsContainersDescriptors: IUserFriendlyViewsContainerDescriptor[], collector: ExtensionMessageCollector): boolean {
@@ -326,7 +344,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription, order: number, existingViewContainers: ViewContainer[], location: ViewContainerLocation): number {
 		containers.forEach(descriptor => {
-			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
+			const themeIcon = ThemeIcon.fromString(descriptor.icon);
+
+			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const viewContainer = this.registerCustomViewContainer(id, descriptor.title, icon, order++, extension.identifier, location);
 
@@ -346,14 +366,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI | string, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI | ThemeIcon, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
 
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
-				name: title, extensionId,
+				title, extensionId,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[id, { mergeViewWithContainerWhenSingleView: true }]
@@ -363,23 +383,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				icon,
 			}, location);
 
-			// Register Action to Open Viewlet
-			class OpenCustomViewletAction extends ShowViewletAction {
-				constructor(
-					id: string, label: string,
-					@IViewletService viewletService: IViewletService,
-					@IEditorGroupsService editorGroupService: IEditorGroupsService,
-					@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-				) {
-					super(id, label, id, viewletService, editorGroupService, layoutService);
-				}
-			}
-			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-			registry.registerWorkbenchAction(
-				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
-				`View: Show ${title}`,
-				localize('view', "View")
-			);
 		}
 
 		return viewContainer;
@@ -440,26 +443,40 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
-					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
+					let icon: ThemeIcon | URI | undefined;
+					if (typeof item.icon === 'string') {
+						icon = ThemeIcon.fromString(item.icon) || resources.joinPath(extension.description.extensionLocation, item.icon);
+					}
+
 					const initialVisibility = this.convertInitialVisibility(item.visibility);
-					const viewDescriptor = <ICustomViewDescriptor>{
+
+					const type = this.getViewType(item.type);
+					if (!type) {
+						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
+						return null;
+					}
+
+					const viewDescriptor = <ICustomTreeViewDescriptor>{
+						type: type,
+						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
 						name: item.name,
-						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
-						containerTitle: item.contextualTitle || viewContainer?.name,
+						containerTitle: item.contextualTitle || viewContainer?.title,
 						canToggleVisibility: true,
-						canMoveView: true,
-						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
+						canMoveView: viewContainer?.id !== REMOTE,
+						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
 						originalContainerId: entry.key,
 						group: item.group,
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
-						hideByDefault: initialVisibility === InitialVisibility.Hidden
+						hideByDefault: initialVisibility === InitialVisibility.Hidden,
+						workspace: viewContainer?.id === REMOTE ? true : undefined
 					};
+
 
 					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
@@ -471,6 +488,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 
 		this.viewsRegistry.registerViews2(allViewDescriptors);
+	}
+
+	private getViewType(type: string | undefined): ViewType | undefined {
+		if (type === ViewType.Webview) {
+			return ViewType.Webview;
+		}
+		if (!type || type === ViewType.Tree) {
+			return ViewType.Tree;
+		}
+		return undefined;
 	}
 
 	private getDefaultViewContainer(): ViewContainer {

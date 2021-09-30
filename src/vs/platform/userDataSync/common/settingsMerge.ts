@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
-import { parse, JSONVisitor, visit } from 'vs/base/common/json';
-import { setProperty, withFormatting, applyEdits } from 'vs/base/common/jsonEdit';
+import { distinct } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { firstIndex, distinct } from 'vs/base/common/arrays';
+import { JSONVisitor, parse, visit } from 'vs/base/common/json';
+import { applyEdits, setProperty, withFormatting } from 'vs/base/common/jsonEdit';
+import { Edit, FormattingOptions, getEOL } from 'vs/base/common/jsonFormatter';
+import * as objects from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as contentUtil from 'vs/platform/userDataSync/common/content';
+import { getDisallowedIgnoredSettings, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -21,7 +21,7 @@ export interface IMergeResult {
 }
 
 export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
-	let value: string[] = [];
+	let value: ReadonlyArray<string> = [];
 	if (settingsContent) {
 		value = getIgnoredSettingsFromContent(settingsContent);
 	} else {
@@ -40,7 +40,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
 }
 
-function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): string[] {
+function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): ReadonlyArray<string> {
 	let userValue = configurationService.inspect<string[]>('settingsSync.ignoredSettings').userValue;
 	if (userValue !== undefined) {
 		return userValue;
@@ -275,8 +275,11 @@ export function areSame(localContent: string, remoteContent: string, ignoredSett
 }
 
 export function isEmpty(content: string): boolean {
-	const nodes = parseSettings(content);
-	return nodes.length === 0;
+	if (content) {
+		const nodes = parseSettings(content);
+		return nodes.length === 0;
+	}
+	return true;
 }
 
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
@@ -317,7 +320,7 @@ interface InsertLocation {
 
 function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]): InsertLocation {
 
-	const sourceNodeIndex = firstIndex(sourceTree, (node => node.setting?.key === key));
+	const sourceNodeIndex = sourceTree.findIndex(node => node.setting?.key === key);
 
 	const sourcePreviousNode: INode = sourceTree[sourceNodeIndex - 1];
 	if (sourcePreviousNode) {

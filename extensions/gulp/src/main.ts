@@ -13,12 +13,31 @@ const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 
-function exists(file: string): Promise<boolean> {
-	return new Promise<boolean>((resolve, _reject) => {
-		fs.exists(file, (value) => {
-			resolve(value);
-		});
-	});
+/**
+ * Check if the given filename is a file.
+ *
+ * If returns false in case the file does not exist or
+ * the file stats cannot be accessed/queried or it
+ * is no file at all.
+ *
+ * @param filename
+ *   the filename to the checked
+ * @returns
+ *   true in case the file exists, in any other case false.
+ */
+async function exists(filename: string): Promise<boolean> {
+	try {
+
+		if ((await fs.promises.stat(filename)).isFile()) {
+			return true;
+		}
+	} catch (ex) {
+		// In case requesting the file statistics fail.
+		// we assume it does not exist.
+		return false;
+	}
+
+	return false;
 }
 
 function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: string; stderr: string }> {
@@ -70,21 +89,23 @@ function showError() {
 }
 
 async function findGulpCommand(rootPath: string): Promise<string> {
-	let gulpCommand: string;
 	let platform = process.platform;
+
 	if (platform === 'win32' && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp.cmd'))) {
 		const globalGulp = path.join(process.env.APPDATA ? process.env.APPDATA : '', 'npm', 'gulp.cmd');
 		if (await exists(globalGulp)) {
-			gulpCommand = '"' + globalGulp + '"';
-		} else {
-			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+			return `"${globalGulp}"`;
 		}
-	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp'))) {
-		gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
-	} else {
-		gulpCommand = 'gulp';
+
+		return path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+
 	}
-	return gulpCommand;
+
+	if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath, 'node_modules', '.bin', 'gulp'))) {
+		return path.join('.', 'node_modules', '.bin', 'gulp');
+	}
+
+	return 'gulp';
 }
 
 interface GulpTaskDefinition extends vscode.TaskDefinition {
@@ -111,7 +132,7 @@ class FolderDetector {
 	}
 
 	public start(): void {
-		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.js,.ts}}');
+		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{node_modules,gulpfile{.babel.js,.esm.js,.js,.mjs,.cjs,.ts}}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
 		this.fileWatcher.onDidChange(() => this.promise = undefined);
 		this.fileWatcher.onDidCreate(() => this.promise = undefined);
@@ -119,14 +140,15 @@ class FolderDetector {
 	}
 
 	public async getTasks(): Promise<vscode.Task[]> {
-		if (this.isEnabled()) {
-			if (!this.promise) {
-				this.promise = this.computeTasks();
-			}
-			return this.promise;
-		} else {
+		if (!this.isEnabled()) {
 			return [];
 		}
+
+		if (!this.promise) {
+			this.promise = this.computeTasks();
+		}
+
+		return this.promise;
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
@@ -140,21 +162,55 @@ class FolderDetector {
 		return undefined;
 	}
 
+	/**
+	 * Searches for a gulp entry point inside the given folder.
+	 *
+	 * Typically the entry point is a file named "gulpfile.js"
+	 *
+	 * It can also be a transposed gulp entry points, like gulp.babel.js or gulp.esm.js
+	 *
+	 * Additionally recent node version prefer the .mjs or .cjs extension over the .js.
+	 *
+	 * @param root
+	 *   the folder which should be checked.
+	 */
+	private async hasGulpfile(root: string): Promise<boolean | undefined> {
+
+		for (const filename of await fs.promises.readdir(root)) {
+
+			const ext = path.extname(filename);
+			if (ext !== '.js' && ext !== '.mjs' && ext !== '.cjs') {
+				continue;
+			}
+
+			if (!exists(filename)) {
+				continue;
+			}
+
+			let basename = path.basename(filename, ext).toLowerCase();
+			if (basename === 'gulpfile') {
+				return true;
+			}
+			if (basename === 'gulpfile.esm') {
+				return true;
+			}
+			if (basename === 'gulpfile.babel') {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private async computeTasks(): Promise<vscode.Task[]> {
 		let rootPath = this._workspaceFolder.uri.scheme === 'file' ? this._workspaceFolder.uri.fsPath : undefined;
 		let emptyTasks: vscode.Task[] = [];
 		if (!rootPath) {
 			return emptyTasks;
 		}
-		let gulpfile = path.join(rootPath, 'gulpfile.js');
-		if (!await exists(gulpfile)) {
-			gulpfile = path.join(rootPath, 'Gulpfile.js');
-			if (!await exists(gulpfile)) {
-				gulpfile = path.join(rootPath, 'gulpfile.babel.js');
-				if (!await exists(gulpfile)) {
-					return emptyTasks;
-				}
-			}
+
+		if (!await this.hasGulpfile(rootPath)) {
+			return emptyTasks;
 		}
 
 		let commandLine = `${await this._gulpCommand} --tasks-simple --no-color`;
