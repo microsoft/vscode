@@ -259,6 +259,26 @@
         }
       }
     },
+snyk-fix-2683dd647f513362cf38b3029520a911
+    "scripts": {
+        "watch": "gulp watch-extension:emmet",
+        "compile": "gulp compile-extension:emmet",
+        "deps": "yarn add vscode-emmet-helper2"
+    },
+    "devDependencies": {
+        "@types/node": "^12.11.7",
+        "mocha-junit-reporter": "^1.17.0",
+        "mocha-multi-reporters": "^1.1.7",
+        "vscode": "1.1.6"
+    },
+    "dependencies": {
+        "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
+        "@emmetio/html-matcher": "^0.3.3",
+        "@emmetio/math-expression": "^0.1.1",
+        "image-size": "^0.5.2",
+        "vscode-emmet-helper2": "^2.0.0-next.0",
+        "vscode-html-languageservice": "^3.0.3"
+
     "commands": [
       {
         "command": "editor.emmet.action.wrapWithAbbreviation",
@@ -469,6 +489,7 @@
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
+ master
     }
   }
 }
