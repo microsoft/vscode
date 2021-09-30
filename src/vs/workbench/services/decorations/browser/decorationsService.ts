@@ -20,7 +20,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { iconRegistry } from 'vs/base/common/codicons';
-import { asArray } from 'vs/base/common/arrays';
+import { asArray, distinct } from 'vs/base/common/arrays';
 
 class DecorationRule {
 
@@ -186,7 +186,7 @@ class DecorationStyles {
 		let labelClassName = rule.itemColorClassName;
 		let badgeClassName = rule.itemBadgeClassName;
 		let iconClassName = rule.iconBadgeClassName;
-		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
 		let strikethrough = data.some(d => d.strikethrough);
 
 		if (onlyChildren) {
