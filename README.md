@@ -33,13 +33,13 @@ _Note_: Feel free to use the `nightly` tag to test the latest version, i.e. `git
 #### Custom Environment
 - If you want to add dependencies to this Docker image, here is a template to help:
 	```Dockerfile
-	
+
 	FROM gitpod/openvscode-server:latest
 
 	USER root # to get permissions to install packages and such
 	RUN # the installation process for software needed
-	USER vscode-server # to restore permissions for the web interface
-	
+	USER openvscode-server # to restore permissions for the web interface
+
 	```
 - For additional possibilities, please consult the `Dockerfile` for OpenVSCode Server at https://github.com/gitpod-io/openvscode-releases/
 
