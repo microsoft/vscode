@@ -286,9 +286,11 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
-		await this.gettingStartedService.installedExtensionsRegistered;
+		if (!this.gettingStartedCategories.some(c => c.id === categoryID)) {
+			await this.gettingStartedService.installedExtensionsRegistered;
+			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
+		}
 
-		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
 			throw Error('Could not find category with ID: ' + categoryID);
