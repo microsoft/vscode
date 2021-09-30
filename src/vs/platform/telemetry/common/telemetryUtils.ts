@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Promises } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -35,10 +35,23 @@ export const NullTelemetryService = new class implements ITelemetryService {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
 };
+
+export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
+	_serviceBrand: undefined;
+
+	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+
+	async publicLogError(_endpoint: ITelemetryEndpoint, _errorEventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
@@ -48,32 +61,12 @@ export interface ITelemetryAppender {
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promise.all(appenders.map(a => a.flush()))
+		flush: () => Promises.settled(appenders.map(a => a.flush())),
 	};
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
-
-export class LogAppender implements ITelemetryAppender {
-
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
-	constructor(@ILogService private readonly _logService: ILogService) { }
-
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
-	}
-
-	log(eventName: string, data: any): void {
-		const strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		this._logService.trace(`telemetry/${eventName}`, strippedData);
-	}
-}
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {

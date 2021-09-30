@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./contextview';
-import * as DOM from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/base/common/range';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import * as DOM from 'vs/base/browser/dom';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
+import { Range } from 'vs/base/common/range';
+import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,
@@ -31,6 +31,10 @@ export const enum AnchorPosition {
 	BELOW, ABOVE
 }
 
+export const enum AnchorAxisAlignment {
+	VERTICAL, HORIZONTAL
+}
+
 export interface IDelegate {
 	getAnchor(): HTMLElement | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
@@ -38,9 +42,10 @@ export interface IDelegate {
 	layout?(): void;
 	anchorAlignment?: AnchorAlignment; // default: left
 	anchorPosition?: AnchorPosition; // default: below
+	anchorAxisAlignment?: AnchorAxisAlignment; // default: vertical
 	canRelayout?: boolean; // default: true
 	onDOMEvent?(e: Event, activeElement: HTMLElement): void;
-	onHide?(data?: any): void;
+	onHide?(data?: unknown): void;
 }
 
 export interface IContextViewProvider {
@@ -66,9 +71,15 @@ export const enum LayoutAnchorPosition {
 	After
 }
 
+export enum LayoutAnchorMode {
+	AVOID,
+	ALIGN
+}
+
 export interface ILayoutAnchor {
 	offset: number;
 	size: number;
+	mode?: LayoutAnchorMode; // default: AVOID
 	position: LayoutAnchorPosition;
 }
 
@@ -78,25 +89,26 @@ export interface ILayoutAnchor {
  * @returns The view offset within the viewport.
  */
 export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAnchor): number {
-	const anchorEnd = anchor.offset + anchor.size;
+	const layoutAfterAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset : anchor.offset + anchor.size;
+	const layoutBeforeAnchorBoundary = anchor.mode === LayoutAnchorMode.ALIGN ? anchor.offset + anchor.size : anchor.offset;
 
 	if (anchor.position === LayoutAnchorPosition.Before) {
-		if (viewSize <= viewportSize - anchorEnd) {
-			return anchorEnd; // happy case, lay it out after the anchor
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+			return layoutAfterAnchorBoundary; // happy case, lay it out after the anchor
 		}
 
-		if (viewSize <= anchor.offset) {
-			return anchor.offset - viewSize; // ok case, lay it out before the anchor
+		if (viewSize <= layoutBeforeAnchorBoundary) {
+			return layoutBeforeAnchorBoundary - viewSize; // ok case, lay it out before the anchor
 		}
 
 		return Math.max(viewportSize - viewSize, 0); // sad case, lay it over the anchor
 	} else {
-		if (viewSize <= anchor.offset) {
-			return anchor.offset - viewSize; // happy case, lay it out before the anchor
+		if (viewSize <= layoutBeforeAnchorBoundary) {
+			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - anchorEnd) {
-			return anchorEnd; // ok case, lay it out after the anchor
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
 		}
 
 		return 0; // sad case, lay it over the anchor
@@ -139,7 +151,7 @@ export class ContextView extends Disposable {
 			if (this.shadowRoot) {
 				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
-				DOM.removeNode(this.shadowRootHostElement!);
+				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
 			} else {
 				this.container.removeChild(this.view);
@@ -157,11 +169,9 @@ export class ContextView extends Disposable {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');
 				this.container.appendChild(this.shadowRootHostElement);
 				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
-				this.shadowRoot.innerHTML = `
-					<style>
-						${SHADOW_ROOT_CSS}
-					</style>
-				`;
+				const style = document.createElement('style');
+				style.textContent = SHADOW_ROOT_CSS;
+				this.shadowRoot.appendChild(style);
 				this.shadowRoot.appendChild(this.view);
 				this.shadowRoot.appendChild(DOM.$('slot'));
 			} else {
@@ -272,33 +282,41 @@ export class ContextView extends Disposable {
 
 		const anchorPosition = this.delegate!.anchorPosition || AnchorPosition.BELOW;
 		const anchorAlignment = this.delegate!.anchorAlignment || AnchorAlignment.LEFT;
+		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment || AnchorAxisAlignment.VERTICAL;
 
-		const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+		let top: number;
+		let left: number;
 
-		let horizontalAnchor: ILayoutAnchor;
+		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
+			const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-		if (anchorAlignment === AnchorAlignment.LEFT) {
-			horizontalAnchor = { offset: around.left, size: 0, position: LayoutAnchorPosition.Before };
-		} else {
-			horizontalAnchor = { offset: around.left + around.width, size: 0, position: LayoutAnchorPosition.After };
-		}
+			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 
-		const top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
-
-		// if view intersects vertically with anchor, shift it horizontally
-		if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
-			horizontalAnchor.size = around.width;
-			if (anchorAlignment === AnchorAlignment.RIGHT) {
-				horizontalAnchor.offset = around.left;
+			// if view intersects vertically with anchor,  we must avoid the anchor
+			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
+				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
+
+			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+		} else {
+			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
+
+			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+
+			// if view intersects horizontally with anchor, we must avoid the anchor
+			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
+				verticalAnchor.mode = LayoutAnchorMode.AVOID;
+			}
+
+			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
 		}
 
-		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
-
-		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
-		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		DOM.toggleClass(this.view, 'fixed', this.useFixedPosition);
+		this.view.classList.remove('top', 'bottom', 'left', 'right');
+		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
 		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
@@ -306,7 +324,7 @@ export class ContextView extends Disposable {
 		this.view.style.width = 'initial';
 	}
 
-	hide(data?: any): void {
+	hide(data?: unknown): void {
 		const delegate = this.delegate;
 		this.delegate = null;
 
@@ -333,7 +351,7 @@ export class ContextView extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 
 		super.dispose();
@@ -347,6 +365,7 @@ let SHADOW_ROOT_CSS = /* css */ `
 
 	@font-face {
 		font-family: "codicon";
+		font-display: block;
 		src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 	}
 
@@ -361,6 +380,10 @@ let SHADOW_ROOT_CSS = /* css */ `
 		user-select: none;
 		-webkit-user-select: none;
 		-ms-user-select: none;
+	}
+
+	:host {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	}
 
 	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
