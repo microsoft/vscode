@@ -18,7 +18,7 @@ function workspaceFile(...segments: string[]) {
 const testDocument = workspaceFile('bower.json');
 
 
-suite.only('vscode API - webview', () => {
+suite('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
