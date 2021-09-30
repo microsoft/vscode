@@ -26,6 +26,7 @@ export class ViewUserInputEvents {
 	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
+	public onMouseDropCanceled: EventCallback<void> | null = null;
 	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
 
 	private readonly _coordinatesConverter: ICoordinatesConverter;
@@ -85,6 +86,12 @@ export class ViewUserInputEvents {
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		if (this.onMouseDrop) {
 			this.onMouseDrop(this._convertViewToModelMouseEvent(e));
+		}
+	}
+
+	public emitMouseDropCanceled(): void {
+		if (this.onMouseDropCanceled) {
+			this.onMouseDropCanceled();
 		}
 	}
 

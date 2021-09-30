@@ -12,8 +12,8 @@
 	box-sizing: border-box;
 }
 
-.monaco-binary-resource-editor .embedded-link,
-.monaco-binary-resource-editor .embedded-link:hover {
+.monaco-binary-resource-editor .monaco-link,
+.monaco-binary-resource-editor .monaco-link:hover {
 	cursor: pointer;
 	text-decoration: underline;
 	margin-left: 5px;

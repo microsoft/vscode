@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -56,7 +56,7 @@ suite('RPCProtocol', () => {
 	test('simple call', function (done) {
 		delegate = (a1: number, a2: number) => a1 + a2;
 		bProxy.$m(4, 1).then((res: number) => {
-			assert.equal(res, 5);
+			assert.strictEqual(res, 5);
 			done(null);
 		}, done);
 	});
@@ -64,7 +64,7 @@ suite('RPCProtocol', () => {
 	test('simple call without result', function (done) {
 		delegate = (a1: number, a2: number) => { };
 		bProxy.$m(4, 1).then((res: number) => {
-			assert.equal(res, undefined);
+			assert.strictEqual(res, undefined);
 			done(null);
 		}, done);
 	});
@@ -80,7 +80,7 @@ suite('RPCProtocol', () => {
 		b.buffer[2] = 3;
 		b.buffer[3] = 4;
 		bProxy.$m(b, 2).then((res: number) => {
-			assert.equal(res, 3);
+			assert.strictEqual(res, 3);
 			done(null);
 		}, done);
 	});
@@ -96,10 +96,10 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res: VSBuffer) => {
 			assert.ok(res instanceof VSBuffer);
-			assert.equal(res.buffer[0], 1);
-			assert.equal(res.buffer[1], 2);
-			assert.equal(res.buffer[2], 3);
-			assert.equal(res.buffer[3], 4);
+			assert.strictEqual(res.buffer[0], 1);
+			assert.strictEqual(res.buffer[1], 2);
+			assert.strictEqual(res.buffer[2], 3);
+			assert.strictEqual(res.buffer[3], 4);
 			done(null);
 		}, done);
 	});
@@ -121,7 +121,7 @@ suite('RPCProtocol', () => {
 			return a1 + 1;
 		};
 		bProxy.$m(4, CancellationToken.None).then((res: number) => {
-			assert.equal(res, 5);
+			assert.strictEqual(res, 5);
 			done(null);
 		}, done);
 	});
@@ -138,12 +138,10 @@ suite('RPCProtocol', () => {
 		let tokenSource = new CancellationTokenSource();
 		let p = bProxy.$m(4, tokenSource.token);
 		p.then((res: number) => {
-			assert.equal(res, 7);
-			done(null);
+			assert.strictEqual(res, 7);
 		}, (err) => {
 			assert.fail('should not receive error');
-			done();
-		});
+		}).finally(done);
 		tokenSource.cancel();
 	});
 
@@ -153,11 +151,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
-			assert.equal(err.message, 'nope');
-			done(null);
-		});
+			assert.strictEqual(err.message, 'nope');
+		}).finally(done);
 	});
 
 	test('error promise', function (done) {
@@ -166,11 +162,9 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
-			assert.equal(err, undefined);
-			done(null);
-		});
+			assert.strictEqual(err, undefined);
+		}).finally(done);
 	});
 
 	test('issue #60450: Converting circular structure to JSON', function (done) {
@@ -180,12 +174,10 @@ suite('RPCProtocol', () => {
 			return circular;
 		};
 		bProxy.$m(4, 1).then((res) => {
-			assert.equal(res, null);
-			done(null);
+			assert.strictEqual(res, null);
 		}, (err) => {
 			assert.fail('unexpected');
-			done(null);
-		});
+		}).finally(done);
 	});
 
 	test('issue #72798: null errors are hard to digest', function (done) {
@@ -195,21 +187,19 @@ suite('RPCProtocol', () => {
 		};
 		bProxy.$m(4, 1).then((res) => {
 			assert.fail('unexpected');
-			done(null);
 		}, (err) => {
-			assert.equal(err.what, 'what');
-			done(null);
-		});
+			assert.strictEqual(err.what, 'what');
+		}).finally(done);
 	});
 
 	test('undefined arguments arrive as null', function () {
 		delegate = (a1: any, a2: any) => {
-			assert.equal(typeof a1, 'undefined');
-			assert.equal(a2, null);
+			assert.strictEqual(typeof a1, 'undefined');
+			assert.strictEqual(a2, null);
 			return 7;
 		};
 		return bProxy.$m(undefined, null).then((res) => {
-			assert.equal(res, 7);
+			assert.strictEqual(res, 7);
 		});
 	});
 
@@ -220,5 +210,32 @@ suite('RPCProtocol', () => {
 		assert.throws(() => {
 			bProxy.$m(badObject, '2');
 		});
+	});
+
+	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
+		delegate = (a1: SerializableObjectWithBuffers<{ string: string, buff: VSBuffer }>, a2: number) => {
+			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
+		};
+
+		const b = VSBuffer.alloc(4);
+		b.buffer[0] = 1;
+		b.buffer[1] = 2;
+		b.buffer[2] = 3;
+		b.buffer[3] = 4;
+
+		bProxy.$m(new SerializableObjectWithBuffers({ string: 'hello', buff: b }), undefined).then((res: SerializableObjectWithBuffers<any>) => {
+			assert.ok(res instanceof SerializableObjectWithBuffers);
+			assert.strictEqual(res.value.string, 'hello world');
+
+			assert.ok(res.value.buff instanceof VSBuffer);
+
+			const bufferValues = Array.from(res.value.buff.buffer);
+
+			assert.strictEqual(bufferValues[0], 1);
+			assert.strictEqual(bufferValues[1], 2);
+			assert.strictEqual(bufferValues[2], 3);
+			assert.strictEqual(bufferValues[3], 4);
+			done(null);
+		}, done);
 	});
 });

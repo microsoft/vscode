@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notabstitlecontrol';
-import { toResource, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
-import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
+import { EditorResourceAccessor, Verbosity, IEditorInput, IEditorPartOptions, SideBySideEditor } from 'vs/workbench/common/editor';
+import { TitleControl, IToolbarActions, ITitleControlDimensions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass, Dimension } from 'vs/base/browser/dom';
-import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { equals } from 'vs/base/common/objects';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -22,6 +24,9 @@ interface IRenderedEditorLabel {
 }
 
 export class NoTabsTitleControl extends TitleControl {
+
+	private static readonly HEIGHT = 35;
+
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
@@ -37,7 +42,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(Gesture.addTarget(titleContainer));
 
 		const labelContainer = document.createElement('div');
-		addClass(labelContainer, 'label-container');
+		labelContainer.classList.add('label-container');
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
@@ -45,13 +50,13 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
-		toggleClass(titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
-		this._register({ dispose: () => removeClass(titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: Color.transparent.toString(), showPlaceholder: false });
+		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
+		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
-		addClass(actionsContainer, 'title-actions');
+		actionsContainer.classList.add('title-actions');
 		titleContainer.appendChild(actionsContainer);
 
 		// Editor actions toolbar
@@ -64,16 +69,16 @@ export class NoTabsTitleControl extends TitleControl {
 		this.enableGroupDragging(titleContainer);
 
 		// Pin on double click
-		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, (e: MouseEvent) => this.onTitleDoubleClick(e)));
+		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));
 
 		// Detect mouse click
-		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, (e: MouseEvent) => this.onTitleAuxClick(e)));
+		this._register(addDisposableListener(titleContainer, EventType.AUXCLICK, e => this.onTitleAuxClick(e)));
 
 		// Detect touch
 		this._register(addDisposableListener(titleContainer, TouchEventType.Tap, (e: GestureEvent) => this.onTitleTap(e)));
 
 		// Context Menu
-		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, (e: Event) => {
+		this._register(addDisposableListener(titleContainer, EventType.CONTEXT_MENU, e => {
 			if (this.group.activeEditor) {
 				this.onContextMenu(this.group.activeEditor, e, titleContainer);
 			}
@@ -100,24 +105,38 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private onTitleAuxClick(e: MouseEvent): void {
 		if (e.button === 1 /* Middle Button */ && this.group.activeEditor) {
-			EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+			EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 			this.group.closeEditor(this.group.activeEditor);
 		}
 	}
 
 	private onTitleTap(e: GestureEvent): void {
+
+		// We only want to open the quick access picker when
+		// the tap occurred over the editor label, so we need
+		// to check on the target
+		// (https://github.com/microsoft/vscode/issues/107543)
+		const target = e.initialTarget;
+		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
+			return;
+		}
+
 		// TODO@rebornix gesture tap should open the quick access
 		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
 	}
 
-	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT;
+	openEditor(editor: IEditorInput): void {
+		this.doHandleOpenEditor();
 	}
 
-	openEditor(editor: IEditorInput): void {
+	openEditors(editors: IEditorInput[]): void {
+		this.doHandleOpenEditor();
+	}
+
+	private doHandleOpenEditor(): void {
 		const activeEditorChanged = this.ifActiveEditorChanged(() => this.redraw());
 		if (!activeEditorChanged) {
 			this.ifActiveEditorPropertiesChanged(() => this.redraw());
@@ -156,6 +175,10 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
+	updateEditorCapabilities(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
 	updateEditorLabels(): void {
 		if (this.group.activeEditor) {
 			this.updateEditorLabel(this.group.activeEditor); // we only have the active one to update
@@ -168,30 +191,30 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Signal dirty (unless saving)
 			if (editor.isDirty() && !editor.isSaving()) {
-				addClass(titleContainer, 'dirty');
+				titleContainer.classList.add('dirty');
 			}
 
 			// Otherwise, clear dirty
 			else {
-				removeClass(titleContainer, 'dirty');
+				titleContainer.classList.remove('dirty');
 			}
 		});
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
-		if (oldOptions.labelFormat !== newOptions.labelFormat) {
+		if (oldOptions.labelFormat !== newOptions.labelFormat || !equals(oldOptions.decorations, newOptions.decorations)) {
 			this.redraw();
 		}
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		this.redraw();
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
 		const titleContainer = assertIsDefined(this.titleContainer);
+		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 
-		toggleClass(titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
 		this.redraw();
 	}
 
@@ -227,6 +250,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
+		const options = this.accessor.partOptions;
 
 		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
@@ -237,7 +261,7 @@ export class NoTabsTitleControl extends TitleControl {
 		if (this.breadcrumbsControl) {
 			if (isGroupActive) {
 				this.breadcrumbsControl.update();
-				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+				this.breadcrumbsControl.domNode.classList.toggle('preview', !isEditorPinned);
 			} else {
 				this.breadcrumbsControl.hide();
 			}
@@ -246,7 +270,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Clear if there is no editor
 		const [titleContainer, editorLabel] = assertAllDefined(this.titleContainer, this.editorLabel);
 		if (!editor) {
-			removeClass(titleContainer, 'dirty');
+			titleContainer.classList.remove('dirty');
 			editorLabel.clear();
 			this.clearEditorActionsToolbar();
 		}
@@ -275,21 +299,25 @@ export class NoTabsTitleControl extends TitleControl {
 
 			editorLabel.setResource(
 				{
-					resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+					resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 					name: editor.getName(),
 					description
 				},
 				{
 					title,
 					italic: !isEditorPinned,
-					extraClasses: ['no-tabs', 'title-label']
+					extraClasses: ['no-tabs', 'title-label'].concat(editor.getLabelExtraClasses()),
+					fileDecorations: {
+						colors: Boolean(options.decorations?.colors),
+						badges: Boolean(options.decorations?.badges)
+					},
 				}
 			);
 
 			if (isGroupActive) {
-				editorLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
+				titleContainer.style.color = this.getColor(TAB_ACTIVE_FOREGROUND) || '';
 			} else {
-				editorLabel.element.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
+				titleContainer.style.color = this.getColor(TAB_UNFOCUSED_ACTIVE_FOREGROUND) || '';
 			}
 
 			// Update Editor Actions Toolbar
@@ -305,7 +333,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Group active: show all actions
@@ -317,9 +345,16 @@ export class NoTabsTitleControl extends TitleControl {
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
 	}
 
-	layout(dimension: Dimension): void {
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.layout(undefined);
-		}
+	getHeight(): IEditorGroupTitleHeight {
+		return {
+			total: NoTabsTitleControl.HEIGHT,
+			offset: 0
+		};
+	}
+
+	layout(dimensions: ITitleControlDimensions): Dimension {
+		this.breadcrumbsControl?.layout(undefined);
+
+		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}
 }

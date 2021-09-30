@@ -12,14 +12,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -34,24 +34,26 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
-import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): Promise<any> {
+	override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -119,7 +121,7 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -168,7 +170,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private index: number = 0;
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
-	private contextKeyService: IContextKeyService;
 
 	constructor(
 		editor: ICodeEditor,
@@ -176,16 +177,18 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
+		const contextKeyService = _contextKeyService.createOverlay([
+			['originalResourceScheme', this.model.original!.uri.scheme]
+		]);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
+		this._disposables.add(this.menu);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -243,22 +246,23 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.setTitle(this.title, detail);
 	}
 
-	protected _fillHead(container: HTMLElement): void {
-		super._fillHead(container);
+	protected override _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
 
-		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), 'codicon-arrow-up');
-		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), 'codicon-arrow-down');
+		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
+		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
-		this._actionbarWidget!.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
 		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
-		this._actionbarWidget!.push(actions, { label: false, icon: true });
+		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
+		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
+		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
 	}
 
-	protected _getActionBarOptions(): IActionBarOptions {
+	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new DiffActionRunner();
 
 		// close widget on successful action
@@ -270,8 +274,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		return {
 			...super._getActionBarOptions(),
-			actionRunner,
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			actionRunner
 		};
 	}
 
@@ -294,9 +297,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this._disposables.add(this.diffEditor);
 	}
 
-	_onWidth(width: number): void {
+	override _onWidth(width: number): void {
 		if (typeof this.height === 'undefined') {
 			return;
 		}
@@ -304,7 +308,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor.layout({ height: this.height, width });
 	}
 
-	protected _doLayoutBody(height: number, width: number): void {
+	protected override _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
@@ -343,7 +347,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		});
 	}
 
-	protected revealLine(lineNumber: number) {
+	protected override revealLine(lineNumber: number) {
 		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
 	}
 
@@ -563,20 +567,57 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 	private session: IDisposable = Disposable.None;
 	private mouseDownInfo: { lineNumber: number } | null = null;
 	private enabled = false;
+	private gutterActionDisposables = new DisposableStore();
+	private stylesheet: HTMLStyleElement;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
+		this.stylesheet = createStyleSheet();
+		this._register(toDisposable(() => this.stylesheet.remove()));
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
-			this._register(editor.onMouseDown(e => this.onEditorMouseDown(e)));
-			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
+
+			const onDidChangeGutterAction = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterAction'));
+			this._register(onDidChangeGutterAction(this.onDidChangeGutterAction, this));
+			this.onDidChangeGutterAction();
+		}
+	}
+
+	private onDidChangeGutterAction(): void {
+		const gutterAction = this.configurationService.getValue<'diff' | 'none'>('scm.diffDecorationsGutterAction');
+
+		this.gutterActionDisposables.dispose();
+		this.gutterActionDisposables = new DisposableStore();
+
+		if (gutterAction === 'diff') {
+			this.gutterActionDisposables.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
+			this.gutterActionDisposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+			this.stylesheet.textContent = `
+				.monaco-editor .dirty-diff-glyph {
+					cursor: pointer;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
+					width: 9px;
+					left: -6px;
+				}
+
+				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+					bottom: 0;
+					border-top-width: 0;
+					border-bottom-width: 0;
+				}
+			`;
+		} else {
+			this.stylesheet.textContent = ``;
 		}
 	}
 
@@ -769,7 +810,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const index = firstIndex(model.changes, change => lineIntersectsChange(lineNumber, change));
+		const index = model.changes.findIndex(change => lineIntersectsChange(lineNumber, change));
 
 		if (index < 0) {
 			return;
@@ -797,6 +838,11 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		}
 
 		return model.changes;
+	}
+
+	override dispose(): void {
+		this.gutterActionDisposables.dispose();
+		super.dispose();
 	}
 }
 
@@ -844,6 +890,7 @@ class DirtyDiffDecorator extends Disposable {
 
 	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
 		};
 
@@ -948,7 +995,7 @@ class DirtyDiffDecorator extends Disposable {
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.editorModel && !this.editorModel.isDisposed()) {
@@ -982,7 +1029,7 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
-function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
+export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
 	return (a, b) => {
 		const aIsParent = isEqualOrParent(uri, a.rootUri!);
 		const bIsParent = isEqualOrParent(uri, b.rootUri!);
@@ -999,9 +1046,26 @@ function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) =>
 	};
 }
 
+export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
+	const providers = scmService.repositories.map(r => r.provider);
+	const rootedProviders = providers.filter(p => !!p.rootUri);
+
+	rootedProviders.sort(createProviderComparer(uri));
+
+	const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+	if (result) {
+		return result;
+	}
+
+	const nonRootedProviders = providers.filter(p => !p.rootUri);
+	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+}
+
 export class DirtyDiffModel extends Disposable {
 
-	private _originalModel: IResolvedTextFileEditorModel | null = null;
+	private _originalResource: URI | null = null;
+	private _originalModel: IResolvedTextEditorModel | null = null;
 	private _model: ITextFileEditorModel;
 	get original(): ITextModel | null { return this._originalModel?.textEditorModel || null; }
 	get modified(): ITextModel | null { return this._model.textEditorModel || null; }
@@ -1033,6 +1097,7 @@ export class DirtyDiffModel extends Disposable {
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
+			this._originalResource = null;
 			this._originalModel = null;
 			this._originalURIPromise = undefined;
 			this.setChanges([]);
@@ -1078,7 +1143,7 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(changes);
-			});
+			}, (err) => onUnexpectedError(err));
 	}
 
 	private setChanges(changes: IChange[]): void {
@@ -1112,11 +1177,12 @@ export class DirtyDiffModel extends Disposable {
 			}
 
 			if (!originalUri) {
+				this._originalResource = null;
 				this._originalModel = null;
 				return null;
 			}
 
-			if (this._originalModel && this._originalModel.resource.toString() === originalUri.toString()) {
+			if (this._originalResource?.toString() === originalUri.toString()) {
 				return originalUri;
 			}
 
@@ -1126,12 +1192,15 @@ export class DirtyDiffModel extends Disposable {
 					return null;
 				}
 
-				this._originalModel = ref.object as IResolvedTextFileEditorModel;
+				this._originalResource = originalUri;
+				this._originalModel = ref.object;
 
-				const encoding = this._model.getEncoding();
+				if (isTextFileEditorModel(this._originalModel)) {
+					const encoding = this._model.getEncoding();
 
-				if (encoding) {
-					this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+					if (encoding) {
+						this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+					}
 				}
 
 				this.originalModelDisposables.clear();
@@ -1155,19 +1224,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		const uri = this._model.resource;
-		const providers = this.scmService.repositories.map(r => r.provider);
-		const rootedProviders = providers.filter(p => !!p.rootUri);
-
-		rootedProviders.sort(createProviderComparer(uri));
-
-		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
-
-		if (result) {
-			return result;
-		}
-
-		const nonRootedProviders = providers.filter(p => !p.rootUri);
-		return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+		return getOriginalResource(this.scmService, uri);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
@@ -1206,10 +1263,11 @@ export class DirtyDiffModel extends Disposable {
 		return this.changes.length - 1;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._disposed = true;
+		this._originalResource = null;
 		this._originalModel = null;
 		this.diffDelayer.cancel();
 		this.repositoryDisposables.forEach(d => dispose(d));
@@ -1290,7 +1348,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 	private setViewState(state: IViewState): void {
 		this.viewState = state;
-		this.stylesheet.innerHTML = `
+		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};
@@ -1376,7 +1434,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		return null;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disable();
 		super.dispose();
 	}

@@ -2,4 +2,4 @@
 
 **Notice:** This extension is bundled with Visual Studio Code. It can be disabled but not uninstalled.
 
-This extension provides Syntax Highlighting, Symbol Infomation, Result Highlighting, and Go to Definition capabilities for the Search Results Editor.
+This extension provides Syntax Highlighting, Symbol Information, Result Highlighting, and Go to Definition capabilities for the Search Results Editor.
