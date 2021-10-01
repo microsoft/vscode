@@ -339,18 +339,15 @@ suite('vscode API - webview', () => {
 		const imagePath = workspaceFile('sub', 'image.png').with({ scheme: 'vscode-resource' }).toString();
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
-			<img>
+			<img src="${imagePath}">
 			<script>
 				const vscode = acquireVsCodeApi();
-				window.addEventListener('message', (message) => {
-					const img = document.getElementsByTagName('img')[0];
-					img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
-					img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
-					img.src = message.data.src;
-				});
 				vscode.postMessage({ type: 'ready', userAgent: window.navigator.userAgent });
-			</script>`);
 
+				const img = document.getElementsByTagName('img')[0];
+				img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
+				img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+			</script>`);
 
 		const ready = getMessage(webview);
 		if ((await ready).userAgent.indexOf('Firefox') >= 0) {
