@@ -409,7 +409,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}
 
-		this.replInput.updateOptions({ readOnly: this.isReadonly });
+		this.replInput?.updateOptions({ readOnly: this.isReadonly });
 		this.updateInputDecoration();
 	}
 
