@@ -15,7 +15,9 @@ function parseLink(
 	document: vscode.TextDocument,
 	link: string,
 ): { uri: vscode.Uri, tooltip?: string } | undefined {
-	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(link);
+
+	const cleanLink = stripAngleBrackets(link);
+	const externalSchemeUri = getUriForLinkWithKnownExternalScheme(cleanLink);
 	if (externalSchemeUri) {
 		// Normalize VS Code links to target currently running version
 		if (isOfScheme(Schemes.vscode, link) || isOfScheme(Schemes['vscode-insiders'], link)) {
@@ -87,6 +89,15 @@ function extractDocumentLink(
 	} catch (e) {
 		return undefined;
 	}
+}
+
+/* Used to strip brackets from the markdown link
+	<http://example.com> will be transformed to
+	http://example.com
+*/
+export function stripAngleBrackets(link: string) {
+	const bracketMatcher = /^<(.*)>$/;
+	return link.replace(bracketMatcher, '$1');
 }
 
 export default class LinkProvider implements vscode.DocumentLinkProvider {
