@@ -593,6 +593,9 @@ export namespace Codicon {
 	export const graphLine = new Codicon('graph-line', { fontCharacter: '\\ebe2' });
 	export const graphScatter = new Codicon('graph-scatter', { fontCharacter: '\\ebe3' });
 	export const pieChart = new Codicon('pie-chart', { fontCharacter: '\\ebe4' });
+	export const bracket = new Codicon('bracket', { fontCharacter: '\\eb0f' });
+	export const bracketDot = new Codicon('bracket-dot', { fontCharacter: '\\ebe5' });
+	export const bracketError = new Codicon('bracket-error', { fontCharacter: '\\ebe6' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
