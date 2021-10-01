@@ -42,7 +42,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos assignee:@me is:open label:debt OR $repos assignee:@me is:open label:engineering"
+    "value": "$repos assignee:@me is:open label:debt,engineering"
   },
   {
     "kind": 1,
@@ -52,7 +52,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos assignee:@me is:open label:perf OR $repos assignee:@me is:open label:perf-startup OR $repos assignee:@me is:open label:perf-bloat OR $repos assignee:@me is:open label:freeze-slow-crash-leak"
+    "value": "$repos assignee:@me is:open label:perf,perf-startup,perf-bloat,freeze-slow-crash-leak"
   },
   {
     "kind": 1,
