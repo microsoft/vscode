@@ -198,7 +198,7 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 }
 
 /** @type {Promise<void>} */
-const workerReady = new Promise(async (resolve, reject) => {
+const workerReady = new Promise((resolve, reject) => {
 	if (!areServiceWorkersEnabled()) {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
@@ -752,7 +752,6 @@ onDomReady(() => {
 	let updateId = 0;
 	hostMessaging.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
 		const currentUpdateId = ++updateId;
-
 		try {
 			await workerReady;
 		} catch (e) {
