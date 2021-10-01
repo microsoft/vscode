@@ -263,6 +263,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let lock: IDisposable | null = null;
 		try {
 			this._inHandleDeltaExtensions = true;
+
+			// wait for _initialize to finish before hanlding any delta extension events
+			await this._installedExtensionsReady.wait();
+
 			lock = await this._registryLock.acquire('handleDeltaExtensions');
 			while (this._deltaExtensionsQueue.length > 0) {
 				const item = this._deltaExtensionsQueue.shift()!;
