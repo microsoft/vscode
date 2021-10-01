@@ -1014,12 +1014,19 @@ export async function main(options: IServerOptions): Promise<void> {
 		} else if (typeof options.port === 'number') {
 			port = options.port;
 		}
+
 		const host = parsedArgs.host || '0.0.0.0';
+		server.on('error', () => {
+			server.close();
+			process.exit(1);
+		});
+
 		server.listen(port, host, () => {
 			const addressInfo = server.address() as net.AddressInfo;
 			const address = addressInfo.address === '0.0.0.0' || addressInfo.address === '127.0.0.1' ? 'localhost' : addressInfo.address;
-			const port = addressInfo.port === 80 ? '' : String(addressInfo.port);
-			logService.info(`Web UI available at http://${address}:${port}`);
+			const formattedPort = addressInfo.port === 80 ? '' : String(addressInfo.port);
+			logService.info(`Web UI available at http://${address}:${formattedPort}`);
 		});
+
 	});
 }
