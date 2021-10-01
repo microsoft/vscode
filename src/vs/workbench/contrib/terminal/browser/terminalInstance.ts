@@ -2457,8 +2457,9 @@ export class TerminalLabelComputer extends Disposable {
 			task: this._instance.shellLaunchConfig.description === 'Task' ? 'Task' : undefined,
 			separator: { label: this._configHelper.config.tabs.separator }
 		};
+		labelTemplate = labelTemplate.trim();
 		if (!labelTemplate) {
-			return this._instance.processName || '';
+			return labelType === TerminalLabelType.Title ? (this._instance.processName || '') : '';
 		}
 		if (this._instance.staticTitle && labelType === TerminalLabelType.Title) {
 			return this._instance.staticTitle.replace(/[\n\r\t]/g, '') || templateProperties.process?.replace(/[\n\r\t]/g, '') || '';
@@ -2469,8 +2470,8 @@ export class TerminalLabelComputer extends Disposable {
 		templateProperties.cwdFolder = (!templateProperties.cwd || !detection || zeroRootWorkspace || singleRootWorkspace) ? '' : path.basename(templateProperties.cwd);
 
 		//Remove special characters that could mess with rendering
-		const label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '');
-		return label.trim() === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
+		let label = template(labelTemplate, (templateProperties as unknown) as { [key: string]: string | ISeparator | undefined | null; }).replace(/[\n\r\t]/g, '').trim();
+		return label === '' && labelType === TerminalLabelType.Title ? (this._instance.processName || '') : label;
 	}
 
 	pathsEqual(path1?: string | null, path2?: string) {
