@@ -399,6 +399,19 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	joinInstances(instances: ITerminalInstance[]) {
+		const group = this.getGroupForInstance(instances[0]);
+		if (group) {
+			let differentGroups = true;
+			for (let i = 1; i < group.terminalInstances.length; i++) {
+				if (group.terminalInstances.includes(instances[i])) {
+					differentGroups = false;
+					break;
+				}
+			}
+			if (!differentGroups) {
+				return;
+			}
+		}
 		// Find the group of the first instance that is the only instance in the group, if one exists
 		let candidateInstance: ITerminalInstance | undefined = undefined;
 		let candidateGroup: ITerminalGroup | undefined = undefined;
