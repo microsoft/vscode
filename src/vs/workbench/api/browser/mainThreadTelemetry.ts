@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, TelemetryLevel, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadTelemetryShape, MainContext, IExtHostContext, ExtHostTelemetryShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -32,7 +32,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 		if (supportsTelemetry(this._productService, this._environmenService)) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectedKeys.includes(TELEMETRY_SETTING_ID)) {
+				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
 					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
 				}
 			}));
