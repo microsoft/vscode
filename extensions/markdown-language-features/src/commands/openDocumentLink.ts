@@ -83,7 +83,7 @@ export class OpenDocumentLinkCommand implements Command {
 
 	private static async tryOpen(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs, column: vscode.ViewColumn): Promise<boolean> {
 		const tryUpdateForActiveFile = async (): Promise<boolean> => {
-			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			if (vscode.window.activeTextEditor) {
 				if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
 					await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
 					return true;
