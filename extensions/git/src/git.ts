@@ -1485,7 +1485,12 @@ export class Repository {
 	}
 
 	async deleteTag(name: string): Promise<void> {
-		let args = ['tag', '-d', name];
+		const args = ['tag', '-d', name];
+		await this.exec(args);
+	}
+
+	async deleteRemoteTag(remoteName: string, tagName: string): Promise<void> {
+		const args = ['push', '--delete', remoteName, tagName];
 		await this.exec(args);
 	}
 

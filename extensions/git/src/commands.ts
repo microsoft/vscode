@@ -1952,6 +1952,7 @@ export class CommandCenter {
 
 	@command('git.deleteTag', { repository: true })
 	async deleteTag(repository: Repository): Promise<void> {
+		console.log(repository.refs);
 		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
 			.map(ref => new TagItem(ref));
 
@@ -1968,6 +1969,43 @@ export class CommandCenter {
 		}
 
 		await repository.deleteTag(choice.label);
+	}
+
+	@command('git.deleteRemoteTag', { repository: true })
+	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const remotePicks = repository.remotes
+			.filter(r => r.pushUrl !== undefined)
+			.map(r => ({ label: r.name, description: r.pushUrl! }));
+		if (remotePicks.length === 0) {
+			window.showErrorMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		const tagPicks = repository.refs.filter(ref => ref.type === RefType.Tag)
+			.map(ref => new TagItem(ref));
+
+		if (tagPicks.length === 0) {
+			window.showWarningMessage(localize('no tags', "This repository has no tags."));
+			return;
+		}
+
+		const tagPickPlaceholder = localize('select a tag to delete from remote', 'Select a tag to delete from remote');
+		const tagPick = await window.showQuickPick(tagPicks, { placeHolder: tagPickPlaceholder });
+
+		if (!tagPick) {
+			return;
+		}
+
+		const tagName = tagPick.label;
+		const remotePickPlaceholder = localize('pick remote delete tag', "Pick a remote to delete the tag '{0}' from:", tagName);
+		const remotePick = await window.showQuickPick(remotePicks, { placeHolder: remotePickPlaceholder });
+
+		if (!remotePick) {
+			return;
+		}
+
+		const remoteName = remotePick.label;
+		await repository.deleteRemoteTag(remoteName, tagName);
 	}
 
 	@command('git.fetch', { repository: true })
