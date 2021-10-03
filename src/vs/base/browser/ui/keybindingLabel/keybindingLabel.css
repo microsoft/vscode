@@ -18,6 +18,11 @@
 	font-size: 11px;
 	padding: 3px 5px;
 	margin: 0 2px;
+	position: relative;
+}
+
+.monaco-keybinding > .monaco-keybinding-key:active {
+	top: 0.2em;
 }
 
 .monaco-keybinding > .monaco-keybinding-key:first-child {

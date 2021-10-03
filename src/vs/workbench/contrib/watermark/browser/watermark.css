@@ -23,6 +23,7 @@
 	text-align: center;
 	white-space: nowrap;
 	overflow: hidden;
+	z-index: 10;
 }
 
 .monaco-workbench .part.editor > .content.empty > .watermark > .watermark-box {
