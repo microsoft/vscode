@@ -27,9 +27,9 @@ export interface IExtensionsConfigContent {
 	unwantedRecommendations?: string[];
 }
 
-export const IWorkpsaceExtensionsConfigService = createDecorator<IWorkpsaceExtensionsConfigService>('IWorkpsaceExtensionsConfigService');
+export const IWorkspaceExtensionsConfigService = createDecorator<IWorkspaceExtensionsConfigService>('IWorkspaceExtensionsConfigService');
 
-export interface IWorkpsaceExtensionsConfigService {
+export interface IWorkspaceExtensionsConfigService {
 	readonly _serviceBrand: undefined;
 
 	onDidChangeExtensionsConfigs: Event<void>;
@@ -41,7 +41,7 @@ export interface IWorkpsaceExtensionsConfigService {
 	toggleUnwantedRecommendation(extensionId: string): Promise<void>;
 }
 
-export class WorkspaceExtensionsConfigService extends Disposable implements IWorkpsaceExtensionsConfigService {
+export class WorkspaceExtensionsConfigService extends Disposable implements IWorkspaceExtensionsConfigService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -266,4 +266,4 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 }
 
-registerSingleton(IWorkpsaceExtensionsConfigService, WorkspaceExtensionsConfigService);
+registerSingleton(IWorkspaceExtensionsConfigService, WorkspaceExtensionsConfigService);

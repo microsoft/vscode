@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionIgnoredRecommendationsService, IgnoredRecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
+import { IWorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
 const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommendations';
 
@@ -32,7 +32,7 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	get ignoredRecommendations(): string[] { return distinct([...this.globalIgnoredRecommendations, ...this.ignoredWorkspaceRecommendations]); }
 
 	constructor(
-		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
+		@IWorkspaceExtensionsConfigService private readonly workspaceExtensionsConfigService: IWorkspaceExtensionsConfigService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -43,10 +43,10 @@ export class ExtensionIgnoredRecommendationsService extends Disposable implement
 	}
 
 	private async initIgnoredWorkspaceRecommendations(): Promise<void> {
-		this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
+		this.ignoredWorkspaceRecommendations = await this.workspaceExtensionsConfigService.getUnwantedRecommendations();
 		this._onDidChangeIgnoredRecommendations.fire();
-		this._register(this.workpsaceExtensionsConfigService.onDidChangeExtensionsConfigs(async () => {
-			this.ignoredWorkspaceRecommendations = await this.workpsaceExtensionsConfigService.getUnwantedRecommendations();
+		this._register(this.workspaceExtensionsConfigService.onDidChangeExtensionsConfigs(async () => {
+			this.ignoredWorkspaceRecommendations = await this.workspaceExtensionsConfigService.getUnwantedRecommendations();
 			this._onDidChangeIgnoredRecommendations.fire();
 		}));
 	}
