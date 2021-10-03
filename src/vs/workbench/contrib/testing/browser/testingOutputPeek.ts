@@ -774,6 +774,7 @@ const commonEditorOptions: IEditorOptions = {
 	minimap: {
 		enabled: false
 	},
+	wordWrap: 'on',
 };
 
 const diffEditorOptions: IDiffEditorConstructionOptions = {
