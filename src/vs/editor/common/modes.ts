@@ -1755,7 +1755,7 @@ export interface InlayHint {
 }
 
 export interface InlayHintsProvider {
-	onDidChangeInlayHints?: Event<void> | undefined;
+	onDidChangeInlayHints?: Event<void | URI>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 }
 

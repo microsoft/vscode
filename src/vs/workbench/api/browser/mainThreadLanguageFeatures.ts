@@ -16,13 +16,14 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { mixin } from 'vs/base/common/objects';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -34,6 +35,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	constructor(
 		extHostContext: IExtHostContext,
 		@IModeService modeService: IModeService,
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._modeService = modeService;
@@ -566,10 +568,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
 	}
 
-	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
+	$emitInlayHintsEvent(eventHandle: number, event?: UriComponents): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
-			obj.fire(event);
+			obj.fire(event && this._uriIdentService.asCanonicalUri(URI.revive(event)));
 		}
 	}
 

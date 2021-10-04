@@ -151,7 +151,11 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.add(providerListener);
 		for (const provider of InlayHintsProviderRegistry.all(model)) {
 			if (typeof provider.onDidChangeInlayHints === 'function') {
-				providerListener.add(provider.onDidChangeInlayHints(() => scheduler.schedule()));
+				providerListener.add(provider.onDidChangeInlayHints(uri => {
+					if (!uri || uri.toString() === model.uri.toString()) {
+						scheduler.schedule();
+					}
+				}));
 			}
 		}
 	}
