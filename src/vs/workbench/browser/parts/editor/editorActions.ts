@@ -26,6 +26,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
 
 export class ExecuteCommandAction extends Action {
 
@@ -569,7 +570,8 @@ abstract class AbstractCloseAllAction extends Action {
 		// split dirty editors into buckets
 
 		const dirtyEditorsWithDefaultConfirm = new Set<IEditorIdentifier>();
-		const dirtyAutoSaveableEditors = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveOnFocusChangeEditors = new Set<IEditorIdentifier>();
+		const dirtyAutoSaveOnWindowChangeEditors = new Set<IEditorIdentifier>();
 		const dirtyEditorsWithCustomConfirm = new Map<string /* typeId */, Set<IEditorIdentifier>>();
 
 		for (const { editor, groupId } of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky })) {
@@ -591,7 +593,14 @@ abstract class AbstractCloseAllAction extends Action {
 			// Editor will be saved on focus change when a
 			// dialog appears, so just track that separate
 			else if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
-				dirtyAutoSaveableEditors.add({ editor, groupId });
+				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
+			}
+
+			// Windows, Linux: editor will be saved on window change
+			// when a native dialog appears, so just track that separate
+			// (see https://github.com/microsoft/vscode/issues/134250)
+			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
 			}
 
 			// Editor will show in generic file based dialog
@@ -647,14 +656,21 @@ abstract class AbstractCloseAllAction extends Action {
 			}
 		}
 
-		// 3.) Save autosaveable editors
-		if (dirtyAutoSaveableEditors.size > 0) {
-			const editors = Array.from(dirtyAutoSaveableEditors.values());
+		// 3.) Save autosaveable editors (focus change)
+		if (dirtyAutoSaveOnFocusChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnFocusChangeEditors.values());
 
 			await this.editorService.save(editors, { reason: SaveReason.FOCUS_CHANGE });
 		}
 
-		// 4.) Finally close all editors: even if an editor failed to
+		// 4.) Save autosaveable editors (window change)
+		if (dirtyAutoSaveOnWindowChangeEditors.size > 0) {
+			const editors = Array.from(dirtyAutoSaveOnWindowChangeEditors.values());
+
+			await this.editorService.save(editors, { reason: SaveReason.WINDOW_CHANGE });
+		}
+
+		// 5.) Finally close all editors: even if an editor failed to
 		// save or revert and still reports dirty, the editor part makes
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
