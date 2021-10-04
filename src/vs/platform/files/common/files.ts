@@ -663,25 +663,31 @@ export class FileChangesEvent {
 	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
+
+		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
+
 		for (const change of changes) {
-			switch (change.type) {
+			const array = entriesByType.get(change.type);
+			if (array) {
+				array.push([change.resource, change]);
+			} else {
+				entriesByType.set(change.type, [[change.resource, change]]);
+			}
+		}
+
+		for (const [key, value] of entriesByType) {
+			switch (key) {
 				case FileChangeType.ADDED:
-					if (!this.added) {
-						this.added = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					}
-					this.added.set(change.resource, change);
+					this.added = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.added.fill(value);
 					break;
 				case FileChangeType.UPDATED:
-					if (!this.updated) {
-						this.updated = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					}
-					this.updated.set(change.resource, change);
+					this.updated = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.updated.fill(value);
 					break;
 				case FileChangeType.DELETED:
-					if (!this.deleted) {
-						this.deleted = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					}
-					this.deleted.set(change.resource, change);
+					this.deleted = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
+					this.deleted.fill(value);
 					break;
 			}
 		}
