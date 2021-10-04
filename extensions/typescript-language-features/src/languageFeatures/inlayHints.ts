@@ -27,7 +27,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 	public static readonly minVersion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<undefined>();
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
@@ -39,7 +39,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
 			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
-				this._onDidChangeInlayHints.fire();
+				this._onDidChangeInlayHints.fire(undefined);
 			}
 		}));
 	}
