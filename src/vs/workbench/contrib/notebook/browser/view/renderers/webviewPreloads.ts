@@ -826,7 +826,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (!ext) {
 						throw new Error(`Could not find extending renderer: ${extensionId}`);
 					}
-
 					await ext.load();
 				}));
 			}
@@ -844,7 +843,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			return renderer.load();
 		}
-
 
 		public clearAll() {
 			outputRunner.cancelAll();
@@ -1564,7 +1562,7 @@ export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOp
 		isWorkspaceTrusted,
 		nonce,
 	};
-	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
+	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead
 	// of using `import(...)` directly
 	return `
 		const __import = (x) => import(x);
