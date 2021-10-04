@@ -6,8 +6,10 @@
 import * as dom from 'vs/base/browser/dom';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { equals } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { setImmediate } from 'vs/base/common/platform';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
@@ -58,7 +60,7 @@ function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEdito
 
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private currentUri?: URI;
-	private lastDecorations: ITestDecoration[] = [];
+	private lastDecorations = new DecorationCache<ITestDecoration>();
 	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
 	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
 
@@ -84,10 +86,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.attachModel(editor.getModel()?.uri);
 		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
 		this._register(this.editor.onMouseDown(e => {
-			for (const decoration of this.lastDecorations) {
-				if (decoration.click(e)) {
-					e.event.stopPropagation();
-					return;
+			if (e.target.position?.lineNumber !== undefined) {
+				for (const decoration of this.lastDecorations.line(e.target.position.lineNumber)) {
+					if (decoration.click(e)) {
+						e.event.stopPropagation();
+						return;
+					}
 				}
 			}
 		}));
@@ -98,7 +102,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 			let update = false;
 			for (const change of e.changes) {
-				for (const deco of this.lastDecorations) {
+				this.lastDecorations.forEach(deco => {
 					if (deco instanceof TestMessageDecoration
 						&& deco.location.range.startLineNumber >= change.range.startLineNumber
 						&& deco.location.range.endLineNumber <= change.range.endLineNumber
@@ -106,13 +110,15 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						this.invalidatedMessages.add(deco.testMessage);
 						update = true;
 					}
-				}
+				});
 			}
 
 			if (update) {
-				this.setDecorations(this.currentUri);
+				debounceSetDecoration.schedule();
 			}
 		}));
+
+		const debounceSetDecoration = this._register(new RunOnceScheduler(() => this.setDecorations(), 100));
 
 		const updateFontFamilyVar = () => {
 			this.editor.getContainerDomNode().style.setProperty('--testMessageDecorationFontFamily', editor.getOption(EditorOption.fontFamily));
@@ -127,13 +133,13 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
 			if (this.currentUri && result.item.uri && result.item.uri.toString() === this.currentUri.toString()) {
-				this.setDecorations(this.currentUri);
+				debounceSetDecoration.schedule();
 			}
 		}));
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TestingConfigKeys.GutterEnabled)) {
-				this.setDecorations(this.currentUri);
+				debounceSetDecoration.schedule();
 			}
 		}));
 
@@ -142,7 +148,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			this.testService.excluded.onTestExclusionsChanged,
 			this.testService.showInlineOutput.onDidChange,
 			this.testService.onDidProcessDiff,
-		)(() => this.setDecorations(this.currentUri)));
+		)(() => debounceSetDecoration.schedule()));
 	}
 
 	private attachModel(uri?: URI) {
@@ -182,10 +188,12 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		})();
 
-		this.setDecorations(uri);
+		this.setDecorations();
 	}
 
-	private setDecorations(uri: URI | undefined): void {
+	private setDecorations(): void {
+		const uri = this.currentUri;
+
 		if (!uri) {
 			this.clearDecorations();
 			return;
@@ -194,8 +202,10 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 
 		this.editor.changeDecorations(accessor => {
-			const newDecorations: ITestDecoration[] = [];
+			const newDecorations = new DecorationCache<ITestDecoration>();
+
 			if (gutterEnabled) {
+				const runDecorations = new DecorationCache<{ test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined }>();
 				for (const test of this.testService.collection.all) {
 					if (!test.item.range || test.item.uri?.toString() !== uri.toString()) {
 						continue;
@@ -203,12 +213,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 					const stateLookup = this.results.getStateById(test.item.extId);
 					const line = test.item.range.startLineNumber;
-					const resultItem = stateLookup?.[1];
-					const existing = newDecorations.findIndex(d => d instanceof RunTestDecoration && d.line === line);
-					if (existing !== -1) {
-						newDecorations[existing] = (newDecorations[existing] as RunTestDecoration).merge(test, resultItem);
+					runDecorations.insert(line, { test, resultItem: stateLookup?.[1] });
+				}
+
+				for (const [line, tests] of runDecorations.lines()) {
+					if (tests.length > 1) {
+						newDecorations.insert(line,
+							this.lastDecorations.find(line, d => d instanceof MultiRunTestDecoration && equals(d.displayedStates, tests.map(t => t.resultItem?.computedState)) && equals(d.testIds, tests.map(t => t.test.item.extId)))
+							|| this.instantiationService.createInstance(MultiRunTestDecoration, tests, this.editor)
+						);
 					} else {
-						newDecorations.push(this.instantiationService.createInstance(RunSingleTestDecoration, test, this.editor, stateLookup?.[1]));
+						const first = tests[0];
+						newDecorations.insert(line,
+							this.lastDecorations.find(line, d => d instanceof RunSingleTestDecoration && d.testId === first.test.item.extId && d.displayedState === first.resultItem?.computedState)
+							|| this.instantiationService.createInstance(RunSingleTestDecoration, first.test, this.editor, first.resultItem)
+						);
 					}
 				}
 			}
@@ -218,7 +237,9 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				for (const task of lastResult.tasks) {
 					for (const m of task.otherMessages) {
 						if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-							newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							const decoration = this.lastDecorations.find(m.location.range.startLineNumber, l => l instanceof TestMessageDecoration && l.testMessage === m)
+								|| this.instantiationService.createInstance(TestMessageDecoration, m, undefined, this.editor);
+							newDecorations.insert(m.location.range.startLineNumber, decoration);
 						}
 					}
 				}
@@ -228,42 +249,105 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						const state = test.tasks[taskId];
 						for (let i = 0; i < state.messages.length; i++) {
 							const m = state.messages[i];
-							if (!this.invalidatedMessages.has(m) && hasValidLocation(uri, m)) {
-								const uri = m.type === TestMessageType.Info ? undefined : buildTestUri({
-									type: TestUriType.ResultActualOutput,
-									messageIndex: i,
-									taskIndex: taskId,
-									resultId: lastResult.id,
-									testExtId: test.item.extId,
-								});
-
-								newDecorations.push(this.instantiationService.createInstance(TestMessageDecoration, m, uri, m.location, this.editor));
+							if (this.invalidatedMessages.has(m) || !hasValidLocation(uri, m)) {
+								continue;
 							}
+
+							const previous = this.lastDecorations.find(m.location.range.startLineNumber, l => l instanceof TestMessageDecoration && l.testMessage === m);
+							if (previous) {
+								newDecorations.insert((previous as TestMessageDecoration).location.range.startLineNumber, previous);
+								continue;
+							}
+
+							const messageUri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+								type: TestUriType.ResultActualOutput,
+								messageIndex: i,
+								taskIndex: taskId,
+								resultId: lastResult.id,
+								testExtId: test.item.extId,
+							});
+
+							newDecorations.insert(m.location.range.startLineNumber, this.instantiationService.createInstance(TestMessageDecoration, m, messageUri, this.editor));
 						}
 					}
 				}
 			}
 
-			accessor
-				.deltaDecorations(this.lastDecorations.map(d => d.id), newDecorations.map(d => d.editorDecoration))
-				.forEach((id, i) => newDecorations[i].id = id);
+			const saveFromRemoval = new Set<string>();
+			newDecorations.forEach(decoration => {
+				if (decoration.id === '') {
+					decoration.id = accessor.addDecoration(decoration.editorDecoration.range, decoration.editorDecoration.options);
+				} else {
+					saveFromRemoval.add(decoration.id);
+				}
+			});
+
+			this.lastDecorations.forEach(decoration => {
+				if (!saveFromRemoval.has(decoration.id)) {
+					accessor.removeDecoration(decoration.id);
+				}
+			});
 
 			this.lastDecorations = newDecorations;
 		});
 	}
 
 	private clearDecorations(): void {
-		if (!this.lastDecorations.length) {
+		if (this.lastDecorations.isEmpty) {
 			return;
 		}
 
 		this.editor.changeDecorations(accessor => {
-			for (const decoration of this.lastDecorations) {
-				accessor.removeDecoration(decoration.id);
-			}
-
-			this.lastDecorations = [];
+			this.lastDecorations.forEach(d => accessor.removeDecoration(d.id));
+			this.lastDecorations = new DecorationCache();
 		});
+	}
+}
+
+class DecorationCache<T> {
+	private readonly value = new Map</* line */ number, T[]>();
+
+	public get isEmpty() {
+		return this.value.size === 0;
+	}
+
+	public find(line: number, predicate: (decoration: T) => boolean): T | undefined {
+		return this.value.get(line)?.find(predicate);
+	}
+
+	public line(line: number) {
+		return this.value.get(line) || [];
+	}
+
+	public insert(line: number, decoration: T) {
+		const prev = this.value.get(line);
+		if (prev) {
+			prev.push(decoration);
+		} else {
+			this.value.set(line, [decoration]);
+		}
+	}
+
+	public forEach(it: (decoration: T, i: number) => void) {
+		let i = 0;
+		for (const line of this.value.values()) {
+			for (const decoration of line) {
+				it(decoration, i++);
+			}
+		}
+	}
+
+	public map<R>(it: (decoration: T) => R) {
+		let output: R[] = [];
+		for (const line of this.value.values()) {
+			output = output.concat(line.map(it));
+		}
+
+		return output;
+	}
+
+	public lines() {
+		return this.value.entries();
 	}
 }
 
@@ -321,11 +405,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 		? (hasMultipleTests ? testingRunAllIcon : testingRunIcon)
 		: testingStatesToIcons.get(computedState)!;
 
-	const hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
-	if (testIdWithMessages) {
-		const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
-		hoverMessage.appendMarkdown(`[${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
-	}
+	let hoverMessage: IMarkdownString | undefined;
 
 	let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
 	if (retired) {
@@ -337,7 +417,17 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 		options: {
 			description: 'run-test-decoration',
 			isWholeLine: true,
-			hoverMessage,
+			get hoverMessage() {
+				if (!hoverMessage) {
+					const building = hoverMessage = new MarkdownString('', true).appendText(hoverMessageParts.join(', ') + '.');
+					if (testIdWithMessages) {
+						const args = encodeURIComponent(JSON.stringify([testIdWithMessages]));
+						building.appendMarkdown(`[${localize('peekTestOutout', 'Peek Test Output')}](command:vscode.peekTestError?${args})`);
+					}
+				}
+
+				return hoverMessage;
+			},
 			glyphMarginClassName,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		}
@@ -503,11 +593,6 @@ abstract class RunTestDecoration extends Disposable {
 	}
 
 	/**
-	 * Adds the test to this decoration.
-	 */
-	public abstract merge(other: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration;
-
-	/**
 	 * Called when the decoration is clicked on.
 	 */
 	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
@@ -623,6 +708,9 @@ abstract class RunTestDecoration extends Disposable {
 }
 
 class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoration {
+	public readonly testIds = this.tests.map(t => t.test.item.extId);
+	public readonly displayedStates = this.tests.map(t => t.resultItem?.computedState);
+
 	constructor(
 		private readonly tests: {
 			test: IncrementalTestCollectionItem,
@@ -638,12 +726,6 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		@IMenuService menuService: IMenuService,
 	) {
 		super(createRunTestDecoration(tests.map(t => t.test), tests.map(t => t.resultItem)), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
-	}
-
-	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
-		this.tests.push({ test, resultItem });
-		this.editorDecoration = createRunTestDecoration(this.tests.map(t => t.test), this.tests.map(t => t.resultItem));
-		return this;
 	}
 
 	protected override getContextMenuActions() {
@@ -682,6 +764,9 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 }
 
 class RunSingleTestDecoration extends RunTestDecoration implements ITestDecoration {
+	public readonly testId = this.test.item.extId;
+	public readonly displayedState = this.resultItem?.computedState;
+
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
 		editor: ICodeEditor,
@@ -695,13 +780,6 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		@IMenuService menuService: IMenuService,
 	) {
 		super(createRunTestDecoration([test], [resultItem]), editor, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
-	}
-
-	public override merge(test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined): RunTestDecoration {
-		return new MultiRunTestDecoration([
-			{ test: this.test, resultItem: this.resultItem },
-			{ test, resultItem },
-		], this.editor, this.testService, this.commandService, this.contextMenuService, this.configurationService, this.testProfileService, this.contextKeyService, this.menuService);
 	}
 
 	protected override getContextMenuActions(e: IEditorMouseEvent) {
@@ -729,16 +807,18 @@ class TestMessageDecoration implements ITestDecoration {
 	public id = '';
 
 	public readonly editorDecoration: IModelDeltaDecoration;
+	public readonly location: IRichLocation;
+
 	private readonly decorationId = `testmessage-${generateUuid()}`;
 	private readonly contentIdClass = `test-message-inline-content-id${this.decorationId}`;
 
 	constructor(
 		public readonly testMessage: ITestMessage,
 		private readonly messageUri: URI | undefined,
-		public readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
 	) {
+		this.location = testMessage.location!;
 		const severity = testMessage.type;
 		const message = typeof testMessage.message === 'string' ? removeAnsiEscapeCodes(testMessage.message) : testMessage.message;
 		editorService.registerDecorationType('test-message-decoration', this.decorationId, {}, undefined, editor);
@@ -764,15 +844,15 @@ class TestMessageDecoration implements ITestDecoration {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
 		}
 
-		const lineLength = editor.getModel()?.getLineLength(location.range.startLineNumber);
-		const column = lineLength ? (lineLength + 1) : location.range.endColumn;
+		const lineLength = editor.getModel()?.getLineLength(this.location.range.startLineNumber);
+		const column = lineLength ? (lineLength + 1) : this.location.range.endColumn;
 		this.editorDecoration = {
 			options,
 			range: {
-				startLineNumber: location.range.startLineNumber,
+				startLineNumber: this.location.range.startLineNumber,
 				startColumn: column,
 				endColumn: column,
-				endLineNumber: location.range.startLineNumber,
+				endLineNumber: this.location.range.startLineNumber,
 			}
 		};
 	}
