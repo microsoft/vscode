@@ -1,6 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
-	"vacation": ["RMacfarlane"],
+	"vacation": ["RMacfarlane", "eamodio"],
 	"assignees": {
 		"JacksonKearl": {"accuracy": 0.5}
 	},
@@ -72,7 +72,7 @@
 		"file-watcher": {"assign": ["bpasero"]},
 		"font-rendering": {"assign": []},
 		"formatting": {"assign": []},
-		"git": {"assign": ["eamodio"]},
+		"git": {"assign": ["lszomoru"]},
 		"gpu": {"assign": ["deepak1556"]},
 		"grammar": {"assign": ["mjbvz"]},
 		"grid-view": {"assign": ["joaomoreno"]},
@@ -120,7 +120,7 @@
 		"remote": {"assign": []},
 		"remote-explorer": {"assign": ["alexr00"]},
 		"rename": {"assign": ["jrieken"]},
-		"scm": {"assign": ["eamodio"]},
+		"scm": {"assign": ["lszomoru"]},
 		"screencast-mode": {"assign": ["lszomoru"]},
 		"search": {"assign": ["roblourens"]},
 		"search-editor": {"assign": ["JacksonKearl"]},
@@ -138,8 +138,8 @@
 		"tasks": {"assign": ["alexr00"], "accuracy": 0.85},
 		"telemetry": {"assign": []},
 		"themes": {"assign": ["aeschli"]},
-		"timeline": {"assign": ["eamodio"]},
-		"timeline-git": {"assign": ["eamodio"]},
+		"timeline": {"assign": ["JacksonKearl"]},
+		"timeline-git": {"assign": ["JacksonKearl"]},
 		"titlebar": {"assign": ["sbatten"]},
 		"tokenization": {"assign": []},
 		"tree": {"assign": ["joaomoreno"]},
