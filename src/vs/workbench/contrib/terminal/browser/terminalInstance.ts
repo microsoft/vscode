@@ -1993,7 +1993,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			newIndex++;
 			line = buffer.getLine(newIndex);
 		}
-		width += line?.length || 0;
+		if (line) {
+			width += line.length;
+			let i = line.length - 1;
+			// trim off the trailing whitespace
+			while (i > 0 && line?.getCell(i)?.getChars() === '') {
+				width--;
+				i--;
+			}
+		}
 		return { width, newIndex };
 	}
 
