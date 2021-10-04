@@ -187,7 +187,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
-					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
+					v8CacheOptions: this.environmentMainService.useCodeCache ? 'code' : 'none',
 					enableWebSQL: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
