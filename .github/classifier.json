@@ -139,7 +139,7 @@
 		"telemetry": {"assign": []},
 		"themes": {"assign": ["aeschli"]},
 		"timeline": {"assign": ["JacksonKearl"]},
-		"timeline-git": {"assign": ["JacksonKearl"]},
+		"timeline-git": {"assign": ["lszomoru"]},
 		"titlebar": {"assign": ["sbatten"]},
 		"tokenization": {"assign": []},
 		"tree": {"assign": ["joaomoreno"]},
