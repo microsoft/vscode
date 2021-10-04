@@ -1927,8 +1927,9 @@ export class Repository implements Disposable {
 		if (HEAD !== undefined) {
 			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+			const postCommitCommand = config.get<string>('postCommitCommand');
 
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0)) {
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
 				if (HEAD.name && HEAD.commit) {
 					if (HEAD.upstream) {
 						if (HEAD.ahead) {
