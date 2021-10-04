@@ -1940,10 +1940,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				i = lineWidth.newIndex;
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
-			if (maxCols > this.maxCols) {
-				this._fixedCols = maxCols;
-				await this._addScrollbar();
-			}
+			this._fixedCols = maxCols;
+			await this._addScrollbar();
 		}
 		this.focus();
 	}
@@ -1951,6 +1949,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _addScrollbar(): Promise<void> {
 		const charWidth = this._configHelper?.getFont(this._xtermCore).charWidth;
 		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
+			return;
+		}
+		if (this._fixedCols < this._xterm.buffer.active.getLine(0)!.length) {
+			// no scrollbar needed
 			return;
 		}
 		this._hasScrollBar = true;
@@ -1991,6 +1993,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			newIndex++;
 			line = buffer.getLine(newIndex);
 		}
+		width += line!.length;
 		return { width, newIndex };
 	}
 
