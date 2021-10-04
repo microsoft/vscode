@@ -526,6 +526,31 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 	}
 }
 
+export class TestingSortByDurationAction extends ViewAction<TestingExplorerView> {
+	public static readonly ID = 'testing.sortByDuration';
+	constructor() {
+		super({
+			id: TestingSortByDurationAction.ID,
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.sortByDuration', "Sort by Duration"),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByDuration),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Sort,
+				group: 'sortBy',
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByDuration;
+	}
+}
+
 export class ShowMostRecentOutputAction extends Action2 {
 	public static readonly ID = 'testing.showMostRecentOutput';
 	constructor() {
@@ -1105,6 +1130,7 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
+	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,
