@@ -322,7 +322,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 		return resourceOrEditor;
 	}));
-	const fileSystemResources = resources.filter(({ resource }) => fileService.canHandleResource(resource));
+	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';

@@ -534,7 +534,7 @@ export class NativeWindow extends Disposable {
 					// Assume `uri` this is a workspace uri, let's see if we can handle it
 					await this.fileService.activateProvider(uri.scheme);
 
-					if (this.fileService.canHandleResource(uri)) {
+					if (this.fileService.hasProvider(uri)) {
 						return {
 							resolved: URI.from({
 								scheme: this.productService.urlProtocol,

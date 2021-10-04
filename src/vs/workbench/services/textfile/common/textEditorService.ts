@@ -156,7 +156,7 @@ export class TextEditorService extends Disposable implements ITextEditorService 
 			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
+				if (textResourceEditorInput.forceFile || this.fileService.hasProvider(canonicalResource)) {
 					return this.fileEditorFactory.createFileEditor(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
 				}
 

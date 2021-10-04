@@ -1138,7 +1138,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		// before asking whether the resource can be handled.
 		await fileService.activateProvider(resource.scheme);
 
-		if (!fileService.canHandleResource(resource)) {
+		if (!fileService.hasProvider(resource)) {
 			return;
 		}
 

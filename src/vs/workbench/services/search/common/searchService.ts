@@ -461,7 +461,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Block walkthrough, webview, etc.
-				if (originalResource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(originalResource)) {
+				if (originalResource.scheme !== Schemas.untitled && !this.fileService.hasProvider(originalResource)) {
 					return;
 				}
 

@@ -201,7 +201,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Open editor (only resources that can be handled by file service are supported)
 		const uri = getResourceForCommand(resource, accessor.get(IListService), editorService);
-		if (uri && fileService.canHandleResource(uri)) {
+		if (uri && fileService.hasProvider(uri)) {
 			const name = basename(uri);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (in file) ↔ {1}", name, name);
 

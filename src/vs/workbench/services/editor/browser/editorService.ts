@@ -191,7 +191,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			]), resource => resource.toString());
 
 			for (const resource of resources) {
-				if (this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource)) {
+				if (this.fileService.hasProvider(resource) && !this.contextService.isInsideWorkspace(resource)) {
 					visibleOutOfWorkspaceResources.set(resource, resource);
 				}
 			}
@@ -351,7 +351,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					// This only applies to external file events, so we need to check for the isExternal
 					// flag.
 					let exists = false;
-					if (isExternal && this.fileService.canHandleResource(resource)) {
+					if (isExternal && this.fileService.hasProvider(resource)) {
 						await timeout(100);
 						exists = await this.fileService.exists(resource);
 					}

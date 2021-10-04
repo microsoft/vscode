@@ -201,7 +201,7 @@ export class SimpleFileDialog {
 				defaultUri = resources.joinPath(defaultUri, filename);
 			}
 		}
-		if ((this.scheme !== Schemas.file) && !this.fileService.canHandleResource(defaultUri)) {
+		if ((this.scheme !== Schemas.file) && !this.fileService.hasProvider(defaultUri)) {
 			this.notificationService.info(nls.localize('remoteFileDialog.notConnectedToRemote', 'File system provider for {0} is not available.', defaultUri.toString()));
 			return undefined;
 		}

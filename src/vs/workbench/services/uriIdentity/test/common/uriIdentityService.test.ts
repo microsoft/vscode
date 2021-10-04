@@ -20,7 +20,7 @@ suite('URI Identity', function () {
 		constructor(readonly data: Map<string, FileSystemProviderCapabilities>) {
 			super();
 		}
-		override canHandleResource(uri: URI) {
+		override hasProvider(uri: URI) {
 			return this.data.has(uri.scheme);
 		}
 		override hasCapability(uri: URI, flag: FileSystemProviderCapabilities): boolean {

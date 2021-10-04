@@ -62,7 +62,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._register(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
 			const resource = this._resourceKey.get();
-			this._isFileSystemResource.set(Boolean(resource && _fileService.canHandleResource(resource)));
+			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
 		}));
 
 		this._register(_modeService.onDidEncounterLanguage(() => {
@@ -82,7 +82,7 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 				this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 				this._extensionKey.set(value ? extname(value) : null);
 				this._hasResource.set(!!value);
-				this._isFileSystemResource.set(value ? this._fileService.canHandleResource(value) : false);
+				this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
 			});
 		}
 	}

@@ -59,7 +59,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// File or remote file: go through text file service
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			return this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
 		}
 
@@ -204,7 +204,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 
 	canHandleResource(resource: URI): boolean {
-		if (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
 			return true; // we handle file://, untitled:// and inMemory:// automatically
 		}
 

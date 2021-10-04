@@ -182,7 +182,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (this.fileService.canHandleResource(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
+		if (this.fileService.hasProvider(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
 			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });

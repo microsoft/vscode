@@ -168,7 +168,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 		/* In Web, recommend only when the file can be handled */
 		if (isWeb) {
-			if (!this.fileService.canHandleResource(uri)) {
+			if (!this.fileService.hasProvider(uri)) {
 				return;
 			}
 		}

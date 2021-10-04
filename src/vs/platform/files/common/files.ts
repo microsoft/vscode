@@ -57,9 +57,22 @@ export interface IFileService {
 	activateProvider(scheme: string): Promise<void>;
 
 	/**
-	 * Checks if this file service can handle the given resource.
+	 * Checks if this file service can handle the given resource by
+	 * first activating any extension that wants to be activated
+	 * on the provided resource scheme to include extensions that
+	 * contribute file system providers for the given resource.
 	 */
-	canHandleResource(resource: URI): boolean;
+	canHandleResource(resource: URI): Promise<boolean>;
+
+	/**
+	 * Checks if the file service has a registered provider for the
+	 * provided resource.
+	 *
+	 * Note: this does NOT account for contributed providers from
+	 * extensions that have not been activated yet. To include those,
+	 * consider to call `await fileService.canHandleResource(resource)`.
+	 */
+	hasProvider(resource: URI): boolean;
 
 	/**
 	 * Checks if the provider for the provided resource has the provided file system capability.
@@ -1115,7 +1128,7 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 }
 
 export async function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
-	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
+	if (fileService.hasProvider(URI.from({ scheme: file.scheme }))) {
 		return;
 	}
 

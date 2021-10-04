@@ -611,7 +611,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	override async run(): Promise<void> {
 		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
-			if (this.fileService.canHandleResource(fileResource)) {
+			if (this.fileService.hasProvider(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
 				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
@@ -720,7 +720,7 @@ export class CompareWithClipboardAction extends Action {
 	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
-		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
+		if (resource && (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
 				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);

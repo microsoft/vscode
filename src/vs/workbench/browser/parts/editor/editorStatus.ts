@@ -1410,12 +1410,12 @@ export class ChangeEncodingAction extends Action {
 		await timeout(50); // quick input is sensitive to being opened so soon after another
 
 		const resource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
+		if (!resource || (!this.fileService.hasProvider(resource) && resource.scheme !== Schemas.untitled)) {
 			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
 		let guessedEncoding: string | undefined = undefined;
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			const content = await this.textFileService.readStream(resource, { autoGuessEncoding: true });
 			guessedEncoding = content.encoding;
 		}

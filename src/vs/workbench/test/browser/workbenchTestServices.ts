@@ -1058,7 +1058,8 @@ export class TestFileService implements IFileService {
 	}
 
 	async activateProvider(_scheme: string): Promise<void> { return; }
-	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
+	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
+	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {
 		return [
 			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
