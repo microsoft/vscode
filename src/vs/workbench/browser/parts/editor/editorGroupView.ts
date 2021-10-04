@@ -1318,7 +1318,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, fromMove: true });
+			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
 	}
 
@@ -1371,7 +1371,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		await this.doCloseEditorWithDirtyHandling(editor, options);
 	}
 
-	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
+	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions, internalOptions?: IInternalEditorCloseOptions): Promise<boolean> {
 		if (!editor) {
 			return false;
 		}
@@ -1383,7 +1383,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Do close
-		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
+		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined, internalOptions);
 
 		return true;
 	}
@@ -1434,7 +1434,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model
 		let index: number | undefined = undefined;
 		if (editorToClose) {
-			index = this.model.closeEditor(editorToClose, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+			index = this.model.closeEditor(editorToClose, internalOptions?.context)?.index;
 		}
 
 		// Open next active if there are more to show
@@ -1504,7 +1504,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseInactiveEditor(editor: EditorInput, internalOptions?: IInternalEditorCloseOptions): number | undefined {
 
 		// Update model
-		return this.model.closeEditor(editor, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+		return this.model.closeEditor(editor, internalOptions?.context)?.index;
 	}
 
 	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
@@ -1831,11 +1831,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (!editor.matches(replacement)) {
 				let closed = false;
 				if (forceReplaceDirty) {
-					this.doCloseEditor(editor, false);
+					this.doCloseEditor(editor, false, { context: EditorCloseContext.REPLACE });
 					closed = true;
 				} else {
-					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
+
 				if (!closed) {
 					return; // canceled
 				}
@@ -1851,9 +1852,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
 				if (activeReplacement.forceReplaceDirty) {
-					this.doCloseEditor(activeReplacement.editor, false);
+					this.doCloseEditor(activeReplacement.editor, false, { context: EditorCloseContext.REPLACE });
 				} else {
-					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
+					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
 			}
 

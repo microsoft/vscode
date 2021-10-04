@@ -749,7 +749,9 @@ export enum EditorCloseContext {
 	UNKNOWN,
 
 	/**
-	 * The editor closed because it was in preview mode and got replaced.
+	 * The editor closed because it was replaced with another editor.
+	 * This can either happen via explicit replace call or when an
+	 * editor is in preview mode and another editor opens.
 	 */
 	REPLACE,
 

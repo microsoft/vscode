@@ -2471,4 +2471,24 @@ suite('EditorService', () => {
 
 		assert.strictEqual(events[1].context, EditorCloseContext.UNKNOWN);
 	});
+
+	test('onDidCloseEditor indicates proper context when replacing an editor', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource-onDidCloseEditor2'), TEST_EDITOR_INPUT_ID);
+
+		await service.openEditor(input1, { pinned: true });
+
+		const events: IEditorCloseEvent[] = [];
+		service.onDidCloseEditor(e => {
+			events.push(e);
+		});
+
+		await rootGroup.replaceEditors([{ editor: input1, replacement: input2 }]);
+
+		assert.strictEqual(events[0].context, EditorCloseContext.REPLACE);
+	});
 });
