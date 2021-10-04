@@ -371,6 +371,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				mimeTypes: renderer.mimeTypes,
 				extends: renderer.extends,
 				messaging: renderer.messaging !== RendererMessagingSpec.Never,
+				isBuiltin: renderer.isBuiltin
 			};
 		});
 	}

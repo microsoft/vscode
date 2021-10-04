@@ -882,9 +882,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			await Promise.all(renderers.map(x => x.load()));
+			// De-prioritize built-in renderers
+			renderers.sort((a, b) => +a.data.isBuiltin - +b.data.isBuiltin);
 
-			renderers[0].api?.renderOutputItem(info, element);
+			(await renderers[0].load())?.renderOutputItem(info, element);
 		}
 	}();
 
@@ -1552,6 +1553,7 @@ export interface RendererMetadata {
 	readonly mimeTypes: readonly string[];
 	readonly extends: string | undefined;
 	readonly messaging: boolean;
+	readonly isBuiltin: boolean;
 }
 
 export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {

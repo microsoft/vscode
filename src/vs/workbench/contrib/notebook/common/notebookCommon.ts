@@ -149,6 +149,8 @@ export interface INotebookRendererInfo {
 
 	readonly dependencies: readonly string[];
 
+	readonly isBuiltin: boolean;
+
 	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
