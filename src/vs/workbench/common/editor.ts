@@ -1133,12 +1133,8 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 			return;
 		}
 
-		// Since we are possibly the first ones to use the file service
-		// on the resource, we must ensure to activate the provider first
-		// before asking whether the resource can be handled.
-		await fileService.activateProvider(resource.scheme);
-
-		if (!fileService.hasProvider(resource)) {
+		const canHandleResource = await fileService.canHandleResource(resource);
+		if (!canHandleResource) {
 			return;
 		}
 
