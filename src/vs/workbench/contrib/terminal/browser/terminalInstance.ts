@@ -1924,7 +1924,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm?.buffer.active) {
 			return;
 		}
-		if (this._terminalHasFixedWidth.get() === true) {
+		if (this._hasScrollBar) {
 			this._terminalHasFixedWidth.set(false);
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
