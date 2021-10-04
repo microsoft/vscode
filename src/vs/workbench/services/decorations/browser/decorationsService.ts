@@ -224,25 +224,11 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
 	constructor(all: URI | URI[]) {
-		for (let uri of asArray(all)) {
-			this._data.set(uri, true);
-		}
+		this._data.fill(true, asArray(all));
 	}
 
 	affectsResource(uri: URI): boolean {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
-	}
-
-	static merge(all: (URI | URI[])[]): URI[] {
-		let res: URI[] = [];
-		for (let uriOrArray of all) {
-			if (Array.isArray(uriOrArray)) {
-				res = res.concat(uriOrArray);
-			} else {
-				res.push(uriOrArray);
-			}
-		}
-		return res;
 	}
 }
 
@@ -369,7 +355,7 @@ export class DecorationsService implements IDecorationsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: FileDecorationChangeEvent.merge });
+	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: all => all.flat() });
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
 
