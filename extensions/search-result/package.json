@@ -6,6 +6,7 @@
   "enableProposedApi": true,
   "publisher": "vscode",
   "license": "MIT",
+  "icon": "images/icon.png",
   "engines": {
     "vscode": "^1.39.0"
   },
