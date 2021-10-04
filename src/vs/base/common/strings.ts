@@ -318,21 +318,27 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 			continue;
 		}
 
-		const diff = codeA - codeB;
-		if (diff === 32 && isUpperAsciiLetter(codeB)) { //codeB =[65-90] && codeA =[97-122]
-			continue;
-
-		} else if (diff === -32 && isUpperAsciiLetter(codeA)) {  //codeB =[97-122] && codeA =[65-90]
-			continue;
-		}
-
-		if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
-			//
-			return diff;
-
-		} else {
+		if (codeA >= 128 || codeB >= 128) {
+			// not ASCII letters -> fallback to lower-casing strings
 			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
 		}
+
+		// mapper lower-case ascii letter onto upper-case varinats
+		// [97-122] (lower ascii) --> [65-90] (upper ascii)
+		if (isLowerAsciiLetter(codeA)) {
+			codeA -= 32;
+		}
+		if (isLowerAsciiLetter(codeB)) {
+			codeB -= 32;
+		}
+
+		// compare both code points
+		const diff = codeA - codeB;
+		if (diff === 0) {
+			continue;
+		}
+
+		return diff;
 	}
 
 	const aLen = aEnd - aStart;
