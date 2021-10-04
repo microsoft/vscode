@@ -1924,7 +1924,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm?.buffer.active) {
 			return;
 		}
-		if (this._terminalHasFixedWidth.get() === true) {
+		if (this._hasScrollBar) {
 			this._terminalHasFixedWidth.set(false);
 			this._fixedCols = undefined;
 			this._fixedRows = undefined;
@@ -1968,11 +1968,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}));
 			this._container.appendChild(this._horizontalScrollbar.getDomNode());
 		}
-
 		this._horizontalScrollbar.setScrollDimensions(
 			{
 				width: this._xterm.element.clientWidth,
-				scrollWidth: ((((this._fixedCols - this.maxCols) * charWidth) + this._xterm.element.clientWidth))
+				scrollWidth: this._fixedCols * charWidth
 			});
 		this._horizontalScrollbar!.getDomNode().style.paddingBottom = '16px';
 
@@ -1989,10 +1988,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let newIndex = index;
 		while (line?.isWrapped) {
 			width += line.length;
-			for (let i = 0; i < line.length; i++) {
-				const cell = line.getCell(i);
-				width += cell?.getWidth() || 0;
-			}
 			newIndex++;
 			line = buffer.getLine(newIndex);
 		}
