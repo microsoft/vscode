@@ -1951,7 +1951,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm?.element || !this._wrapperElement || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
-		if (this._fixedCols * charWidth <= this._xterm.element.clientWidth) {
+		if (this._fixedCols < this._xterm.buffer.active.getLine(0)!.length) {
 			// no scrollbar needed
 			return;
 		}
@@ -1993,15 +1993,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			newIndex++;
 			line = buffer.getLine(newIndex);
 		}
-		if (line) {
-			width += line.length;
-			let i = line.length - 1;
-			// trim off the trailing whitespace
-			while (i > 0 && line?.getCell(i)?.getChars() === '') {
-				width--;
-				i--;
-			}
-		}
+		width += line!.length;
 		return { width, newIndex };
 	}
 
