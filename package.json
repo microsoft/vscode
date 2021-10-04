@@ -106,7 +106,7 @@
     "@types/minimist": "^1.2.2",
     "@types/mocha": "^9.0.0",
     "@types/node": "^16.9.1",
-    "@types/sinon": "^10.0.2",
+    "@types/sinon": "^10.0.4",
     "@types/trusted-types": "^2.0.2",
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^5.28.0",
