@@ -10,6 +10,7 @@ import API from '../utils/api';
 import { Condition, conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
+import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 
@@ -27,7 +28,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 	public static readonly minVersion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<undefined>();
+	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<undefined | vscode.Uri>();
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
@@ -48,6 +49,17 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		const filepath = this.client.toOpenedFilePath(model);
 		if (!filepath) {
 			return [];
+		}
+
+		// If triggered for the active editor, then also trigger for all other visible editors since
+		// changes in the active editor may effect their hints too.
+		const modelUri = model.uri.toString();
+		if (modelUri === vscode.window.activeTextEditor?.document.uri.toString()) {
+			for (const visibleEditor of vscode.window.visibleTextEditors) {
+				if (isSupportedLanguageMode(visibleEditor.document) && visibleEditor.document.uri.toString() !== modelUri) {
+					this._onDidChangeInlayHints.fire(visibleEditor.document.uri);
+				}
+			}
 		}
 
 		const start = model.offsetAt(range.start);
