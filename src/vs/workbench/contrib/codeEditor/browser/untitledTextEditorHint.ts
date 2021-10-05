@@ -104,6 +104,9 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
 			this.domNode.appendChild(language);
+			const shortcutKey = $('span');
+			shortcutKey.innerText = `(${ChangeModeAction.SHORTCUTSTRING})`;
+			this.domNode.appendChild(shortcutKey);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
 			this.domNode.appendChild(toGetStarted);
@@ -122,7 +125,6 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
 				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
-				this.editor.focus();
 			};
 			this.toDispose.push(dom.addDisposableListener(language, 'click', languageOnClickOrTap));
 			this.toDispose.push(dom.addDisposableListener(language, GestureEventType.Tap, languageOnClickOrTap));

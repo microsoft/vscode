@@ -54,6 +54,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { AutomaticLanguageDetectionLikelyWrongClassification, AutomaticLanguageDetectionLikelyWrongId, IAutomaticLanguageDetectionLikelyWrongData, ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { KeyChord, KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -1076,6 +1077,9 @@ export class ChangeModeAction extends Action {
 
 	static readonly ID = 'workbench.action.editor.changeLanguageMode';
 	static readonly LABEL = localize('changeMode', "Change Language Mode");
+
+	static readonly SHORTCUT = KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M);
+	static readonly SHORTCUTSTRING = `${KeyCodeUtils.toString(KeyCode.Ctrl)}+${KeyCodeUtils.toString(KeyCode.KEY_K)} ${KeyCodeUtils.toString(KeyCode.KEY_M)}`;
 
 	constructor(
 		actionId: string,
