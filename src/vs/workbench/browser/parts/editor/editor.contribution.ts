@@ -61,6 +61,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorGroupAutoLockConfiguration } from 'vs/workbench/browser/parts/editor/editorConfiguration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 //#region Editor Registrations
 
@@ -162,9 +163,21 @@ quickAccessRegistry.registerQuickAccessProvider({
 
 // Editor Status
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeModeAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_M) }), 'Change Language Mode', undefined, ContextKeyExpr.not('notebookEditorFocused'));
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEOLAction), 'Change End of Line Sequence');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ChangeEncodingAction), 'Change File Encoding');
+
+KeybindingsRegistry.registerCommandAndKeybindingRule(
+	{
+		id: ChangeModeAction.ID,
+		weight: KeybindingWeight.WorkbenchContrib + 50,
+		when: ContextKeyExpr.not('notebookEditorFocused'),
+		primary: ChangeModeAction.SHORTCUT,
+		handler: accessor => {
+			const changeModeAction = accessor.get(IInstantiationService).createInstance(ChangeModeAction, ChangeModeAction.ID, ChangeModeAction.LABEL);
+			changeModeAction.run(null);
+		}
+	}
+);
 
 // Editor Management
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageDown, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET] } }), 'View: Open Next Editor', CATEGORIES.View.value);
