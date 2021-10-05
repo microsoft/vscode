@@ -584,7 +584,7 @@
 	font-family: var(--monaco-monospace-font);
 	white-space: pre;
 	box-sizing: border-box;
-	opacity: .6;
+	opacity: .7;
 
 	/* Sizing hacks */
 	bottom: 0px;
