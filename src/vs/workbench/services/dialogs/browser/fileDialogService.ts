@@ -201,18 +201,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Otherwise inform the user about options
 
 		const buttons = context === 'open' ?
-			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")] :
-			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More"), localize('cancel', "Cancel")];
-
-		const cancelId = context === 'open' ? 3 : 2;
+			[localize('openRemote', "Open Remote..."), localize('upload', "Upload..."), localize('learnMore', "Learn More")] :
+			[localize('openRemote', "Open Remote..."), localize('learnMore', "Learn More")];
 
 		const res = await this.dialogService.show(
 			Severity.Warning,
-			localize('unsupportedBrowserMessage', "Accessing local files is unsupported in your current browser."),
+			localize('unsupportedBrowserMessage', "Local File System Access is Unsupported"),
 			buttons,
 			{
-				detail: localize('unsupportedBrowserDetail', "You can either upload files or open a remote repository to start editing."),
-				cancelId
+				detail: localize('unsupportedBrowserDetail', "Your current browser doesn't support local file system access.\nYou can either upload single files or open a remote repository."),
+				cancelId: -1 // no "Cancel" button offered
 			}
 		);
 
