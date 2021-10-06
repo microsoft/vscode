@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -1471,6 +1471,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		}));
 
 		this._initializeSourceDiffEditor();
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
+		this._register(scopedContextKeyService);
+		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
 
 		this._inputToolbarContainer = this.templateData.inputToolbarContainer;
 		this._toolbar = this.templateData.toolbar;
@@ -1479,25 +1482,29 @@ export class ModifiedElement extends AbstractElementRenderer {
 			cell: this.cell
 		};
 
-		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
-		this._register(this._menu);
-		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-		this._toolbar.setActions(actions);
-
 		if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 			this._inputToolbarContainer.style.display = 'block';
+			inputChanged.set(true);
 		} else {
 			this._inputToolbarContainer.style.display = 'none';
+			inputChanged.set(false);
 		}
 
 		this._register(this.cell.modified!.textModel.onDidChangeContent(() => {
 			if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 				this._inputToolbarContainer.style.display = 'block';
+				inputChanged.set(true);
 			} else {
 				this._inputToolbarContainer.style.display = 'none';
+				inputChanged.set(false);
 			}
 		}));
+
+		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
+		this._register(this._menu);
+		const actions: IAction[] = [];
+		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		this._toolbar.setActions(actions);
 	}
 
 	private async _initializeSourceDiffEditor() {

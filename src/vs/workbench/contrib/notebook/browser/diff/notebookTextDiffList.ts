@@ -229,6 +229,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
+			padding: {
+				top: 24,
+				bottom: 12
+			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,
