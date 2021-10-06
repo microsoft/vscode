@@ -290,14 +290,15 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 
 	/**
 	 * If the model was already resolved before, allows to trigger
-	 * a reload of it to fetch the latest contents:
-	 * - async: resolve() will return immediately and trigger
-	 * a reload that will run in the background.
-	 * - sync: resolve() will only return resolved when the
-	 * model has finished reloading.
+	 * a reload of it to fetch the latest contents.
 	 */
 	readonly reload?: {
-		readonly async: boolean
+
+		/**
+		 * Controls whether the reload happens in the background
+		 * or whether `resolve` will await the reload to happen.
+		 */
+		readonly async: boolean;
 	};
 
 	/**
