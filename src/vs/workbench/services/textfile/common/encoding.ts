@@ -449,14 +449,14 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'UTF-8',
 		labelShort: 'UTF-8',
 		order: 1,
-		alias: 'utf8bom'
+		alias: 'utf8'
 	},
 	utf8bom: {
 		labelLong: 'UTF-8 with BOM',
 		labelShort: 'UTF-8 with BOM',
 		encodeOnly: true,
 		order: 2,
-		alias: 'utf8'
+		alias: 'utf8bom'
 	},
 	utf16le: {
 		labelLong: 'UTF-16 LE',
