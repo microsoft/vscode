@@ -26,6 +26,8 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -49,6 +51,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
@@ -420,10 +423,14 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
 			}
 			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, productName),
-				[localize('install', "Install"), localize('cancel', "Cancel")], { cancelId: 2 });
-			if (choice !== 0) {
-				throw canceled();
+				[localize('install', "Install"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")], { cancelId: 2 });
+			if (choice === 0) {
+				return;
 			}
+			if (choice === 1) {
+				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
+			}
+			throw canceled();
 		}
 	}
 
