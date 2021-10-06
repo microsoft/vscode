@@ -6,6 +6,8 @@
 //@ts-check
 'use strict';
 
+// teaching ma peeps forks and PRs, ignore please. I will delete this in a bit.
+
 /**
  * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
  * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
