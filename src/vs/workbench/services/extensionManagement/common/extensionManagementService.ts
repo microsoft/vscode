@@ -428,6 +428,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				return;
 			}
 			if (choice === 1) {
+				// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
 				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
 			}
 			throw canceled();
