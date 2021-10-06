@@ -87,6 +87,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupChangeEvent>());
+	readonly onDidModelChange = this._onDidModelChange.event;
+
 	private readonly _onDidGroupChange = this._register(new Emitter<IGroupChangeEvent>());
 	readonly onDidGroupChange = this._onDidGroupChange.event;
 
@@ -529,6 +532,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.model.onDidMoveEditor(event => this.onDidMoveEditor(event)));
 		this._register(this.model.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
 		this._register(this.model.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
+		this._register(this.model.onDidActivateEditor(editor => this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor })));
 		this._register(this.model.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
 		this._register(this.model.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
 		this._register(this.model.onDidChangeEditorLabel(editor => this.onDidChangeEditorLabel(editor)));
@@ -543,18 +547,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private onDidChangeGroupLocked(): void {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_LOCKED });
 	}
 
 	private onDidChangeEditorPinned(editor: EditorInput): void {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 	}
 
 	private onDidChangeEditorSticky(editor: EditorInput): void {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
 	}
 
 	private onDidMoveEditor({ editor, index, newIndex }: IEditorMoveEvent): void {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex: index, editorIndex: newIndex });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, oldEditorIndex: index, editorIndex: newIndex });
 	}
 
 	private onDidOpenEditor({ editor, index }: IEditorOpenEvent): void {
@@ -573,6 +581,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: index });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, editorIndex: index });
 	}
 
 	private handleOnDidCloseEditor(event: IEditorCloseEvent): void {
@@ -614,6 +623,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Event
 		this._onDidCloseEditor.fire(event);
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
+		this._onDidModelChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
 	}
 
 	private canDispose(editor: EditorInput): boolean {
@@ -794,6 +804,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
 			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
+			this._onDidModelChange.fire({ kind: GroupChangeKind.GROUP_INDEX });
 		}
 	}
 
