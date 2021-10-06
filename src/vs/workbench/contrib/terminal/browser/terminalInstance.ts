@@ -31,7 +31,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme, IBufferLine } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -1934,14 +1934,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
 			let maxCols = 0;
-			if (!this._xterm.buffer.active.getLine(0)) {
-				return;
-			}
-			const lineWidth = this._xterm.buffer.active.getLine(0)!.length;
+			const buffer = this._xterm.buffer.active;
 			for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
-				const lineInfo = this._getWrappedLineCount(i, this._xterm.buffer.active);
-				maxCols = Math.max(maxCols, lineInfo.lineCount * lineWidth || 0);
-				i = lineInfo.currentIndex;
+				let line = buffer.getLine(i);
+				if (!line) {
+					throw new Error('Could not get line');
+				}
+				let width = this._getLineWidth(line);
+				i--;
+				while (line?.isWrapped && i > 0) {
+					line = buffer.getLine(i);
+					width += this._getLineWidth(line);
+					i--;
+				}
+				maxCols = Math.max(maxCols, width || 0);
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
 			this._fixedCols = maxCols;
@@ -1988,17 +1994,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number } {
-		let line = buffer.getLine(index);
+	private _getLineWidth(line?: IBufferLine) {
 		if (!line) {
-			throw new Error('Could not get line');
+			throw new Error('no line');
 		}
-		let currentIndex = index;
-		while (line?.isWrapped && currentIndex > 0) {
-			currentIndex--;
-			line = buffer.getLine(currentIndex);
+		let width = 0;
+		let lastWidth;
+		for (let i = 0; i < line.length; i++) {
+			const cell = line.getCell(i);
+			if (!cell) {
+				break;
+			}
+			width += cell.getWidth();
+			if (lastWidth === 0 && width === 0) {
+				break;
+			}
 		}
-		return { lineCount: index - currentIndex + 1, currentIndex };
+		return width;
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
