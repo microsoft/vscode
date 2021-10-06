@@ -209,9 +209,7 @@ export class FileService extends Disposable implements IFileService {
 				trie = TernarySearchTree.forUris<true>(() => !isPathCaseSensitive);
 				trie.set(resource, true);
 				if (resolveTo) {
-					for (const uri of resolveTo) {
-						trie.set(uri, true);
-					}
+					trie.fill(true, resolveTo);
 				}
 			}
 

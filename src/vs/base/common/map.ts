@@ -305,6 +305,30 @@ export class TernarySearchTree<K, V> {
 		this._root = undefined;
 	}
 
+	/**
+	 * Fill the tree with the same value of the given keys
+	 */
+	fill(element: V, keys: readonly K[]): void;
+	/**
+	 * Fill the tree with given [key,value]-tuples
+	 */
+	fill(values: readonly [K, V][]): void;
+	fill(values: readonly [K, V][] | V, keys?: readonly K[]): void {
+		if (keys) {
+			const arr = keys.slice(0);
+			shuffle(arr);
+			for (let k of arr) {
+				this.set(k, (<V>values));
+			}
+		} else {
+			const arr = (<[K, V][]>values).slice(0);
+			shuffle(arr);
+			for (let entry of arr) {
+				this.set(entry[0], entry[1]);
+			}
+		}
+	}
+
 	set(key: K, element: V): V | undefined {
 		const iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<K, V>;
@@ -349,30 +373,6 @@ export class TernarySearchTree<K, V> {
 		node.value = element;
 		node.key = key;
 		return oldElement;
-	}
-
-	/**
-	 * Fill the tree with the same value of the given keys
-	 */
-	fill(element: V, keys: readonly K[]): void;
-	/**
-	 * Fill the tree with given [key,value]-tuples
-	 */
-	fill(values: readonly [K, V][]): void;
-	fill(values: readonly [K, V][] | V, keys?: readonly K[]): void {
-		if (keys) {
-			const arr = keys.slice(0);
-			shuffle(arr);
-			for (let k of arr) {
-				this.set(k, (<V>values));
-			}
-		} else {
-			const arr = (<[K, V][]>values).slice(0);
-			shuffle(arr);
-			for (let entry of arr) {
-				this.set(entry[0], entry[1]);
-			}
-		}
 	}
 
 	get(key: K): V | undefined {
