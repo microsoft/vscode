@@ -93,7 +93,7 @@ class NavBar extends Disposable {
 	}
 
 	push(id: string, label: string, tooltip: string): void {
-		const action = new Action(id, label, undefined, true, () => this._update(id, true));
+		const action = new Action(id, label, undefined, true, () => this.update(id, true));
 
 		action.tooltip = tooltip;
 
@@ -101,7 +101,7 @@ class NavBar extends Disposable {
 		this.actionbar.push(action);
 
 		if (this.actions.length === 1) {
-			this._update(id);
+			this.update(id);
 		}
 	}
 
@@ -110,15 +110,19 @@ class NavBar extends Disposable {
 		this.actionbar.clear();
 	}
 
-	update(): void {
-		this._update(this._currentId);
+	switch(id: string): boolean {
+		const action = this.actions.find(action => action.id === id);
+		if (action) {
+			action.run();
+			return true;
+		}
+		return false;
 	}
 
-	_update(id: string | null = this._currentId, focus?: boolean): Promise<void> {
+	private update(id: string, focus?: boolean): void {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
-		return Promise.resolve(undefined);
 	}
 }
 
@@ -304,8 +308,15 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	async openTab(tab: ExtensionEditorTab): Promise<void> {
-		if (this.input && this.template) {
-			this.template.navbar._update(tab);
+		if (!this.input || !this.template) {
+			return;
+		}
+		if (this.template.navbar.switch(tab)) {
+			return;
+		}
+		// Fallback to Readme tab if ExtensionPack tab does not exist
+		if (tab === ExtensionEditorTab.ExtensionPack) {
+			this.template.navbar.switch(ExtensionEditorTab.Readme);
 		}
 	}
 
