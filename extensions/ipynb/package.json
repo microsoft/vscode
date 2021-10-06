@@ -8,6 +8,7 @@
 	"engines": {
 		"vscode": "^1.57.0"
 	},
+  "enableProposedApi": true,
 	"activationEvents": [
 		"onNotebook:jupyter-notebook"
 	],
