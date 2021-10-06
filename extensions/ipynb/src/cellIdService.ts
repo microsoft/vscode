@@ -19,22 +19,27 @@ export function ensureAllNewCellsHaveCellIds(context: ExtensionContext) {
 }
 
 function onDidChangeNotebookCells(e: NotebookCellsChangeEvent) {
+	console.log('Changed Cells');
 	const nbMetadata = getNotebookMetadata(e.document);
-	if (isCellIdRequired(nbMetadata)) {
+	if (!isCellIdRequired(nbMetadata)) {
+		console.log('Ignore');
 		return;
 	}
 	e.changes.forEach(change => {
 		change.items.forEach(cell => {
 			const cellMetadata = getCellMetadata(cell);
 			if (cellMetadata?.id && isCellIdUnique(cellMetadata.id, e.document, cell)) {
+				console.log('Ignore2');
 				return;
 			}
+			console.log('Generate');
 			const id = generateCellId(e.document);
+			console.log(`Generated ${id}`);
 			const edit = new WorkspaceEdit();
 			// Don't edit the metadata directly, always get a clone (prevents accidental singletons and directly editing the objects).
 			const updatedMetadata: CellMetadata = { ...JSON.parse(JSON.stringify(cellMetadata || {})) };
 			updatedMetadata.id = id;
-			edit.replaceNotebookCellMetadata(cell.document.uri, cell.index, updatedMetadata);
+			edit.replaceNotebookCellMetadata(cell.notebook.uri, cell.index, updatedMetadata);
 			workspace.applyEdit(edit);
 		});
 	});
