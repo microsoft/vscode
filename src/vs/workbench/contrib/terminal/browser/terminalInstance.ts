@@ -1934,10 +1934,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._horizontalScrollbar?.setScrollDimensions({ scrollWidth: 0 });
 		} else {
 			let maxCols = 0;
-			for (let i = this._xterm.buffer.active.viewportY; i < this._xterm.buffer.active.length; i++) {
-				const lineWidth = this._getLineWidth(i, this._xterm.buffer.active);
-				maxCols = Math.max(maxCols, lineWidth.width || 0);
-				i = lineWidth.newIndex;
+			if (!this._xterm.buffer.active.getLine(0)) {
+				return;
+			}
+			const lineWidth = this._xterm.buffer.active.getLine(0)!.length;
+			for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
+				const lineInfo = this._getWrappedLineCount(i, this._xterm.buffer.active);
+				maxCols = Math.max(maxCols, lineInfo.lineCount * lineWidth || 0);
+				i = lineInfo.currentIndex;
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
 			this._fixedCols = maxCols;
@@ -1984,17 +1988,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getLineWidth(index: number, buffer: IBuffer): { width: number, newIndex: number } {
-		let width = 0;
+	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number } {
 		let line = buffer.getLine(index);
-		let newIndex = index;
-		while (line?.isWrapped) {
-			width += line.length;
-			newIndex++;
-			line = buffer.getLine(newIndex);
+		if (!line) {
+			throw new Error('Could not get line');
 		}
-		width += line!.length;
-		return { width, newIndex };
+		let currentIndex = index;
+		while (line?.isWrapped && currentIndex > 0) {
+			currentIndex--;
+			line = buffer.getLine(currentIndex);
+		}
+		return { lineCount: index - currentIndex + 1, currentIndex };
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
