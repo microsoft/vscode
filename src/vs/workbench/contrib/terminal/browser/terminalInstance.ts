@@ -1940,7 +1940,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const lineWidth = this._xterm.buffer.active.getLine(0)!.length;
 			for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
 				const lineInfo = this._getWrappedLineCount(i, this._xterm.buffer.active);
-				maxCols = Math.max(maxCols, lineInfo.lineCount * lineWidth || 0);
+				maxCols = Math.max(maxCols, ((lineInfo.lineCount * lineWidth) - lineInfo.endSpaces) || 0);
 				i = lineInfo.currentIndex;
 			}
 			maxCols = Math.min(maxCols, Constants.MaxSupportedCols);
@@ -1988,17 +1988,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number } {
+	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
 		let line = buffer.getLine(index);
 		if (!line) {
 			throw new Error('Could not get line');
 		}
 		let currentIndex = index;
+		let endSpaces = -1;
+		for (let i = line?.length || 0; i > 0; i--) {
+			if (line && !line?.getCell(i)?.getChars()) {
+				endSpaces++;
+			} else {
+				break;
+			}
+		}
 		while (line?.isWrapped && currentIndex > 0) {
 			currentIndex--;
 			line = buffer.getLine(currentIndex);
 		}
-		return { lineCount: index - currentIndex + 1, currentIndex };
+		return { lineCount: index - currentIndex + 1, currentIndex, endSpaces };
 	}
 
 	private _setResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void {
