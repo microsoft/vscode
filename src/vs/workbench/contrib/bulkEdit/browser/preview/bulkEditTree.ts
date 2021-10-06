@@ -27,6 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 // --- VIEW MODEL
 
@@ -214,7 +215,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModel = ref.object.textEditorModel;
 				textModelDisposable = ref;
 			} catch {
-				textModel = new TextModel('', TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService);
+				textModel = new TextModel('', TextModel.DEFAULT_CREATION_OPTIONS, null, null, this._undoRedoService, new TestLanguageConfigurationService());
 				textModelDisposable = textModel;
 			}
 

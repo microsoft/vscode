@@ -28,6 +28,7 @@ import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'v
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -54,7 +55,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
+		modelService = new ModelServiceImpl(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			new TestThemeService(),
+			new NullLogService(),
+			undoRedoService,
+			new TestLanguageConfigurationService()
+		);
 		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			override isDirty() { return false; }

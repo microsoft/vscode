@@ -54,6 +54,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { StandaloneQuickInputServiceImpl } from 'vs/editor/standalone/browser/quickInput/standaloneQuickInputServiceImpl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ILanguageConfigurationService, LanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface IEditorOverrideServices {
 	[index: string]: any;
@@ -156,7 +157,20 @@ export module StaticServices {
 
 	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 
-	export const modelService = define(IModelService, (o) => new ModelServiceImpl(configurationService.get(o), resourcePropertiesService.get(o), standaloneThemeService.get(o), logService.get(o), undoRedoService.get(o)));
+	export const languageConfigurationService = define(ILanguageConfigurationService, (o) => new LanguageConfigurationService(configurationService.get(o), modeService.get(o)));
+
+	export const modelService = define(
+		IModelService,
+		(o) =>
+			new ModelServiceImpl(
+				configurationService.get(o),
+				resourcePropertiesService.get(o),
+				standaloneThemeService.get(o),
+				logService.get(o),
+				undoRedoService.get(o),
+				languageConfigurationService.get(o)
+			)
+	);
 
 	export const markerDecorationsService = define(IMarkerDecorationsService, (o) => new MarkerDecorationsService(modelService.get(o), markerService.get(o)));
 

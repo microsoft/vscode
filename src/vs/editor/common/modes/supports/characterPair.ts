@@ -73,7 +73,7 @@ export class CharacterPairSupport {
 		return this._surroundingPairs;
 	}
 
-	public getColorizedBrackets(): CharacterPair[] {
+	public getColorizedBrackets(): readonly CharacterPair[] {
 		return this._colorizedBracketPairs;
 	}
 }
