@@ -422,7 +422,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			if (nonWebExtensions.length === extensions.length) {
 				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
 			}
-			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to install it anyways?", extension.displayName || extension.identifier.id, productName),
+			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to proceed with the installation?", extension.displayName || extension.identifier.id, productName),
 				[localize('install', "Install"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")], { cancelId: 2 });
 			if (choice === 0) {
 				return;
