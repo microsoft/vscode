@@ -258,7 +258,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
+								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -1448,7 +1448,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					init: true,
 				});
 
-				this.element.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
+				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 			} else {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
