@@ -17,12 +17,25 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "activationEvents": [
-    "onStartupFinished",
     "onCommand:emmet.expandAbbreviation",
     "onLanguage:html",
+    "onLanguage:haml",
+    "onLanguage:blade",
     "onLanguage:css",
+    "onLanguage:sass",
     "onLanguage:scss",
-    "onLanguage:less"
+    "onLanguage:less",
+    "onLanguage:stylus",
+    "onLanguage:slim",
+    "onLanguage:stylus",
+    "onLanguage:jade",
+    "onLanguage:pug",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:php",
+    "onLanguage:vue",
+    "onLanguage:xsl",
+    "onLanguage:xml"
   ],
   "main": "./out/node/emmetNodeMain",
   "browser": "./dist/browser/emmetBrowserMain",
