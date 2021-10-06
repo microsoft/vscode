@@ -528,6 +528,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.model.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
 		this._register(this.model.onDidMoveEditor(event => this.onDidMoveEditor(event)));
 		this._register(this.model.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
+		this._register(this.model.onDidActivateEditor(editor => this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor })));
 		this._register(this.model.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
 		this._register(this.model.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
 		this._register(this.model.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
@@ -1060,11 +1061,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (context.active) {
 			openEditorPromise = (async () => {
 				const result = await this.editorPane.openEditor(editor, options, { newInGroup: context.isNew });
-
-				// Editor change event
-				if (result.editorChanged) {
-					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
-				}
 
 				// Handle errors but do not bubble them up
 				if (result.error) {
