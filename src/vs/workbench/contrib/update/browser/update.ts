@@ -552,8 +552,8 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 							type: 'info',
 							message: nls.localize('relaunchMessage', "Changing the version requires a reload to take effect"),
 							detail: newQuality === 'insider' ?
-								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the nightly pre-production version of VS Code.") :
-								nls.localize('relaunchDetailStable', "Press the reload button to switch to the monthly released stable version of VS Code."),
+								nls.localize('relaunchDetailInsiders', "Press the reload button to switch to the Insider version of VS Code.") :
+								nls.localize('relaunchDetailStable', "Press the reload button to switch to the Stable version of VS Code."),
 							primaryButton: nls.localize('reload', "&&Reload")
 						});
 
