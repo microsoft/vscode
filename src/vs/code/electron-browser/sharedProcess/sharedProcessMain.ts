@@ -189,14 +189,16 @@ class SharedProcessMain extends Disposable {
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
 		services.set(IConfigurationService, configurationService);
 
-		await configurationService.initialize();
-
 		// Storage (global access only)
 		const storageService = new NativeStorageService(undefined, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
-
-		await storageService.initialize();
 		this._register(toDisposable(() => storageService.flush()));
+
+		// Initialize config & storage in parallel
+		await Promise.all([
+			configurationService.initialize(),
+			storageService.initialize()
+		]);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
