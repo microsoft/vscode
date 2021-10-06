@@ -506,6 +506,8 @@ registerThemingParticipant((theme, collector) => {
 
 	const border = theme.getColor(ghostTextBorder);
 	if (border) {
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 2px dashed ${border}; }`);
+		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 1px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration { border: 1px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { border: 1px solid ${border}; }`);
 	}
 });
