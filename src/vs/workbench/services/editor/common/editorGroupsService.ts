@@ -458,7 +458,7 @@ export interface IEditorGroup {
 	/**
 	 * An aggregated event that fires whenever the model changes in any way.
 	 * This is very similar to `onDidGroupChange` except its specifically
-	 * for things whihc would affect the model. Primarily used for the tabs API
+	 * for things which would affect the model. Primarily used for the tabs API
 	 */
 	readonly onDidModelChange: Event<IGroupChangeEvent>;
 
