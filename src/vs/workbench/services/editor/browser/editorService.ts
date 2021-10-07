@@ -147,24 +147,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerGroupListeners(group: IEditorGroupView): void {
 		const groupDisposables = new DisposableStore();
 
-		// Here we only really care about model change events
-		groupDisposables.add(group.onDidModelChange(e => {
+		groupDisposables.add(group.onDidGroupChange(e => {
 			switch (e.kind) {
 				case GroupChangeKind.EDITOR_ACTIVE:
 					if (group.activeEditor) {
 						this._onDidEditorsChange.fire([{ groupId: group.id, editor: group.activeEditor, kind: GroupChangeKind.EDITOR_ACTIVE }]);
 					}
+					this.handleActiveEditorChange(group);
+					this._onDidVisibleEditorsChange.fire();
 					break;
 				default:
 					this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
 					break;
-			}
-		}));
-
-		groupDisposables.add(group.onDidGroupChange(e => {
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				this.handleActiveEditorChange(group);
-				this._onDidVisibleEditorsChange.fire();
 			}
 		}));
 
