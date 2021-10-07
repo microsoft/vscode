@@ -68,6 +68,7 @@
 	{
 		"type": "label",
 		"name": "notebook",
+		"regex": "notebook.*",
 		"assign": [
 			"rebornix"
 		]
