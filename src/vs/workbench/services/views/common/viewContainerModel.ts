@@ -444,7 +444,11 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private triggerOnDidAddVisibleViewDescriptors(added: IAddedViewDescriptorRef[]) {
-		this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
+		// Filter visible view descriptors and broadcast the change
+		added = added.filter(a => this.isVisible(a.viewDescriptor.id));
+		if (added.length) {
+			this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
+		}
 	}
 
 	isCollapsed(id: string): boolean {
