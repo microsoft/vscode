@@ -6368,6 +6368,9 @@ declare module 'vscode' {
 		/**
 		 * Store a value. The value must be JSON-stringifyable.
 		 *
+		 * *Note* that using `undefined` as value removes the key from the underlying
+		 * storage.
+		 *
 		 * @param key A string.
 		 * @param value A value. MUST not contain cyclic references.
 		 */
