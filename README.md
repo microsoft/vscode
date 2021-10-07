@@ -83,3 +83,6 @@ To learn about the code structure and other topics related to contributing, plea
 To learn what others are up to and to provide feedback, please head over to the [Discussions](https://github.com/gitpod-io/openvscode-server/discussions).
 
 You can also follow us on Twitter [@gitpod](https://twitter.com/gitpod) or come [chat with us](https://www.gitpod.io/chat).
+
+## Legal
+This project is not affiliated with Microsoft Corporation.
