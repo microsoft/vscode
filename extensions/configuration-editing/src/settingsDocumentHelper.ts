@@ -60,6 +60,11 @@ export class SettingsDocument {
 			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
 		}
 
+		// remote.portsAttributes
+		if (location.path[0] === 'remote.portsAttributes' && location.path.length === 2 && location.isAtPropertyKey) {
+			return this.providePortsAttributesCompletionItem(range);
+		}
+
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
@@ -236,6 +241,31 @@ export class SettingsDocument {
 			return this.provideLanguageCompletionItemsForLanguageOverrides(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);
+	}
+
+	private providePortsAttributesCompletionItem(range: vscode.Range): vscode.CompletionItem[] {
+		return [this.newSnippetCompletionItem(
+			{
+				label: '\"3000\"',
+				documentation: 'Single Port Attribute',
+				range,
+				snippet: '\n  \"${1:3000}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+			}),
+		this.newSnippetCompletionItem(
+			{
+				label: '\"5000-6000\"',
+				documentation: 'Ranged Port Attribute',
+				range,
+				snippet: '\n  \"${1:40000-55000}\": {\n    \"onAutoForward\": \"${2:ignore}\"\n  }\n'
+			}),
+		this.newSnippetCompletionItem(
+			{
+				label: '\".+\\\\/server.js\"',
+				documentation: 'Command Match Port Attribute',
+				range,
+				snippet: '\n  \"${1:.+\\\\/server.js\}\": {\n    \"label\": \"${2:Application}\",\n    \"onAutoForward\": \"${3:openPreview}\"\n  }\n'
+			})
+		];
 	}
 
 	private newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {

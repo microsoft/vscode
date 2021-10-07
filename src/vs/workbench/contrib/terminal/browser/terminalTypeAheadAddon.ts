@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -1254,7 +1254,14 @@ class TypeAheadStyle implements IDisposable {
 			case 'inverted':
 				return { applyArgs: [7], undoArgs: [27] };
 			default:
-				const { r, g, b } = Color.fromHex(style).rgba;
+				let color: Color;
+				try {
+					color = Color.fromHex(style);
+				} catch {
+					color = new Color(new RGBA(255, 0, 0, 1));
+				}
+
+				const { r, g, b } = color.rgba;
 				return { applyArgs: [38, 2, r, g, b], undoArgs: [39] };
 		}
 	}

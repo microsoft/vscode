@@ -7,8 +7,8 @@ let err = false;
 
 const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
-if (majorNodeVersion < 10 || majorNodeVersion >= 17) {
-	console.error('\033[1;31m*** Please use node.js versions >=10 and <=17.\033[0;0m');
+if (majorNodeVersion < 14 || majorNodeVersion >= 17) {
+	console.error('\033[1;31m*** Please use node.js versions >=14 and <=17.\033[0;0m');
 	err = true;
 }
 
@@ -30,7 +30,7 @@ if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
-		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute.\033[0;0m');
+		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\033[0;0m');
 		err = true;
 	}
 }

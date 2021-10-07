@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 
 suite('references', function () {

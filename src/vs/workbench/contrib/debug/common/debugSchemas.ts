@@ -13,7 +13,7 @@ import { inputsSchema } from 'vs/workbench/services/configurationResolver/common
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
 	extensionPoint: 'debuggers',
-	defaultExtensionKind: 'workspace',
+	defaultExtensionKind: ['workspace'],
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 		type: 'array',
@@ -66,6 +66,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 				configurationAttributes: {
 					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
 					type: 'object'
+				},
+				when: {
+					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension defined context key as appropriate for this."),
+					type: 'string',
+					default: ''
 				},
 				windows: {
 					description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),

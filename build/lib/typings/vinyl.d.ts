@@ -48,6 +48,29 @@ declare module "vinyl" {
 		 */
 		public base: string;
 		/**
+		 * Gets and sets the basename of `file.path`.
+		 *
+		 * Throws when `file.path` is not set.
+		 *
+		 * Example:
+		 *
+		 * ```js
+		 * var file = new File({
+		 *   cwd: '/',
+		 *   base: '/test/',
+		 *   path: '/test/file.js'
+		 * });
+		 *
+		 * console.log(file.basename); // file.js
+		 *
+		 * file.basename = 'file.txt';
+		 *
+		 * console.log(file.basename); // file.txt
+		 * console.log(file.path); // /test/file.txt
+		 * ```
+		 */
+		basename: string;
+		/**
 		 * Full path to the file.
 		 */
 		public path: string;
@@ -105,7 +128,7 @@ declare module "vinyl" {
 	 * This is required as per:
 	 * https://github.com/microsoft/TypeScript/issues/5073
 	 */
-	namespace File {}
+	namespace File { }
 
 	export = File;
 

@@ -371,6 +371,22 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+
+	/**
+	 * Aria label for original editor.
+	 */
+	originalAriaLabel?: string;
+
+	/**
+	 * Aria label for modified editor.
+	 */
+	modifiedAriaLabel?: string;
+
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -622,13 +638,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Get value of the current model attached to this editor.
-	 * @see `ITextModel.getValue`
+	 * @see {@link ITextModel.getValue}
 	 */
 	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
-	 * @see `ITextModel.setValue`
+	 * @see {@link ITextModel.setValue}
 	 */
 	setValue(newValue: string): void;
 
@@ -726,14 +742,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see `ITextModel.deltaDecorations`
+	 * @see {@link ITextModel.deltaDecorations}
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
 
 	/**
 	 * @internal
@@ -959,23 +975,13 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 */
 	readonly ignoreTrimWhitespace: boolean;
 	/**
-	 * Returns whether the diff editor is rendering side by side or not.
-	 * @internal
-	 */
-	readonly renderSideBySide: boolean;
-	/**
-	 * Returns whether the diff editor is rendering +/- indicators or not.
-	 * @internal
-	 */
-	readonly renderIndicators: boolean;
-	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * @internal
 	 */
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see ICodeEditor.getDomNode
+	 * @see {@link ICodeEditor.getDomNode}
 	 */
 	getDomNode(): HTMLElement;
 

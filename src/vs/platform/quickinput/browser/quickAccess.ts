@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IQuickAccessController, IQuickAccessProvider, IQuickAccessRegistry, Extensions, IQuickAccessProviderDescriptor, IQuickAccessOptions, DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { once } from 'vs/base/common/functional';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 

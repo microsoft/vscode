@@ -52,6 +52,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
+	public readonly lazyStart = false;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
@@ -147,7 +148,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
 					let handle = setTimeout(() => {
-						reject('timeout');
+						reject('The remote extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
 					let logFile: URI;
@@ -230,19 +231,19 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,
 				appName: this._productService.nameLong,
+				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
-				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
+				workspaceStorageHome: remoteInitData.workspaceStorageHome
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,
 				id: workspace.id,
-				name: this._labelService.getWorkspaceLabel(workspace)
+				name: this._labelService.getWorkspaceLabel(workspace),
+				transient: workspace.transient
 			},
 			remote: {
 				isRemote: true,

@@ -9,7 +9,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -285,6 +285,7 @@ class ToggleFullScreenAction extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F
 				}
 			},
+			precondition: IsIOSContext.toNegated(),
 			toggled: IsFullscreenContext,
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,

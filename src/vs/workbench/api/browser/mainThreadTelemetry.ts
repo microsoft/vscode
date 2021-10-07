@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadTelemetryShape, MainContext, IExtHostContext, ExtHostTelemetryShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
@@ -22,14 +24,15 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmenService: IEnvironmentService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
-		if (!this._environmenService.disableTelemetry) {
+		if (supportsTelemetry(this._productService, this._environmenService)) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectedKeys.includes('telemetry.enableTelemetry')) {
+				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
 					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
 				}
 			}));
@@ -39,11 +42,11 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	private get telemetryEnabled(): boolean {
-		if (this._environmenService.disableTelemetry) {
+		if (!supportsTelemetry(this._productService, this._environmenService)) {
 			return false;
 		}
 
-		return !!this._configurationService.getValue('telemetry.enableTelemetry');
+		return getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE;
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {

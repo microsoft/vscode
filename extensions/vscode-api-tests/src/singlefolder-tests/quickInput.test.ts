@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, commands } from 'vscode';
+import { commands, window } from 'vscode';
 import { assertNoRpc, closeAllEditors } from '../utils';
 
 interface QuickPickExpected {

@@ -74,7 +74,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -85,7 +86,8 @@
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
-				"group": "buildKillers"
+				"group": "buildKillers",
+				"close": true
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -198,7 +200,8 @@
 			"command": "node build/lib/preLaunch.js",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
-				"reveal": "silent"
+				"reveal": "silent",
+				"close": true
 			}
 		},
 		{

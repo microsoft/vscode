@@ -39,13 +39,13 @@
       "title": "Jake",
       "properties": {
         "jake.autoDetect": {
-          "scope": "resource",
+          "scope": "application",
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
-          "default": "on",
+          "default": "off",
           "description": "%config.jake.autoDetect%"
         }
       }

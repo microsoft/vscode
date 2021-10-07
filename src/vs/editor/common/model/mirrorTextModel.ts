@@ -23,6 +23,14 @@ export interface IModelChangedEvent {
 	 * The new version id the model has transitioned to.
 	 */
 	readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	readonly isRedoing: boolean;
 }
 
 export interface IMirrorTextModel {

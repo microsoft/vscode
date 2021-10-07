@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./bracketMatching';
-import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./bracketMatching';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -18,11 +18,11 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
@@ -161,6 +161,14 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				this._updateBracketsSoon.schedule();
 			}
 		}));
+
+		this._register(editor.onDidBlurEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
+
+		this._register(editor.onDidFocusEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
 	}
 
 	public jumpToBracket(): void {
@@ -235,6 +243,13 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				const [open, close] = brackets;
 				selectFrom = selectBrackets ? open.getStartPosition() : open.getEndPosition();
 				selectTo = selectBrackets ? close.getEndPosition() : close.getStartPosition();
+
+				if (close.containsPosition(position)) {
+					// select backwards if the cursor was on the closing bracket
+					const tmp = selectFrom;
+					selectFrom = selectTo;
+					selectTo = tmp;
+				}
 			}
 
 			if (selectFrom && selectTo) {
@@ -249,6 +264,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match',
 		overviewRuler: {
@@ -258,6 +274,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	});
 
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});
@@ -281,8 +298,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private _recomputeBrackets(): void {
-		if (!this._editor.hasModel()) {
-			// no model => no brackets!
+		if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
+			// no model or no focus => no brackets!
 			this._lastBracketsData = [];
 			this._lastVersionId = 0;
 			return;

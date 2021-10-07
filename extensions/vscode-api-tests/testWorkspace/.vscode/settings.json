@@ -5,5 +5,6 @@
 	"files.exclude": {
 		"**/files-exclude/**": true
 	},
-	"editor.minimap.enabled": false // see https://github.com/microsoft/vscode/issues/115747
+	"editor.minimap.enabled": false, // see https://github.com/microsoft/vscode/issues/115747
+	"workbench.editor.languageDetection": true
 }

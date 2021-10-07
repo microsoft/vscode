@@ -204,6 +204,7 @@ function migrateOptions(options: IEditorOptions): void {
 		mapping['method'] = 'showMethods';
 		mapping['function'] = 'showFunctions';
 		mapping['constructor'] = 'showConstructors';
+		mapping['deprecated'] = 'showDeprecated';
 		mapping['field'] = 'showFields';
 		mapping['variable'] = 'showVariables';
 		mapping['class'] = 'showClasses';
@@ -269,6 +270,20 @@ function migrateOptions(options: IEditorOptions): void {
 		options.matchBrackets = 'always';
 	} else if (<any>matchBrackets === false) {
 		options.matchBrackets = 'never';
+	}
+
+	const { renderIndentGuides, highlightActiveIndentGuide } = options as any as {
+		renderIndentGuides: boolean;
+		highlightActiveIndentGuide: boolean;
+	};
+	if (!options.guides) {
+		options.guides = {};
+	}
+	if (renderIndentGuides !== undefined) {
+		options.guides.indentation = !!renderIndentGuides;
+	}
+	if (highlightActiveIndentGuide !== undefined) {
+		options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
 	}
 }
 
@@ -535,6 +550,11 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 5000,
 			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
+		},
+		'diffEditor.maxFileSize': {
+			type: 'number',
+			default: 50,
+			description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',

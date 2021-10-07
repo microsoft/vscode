@@ -3,53 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { TestItemImpl, TestItemStatus, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
+import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
+import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
-export { TestItemImpl, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+export { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 
-export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl[] = [], uri = URI.file('/')): TestItemImpl => {
-	const item = new TestItemImpl(idPrefix + label, label, uri, undefined);
-	if (children.length) {
-		item.status = TestItemStatus.Pending;
-		item.resolveHandler = () => {
-			for (const child of children) {
-				item.addChild(child);
-			}
-
-			item.status = TestItemStatus.Resolved;
-		};
-	}
-
-	return item;
-};
-
-export const testStubsChain = (stub: TestItemImpl, path: string[], slice = 0) => {
-	const tests = [stub];
-	for (const segment of path) {
-		if (stub.status !== TestItemStatus.Resolved) {
-			stub.resolveHandler!(CancellationToken.None);
-		}
-
-		stub = stub.children.get(segment)!;
-		if (!stub) {
-			throw new Error(`missing child ${segment}`);
-		}
-
-		tests.push(stub);
-	}
-
-	return tests.slice(slice);
+/**
+ * Gets a main thread test collection initialized with the given set of
+ * roots/stubs.
+ */
+export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
+	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
+	await singleUse.expand(singleUse.root.id, Infinity);
+	c.apply(singleUse.collectDiff());
+	return c;
 };
 
 export const testStubs = {
-	test: stubTest,
-	nested: (idPrefix = 'id-') => stubTest('root', idPrefix, [
-		stubTest('a', idPrefix, [stubTest('aa', idPrefix), stubTest('ab', idPrefix)]),
-		stubTest('b', idPrefix),
-	]),
-};
+	nested: (idPrefix = 'id-') => {
+		const collection = new TestSingleUseCollection('ctrlId');
+		collection.root.label = 'root';
+		collection.resolveHandler = item => {
+			if (item === undefined) {
+				const a = new TestItemImpl('ctrlId', idPrefix + 'a', 'a', URI.file('/'));
+				a.canResolveChildren = true;
+				const b = new TestItemImpl('ctrlId', idPrefix + 'b', 'b', URI.file('/'));
+				collection.root.children.replace([a, b]);
+			} else if (item.id === idPrefix + 'a') {
+				item.children.replace([
+					new TestItemImpl('ctrlId', idPrefix + 'aa', 'aa', URI.file('/')),
+					new TestItemImpl('ctrlId', idPrefix + 'ab', 'ab', URI.file('/')),
+				]);
+			}
+		};
 
-export const ReExportedTestRunState = TestResultState;
+		return collection;
+	},
+};

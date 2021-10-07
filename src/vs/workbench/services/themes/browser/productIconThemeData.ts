@@ -221,7 +221,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				warnings.push(nls.localize('error.fontStyle', 'Invalid font style in font \'{0}\'. Ignoring setting.', font.id));
 			}
 
-			cssRules.push(`@font-face { src: ${src}; font-family: '${fontId}';${fontWeight}${fontStyle} }`);
+			cssRules.push(`@font-face { src: ${src}; font-family: '${fontId}';${fontWeight}${fontStyle}; font-display: block; }`);
 		} else {
 			warnings.push(nls.localize('error.fontId', 'Missing or invalid font id \'{0}\'. Skipping font definition.', font.id));
 		}

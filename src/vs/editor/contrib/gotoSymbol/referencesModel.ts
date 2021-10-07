@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { basename, extUri } from 'vs/base/common/resources';
-import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Location, LocationLink } from 'vs/editor/common/modes';
-import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { Position } from 'vs/editor/common/core/position';
-import { IMatch } from 'vs/base/common/filters';
-import { Constants } from 'vs/base/common/uint';
-import { ResourceMap } from 'vs/base/common/map';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IMatch } from 'vs/base/common/filters';
+import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { basename, extUri } from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
+import { URI } from 'vs/base/common/uri';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Location, LocationLink } from 'vs/editor/common/modes';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 
 export class OneReference {
 

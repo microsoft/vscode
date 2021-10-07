@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/common/driverIpc';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { timeout } from 'vs/base/common/async';
-import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class WindowDriver extends BaseWindowDriver {

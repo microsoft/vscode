@@ -14,9 +14,19 @@
 				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer"
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -31,6 +41,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -38,6 +49,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
@@ -54,6 +66,19 @@
 									"type": "string",
 									"description": "Label that will be shown in the UI for this port.",
 									"default": "Application"
+								},
+								"requireLocalPort": {
+									"type": "boolean",
+									"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+									"default": false
+								},
+								"protocol": {
+									"type": "string",
+									"enum": [
+										"http",
+										"https"
+									],
+									"description": "The protocol to use when forwarding this port."
 								}
 							},
 							"default": {
@@ -80,7 +105,13 @@
 					"properties": {
 						"onAutoForward": {
 							"type": "string",
-							"enum": ["notify", "openBrowser", "openPreview", "silent", "ignore"],
+							"enum": [
+								"notify",
+								"openBrowser",
+								"openPreview",
+								"silent",
+								"ignore"
+							],
 							"enumDescriptions": [
 								"Shows a notification when a port is automatically forwarded.",
 								"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
@@ -100,9 +131,28 @@
 							"type": "string",
 							"description": "Label that will be shown in the UI for this port.",
 							"default": "Application"
+						},
+						"requireLocalPort": {
+							"type": "boolean",
+							"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+							"default": false
+						},
+						"protocol": {
+							"type": "string",
+							"enum": [
+								"http",
+								"https"
+							],
+							"description": "The protocol to use when forwarding this port."
 						}
 					},
-					"defaultSnippets": [{ "body": { "onAutoForward": "ignore" } }],
+					"defaultSnippets": [
+						{
+							"body": {
+								"onAutoForward": "ignore"
+							}
+						}
+					],
 					"markdownDescription": "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```",
 					"additionalProperties": false
 				},

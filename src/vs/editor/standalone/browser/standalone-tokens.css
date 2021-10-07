@@ -26,6 +26,7 @@
 /* See https://github.com/microsoft/monaco-editor/issues/2168#issuecomment-780078600 */
 .monaco-aria-container {
 	position: absolute !important;
+	top: 0; /* avoid being placed underneath a sibling element */
 	height: 1px;
 	width: 1px;
 	margin: -1px;

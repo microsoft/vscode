@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILifecycleService, LifecyclePhase, StartupKindToString } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -21,11 +21,10 @@ import { LoaderStats } from 'vs/base/common/amd';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { isWeb } from 'vs/base/common/platform';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export class PerfviewContrib {
 
@@ -43,7 +42,7 @@ export class PerfviewContrib {
 	}
 }
 
-export class PerfviewInput extends ResourceEditorInput {
+export class PerfviewInput extends TextResourceEditorInput {
 
 	static readonly Id = 'PerfviewInput';
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
@@ -56,23 +55,22 @@ export class PerfviewInput extends ResourceEditorInput {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
 		super(
 			PerfviewInput.Uri,
 			localize('name', "Startup Performance"),
 			undefined,
 			undefined,
+			undefined,
 			textModelResolverService,
 			textFileService,
 			editorService,
-			editorGroupService,
 			fileService,
 			labelService,
-			filesConfigurationService
+			editorResolverService
 		);
 	}
 }

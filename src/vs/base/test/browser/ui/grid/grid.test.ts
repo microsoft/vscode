@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Direction, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode, sanitizeGridNodeDescriptor, GridNodeDescriptor, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { TestView, nodesToArrays } from './util';
-import { deepClone } from 'vs/base/common/objects';
+import { createSerializedGrid, Direction, getRelativeLocation, Grid, GridNode, GridNodeDescriptor, ISerializableView, isGridBranchNode, IViewDeserializer, Orientation, sanitizeGridNodeDescriptor, SerializableGrid, Sizing } from 'vs/base/browser/ui/grid/grid';
 import { Event } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
+import { nodesToArrays, TestView } from './util';
 
 // Simple example:
 //

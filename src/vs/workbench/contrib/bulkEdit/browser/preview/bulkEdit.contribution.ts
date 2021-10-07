@@ -6,7 +6,6 @@
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
@@ -20,13 +19,15 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { EditorResourceAccessor, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
 	const view = await viewsService.openView(BulkEditPane.ID, true);
@@ -41,24 +42,24 @@ class UXState {
 	private readonly _activePanel: string | undefined;
 
 	constructor(
-		@IPanelService private readonly _panelService: IPanelService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
-		this._activePanel = _panelService.getActivePanel()?.getId();
+		this._activePanel = _paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)?.getId();
 	}
 
 	async restore(): Promise<void> {
 
 		// (1) restore previous panel
 		if (typeof this._activePanel === 'string') {
-			await this._panelService.openPanel(this._activePanel);
+			await this._paneCompositeService.openPaneComposite(this._activePanel, ViewContainerLocation.Panel);
 		} else {
-			this._panelService.hideActivePanel();
+			this._paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
 		}
 
 		// (2) close preview editors
 		for (let group of this._editorGroupsService.groups) {
-			let previewEditors: IEditorInput[] = [];
+			let previewEditors: EditorInput[] = [];
 			for (let input of group.editors) {
 
 				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -90,7 +91,7 @@ class BulkEditPreviewContribution {
 	private _activeSession: PreviewSession | undefined;
 
 	constructor(
-		@IPanelService private readonly _panelService: IPanelService,
+		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IDialogService private readonly _dialogService: IDialogService,
@@ -104,7 +105,7 @@ class BulkEditPreviewContribution {
 	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
 		this._ctxEnabled.set(true);
 
-		const uxState = this._activeSession?.uxState ?? new UXState(this._panelService, this._editorGroupsService);
+		const uxState = this._activeSession?.uxState ?? new UXState(this._paneCompositeService, this._editorGroupsService);
 		const view = await getBulkEditPane(this._viewsService);
 		if (!view) {
 			this._ctxEnabled.set(false);

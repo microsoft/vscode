@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
+import { EditorAutoIndentStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IIdentifiedSingleEditOperation, ITextModel, EndOfLineSequence } from 'vs/editor/common/model';
+import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { StandardTokenType, TextEdit } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
+import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {

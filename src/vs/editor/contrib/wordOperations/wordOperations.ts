@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, ICommandOptions, ServicesAccessor, registerEditorCommand, EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorCommand, ICommandOptions, registerEditorAction, registerEditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import * as nls from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IsWindowsContext } from 'vs/platform/contextkey/common/contextkeys';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty, assertNoRpc } from '../utils';
-import { join, posix, basename } from 'path';
 import * as fs from 'fs';
+import { basename, join, posix } from 'path';
+import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
+import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
 
 suite('vscode API - workspace', () => {
 

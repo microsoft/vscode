@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { joinPath, basenameOrAuthority } from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceIdentifier, IStoredWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { basenameOrAuthority, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ISingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -105,6 +105,13 @@ export interface IWorkspace {
 	readonly folders: IWorkspaceFolder[];
 
 	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 */
+	readonly transient?: boolean;
+
+	/**
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
@@ -162,6 +169,7 @@ export class Workspace implements IWorkspace {
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[],
+		private _transient: boolean,
 		private _configuration: URI | null,
 		private _ignorePathCasing: (key: URI) => boolean,
 	) {
@@ -171,6 +179,7 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
+		this._transient = workspace.transient;
 		this._ignorePathCasing = workspace._ignorePathCasing;
 		this.folders = workspace.folders;
 	}
@@ -186,6 +195,10 @@ export class Workspace implements IWorkspace {
 
 	get id(): string {
 		return this._id;
+	}
+
+	get transient(): boolean {
+		return this._transient;
 	}
 
 	get configuration(): URI | null {
@@ -216,7 +229,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, configuration: this.configuration };
+		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
 	}
 }
 

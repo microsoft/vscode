@@ -16,7 +16,7 @@ const WEB_ROOT = '${workspaceFolder}';
 
 interface ServerReadyAction {
 	pattern: string;
-	action?: 'openExternally' | 'debugWithChrome' | 'startDebugging';
+	action?: 'openExternally' | 'debugWithChrome' | 'debugWithEdge' | 'startDebugging';
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
@@ -147,13 +147,11 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'debugWithChrome':
-				vscode.debug.startDebugging(session.workspaceFolder, {
-					type: 'pwa-chrome',
-					name: 'Chrome Debug',
-					request: 'launch',
-					url: uri,
-					webRoot: args.webRoot || WEB_ROOT
-				});
+				this.debugWithBrowser('pwa-chrome', session, uri);
+				break;
+
+			case 'debugWithEdge':
+				this.debugWithBrowser('pwa-msedge', session, uri);
 				break;
 
 			case 'startDebugging':
@@ -164,6 +162,16 @@ class ServerReadyDetector extends vscode.Disposable {
 				// not supported
 				break;
 		}
+	}
+
+	private debugWithBrowser(type: string, session: vscode.DebugSession, uri: string) {
+		return vscode.debug.startDebugging(session.workspaceFolder, {
+			type,
+			name: 'Browser Debug',
+			request: 'launch',
+			url: uri,
+			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT
+		});
 	}
 }
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
@@ -29,7 +29,7 @@ export interface ILanguageSelection {
 export interface IModeService {
 	readonly _serviceBrand: undefined;
 
-	onDidCreateMode: Event<IMode>;
+	onDidEncounterLanguage: Event<LanguageIdentifier>;
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading

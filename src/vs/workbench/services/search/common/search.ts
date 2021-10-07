@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/path';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
+import { isPromise } from 'vs/base/common/types';
 
 export { TextSearchCompleteMessageType };
 
@@ -206,9 +207,15 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 	return !!(p as IProgressMessage).message;
 }
 
+export interface ITextSearchCompleteMessage {
+	text: string;
+	type: TextSearchCompleteMessageType;
+	trusted?: boolean;
+}
+
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
@@ -366,6 +373,7 @@ export interface ISearchConfigurationProperties {
 	usePCRE2: boolean;
 	actionsPosition: 'auto' | 'right';
 	maintainFileSearchCache: boolean;
+	maxResults: number | null;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	seedOnFocus: boolean;
@@ -379,6 +387,7 @@ export interface ISearchConfigurationProperties {
 		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
+	forceSearchProcess: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
@@ -508,13 +517,13 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
 	limitHit: boolean;
-	messages: { text: string, type: TextSearchCompleteMessageType }[];
+	messages: ITextSearchCompleteMessage[];
 	stats: ISearchEngineStats;
 }
 
@@ -632,6 +641,14 @@ export class QueryGlobTester {
 		}
 	}
 
+	matchesExcludesSync(testPath: string, basename?: string, hasSibling?: (name: string) => boolean): boolean {
+		if (this._parsedExcludeExpression && this._parsedExcludeExpression(testPath, basename, hasSibling)) {
+			return true;
+		}
+
+		return false;
+	}
+
 	/**
 	 * Guaranteed sync - siblingsFn should not return a promise.
 	 */
@@ -648,22 +665,29 @@ export class QueryGlobTester {
 	}
 
 	/**
-	 * Guaranteed async.
+	 * Evaluating the exclude expression is only async if it includes sibling clauses. As an optimization, avoid doing anything with Promises
+	 * unless the expression is async.
 	 */
-	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
-		const excludeP = Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result);
+	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> | boolean {
+		const excluded = this._parsedExcludeExpression(testPath, basename, hasSibling);
 
-		return excludeP.then(excluded => {
-			if (excluded) {
-				return false;
-			}
-
+		const isIncluded = () => {
 			return this._parsedIncludeExpression ?
-				Promise.resolve(this._parsedIncludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-				Promise.resolve(true);
-		}).then(included => {
-			return included;
-		});
+				!!(this._parsedIncludeExpression(testPath, basename, hasSibling)) :
+				true;
+		};
+
+		if (isPromise(excluded)) {
+			return excluded.then(excluded => {
+				if (excluded) {
+					return false;
+				}
+
+				return isIncluded();
+			});
+		}
+
+		return isIncluded();
 	}
 
 	hasSiblingExcludeClauses(): boolean {

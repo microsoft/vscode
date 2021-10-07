@@ -30,6 +30,7 @@ import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Schemas } from 'vs/base/common/network';
 
 const $ = dom.$;
 
@@ -81,6 +82,10 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			return;
 		}
 		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (this._editor.getModel().uri.scheme === Schemas.vscodeNotebookCell) {
+			// disable in notebooks
 			return;
 		}
 		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
@@ -416,10 +421,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const fontStyleLabels = new Array<HTMLElement | string>();
 
 		function addStyle(key: 'bold' | 'italic' | 'underline') {
+			let label: HTMLElement | string | undefined;
 			if (semantic && semantic[key]) {
-				fontStyleLabels.push($('span.tiw-metadata-semantic', undefined, key));
+				label = $('span.tiw-metadata-semantic', undefined, key);
 			} else if (tm && tm[key]) {
-				fontStyleLabels.push(key);
+				label = key;
+			}
+			if (label) {
+				if (fontStyleLabels.length) {
+					fontStyleLabels.push(' ');
+				}
+				fontStyleLabels.push(label);
 			}
 		}
 		addStyle('bold');
@@ -428,7 +440,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (fontStyleLabels.length) {
 			elements.push($('tr', undefined,
 				$('td.tiw-metadata-key', undefined, 'font style' as string),
-				$('td.tiw-metadata-value', undefined, fontStyleLabels.join(' '))
+				$('td.tiw-metadata-value', undefined, ...fontStyleLabels)
 			));
 		}
 		return elements;

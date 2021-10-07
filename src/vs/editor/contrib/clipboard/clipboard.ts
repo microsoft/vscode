@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorAction, MultiCommand, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import * as nls from 'vs/nls';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { Handler } from 'vs/editor/common/editorCommon';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -61,6 +61,12 @@ export const CutAction = supportsCut ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.cutLabel', "Cut"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.cutLabel', "Cut"),
+		when: EditorContextKeys.writable,
+		order: 1,
 	}]
 })) : undefined;
 
@@ -91,6 +97,11 @@ export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.copyLabel', "Copy"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.copyLabel', "Copy"),
+		order: 2,
 	}]
 })) : undefined;
 
@@ -126,6 +137,12 @@ export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
+		when: EditorContextKeys.writable,
+		order: 4,
 	}]
 })) : undefined;
 
@@ -207,7 +224,7 @@ if (PasteAction) {
 			const result = document.execCommand('paste');
 			// Use the clipboard service if document.execCommand('paste') was not successful
 			if (!result && platform.isWeb) {
-				(async () => {
+				return (async () => {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {
 						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
@@ -227,7 +244,6 @@ if (PasteAction) {
 						});
 					}
 				})();
-				return true;
 			}
 			return true;
 		}

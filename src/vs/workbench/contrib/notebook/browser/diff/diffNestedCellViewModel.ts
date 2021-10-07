@@ -69,9 +69,9 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 
 	protected _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
-	protected readonly _onDidChangeOutputLayout = new Emitter<void>();
-	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
 
+	protected readonly _onDidChangeOutputLayout = this._register(new Emitter<void>());
+	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
 
 	constructor(
 		readonly textModel: NotebookCellTextModel,
@@ -81,11 +81,9 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._id = generateUuid();
 
 		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
-		this._register(this.textModel.onDidChangeOutputs((splices) => {
-			splices.reverse().forEach(splice => {
-				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService)));
-			});
+		this._register(this.textModel.onDidChangeOutputs((splice) => {
+			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
+			this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
 
 			this._outputsTop = null;
 			this._onDidChangeOutputLayout.fire();
@@ -111,7 +109,7 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 			throw new Error('Output index out of range!');
 		}
 
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		return this._outputsTop!.getPrefixSum(index - 1);
 	}
 
 	updateOutputHeight(index: number, height: number): void {
@@ -129,6 +127,6 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 	getOutputTotalHeight() {
 		this._ensureOutputsTop();
 
-		return this._outputsTop?.getTotalValue() ?? 0;
+		return this._outputsTop?.getTotalSum() ?? 0;
 	}
 }

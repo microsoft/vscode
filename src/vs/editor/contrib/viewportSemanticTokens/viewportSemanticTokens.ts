@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider, SemanticTokens } from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { toMultilineTokens2, SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
+import { DocumentRangeSemanticTokensProvider, DocumentRangeSemanticTokensProviderRegistry, SemanticTokens } from 'vs/editor/common/modes';
 import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 

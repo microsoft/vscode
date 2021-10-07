@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { debug, workspace, Disposable, commands, window } from 'vscode';
-import { assertNoRpc, disposeAll } from '../utils';
 import { basename } from 'path';
+import { commands, debug, Disposable, window, workspace } from 'vscode';
+import { assertNoRpc, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
 

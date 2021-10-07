@@ -10,7 +10,7 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, getNotebookEditorF
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,6 +22,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { flatten } from 'vs/base/common/arrays';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -54,18 +55,14 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor || !editor.viewModel) {
+		if (!editor || !editor.hasModel()) {
 			return;
 		}
 
-		const notebook = editor.viewModel.notebookDocument;
+		const notebook = editor.textModel;
 		const disposable = new DisposableStore();
 		try {
-
-			const edits: ResourceTextEdit[] = [];
-
-			for (const cell of notebook.cells) {
-
+			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
 				const ref = await textModelService.createModelReference(cell.uri);
 				disposable.add(ref);
 
@@ -76,14 +73,20 @@ registerAction2(class extends Action2 {
 					model.getOptions(), CancellationToken.None
 				);
 
+				const edits: ResourceTextEdit[] = [];
+
 				if (formatEdits) {
 					for (let edit of formatEdits) {
 						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
 					}
-				}
-			}
 
-			await bulkEditService.apply(edits, { label: localize('label', "Format Notebook") });
+					return edits;
+				}
+
+				return [];
+			}));
+
+			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook") });
 
 		} finally {
 			disposable.dispose();

@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,8 +25,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { Mimes } from 'vs/base/common/mime';
+import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TestAccessibilityService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-suite('Workbench editor model', () => {
+suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
@@ -44,6 +48,7 @@ suite('Workbench editor model', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 		instantiationService.stub(IDialogService, dialogService);
@@ -62,7 +67,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', async () => {
+	test('basics', async () => {
 		let counter = 0;
 
 		const model = new MyEditorModel();
@@ -83,10 +88,10 @@ suite('Workbench editor model', () => {
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
-		const model = new MyTextEditorModel(modelService, modeService);
+		const model = new MyTextEditorModel(modelService, modeService, instantiationService.createInstance(LanguageDetectionService), instantiationService.createInstance(TestAccessibilityService));
 		await model.resolve();
 
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
 		assert.strictEqual(model.isResolved(), true);
 		model.dispose();
 	});

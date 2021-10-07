@@ -14,6 +14,7 @@ const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
 const playwright = require('playwright');
+const { applyReporter } = require('../reporter');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -21,8 +22,8 @@ const optimist = require('optimist')
 	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
-	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
-	.describe('debug', 'do not run browsers headless').boolean('debug')
+	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
+	.describe('debug', 'do not run browsers headless').alias('debug', ['debug-browser']).boolean('debug')
 	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
@@ -51,30 +52,7 @@ const withReporter = (function () {
 			}
 		}
 	} else {
-		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-		let ctor;
-
-		try {
-			ctor = require(reporterPath);
-		} catch (err) {
-			try {
-				ctor = require(argv.reporter);
-			} catch (err) {
-				ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-				console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
-			}
-		}
-
-		function parseReporterOption(value) {
-			let r = /^([^=]+)=(.*)$/.exec(value);
-			return r ? { [r[1]]: r[2] } : {};
-		}
-
-		let reporterOptions = argv['reporter-options'];
-		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
-
-		return (_, runner) => new ctor(runner, { reporterOptions })
+		return (_, runner) => applyReporter(runner, argv);
 	}
 })()
 
@@ -103,7 +81,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.glob || defaultGlob
+		const pattern = argv.run || defaultGlob
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -146,8 +124,7 @@ function consoleLogFn(msg) {
 }
 
 async function runTestsInBrowser(testModules, browserType) {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
@@ -184,7 +161,10 @@ async function runTestsInBrowser(testModules, browserType) {
 
 	try {
 		// @ts-expect-error
-		await page.evaluate(modules => loadAndRun(modules), testModules);
+		await page.evaluate(opts => loadAndRun(opts), {
+			modules: testModules,
+			grep: argv.grep,
+		});
 	} catch (err) {
 		console.error(err);
 	}
@@ -236,7 +216,8 @@ class EchoRunner extends events.EventEmitter {
 			async: runnable.async,
 			slow: () => runnable.slow,
 			speed: runnable.speed,
-			duration: runnable.duration
+			duration: runnable.duration,
+			currentRetry: () => runnable.currentRetry,
 		};
 	}
 

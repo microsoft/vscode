@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
@@ -70,7 +71,12 @@ export const DataTransfers = {
 	/**
 	 * Typically transfer type for copy/paste transfers.
 	 */
-	TEXT: 'text/plain'
+	TEXT: Mimes.text,
+
+	/**
+	 * Application specific terminal transfer type.
+	 */
+	TERMINALS: 'Terminals'
 };
 
 export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {

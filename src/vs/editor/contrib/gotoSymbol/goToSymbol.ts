@@ -8,7 +8,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult, ReferenceProviderRegistry } from 'vs/editor/common/modes';
+import { DeclarationProviderRegistry, DefinitionProviderRegistry, ImplementationProviderRegistry, LocationLink, ProviderResult, ReferenceProviderRegistry, TypeDefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ReferencesModel } from 'vs/editor/contrib/gotoSymbol/referencesModel';
 

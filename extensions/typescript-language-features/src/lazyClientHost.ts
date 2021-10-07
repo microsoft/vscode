@@ -12,6 +12,7 @@ import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { flatten } from './utils/arrays';
+import { ServiceConfigurationProvider } from './utils/configuration';
 import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
@@ -29,6 +30,7 @@ export function createLazyClientHost(
 		versionProvider: ITypeScriptVersionProvider,
 		processFactory: TsServerProcessFactory,
 		activeJsTsEditorTracker: ActiveJsTsEditorTracker,
+		serviceConfigurationProvider: ServiceConfigurationProvider,
 	},
 	onCompletionAccepted: (item: vscode.CompletionItem) => void,
 ): Lazy<TypeScriptServiceClientHost> {

@@ -9,12 +9,14 @@ import * as uuid from 'vs/base/common/uuid';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
 import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { Gesture } from 'vs/base/browser/touch';
 
 export async function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
 	remoteAuthority?: string,
+	productIdentifier?: string,
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined; } = Object.create(null);
@@ -51,9 +53,11 @@ export async function resolveWorkbenchCommonProperties(
 	// __GDPR__COMMON__ "common.platform" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.platform'] = Platform.PlatformToString(Platform.platform);
 	// __GDPR__COMMON__ "common.product" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-	result['common.product'] = 'web';
+	result['common.product'] = productIdentifier ?? 'web';
 	// __GDPR__COMMON__ "common.userAgent" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.userAgent'] = Platform.userAgent;
+	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

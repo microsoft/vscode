@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { basename } from 'vs/base/common/resources';
+import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface FileFilter {
 	extensions: string[];
@@ -31,12 +31,13 @@ export interface IConfirmDialogArgs {
 export interface IShowDialogArgs {
 	severity: Severity;
 	message: string;
-	buttons: string[];
+	buttons?: string[];
 	options?: IDialogOptions;
 }
 
 export interface IInputDialogArgs extends IShowDialogArgs {
-	inputs: IInput[],
+	buttons: string[];
+	inputs: IInput[];
 }
 
 export interface IDialog {
@@ -222,7 +223,7 @@ export interface IDialogHandler {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -262,7 +263,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.

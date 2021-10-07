@@ -219,6 +219,79 @@ suite('Tests for Wrap with Abbreviations', () => {
 		return testWrapWithAbbreviation([new Selection(3, 2, 3, 2)], 'div', expectedContents, contents);
 	});
 
+	test('Wrap with abbreviation inner node in cdata', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[
+			<div>
+				<p>Test 1</p>
+			</div>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div class="nav main">
+		<![CDATA[
+			<div>
+				<p>Test 1</p>
+			</div>
+			<div>
+				<p>Test 2</p>
+			</div>
+		]]>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(6, 5, 6, 5)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation inner node in script in cdata', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[
+			<script type="text/plain">
+				<p>Test 1</p>
+			</script>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div class="nav main">
+		<![CDATA[
+			<script type="text/plain">
+				<div>
+					<p>Test 1</p>
+				</div>
+			</script>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(4, 10, 4, 10)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation inner node in cdata one-liner', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[<p>Test here</p>]]>
+		hello
+	</div>
+	`;
+		// this result occurs because no selection on the open/close p tag was given
+		const expectedContents = `
+	<div class="nav main">
+		<div><![CDATA[<p>Test here</p>]]></div>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(2, 15, 2, 15)], 'div', expectedContents, contents);
+	});
+
 	test('Wrap with multiline abbreviation doesnt add extra spaces', () => {
 		// Issue #29898
 		const contents = `

@@ -5,11 +5,12 @@
 
 import { basename } from 'path';
 import * as vscode from 'vscode';
+import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import { CachedResponse } from './tsServer/cachedResponse';
+import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
 import { DocumentSelector } from './utils/documentSelector';
 import * as fileSchemes from './utils/fileSchemes';
@@ -83,6 +84,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/smartSelect').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description.id, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
+			import('./languageFeatures/inlayHints').then(provider => this._register(provider.register(selector, this.description.id, this.client, this.fileConfigurationManager))),
 		]);
 	}
 
@@ -93,7 +95,7 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
+		if (this.description.modeIds.indexOf(doc.languageId) >= 0) {
 			return true;
 		}
 
@@ -126,6 +128,10 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[]): void {
+		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
+			return;
+		}
+
 		const config = vscode.workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		const reportDeprecated = config.get<boolean>('showDeprecated', true);

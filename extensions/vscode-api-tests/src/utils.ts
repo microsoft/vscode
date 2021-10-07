@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { TestFS } from './memfs';
-import * as assert from 'assert';
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
@@ -136,4 +136,16 @@ export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.
 			resolve(e);
 		});
 	});
+}
+
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		test(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
 }

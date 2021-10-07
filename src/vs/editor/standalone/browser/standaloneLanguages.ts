@@ -49,8 +49,8 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidCreateMode((mode) => {
-		if (mode.getId() === languageId) {
+	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((languageIdentifier) => {
+		if (languageIdentifier.language === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener
@@ -459,14 +459,16 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
+export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
+		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: modes.CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
 			return provider.provideCodeActions(model, range, { markers, only: context.only }, token);
-		}
+		},
+		resolveCodeAction: provider.resolveCodeAction
 	});
 }
 
@@ -548,6 +550,20 @@ export function registerDocumentRangeSemanticTokensProvider(languageId: string, 
 }
 
 /**
+ * Register an inline completions provider.
+ */
+export function registerInlineCompletionsProvider(languageId: string, provider: modes.InlineCompletionsProvider): IDisposable {
+	return modes.InlineCompletionsProviderRegistry.register(languageId, provider);
+}
+
+/**
+ * Register an inlay hints provider.
+ */
+export function registerInlayHintsProvider(languageId: string, provider: modes.InlayHintsProvider): IDisposable {
+	return modes.InlayHintsProviderRegistry.register(languageId, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -573,6 +589,28 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.ProviderResult<modes.CodeActionList>;
+
+	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: modes.CodeAction, token: CancellationToken): modes.ProviderResult<modes.CodeAction>;
+}
+
+
+
+/**
+ * Metadata about the type of code actions that a {@link CodeActionProvider} provides.
+ */
+export interface CodeActionProviderMetadata {
+	/**
+	 * List of code action kinds that a {@link CodeActionProvider} may return.
+	 *
+	 * This list is used to determine if a given `CodeActionProvider` should be invoked or not.
+	 * To avoid unnecessary computation, every `CodeActionProvider` should list use `providedCodeActionKinds`. The
+	 * list of kinds may either be generic, such as `["quickfix", "refactor", "source"]`, or list out every kind provided,
+	 * such as `["quickfix.removeLine", "source.fixAll" ...]`.
+	 */
+	readonly providedCodeActionKinds?: readonly string[];
 }
 
 /**
@@ -613,6 +651,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerSelectionRangeProvider: <any>registerSelectionRangeProvider,
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
+		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
+		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,
@@ -625,6 +665,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		CompletionTriggerKind: standaloneEnums.CompletionTriggerKind,
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
+		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
 
 		// classes
 		FoldingRangeKind: modes.FoldingRangeKind,

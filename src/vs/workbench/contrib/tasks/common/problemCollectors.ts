@@ -58,7 +58,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 
 	protected _onDidStateChange: Emitter<ProblemCollectorEvent>;
 
-	constructor(problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
+	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
 		problemMatchers.map(elem => createLineMatcher(elem, fileService)).forEach((matcher) => {
@@ -396,7 +396,6 @@ interface BackgroundPatterns {
 
 export class WatchingProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 
-	private problemMatchers: ProblemMatcher[];
 	private backgroundPatterns: BackgroundPatterns[];
 
 	// workaround for https://github.com/microsoft/vscode/issues/44018
@@ -410,7 +409,6 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
-		this.problemMatchers = problemMatchers;
 		this.resetCurrentResource();
 		this.backgroundPatterns = [];
 		this._activeBackgroundMatchers = new Set<string>();

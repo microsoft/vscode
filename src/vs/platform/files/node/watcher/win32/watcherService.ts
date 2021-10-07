@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { rtrim } from 'vs/base/common/strings';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { OutOfProcessWin32FolderWatcher } from 'vs/platform/files/node/watcher/win32/csharpWatcherService';
 
+/**
+ * @deprecated
+ */
 export class FileWatcher implements IDisposable {
 
-	private folder: { path: string, excludes: string[] };
+	private folder: IWatchRequest;
 	private service: OutOfProcessWin32FolderWatcher | undefined = undefined;
 
 	constructor(
-		folders: { path: string, excludes: string[] }[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		folders: IWatchRequest[],
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
 		this.folder = folders[0];

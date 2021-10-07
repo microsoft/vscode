@@ -290,14 +290,15 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 
 	/**
 	 * If the model was already resolved before, allows to trigger
-	 * a reload of it to fetch the latest contents:
-	 * - async: resolve() will return immediately and trigger
-	 * a reload that will run in the background.
-	 * - sync: resolve() will only return resolved when the
-	 * model has finished reloading.
+	 * a reload of it to fetch the latest contents.
 	 */
 	readonly reload?: {
-		readonly async: boolean
+
+		/**
+		 * Controls whether the reload happens in the background
+		 * or whether `resolve` will await the reload to happen.
+		 */
+		readonly async: boolean;
 	};
 
 	/**
@@ -335,6 +336,9 @@ export interface ITextFileEditorModelManager {
 	readonly onDidCreate: Event<ITextFileEditorModel>;
 	readonly onDidResolve: Event<ITextFileResolveEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
+	readonly onDidChangeReadonly: Event<ITextFileEditorModel>;
+	readonly onDidRemove: Event<URI>;
+	readonly onDidChangeOrphaned: Event<ITextFileEditorModel>;
 	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
 	readonly onDidSaveError: Event<ITextFileEditorModel>;
 	readonly onDidSave: Event<ITextFileSaveEvent>;
@@ -468,7 +472,7 @@ export interface IModeSupport {
 	/**
 	 * Sets the language mode of the object.
 	 */
-	setMode(mode: string): void;
+	setMode(mode: string, setExplicitly?: boolean): void;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
@@ -476,6 +480,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	readonly onDidChangeContent: Event<void>;
 	readonly onDidSaveError: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 	readonly onDidChangeEncoding: Event<void>;
 
 	hasState(state: TextFileEditorModelState): boolean;

@@ -29,6 +29,7 @@ export interface NativeParsedArgs {
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
 	'prof-v8-extensions'?: boolean;
+	'no-cached-data'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -48,6 +49,8 @@ export interface NativeParsedArgs {
 	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
+	'inspect-ptyhost'?: string;
+	'inspect-brk-ptyhost'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
@@ -60,11 +63,13 @@ export interface NativeParsedArgs {
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
+	'skip-welcome'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-keytar'?: boolean;
+	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
@@ -85,6 +90,7 @@ export interface NativeParsedArgs {
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
+	'no-sandbox'?: boolean;
 	'proxy-server'?: string;
 	'proxy-bypass-list'?: string;
 	'proxy-pac-url'?: string;

@@ -32,7 +32,6 @@
           ".bash_profile",
           ".bash_login",
           ".ebuild",
-          ".install",
           ".profile",
           ".bash_logout",
           ".xprofile",

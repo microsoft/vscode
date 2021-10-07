@@ -90,7 +90,7 @@ export class NativeDialogHandler implements IDialogHandler {
 		return opts;
 	}
 
-	async show(severity: Severity, message: string, buttons: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
+	async show(severity: Severity, message: string, buttons?: string[], dialogOptions?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
 		const { options, buttonIndexMap } = this.massageMessageBoxOptions({

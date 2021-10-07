@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 
 class TransposeLettersAction extends EditorAction {
 
@@ -63,8 +63,8 @@ class TransposeLettersAction extends EditorAction {
 				selection.getPosition() :
 				MoveOperations.rightPosition(model, selection.getPosition().lineNumber, selection.getPosition().column);
 
-			let middlePosition = MoveOperations.leftPosition(model, endPosition.lineNumber, endPosition.column);
-			let beginPosition = MoveOperations.leftPosition(model, middlePosition.lineNumber, middlePosition.column);
+			let middlePosition = MoveOperations.leftPosition(model, endPosition);
+			let beginPosition = MoveOperations.leftPosition(model, middlePosition);
 
 			let leftChar = model.getValueInRange(Range.fromPositions(beginPosition, middlePosition));
 			let rightChar = model.getValueInRange(Range.fromPositions(middlePosition, endPosition));

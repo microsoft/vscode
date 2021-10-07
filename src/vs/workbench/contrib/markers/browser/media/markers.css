@@ -139,10 +139,11 @@
 	display: flex;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link {
+.markers-panel .markers-panel-container .tree-container .monaco-list:focus .monaco-list-row.focused .monaco-tl-contents .details-container a.monaco-link {
 	color: inherit;
 }
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .monaco-highlighted-label {
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.monaco-link .monaco-highlighted-label {
 	text-decoration: underline;
 	text-underline-position: under;
 }

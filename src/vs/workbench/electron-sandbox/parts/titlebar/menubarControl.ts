@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Separator } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -48,18 +47,6 @@ export class NativeMenubarControl extends MenubarControl {
 	) {
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
-		if (isMacintosh) {
-			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = localize('mPreferences', "Preferences");
-		}
-
-		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
-			const menu = this.menus[topLevelMenuName];
-			if (menu) {
-				this._register(menu.onDidChange(() => this.updateMenubar()));
-			}
-		}
-
 		(async () => {
 			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 
@@ -67,6 +54,17 @@ export class NativeMenubarControl extends MenubarControl {
 		})();
 
 		this.registerListeners();
+	}
+
+	protected override setupMainMenu(): void {
+		super.setupMainMenu();
+
+		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
+			const menu = this.menus[topLevelMenuName];
+			if (menu) {
+				this.mainMenuDisposables.add(menu.onDidChange(() => this.updateMenubar()));
+			}
+		}
 	}
 
 	protected doUpdateMenubar(): void {
@@ -121,7 +119,7 @@ export class NativeMenubarControl extends MenubarControl {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
 						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 

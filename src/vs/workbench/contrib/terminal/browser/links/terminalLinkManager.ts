@@ -61,7 +61,12 @@ export class TerminalLinkManager extends DisposableStore {
 
 		// Protocol links
 		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback.bind(this));
+		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider,
+			this._xterm,
+			wrappedActivateCallback,
+			this._wrapLinkHandler.bind(this),
+			this._tooltipCallback.bind(this),
+			async (link, cb) => cb(await this._resolvePath(link)));
 		this._standardLinkProviders.push(protocolProvider);
 
 		// Validated local links
@@ -183,7 +188,10 @@ export class TerminalLinkManager extends DisposableStore {
 			startLineNumber: lineColumnInfo.lineNumber,
 			startColumn: lineColumnInfo.columnNumber
 		};
-		await this._editorService.openEditor({ resource: resolvedLink.uri, options: { pinned: true, selection } });
+		await this._editorService.openEditor({
+			resource: resolvedLink.uri,
+			options: { pinned: true, selection, revealIfOpened: true }
+		});
 	}
 
 	private _handleHypertextLink(url: string): void {

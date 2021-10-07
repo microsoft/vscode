@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Url, parse as parseUrl } from 'url';
+import { parse as parseUrl, Url } from 'url';
 import { isBoolean } from 'vs/base/common/types';
 
 export type Agent = any;

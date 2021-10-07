@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
@@ -75,6 +77,12 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	private readonly _onDidChangePrimaryStatus = this._register(new Emitter<ITerminalStatus | undefined>());
 	get onDidChangePrimaryStatus(): Event<ITerminalStatus | undefined> { return this._onDidChangePrimaryStatus.event; }
 
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super();
+	}
+
 	get primary(): ITerminalStatus | undefined {
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
@@ -88,6 +96,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	get statuses(): ITerminalStatus[] { return Array.from(this._statuses.values()); }
 
 	add(status: ITerminalStatus, duration?: number) {
+		status = this._applyAnimationSetting(status);
 		const outTimeout = this._statusTimeouts.get(status.id);
 		if (outTimeout) {
 			window.clearTimeout(outTimeout);
@@ -129,6 +138,27 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		} else {
 			this.remove(status);
 		}
+	}
+
+	private _applyAnimationSetting(status: ITerminalStatus): ITerminalStatus {
+		if (!status.icon?.id.endsWith('~spin') || this._configurationService.getValue(TerminalSettingId.TabsEnableAnimation)) {
+			return status;
+		}
+		let id = status.icon.id.split('~')[0];
+		// Loading without animation is just a curved line that doesn't mean anything
+		if (id === 'loading') {
+			id = 'play';
+		}
+		const codicon = iconRegistry.get(id);
+		if (!codicon) {
+			return status;
+		}
+		// Clone the status when changing the icon so that setting changes are applied without a
+		// reload being needed
+		return {
+			...status,
+			icon: codicon
+		};
 	}
 }
 

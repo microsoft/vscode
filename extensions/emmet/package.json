@@ -17,12 +17,25 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "activationEvents": [
-    "onStartupFinished",
     "onCommand:emmet.expandAbbreviation",
     "onLanguage:html",
+    "onLanguage:haml",
+    "onLanguage:blade",
     "onLanguage:css",
+    "onLanguage:sass",
     "onLanguage:scss",
-    "onLanguage:less"
+    "onLanguage:less",
+    "onLanguage:stylus",
+    "onLanguage:slim",
+    "onLanguage:stylus",
+    "onLanguage:jade",
+    "onLanguage:pug",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:php",
+    "onLanguage:vue",
+    "onLanguage:xsl",
+    "onLanguage:xml"
   ],
   "main": "./out/node/emmetNodeMain",
   "browser": "./dist/browser/emmetBrowserMain",
@@ -54,6 +67,7 @@
             "type": "string"
           },
           "default": {},
+          "scope": "resource",
           "markdownDescription": "%emmetIncludeLanguages%"
         },
         "emmet.variables": {
@@ -68,19 +82,28 @@
               "default": "UTF-8"
             }
           },
+          "additionalProperties": {
+            "type": "string"
+          },
           "default": {},
+          "scope": "resource",
           "markdownDescription": "%emmetVariables%"
         },
         "emmet.syntaxProfiles": {
           "type": "object",
           "default": {},
+          "scope": "resource",
           "markdownDescription": "%emmetSyntaxProfiles%"
         },
         "emmet.excludeLanguages": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "markdown"
           ],
+          "scope": "resource",
           "markdownDescription": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
@@ -90,6 +113,7 @@
             "markdownDescription": "%emmetExtensionsPathItem%"
           },
           "default": [],
+          "scope": "resource",
           "markdownDescription": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
@@ -100,6 +124,7 @@
         "emmet.preferences": {
           "type": "object",
           "default": {},
+          "scope": "resource",
           "markdownDescription": "%emmetPreferences%",
           "properties": {
             "css.intUnit": {
@@ -226,7 +251,11 @@
             },
             "output.selfClosingStyle": {
               "type": "string",
-              "enum": ["html", "xhtml", "xml"],
+              "enum": [
+                "html",
+                "xhtml",
+                "xml"
+              ],
               "default": "html",
               "markdownDescription": "%emmetPreferencesOutputSelfClosingStyle%"
             },

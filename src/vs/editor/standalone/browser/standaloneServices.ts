@@ -47,7 +47,7 @@ import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecora
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
-import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';

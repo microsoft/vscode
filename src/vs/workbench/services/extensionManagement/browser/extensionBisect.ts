@@ -12,7 +12,7 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -219,7 +219,7 @@ registerAction2(class extends Action2 {
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyEqualsExpr.create('viewContainer', 'workbench.view.extensions'),
+				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
 				group: '2_enablement',
 				order: 3
 			}
@@ -291,7 +291,7 @@ registerAction2(class extends Action2 {
 
 		if (done.bad) {
 			// DONE but nothing found
-			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), [], {
+			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), undefined, {
 				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
 			});
 
@@ -299,7 +299,6 @@ registerAction2(class extends Action2 {
 			// DONE and identified extension
 			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
 				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
-				// [],
 				{
 					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
 					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },

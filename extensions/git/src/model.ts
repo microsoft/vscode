@@ -147,23 +147,23 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
 			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
-			const promises = children
-				.filter(child => child !== '.git')
-				.map(child => this.openRepository(path.join(root, child)));
+			const subfolders = new Set(children.filter(child => child !== '.git').map(child => path.join(root, child)));
 
-			const folderConfig = workspace.getConfiguration('git', folder.uri);
-			const paths = folderConfig.get<string[]>('scanRepositories') || [];
+			const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
+			for (const scanPath of scanPaths) {
+				if (scanPath !== '.git') {
+					continue;
+				}
 
-			for (const possibleRepositoryPath of paths) {
-				if (path.isAbsolute(possibleRepositoryPath)) {
+				if (path.isAbsolute(scanPath)) {
 					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
 					continue;
 				}
 
-				promises.push(this.openRepository(path.join(root, possibleRepositoryPath)));
+				subfolders.add(path.join(root, scanPath));
 			}
 
-			await Promise.all(promises);
+			await Promise.all([...subfolders].map(f => this.openRepository(f)));
 		}));
 	}
 
@@ -226,6 +226,10 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
+		if (!workspace.isTrusted) {
+			return;
+		}
+
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 
@@ -251,20 +255,33 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 	}
 
 	@sequentialize
-	async openRepository(path: string): Promise<void> {
-		if (this.getRepository(path)) {
+	async openRepository(repoPath: string): Promise<void> {
+		if (this.getRepository(repoPath)) {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(path));
+		const config = workspace.getConfiguration('git', Uri.file(repoPath));
 		const enabled = config.get<boolean>('enabled') === true;
 
 		if (!enabled) {
 			return;
 		}
 
+		if (!workspace.isTrusted) {
+			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
+			try {
+				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
+				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup'], { log: false });
+				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
+					return;
+				}
+			} catch {
+				// If this throw, we should be good to open the repo (e.g. HEAD doesn't exist)
+			}
+		}
+
 		try {
-			const rawRoot = await this.git.getRepositoryRoot(path);
+			const rawRoot = await this.git.getRepositoryRoot(repoPath);
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
@@ -286,7 +303,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 			await repository.status();
 		} catch (ex) {
 			// noop
-			this.outputChannel.appendLine(`Opening repository for path='${path}' failed; ex=${ex}`);
+			this.outputChannel.appendLine(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
 		}
 	}
 

@@ -52,18 +52,6 @@ export class LanguageIdentifier {
 }
 
 /**
- * A mode. Will soon be obsolete.
- * @internal
- */
-export interface IMode {
-
-	getId(): string;
-
-	getLanguageIdentifier(): LanguageIdentifier;
-
-}
-
-/**
  * A font style. Values are 2^x such that a bit mask can be used.
  * @internal
  */
@@ -227,7 +215,7 @@ export interface IState {
 }
 
 /**
- * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
+ * A provider result represents the values a provider, like the {@link HoverProvider},
  * may return. For once this is the actual result type `T`, like `Hover`, or a thenable that resolves
  * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
  * thenable.
@@ -487,25 +475,9 @@ export let completionKindFromString: {
 })();
 
 export interface CompletionItemLabel {
-	/**
-	 * The function or variable. Rendered leftmost.
-	 */
-	name: string;
-
-	/**
-	 * The parameters without the return type. Render after `name`.
-	 */
-	parameters?: string;
-
-	/**
-	 * The fully qualified name, like package name or file path. Rendered after `signature`.
-	 */
-	qualifier?: string;
-
-	/**
-	 * The return-type of a function or type of a property/variable. Rendered rightmost.
-	 */
-	type?: string;
+	label: string;
+	detail?: string;
+	description?: string;
 }
 
 export const enum CompletionItemTag {
@@ -557,13 +529,13 @@ export interface CompletionItem {
 	documentation?: string | IMarkdownString;
 	/**
 	 * A string that should be used when comparing this item
-	 * with other items. When `falsy` the [label](#CompletionItem.label)
+	 * with other items. When `falsy` the {@link CompletionItem.label label}
 	 * is used.
 	 */
 	sortText?: string;
 	/**
 	 * A string that should be used when filtering a set of
-	 * completion items. When `falsy` the [label](#CompletionItem.label)
+	 * completion items. When `falsy` the {@link CompletionItem.label label}
 	 * is used.
 	 */
 	filterText?: string;
@@ -587,11 +559,11 @@ export interface CompletionItem {
 	/**
 	 * A range of text that should be replaced by this completion item.
 	 *
-	 * Defaults to a range from the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
+	 * Defaults to a range from the start of the {@link TextDocument.getWordRangeAtPosition current word} to the
 	 * current position.
 	 *
-	 * *Note:* The range must be a [single line](#Range.isSingleLine) and it must
-	 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
+	 * *Note:* The range must be a {@link Range.isSingleLine single line} and it must
+	 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 	 */
 	range: IRange | { insert: IRange, replace: IRange };
 	/**
@@ -638,7 +610,7 @@ export const enum CompletionTriggerKind {
 }
 /**
  * Contains additional information about the context in which
- * [completion provider](#CompletionItemProvider.provideCompletionItems) is triggered.
+ * {@link CompletionItemProvider.provideCompletionItems completion provider} is triggered.
  */
 export interface CompletionContext {
 	/**
@@ -658,10 +630,10 @@ export interface CompletionContext {
  *
  * When computing *complete* completion items is expensive, providers can optionally implement
  * the `resolveCompletionItem`-function. In that case it is enough to return completion
- * items with a [label](#CompletionItem.label) from the
- * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
+ * items with a {@link CompletionItem.label label} from the
+ * {@link CompletionItemProvider.provideCompletionItems provideCompletionItems}-function. Subsequently,
  * when a completion item is shown in the UI and gains focus this provider is asked to resolve
- * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+ * the item, like adding {@link CompletionItem.documentation doc-comment} or {@link CompletionItem.detail details}.
  */
 export interface CompletionItemProvider {
 
@@ -677,12 +649,78 @@ export interface CompletionItemProvider {
 	provideCompletionItems(model: model.ITextModel, position: Position, context: CompletionContext, token: CancellationToken): ProviderResult<CompletionList>;
 
 	/**
-	 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
-	 * or [details](#CompletionItem.detail).
+	 * Given a completion item fill in more data, like {@link CompletionItem.documentation doc-comment}
+	 * or {@link CompletionItem.detail details}.
 	 *
 	 * The editor will only resolve a completion item once.
 	 */
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+}
+
+/**
+ * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+ */
+export enum InlineCompletionTriggerKind {
+	/**
+	 * Completion was triggered automatically while editing.
+	 * It is sufficient to return a single completion item in this case.
+	 */
+	Automatic = 0,
+
+	/**
+	 * Completion was triggered explicitly by a user gesture.
+	 * Return multiple completion items to enable cycling through them.
+	 */
+	Explicit = 1,
+}
+
+export interface InlineCompletionContext {
+	/**
+	 * How the completion was triggered.
+	 */
+	readonly triggerKind: InlineCompletionTriggerKind;
+
+	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+}
+
+export interface SelectedSuggestionInfo {
+	range: IRange;
+	text: string;
+}
+
+export interface InlineCompletion {
+	/**
+	 * The text to insert.
+	 * If the text contains a line break, the range must end at the end of a line.
+	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	*/
+	readonly text: string;
+
+	/**
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	*/
+	readonly range?: IRange;
+
+	readonly command?: Command;
+}
+
+export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
+	readonly items: readonly TItem[];
+}
+
+export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
+	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	/**
+	 * Will be called when an item is shown.
+	*/
+	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Will be called when a completions list is no longer in use and can be garbage-collected.
+	*/
+	freeInlineCompletions(completions: T): void;
 }
 
 export interface CodeAction {
@@ -870,7 +908,7 @@ export interface DocumentHighlight {
 	 */
 	range: IRange;
 	/**
-	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
+	 * The highlight kind, default is {@link DocumentHighlightKind.Text text}.
 	 */
 	kind?: DocumentHighlightKind;
 }
@@ -1323,12 +1361,12 @@ export interface IColorPresentation {
 	 */
 	label: string;
 	/**
-	 * An [edit](#TextEdit) which is applied to a document when selecting
+	 * An {@link TextEdit edit} which is applied to a document when selecting
 	 * this presentation for the color.
 	 */
 	textEdit?: TextEdit;
 	/**
-	 * An optional array of additional [text edits](#TextEdit) that are applied when
+	 * An optional array of additional {@link TextEdit text edits} that are applied when
 	 * selecting this color presentation.
 	 */
 	additionalTextEdits?: TextEdit[];
@@ -1406,10 +1444,10 @@ export interface FoldingRange {
 	end: number;
 
 	/**
-	 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
-	 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
+	 * Describes the {@link FoldingRangeKind Kind} of the folding range such as {@link FoldingRangeKind.Comment Comment} or
+	 * {@link FoldingRangeKind.Region Region}. The kind is used to categorize folding ranges and used by commands
 	 * like 'Fold all comments'. See
-	 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+	 * {@link FoldingRangeKind} for an enumeration of standardized kinds.
 	 */
 	kind?: FoldingRangeKind;
 }
@@ -1429,7 +1467,7 @@ export class FoldingRangeKind {
 	static readonly Region = new FoldingRangeKind('region');
 
 	/**
-	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
+	 * Creates a new {@link FoldingRangeKind}.
 	 *
 	 * @param value of the kind.
 	 */
@@ -1501,6 +1539,7 @@ export interface AuthenticationSession {
 		id: string;
 	}
 	scopes: ReadonlyArray<string>;
+	idToken?: string;
 }
 
 /**
@@ -1716,7 +1755,7 @@ export interface InlayHint {
 }
 
 export interface InlayHintsProvider {
-	onDidChangeInlayHints?: Event<void> | undefined;
+	onDidChangeInlayHints?: Event<void | URI>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 }
 
@@ -1769,6 +1808,11 @@ export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider
  * @internal
  */
 export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
+
+/**
+ * @internal
+ */
+export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
 
 /**
  * @internal

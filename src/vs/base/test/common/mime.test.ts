@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { guessMimeTypes, registerTextMime } from 'vs/base/common/mime';
+import { guessMimeTypes, normalizeMimeType, registerTextMime } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 
 suite('Mime', () => {
@@ -125,5 +125,14 @@ suite('Mime', () => {
 		registerTextMime({ id: 'data', extension: '.data', mime: 'text/data' });
 
 		assert.deepStrictEqual(guessMimeTypes(URI.parse(`data:;label:something.data;description:data,`)), ['text/data', 'text/plain']);
+	});
+
+	test('normalize', () => {
+		assert.strictEqual(normalizeMimeType('invalid'), 'invalid');
+		assert.strictEqual(normalizeMimeType('invalid', true), undefined);
+		assert.strictEqual(normalizeMimeType('Text/plain'), 'text/plain');
+		assert.strictEqual(normalizeMimeType('Text/pläin'), 'text/pläin');
+		assert.strictEqual(normalizeMimeType('Text/plain;UPPER'), 'text/plain;UPPER');
+		assert.strictEqual(normalizeMimeType('Text/plain;lower'), 'text/plain;lower');
 	});
 });

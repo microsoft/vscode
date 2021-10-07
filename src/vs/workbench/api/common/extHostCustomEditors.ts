@@ -16,7 +16,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { EditorGroupColumn } from 'vs/workbench/common/editor';
+import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import * as extHostProtocol from './extHost.protocol';

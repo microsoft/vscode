@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 interface ExpectedIndentRange {
 	startLineNumber: number;

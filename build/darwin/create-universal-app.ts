@@ -5,7 +5,8 @@
 
 'use strict';
 
-import { makeUniversalApp } from 'vscode-universal';
+import { makeUniversalApp } from 'vscode-universal-bundler';
+import { spawn } from '@malept/cross-spawn-promise';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as plist from 'plist';
@@ -57,6 +58,13 @@ async function main() {
 		LSRequiresNativeExecution: true
 	});
 	await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
+
+	// Verify if native module architecture is correct
+	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node'])
+	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, "")]);
+	if (lipoOutput.replace(/\n$/, "") !== 'x86_64 arm64') {
+		throw new Error(`Invalid arch, got : ${lipoOutput}`)
+	}
 }
 
 if (require.main === module) {

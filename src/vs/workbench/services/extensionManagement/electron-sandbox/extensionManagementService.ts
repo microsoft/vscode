@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -19,6 +19,7 @@ import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementServ
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -34,11 +35,12 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService);
+		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService, instantiationService);
 	}
 
-	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);
@@ -47,7 +49,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
 			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix);
+			return server.extensionManagementService.install(vsix, options);
 		}
 
 		return Promise.reject('Unable to get the extension manifest.');

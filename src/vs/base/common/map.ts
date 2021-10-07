@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { shuffle } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareSubstringIgnoreCase, compare, compareSubstring, compareIgnoreCase } from 'vs/base/common/strings';
+import { compare, compareIgnoreCase, compareSubstring, compareSubstringIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -304,6 +305,30 @@ export class TernarySearchTree<K, V> {
 		this._root = undefined;
 	}
 
+	/**
+	 * Fill the tree with the same value of the given keys
+	 */
+	fill(element: V, keys: readonly K[]): void;
+	/**
+	 * Fill the tree with given [key,value]-tuples
+	 */
+	fill(values: readonly [K, V][]): void;
+	fill(values: readonly [K, V][] | V, keys?: readonly K[]): void {
+		if (keys) {
+			const arr = keys.slice(0);
+			shuffle(arr);
+			for (let k of arr) {
+				this.set(k, (<V>values));
+			}
+		} else {
+			const arr = (<[K, V][]>values).slice(0);
+			shuffle(arr);
+			for (let entry of arr) {
+				this.set(entry[0], entry[1]);
+			}
+		}
+	}
+
 	set(key: K, element: V): V | undefined {
 		const iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<K, V>;
@@ -498,20 +523,27 @@ export class TernarySearchTree<K, V> {
 	}
 
 	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
-		if (node) {
-			// left
-			yield* this._entries(node.left);
-
-			// node
-			if (node.value) {
-				// callback(node.value, this._iter.join(parts));
-				yield [node.key, node.value];
+		// DFS
+		if (!node) {
+			return;
+		}
+		const stack = [node];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			if (node) {
+				if (node.value) {
+					yield [node.key, node.value];
+				}
+				if (node.left) {
+					stack.push(node.left);
+				}
+				if (node.mid) {
+					stack.push(node.mid);
+				}
+				if (node.right) {
+					stack.push(node.right);
+				}
 			}
-			// mid
-			yield* this._entries(node.mid);
-
-			// right
-			yield* this._entries(node.right);
 		}
 	}
 }

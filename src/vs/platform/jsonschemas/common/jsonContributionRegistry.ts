@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
 
 export const Extensions = {
 	JSONContribution: 'base.contributions.json'

@@ -12,13 +12,14 @@ import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
-async function showExtensionQuery(viewletService: IViewletService, query: string) {
-	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
+	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	if (viewlet) {
 		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
 	}
@@ -47,7 +48,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		}
 
 		const commandService = accessor.get(ICommandService);
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const notificationService = accessor.get(INotificationService);
 		const dialogService = accessor.get(IDialogService);
 
@@ -69,7 +70,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 				[nls.localize('cancel', "Cancel"), nls.localize('install.formatter', "Install Formatter...")]
 			);
 			if (res.choice === 1) {
-				showExtensionQuery(viewletService, `category:formatters ${langName}`);
+				showExtensionQuery(paneCompositeService, `category:formatters ${langName}`);
 			}
 		}
 	}

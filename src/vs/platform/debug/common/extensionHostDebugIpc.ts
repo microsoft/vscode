@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IServerChannel, IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IReloadSessionEvent, ICloseSessionEvent, IAttachSessionEvent, ITerminateSessionEvent, IExtensionHostDebugService, IOpenExtensionWindowResult, INullableProcessEnvironment } from 'vs/platform/debug/common/extensionHostDebug';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IAttachSessionEvent, ICloseSessionEvent, IExtensionHostDebugService, INullableProcessEnvironment, IOpenExtensionWindowResult, IReloadSessionEvent, ITerminateSessionEvent } from 'vs/platform/debug/common/extensionHostDebug';
 
 export class ExtensionHostDebugBroadcastChannel<TContext> implements IServerChannel<TContext> {
 

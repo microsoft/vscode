@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel, IClientRouter, IConnectionHub, Client } from 'vs/base/parts/ipc/common/ipc';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { Client, IChannel, IClientRouter, IConnectionHub, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IOpenURLOptions, IURLHandler } from 'vs/platform/url/common/url';
 
 export class URLHandlerChannel implements IServerChannel {
 

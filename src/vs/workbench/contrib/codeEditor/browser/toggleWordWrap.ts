@@ -15,7 +15,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { DefaultSettingsEditorContribution } from 'vs/workbench/contrib/preferences/browser/preferencesEditor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -160,10 +159,6 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 
 function canToggleWordWrap(editor: ICodeEditor | null): editor is IActiveCodeEditor {
 	if (!editor) {
-		return false;
-	}
-	if (editor.getContribution(DefaultSettingsEditorContribution.ID)) {
-		// in the settings editor...
 		return false;
 	}
 	if (editor.isSimpleWidget) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -70,7 +70,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorOptions,
+		options: Readonly<IDiffEditorConstructionOptions>,
 		parentEditor: ICodeEditor,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,

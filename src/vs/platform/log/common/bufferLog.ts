@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogger, DEFAULT_LOG_LEVEL, ILogger } from 'vs/platform/log/common/log';
+import { AbstractLogger, DEFAULT_LOG_LEVEL, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;

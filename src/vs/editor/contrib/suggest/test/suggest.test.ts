@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { CompletionProviderRegistry, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/modes';
-import { provideSuggestionItems, SnippetSortOrder, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
+import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry } from 'vs/editor/common/modes';
+import { CompletionOptions, provideSuggestionItems, SnippetSortOrder } from 'vs/editor/contrib/suggest/suggest';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 

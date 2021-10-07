@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { mock } from 'vs/base/test/common/mock';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -12,6 +13,9 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('SnippetSession', function () {
 
@@ -28,7 +32,11 @@ suite('SnippetSession', function () {
 
 	setup(function () {
 		model = createTextModel('function foo() {\n    console.log(a);\n}');
-		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
+		const serviceCollection = new ServiceCollection(
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+		);
+		editor = createTestCodeEditor({ model, serviceCollection }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.strictEqual(model.getEOL(), '\n');
 	});

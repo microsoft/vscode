@@ -334,6 +334,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 		return {
 			range: range,
 			options: {
+				description: 'keybindings-widget',
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				className: className,
 				hoverMessage: msg,

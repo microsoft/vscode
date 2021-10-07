@@ -229,25 +229,25 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				this.title.style.zoom = `${1 / getZoomFactor()}`;
+				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = `${1 / getZoomFactor()}`;
+						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = `${1 / getZoomFactor()}`;
+						(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
 					}
 				}
 			} else {
-				this.title.style.zoom = '';
+				(this.title.style as any).zoom = '';
 				if (isWindows || isLinux) {
 					if (this.appIcon) {
-						this.appIcon.style.zoom = '';
+						(this.appIcon.style as any).zoom = '';
 					}
 
 					if (this.windowControls) {
-						this.windowControls.style.zoom = '';
+						(this.windowControls.style as any).zoom = '';
 					}
 				}
 			}

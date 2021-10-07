@@ -135,7 +135,8 @@ class SCMMenusItem implements IDisposable {
 	}
 
 	dispose(): void {
-		this.resourceGroupMenu?.dispose();
+		this._resourceGroupMenu?.dispose();
+		this._resourceFolderMenu?.dispose();
 		this.genericResourceMenu?.dispose();
 
 		if (this.contextualResourceMenus) {
@@ -143,8 +144,6 @@ class SCMMenusItem implements IDisposable {
 			this.contextualResourceMenus.clear();
 			this.contextualResourceMenus = undefined;
 		}
-
-		this.resourceFolderMenu?.dispose();
 	}
 }
 

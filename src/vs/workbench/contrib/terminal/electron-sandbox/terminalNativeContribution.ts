@@ -30,6 +30,10 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
+		this._terminalService.setNativeDelegate({
+			getWindowCount: () => nativeHostService.getWindowCount()
+		});
+
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {
 			registerRemoteContributions();
@@ -37,7 +41,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		this._terminalService.terminalInstances.forEach(instance => instance.forceRedraw());
+		this._terminalService.instances.forEach(instance => instance.forceRedraw());
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
@@ -49,7 +53,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 			await this._whenFileDeleted(waitMarkerFileUri);
 
 			// Focus active terminal
-			this._terminalService.getActiveInstance()?.focus();
+			this._terminalService.activeInstance?.focus();
 		}
 	}
 

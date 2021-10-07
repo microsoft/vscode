@@ -58,7 +58,7 @@ class UserDataSyncAccount implements IUserDataSyncAccount {
 	get sessionId(): string { return this.session.id; }
 	get accountName(): string { return this.session.account.label; }
 	get accountId(): string { return this.session.account.id; }
-	get token(): string { return this.session.accessToken; }
+	get token(): string { return this.session.idToken || this.session.accessToken; }
 }
 
 export class UserDataSyncWorkbenchService extends Disposable implements IUserDataSyncWorkbenchService {
@@ -148,11 +148,17 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.logService.trace('Settings Sync: Initializing accounts');
 			await this.initialize();
 		} catch (error) {
-			this.logService.error(error);
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.error(error);
+			}
 		}
 
 		if (this.accountStatus === AccountStatus.Uninitialized) {
-			this.logService.warn('Settings Sync: Accounts are not initialized');
+			// Do not log if the current window is running extension tests
+			if (!this.environmentService.extensionTestsLocationURI) {
+				this.logService.warn('Settings Sync: Accounts are not initialized');
+			}
 		} else {
 			this.logService.trace('Settings Sync: Accounts are initialized');
 		}
@@ -266,6 +272,22 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		// User did not pick an account or login failed
+		if (this.accountStatus !== AccountStatus.Available) {
+			throw new Error(localize('no account', "No account available"));
+		}
+
+		await this.turnOnUsingCurrentAccount();
+	}
+
+	async turnOnUsingCurrentAccount(): Promise<void> {
+		if (this.userDataAutoSyncEnablementService.isEnabled()) {
+			return;
+		}
+
+		if (this.userDataSyncService.status !== SyncStatus.Idle) {
+			throw new Error('Cannont turn on sync while syncing');
+		}
+
 		if (this.accountStatus !== AccountStatus.Available) {
 			throw new Error(localize('no account', "No account available"));
 		}

@@ -13,8 +13,11 @@
 	align-items: center;
 	font-size: 13px;
 	margin-left: 20px;
-	cursor: pointer;
 	min-width: 0;
+}
+
+.monaco-editor .peekview-widget .head .peekview-title.clickable {
+	cursor: pointer;
 }
 
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
@@ -63,4 +66,8 @@
 
 .monaco-editor .peekview-widget .head .peekview-title .codicon {
 	margin-right: 4px;
+}
+
+.monaco-editor .peekview-widget .monaco-list .monaco-list-row.focused .codicon {
+	color: inherit !important;
 }

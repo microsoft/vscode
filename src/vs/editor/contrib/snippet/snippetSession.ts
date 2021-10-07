@@ -4,27 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { groupBy } from 'vs/base/common/arrays';
+import { CharCode } from 'vs/base/common/charCode';
 import { dispose } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { Choice, Placeholder, SnippetParser, Text, TextmateSnippet, Marker } from './snippetParser';
-import { ClipboardBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, CommentBasedVariableResolver, WorkspaceBasedVariableResolver, RandomBasedVariableResolver } from './snippetVariables';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import * as colors from 'vs/platform/theme/common/colorRegistry';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { CharCode } from 'vs/base/common/charCode';
+import { ILabelService } from 'vs/platform/label/common/label';
+import * as colors from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
+import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -45,10 +44,10 @@ export class OneSnippet {
 	_nestingLevel: number = 1;
 
 	private static readonly _decor = {
-		active: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
-		inactive: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
-		activeFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
-		inactiveFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
+		active: ModelDecorationOptions.register({ description: 'snippet-placeholder-1', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
+		inactive: ModelDecorationOptions.register({ description: 'snippet-placeholder-2', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
+		activeFinal: ModelDecorationOptions.register({ description: 'snippet-placeholder-3', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
+		inactiveFinal: ModelDecorationOptions.register({ description: 'snippet-placeholder-4', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
 	};
 
 	constructor(
@@ -415,8 +414,8 @@ export class SnippetSession {
 		}
 		const model = editor.getModel();
 
-		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService, optional));
-		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService, optional), model));
+		const workspaceService = editor.invokeWithinContext(accessor => accessor.get(IWorkspaceContextService));
+		const modelBasedVariableResolver = editor.invokeWithinContext(accessor => new ModelBasedVariableResolver(accessor.get(ILabelService), model));
 		const readClipboardText = () => clipboardText;
 
 		let delta = 0;

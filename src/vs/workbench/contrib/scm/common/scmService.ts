@@ -10,6 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator2 } from 'vs/base/common/history';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 class SCMInput implements ISCMInput {
 
@@ -57,7 +58,7 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeFocus = new Emitter<void>();
 	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
 
-	showValidationMessage(message: string, type: InputValidationType): void {
+	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void {
 		this._onDidChangeValidationMessage.fire({ message: message, type: type });
 	}
 

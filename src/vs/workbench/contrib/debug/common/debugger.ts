@@ -19,12 +19,15 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export class Debugger implements IDebugger {
 
 	private debuggerContribution: IDebuggerContribution;
 	private mergedExtensionDescriptions: IExtensionDescription[] = [];
 	private mainExtensionDescription: IExtensionDescription | undefined;
+
+	private debuggerWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -38,6 +41,8 @@ export class Debugger implements IDebugger {
 	) {
 		this.debuggerContribution = { type: dbgContribution.type };
 		this.merge(dbgContribution, extensionDescription);
+
+		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -133,6 +138,10 @@ export class Debugger implements IDebugger {
 		return this.debuggerContribution.languages;
 	}
 
+	get when(): ContextKeyExpression | undefined {
+		return this.debuggerWhen;
+	}
+
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
 	}
@@ -203,7 +212,6 @@ export class Debugger implements IDebugger {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
-			attributes.additionalProperties = false;
 			attributes.type = 'object';
 			if (!attributes.properties) {
 				attributes.properties = {};
@@ -239,15 +247,18 @@ export class Debugger implements IDebugger {
 					properties: {
 						windows: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes.")
+							description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
+							required: [],
 						},
 						osx: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes.")
+							description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
+							required: [],
 						},
 						linux: {
 							$ref: `#/definitions/${definitionId}`,
-							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes.")
+							description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
+							required: [],
 						}
 					}
 				}]

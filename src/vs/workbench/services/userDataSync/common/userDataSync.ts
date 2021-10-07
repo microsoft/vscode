@@ -58,6 +58,7 @@ export interface IUserDataSyncWorkbenchService {
 	readonly userDataSyncPreview: IUserDataSyncPreview;
 
 	turnOn(): Promise<void>;
+	turnOnUsingCurrentAccount(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
 

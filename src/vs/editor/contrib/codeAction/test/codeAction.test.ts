@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -10,10 +11,9 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { CodeActionItem, getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Progress } from 'vs/platform/progress/common/progress';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 function staticCodeActionProvider(...actions: modes.CodeAction[]): modes.CodeActionProvider {
 	return new class implements modes.CodeActionProvider {

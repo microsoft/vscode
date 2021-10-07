@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { registerColor, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { localize } from 'vs/nls';
+import { foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', {
 	dark: foreground,

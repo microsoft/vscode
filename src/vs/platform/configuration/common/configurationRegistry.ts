@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Registry } from 'vs/platform/registry/common/platform';
-import * as types from 'vs/base/common/types';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { distinct } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as types from 'vs/base/common/types';
+import * as nls from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+
+export enum EditPresentationTypes {
+	Multiline = 'multilineText',
+	Singleline = 'singlelineText'
+}
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -31,6 +37,13 @@ export interface IConfigurationRegistry {
 	 * Deregister multiple configurations from the registry.
 	 */
 	deregisterConfigurations(configurations: IConfigurationNode[]): void;
+
+	/**
+	 * update the configuration registry by
+	 * 	- registering the configurations to add
+	 * 	- dereigstering the configurations to remove
+	 */
+	updateConfigurations(configurations: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void;
 
 	/**
 	 * Register multiple default configurations to the registry.
@@ -133,6 +146,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	disallowSyncIgnore?: boolean;
 
 	enumItemLabels?: string[];
+
+	/**
+	 * When specified, controls the presentation format of string settings.
+	 * Otherwise, the presentation format defaults to `singleline`.
+	 */
+	editPresentation?: EditPresentationTypes;
 }
 
 export interface IConfigurationExtensionInfo {
@@ -199,12 +218,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
-		const properties: string[] = [];
-		configurations.forEach(configuration => {
-			properties.push(...this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo)); // fills in defaults
-			this.configurationContributors.push(configuration);
-			this.registerJSONConfiguration(configuration);
-		});
+		const properties = this.doRegisterConfigurations(configurations, validate);
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this._onDidSchemaChange.fire();
@@ -212,30 +226,21 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	}
 
 	public deregisterConfigurations(configurations: IConfigurationNode[]): void {
-		const properties: string[] = [];
-		const deregisterConfiguration = (configuration: IConfigurationNode) => {
-			if (configuration.properties) {
-				for (const key in configuration.properties) {
-					properties.push(key);
-					delete this.configurationProperties[key];
-					this.removeFromSchema(key, configuration.properties[key]);
-				}
-			}
-			if (configuration.allOf) {
-				configuration.allOf.forEach(node => deregisterConfiguration(node));
-			}
-		};
-		for (const configuration of configurations) {
-			deregisterConfiguration(configuration);
-			const index = this.configurationContributors.indexOf(configuration);
-			if (index !== -1) {
-				this.configurationContributors.splice(index, 1);
-			}
-		}
+		const properties = this.doDeregisterConfigurations(configurations);
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
 		this._onDidSchemaChange.fire();
 		this._onDidUpdateConfiguration.fire(properties);
+	}
+
+	public updateConfigurations({ add, remove }: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void {
+		const properties = [];
+		properties.push(...this.doDeregisterConfigurations(remove));
+		properties.push(...this.doRegisterConfigurations(add, false));
+
+		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
+		this._onDidSchemaChange.fire();
+		this._onDidUpdateConfiguration.fire(distinct(properties));
 	}
 
 	public registerDefaultConfigurations(defaultConfigurations: IStringDictionary<any>[]): void {
@@ -306,6 +311,40 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			this.overrideIdentifiers.add(overrideIdentifier);
 		}
 		this.updateOverridePropertyPatternKey();
+	}
+
+	private doRegisterConfigurations(configurations: IConfigurationNode[], validate: boolean): string[] {
+		const properties: string[] = [];
+		configurations.forEach(configuration => {
+			properties.push(...this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo)); // fills in defaults
+			this.configurationContributors.push(configuration);
+			this.registerJSONConfiguration(configuration);
+		});
+		return properties;
+	}
+
+	private doDeregisterConfigurations(configurations: IConfigurationNode[]): string[] {
+		const properties: string[] = [];
+		const deregisterConfiguration = (configuration: IConfigurationNode) => {
+			if (configuration.properties) {
+				for (const key in configuration.properties) {
+					properties.push(key);
+					delete this.configurationProperties[key];
+					this.removeFromSchema(key, configuration.properties[key]);
+				}
+			}
+			if (configuration.allOf) {
+				configuration.allOf.forEach(node => deregisterConfiguration(node));
+			}
+		};
+		for (const configuration of configurations) {
+			deregisterConfiguration(configuration);
+			const index = this.configurationContributors.indexOf(configuration);
+			if (index !== -1) {
+				this.configurationContributors.splice(index, 1);
+			}
+		}
+		return properties;
 	}
 
 	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo?: IConfigurationExtensionInfo, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {

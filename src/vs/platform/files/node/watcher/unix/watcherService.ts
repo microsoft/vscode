@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
 import { FileAccess } from 'vs/base/common/network';
+import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
+import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 
+/**
+ * @deprecated
+ */
 export class FileWatcher extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
@@ -19,11 +22,11 @@ export class FileWatcher extends Disposable {
 	private service: IWatcherService | undefined;
 
 	constructor(
-		private folders: IWatcherRequest[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		private folders: IWatchRequest[],
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
-		private watcherOptions: IWatcherOptions = {}
+		private readonly watcherOptions: IWatcherOptions = {}
 	) {
 		super();
 
@@ -66,10 +69,10 @@ export class FileWatcher extends Disposable {
 		this.service.init({ ...this.watcherOptions, verboseLogging: this.verboseLogging });
 
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
-		this._register(this.service.onDidLogMessage(m => this.onLogMessage(m)));
+		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
-		this.service.setRoots(this.folders);
+		this.service.watch(this.folders);
 	}
 
 	error(message: string) {
@@ -84,11 +87,11 @@ export class FileWatcher extends Disposable {
 		}
 	}
 
-	setFolders(folders: IWatcherRequest[]): void {
+	watch(folders: IWatchRequest[]): void {
 		this.folders = folders;
 
 		if (this.service) {
-			this.service.setRoots(folders);
+			this.service.watch(folders);
 		}
 	}
 

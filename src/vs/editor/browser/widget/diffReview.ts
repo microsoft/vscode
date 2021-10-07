@@ -22,7 +22,6 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
@@ -777,19 +776,7 @@ export class DiffReview extends Disposable {
 	private static _renderLine(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
-
-		const defaultMetadata = (
-			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-		) >>> 0;
-
-		const tokens = new Uint32Array(2);
-		tokens[0] = lineContent.length;
-		tokens[1] = defaultMetadata;
-
-		const lineTokens = new LineTokens(tokens, lineContent);
-
+		const lineTokens = LineTokens.createEmpty(lineContent);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(

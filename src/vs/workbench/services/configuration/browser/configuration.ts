@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -16,13 +16,14 @@ import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/worksp
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { ResourceMap } from 'vs/base/common/map';
+import { joinPath } from 'vs/base/common/resources';
 
 export class UserConfiguration extends Disposable {
 
@@ -93,6 +94,10 @@ class FileServiceBasedConfiguration extends Disposable {
 	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly resourcesContentMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+
+	private disposed: boolean = false;
+
 	constructor(
 		name: string,
 		private readonly settingsResource: URI,
@@ -116,6 +121,7 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = new ConfigurationModel();
 
 		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
+		this._register(toDisposable(() => this.disposed = true));
 	}
 
 	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
@@ -123,12 +129,24 @@ class FileServiceBasedConfiguration extends Disposable {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = (await this.fileService.readFile(resource, { atomic: true })).value.toString();
+					let content = (await this.fileService.readFile(resource, { atomic: true })).value.toString();
+
+					// If file is empty and had content before then file would have been truncated by node because of parallel writes from other windows
+					// To prevent such case, retry reading the file in 20ms intervals until file has content or max 5 trials or disposed.
+					// https://github.com/microsoft/vscode/issues/115740 https://github.com/microsoft/vscode/issues/125970
+					for (let trial = 1; !content && this.resourcesContentMap.get(resource) && !this.disposed && trial <= 5; trial++) {
+						await timeout(20);
+						this.logService.debug(`Retry (${trial}): Reading the configuration file`, resource.toString());
+						content = (await this.fileService.readFile(resource)).value.toString();
+					}
+
+					this.resourcesContentMap.set(resource, !!content);
 					if (!content) {
 						this.logService.debug(`Configuration file '${resource.toString()}' is empty`);
 					}
 					return content;
 				} catch (error) {
+					this.resourcesContentMap.delete(resource);
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
 						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
@@ -516,6 +534,10 @@ export class WorkspaceConfiguration extends Disposable {
 		return Promise.resolve();
 	}
 
+	isTransient(): boolean {
+		return this._workspaceConfiguration.isTransient();
+	}
+
 	getConfiguration(): ConfigurationModel {
 		return this._workspaceConfiguration.getWorkspaceSettings();
 	}
@@ -630,6 +652,10 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
+	}
+
 	getWorkspaceSettings(): ConfigurationModel {
 		return this.workspaceSettings;
 	}
@@ -701,6 +727,10 @@ class CachedWorkspaceConfiguration {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
+	}
+
 	getWorkspaceSettings(): ConfigurationModel {
 		return this.workspaceSettings;
 	}
@@ -755,7 +785,7 @@ class CachedFolderConfiguration {
 		configurationParseOptions: ConfigurationParseOptions,
 		private readonly configurationCache: IConfigurationCache,
 	) {
-		this.key = { type: 'folder', key: hash(join(folder.path, configFolderRelativePath)).toString(16) };
+		this.key = { type: 'folder', key: hash(joinPath(folder, configFolderRelativePath).toString()).toString(16) };
 		this._folderSettingsModelParser = new ConfigurationModelParser('CachedFolderConfiguration');
 		this._folderSettingsParseOptions = configurationParseOptions;
 		this._standAloneConfigurations = [];
@@ -831,6 +861,7 @@ export class FolderConfiguration extends Disposable {
 	private cachedFolderConfiguration: CachedFolderConfiguration;
 
 	constructor(
+		useCache: boolean,
 		readonly workspaceFolder: IWorkspaceFolder,
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
@@ -845,7 +876,7 @@ export class FolderConfiguration extends Disposable {
 		this.scopes = WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES;
 		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
 		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, skipRestricted: this.isUntrusted() }, configurationCache);
-		if (this.configurationCache.needsCaching(workspaceFolder.uri)) {
+		if (useCache && this.configurationCache.needsCaching(workspaceFolder.uri)) {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {

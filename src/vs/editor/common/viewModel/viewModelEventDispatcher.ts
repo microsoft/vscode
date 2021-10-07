@@ -35,7 +35,7 @@ export class ViewModelEventDispatcher extends Disposable {
 
 	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
 		this._addOutgoingEvent(e);
-		this._emitOugoingEvents();
+		this._emitOutgoingEvents();
 	}
 
 	private _addOutgoingEvent(e: OutgoingViewModelEvent): void {
@@ -49,7 +49,7 @@ export class ViewModelEventDispatcher extends Disposable {
 		this._outgoingEvents.push(e);
 	}
 
-	private _emitOugoingEvents(): void {
+	private _emitOutgoingEvents(): void {
 		while (this._outgoingEvents.length > 0) {
 			if (this._collector || this._isConsumingViewEventQueue) {
 				// right now collecting or emitting view events, so let's postpone emitting
@@ -104,7 +104,7 @@ export class ViewModelEventDispatcher extends Disposable {
 				this._emitMany(viewEvents);
 			}
 		}
-		this._emitOugoingEvents();
+		this._emitOutgoingEvents();
 	}
 
 	public emitSingleViewEvent(event: ViewEvent): void {

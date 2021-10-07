@@ -145,6 +145,11 @@ export class EditorScrollbar extends ViewPart {
 			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
 			const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 			const newOpts: ScrollableElementChangeOptions = {
+				vertical: scrollbar.vertical,
+				horizontal: scrollbar.horizontal,
+				verticalScrollbarSize: scrollbar.verticalScrollbarSize,
+				horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,
+				scrollByPage: scrollbar.scrollByPage,
 				handleMouseWheel: scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 				fastScrollSensitivity: fastScrollSensitivity,

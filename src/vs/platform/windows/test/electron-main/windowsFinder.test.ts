@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { join } from 'vs/base/common/path';
-import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
-import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import { join } from 'vs/base/common/path';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { UriDto } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
+import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('WindowsFinder', () => {
 

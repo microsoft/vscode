@@ -11,7 +11,7 @@ import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/w
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
@@ -154,11 +154,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 			ariaLabel = ariaLabel ? `${ariaLabel}, ${label}` : label;
 
 			disposables.add(this.statusbarService.addEntry({
+				name: localize('status.scm', "Source Control"),
 				text: command.title,
 				ariaLabel: `${ariaLabel}${command.tooltip ? ` - ${command.tooltip}` : ''}`,
 				tooltip,
 				command: command.id ? command : undefined
-			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
+			}, 'status.scm', MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
 		this.statusBarDisposable = disposables;

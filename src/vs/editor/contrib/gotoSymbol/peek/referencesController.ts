@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ReferencesModel, OneReference } from '../referencesModel';
-import { ReferenceWidget, LayoutData } from './referencesWidget';
-import { Range } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { Location } from 'vs/editor/common/modes';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { Location } from 'vs/editor/common/modes';
+import { getOuterEditor, PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import * as nls from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { OneReference, ReferencesModel } from '../referencesModel';
+import { LayoutData, ReferenceWidget } from './referencesWidget';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false, nls.localize('referenceSearchVisible', "Whether reference peek is visible, like 'Peek References' or 'Peek Definition'"));
 

@@ -280,7 +280,7 @@ declare namespace marked {
 		smartLists?: boolean;
 
         /**
-         * Use "smart" typograhic punctuation for things like quotes and dashes.
+         * Use "smart" typographic punctuation for things like quotes and dashes.
          */
 		smartypants?: boolean;
 

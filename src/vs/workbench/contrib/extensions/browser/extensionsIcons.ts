@@ -29,7 +29,9 @@ export const starFullIcon = registerIcon('extensions-star-full', Codicon.starFul
 export const starHalfIcon = registerIcon('extensions-star-half', Codicon.starHalf, localize('starHalfIcon', 'Half star icon used for the rating in the extensions editor.'));
 export const starEmptyIcon = registerIcon('extensions-star-empty', Codicon.starEmpty, localize('starEmptyIcon', 'Empty star icon used for the rating in the extensions editor.'));
 
+export const errorIcon = registerIcon('extensions-error-message', Codicon.error, localize('errorIcon', 'Icon shown with a error message in the extensions editor.'));
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
 export const infoIcon = registerIcon('extensions-info-message', Codicon.info, localize('infoIcon', 'Icon shown with an info message in the extensions editor.'));
 
 export const trustIcon = registerIcon('extension-workspace-trust', Codicon.shield, localize('trustIcon', 'Icon shown with a workspace trust message in the extension editor.'));
+export const activationTimeIcon = registerIcon('extension-activation-time', Codicon.history, localize('activationtimeIcon', 'Icon shown with a activation time message in the extension editor.'));

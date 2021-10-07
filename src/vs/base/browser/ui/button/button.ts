@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./button';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Color } from 'vs/base/common/color';
-import { mixin } from 'vs/base/common/objects';
-import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { addDisposableListener, IFocusTracker, EventType, EventHelper, trackFocus, reset } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
+import { addDisposableListener, EventHelper, EventType, IFocusTracker, reset, trackFocus } from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { CSSIcon, Codicon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event as BaseEvent } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { mixin } from 'vs/base/common/objects';
+import 'vs/css!./button';
 
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;

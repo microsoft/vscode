@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchDataTree, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ColorIdentifier, ColorFunction } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, ColorTransform } from 'vs/platform/theme/common/colorRegistry';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -146,7 +146,7 @@ export interface IBreadcrumbsControlOptions {
 	showFileIcons: boolean;
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
-	breadcrumbsBackground: ColorIdentifier | ColorFunction;
+	breadcrumbsBackground: ColorIdentifier | ColorTransform;
 	showPlaceholder: boolean;
 }
 
@@ -219,6 +219,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
+		this.hide();
 	}
 
 	dispose(): void {
@@ -254,7 +255,7 @@ export class BreadcrumbsControl {
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.canHandleResource(uri)) {
+		if (!uri || !this._fileService.hasProvider(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);

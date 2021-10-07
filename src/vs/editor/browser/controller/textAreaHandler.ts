@@ -37,7 +37,7 @@ export interface ITextAreaHandlerHelper {
 }
 
 class VisibleTextAreaData {
-	_visibleTextAreaBrand: void;
+	_visibleTextAreaBrand: void = undefined;
 
 	public readonly top: number;
 	public readonly left: number;

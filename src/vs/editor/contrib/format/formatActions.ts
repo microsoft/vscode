@@ -5,27 +5,27 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { getOnTypeFormattingEdits, alertFormattingEdits, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
+import { alertFormattingEdits, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Progress, IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 
 class FormatOnType implements IEditorContribution {
 

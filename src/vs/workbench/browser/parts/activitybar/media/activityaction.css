@@ -6,7 +6,6 @@
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
-	margin-bottom: 4px;
 }
 
 .monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::before,

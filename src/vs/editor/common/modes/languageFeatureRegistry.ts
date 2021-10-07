@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
+import { doHash } from 'vs/base/common/hash';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { MovingAverage } from 'vs/base/common/numbers';
@@ -179,6 +179,18 @@ export class LanguageFeatureRegistry<T> {
 }
 
 
+const _hashes = new WeakMap<object, number>();
+let pool = 0;
+function weakHash(obj: object): number {
+	let value = _hashes.get(obj);
+	if (value === undefined) {
+		value = ++pool;
+		_hashes.set(obj, value);
+	}
+	return value;
+}
+
+
 /**
  * Keeps moving average per model and set of providers so that requests
  * can be debounce according to the provider performance
@@ -187,14 +199,15 @@ export class LanguageFeatureRequestDelays {
 
 	private readonly _cache = new LRUCache<string, MovingAverage>(50, 0.7);
 
+
 	constructor(
-		private readonly _registry: LanguageFeatureRegistry<any>,
+		private readonly _registry: LanguageFeatureRegistry<object>,
 		readonly min: number,
 		readonly max: number = Number.MAX_SAFE_INTEGER,
 	) { }
 
 	private _key(model: ITextModel): string {
-		return model.id + hash(this._registry.all(model));
+		return model.id + this._registry.all(model).reduce((hashVal, obj) => doHash(weakHash(obj), hashVal), 0);
 	}
 
 	private _clamp(value: number | undefined): number {

@@ -5,8 +5,9 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import { SymbolDisplayPart } from 'typescript/lib/protocol';
 import { Uri } from 'vscode';
-import { tagsMarkdownPreview, markdownDocumentation, IFilePathToResourceConverter } from '../../utils/previewer';
+import { IFilePathToResourceConverter, markdownDocumentation, plainWithLinks, tagsMarkdownPreview } from '../../utils/previewer';
 
 const noopToResource: IFilePathToResourceConverter = {
 	toResource: (path) => Uri.file(path)
@@ -84,6 +85,47 @@ suite('typescript.previewer', () => {
 				}
 			], noopToResource),
 			'*@param* `parámetroConDiacríticos` — this will not');
+	});
+
+	test('Should render @linkcode symbol name as code', async () => {
+		assert.strictEqual(
+			plainWithLinks([
+				{ "text": "a ", "kind": "text" },
+				{ "text": "{@linkcode ", "kind": "link" },
+				{
+					"text": "dog",
+					"kind": "linkName",
+					"target": {
+						"file": "/path/file.ts",
+						"start": { "line": 7, "offset": 5 },
+						"end": { "line": 7, "offset": 13 }
+					}
+				} as SymbolDisplayPart,
+				{ "text": "}", "kind": "link" },
+				{ "text": " b", "kind": "text" }
+			], noopToResource),
+			'a [`dog`](file:///path/file.ts#L7%2C5) b');
+	});
+
+	test('Should render @linkcode text as code', async () => {
+		assert.strictEqual(
+			plainWithLinks([
+				{ "text": "a ", "kind": "text" },
+				{ "text": "{@linkcode ", "kind": "link" },
+				{
+					"text": "dog",
+					"kind": "linkName",
+					"target": {
+						"file": "/path/file.ts",
+						"start": { "line": 7, "offset": 5 },
+						"end": { "line": 7, "offset": 13 }
+					}
+				} as SymbolDisplayPart,
+				{ "text": "husky", "kind": "linkText" },
+				{ "text": "}", "kind": "link" },
+				{ "text": " b", "kind": "text" }
+			], noopToResource),
+			'a [`husky`](file:///path/file.ts#L7%2C5) b');
 	});
 });
 

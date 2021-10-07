@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
-import { SymbolKind, DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
-import { Range } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
+import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
 
 suite('OutlineModel', function () {
 

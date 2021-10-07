@@ -15,7 +15,7 @@
 	"markdown.previewSide.title": "Open Preview to the Side",
 	"markdown.showLockedPreviewToSide.title": "Open Locked Preview to the Side",
 	"markdown.showSource.title": "Show Source",
-	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the Markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the Markdown file. All '\\' need to be written as '\\\\'.",
+	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the Markdown preview. Relative paths are interpreted relative to the folder open in the Explorer. If there is no open folder, they are interpreted relative to the location of the Markdown file. All '\\' need to be written as '\\\\'.",
 	"markdown.showPreviewSecuritySelector.title": "Change Preview Security Settings",
 	"markdown.trace.desc": "Enable debug logging for the Markdown extension.",
 	"markdown.preview.refresh.title": "Refresh Preview",

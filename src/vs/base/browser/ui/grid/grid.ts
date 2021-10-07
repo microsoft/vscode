@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions, IBoundarySashes } from './gridview';
+import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./gridview';
+import { Box, GridView, IBoundarySashes, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
 
-export { Orientation, IViewSize, orthogonal, LayoutPriority } from './gridview';
+export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
 
 export const enum Direction {
 	Up,
@@ -210,7 +210,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 	get minimumHeight(): number { return this.gridview.minimumHeight; }
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
-	get onDidChange(): Event<{ width: number; height: number; } | undefined> { return this.gridview.onDidChange; }
+
+	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidScroll: Event<void>;
 
 	get boundarySashes(): IBoundarySashes { return this.gridview.boundarySashes; }
 	set boundarySashes(boundarySashes: IBoundarySashes) { this.gridview.boundarySashes = boundarySashes; }
@@ -232,8 +234,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 		} else {
 			this.gridview = new GridView(options);
 		}
-		this._register(this.gridview);
 
+		this._register(this.gridview);
 		this._register(this.gridview.onDidSashReset(this.onDidSashReset, this));
 
 		const size: number | GridViewSizing = typeof options.firstViewVisibleCachedSize === 'number'
@@ -243,6 +245,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 		if (!(view instanceof GridView)) {
 			this._addView(view, size, [0]);
 		}
+
+		this.onDidChange = this.gridview.onDidChange;
+		this.onDidScroll = this.gridview.onDidScroll;
 	}
 
 	style(styles: IGridStyles): void {

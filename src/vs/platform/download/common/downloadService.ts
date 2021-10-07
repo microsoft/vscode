@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { URI } from 'vs/base/common/uri';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IDownloadService } from 'vs/platform/download/common/download';
+import { IFileService } from 'vs/platform/files/common/files';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
 
 export class DownloadService implements IDownloadService {
 

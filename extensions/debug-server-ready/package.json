@@ -69,19 +69,23 @@
                     "additionalProperties": false,
                     "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
                     "default": {
-                      "action": "openExternally"
+                      "action": "debugWithEdge",
+                      "pattern": "listening on port ([0-9]+)",
+                      "uriFormat": "http://localhost:%s",
+                      "webRoot": "${workspaceFolder}"
                     },
                     "properties": {
                       "action": {
                         "type": "string",
                         "enum": [
-                          "debugWithChrome"
+                          "debugWithChrome",
+                          "debugWithEdge"
                         ],
                         "enumDescriptions": [
                           "%debug.server.ready.action.debugWithChrome.description%"
                         ],
                         "markdownDescription": "%debug.server.ready.action.description%",
-                        "default": "openExternally"
+                        "default": "debugWithEdge"
                       },
                       "pattern": {
                         "type": "string",

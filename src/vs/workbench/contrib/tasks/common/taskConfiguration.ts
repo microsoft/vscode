@@ -425,6 +425,7 @@ export interface BaseTaskRunnerConfiguration {
 	 * The group
 	 */
 	group?: string | GroupKind;
+
 	/**
 	 * Controls the behavior of the used terminal
 	 */
@@ -1229,25 +1230,31 @@ const partialSource: Partial<Tasks.TaskSource> = {
 	config: undefined
 };
 
-namespace GroupKind {
-	export function from(this: void, external: string | GroupKind | undefined): [string, Tasks.GroupType] | undefined {
+export namespace GroupKind {
+	export function from(this: void, external: string | GroupKind | undefined): Tasks.TaskGroup | undefined {
 		if (external === undefined) {
 			return undefined;
-		}
-		if (Types.isString(external)) {
-			if (Tasks.TaskGroup.is(external)) {
-				return [external, Tasks.GroupType.user];
-			} else {
-				return undefined;
-			}
-		}
-		if (!Types.isString(external.kind) || !Tasks.TaskGroup.is(external.kind)) {
-			return undefined;
-		}
-		let group: string = external.kind;
-		let isDefault: boolean = !!external.isDefault;
+		} else if (Types.isString(external) && Tasks.TaskGroup.is(external)) {
+			return { _id: external, isDefault: false };
+		} else if (Types.isString(external.kind) && Tasks.TaskGroup.is(external.kind)) {
+			let group: string = external.kind;
+			let isDefault: boolean = !!external.isDefault;
 
-		return [group, isDefault ? Tasks.GroupType.default : Tasks.GroupType.user];
+			return { _id: group, isDefault };
+		}
+		return undefined;
+	}
+
+	export function to(group: Tasks.TaskGroup | string): GroupKind | string {
+		if (Types.isString(group)) {
+			return group;
+		} else if (!group.isDefault) {
+			return group._id;
+		}
+		return {
+			kind: group._id,
+			isDefault: group.isDefault
+		};
 	}
 }
 
@@ -1325,18 +1332,7 @@ namespace ConfigurationProperties {
 		if (external.promptOnClose !== undefined) {
 			result.promptOnClose = !!external.promptOnClose;
 		}
-		if (external.group !== undefined) {
-			if (Types.isString(external.group) && Tasks.TaskGroup.is(external.group)) {
-				result.group = external.group;
-				result.groupType = Tasks.GroupType.user;
-			} else {
-				let values = GroupKind.from(external.group);
-				if (values) {
-					result.group = values[0];
-					result.groupType = values[1];
-				}
-			}
-		}
+		result.group = GroupKind.from(external.group);
 		if (external.dependsOn !== undefined) {
 			if (Types.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.reduce((dependencies: Tasks.TaskDependency[], item): Tasks.TaskDependency[] => {
@@ -1598,9 +1594,6 @@ namespace CustomTask {
 		if (task.configurationProperties.problemMatchers === undefined) {
 			task.configurationProperties.problemMatchers = EMPTY_ARRAY;
 		}
-		if (task.configurationProperties.group !== undefined && task.configurationProperties.groupType === undefined) {
-			task.configurationProperties.groupType = Tasks.GroupType.user;
-		}
 	}
 
 	export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfiguringTask | Tasks.CustomTask): Tasks.CustomTask {
@@ -1621,7 +1614,6 @@ namespace CustomTask {
 		let resultConfigProps: Tasks.ConfigurationProperties = result.configurationProperties;
 
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'group');
-		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'groupType');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'isBackground');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'dependsOn');
 		assignProperty(resultConfigProps, configuredProps.configurationProperties, 'problemMatchers');
@@ -1634,7 +1626,6 @@ namespace CustomTask {
 
 		let contributedConfigProps: Tasks.ConfigurationProperties = contributedTask.configurationProperties;
 		fillProperty(resultConfigProps, contributedConfigProps, 'group');
-		fillProperty(resultConfigProps, contributedConfigProps, 'groupType');
 		fillProperty(resultConfigProps, contributedConfigProps, 'isBackground');
 		fillProperty(resultConfigProps, contributedConfigProps, 'dependsOn');
 		fillProperty(resultConfigProps, contributedConfigProps, 'problemMatchers');
@@ -1750,12 +1741,15 @@ namespace TaskParser {
 			}
 			context.taskLoadIssues = Objects.deepClone(baseLoadIssues);
 		}
-		if ((defaultBuildTask.rank > -1) && (defaultBuildTask.rank < 2) && defaultBuildTask.task) {
+		// There is some special logic for tasks with the labels "build" and "test".
+		// Even if they are not marked as a task group Build or Test, we automagically group them as such.
+		// However, if they are already grouped as Build or Test, we don't need to add this grouping.
+		const defaultBuildGroupName = Types.isString(defaultBuildTask.task?.configurationProperties.group) ? defaultBuildTask.task?.configurationProperties.group : defaultBuildTask.task?.configurationProperties.group?._id;
+		const defaultTestTaskGroupName = Types.isString(defaultTestTask.task?.configurationProperties.group) ? defaultTestTask.task?.configurationProperties.group : defaultTestTask.task?.configurationProperties.group?._id;
+		if ((defaultBuildGroupName !== Tasks.TaskGroup.Build._id) && (defaultBuildTask.rank > -1) && (defaultBuildTask.rank < 2) && defaultBuildTask.task) {
 			defaultBuildTask.task.configurationProperties.group = Tasks.TaskGroup.Build;
-			defaultBuildTask.task.configurationProperties.groupType = Tasks.GroupType.user;
-		} else if ((defaultTestTask.rank > -1) && (defaultTestTask.rank < 2) && defaultTestTask.task) {
+		} else if ((defaultTestTaskGroupName !== Tasks.TaskGroup.Test._id) && (defaultTestTask.rank > -1) && (defaultTestTask.rank < 2) && defaultTestTask.task) {
 			defaultTestTask.task.configurationProperties.group = Tasks.TaskGroup.Test;
-			defaultTestTask.task.configurationProperties.groupType = Tasks.GroupType.user;
 		}
 
 		return result;
@@ -2099,10 +2093,9 @@ class ConfigurationParser {
 					problemMatchers: matchers,
 				}
 			);
-			let value = GroupKind.from(fileConfig.group);
-			if (value) {
-				task.configurationProperties.group = value[0];
-				task.configurationProperties.groupType = value[1];
+			let taskGroupKind = GroupKind.from(fileConfig.group);
+			if (taskGroupKind !== undefined) {
+				task.configurationProperties.group = taskGroupKind;
 			} else if (fileConfig.group === 'none') {
 				task.configurationProperties.group = undefined;
 			}

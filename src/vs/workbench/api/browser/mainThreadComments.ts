@@ -23,6 +23,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -154,7 +155,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 
 	toJSON(): any {
 		return {
-			$mid: 7,
+			$mid: MarshalledId.CommentThread,
 			commentControlHandle: this.controllerHandle,
 			commentThreadHandle: this.commentThreadHandle,
 		};
@@ -347,7 +348,7 @@ export class MainThreadCommentController {
 
 	toJSON(): any {
 		return {
-			$mid: 6,
+			$mid: MarshalledId.CommentController,
 			handle: this.handle
 		};
 	}

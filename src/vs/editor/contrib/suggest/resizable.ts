@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Orientation, OrthogonalEdge, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 
 export interface IResizeEvent {

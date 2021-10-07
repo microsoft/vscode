@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { URI } from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileService } from 'vs/platform/files/common/fileService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+
 
 suite('ConfigurationService', () => {
 

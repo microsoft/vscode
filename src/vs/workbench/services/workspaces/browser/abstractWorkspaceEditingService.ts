@@ -52,11 +52,16 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	) { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		const availableFileSystems = [Schemas.file];
+		if (this.environmentService.remoteAuthority) {
+			availableFileSystems.unshift(Schemas.vscodeRemote);
+		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME)
+			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
+			availableFileSystems
 		});
 
 		if (!workspacePath) {
@@ -138,7 +143,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			// https://github.com/microsoft/vscode/issues/94191
-			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(f.uri.authority, remoteAuthority)));
+			foldersToAdd = foldersToAdd.filter(folder => folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority)));
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -258,7 +263,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		await this.textFileService.create([{ resource: targetConfigPathURI, value: newRawWorkspaceContents, options: { overwrite: true } }]);
 
 		// Set trust for the workspace file
-		this.trustWorkspaceConfiguration(targetConfigPathURI);
+		await this.trustWorkspaceConfiguration(targetConfigPathURI);
 	}
 
 	protected async saveWorkspace(workspace: IWorkspaceIdentifier): Promise<void> {
@@ -359,9 +364,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		return this.jsonEditingService.write(toWorkspace.configPath, [{ path: ['settings'], value: targetWorkspaceConfiguration }], true);
 	}
 
-	private trustWorkspaceConfiguration(configPathURI: URI): void {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
+	private async trustWorkspaceConfiguration(configPathURI: URI): Promise<void> {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			await this.workspaceTrustManagementService.setUrisTrust([configPathURI], true);
 		}
 	}
 

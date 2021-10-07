@@ -14,7 +14,7 @@ import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sand
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
-import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
+import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
 
 if (!!product.reportIssueUrl) {
 	registerAction2(ReportPerformanceIssueUsingReporterAction);
@@ -25,6 +25,50 @@ if (!!product.reportIssueUrl) {
 			: args || {};
 
 		return accessor.get(IWorkbenchIssueService).openReporter(data);
+	});
+
+	CommandsRegistry.registerCommand({
+		id: OpenIssueReporterApiCommandId,
+		handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
+			const data: Partial<IssueReporterData> = Array.isArray(args)
+				? { extensionId: args[0] }
+				: args || {};
+
+			return accessor.get(IWorkbenchIssueService).openReporter(data);
+		},
+		description: {
+			description: 'Open the issue reporter and optionally prefill part of the form.',
+			args: [
+				{
+					name: 'options',
+					description: 'Data to use to prefill the issue reporter with.',
+					isOptional: true,
+					schema: {
+						oneOf: [
+							{
+								type: 'string',
+								description: 'The extension id to preselect.'
+							},
+							{
+								type: 'object',
+								properties: {
+									extensionId: {
+										type: 'string'
+									},
+									issueTitle: {
+										type: 'string'
+									},
+									issueBody: {
+										type: 'string'
+									}
+								}
+
+							}
+						]
+					}
+				},
+			]
+		}
 	});
 
 	const reportIssue: ICommandAction = {

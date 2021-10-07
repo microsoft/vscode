@@ -9,7 +9,7 @@ import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewMod
 import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
 
 export class LineDecoration {
-	_lineDecorationBrand: void;
+	_lineDecorationBrand: void = undefined;
 
 	constructor(
 		public readonly startColumn: number,
@@ -96,23 +96,24 @@ export class LineDecoration {
 	}
 
 	public static compare(a: LineDecoration, b: LineDecoration): number {
-		if (a.startColumn === b.startColumn) {
-			if (a.endColumn === b.endColumn) {
-				const typeCmp = LineDecoration._typeCompare(a.type, b.type);
-				if (typeCmp === 0) {
-					if (a.className < b.className) {
-						return -1;
-					}
-					if (a.className > b.className) {
-						return 1;
-					}
-					return 0;
-				}
-				return typeCmp;
-			}
+		if (a.startColumn !== b.startColumn) {
+			return a.startColumn - b.startColumn;
+		}
+
+		if (a.endColumn !== b.endColumn) {
 			return a.endColumn - b.endColumn;
 		}
-		return a.startColumn - b.startColumn;
+
+		const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+		if (typeCmp !== 0) {
+			return typeCmp;
+		}
+
+		if (a.className !== b.className) {
+			return a.className < b.className ? -1 : 1;
+		}
+
+		return 0;
 	}
 }
 

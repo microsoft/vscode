@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -12,6 +13,8 @@ import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { requireToContent } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughContentProvider';
 import { Dimension } from 'vs/base/browser/dom';
+import { IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -57,6 +60,7 @@ export class WalkThroughInput extends EditorInput {
 
 	constructor(
 		private readonly options: WalkThroughInputOptions,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
@@ -99,7 +103,7 @@ export class WalkThroughInput extends EditorInput {
 
 	override resolve(): Promise<WalkThroughModel> {
 		if (!this.promise) {
-			this.promise = requireToContent(this.options.resource)
+			this.promise = requireToContent(this.instantiationService, this.options.resource)
 				.then(content => {
 					if (this.resource.path.endsWith('.html')) {
 						return new WalkThroughModel(content, []);
@@ -124,16 +128,13 @@ export class WalkThroughInput extends EditorInput {
 		return this.promise;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (otherInput instanceof WalkThroughInput) {
-			let otherResourceEditorInput = <WalkThroughInput>otherInput;
-
-			// Compare by properties
-			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
+			return isEqual(otherInput.options.resource, this.options.resource);
 		}
 
 		return false;

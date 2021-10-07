@@ -22,8 +22,8 @@ import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next match");
+const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
+const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 
 export abstract class SimpleFindWidget extends Widget {
@@ -43,7 +43,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		checkImeCompletionState?: boolean
 	) {
 		super();
 
@@ -68,11 +69,14 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this.oninput(this._findInput.domNode, (e) => {
-			this.foundMatch = this._onInputChanged();
-			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
-		});
+		this._register(this._findInput.onInput((e) => {
+			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
+				this.foundMatch = this._onInputChanged();
+				this.updateButtons(this.foundMatch);
+				this.focusFindBox();
+				this._delayedUpdateHistory();
+			}
+		}));
 
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -269,6 +273,13 @@ export abstract class SimpleFindWidget extends Widget {
 		const hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+	}
+
+	protected focusFindBox() {
+		// Focus back onto the find box, which
+		// requires focusing onto the next button first
+		this.nextBtn.focus();
+		this._findInput.inputBox.focus();
 	}
 }
 

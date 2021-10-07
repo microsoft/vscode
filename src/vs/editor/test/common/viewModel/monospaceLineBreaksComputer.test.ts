@@ -30,7 +30,7 @@ function toAnnotatedText(text: string, lineBreakData: LineBreakData | null): str
 	if (lineBreakData) {
 		let previousLineIndex = 0;
 		for (let i = 0, len = text.length; i < len; i++) {
-			let r = LineBreakData.getOutputPositionOfInputOffset(lineBreakData.breakOffsets, i);
+			let r = lineBreakData.getOutputPositionOfInputOffset(i);
 			if (previousLineIndex !== r.outputLineIndex) {
 				previousLineIndex = r.outputLineIndex;
 				actualAnnotatedText += '|';
@@ -64,8 +64,8 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		maxDigitWidth: 7
 	}, false);
 	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent);
-	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
-	lineBreaksComputer.addRequest(text, previousLineBreakDataClone);
+	const previousLineBreakDataClone = previousLineBreakData ? new LineBreakData(previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength, null, null) : null;
+	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 

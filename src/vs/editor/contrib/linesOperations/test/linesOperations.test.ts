@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TitleCaseAction, DeleteAllLeftAction, DeleteAllRightAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TransposeAction, UpperCaseAction, DeleteLinesAction, SnakeCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { DeleteAllLeftAction, DeleteAllRightAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {

@@ -10,13 +10,14 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IEditorInputSerializer, EditorInput } from 'vs/workbench/common/editor';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
 const inputOptions: WalkThroughInputOptions = {
 	typeId,
-	name: localize('editorWalkThrough.title', "Interactive Playground"),
+	name: localize('editorWalkThrough.title', "Editor Playground"),
 	resource: FileAccess.asBrowserUri('./vs_code_editor_walkthrough.md', require)
 		.with({
 			scheme: Schemas.walkThrough,
@@ -28,7 +29,7 @@ const inputOptions: WalkThroughInputOptions = {
 export class EditorWalkThroughAction extends Action {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = localize('editorWalkThrough', "Interactive Playground");
+	public static readonly LABEL = localize('editorWalkThrough', "Interactive Editor Playground");
 
 	constructor(
 		id: string,
@@ -41,12 +42,12 @@ export class EditorWalkThroughAction extends Action {
 
 	public override run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
-		return this.editorService.openEditor(input, { pinned: true, override: EditorOverride.DISABLED })
+		return this.editorService.openEditor(input, { pinned: true, override: EditorResolution.DISABLED })
 			.then(() => void (0));
 	}
 }
 
-export class EditorWalkThroughInputSerializer implements IEditorInputSerializer {
+export class EditorWalkThroughInputSerializer implements IEditorSerializer {
 
 	static readonly ID = typeId;
 
@@ -55,10 +56,10 @@ export class EditorWalkThroughInputSerializer implements IEditorInputSerializer 
 	}
 
 	public serialize(editorInput: EditorInput): string {
-		return '{}';
+		return '';
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WalkThroughInput {
+	public deserialize(instantiationService: IInstantiationService): WalkThroughInput {
 		return instantiationService.createInstance(WalkThroughInput, inputOptions);
 	}
 }

@@ -33,7 +33,7 @@ var NLSLoaderPlugin;
                 this._detect();
                 return this._isPseudo;
             },
-            enumerable: true,
+            enumerable: false,
             configurable: true
         });
         Environment.prototype._detect = function () {

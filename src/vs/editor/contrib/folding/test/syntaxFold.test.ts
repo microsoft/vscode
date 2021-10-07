@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
-import { FoldingRangeProvider, FoldingRange, FoldingContext, ProviderResult } from 'vs/editor/common/modes';
-import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ITextModel } from 'vs/editor/common/model';
+import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/modes';
+import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/syntaxRangeProvider';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 interface IndentRange {
 	start: number;

@@ -40,7 +40,7 @@ export class Server extends IPCServer {
 
 			// Send one port back to the requestor
 			// Note: we intentionally use `electron` APIs here because
-			// transferables like the `MessagePort` cannot be transfered
+			// transferables like the `MessagePort` cannot be transferred
 			// over preload scripts when `contextIsolation: true`
 			ipcRenderer.postMessage('vscode:createMessageChannelResult', nonce, [outgoingPort]);
 

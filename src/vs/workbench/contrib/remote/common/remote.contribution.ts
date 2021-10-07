@@ -97,13 +97,11 @@ const extensionKindSchema: IJSONSchema = {
 	type: 'string',
 	enum: [
 		'ui',
-		'workspace',
-		'web'
+		'workspace'
 	],
 	enumDescriptions: [
 		localize('ui', "UI extension kind. In a remote window, such extensions are enabled only when available on the local machine."),
-		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote."),
-		localize('web', "Web worker extension kind. Such an extension can execute in a web worker extension host.")
+		localize('workspace', "Workspace extension kind. In a remote window, such extensions are enabled only when available on the remote.")
 	],
 };
 
@@ -117,7 +115,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'object',
 				markdownDescription: localize('remote.extensionKind', "Override the kind of an extension. `ui` extensions are installed and run on the local machine while `workspace` extensions are run on the remote. By overriding an extension's default kind using this setting, you specify if that extension should be installed and enabled locally or remotely."),
 				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						oneOf: [{ type: 'array', items: extensionKindSchema }, extensionKindSchema],
 						default: ['ui'],
 					},
@@ -133,7 +131,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPorts': {
 				type: 'boolean',
-				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded."),
+				markdownDescription: localize('remote.autoForwardPorts', "When enabled, new running processes are detected and ports that they listen on are automatically forwarded. Disabling this setting will not prevent all ports from being forwarded. Even when disabled, extensions will still be able to cause ports to be forwarded, and opening some URLs will still cause ports to forwarded."),
 				default: true
 			},
 			'remote.autoForwardPortsSource': {
@@ -154,14 +152,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				patternProperties: {
 					'(^\\d+(\\-\\d+)?$)|(.+)': {
 						type: 'object',
-						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
+						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {
 							'onAutoForward': {
 								type: 'string',
-								enum: ['notify', 'openBrowser', 'openPreview', 'silent', 'ignore'],
+								enum: ['notify', 'openBrowser', 'openBrowserOnce', 'openPreview', 'silent', 'ignore'],
 								enumDescriptions: [
 									localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
 									localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
+									localize('remote.portsAttributes.openBrowserOnce', "Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser."),
 									localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
 									localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
 									localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")
@@ -178,6 +177,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 								type: 'string',
 								description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
 								default: localize('remote.portsAttributes.labelDefault', "Application")
+							},
+							'requireLocalPort': {
+								type: 'boolean',
+								markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
+								default: false
+							},
+							'protocol': {
+								type: 'string',
+								enum: ['http', 'https'],
+								description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
 							}
 						},
 						default: {
@@ -189,7 +198,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				markdownDescription: localize('remote.portsAttributes', "Set properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Application\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n},\n\".+\\\\/server.js\": {\n \"onAutoForward\": \"openPreview\"\n}\n```"),
 				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:Application}', onAutoForward: 'openPreview' } } }],
 				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number, range of port numbers, or regular expression."),
-				additionalProperties: false
+				additionalProperties: false,
+				default: {
+					'443': {
+						'protocol': 'https'
+					},
+					'8443': {
+						'protocol': 'https'
+					}
+				}
 			},
 			'remote.otherPortsAttributes': {
 				type: 'object',
@@ -216,11 +233,27 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						type: 'string',
 						description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
 						default: localize('remote.portsAttributes.labelDefault', "Application")
+					},
+					'requireLocalPort': {
+						type: 'boolean',
+						markdownDescription: localize('remote.portsAttributes.requireLocalPort', "When true, a modal dialog will show if the chosen local port isn't used for forwarding."),
+						default: false
+					},
+					'protocol': {
+						type: 'string',
+						enum: ['http', 'https'],
+						description: localize('remote.portsAttributes.protocol', "The protocol to use when forwarding this port.")
 					}
 				},
 				defaultSnippets: [{ body: { onAutoForward: 'ignore' } }],
 				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```"),
 				additionalProperties: false
+			},
+			'remote.localPortHost': {
+				type: 'string',
+				enum: ['localhost', 'allInterfaces'],
+				default: 'localhost',
+				description: localize('remote.localPortHost', "Specifies the local host name that will be used for port forwarding.")
 			}
 		}
 	});

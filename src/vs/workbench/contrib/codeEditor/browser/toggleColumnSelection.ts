@@ -42,11 +42,11 @@ export class ToggleColumnSelectionAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const codeEditorService = accessor.get(ICodeEditorService);
 
-		const oldValue = configurationService.getValue<boolean>('editor.columnSelection');
+		const oldValue = configurationService.getValue('editor.columnSelection');
 		const codeEditor = this._getCodeEditor(codeEditorService);
 		await configurationService.updateValue('editor.columnSelection', !oldValue);
-		const newValue = configurationService.getValue<boolean>('editor.columnSelection');
-		if (!codeEditor || codeEditor !== this._getCodeEditor(codeEditorService) || oldValue === newValue || !codeEditor.hasModel()) {
+		const newValue = configurationService.getValue('editor.columnSelection');
+		if (!codeEditor || codeEditor !== this._getCodeEditor(codeEditorService) || oldValue === newValue || !codeEditor.hasModel() || typeof oldValue !== 'boolean' || typeof newValue !== 'boolean') {
 			return;
 		}
 		const viewModel = codeEditor._getViewModel();

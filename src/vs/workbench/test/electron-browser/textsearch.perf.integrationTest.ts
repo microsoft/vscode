@@ -24,7 +24,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -162,7 +162,7 @@ suite.skip('TextSearch performance (integration)', () => {
 
 class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
-	public isOptedIn = true;
+	public telemetryLevel = TelemetryLevel.USAGE;
 	public sendErrorTelemetry = true;
 
 	public events: any[] = [];

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -22,7 +21,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 
 const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hour
-const MIN_WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 5; // 5 minutes
+const MIN_WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 2; // 2 minutes
 const MAX_INSTALL_AGE = 1000 * 60 * 60 * 24; // 24 hours
 const REMIND_LATER_DELAY = 1000 * 60 * 60 * 4; // 4 hours
 const SKIP_SURVEY_KEY = 'ces/skipSurvey';
@@ -39,7 +38,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
+		@ITASExperimentService tasExperimentService: ITASExperimentService,
 	) {
 		super();
 
@@ -78,7 +77,18 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				run: () => {
 					sendTelemetry('accept');
 					this.telemetryService.getTelemetryInfo().then(info => {
-						this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}`));
+						let surveyUrl = `${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}`;
+
+						const usedParams = this.productService.surveys
+							?.filter(surveyData => surveyData.surveyId && surveyData.languageId)
+							// Counts provided by contrib/surveys/browser/languageSurveys
+							.filter(surveyData => this.storageService.getNumber(`${surveyData.surveyId}.editedCount`, StorageScope.GLOBAL, 0) > 0)
+							.map(surveyData => `${encodeURIComponent(surveyData.languageId)}Lang=1`)
+							.join('&');
+						if (usedParams) {
+							surveyUrl += `&${usedParams}`;
+						}
+						this.openerService.open(URI.parse(surveyUrl));
 						this.skipSurvey();
 					});
 				}

@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { mock } from 'vs/base/test/common/mock';
-import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { mock } from 'vs/base/test/common/mock';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import { Event } from 'vs/base/common/event';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { IPosition } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('suggest, word distance', function () {
 

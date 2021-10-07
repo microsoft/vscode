@@ -11,10 +11,12 @@ import { Workspace } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { isBoolean } from 'vs/base/common/types';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
 	private _folders: IStoredWorkspaceFolder[] = [];
+	private _transient: boolean = false;
 	private _settingsModelParser: ConfigurationModelParser;
 	private _launchModel: ConfigurationModel;
 	private _tasksModel: ConfigurationModel;
@@ -28,6 +30,10 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	get folders(): IStoredWorkspaceFolder[] {
 		return this._folders;
+	}
+
+	get transient(): boolean {
+		return this._transient;
 	}
 
 	get settingsModel(): ConfigurationModel {
@@ -52,6 +58,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
+		this._transient = isBoolean(raw['transient']) && raw['transient'];
 		this._settingsModelParser.parseRaw(raw['settings'], configurationParseOptions);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
 		this._tasksModel = this.createConfigurationModelFrom(raw, 'tasks');

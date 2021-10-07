@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
+import 'mocha';
 import { join } from 'path';
-import { commands, workspace, window, Uri, Range, Position, ViewColumn } from 'vscode';
+import { commands, Position, Range, Uri, ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 suite('vscode API - commands', () => {

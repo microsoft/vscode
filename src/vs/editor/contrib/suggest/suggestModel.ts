@@ -4,26 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TimeoutTimer } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { getLeadingWhitespace, isHighSurrogate, isLowSurrogate } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { CompletionItemProvider, StandardTokenType, CompletionContext, CompletionProviderRegistry, CompletionTriggerKind, CompletionItemKind } from 'vs/editor/common/modes';
-import { CompletionModel } from './completionModel';
-import { CompletionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport, SnippetSortOrder, CompletionOptions, CompletionDurations } from './suggest';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CompletionContext, CompletionItemKind, CompletionItemProvider, CompletionProviderRegistry, CompletionTriggerKind, StandardTokenType } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { isLowSurrogate, isHighSurrogate, getLeadingWhitespace } from 'vs/base/common/strings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CompletionModel } from './completionModel';
+import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, getSuggestionComparator, provideSuggestionItems, SnippetSortOrder } from './suggest';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -95,6 +97,44 @@ export const enum State {
 	Auto = 2
 }
 
+function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
+	return editor.getOption(EditorOption.suggest).preview;
+}
+
+function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+		// Allow if there is no inline suggestion.
+		return true;
+	}
+
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions');
+	if (allowQuickSuggestions !== undefined) {
+		// Use setting if available.
+		return Boolean(allowQuickSuggestions);
+	}
+
+	// Don't allow if inline suggestions are visible and no suggest preview is configured.
+	// TODO disabled for copilot
+	return false && isSuggestPreviewEnabled(editor);
+}
+
+function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+		// Allow if there is no inline suggestion.
+		return true;
+	}
+
+	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters');
+	if (allowQuickSuggestions !== undefined) {
+		// Use setting if available.
+		return Boolean(allowQuickSuggestions);
+	}
+
+	// Don't allow if inline suggestions are visible and no suggest preview is configured.
+	// TODO disabled for copilot
+	return false && isSuggestPreviewEnabled(editor);
+}
+
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
@@ -123,6 +163,8 @@ export class SuggestModel implements IDisposable {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -212,6 +254,15 @@ export class SuggestModel implements IDisposable {
 
 
 		const checkTriggerCharacter = (text?: string) => {
+
+			if (!canShowSuggestOnTriggerCharacters(this._editor, this._contextKeyService, this._configurationService)) {
+				return;
+			}
+
+			if (LineContext.shouldAutoTrigger(this._editor)) {
+				// don't trigger by trigger characters when this is a case for quick suggest
+				return;
+			}
 
 			if (!text) {
 				// came here from the compositionEnd-event
@@ -351,6 +402,11 @@ export class SuggestModel implements IDisposable {
 					}
 				}
 
+				if (!canShowQuickSuggest(this._editor, this._contextKeyService, this._configurationService)) {
+					// do not trigger quick suggestions if inline suggestions are shown
+					return;
+				}
+
 				// we made it till here -> trigger now
 				this.trigger({ auto: true, shy: false });
 
@@ -428,13 +484,13 @@ export class SuggestModel implements IDisposable {
 				break;
 		}
 
-		const itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
+		const { itemKind: itemKindFilter, showDeprecated } = SuggestModel._createSuggestFilter(this._editor);
 		const wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
 		const completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
-			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
+			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom, showDeprecated),
 			suggestCtx,
 			this._requestToken.token
 		);
@@ -502,7 +558,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	private static _createItemKindFilter(editor: ICodeEditor): Set<CompletionItemKind> {
+	private static _createSuggestFilter(editor: ICodeEditor): { itemKind: Set<CompletionItemKind>; showDeprecated: boolean } {
 		// kind filter and snippet sort rules
 		const result = new Set<CompletionItemKind>();
 
@@ -543,7 +599,7 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
 		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
-		return result;
+		return { itemKind: result, showDeprecated: suggestOptions.showDeprecated };
 	}
 
 	private _onNewContext(ctx: LineContext): void {

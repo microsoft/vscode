@@ -147,7 +147,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			await this.dialogService.show(
 				Severity.Info,
 				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(path)),
-				[localize('ok', "OK")],
+				undefined,
 				{
 					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
 				}

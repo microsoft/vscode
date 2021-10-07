@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes, cellIndexesToRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { CellKind, CellUri, diff, NotebookWorkingCopyTypeIdentifier, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCommon', () => {
 	const instantiationService = setupInstantiationService();
@@ -23,30 +24,33 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
-				'text/markdown',
+				Mimes.latex,
+				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			], [], defaultDisplayOrder),
 			[
 				'application/json',
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
-				'text/markdown',
+				Mimes.latex,
+				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 
 		assert.deepStrictEqual(sortMimeTypes(
 			[
 				'application/json',
-				'text/markdown',
+				Mimes.latex,
+				Mimes.markdown,
 				'application/javascript',
 				'text/html',
-				'text/plain',
+				Mimes.text,
 				'image/png',
 				'image/jpeg',
 				'image/svg+xml'
@@ -56,18 +60,19 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
-				'text/markdown',
+				Mimes.latex,
+				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 
 		assert.deepStrictEqual(sortMimeTypes(
 			[
-				'text/markdown',
+				Mimes.markdown,
 				'application/json',
-				'text/plain',
+				Mimes.text,
 				'image/jpeg',
 				'application/javascript',
 				'text/html',
@@ -79,10 +84,10 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
-				'text/markdown',
+				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 	});
@@ -97,22 +102,22 @@ suite('NotebookCommon', () => {
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
-				'text/markdown',
+				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			],
 			[
 				'image/png',
-				'text/plain',
-				'text/markdown',
+				Mimes.text,
+				Mimes.markdown,
 				'text/html',
 				'application/json'
 			], defaultDisplayOrder),
 			[
 				'image/png',
-				'text/plain',
-				'text/markdown',
+				Mimes.text,
+				Mimes.markdown,
 				'text/html',
 				'application/json',
 				'application/javascript',
@@ -123,9 +128,9 @@ suite('NotebookCommon', () => {
 
 		assert.deepStrictEqual(sortMimeTypes(
 			[
-				'text/markdown',
+				Mimes.markdown,
 				'application/json',
-				'text/plain',
+				Mimes.text,
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
@@ -136,18 +141,18 @@ suite('NotebookCommon', () => {
 				'application/json',
 				'text/html',
 				'text/html',
-				'text/markdown',
+				Mimes.markdown,
 				'application/json'
 			], defaultDisplayOrder),
 			[
 				'application/json',
 				'text/html',
-				'text/markdown',
+				Mimes.markdown,
 				'application/javascript',
 				'image/svg+xml',
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 	});
@@ -165,7 +170,7 @@ suite('NotebookCommon', () => {
 				'text/html'
 			],
 			[
-				'text/markdown',
+				Mimes.markdown,
 				'text/html',
 				'application/json'
 			], defaultDisplayOrder),
@@ -189,7 +194,7 @@ suite('NotebookCommon', () => {
 			],
 			[
 				'application/vnd-vega*',
-				'text/markdown',
+				Mimes.markdown,
 				'text/html',
 				'application/json'
 			], defaultDisplayOrder),
@@ -321,5 +326,39 @@ suite('CellRange', function () {
 
 		assert.deepStrictEqual(cellIndexesToRanges([9, 10]), [{ start: 9, end: 11 }]);
 		assert.deepStrictEqual(cellIndexesToRanges([10, 9]), [{ start: 9, end: 11 }]);
+	});
+
+	test('Reduce ranges', function () {
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 1 }, { start: 1, end: 2 }]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 1, end: 3 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 1, end: 3 }, { start: 0, end: 2 }]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(reduceCellRanges([{ start: 0, end: 2 }, { start: 4, end: 5 }]), [{ start: 0, end: 2 }, { start: 4, end: 5 }]);
+
+		assert.deepStrictEqual(reduceCellRanges([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2 },
+			{ start: 4, end: 6 }
+		]), [
+			{ start: 0, end: 2 },
+			{ start: 4, end: 6 }
+		]);
+
+		assert.deepStrictEqual(reduceCellRanges([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 3 },
+			{ start: 3, end: 4 }
+		]), [
+			{ start: 0, end: 4 }
+		]);
+	});
+});
+
+suite('NotebookWorkingCopyTypeIdentifier', function () {
+
+	test('works', function () {
+		const viewType = 'testViewType';
+		const type = NotebookWorkingCopyTypeIdentifier.create('testViewType');
+		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse(type), viewType);
+		assert.strictEqual(NotebookWorkingCopyTypeIdentifier.parse('something'), undefined);
 	});
 });

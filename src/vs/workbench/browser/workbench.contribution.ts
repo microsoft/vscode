@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -92,9 +90,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.untitled.hint': {
 				'type': 'string',
-				'enum': ['text', 'hidden', 'default'],
-				'default': 'default',
+				'enum': ['text', 'hidden'],
+				'default': 'text',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
+			},
+			'workbench.editor.languageDetection': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
+				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -197,9 +201,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
+				'markdownDescription': localize('restoreViewState', "Restores the last editor view state (e.g. scroll position) when re-opening editors after they have been closed. Editor view state is stored per editor group and discarded when a group closes. Use the `#workbench.editor.sharedViewState#` setting to use the last known view state across all editor groups in case no previous view state was found for a editor group."),
 				'default': true,
 				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+			},
+			'workbench.editor.sharedViewState': {
+				'type': 'boolean',
+				'description': localize('sharedViewState', "Preserves the most recent editor view state (e.g. scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
+				'default': false
+			},
+			'workbench.editor.splitInGroupLayout': {
+				'type': 'string',
+				'enum': ['vertical', 'horizontal'],
+				'default': 'horizontal',
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -336,7 +351,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
-			}
+			},
+			'workbench.experimental.sidePanel.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('auxiliaryBarEnabled', "Controls whether the side panel opposite the side bar is enabled."),
+				'included': product.quality !== 'stable'
+			},
 		}
 	});
 
@@ -344,20 +365,20 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
 	windowTitleDescription += '\n- ' + [
-		localize('activeEditorShort', "`\${activeEditorShort}`: the file name (e.g. myFile.txt)."),
-		localize('activeEditorMedium', "`\${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
-		localize('activeEditorLong', "`\${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
-		localize('activeFolderShort', "`\${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
-		localize('activeFolderMedium', "`\${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
-		localize('activeFolderLong', "`\${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
-		localize('folderName', "`\${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
-		localize('folderPath', "`\${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
-		localize('rootName', "`\${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
-		localize('rootPath', "`\${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
-		localize('appName', "`\${appName}`: e.g. VS Code."),
-		localize('remoteName', "`\${remoteName}`: e.g. SSH"),
-		localize('dirty', "`\${dirty}`: a dirty indicator if the active editor is dirty."),
-		localize('separator', "`\${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
+		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
+		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
+		localize('activeEditorLong', "`${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
+		localize('activeFolderShort', "`${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
+		localize('activeFolderMedium', "`${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
+		localize('activeFolderLong', "`${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
+		localize('folderName', "`${folderName}`: name of the workspace folder the file is contained in (e.g. myFolder)."),
+		localize('folderPath', "`${folderPath}`: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)."),
+		localize('rootName', "`${rootName}`: name of the opened workspace or folder (e.g. myFolder or myWorkspace)."),
+		localize('rootPath', "`${rootPath}`: file path of the opened workspace or folder (e.g. /Users/Development/myWorkspace)."),
+		localize('appName', "`${appName}`: e.g. VS Code."),
+		localize('remoteName', "`${remoteName}`: e.g. SSH"),
+		localize('dirty', "`${dirty}`: a dirty indicator if the active editor is dirty."),
+		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({
@@ -515,23 +536,3 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 })();
-
-class ExperimentalCustomHoverConfigContribution implements IWorkbenchContribution {
-	constructor(@ITASExperimentService tasExperimentService: ITASExperimentService) {
-		tasExperimentService.getTreatment<boolean>('customHovers').then(useCustomHoversAsDefault => {
-			registry.registerConfiguration({
-				...workbenchConfigurationNodeBase,
-				'properties': {
-					'workbench.experimental.useCustomHover': {
-						'type': 'boolean',
-						'description': localize('workbench.experimental.useCustomHover', "Enable/disable custom hovers on Activity Bar & Panel. Note this configuration is experimental and subjected to be removed at any time."),
-						'default': !!useCustomHoversAsDefault
-					}
-				}
-			});
-		});
-	}
-}
-
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(ExperimentalCustomHoverConfigContribution, LifecyclePhase.Starting);

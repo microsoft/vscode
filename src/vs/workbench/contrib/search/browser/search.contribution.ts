@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -53,8 +53,8 @@ import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browse
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ISearchConfiguration, SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, true);
 registerSingleton(ISearchHistoryService, SearchHistoryService, true);
@@ -325,7 +325,7 @@ CommandsRegistry.registerCommand({
 CommandsRegistry.registerCommand({
 	id: Constants.RevealInSideBarForSearchResults,
 	handler: (accessor, args: any) => {
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
@@ -344,7 +344,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
+		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {
 			if (!viewlet) {
 				return;
 			}
@@ -378,7 +378,7 @@ registerAction2(class CancelSearchAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch)),
 			}]
 		});
 	}
@@ -400,7 +400,7 @@ registerAction2(class RefreshAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch).negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), SearchStateKey.isEqualTo(SearchUIState.SlowSearch).negate()),
 			}]
 		});
 	}
@@ -422,7 +422,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.HasSearchResults.negate(), Constants.ViewHasSomeCollapsibleKey)),
 			}]
 		});
 	}
@@ -444,7 +444,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.HasSearchResults, Constants.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
 	}
@@ -466,7 +466,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyEqualsExpr.create('view', VIEW_ID),
+				when: ContextKeyExpr.equals('view', VIEW_ID),
 			}]
 		});
 	}
@@ -636,6 +636,8 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
+			when: ContextKeyExpr.regex('neverMatch', /doesNotMatch/)
 		},
 		order: 1
 	}
@@ -686,10 +688,10 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 // Find in Files by default is the same as View: Show Search, but can be configured to open a search editor instead with the `search.mode` binding
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	description: {
-		description: nls.localize('findInFiles.description', "Open the search viewlet"),
+		description: nls.localize('findInFiles.description', "Open a workspace search"),
 		args: [
 			{
-				name: nls.localize('findInFiles.args', "A set of options for the search viewlet"),
+				name: nls.localize('findInFiles.args', "A set of options for the search"),
 				schema: {
 					type: 'object',
 					properties: {
@@ -703,14 +705,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						isCaseSensitive: { 'type': 'boolean' },
 						matchWholeWord: { 'type': 'boolean' },
 						useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
+						onlyOpenEditors: { 'type': 'boolean' },
 					}
 				}
 			},
 		]
 	},
 	id: Constants.FindInFilesActionId,
-	// Give more weightage to this keybinding than of `View: Show Search` keybinding. See #116188, #115556, #115511
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 	handler: FindInFilesCommand
@@ -922,6 +924,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.location', "Controls whether the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
 			deprecationMessage: nls.localize('search.location.deprecationMessage', "This setting is deprecated. You can drag the search icon to a new location instead.")
 		},
+		'search.maxResults': {
+			type: ['number', 'null'],
+			default: 20000,
+			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
+		},
 		'search.collapseResults': {
 			type: 'string',
 			enum: ['auto', 'alwaysCollapse', 'alwaysExpand'],
@@ -1013,6 +1020,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
+		},
+		'search.forceSearchProcess': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.forceSearchProcess', "When enabled, search in a local window runs in a separate search process instead of the extension host.")
 		}
 	}
 });

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
-import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
+import { getMigratedSettingValue, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
 	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
@@ -72,7 +72,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		const updateMode = getMigratedSettingValue<string>(this.configurationService, 'update.mode', 'update.channel');
+		const updateMode = this.getUpdateMode();
 		const quality = this.getProductQuality(updateMode);
 
 		if (!quality) {
@@ -102,6 +102,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 		}
+	}
+
+	private getUpdateMode(): 'none' | 'manual' | 'start' | 'default' {
+		return getMigratedSettingValue<'none' | 'manual' | 'start' | 'default'>(this.configurationService, 'update.mode', 'update.channel');
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
@@ -177,20 +181,18 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return Promise.resolve(undefined);
 	}
 
-	isLatestVersion(): Promise<boolean | undefined> {
+	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
-			return Promise.resolve(undefined);
+			return undefined;
+		} else if (this.getUpdateMode() === 'none') {
+			return false;
 		}
 
-		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
-			// The update server replies with 204 (No Content) when no
-			// update is available - that's all we want to know.
-			if (context.res.statusCode === 204) {
-				return true;
-			} else {
-				return false;
-			}
-		});
+		const context = await this.requestService.request({ url: this.url }, CancellationToken.None);
+
+		// The update server replies with 204 (No Content) when no
+		// update is available - that's all we want to know.
+		return context.res.statusCode === 204;
 	}
 
 	protected getUpdateType(): UpdateType {

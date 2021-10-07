@@ -43,11 +43,11 @@ exports.load = function (entrypoint, onLoad, onError) {
 		return;
 	}
 
-	// cached data config
-	if (process.env['VSCODE_NODE_CACHED_DATA_DIR']) {
+	// code cache config
+	if (process.env['VSCODE_CODE_CACHE_PATH']) {
 		loader.config({
 			nodeCachedData: {
-				path: process.env['VSCODE_NODE_CACHED_DATA_DIR'],
+				path: process.env['VSCODE_CODE_CACHE_PATH'],
 				seed: entrypoint
 			}
 		});

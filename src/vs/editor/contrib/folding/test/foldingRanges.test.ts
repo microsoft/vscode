@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { MAX_FOLDING_REGIONS } from 'vs/editor/contrib/folding/foldingRanges';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 let markers: FoldingMarkers = {
 	start: /^\s*#region\b/,

@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
-import { IRequestService, asText, isSuccess as isSuccessContext, asJson } from 'vs/platform/request/common/request';
-import { joinPath, relativePath } from 'vs/base/common/resources';
+import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
+import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { joinPath, relativePath } from 'vs/base/common/resources';
+import { isArray, isObject, isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { asJson, asText, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { generateUuid } from 'vs/base/common/uuid';
-import { isWeb } from 'vs/base/common/platform';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createCancelablePromise, timeout, CancelablePromise } from 'vs/base/common/async';
-import { isString, isObject, isArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { CONFIGURATION_SYNC_STORE_KEY, HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
@@ -174,7 +175,6 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 				const headers: IHeaders = {
 					'X-Client-Name': `${productService.applicationName}${isWeb ? '-web' : ''}`,
 					'X-Client-Version': productService.version,
-					'X-Machine-Id': uuid
 				};
 				if (productService.commit) {
 					headers['X-Client-Commit'] = productService.commit;
@@ -284,17 +284,26 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
 
+		let userData: IUserData | null = null;
 		if (context.res.statusCode === 304) {
-			// There is no new value. Hence return the old value.
-			return oldValue!;
+			userData = oldValue;
 		}
 
-		const ref = context.res.headers['etag'];
-		if (!ref) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.headers[HEADER_OPERATION_ID]);
+		if (userData === null) {
+			const ref = context.res.headers['etag'];
+			if (!ref) {
+				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			const content = await asText(context);
+			if (!content && context.res.statusCode === 304) {
+				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			userData = { ref, content };
 		}
-		const content = await asText(context);
-		return { ref, content };
+
+		return userData;
 	}
 
 	async write(resource: ServerResource, data: string, ref: string | null, headers: IHeaders = {}): Promise<string> {
@@ -304,7 +313,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		headers = { ...headers };
-		headers['Content-Type'] = 'text/plain';
+		headers['Content-Type'] = Mimes.text;
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
@@ -313,12 +322,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const newRef = context.res.headers['etag'];
 		if (!newRef) {
-			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.headers[HEADER_OPERATION_ID]);
+			throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
 		}
 		return newRef;
 	}
 
-	async manifest(headers: IHeaders = {}): Promise<IUserDataManifest | null> {
+	async manifest(oldValue: IUserDataManifest | null, headers: IHeaders = {}): Promise<IUserDataManifest | null> {
 		if (!this.userDataSyncStoreUrl) {
 			throw new Error('No settings sync store url configured.');
 		}
@@ -326,10 +335,33 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		const url = joinPath(this.userDataSyncStoreUrl, 'manifest').toString();
 		headers = { ...headers };
 		headers['Content-Type'] = 'application/json';
+		if (oldValue) {
+			headers['If-None-Match'] = oldValue.ref;
+		}
 
-		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+		const context = await this.request(url, { type: 'GET', headers }, [304], CancellationToken.None);
 
-		const manifest = await asJson<IUserDataManifest>(context);
+		let manifest: IUserDataManifest | null = null;
+		if (context.res.statusCode === 304) {
+			manifest = oldValue;
+		}
+
+		if (!manifest) {
+			const ref = context.res.headers['etag'];
+			if (!ref) {
+				throw new UserDataSyncStoreError('Server did not return the ref', url, UserDataSyncErrorCode.NoRef, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			const content = await asText(context);
+			if (!content && context.res.statusCode === 304) {
+				throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+			}
+
+			if (content) {
+				manifest = { ...JSON.parse(content), ref };
+			}
+		}
+
 		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
 
 		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
@@ -356,7 +388,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
-		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+		const headers: IHeaders = { 'Content-Type': Mimes.text };
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 
@@ -371,11 +403,11 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 	private async request(url: string, options: IRequestOptions, successCodes: number[], token: CancellationToken): Promise<IRequestContext> {
 		if (!this.authToken) {
-			throw new UserDataSyncStoreError('No Auth Token Available', url, UserDataSyncErrorCode.Unauthorized, undefined);
+			throw new UserDataSyncStoreError('No Auth Token Available', url, UserDataSyncErrorCode.Unauthorized, undefined, undefined);
 		}
 
 		if (this._donotMakeRequestsUntil && Date.now() < this._donotMakeRequestsUntil.getTime()) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, undefined);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, undefined, undefined);
 		}
 		this.setDonotMakeRequestsUntil(undefined);
 
@@ -397,9 +429,35 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			context = await this.session.request(url, options, token);
 		} catch (e) {
 			if (!(e instanceof UserDataSyncStoreError)) {
-				const code = isPromiseCanceledError(e) ? UserDataSyncErrorCode.RequestCanceled
-					: getErrorMessage(e).startsWith('XHR timeout') ? UserDataSyncErrorCode.RequestTimeout : UserDataSyncErrorCode.RequestFailed;
-				e = new UserDataSyncStoreError(`Connection refused for the request '${url}'.`, url, code, undefined);
+				let code = UserDataSyncErrorCode.RequestFailed;
+				const errorMessage = getErrorMessage(e).toLowerCase();
+
+				// Request timed out
+				if (errorMessage.includes('xhr timeout')) {
+					code = UserDataSyncErrorCode.RequestTimeout;
+				}
+
+				// Request protocol not supported
+				else if (errorMessage.includes('protocol') && errorMessage.includes('not supported')) {
+					code = UserDataSyncErrorCode.RequestProtocolNotSupported;
+				}
+
+				// Request path not escaped
+				else if (errorMessage.includes('request path contains unescaped characters')) {
+					code = UserDataSyncErrorCode.RequestPathNotEscaped;
+				}
+
+				// Request header not an object
+				else if (errorMessage.includes('headers must be an object')) {
+					code = UserDataSyncErrorCode.RequestHeadersNotObject;
+				}
+
+				// Request canceled
+				else if (isPromiseCanceledError(e)) {
+					code = UserDataSyncErrorCode.RequestCanceled;
+				}
+
+				e = new UserDataSyncStoreError(`Connection refused for the request '${url}'.`, url, code, undefined, undefined);
 			}
 			this.logService.info('Request failed', url);
 			throw e;
@@ -417,43 +475,43 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		if (context.res.statusCode === 401) {
 			this.authToken = undefined;
 			this._onTokenFailed.fire();
-			throw new UserDataSyncStoreError(`Request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, operationId);
+			throw new UserDataSyncStoreError(`Request '${url}' failed because of Unauthorized (401).`, url, UserDataSyncErrorCode.Unauthorized, context.res.statusCode, operationId);
 		}
 
 		this._onTokenSucceed.fire();
 
 		if (context.res.statusCode === 409) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Conflict (409). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.Conflict, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Conflict (409). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.Conflict, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 410) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested resource is not longer available (410).`, url, UserDataSyncErrorCode.Gone, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because the requested resource is not longer available (410).`, url, UserDataSyncErrorCode.Gone, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 412) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Precondition Failed (412). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.PreconditionFailed, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of Precondition Failed (412). There is new data for this resource. Make the request again with latest data.`, url, UserDataSyncErrorCode.PreconditionFailed, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 413) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too large payload (413).`, url, UserDataSyncErrorCode.TooLarge, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too large payload (413).`, url, UserDataSyncErrorCode.TooLarge, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 426) {
-			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed with status Upgrade Required (426). Please upgrade the client and try again.`, url, UserDataSyncErrorCode.UpgradeRequired, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${url}' failed with status Upgrade Required (426). Please upgrade the client and try again.`, url, UserDataSyncErrorCode.UpgradeRequired, context.res.statusCode, operationId);
 		}
 
 		if (context.res.statusCode === 429) {
 			const retryAfter = context.res.headers['retry-after'];
 			if (retryAfter) {
 				this.setDonotMakeRequestsUntil(new Date(Date.now() + (parseInt(retryAfter) * 1000)));
-				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, operationId);
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter, context.res.statusCode, operationId);
 			} else {
-				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequests, operationId);
+				throw new UserDataSyncStoreError(`${options.type} request '${url}' failed because of too many requests (429).`, url, UserDataSyncErrorCode.TooManyRequests, context.res.statusCode, operationId);
 			}
 		}
 
 		if (!isSuccess) {
-			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.Unknown, operationId);
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.Unknown, context.res.statusCode, operationId);
 		}
 
 		return context;
@@ -514,7 +572,7 @@ export class RequestsSession {
 
 		if (this.requests.length >= this.limit) {
 			this.logService.info('Too many requests', ...this.requests);
-			throw new UserDataSyncStoreError(`Too many requests. Only ${this.limit} requests allowed in ${this.interval / (1000 * 60)} minutes.`, url, UserDataSyncErrorCode.LocalTooManyRequests, undefined);
+			throw new UserDataSyncStoreError(`Too many requests. Only ${this.limit} requests allowed in ${this.interval / (1000 * 60)} minutes.`, url, UserDataSyncErrorCode.LocalTooManyRequests, undefined, undefined);
 		}
 
 		this.startTime = this.startTime || new Date();

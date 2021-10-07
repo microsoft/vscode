@@ -3,33 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain, app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { Barrier, Promises, timeout } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { cwd } from 'vs/base/common/process';
+import { assertIsDefined } from 'vs/base/common/types';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { Event, Emitter } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Promises, Barrier, timeout } from 'vs/base/common/async';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { assertIsDefined } from 'vs/base/common/types';
-import { cwd } from 'vs/base/common/process';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
-
-export const enum UnloadReason {
-	CLOSE = 1,
-	QUIT = 2,
-	RELOAD = 3,
-	LOAD = 4
-}
 
 export interface IWindowLoadEvent {
 	window: ICodeWindow;
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	reason: LoadReason;
 }
 
 export interface IWindowUnloadEvent {
@@ -287,13 +281,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this.logService.trace('Lifecycle#onWillShutdown.fire()');
 
-		const joiners: Promise<void>[] = [
-			// Always make sure the state service
-			// is flushed. Since we depend on it
-			// we cannot really use the lifecycle
-			// service from the state service...
-			this.stateMainService.flush()
-		];
+		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
 			join(promise) {
@@ -301,7 +289,23 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			}
 		});
 
-		this.pendingWillShutdownPromise = Promises.settled(joiners).then(() => undefined, err => this.logService.error(err));
+		this.pendingWillShutdownPromise = (async () => {
+
+			// Settle all shutdown event joiners
+			try {
+				await Promises.settled(joiners);
+			} catch (error) {
+				this.logService.error(error);
+			}
+
+			// Then, always make sure at the end
+			// the state service is flushed.
+			try {
+				await this.stateMainService.close();
+			} catch (error) {
+				this.logService.error(error);
+			}
+		})();
 
 		return this.pendingWillShutdownPromise;
 	}
@@ -347,7 +351,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.windowCounter++;
 
 		// Window Will Load
-		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace })));
+		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);

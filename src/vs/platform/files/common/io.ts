@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, createFileSystemProviderError, FileSystemProviderErrorCode, ensureFileSystemProviderError } from 'vs/platform/files/common/files';
 import { canceled } from 'vs/base/common/errors';
-import { IErrorTransformer, IDataTransformer, WriteableStream } from 'vs/base/common/stream';
+import { IDataTransformer, IErrorTransformer, WriteableStream } from 'vs/base/common/stream';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { createFileSystemProviderError, ensureFileSystemProviderError, FileReadStreamOptions, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
 import product from 'vs/platform/product/common/product';
 
 export interface ICreateReadStreamOptions extends FileReadStreamOptions {

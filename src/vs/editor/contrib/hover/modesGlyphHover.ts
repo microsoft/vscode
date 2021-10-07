@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
+import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { GlyphHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
-import { asArray } from 'vs/base/common/arrays';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+
+const $ = dom.$;
 
 export interface IHoverMessage {
 	value: IMarkdownString;
@@ -83,9 +87,14 @@ class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 	}
 }
 
-export class ModesGlyphHoverWidget extends GlyphHoverWidget {
+export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
+
+	private readonly _editor: ICodeEditor;
+	private readonly _hover: HoverWidget;
+
+	private _isVisible: boolean;
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
@@ -99,14 +108,17 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		modeService: IModeService,
 		openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesGlyphHoverWidget.ID, editor);
+		super();
+		this._editor = editor;
 
+		this._hover = this._register(new HoverWidget());
+
+		this._isVisible = false;
 		this._messages = [];
 		this._lastLineNumber = -1;
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);
-
 		this._hoverOperation = new HoverOperation(
 			this._computer,
 			(result: IHoverMessage[]) => this._withResult(result),
@@ -115,15 +127,63 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 			300
 		);
 
+		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (e.hasChanged(EditorOption.fontInfo)) {
+				this._updateFont();
+			}
+		}));
+
+		this._editor.addOverlayWidget(this);
 	}
 
 	public override dispose(): void {
 		this._hoverOperation.cancel();
+		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
 
+	public getId(): string {
+		return ModesGlyphHoverWidget.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this._hover.containerDomNode;
+	}
+
+	public getPosition(): IOverlayWidgetPosition | null {
+		return null;
+	}
+
+	private _showAt(lineNumber: number): void {
+		if (!this._isVisible) {
+			this._isVisible = true;
+			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
+		}
+
+		const editorLayout = this._editor.getLayoutInfo();
+		const topForLineNumber = this._editor.getTopForLineNumber(lineNumber);
+		const editorScrollTop = this._editor.getScrollTop();
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const nodeHeight = this._hover.containerDomNode.clientHeight;
+		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
+
+		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+	}
+
+	private _updateFont(): void {
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
+		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+	}
+
+	private _updateContents(node: Node): void {
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
+		this._updateFont();
+	}
+
 	public onModelDecorationsChanged(): void {
-		if (this.isVisible) {
+		if (this._isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -147,13 +207,17 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
-	public override hide(): void {
+	public hide(): void {
 		this._lastLineNumber = -1;
 		this._hoverOperation.cancel();
-		super.hide();
+		if (!this._isVisible) {
+			return;
+		}
+		this._isVisible = false;
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
-	public _withResult(result: IHoverMessage[]): void {
+	private _withResult(result: IHoverMessage[]): void {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
@@ -169,12 +233,14 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		const fragment = document.createDocumentFragment();
 
 		for (const msg of messages) {
-			const renderedContents = this._markdownRenderer.render(msg.value);
-			this._renderDisposeables.add(renderedContents);
-			fragment.appendChild($('div.hover-row', undefined, renderedContents.element));
+			const markdownHoverElement = $('div.hover-row.markdown-hover');
+			const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+			const renderedContents = this._renderDisposeables.add(this._markdownRenderer.render(msg.value));
+			hoverContentsElement.appendChild(renderedContents.element);
+			fragment.appendChild(markdownHoverElement);
 		}
 
-		this.updateContents(fragment);
-		this.showAt(lineNumber);
+		this._updateContents(fragment);
+		this._showAt(lineNumber);
 	}
 }

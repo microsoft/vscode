@@ -18,7 +18,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -197,6 +197,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 				}],
 				title: modelGroup.title,
 				titleRange: modelGroup.titleRange,
+				order: modelGroup.order,
 				extensionInfo: modelGroup.extensionInfo
 			};
 		}
@@ -566,7 +567,7 @@ export class DefaultSettings extends Disposable {
 			if (!settingsGroup) {
 				settingsGroup = result.find(g => g.title === title && g.extensionInfo?.id === config.extensionInfo?.id);
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
 					result.push(settingsGroup);
 				}
 			} else {
@@ -575,7 +576,7 @@ export class DefaultSettings extends Disposable {
 		}
 		if (config.properties) {
 			if (!settingsGroup) {
-				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, range: nullRange, extensionInfo: config.extensionInfo };
+				settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: config.id || '', titleRange: nullRange, order: config.order ?? 0, range: nullRange, extensionInfo: config.extensionInfo };
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = [];
@@ -612,20 +613,45 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				const description = (prop.description || prop.markdownDescription || '').split('\n');
+				let description = (prop.description || prop.markdownDescription || '');
+				if (typeof description !== 'string') {
+					description = '';
+				}
+				const descriptionLines = description.split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				const listItemType = prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type && !isArray(prop.items.type)
-					? prop.items.type
-					: undefined;
+				let listItemType: string | undefined;
+				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
+					if (prop.items.enum) {
+						listItemType = 'enum';
+					} else if (!isArray(prop.items.type)) {
+						listItemType = prop.items.type;
+					}
+				}
 
 				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
 				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
 
+				let enumToUse = prop.enum;
+				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
+				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
+				if (listItemType === 'enum' && !isArray(prop.items)) {
+					enumToUse = prop.items!.enum;
+					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
+					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
+				}
+
+				let allKeysAreBoolean = false;
+				if (prop.type === 'object' && !prop.additionalProperties && prop.properties && Object.keys(prop.properties).length) {
+					allKeysAreBoolean = Object.keys(prop.properties).every(key => {
+						return prop.properties![key].type === 'boolean';
+					});
+				}
+
 				result.push({
 					key,
 					value,
-					description,
+					description: descriptionLines,
 					descriptionIsMarkdown: !prop.description,
 					range: nullRange,
 					keyRange: nullRange,
@@ -638,9 +664,10 @@ export class DefaultSettings extends Disposable {
 					objectProperties,
 					objectPatternProperties,
 					objectAdditionalProperties,
-					enum: prop.enum,
-					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
-					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					enum: enumToUse,
+					enumDescriptions: enumDescriptions,
+					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
 					restricted: prop.restricted,
@@ -648,7 +675,9 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels
+					enumItemLabels: prop.enumItemLabels,
+					allKeysAreBoolean,
+					editPresentation: prop.editPresentation
 				});
 			}
 		}
@@ -699,12 +728,9 @@ export class DefaultSettings extends Disposable {
 
 	private toContent(settingsGroups: ISettingsGroup[]): string {
 		const builder = new SettingsContentBuilder();
-		builder.pushLine('[');
 		settingsGroups.forEach((settingsGroup, i) => {
-			builder.pushGroup(settingsGroup);
-			builder.pushLine(',');
+			builder.pushGroup(settingsGroup, i === 0, i === settingsGroups.length - 1);
 		});
-		builder.pushLine(']');
 		return builder.getContent();
 	}
 
@@ -779,12 +805,14 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		const settingsGroups: ISettingsGroup[] = [];
 		const matches: IRange[] = [];
-		builder.pushLine(',');
-		groups.forEach(resultGroup => {
-			const settingsGroup = this.getGroup(resultGroup);
-			settingsGroups.push(settingsGroup);
-			matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
-		});
+		if (groups.length) {
+			builder.pushLine(',');
+			groups.forEach(resultGroup => {
+				const settingsGroup = this.getGroup(resultGroup);
+				settingsGroups.push(settingsGroup);
+				matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
+			});
+		}
 
 		// note: 1-indexed line numbers here
 		const groupContent = builder.getContent() + '\n';
@@ -824,7 +852,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			});
 
 		builder.pushGroup(settingsGroup);
-		builder.pushLine(',');
 
 		// builder has rewritten settings ranges, fix match ranges
 		const fixedMatches = flatten(
@@ -916,10 +943,8 @@ class SettingsContentBuilder {
 		this._contentByLines.push(...lineText);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup): void {
-		this._contentByLines.push('{');
-		this._contentByLines.push('');
-		this._contentByLines.push('');
+	pushGroup(settingsGroups: ISettingsGroup, isFirst?: boolean, isLast?: boolean): void {
+		this._contentByLines.push(isFirst ? '[{' : '{');
 		const lastSetting = this._pushGroup(settingsGroups, '  ');
 
 		if (lastSetting) {
@@ -929,7 +954,7 @@ class SettingsContentBuilder {
 			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
 		}
 
-		this._contentByLines.push('}');
+		this._contentByLines.push(isLast ? '}]' : '},');
 	}
 
 	protected _pushGroup(group: ISettingsGroup, indent: string): ISetting | null {

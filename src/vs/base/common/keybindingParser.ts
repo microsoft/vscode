@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChordKeybinding, KeyCodeUtils, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, Keybinding, KeyCodeUtils, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 

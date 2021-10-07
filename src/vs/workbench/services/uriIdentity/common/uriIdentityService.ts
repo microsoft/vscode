@@ -45,7 +45,7 @@ export class UriIdentityService implements IUriIdentityService {
 			let ignorePathCasing = schemeIgnoresPathCasingCache.get(uri.scheme);
 			if (ignorePathCasing === undefined) {
 				// retrieve once and then case per scheme until a change happens
-				ignorePathCasing = _fileService.canHandleResource(uri) && !this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				ignorePathCasing = _fileService.hasProvider(uri) && !this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
 				schemeIgnoresPathCasingCache.set(uri.scheme, ignorePathCasing);
 			}
 			return ignorePathCasing;
@@ -70,7 +70,7 @@ export class UriIdentityService implements IUriIdentityService {
 	asCanonicalUri(uri: URI): URI {
 
 		// (1) normalize URI
-		if (this._fileService.canHandleResource(uri)) {
+		if (this._fileService.hasProvider(uri)) {
 			uri = normalizePath(uri);
 		}
 

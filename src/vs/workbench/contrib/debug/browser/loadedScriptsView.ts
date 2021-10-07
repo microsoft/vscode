@@ -523,12 +523,14 @@ export class LoadedScriptsView extends ViewPane {
 		};
 
 		const addSourcePathsToSession = async (session: IDebugSession) => {
-			const sessionNode = root.add(session);
-			const paths = await session.getLoadedSources();
-			for (const path of paths) {
-				await sessionNode.addPath(path);
+			if (session.capabilities.supportsLoadedSourcesRequest) {
+				const sessionNode = root.add(session);
+				const paths = await session.getLoadedSources();
+				for (const path of paths) {
+					await sessionNode.addPath(path);
+				}
+				scheduleRefreshOnVisible();
 			}
-			scheduleRefreshOnVisible();
 		};
 
 		const registerSessionListeners = (session: IDebugSession) => {

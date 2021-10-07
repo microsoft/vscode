@@ -107,23 +107,29 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		// get start and end locations and create substrings
 		const start = this.locationAt(range.start);
 		const end = this.locationAt(range.end);
-		const startCell = this._cells[this._cellUris.get(start.uri) ?? -1];
-		const endCell = this._cells[this._cellUris.get(end.uri) ?? -1];
 
-		if (!startCell || !endCell) {
+		const startIdx = this._cellUris.get(start.uri);
+		const endIdx = this._cellUris.get(end.uri);
+
+		if (startIdx === undefined || endIdx === undefined) {
 			return '';
-		} else if (startCell === endCell) {
-			return startCell.document.getText(new types.Range(start.range.start, end.range.end));
-		} else {
-			const a = startCell.document.getText(new types.Range(start.range.start, new types.Position(startCell.document.lineCount, 0)));
-			const b = endCell.document.getText(new types.Range(new types.Position(0, 0), end.range.end));
-			return a + '\n' + b;
 		}
+
+		if (startIdx === endIdx) {
+			return this._cells[startIdx].document.getText(new types.Range(start.range.start, end.range.end));
+		}
+
+		const parts = [this._cells[startIdx].document.getText(new types.Range(start.range.start, new types.Position(this._cells[startIdx].document.lineCount, 0)))];
+		for (let i = startIdx + 1; i < endIdx; i++) {
+			parts.push(this._cells[i].document.getText());
+		}
+		parts.push(this._cells[endIdx].document.getText(new types.Range(new types.Position(0, 0), end.range.end)));
+		return parts.join('\n');
 	}
 
 	offsetAt(position: vscode.Position): number {
 		const idx = this._cellLines.getIndexOf(position.line);
-		const offset1 = this._cellLengths.getAccumulatedValue(idx.index - 1);
+		const offset1 = this._cellLengths.getPrefixSum(idx.index - 1);
 		const offset2 = this._cells[idx.index].document.offsetAt(position.with(idx.remainder));
 		return offset1 + offset2;
 	}
@@ -131,13 +137,13 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	positionAt(locationOrOffset: vscode.Location | number): vscode.Position {
 		if (typeof locationOrOffset === 'number') {
 			const idx = this._cellLengths.getIndexOf(locationOrOffset);
-			const lineCount = this._cellLines.getAccumulatedValue(idx.index - 1);
+			const lineCount = this._cellLines.getPrefixSum(idx.index - 1);
 			return this._cells[idx.index].document.positionAt(idx.remainder).translate(lineCount);
 		}
 
 		const idx = this._cellUris.get(locationOrOffset.uri);
 		if (idx !== undefined) {
-			const line = this._cellLines.getAccumulatedValue(idx - 1);
+			const line = this._cellLines.getPrefixSum(idx - 1);
 			return new types.Position(line + locationOrOffset.range.start.line, locationOrOffset.range.start.character);
 		}
 		// do better?
@@ -180,7 +186,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellPosition = new types.Position(startIdx.remainder, position.character);
 		const validCellPosition = this._cells[startIdx.index].document.validatePosition(cellPosition);
 
-		const line = this._cellLines.getAccumulatedValue(startIdx.index - 1);
+		const line = this._cellLines.getPrefixSum(startIdx.index - 1);
 		return new types.Position(line + validCellPosition.line, validCellPosition.character);
 	}
 }

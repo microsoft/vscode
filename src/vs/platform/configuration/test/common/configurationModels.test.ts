@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser, Configuration, mergeChanges, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { join } from 'vs/base/common/path';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { AllKeysConfigurationChangeEvent, Configuration, ConfigurationChangeEvent, ConfigurationModel, ConfigurationModelParser, DefaultConfigurationModel, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { join } from 'vs/base/common/path';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('ConfigurationModel', () => {
@@ -332,6 +332,16 @@ suite('CustomConfigurationModel', () => {
 
 		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
+	});
+
+	test('Test empty property is not ignored', () => {
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({ '': 1 }));
+
+		// deepStrictEqual seems to ignore empty properties, fall back
+		// to comparing the output of JSON.stringify
+		assert.strictEqual(JSON.stringify(testObject.configurationModel.contents), JSON.stringify({ '': 1 }));
+		assert.deepStrictEqual(testObject.configurationModel.keys, ['']);
 	});
 
 	test('Test registering the same property again', () => {

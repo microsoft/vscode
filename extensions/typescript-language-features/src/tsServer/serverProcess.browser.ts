@@ -36,7 +36,7 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	private _onDataHandlers = new Set<(data: Proto.Response) => void>();
 	private _onErrorHandlers = new Set<(err: Error) => void>();
-	private _onExitHandlers = new Set<(code: number | null) => void>();
+	private _onExitHandlers = new Set<(code: number | null, signal: string | null) => void>();
 
 	public constructor(
 		private readonly worker: Worker,
@@ -52,6 +52,11 @@ export class WorkerServerProcess implements TsServerProcess {
 				handler(msg.data);
 			}
 		});
+		worker.onerror = (err: Error) => {
+			for (const handler of this._onErrorHandlers) {
+				handler(err);
+			}
+		};
 		worker.postMessage(args);
 	}
 
@@ -70,10 +75,9 @@ export class WorkerServerProcess implements TsServerProcess {
 
 	onError(handler: (err: Error) => void): void {
 		this._onErrorHandlers.add(handler);
-		// Todo: not implemented
 	}
 
-	onExit(handler: (code: number | null) => void): void {
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
 		this._onExitHandlers.add(handler);
 		// Todo: not implemented
 	}

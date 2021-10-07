@@ -21,7 +21,7 @@
 	},
 	"Insert fenced code block": {
 		"prefix": "fenced codeblock",
-		"body": ["```${1:language}", "${TM_SELECTED_TEXT}$0", "```"],
+		"body": ["```${1|python,c,c++,c#,ruby,go,java,php,htm,css,javascript,json,markdown,console|}", "${TM_SELECTED_TEXT}$0", "```"],
 		"description": "Insert fenced code block"
 	},
 	"Insert heading level 1": {
@@ -88,5 +88,5 @@
 		"prefix": "strikethrough",
 		"body": "~~${1:${TM_SELECTED_TEXT}}~~",
 		"description": "Insert strikethrough"
-	},	
+	},
 }

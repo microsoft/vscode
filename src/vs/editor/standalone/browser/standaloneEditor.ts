@@ -24,7 +24,7 @@ import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebW
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
-import { IDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IStandaloneEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor, StandaloneDiffEditor, StandaloneEditor, createTextModel, IStandaloneDiffEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { DynamicStandaloneServices, IEditorOverrideServices, StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -111,7 +111,7 @@ export function onDidCreateEditor(listener: (codeEditor: ICodeEditor) => void): 
  * `domElement` should be empty (not contain other dom nodes).
  * The editor will read the size of `domElement`.
  */
-export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
+export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	return withAllStandaloneServices(domElement, override || {}, (services) => {
 		return new StandaloneDiffEditor(
 			domElement,

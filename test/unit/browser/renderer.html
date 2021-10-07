@@ -53,7 +53,8 @@
 			paths: {
 				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href,
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
+				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
 				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
 				'iconv-lite-umd': new URL('../../../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
@@ -84,7 +85,8 @@
 				async: runnable.async,
 				slow: runnable.slow(),
 				speed: runnable.speed,
-				duration: runnable.duration
+				duration: runnable.duration,
+				currentRetry: runnable.currentRetry(),
 			};
 		}
 		function serializeError(err) {
@@ -112,7 +114,7 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
-		window.loadAndRun = async function loadAndRun(modules, manual = false) {
+		window.loadAndRun = async function loadAndRun({ modules, grep }, manual = false) {
 			// load
 			await Promise.all(modules.map(module => new Promise((resolve, reject) => {
 				require([module], resolve, err => {
@@ -130,6 +132,10 @@
 
 			// run
 			return new Promise((resolve, reject) => {
+				if (grep) {
+					mocha.grep(grep);
+				}
+
 				if (!manual) {
 					mocha.reporter(PlaywrightReporter);
 				}

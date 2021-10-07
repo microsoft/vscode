@@ -5,11 +5,11 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Schemas } from 'vs/base/common/network';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffElementViewModelBase, getFormatedMetadataJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -23,9 +23,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Delayer } from 'vs/base/common/async';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { OutputContainer } from 'vs/workbench/contrib/notebook/browser/diff/diffElementOutputs';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -40,17 +38,19 @@ import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 
+const fixedEditorPadding = {
+	top: 12,
+	bottom: 12
+};
 export const fixedEditorOptions: IEditorOptions = {
-	padding: {
-		top: 12,
-		bottom: 12
-	},
+	padding: fixedEditorPadding,
 	scrollBeyondLastLine: false,
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
-		vertical: 'hidden',
+		vertical: 'auto',
 		useShadows: true,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
@@ -86,7 +86,7 @@ export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOp
 	};
 }
 
-export const fixedDiffEditorOptions: IDiffEditorOptions = {
+export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	...fixedEditorOptions,
 	glyphMargin: true,
 	enableSplitViewResizing: false,
@@ -146,7 +146,7 @@ class PropertyHeader extends Disposable {
 		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
 					return item;
 				}
 
@@ -303,10 +303,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		super();
 		// init
 		this._isDisposed = false;
-		this._metadataEditorDisposeStore = new DisposableStore();
-		this._outputEditorDisposeStore = new DisposableStore();
-		this._register(this._metadataEditorDisposeStore);
-		this._register(this._outputEditorDisposeStore);
+		this._metadataEditorDisposeStore = this._register(new DisposableStore());
+		this._outputEditorDisposeStore = this._register(new DisposableStore());
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
 		this.init();
@@ -491,22 +489,6 @@ abstract class AbstractElementRenderer extends Disposable {
 						}
 						break;
 
-					case 'executionOrder':
-						// number
-						if (typeof newMetadataObj[key] === 'number') {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
-					case 'runState':
-						// enum
-						if (typeof newMetadataObj[key] === 'number' && [1, 2, 3, 4].indexOf(newMetadataObj[key]) >= 0) {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
 					default:
 						result[key] = newMetadataObj[key];
 						break;
@@ -550,8 +532,8 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellMetadataUri(this.cell.originalDocument.uri, this.cell.original!.handle));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellMetadataUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle));
+			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.originalDocument.uri, this.cell.original!.handle, Schemas.vscodeNotebookCellMetadata));
+			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellUri(this.cell.modifiedDocument.uri, this.cell.modified!.handle, Schemas.vscodeNotebookCellMetadata));
 			this._metadataEditor.setModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
@@ -613,7 +595,7 @@ abstract class AbstractElementRenderer extends Disposable {
 				? this.cell.modified!.handle
 				: this.cell.original!.handle;
 
-			const modelUri = CellUri.generateCellMetadataUri(uri, handle);
+			const modelUri = CellUri.generateCellUri(uri, handle, Schemas.vscodeNotebookCellMetadata);
 			const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
 			this._metadataEditor.setModel(metadataModel);
 			this._metadataEditorDisposeStore.add(metadataModel);
@@ -979,7 +961,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		const originalCell = this.cell.original!;
 		const lineCount = originalCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout({
@@ -1130,7 +1112,7 @@ export class InsertElement extends SingleSideDiffElement {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+		const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
 
 		this._editor = this.templateData.sourceEditor;
 		this._editor.layout(
@@ -1468,7 +1450,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const modifiedCell = this.cell.modified!;
 		const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+
+		const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
 		this._editorContainer = this.templateData.editorContainer;
 		this._editor = this.templateData.sourceEditor;
 
@@ -1488,6 +1471,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		}));
 
 		this._initializeSourceDiffEditor();
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
+		this._register(scopedContextKeyService);
+		const inputChanged = NOTEBOOK_DIFF_CELL_INPUT.bindTo(scopedContextKeyService);
 
 		this._inputToolbarContainer = this.templateData.inputToolbarContainer;
 		this._toolbar = this.templateData.toolbar;
@@ -1496,25 +1482,29 @@ export class ModifiedElement extends AbstractElementRenderer {
 			cell: this.cell
 		};
 
-		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, this.contextKeyService);
-		this._register(this._menu);
-		const actions: IAction[] = [];
-		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
-		this._toolbar.setActions(actions);
-
 		if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 			this._inputToolbarContainer.style.display = 'block';
+			inputChanged.set(true);
 		} else {
 			this._inputToolbarContainer.style.display = 'none';
+			inputChanged.set(false);
 		}
 
 		this._register(this.cell.modified!.textModel.onDidChangeContent(() => {
 			if (this.cell.modified!.textModel.getValue() !== this.cell.original!.textModel.getValue()) {
 				this._inputToolbarContainer.style.display = 'block';
+				inputChanged.set(true);
 			} else {
 				this._inputToolbarContainer.style.display = 'none';
+				inputChanged.set(false);
 			}
 		}));
+
+		this._menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
+		this._register(this._menu);
+		const actions: IAction[] = [];
+		createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+		this._toolbar.setActions(actions);
 	}
 
 	private async _initializeSourceDiffEditor() {
@@ -1530,24 +1520,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		const textModel = originalRef.object.textEditorModel;
 		const modifiedTextModel = modifiedRef.object.textEditorModel;
-		this._register({
-			dispose: () => {
-				const delayer = new Delayer<void>(5000);
-				delayer.trigger(() => {
-					originalRef.dispose();
-					delayer.dispose();
-				});
-			}
-		});
-		this._register({
-			dispose: () => {
-				const delayer = new Delayer<void>(5000);
-				delayer.trigger(() => {
-					modifiedRef.dispose();
-					delayer.dispose();
-				});
-			}
-		});
+		this._register(originalRef);
+		this._register(modifiedRef);
 
 		this._editor!.setModel({
 			original: textModel,

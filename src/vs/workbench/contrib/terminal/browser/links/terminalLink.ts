@@ -91,7 +91,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 				// Clear out scheduler until next hover event
 				this._tooltipScheduler?.dispose();
 				this._tooltipScheduler = undefined;
-			}, this._configurationService.getValue<number>('workbench.hover.delay'));
+			}, this._configurationService.getValue('workbench.hover.delay'));
 			this.add(this._tooltipScheduler);
 			this._tooltipScheduler.schedule();
 		}

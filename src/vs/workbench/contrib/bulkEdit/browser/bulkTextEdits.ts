@@ -102,7 +102,7 @@ class ModelEditTask implements IDisposable {
 
 class EditorEditTask extends ModelEditTask {
 
-	private _editor: ICodeEditor;
+	private readonly _editor: ICodeEditor;
 
 	constructor(modelReference: IReference<IResolvedTextEditorModel>, editor: ICodeEditor) {
 		super(modelReference);
@@ -110,10 +110,18 @@ class EditorEditTask extends ModelEditTask {
 	}
 
 	override getBeforeCursorState(): Selection[] | null {
-		return this._editor.getSelections();
+		return this._canUseEditor() ? this._editor.getSelections() : null;
 	}
 
 	override apply(): void {
+
+		// Check that the editor is still for the wanted model. It might have changed in the
+		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
+		if (!this._canUseEditor()) {
+			super.apply();
+			return;
+		}
+
 		if (this._edits.length > 0) {
 			this._edits = this._edits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this._editor.executeEdits('', this._edits);
@@ -123,6 +131,10 @@ class EditorEditTask extends ModelEditTask {
 				this._editor.getModel().pushEOL(this._newEol);
 			}
 		}
+	}
+
+	private _canUseEditor(): boolean {
+		return this._editor?.getModel()?.uri.toString() === this.model.uri.toString();
 	}
 }
 

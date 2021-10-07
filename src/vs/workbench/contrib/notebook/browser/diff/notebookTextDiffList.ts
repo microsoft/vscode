@@ -183,7 +183,7 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 		const toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextKeyService);
 					return item;
 				}
 
@@ -229,6 +229,10 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 
 		const editor = this.instantiationService.createInstance(DiffEditorWidget, editorContainer, {
 			...fixedDiffEditorOptions,
+			padding: {
+				top: 24,
+				bottom: 12
+			},
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 			originalEditable: false,
 			ignoreTrimWhitespace: false,

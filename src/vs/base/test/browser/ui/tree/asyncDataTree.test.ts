@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeNode, ITreeRenderer, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 
 interface Element {

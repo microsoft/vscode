@@ -57,11 +57,18 @@
 .monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.system-disable.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
-.monaco-action-bar .action-item .action-label.extension-action.manage.hide,
-.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
+.monaco-action-bar .action-item .action-label.extension-action.manage.hide {
 	display: none;
+}
+
+.monaco-action-bar .extension-action.label {
+	display: inherit;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-status:before {
+	opacity: 1;
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {

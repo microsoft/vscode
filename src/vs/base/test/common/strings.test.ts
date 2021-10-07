@@ -113,6 +113,17 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
+	test('format2', () => {
+		assert.strictEqual(strings.format2('Foo Bar', {}), 'Foo Bar');
+		assert.strictEqual(strings.format2('Foo {oops} Bar', {}), 'Foo {oops} Bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar', { foo: 'bar' }), 'Foo bar Bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {foo}', { foo: 'bar' }), 'Foo bar Bar bar');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar' }), 'Foo bar Bar {bar}{boo}');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: 'undefined' }), 'Foo bar Bar undefined{boo}');
+		assert.strictEqual(strings.format2('Foo {foo} Bar {bar}{boo}', { foo: 'bar', bar: '5', boo: false }), 'Foo bar Bar 5false');
+		assert.strictEqual(strings.format2('Foo {foo} Bar. {bar}', { foo: '(foo)', bar: '.test' }), 'Foo (foo) Bar. .test');
+	});
+
 	test('lcut', () => {
 		assert.strictEqual(strings.lcut('foo bar', 0), '');
 		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
@@ -383,40 +394,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.getNLines('foo\nbar'), 'foo');
 		assert.strictEqual(strings.getNLines('foo\nbar\nsomething', 2), 'foo\nbar');
 		assert.strictEqual(strings.getNLines('foo', 0), '');
-	});
-
-	test('encodeUTF8', function () {
-		function assertEncodeUTF8(str: string, expected: number[]): void {
-			const actual = strings.encodeUTF8(str);
-			const actualArr: number[] = [];
-			for (let offset = 0; offset < actual.byteLength; offset++) {
-				actualArr[offset] = actual[offset];
-			}
-			assert.deepStrictEqual(actualArr, expected);
-		}
-
-		function assertDecodeUTF8(data: number[], expected: string): void {
-			const actual = strings.decodeUTF8(new Uint8Array(data));
-			assert.deepStrictEqual(actual, expected);
-		}
-
-		function assertEncodeDecodeUTF8(str: string, buff: number[]): void {
-			assertEncodeUTF8(str, buff);
-			assertDecodeUTF8(buff, str);
-		}
-
-		assertEncodeDecodeUTF8('\u0000', [0]);
-		assertEncodeDecodeUTF8('!', [33]);
-		assertEncodeDecodeUTF8('\u007F', [127]);
-		assertEncodeDecodeUTF8('\u0080', [194, 128]);
-		assertEncodeDecodeUTF8('Ɲ', [198, 157]);
-		assertEncodeDecodeUTF8('\u07FF', [223, 191]);
-		assertEncodeDecodeUTF8('\u0800', [224, 160, 128]);
-		assertEncodeDecodeUTF8('ஂ', [224, 174, 130]);
-		assertEncodeDecodeUTF8('\uffff', [239, 191, 191]);
-		assertEncodeDecodeUTF8('\u10000', [225, 128, 128, 48]);
-		assertEncodeDecodeUTF8('🧝', [240, 159, 167, 157]);
-
 	});
 
 	test('getGraphemeBreakType', () => {

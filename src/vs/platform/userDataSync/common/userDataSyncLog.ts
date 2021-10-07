@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
-import { AbstractLogger, ILoggerService, ILogger } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
 

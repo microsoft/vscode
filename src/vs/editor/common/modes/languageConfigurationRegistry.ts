@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -198,6 +198,7 @@ class LanguageConfigurationEntries {
 			result.surroundingPairs = conf.surroundingPairs || result.surroundingPairs;
 			result.autoCloseBefore = conf.autoCloseBefore || result.autoCloseBefore;
 			result.folding = conf.folding || result.folding;
+			result.colorizedBracketPairs = conf.colorizedBracketPairs || result.colorizedBracketPairs;
 			result.__electricCharacterSupport = conf.__electricCharacterSupport || result.__electricCharacterSupport;
 		}
 		return result;
@@ -206,7 +207,7 @@ class LanguageConfigurationEntries {
 
 export class LanguageConfigurationRegistryImpl {
 
-	private readonly _entries2 = new Map<LanguageId, LanguageConfigurationEntries>();
+	private readonly _entries = new Map<LanguageId, LanguageConfigurationEntries>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
@@ -215,10 +216,10 @@ export class LanguageConfigurationRegistryImpl {
 	 * @param priority Use a higher number for higher priority
 	 */
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
-		let entries = this._entries2.get(languageIdentifier.id);
+		let entries = this._entries.get(languageIdentifier.id);
 		if (!entries) {
 			entries = new LanguageConfigurationEntries(languageIdentifier);
-			this._entries2.set(languageIdentifier.id, entries);
+			this._entries.set(languageIdentifier.id, entries);
 		}
 
 		const disposable = entries.register(configuration, priority);
@@ -231,7 +232,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | null {
-		const entries = this._entries2.get(languageId);
+		const entries = this._entries.get(languageId);
 		return entries ? entries.getRichEditSupport() : null;
 	}
 
@@ -328,7 +329,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	public getWordDefinitions(): [LanguageId, RegExp][] {
 		let result: [LanguageId, RegExp][] = [];
-		for (const [language, entries] of this._entries2) {
+		for (const [language, entries] of this._entries) {
 			const value = entries.getRichEditSupport();
 			if (value) {
 				result.push([language, value.wordDefinition]);
@@ -826,6 +827,10 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 		return value.brackets || null;
+	}
+
+	public getColorizedBracketPairs(languageId: LanguageId): CharacterPair[] {
+		return this._getRichEditSupport(languageId)?.characterPair.getColorizedBrackets() || [];
 	}
 }
 

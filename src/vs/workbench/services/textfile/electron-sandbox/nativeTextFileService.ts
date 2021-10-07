@@ -26,6 +26,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
@@ -49,15 +50,17 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
 		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService, decorationsService);
 
 		this.environmentService = environmentService;
+
+		this.registerListeners();
 	}
 
-	protected override registerListeners(): void {
-		super.registerListeners();
+	private registerListeners(): void {
 
 		// Lifecycle
 		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.textFiles'));

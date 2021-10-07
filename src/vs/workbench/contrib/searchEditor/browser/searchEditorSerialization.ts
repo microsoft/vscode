@@ -261,7 +261,10 @@ export const parseSavedSearchEditor = async (accessor: ServicesAccessor, resourc
 	const textFileService = accessor.get(ITextFileService);
 
 	const text = (await textFileService.read(resource)).value;
+	return parseSerializedSearchEditor(text);
+};
 
+export const parseSerializedSearchEditor = (text: string) => {
 	const headerlines = [];
 	const bodylines = [];
 

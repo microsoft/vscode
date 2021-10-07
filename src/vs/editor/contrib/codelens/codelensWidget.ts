@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./codelensWidget';
 import * as dom from 'vs/base/browser/dom';
-import { IViewZone, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import 'vs/css!./codelensWidget';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidget, IContentWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { Command, CodeLens } from 'vs/editor/common/modes';
+import { CodeLens, Command } from 'vs/editor/common/modes';
 import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 class CodeLensViewZone implements IViewZone {
 

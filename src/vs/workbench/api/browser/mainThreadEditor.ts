@@ -414,7 +414,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		this._codeEditor.setDecorations(key, ranges);
+		this._codeEditor.setDecorations('exthost-api', key, ranges);
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {

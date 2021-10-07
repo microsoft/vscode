@@ -6,6 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
+import * as url from 'url';
 import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
@@ -44,20 +45,29 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'user-setup':
 							return `${asset}-user`;
 						default:
-							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 				case 'server':
 					if (arch === 'arm64') {
-						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
-						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+			}
+		case 'alpine':
+			switch (product) {
+				case 'server':
+					return `server-alpine-${arch}`;
+				case 'web':
+					return `server-alpine-${arch}-web`;
+				default:
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		case 'linux':
 			switch (type) {
@@ -72,14 +82,14 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'web':
 							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
 						default:
-							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 				case 'deb-package':
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		case 'darwin':
 			switch (product) {
@@ -92,14 +102,14 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return 'server-darwin';
 				case 'web':
 					if (arch !== 'x64') {
-						throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
 					}
 					return 'server-darwin-web';
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		default:
-			throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+			throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 	}
 }
 
@@ -188,17 +198,33 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	console.log('Uploading blobs to Azure storage...');
+	const mooncakeBlobService = azure.createBlobService(storageAccount, process.env['MOONCAKE_STORAGE_ACCESS_KEY']!, `${storageAccount}.blob.core.chinacloudapi.cn`)
+		.withFilter(new azure.ExponentialRetryPolicyFilter(20));
 
-	await uploadBlob(blobService, quality, blobName, filePath, fileName);
+	// mooncake is fussy and far away, this is needed!
+	blobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+	mooncakeBlobService.defaultClientRequestTimeoutInMs = 10 * 60 * 1000;
+
+	console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
+
+	await retry(() => Promise.all([
+		uploadBlob(blobService, quality, blobName, filePath, fileName),
+		uploadBlob(mooncakeBlobService, quality, blobName, filePath, fileName)
+	]));
 
 	console.log('Blobs successfully uploaded.');
+
+	// TODO: Understand if blobName and blobPath are the same and replace blobPath with blobName if so.
+	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
+	const blobPath = url.parse(assetUrl).path;
+	const mooncakeUrl = `${process.env['MOONCAKE_CDN_URL']}${blobPath}`;
 
 	const asset: Asset = {
 		platform,
 		type,
-		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
+		url: assetUrl,
 		hash: sha1hash,
+		mooncakeUrl,
 		sha256hash,
 		size
 	};
@@ -213,6 +239,8 @@ async function main(): Promise<void> {
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+
+	console.log(`  Done ✔️`);
 }
 
 main().then(() => {

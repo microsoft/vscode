@@ -26,7 +26,7 @@ class InspectKeyMap extends EditorAction {
 		const keybindingService = accessor.get(IKeybindingService);
 		const editorService = accessor.get(IEditorService);
 
-		editorService.openEditor({ contents: keybindingService._dumpDebugInfo(), options: { pinned: true } });
+		editorService.openEditor({ resource: undefined, contents: keybindingService._dumpDebugInfo(), options: { pinned: true } });
 	}
 }
 
@@ -47,7 +47,7 @@ class InspectKeyMapJSON extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const keybindingService = accessor.get(IKeybindingService);
 
-		await editorService.openEditor({ contents: keybindingService._dumpDebugInfoJSON(), options: { pinned: true } });
+		await editorService.openEditor({ resource: undefined, contents: keybindingService._dumpDebugInfoJSON(), options: { pinned: true } });
 	}
 }
 

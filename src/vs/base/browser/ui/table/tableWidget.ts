@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./table';
+import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { $, append, clearNode, createStyleSheet, getContentHeight, getContentWidth } from 'vs/base/browser/dom';
-import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import 'vs/css!./table';
 
 // TODO@joao
 type TCell = any;

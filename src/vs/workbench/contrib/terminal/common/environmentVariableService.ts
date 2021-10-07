@@ -10,8 +10,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService, IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-
-const ENVIRONMENT_VARIABLE_COLLECTIONS_KEY = 'terminal.integrated.environmentVariableCollections';
+import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string,
@@ -34,7 +33,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
-		const serializedPersistedCollections = this._storageService.get(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, StorageScope.WORKSPACE);
+		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
@@ -85,7 +84,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			}
 		});
 		const stringifiedJson = JSON.stringify(collectionsJson);
-		this._storageService.store(ENVIRONMENT_VARIABLE_COLLECTIONS_KEY, stringifiedJson, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(TerminalStorageKeys.EnvironmentVariableCollections, stringifiedJson, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	@debounce(1000)

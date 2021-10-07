@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ListView } from 'vs/base/browser/ui/list/listView';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { range } from 'vs/base/common/arrays';
 
 suite('ListView', function () {

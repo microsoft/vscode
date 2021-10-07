@@ -151,8 +151,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 			this.updateMime();
 		});
 
-		this.onDidCreateMode((mode) => {
-			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`);
+		this.onDidEncounterLanguage((languageIdentifier) => {
+			this._extensionService.activateByEvent(`onLanguage:${languageIdentifier.language}`);
 		});
 	}
 

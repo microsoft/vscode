@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'vs/base/common/path';
-import * as pfs from 'vs/base/node/pfs';
-import { memoize } from 'vs/base/common/decorators';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { checksum } from 'vs/base/node/crypto';
-import { tmpdir } from 'os';
 import { spawn } from 'child_process';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
-import { IFileService } from 'vs/platform/files/common/files';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { memoize } from 'vs/base/common/decorators';
+import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { checksum } from 'vs/base/node/crypto';
+import * as pfs from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { asJson, IRequestService } from 'vs/platform/request/common/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
+import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -54,7 +54,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
-		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
+		return pfs.Promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
@@ -133,7 +133,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
-						return pfs.exists(updatePackagePath).then(exists => {
+						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
 								return Promise.resolve(updatePackagePath);
 							}
@@ -145,11 +145,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 							return this.requestService.request({ url }, CancellationToken.None)
 								.then(context => this.fileService.writeFile(URI.file(downloadPath), context.stream))
 								.then(hash ? () => checksum(downloadPath, update.hash) : () => undefined)
-								.then(() => fs.promises.rename(downloadPath, updatePackagePath))
+								.then(() => pfs.Promises.rename(downloadPath, updatePackagePath))
 								.then(() => updatePackagePath);
 						});
 					}).then(packagePath => {
-						const fastUpdatesEnabled = this.configurationService.getValue<boolean>('update.enableWindowsBackgroundUpdates');
+						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 
 						this.availableUpdate = { packagePath };
 
@@ -191,11 +191,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
-		const versions = await pfs.readdir(cachePath);
+		const versions = await pfs.Promises.readdir(cachePath);
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await pfs.Promises.unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
@@ -220,7 +220,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
-		await pfs.writeFile(this.availableUpdate.updateFilePath, 'flag');
+		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],

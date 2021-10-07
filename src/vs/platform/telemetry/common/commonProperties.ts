@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService } from 'vs/platform/files/common/files';
-import { isLinuxSnap, PlatformToString, platform, Platform } from 'vs/base/common/platform';
-import { platform as nodePlatform, env } from 'vs/base/common/process';
-import { generateUuid } from 'vs/base/common/uuid';
+import { isLinuxSnap, platform, Platform, PlatformToString } from 'vs/base/common/platform';
+import { env, platform as nodePlatform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { IFileService } from 'vs/platform/files/common/files';
 
 function getPlatformDetail(hostname: string): string | undefined {
 	if (platform === Platform.Linux && /^penguin(\.|$)/i.test(hostname)) {
@@ -101,7 +101,7 @@ export async function resolveCommonProperties(
 	return result;
 }
 
-function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
+export function verifyMicrosoftInternalDomain(domainList: readonly string[]): boolean {
 	const userDnsDomain = env['USERDNSDOMAIN'];
 	if (!userDnsDomain) {
 		return false;

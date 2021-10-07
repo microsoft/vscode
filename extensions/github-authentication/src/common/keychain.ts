@@ -7,8 +7,8 @@
 // how we load it
 import type * as keytarType from 'keytar';
 import * as vscode from 'vscode';
-import Logger from './logger';
 import * as nls from 'vscode-nls';
+import { Log } from './logger';
 
 const localize = nls.loadMessageBundle();
 
@@ -28,16 +28,19 @@ export type Keytar = {
 	deletePassword: typeof keytarType['deletePassword'];
 };
 
-const SERVICE_ID = `github.auth`;
-
 export class Keychain {
-	constructor(private context: vscode.ExtensionContext) { }
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		private readonly serviceId: string,
+		private readonly Logger: Log
+	) { }
+
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.context.secrets.store(SERVICE_ID, token);
+			return await this.context.secrets.store(this.serviceId, token);
 		} catch (e) {
 			// Ignore
-			Logger.error(`Setting token failed: ${e}`);
+			this.Logger.error(`Setting token failed: ${e}`);
 			const troubleshooting = localize('troubleshooting', "Troubleshooting Guide");
 			const result = await vscode.window.showErrorMessage(localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", e.message), troubleshooting);
 			if (result === troubleshooting) {
@@ -48,20 +51,24 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.context.secrets.get(SERVICE_ID);
+			const secret = await this.context.secrets.get(this.serviceId);
+			if (secret && secret !== '[]') {
+				this.Logger.trace('Token acquired from secret storage.');
+			}
+			return secret;
 		} catch (e) {
 			// Ignore
-			Logger.error(`Getting token failed: ${e}`);
+			this.Logger.error(`Getting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
 
 	async deleteToken(): Promise<void> {
 		try {
-			return await this.context.secrets.delete(SERVICE_ID);
+			return await this.context.secrets.delete(this.serviceId);
 		} catch (e) {
 			// Ignore
-			Logger.error(`Deleting token failed: ${e}`);
+			this.Logger.error(`Deleting token failed: ${e}`);
 			return Promise.resolve(undefined);
 		}
 	}
@@ -75,6 +82,7 @@ export class Keychain {
 
 			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			if (oldValue) {
+				this.Logger.trace('Attempting to migrate from keytar to secret store...');
 				await this.setToken(oldValue);
 				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			}

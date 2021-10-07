@@ -418,7 +418,7 @@ export class QueryBuilder {
 			const searchPathWithoutDotSlash = searchPath.replace(/^\.[\/\\]/, '');
 			const folders = this.workspaceContextService.getWorkspace().folders;
 			const folderMatches = folders.map(folder => {
-				const match = searchPathWithoutDotSlash.match(new RegExp(`^${folder.name}(?:/(.*))?`));
+				const match = searchPathWithoutDotSlash.match(new RegExp(`^${strings.escapeRegExpCharacters(folder.name)}(?:/(.*)|$)`));
 				return match ? {
 					match,
 					folder

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
@@ -122,7 +122,7 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 		return result;
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): string | null {
+	protected _getSingleModifierDispatchPart(keybinding: SimpleKeybinding): KeybindingModifier | null {
 		if (keybinding.keyCode === KeyCode.Ctrl && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
 			return 'ctrl';
 		}

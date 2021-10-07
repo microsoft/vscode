@@ -176,7 +176,16 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? e.target : null);
+		let target = e.target;
+		if (!this.viewHelper.viewDomNode.contains(target)) {
+			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
+			if (shadowRoot) {
+				target = (<any>shadowRoot).elementsFromPoint(e.posx, e.posy).find(
+					(el: Element) => this.viewHelper.viewDomNode.contains(el)
+				);
+			}
+		}
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, testEventTarget ? target : null);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {

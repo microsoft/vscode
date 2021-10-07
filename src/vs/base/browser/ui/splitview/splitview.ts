@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./splitview';
-import { IDisposable, toDisposable, Disposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as types from 'vs/base/common/types';
-import { clamp } from 'vs/base/common/numbers';
-import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
-import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Color } from 'vs/base/common/color';
-import { domEvent } from 'vs/base/browser/event';
-import { $, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
+import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import * as types from 'vs/base/common/types';
+import 'vs/css!./splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -237,6 +236,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
+	readonly onDidScroll: Event<ScrollEvent>;
+
 	get length(): number {
 		return this.viewItems.length;
 	}
@@ -317,7 +318,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
-		this._register(this.scrollableElement.onScroll(e => {
+		this.onDidScroll = this.scrollableElement.onScroll;
+		this._register(this.onDidScroll(e => {
 			this.viewContainer.scrollTop = e.scrollTop;
 			this.viewContainer.scrollLeft = e.scrollLeft;
 		}));
@@ -485,8 +487,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState!.current, e.altKey)),
-			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState!.current, false))
+			addDisposableListener(document.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			addDisposableListener(document.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {

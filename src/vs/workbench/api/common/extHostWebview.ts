@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 
@@ -69,12 +69,11 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public asWebviewUri(resource: vscode.Uri): vscode.Uri {
 		this.#hasCalledAsWebviewUri = true;
-		return asWebviewUri(this.#initData, this.#handle, resource);
+		return asWebviewUri(resource, this.#initData.remote);
 	}
 
 	public get cspSource(): string {
-		return this.#initData.webviewCspSource
-			.replace('{{uuid}}', this.#handle);
+		return webviewGenericCspSource;
 	}
 
 	public get html(): string {
@@ -195,6 +194,7 @@ export function serializeWebviewOptions(
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
+		enableForms: options.enableForms,
 		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
 	};
@@ -204,6 +204,7 @@ export function reviveOptions(options: extHostProtocol.IWebviewOptions): vscode.
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
+		enableForms: options.enableForms,
 		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
 	};
