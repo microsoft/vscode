@@ -8,7 +8,7 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node as FlatNode, HtmlNode as HtmlFlatNode, Property as FlatProperty, Rule as FlatRule, CssToken as FlatCssToken, Stylesheet as FlatStylesheet } from 'EmmetFlatNode';
 import { DocumentStreamReader } from './bufferStream';
-import * as EmmetHelper from 'vscode-emmet-helper';
+import * as EmmetHelper from '@vscode/emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-languageserver-textdocument';
 import { getRootNode } from './parseDocument';
 
@@ -26,7 +26,7 @@ export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
 	if (!_emmetHelper) {
-		_emmetHelper = require('vscode-emmet-helper');
+		_emmetHelper = require('@vscode/emmet-helper');
 	}
 	return _emmetHelper;
 }
@@ -42,9 +42,9 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	}
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		const rootPath = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders[0].uri : undefined;
+		const rootPaths = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders.map(f => f.uri) : undefined;
 		const fileSystem = vscode.workspace.fs;
-		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
+		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPaths, _homeDir).catch(err => {
 			if (Array.isArray(extensionsPath) && extensionsPath.length) {
 				vscode.window.showErrorMessage(err.message);
 			}
