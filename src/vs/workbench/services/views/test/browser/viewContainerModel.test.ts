@@ -16,6 +16,7 @@ import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewD
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -513,6 +514,66 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[2].id, 'view3');
 		assert.strictEqual(target.elements[3].id, 'view4');
 		assert.strictEqual(target.elements[4].id, 'view5');
+	});
+
+	test('add event is triggered only once when view is set visible while it is set active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+		testObject.setVisible('view1', false);
+
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
+
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', true));
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.strictEqual(targetEvent.callCount, 1);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 1);
+		assert.strictEqual(target.elements.length, 1);
+		assert.strictEqual(target.elements[0].id, 'view1');
+	});
+
+	test('add event is not triggered only when view is set hidden while it is set active', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			when: ContextKeyExpr.equals('showview1', true),
+			canToggleVisibility: true
+		};
+
+		const key = contextKeyService.createKey('showview1', true);
+		key.set(false);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
+
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
+		Event.once(testObject.onDidChangeActiveViewDescriptors)(() => testObject.setVisible('view1', false));
+		key.set(true);
+		await new Promise(c => setTimeout(c, 30));
+		assert.strictEqual(targetEvent.callCount, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 });
