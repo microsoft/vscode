@@ -8342,7 +8342,10 @@ declare module 'vscode' {
 		export const appRoot: string;
 
 		/**
-		 * The environment in which the app is hosted in. i.e. 'desktop', 'codespaces', 'web'.
+		 * The hosted location of the application
+		 * On desktop this is 'desktop'
+		 * In the web this is the specified embedder i.e. 'github.dev', 'codespaces', or 'web' if the embedder
+		 * does not provide that information
 		 */
 		export const appHost: string;
 
