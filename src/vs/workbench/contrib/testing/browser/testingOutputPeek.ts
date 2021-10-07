@@ -181,12 +181,37 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	}
 
 	/** @inheritdoc */
+	public peekUri(uri: URI, options?: Partial<ITextEditorOptions>) {
+		const parsed = parseTestUri(uri);
+		const result = parsed && this.testResults.getResult(parsed.resultId);
+		if (!parsed || !result) {
+			return false;
+		}
+
+		const message = result.getStateById(parsed.testExtId)?.tasks[parsed.taskIndex].messages[parsed.messageIndex];
+		if (!message?.location) {
+			return false;
+		}
+
+		this.showPeekFromUri({
+			type: TestUriType.ResultMessage,
+			documentUri: message.location.uri,
+			taskIndex: parsed.taskIndex,
+			messageIndex: parsed.messageIndex,
+			resultId: result.id,
+			testExtId: parsed.testExtId,
+		}, { selection: message.location.range, ...options });
+		return true;
+	}
+
+	/** @inheritdoc */
 	public closeAllPeeks() {
 		for (const editor of this.codeEditorService.listCodeEditors()) {
 			TestingOutputPeekController.get(editor)?.removePeek();
 		}
 	}
 
+	/** @inheritdoc */
 	private async showPeekFromUri(uri: TestUriWithDocument, options?: ITextEditorOptions) {
 		const pane = await this.editorService.openEditor({
 			resource: uri.documentUri,
