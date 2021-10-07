@@ -113,7 +113,7 @@
             "markdownDescription": "%emmetExtensionsPathItem%"
           },
           "default": [],
-          "scope": "resource",
+          "scope": "machine-overridable",
           "markdownDescription": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
