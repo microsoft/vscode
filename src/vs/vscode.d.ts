@@ -13614,7 +13614,7 @@ declare module 'vscode' {
 		readonly count: number;
 
 		/**
-		 * Whether the [author](CommentAuthorInformation) of the comment has reacted to this reaction
+		 * Whether the {@link CommentAuthorInformation author} of the comment has reacted to this reaction
 		 */
 		readonly authorHasReacted: boolean;
 	}
