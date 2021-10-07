@@ -541,7 +541,7 @@ declare module 'vscode' {
 		 * The {@link TextEditorSelectionChangeKind change kind} which has triggered this
 		 * event. Can be `undefined`.
 		 */
-		readonly kind?: TextEditorSelectionChangeKind;
+		readonly kind: TextEditorSelectionChangeKind | undefined
 	}
 
 	/**
@@ -1124,7 +1124,7 @@ declare module 'vscode' {
 		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
-		readonly viewColumn?: ViewColumn;
+		readonly viewColumn: ViewColumn | undefined;
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
@@ -2227,7 +2227,7 @@ declare module 'vscode' {
 		 *
 		 * Actions not of this kind are filtered out before being shown by the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action).
 		 */
-		readonly only?: CodeActionKind;
+		readonly only: CodeActionKind | undefined;
 	}
 
 	/**
@@ -3918,7 +3918,7 @@ declare module 'vscode' {
 		 * This is `undefined` when signature help is not triggered by typing, such as when manually invoking
 		 * signature help or when moving the cursor.
 		 */
-		readonly triggerCharacter?: string;
+		readonly triggerCharacter: string | undefined;
 
 		/**
 		 * `true` if signature help was already showing when it was triggered.
@@ -3934,7 +3934,7 @@ declare module 'vscode' {
 		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
 		 * the user arrowing through available signatures.
 		 */
-		readonly activeSignatureHelp?: SignatureHelp;
+		readonly activeSignatureHelp: SignatureHelp | undefined;
 	}
 
 	/**
@@ -4250,11 +4250,11 @@ declare module 'vscode' {
 		/**
 		 * Character that triggered the completion item provider.
 		 *
-		 * `undefined` if provider was not triggered by a character.
+		 * `undefined` if the provider was not triggered by a character.
 		 *
 		 * The trigger character is already in the document when the completion provider is triggered.
 		 */
-		readonly triggerCharacter?: string;
+		readonly triggerCharacter: string | undefined;
 	}
 
 	/**
@@ -7687,7 +7687,7 @@ declare module 'vscode' {
 		/**
 		 * Controls if the find widget is enabled in the panel.
 		 *
-		 * Defaults to false.
+		 * Defaults to `false`.
 		 */
 		readonly enableFindWidget?: boolean;
 
@@ -7743,7 +7743,7 @@ declare module 'vscode' {
 		 * Editor position of the panel. This property is only set if the webview is in
 		 * one of the editor view columns.
 		 */
-		readonly viewColumn?: ViewColumn;
+		readonly viewColumn: ViewColumn | undefined;
 
 		/**
 		 * Whether the panel is active (focused by the user).
@@ -8121,14 +8121,14 @@ declare module 'vscode' {
 		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
 		 * from the user's workspace.
 		 */
-		readonly backupId?: string;
+		readonly backupId: string | undefined
 
 		/**
 		 * If the URI is an untitled file, this will be populated with the byte data of that file
 		 *
 		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
 		 */
-		readonly untitledDocumentData?: Uint8Array;
+		readonly untitledDocumentData: Uint8Array | undefined
 	}
 
 	/**
@@ -10343,9 +10343,9 @@ declare module 'vscode' {
 
 		/**
 		 * The reason why the document was changed.
-		 * Is undefined if the reason is not known.
+		 * Is `undefined` if the reason is not known.
 		*/
-		readonly reason?: TextDocumentChangeReason;
+		readonly reason: TextDocumentChangeReason | undefined;
 	}
 
 	/**
@@ -11742,7 +11742,7 @@ declare module 'vscode' {
 		/**
 		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
 		 */
-		readonly executionSummary?: NotebookCellExecutionSummary;
+		readonly executionSummary: NotebookCellExecutionSummary | undefined;
 	}
 
 	/**
@@ -12898,7 +12898,7 @@ declare module 'vscode' {
 		/**
 		 * Event specific information.
 		 */
-		readonly body?: any;
+		readonly body: any | undefined;
 	}
 
 	/**
@@ -13889,19 +13889,19 @@ declare module 'vscode' {
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been added.
 		*/
-		readonly added?: readonly AuthenticationSession[];
+		readonly added: readonly AuthenticationSession[] | undefined
 
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been removed.
 		 */
-		readonly removed?: readonly AuthenticationSession[];
+		readonly removed: readonly AuthenticationSession[] | undefined
 
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been changed.
 		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
 		 * access token being set for the session.
 		 */
-		readonly changed?: readonly AuthenticationSession[];
+		readonly changed: readonly AuthenticationSession[] | undefined;
 	}
 
 	/**
