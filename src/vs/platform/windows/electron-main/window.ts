@@ -844,6 +844,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (this.isExtensionDevelopmentHost && cli) {
 			configuration.verbose = cli.verbose;
 			configuration.debugId = cli.debugId;
+			configuration.extensionEnvironment = cli.extensionEnvironment;
 			configuration['inspect-extensions'] = cli['inspect-extensions'];
 			configuration['inspect-brk-extensions'] = cli['inspect-brk-extensions'];
 			configuration['extensions-dir'] = cli['extensions-dir'];
