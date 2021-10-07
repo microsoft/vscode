@@ -55,7 +55,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		h1 {
 			font-size: 1.8rem;
-			line-height: 34px;
+			line-height: 31px;
 			margin: 0;
 			margin-bottom: 22px;
 		}
