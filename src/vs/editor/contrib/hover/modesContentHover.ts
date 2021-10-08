@@ -394,7 +394,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
-		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
+		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
 		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
 		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}

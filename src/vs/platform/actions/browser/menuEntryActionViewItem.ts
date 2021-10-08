@@ -286,7 +286,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		const dropdownOptions = Object.assign({}, options ?? Object.create(null), {
-			menuAsChild: options?.menuAsChild ?? true,
+			menuAsChild: options?.menuAsChild ?? false,
 			classNames: options?.classNames ?? (ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined),
 		});
 

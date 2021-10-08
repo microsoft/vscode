@@ -1477,9 +1477,9 @@ export interface ISignatureHelpDto {
 
 export interface ISignatureHelpContextDto {
 	readonly triggerKind: modes.SignatureHelpTriggerKind;
-	readonly triggerCharacter?: string;
+	readonly triggerCharacter: string | undefined;
 	readonly isRetrigger: boolean;
-	readonly activeSignatureHelp?: ISignatureHelpDto;
+	readonly activeSignatureHelp: ISignatureHelpDto | undefined;
 }
 
 export interface IInlayHintDto {

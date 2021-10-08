@@ -463,10 +463,10 @@ export class NotebookOptions extends Disposable {
 	computeDiffWebviewOptions() {
 		return {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
-			outputNodeLeftPadding: 32,
+			outputNodeLeftPadding: 0,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
 			markdownLeftMargin: 0,
-			leftMargin: 0,
+			leftMargin: 32,
 			rightMargin: 0,
 			runGutter: 0,
 			dragAndDropEnabled: false,

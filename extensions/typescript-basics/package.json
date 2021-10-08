@@ -22,7 +22,9 @@
           "typescript"
         ],
         "extensions": [
-          ".ts"
+          ".ts",
+          ".cts",
+          ".mts"
         ],
         "configuration": "./language-configuration.json"
       },

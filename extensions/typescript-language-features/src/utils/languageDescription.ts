@@ -51,9 +51,9 @@ export function isJsConfigOrTsConfigFileName(fileName: string): boolean {
 }
 
 export function doesResourceLookLikeATypeScriptFile(resource: vscode.Uri): boolean {
-	return /\.tsx?$/i.test(resource.fsPath);
+	return /\.(tsx?|mts|cts)$/i.test(resource.fsPath);
 }
 
 export function doesResourceLookLikeAJavaScriptFile(resource: vscode.Uri): boolean {
-	return /\.jsx?$/i.test(resource.fsPath);
+	return /\.(jsx?|mjs|cjs)$/i.test(resource.fsPath);
 }

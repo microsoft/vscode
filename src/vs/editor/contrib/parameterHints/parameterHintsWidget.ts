@@ -132,6 +132,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			}
 			const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 			this.domNodes.element.style.fontSize = `${fontInfo.fontSize}px`;
+			this.domNodes.element.style.lineHeight = `${fontInfo.lineHeight / fontInfo.fontSize}`;
 		};
 
 		updateFont();
