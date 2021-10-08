@@ -41,7 +41,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
-	protected _pauseableEmitter = new PauseableEmitter<CodeCellLayoutChangeEvent>();
+	protected _pauseableEmitter = this._register(new PauseableEmitter<CodeCellLayoutChangeEvent>());
 
 	readonly onDidChangeLayout = this._pauseableEmitter.event;
 
