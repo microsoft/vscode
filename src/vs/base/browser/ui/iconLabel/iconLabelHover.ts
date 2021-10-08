@@ -166,7 +166,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		const onMouseLeave = (e: MouseEvent) => hideHover(false, (<any>e).fromElement === htmlElement);
 		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_LEAVE, onMouseLeave, true));
 
-		const onMouseDown = (e: MouseEvent) => hideHover(true, true);
+		const onMouseDown = () => hideHover(true, true);
 		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_DOWN, onMouseDown, true));
 
 		const target: IHoverDelegateTarget = {
