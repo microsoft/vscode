@@ -68,6 +68,10 @@ export class OpenDocumentLinkCommand implements Command {
 		const targetResource = reviveUri(args.parts);
 		const column = this.getViewColumn(fromResource);
 
+		if (await OpenDocumentLinkCommand.tryNavigateToFragmentInActiveEditor(engine, targetResource, args)) {
+			return;
+		}
+
 		let targetResourceStat: vscode.FileStat | undefined;
 		try {
 			targetResourceStat = await vscode.workspace.fs.stat(targetResource);
@@ -98,6 +102,10 @@ export class OpenDocumentLinkCommand implements Command {
 
 	private static async tryOpenMdFile(engine: MarkdownEngine, resource: vscode.Uri, column: vscode.ViewColumn, args: OpenDocumentLinkArgs): Promise<boolean> {
 		await vscode.commands.executeCommand('vscode.open', resource, column);
+		return OpenDocumentLinkCommand.tryNavigateToFragmentInActiveEditor(engine, resource, args);
+	}
+
+	private static async tryNavigateToFragmentInActiveEditor(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs): Promise<boolean> {
 		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
 			if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
 				await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
