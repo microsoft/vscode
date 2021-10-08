@@ -433,18 +433,18 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		if (nonWebExtensions.length && hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "Contains extensions which are not supported.")}`;
-			buttons = [localize('install anyways', "Install Anyways"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [localize('install anyways', "Install Anyway"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
 		}
 
 		else if (hasLimitedSupport) {
 			message = limitedSupportMessage;
 			detail = virtualWorkspaceSupportReason || undefined;
-			buttons = [localize('install anyways', "Install Anyways"), localize('cancel', "Cancel")];
+			buttons = [localize('install anyways', "Install Anyway"), localize('cancel', "Cancel")];
 		}
 
 		else {
 			message = localize('non web extensions', "'{0}' contains extensions which are not supported in {1}.", extension.displayName || extension.identifier.id, productName);
-			buttons = [localize('install anyways', "Install Anyways"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+			buttons = [localize('install anyways', "Install Anyway"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
 		}
 
 		const { choice } = await this.dialogService.show(Severity.Info, message, buttons, { cancelId: buttons.length - 1, detail });
