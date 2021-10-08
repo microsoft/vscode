@@ -831,7 +831,7 @@ class TestMessageDecoration implements ITestDecoration {
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
 		options.after = {
-			content: renderStringAsPlaintext(message),
+			content: ' '.repeat(4) + renderStringAsPlaintext(message),
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
 		};
 		options.showIfCollapsed = true;
