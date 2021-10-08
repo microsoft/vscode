@@ -198,17 +198,46 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 });
 
 function toExternalDTS(contents) {
+	let lines = contents.split(/\r\n|\r|\n/);
+	let killNextCloseCurlyBrace = false;
+	for (let i = 0; i < lines.length; i++) {
+		let line = lines[i];
 
-	contents = contents.replace(
-		'declare let MonacoEnvironment: monaco.Environment | undefined;',
+		if (killNextCloseCurlyBrace) {
+			if ('}' === line) {
+				lines[i] = '';
+				killNextCloseCurlyBrace = false;
+				continue;
+			}
 
-		'export = monaco;\n'+
-		'declare global {\n' +
-		'\tlet MonacoEnvironment: monaco.Environment | undefined;\n' +
-		'}\n'
-	);
+			if (line.indexOf('    ') === 0) {
+				lines[i] = line.substr(4);
+			} else if (line.charAt(0) === '\t') {
+				lines[i] = line.substr(1);
+			}
 
-	return contents.split(/\r\n|\r|\n/).join('\n').replace(/\n\n\n+/g, '\n\n');
+			continue;
+		}
+
+		if ('declare namespace monaco {' === line) {
+			lines[i] = '';
+			killNextCloseCurlyBrace = true;
+			continue;
+		}
+
+		if (line.indexOf('declare namespace monaco.') === 0) {
+			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
+
+		if (line.indexOf('declare let MonacoEnvironment') === 0) {
+			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
+		}
+
+		if (line.indexOf('\tMonacoEnvironment?') === 0) {
+			lines[i] = `    MonacoEnvironment?: Environment | undefined;`;
+		}
+	}
+	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
 function filterStream(testFunc) {
