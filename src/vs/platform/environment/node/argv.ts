@@ -86,6 +86,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensionDevelopmentPath': { type: 'string[]' },
 	'extensionDevelopmentKind': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
+	'extensionEnvironment': { type: 'string' },
 	'debugId': { type: 'string' },
 	'debugRenderer': { type: 'boolean' },
 	'inspect-ptyhost': { type: 'string' },

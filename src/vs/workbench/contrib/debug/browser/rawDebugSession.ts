@@ -657,7 +657,11 @@ export class RawDebugSession implements IDisposable {
 			}
 		}
 
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, vscodeArgs.env, !!vscodeArgs.debugRenderer);
+		if (vscodeArgs.env) {
+			args.push(`--extensionEnvironment=${JSON.stringify(vscodeArgs.env)}`);
+		}
+
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, !!vscodeArgs.debugRenderer);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number, showErrors = true): Promise<R | undefined> {

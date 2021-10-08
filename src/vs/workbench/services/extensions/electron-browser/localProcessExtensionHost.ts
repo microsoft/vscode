@@ -235,6 +235,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 				});
 
+				if (this._environmentService.debugExtensionHost.env) {
+					objects.mixin(env, this._environmentService.debugExtensionHost.env);
+				}
+
 				// Unset `DEBUG`, as an invalid value might lead to extension host crashes
 				// See https://github.com/microsoft/vscode/issues/130072
 				delete env['DEBUG'];
