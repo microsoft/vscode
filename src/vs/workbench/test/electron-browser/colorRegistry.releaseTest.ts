@@ -15,7 +15,8 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { mock } from 'vs/base/test/common/mock';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface ColorInfo {
 	description: string;
@@ -33,7 +34,10 @@ export const experimental: string[] = []; // 'settings.modifiedItemForeground', 
 suite('Color Registry', function () {
 
 	test('all colors documented in theme-color.md', async function () {
-		const reqContext = await new RequestService(new TestConfigurationService(), TestEnvironmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
+		// avoid importing the TestEnvironmentService as it brings in a duplicate registration of the file editor input factory.
+		const environmentService = new class extends mock<INativeEnvironmentService>() { override args = { _: [] }; };
+
+		const reqContext = await new RequestService(new TestConfigurationService(), environmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;
