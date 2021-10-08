@@ -65,57 +65,46 @@ export class OpenDocumentLinkCommand implements Command {
 
 	public static async execute(engine: MarkdownEngine, args: OpenDocumentLinkArgs): Promise<void> {
 		const fromResource = vscode.Uri.parse('').with(args.fromResource);
-
 		const targetResource = reviveUri(args.parts);
-
 		const column = this.getViewColumn(fromResource);
 
-		const didOpen = await this.tryOpen(engine, targetResource, args, column);
-		if (didOpen) {
-			return;
-		}
-
-		if (extname(targetResource.path) === '') {
-			await this.tryOpen(engine, targetResource.with({ path: targetResource.path + '.md' }), args, column);
-			return;
-		}
-	}
-
-	private static async tryOpen(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs, column: vscode.ViewColumn): Promise<boolean> {
-		const tryUpdateForActiveFile = async (): Promise<boolean> => {
-			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-				if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
-					await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
-					return true;
-				}
-			}
-			return false;
-		};
-
-		if (await tryUpdateForActiveFile()) {
-			return true;
-		}
-
-		let stat: vscode.FileStat;
+		let targetResourceStat: vscode.FileStat | undefined;
 		try {
-			stat = await vscode.workspace.fs.stat(resource);
-			if (stat.type === vscode.FileType.Directory) {
-				await vscode.commands.executeCommand('revealInExplorer', resource);
-				return true;
-			}
+			targetResourceStat = await vscode.workspace.fs.stat(targetResource);
 		} catch {
 			// noop
-			// If resource doesn't exist, execute `vscode.open` either way so an error
-			// notification is shown to the user with a create file action #113475
 		}
 
-		try {
-			await vscode.commands.executeCommand('vscode.open', resource, column);
-		} catch {
-			return false;
+		if (typeof targetResourceStat === 'undefined') {
+			// We don't think the file exists. If it doesn't already have an extension, try tacking on a `.md` and using that instead
+			if (extname(targetResource.path) === '') {
+				const dotMdResource = targetResource.with({ path: targetResource.path + '.md' });
+				try {
+					const stat = await vscode.workspace.fs.stat(dotMdResource);
+					if (stat.type === vscode.FileType.File) {
+						await OpenDocumentLinkCommand.tryOpenMdFile(engine, dotMdResource, column, args);
+						return;
+					}
+				} catch {
+					// noop
+				}
+			}
+		} else if (targetResourceStat.type === vscode.FileType.Directory) {
+			return vscode.commands.executeCommand('revealInExplorer', targetResource);
 		}
 
-		return tryUpdateForActiveFile();
+		await OpenDocumentLinkCommand.tryOpenMdFile(engine, targetResource, column, args);
+	}
+
+	private static async tryOpenMdFile(engine: MarkdownEngine, resource: vscode.Uri, column: vscode.ViewColumn, args: OpenDocumentLinkArgs): Promise<boolean> {
+		await vscode.commands.executeCommand('vscode.open', resource, column);
+		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
+				await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
