@@ -15,6 +15,7 @@
 //   function define(factory) {
 //     __marked_exports = factory();
 //   }
+//   define.amd = true;
 // ESM-uncomment-end
 
  (function (global, factory) {
