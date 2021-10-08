@@ -1010,6 +1010,11 @@ export async function main(options: IServerOptions): Promise<void> {
 			});
 		});
 
+		server.on('error', () => {
+			server.close();
+			process.exit(1);
+		});
+
 		if (parsedArgs.socket) {
 			server.listen(parsedArgs.socket, () => {
 				logService.info(`Server listening on ${parsedArgs.socket}`);
@@ -1023,10 +1028,6 @@ export async function main(options: IServerOptions): Promise<void> {
 			}
 
 			const host = parsedArgs.host || '0.0.0.0';
-			server.on('error', () => {
-				server.close();
-				process.exit(1);
-			});
 			server.listen(port, host, () => {
 				const addressInfo = server.address() as net.AddressInfo;
 				const address = addressInfo.address === '0.0.0.0' || addressInfo.address === '127.0.0.1' ? 'localhost' : addressInfo.address;
