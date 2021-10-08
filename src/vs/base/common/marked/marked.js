@@ -9,6 +9,14 @@
  * The code in this file is generated from files in ./src/
  */
 
+// ESM-uncomment-begin
+// let __marked_exports;
+// (function() {
+//   function define(factory) {
+//     __marked_exports = factory();
+//   }
+// ESM-uncomment-end
+
  (function (global, factory) {
   typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
   typeof define === 'function' && define.amd ? define(factory) :
@@ -2968,3 +2976,17 @@
   return marked_1;
 
 })));
+
+// ESM-uncomment-begin
+// })();
+// export var marked = __marked_exports;
+// export var Parser = __marked_exports.Parser;
+// export var parser = __marked_exports.parser;
+// export var Renderer = __marked_exports.Renderer;
+// export var TextRenderer = __marked_exports.TextRenderer;
+// export var Lexer = __marked_exports.Lexer;
+// export var lexer = __marked_exports.lexer;
+// export var Tokenizer = __marked_exports.Tokenizer;
+// export var Slugger = __marked_exports.Slugger;
+// export var parse = __marked_exports.parse;
+// ESM-uncomment-end
