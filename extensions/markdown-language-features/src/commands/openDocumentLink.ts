@@ -106,11 +106,15 @@ export class OpenDocumentLinkCommand implements Command {
 	}
 
 	private static async tryNavigateToFragmentInActiveEditor(engine: MarkdownEngine, resource: vscode.Uri, args: OpenDocumentLinkArgs): Promise<boolean> {
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			if (vscode.window.activeTextEditor.document.uri.fsPath === resource.fsPath) {
-				await this.tryRevealLine(engine, vscode.window.activeTextEditor, args.fragment);
-				return true;
+		const activeEditor = vscode.window.activeTextEditor;
+		if (activeEditor?.document.uri.fsPath === resource.fsPath) {
+			if (isMarkdownFile(activeEditor.document)) {
+				if (await this.tryRevealLineUsingTocFragment(engine, activeEditor, args.fragment)) {
+					return true;
+				}
 			}
+			this.tryRevealLineUsingLineFragment(activeEditor, args.fragment);
+			return true;
 		}
 		return false;
 	}
@@ -127,25 +131,30 @@ export class OpenDocumentLinkCommand implements Command {
 		}
 	}
 
-	private static async tryRevealLine(engine: MarkdownEngine, editor: vscode.TextEditor, fragment?: string) {
-		if (fragment) {
-			const toc = new TableOfContentsProvider(engine, editor.document);
-			const entry = await toc.lookup(fragment);
-			if (entry) {
-				const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
+	private static async tryRevealLineUsingTocFragment(engine: MarkdownEngine, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
+		const toc = new TableOfContentsProvider(engine, editor.document);
+		const entry = await toc.lookup(fragment);
+		if (entry) {
+			const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
+			editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
+			editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
+			return true;
+		}
+		return false;
+	}
+
+	private static tryRevealLineUsingLineFragment(editor: vscode.TextEditor, fragment: string): boolean {
+		const lineNumberFragment = fragment.match(/^L(\d+)$/i);
+		if (lineNumberFragment) {
+			const line = +lineNumberFragment[1] - 1;
+			if (!isNaN(line)) {
+				const lineStart = new vscode.Range(line, 0, line, 0);
 				editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
-				return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
-			}
-			const lineNumberFragment = fragment.match(/^L(\d+)$/i);
-			if (lineNumberFragment) {
-				const line = +lineNumberFragment[1] - 1;
-				if (!isNaN(line)) {
-					const lineStart = new vscode.Range(line, 0, line, 0);
-					editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
-					return editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
-				}
+				editor.revealRange(lineStart, vscode.TextEditorRevealType.AtTop);
+				return true;
 			}
 		}
+		return false;
 	}
 }
 
