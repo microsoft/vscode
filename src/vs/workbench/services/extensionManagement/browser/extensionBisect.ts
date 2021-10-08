@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -103,7 +103,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 			// bisect isn't active
 			return false;
 		}
-		if (this._isRemoteResolver(extension)) {
+		if (isResolverExtension(extension.manifest, this._envService.remoteAuthority)) {
 			// the current remote resolver extension cannot be disabled
 			return false;
 		}
@@ -113,15 +113,6 @@ class ExtensionBisectService implements IExtensionBisectService {
 		}
 		const disabled = this._disabled.get(extension.identifier.id);
 		return disabled ?? false;
-	}
-
-	private _isRemoteResolver(extension: IExtension): boolean {
-		if (extension.manifest.enableProposedApi !== true) {
-			return false;
-		}
-		const idx = this._envService.remoteAuthority?.indexOf('+');
-		const activationEvent = `onResolveRemoteAuthority:${this._envService.remoteAuthority?.substr(0, idx)}`;
-		return Boolean(extension.manifest.activationEvents?.find(e => e === activationEvent));
 	}
 
 	private _isEnabledInEnv(extension: IExtension): boolean {
