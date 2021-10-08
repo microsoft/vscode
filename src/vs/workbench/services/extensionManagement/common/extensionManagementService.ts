@@ -8,7 +8,7 @@ import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform, ExtensionManagementError
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -303,7 +303,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			}
 			await this.checkForWorkspaceTrust(manifest);
 			if (!installOptions.donotIncludePackAndDependencies) {
-				await this.checkInstallingExtensionPackOnWeb(gallery, manifest);
+				await this.checkInstallingExtensionOnWeb(gallery, manifest);
 			}
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
@@ -400,39 +400,63 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async checkInstallingExtensionPackOnWeb(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
-		if (!manifest.extensionPack?.length) {
-			return;
-		}
-
+	private async checkInstallingExtensionOnWeb(extension: IGalleryExtension, manifest: IExtensionManifest): Promise<void> {
 		if (this.servers.length !== 1 || this.servers[0] !== this.extensionManagementServerService.webExtensionManagementServer) {
 			return;
 		}
 
 		const nonWebExtensions = [];
-		const extensions = await this.extensionGalleryService.getExtensions(manifest.extensionPack.map(id => ({ id })), CancellationToken.None);
-		for (const extension of extensions) {
-			if (!(await this.servers[0].extensionManagementService.canInstall(extension))) {
-				nonWebExtensions.push(extension);
+		if (manifest.extensionPack?.length) {
+			const extensions = await this.extensionGalleryService.getExtensions(manifest.extensionPack.map(id => ({ id })), CancellationToken.None);
+			for (const extension of extensions) {
+				if (!(await this.servers[0].extensionManagementService.canInstall(extension))) {
+					nonWebExtensions.push(extension);
+				}
+			}
+			if (nonWebExtensions.length && nonWebExtensions.length === extensions.length) {
+				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
 			}
 		}
 
-		if (nonWebExtensions.length) {
-			const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
-			if (nonWebExtensions.length === extensions.length) {
-				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
-			}
-			const { choice } = await this.dialogService.show(Severity.Info, localize('non web extensions', "'{0}' contains extensions which are not available in {1}. Would you like to proceed with the installation?", extension.displayName || extension.identifier.id, productName),
-				[localize('install', "Install"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")], { cancelId: 2 });
-			if (choice === 0) {
-				return;
-			}
-			if (choice === 1) {
-				// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
-				this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
-			}
-			throw canceled();
+		const productName = localize('VS Code for Web', "{0} for the Web", this.productService.nameLong);
+		const virtualWorkspaceSupport = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(manifest);
+		const virtualWorkspaceSupportReason = getWorkspaceSupportTypeMessage(manifest.capabilities?.virtualWorkspaces);
+		const hasLimitedSupport = virtualWorkspaceSupport === 'limited' || !!virtualWorkspaceSupportReason;
+
+		if (!nonWebExtensions.length && !hasLimitedSupport) {
+			return;
 		}
+
+		const limitedSupportMessage = localize('limited support', "'{0}' has limited functionality in {1}.", extension.displayName || extension.identifier.id, productName);
+		let message: string, buttons: string[], detail: string | undefined;
+
+		if (nonWebExtensions.length && hasLimitedSupport) {
+			message = limitedSupportMessage;
+			detail = `${virtualWorkspaceSupportReason ? `${virtualWorkspaceSupportReason}\n` : ''}${localize('non web extensions detail', "Contains extensions which are not supported.")}`;
+			buttons = [localize('install anyways', "Install Anyways"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+		}
+
+		else if (hasLimitedSupport) {
+			message = limitedSupportMessage;
+			detail = virtualWorkspaceSupportReason || undefined;
+			buttons = [localize('install anyways', "Install Anyways"), localize('cancel', "Cancel")];
+		}
+
+		else {
+			message = localize('non web extensions', "'{0}' contains extensions which are not supported in {1}.", extension.displayName || extension.identifier.id, productName);
+			buttons = [localize('install anyways', "Install Anyways"), localize('showExtensions', "Show Extensions"), localize('cancel', "Cancel")];
+		}
+
+		const { choice } = await this.dialogService.show(Severity.Info, message, buttons, { cancelId: buttons.length - 1, detail });
+		if (choice === 0) {
+			return;
+		}
+		if (choice === buttons.length - 2) {
+			// Unfortunately ICommandService cannot be used directly due to cyclic dependencies
+			this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('extension.open', extension.identifier.id, 'extensionPack'));
+		}
+		throw canceled();
+
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }
