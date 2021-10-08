@@ -22,6 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 // --- bisect service
 
@@ -106,6 +107,10 @@ class ExtensionBisectService implements IExtensionBisectService {
 			// the current remote resolver extension cannot be disabled
 			return false;
 		}
+		if (this._isEnabledInEnv(extension)) {
+			// Extension enabled in env cannot be disabled
+			return false;
+		}
 		const disabled = this._disabled.get(extension.identifier.id);
 		return disabled ?? false;
 	}
@@ -117,6 +122,10 @@ class ExtensionBisectService implements IExtensionBisectService {
 		const idx = this._envService.remoteAuthority?.indexOf('+');
 		const activationEvent = `onResolveRemoteAuthority:${this._envService.remoteAuthority?.substr(0, idx)}`;
 		return Boolean(extension.manifest.activationEvents?.find(e => e === activationEvent));
+	}
+
+	private _isEnabledInEnv(extension: IExtension): boolean {
+		return Array.isArray(this._envService.enableExtensions) && this._envService.enableExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 	}
 
 	async start(extensions: ILocalExtension[]): Promise<void> {
