@@ -37,7 +37,7 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 	if (tagName === undefined) {
 		tagName = await vscode.window.showInputBox({
 			prompt: 'Enter Tag',
-			placeHolder: tagNamesAreEqual ? firstTagName : undefined
+			value: tagNamesAreEqual ? firstTagName : undefined
 		});
 
 		// TODO: Accept fragments for JSX and TSX
