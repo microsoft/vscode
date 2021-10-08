@@ -577,7 +577,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					viewModel.updateOutputsScroll(event.data.widgets);
+					event.data.widgets.forEach(widget => {
+						outputRunner.enqueue(widget.outputId, () => {
+							viewModel.updateOutputsScroll([widget]);
+						});
+					});
 					viewModel.updateMarkupScrolls(event.data.markupCells);
 					break;
 				}
@@ -629,7 +633,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			case 'decorations':
 				{
-					const outputContainer = document.getElementById(event.data.cellId);
+					let outputContainer = document.getElementById(event.data.cellId);
+					if (!outputContainer) {
+						viewModel.ensureOutputCell(event.data.cellId, -100000);
+						outputContainer = document.getElementById(event.data.cellId);
+					}
 					outputContainer?.classList.add(...event.data.addedClassNames);
 					outputContainer?.classList.remove(...event.data.removedClassNames);
 				}
@@ -1019,7 +1027,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 		}
 
-		private ensureOutputCell(cellId: string, cellTop: number): OutputCell {
+		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
 			let cell = this._outputCells.get(cellId);
 			if (!cell) {
 				cell = new OutputCell(cellId);
