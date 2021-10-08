@@ -48,7 +48,6 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -563,7 +562,7 @@ abstract class RunTestDecoration {
 		}[],
 		private visible: boolean,
 		protected readonly model: ITextModel,
-		@ITextEditorService private readonly codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService protected readonly testService: ITestService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@ICommandService protected readonly commandService: ICommandService,
