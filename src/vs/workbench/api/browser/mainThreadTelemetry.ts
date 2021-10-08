@@ -19,6 +19,8 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 	private static readonly _name = 'pluginHostTelemetry';
 
+	private _oldTelemetryEnabledValue: boolean | undefined;
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -33,7 +35,13 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		if (supportsTelemetry(this._productService, this._environmenService)) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
-					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
+					const telemetryEnabled = this.telemetryEnabled;
+					// Since changing telemetryLevel from "off" => "error" doesn't change the isEnabled state
+					// We shouldn't fire a change event
+					if (telemetryEnabled !== this._oldTelemetryEnabledValue) {
+						this._oldTelemetryEnabledValue = telemetryEnabled;
+						this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
+					}
 				}
 			}));
 		}
