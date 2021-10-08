@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -41,8 +41,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
-	protected readonly _onDidChangeLayout = this._register(new Emitter<CodeCellLayoutChangeEvent>());
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
+	protected _pauseableEmitter = new PauseableEmitter<CodeCellLayoutChangeEvent>();
+
+	readonly onDidChangeLayout = this._pauseableEmitter.event;
 
 	private _editorHeight = 0;
 	set editorHeight(height: number) {
@@ -162,6 +163,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
+	pauseLayout() {
+		this._pauseableEmitter.pause();
+	}
+
+	resumeLayout() {
+		this._pauseableEmitter.resume();
+	}
+
 	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
@@ -260,7 +269,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
-		this._onDidChangeLayout.fire(state);
+		this._pauseableEmitter.fire(state);
 	}
 
 	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
