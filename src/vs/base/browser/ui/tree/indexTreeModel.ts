@@ -23,6 +23,7 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	visibility: TreeVisibility;
 	visible: boolean;
 	filterData: TFilterData | undefined;
+	lastDiffIds?: string[];
 }
 
 export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
@@ -162,10 +163,14 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		recurseLevels = options.diffDepth ?? 0,
 	) {
 		const { parentNode } = this.getParentNodeWithListIndex(location);
+		if (!parentNode.lastDiffIds) {
+			return this.spliceSimple(location, deleteCount, toInsertIterable, options);
+		}
+
 		const toInsert = [...toInsertIterable];
 		const index = location[location.length - 1];
 		const diff = new LcsDiff(
-			{ getElements: () => parentNode.children.map(e => identity.getId(e.element).toString()) },
+			{ getElements: () => parentNode.lastDiffIds! },
 			{
 				getElements: () => [
 					...parentNode.children.slice(0, index),
@@ -177,6 +182,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		// if we were given a 'best effort' diff, use default behavior
 		if (diff.quitEarly) {
+			parentNode.lastDiffIds = undefined;
 			return this.spliceSimple(location, deleteCount, toInsert, options);
 		}
 
@@ -221,7 +227,7 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		location: number[],
 		deleteCount: number,
 		toInsert: Iterable<ITreeElement<T>> = Iterable.empty(),
-		{ onDidCreateNode, onDidDeleteNode }: IIndexTreeModelSpliceOptions<T, TFilterData>,
+		{ onDidCreateNode, onDidDeleteNode, diffIdentityProvider }: IIndexTreeModelSpliceOptions<T, TFilterData>,
 	) {
 		const { parentNode, listIndex, revealed, visible } = this.getParentNodeWithListIndex(location);
 		const treeListElementsToInsert: ITreeNode<T, TFilterData>[] = [];
@@ -257,6 +263,14 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 		}
 
 		const deletedNodes = splice(parentNode.children, lastIndex, deleteCount, nodesToInsert);
+
+		if (!diffIdentityProvider) {
+			parentNode.lastDiffIds = undefined;
+		} else if (parentNode.lastDiffIds) {
+			splice(parentNode.lastDiffIds, lastIndex, deleteCount, nodesToInsert.map(n => diffIdentityProvider.getId(n.element).toString()));
+		} else {
+			parentNode.lastDiffIds = parentNode.children.map(n => diffIdentityProvider.getId(n.element).toString());
+		}
 
 		// figure out what is the count of deleted visible children
 		let deletedVisibleChildrenCount = 0;
