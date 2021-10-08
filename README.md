@@ -58,13 +58,17 @@ _Note_: You can use [pre-releases](https://github.com/gitpod-io/openvscode-serve
 
 ### Deployment guides
 
-Please refer to [Guides](./docs/guides/) to learn how to deploy OpenVSCode Server to your cloud provider of choice.
+Please refer to [Guides](https://github.com/gitpod-io/openvscode-server/tree/docs/guides) to learn how to deploy OpenVSCode Server to your cloud provider of choice.
 
 ## The scope of this project
 
 This project only adds minimal bits required to run VS Code in a server scenario. We have no intention of changing VS Code in any way or to add additional features to VS Code itself. Please report feature requests, bug fixes, etc. in the upstream repository.
 
 > **For any feature requests, bug reports, or contributions that are not specific to running VS Code in a server context, please go to [Visual Studio Code - Open Source "OSS"](https://github.com/microsoft/vscode)**
+
+## Documentation
+
+All documentation is available in [the `docs` branch](https://github.com/gitpod-io/openvscode-server/tree/docs) of this project.
 
 ## Supporters
 
@@ -76,7 +80,7 @@ Thanks for your interest in contributing to the project 🙏. You can start a de
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/from-referrer)
 
-To learn about the code structure and other topics related to contributing, please refer to the [development docs](./docs/development.md).
+To learn about the code structure and other topics related to contributing, please refer to the [development docs](https://github.com/gitpod-io/openvscode-server/blob/docs/development.md).
 
 ## Community & Feedback
 
