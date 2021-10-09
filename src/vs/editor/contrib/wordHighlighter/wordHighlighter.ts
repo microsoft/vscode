@@ -43,7 +43,7 @@ export function getOccurrencesAtPosition(model: ITextModel, position: Position, 
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
-	// (good = none empty array)
+	// (good = non-empty array)
 	return first<DocumentHighlight[] | null | undefined>(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
