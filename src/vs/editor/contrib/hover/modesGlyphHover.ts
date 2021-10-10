@@ -111,11 +111,12 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 		super();
 		this._editor = editor;
 
-		this._hover = this._register(new HoverWidget());
-
 		this._isVisible = false;
 		this._messages = [];
 		this._lastLineNumber = -1;
+
+		this._hover = this._register(new HoverWidget());
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);

@@ -215,11 +215,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
 		];
 
-		this._hover = this._register(new HoverWidget());
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
 		this._renderDisposable = null;
+
+		this._hover = this._register(new HoverWidget());
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
