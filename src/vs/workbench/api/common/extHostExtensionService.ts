@@ -38,6 +38,7 @@ import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } fro
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -87,6 +88,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected readonly _logService: ILogService;
 	protected readonly _extHostTunnelService: IExtHostTunnelService;
 	protected readonly _extHostTerminalService: IExtHostTerminalService;
+	protected readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -122,6 +124,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -133,6 +136,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService = logService;
 		this._extHostTunnelService = extHostTunnelService;
 		this._extHostTerminalService = extHostTerminalService;
+		this._extHostFileSystemInfo = extHostFileSystemInfo;
 		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -272,17 +276,18 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
+	public async getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
-			const tst = TernarySearchTree.forUris<IExtensionDescription>();
-			const extensions = this._registry.getAllExtensionDescriptions().map(async ext => {
-				if (!this._getEntryPoint(ext)) {
-					return;
+			this._extensionPathIndex = (async () => {
+				const tst = TernarySearchTree.forUris<IExtensionDescription>(key => this._extHostFileSystemInfo.extUri.ignorePathCasing(key));
+				for (const ext of this._registry.getAllExtensionDescriptions()) {
+					if (this._getEntryPoint(ext)) {
+						const uri = await this._realPathExtensionUri(ext.extensionLocation);
+						tst.set(uri, ext);
+					}
 				}
-				const uri = await this._realPathExtensionUri(ext.extensionLocation);
-				tst.set(uri, ext);
-			});
-			this._extensionPathIndex = Promise.all(extensions).then(() => tst);
+				return tst;
+			})();
 		}
 		return this._extensionPathIndex;
 	}
