@@ -37,6 +37,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
+import { Schemas } from 'vs/base/common/network';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -101,7 +102,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _secretState: ExtHostSecretState;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
+	private _extensionPathIndex: Promise<TernarySearchTree<URI, IExtensionDescription>> | null;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
@@ -259,17 +260,29 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 	}
 
+	/**
+	 * Applies realpath to file-uris and returns all others uris unmodified
+	 */
+	private async _realPathExtensionUri(uri: URI): Promise<URI> {
+		if (uri.scheme !== Schemas.file) {
+			return uri;
+		}
+		const realpathValue = await this._hostUtils.realpath(uri.fsPath);
+		return URI.file(realpathValue);
+	}
+
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>> {
+	public getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
-			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
-			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
+			const tst = TernarySearchTree.forUris<IExtensionDescription>();
+			const extensions = this._registry.getAllExtensionDescriptions().map(async ext => {
 				if (!this._getEntryPoint(ext)) {
-					return undefined;
+					return;
 				}
-				return this._hostUtils.realpath(ext.extensionLocation.fsPath).then(value => tree.set(URI.file(value).fsPath, ext));
+				const uri = await this._realPathExtensionUri(ext.extensionLocation);
+				tst.set(uri, ext);
 			});
-			this._extensionPathIndex = Promise.all(extensions).then(() => tree);
+			this._extensionPathIndex = Promise.all(extensions).then(() => tst);
 		}
 		return this._extensionPathIndex;
 	}
@@ -757,16 +770,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		await Promise.all(toRemove.map(async (extensionId) => {
 			const extensionDescription = this._registry.getExtensionDescription(extensionId);
-			if (!extensionDescription) {
-				return;
+			if (extensionDescription) {
+				trie.delete(await this._realPathExtensionUri(extensionDescription.extensionLocation));
 			}
-			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.delete(URI.file(realpathValue).fsPath);
 		}));
 
 		await Promise.all(toAdd.map(async (extensionDescription) => {
-			const realpathValue = await this._hostUtils.realpath(extensionDescription.extensionLocation.fsPath);
-			trie.set(URI.file(realpathValue).fsPath, extensionDescription);
+			const realpathUri = await this._realPathExtensionUri(extensionDescription.extensionLocation);
+			trie.set(realpathUri, extensionDescription);
 		}));
 
 		this._registry.deltaExtensions(toAdd, toRemove);
@@ -839,7 +850,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
+	getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 
 	onDidChangeRemoteConnectionData: Event<void>;
