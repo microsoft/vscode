@@ -51,6 +51,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -918,6 +919,7 @@ export class TerminalService implements ITerminalService {
 		const profilesKey = `${TerminalSettingPrefix.Profiles}${platformKey}`;
 		const defaultProfileKey = `${TerminalSettingPrefix.DefaultProfile}${platformKey}`;
 		const defaultProfileName = this._configurationService.getValue<string>(defaultProfileKey);
+		const standardColors: string[] = [];
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -957,6 +959,26 @@ export class TerminalService implements ITerminalService {
 		const quickPickItems: (IProfileQuickPickItem | IQuickPickSeparator)[] = [];
 		const configProfiles = profiles.filter(e => !e.isAutoDetected);
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
+		const colorTheme = this._themeService.getColorTheme();
+		for (const colorKey in ansiColorMap) {
+			const color = colorTheme.getColor(colorKey);
+			if (color && !colorKey.toLowerCase().includes('bright')) {
+				standardColors.push(colorKey);
+			}
+		}
+
+		const styleElement = document.createElement('style');
+		let css = '';
+		for (const colorKey of standardColors) {
+			const colorClass = getColorClass(colorKey);
+			const color = colorTheme.getColor(colorKey);
+			if (color) {
+				css += (
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
+					`{ color: ${color} !important; }`
+				);
+			}
+		}
 		if (configProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(configProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
@@ -1000,8 +1022,11 @@ export class TerminalService implements ITerminalService {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
 			quickPickItems.push(...this._sortProfileQuickPickItems(autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)), defaultProfileName));
 		}
+		styleElement.textContent = css;
+		document.body.appendChild(styleElement);
 
 		const value = await this._quickInputService.pick(quickPickItems, options);
+		document.body.removeChild(styleElement);
 		if (!value) {
 			return;
 		}
@@ -1135,9 +1160,15 @@ export class TerminalService implements ITerminalService {
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
+		const colorClass = getColorClass(profile);
+		const iconClasses = [];
+		if (colorClass) {
+			iconClasses.push(colorClass);
+		}
+
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons };
+				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons, iconClasses };
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
@@ -1145,9 +1176,9 @@ export class TerminalService implements ITerminalService {
 				}
 				return e;
 			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons };
+			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
 		}
-		return { label, description: profile.path, profile, profileName: profile.profileName, buttons };
+		return { label, description: profile.path, profile, profileName: profile.profileName, buttons, iconClasses };
 	}
 
 	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {
@@ -1411,7 +1442,8 @@ class TerminalEditorStyle extends Themable {
 	private _registerListeners(): void {
 		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
+		this._register(this._terminalService.onDidCreateInstance(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeAvailableProfiles(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
@@ -1460,6 +1492,21 @@ class TerminalEditorStyle extends Themable {
 		if (iconForegroundColor) {
 			css += `.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
 		}
+
+		for (const profile of this._terminalService.availableProfiles) {
+			const colorClass = getColorClass(profile);
+			if (!colorClass || !profile.color) {
+				continue;
+			}
+			const color = colorTheme.getColor(profile.color);
+			if (color) {
+				css += (
+					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
+					`{ color: ${color} !important; }`
+				);
+			}
+		}
+
 		for (const instance of this._terminalService.instances) {
 			const colorClass = getColorClass(instance);
 			if (!colorClass || !instance.color) {

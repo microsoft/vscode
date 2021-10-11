@@ -6,16 +6,17 @@
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionTerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 
 export function getColorClass(colorKey: string): string;
+export function getColorClass(profile: ITerminalProfile): string;
 export function getColorClass(terminal: ITerminalInstance): string | undefined;
 export function getColorClass(extensionTerminalProfile: IExtensionTerminalProfile): string | undefined;
-export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtensionTerminalProfile | string): string | undefined {
+export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile | string): string | undefined {
 	let color = undefined;
 	if (typeof terminalOrColorKey === 'string') {
 		color = terminalOrColorKey;
@@ -30,7 +31,7 @@ export function getColorClass(terminalOrColorKey: ITerminalInstance | IExtension
 	return undefined;
 }
 
-export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile, colorScheme: ColorScheme, extensionContributed?: boolean): string[] | undefined {
+export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile, colorScheme: ColorScheme, extensionContributed?: boolean): string[] | undefined {
 	const icon = terminal.icon;
 	if (!icon) {
 		return undefined;
@@ -60,7 +61,7 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	return iconClasses;
 }
 
-export function getIconId(terminal: ITerminalInstance | IExtensionTerminalProfile): string {
+export function getIconId(terminal: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile): string {
 	if (!terminal.icon || (terminal.icon instanceof Object && !('id' in terminal.icon))) {
 		return Codicon.terminal.id;
 	}
