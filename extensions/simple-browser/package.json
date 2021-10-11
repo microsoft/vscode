@@ -24,7 +24,8 @@
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
-    "onOpenExternalUri:https"
+    "onOpenExternalUri:https",
+    "onWebviewPanel:simpleBrowser.view"
   ],
   "capabilities": {
     "virtualWorkspaces": true,

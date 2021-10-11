@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -861,14 +861,35 @@ class ComposedLanguageConfiguration {
 }
 
 function combineLanguageConfigurations(configs: LanguageConfiguration[]): LanguageConfiguration {
-	const result: LanguageConfiguration = {};
-	for (const config of configs) {
-		for (const [key, value] of Object.entries(config)) {
-			if (value) {
-				result[key as keyof LanguageConfiguration] = value;
-			}
-		}
+	let result: ExplicitLanguageConfiguration = {
+		comments: undefined,
+		brackets: undefined,
+		wordPattern: undefined,
+		indentationRules: undefined,
+		onEnterRules: undefined,
+		autoClosingPairs: undefined,
+		surroundingPairs: undefined,
+		autoCloseBefore: undefined,
+		folding: undefined,
+		colorizedBracketPairs: undefined,
+		__electricCharacterSupport: undefined,
+	};
+	for (const entry of configs) {
+		result = {
+			comments: entry.comments || result.comments,
+			brackets: entry.brackets || result.brackets,
+			wordPattern: entry.wordPattern || result.wordPattern,
+			indentationRules: entry.indentationRules || result.indentationRules,
+			onEnterRules: entry.onEnterRules || result.onEnterRules,
+			autoClosingPairs: entry.autoClosingPairs || result.autoClosingPairs,
+			surroundingPairs: entry.surroundingPairs || result.surroundingPairs,
+			autoCloseBefore: entry.autoCloseBefore || result.autoCloseBefore,
+			folding: entry.folding || result.folding,
+			colorizedBracketPairs: entry.colorizedBracketPairs || result.colorizedBracketPairs,
+			__electricCharacterSupport: entry.__electricCharacterSupport || result.__electricCharacterSupport,
+		};
 	}
+
 	return result;
 }
 

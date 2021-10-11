@@ -20,8 +20,7 @@ import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/c
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { Dimension } from 'vs/base/browser/dom';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IAction, Separator } from 'vs/base/common/actions';
@@ -86,18 +85,6 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			new Separator(),
 			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Side Panel"))
 		]);
-	}
-
-	override layout(width: number, height: number): void {
-		let dimensions: Dimension;
-		if (this.layoutService.getSideBarPosition() === Position.LEFT) {
-			dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
-			dimensions = new Dimension(width, height);
-		}
-
-		// Layout contents
-		super.layout(dimensions.width, dimensions.height);
 	}
 
 	override toJSON(): object {

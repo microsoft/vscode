@@ -26,7 +26,7 @@ class DesktopMain extends SharedDesktopMain {
 	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {
 
 		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, { enableLegacyRecursiveWatcher: this.configuration.enableLegacyRecursiveWatcher }));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, { legacyWatcher: this.configuration.legacyWatcher }));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider

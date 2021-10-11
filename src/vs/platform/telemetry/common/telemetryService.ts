@@ -76,30 +76,24 @@ export class TelemetryService implements ITelemetryService {
 			};
 			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
 		});
-
-		// TODO @sbatten @lramos15 bring this code in after one iteration
-		// Once the service initializes we update the telemetry value to the new format
-		// this._convertOldTelemetrySettingToNew();
-		// this._configurationService.onDidChangeConfiguration(e => {
-		// 	if (e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
-		// 		this._convertOldTelemetrySettingToNew();
-		// 	}
-		// }, this);
 	}
 
 	setExperimentProperty(name: string, value: string): void {
 		this._experimentProperties[name] = value;
 	}
 
-	// TODO: @sbatten @lramos15 bring this code in after one iteration
-	// private _convertOldTelemetrySettingToNew(): void {
-	// 	const telemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
-	// 	if (typeof telemetryValue === 'boolean') {
-	// 		this._configurationService.updateValue(TELEMETRY_SETTING_ID, telemetryValue ? 'true' : 'false');
-	// 	}
-	// }
+	private _convertOldTelemetrySettingToNew(): void {
+		const oldTelemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
+		const crashReporterSetting = this._configurationService.getValue('telemetry.enableCrashReporter');
+		if (oldTelemetryValue === false || crashReporterSetting === false) {
+			this._configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
+			this._configurationService.updateValue(TELEMETRY_OLD_SETTING_ID, undefined);
+			this._configurationService.updateValue('telemetry.enableCrashReporter', undefined);
+		}
+	}
 
 	private _updateTelemetryLevel(): void {
+		this._convertOldTelemetrySettingToNew();
 		this._telemetryLevel = getTelemetryLevel(this._configurationService);
 	}
 

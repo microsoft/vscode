@@ -19,24 +19,6 @@
 	justify-content: space-between;
 }
 
-.monaco-workbench .part.auxiliarybar.right {
-	border-left-width: 1px;
-	border-left-style: solid;
-}
-
-.monaco-workbench.noeditorarea .part.auxiliarybar.right {
-	border-left-width: 0; /* no border when editor area is hiden */
-}
-
-.monaco-workbench .part.auxiliarybar.left {
-	border-right-width: 1px;
-	border-right-style: solid;
-}
-
-.monaco-workbench.noeditorarea .part.auxiliarybar.left {
-	border-right-width: 0; /* no border when editor area is hiden */
-}
-
 .monaco-workbench .part.auxiliarybar > .composite.title > .title-actions .monaco-action-bar .actions-container {
 	justify-content: flex-end;
 }

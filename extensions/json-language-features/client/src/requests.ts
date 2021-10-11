@@ -6,7 +6,7 @@
 import { Uri } from 'vscode';
 
 export interface RequestService {
-	getContent(uri: string, encoding?: string): Thenable<string>;
+	getContent(uri: string, encoding?: string): Promise<string>;
 }
 
 export function getScheme(uri: string) {

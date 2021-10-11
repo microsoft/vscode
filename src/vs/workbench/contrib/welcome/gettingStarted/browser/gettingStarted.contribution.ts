@@ -289,7 +289,7 @@ configurationRegistry.registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
 		'workbench.welcomePage.walkthroughs.openOnInstall': {
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension.")

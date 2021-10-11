@@ -42,13 +42,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 		if (inputTag && typeof inputTag === 'string') {
 			return updateTag(inputTag);
 		}
-		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			if (tagName) {
-				const update = updateTag(tagName);
-				return update ? update : false;
-			}
-			return false;
-		});
+		return updateTag(undefined);
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('editor.emmet.action.matchTag', () => {

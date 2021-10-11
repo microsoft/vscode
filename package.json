@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.61.0",
-  "distro": "1f46ee7817e5dd559cb14869b91df4e795102e3e",
+  "version": "1.62.0",
+  "distro": "79dc5a9315cd03594ee26130d010998fbf556c4d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
+    "@parcel/watcher": "2.0.0",
     "@vscode/sqlite3": "4.0.12",
     "@vscode/vscode-languagedetection": "1.0.21",
     "applicationinsights": "1.0.8",

@@ -688,6 +688,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 	let dropdownActions: IAction[] = [];
 	let submenuActions: IAction[] = [];
 
+	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 	for (const p of profiles) {
 		const isDefault = p.profileName === defaultProfileName;
 		const options: IMenuActionOptions = {
@@ -697,7 +698,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			} as ICreateTerminalOptions,
 			shouldForwardArgs: true
 		};
-		const splitLocation = (location === TerminalLocation.Editor || location === { viewColumn: ACTIVE_GROUP }) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 		const splitOptions: IMenuActionOptions = {
 			arg: {
 				config: p,
@@ -725,7 +725,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 			},
 			location
 		})));
-		const splitLocation = location === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 		submenuActions.push(new Action('contributed-split', title, undefined, true, () => terminalService.createTerminal({
 			config: {
 				extensionIdentifier: contributed.extensionIdentifier,

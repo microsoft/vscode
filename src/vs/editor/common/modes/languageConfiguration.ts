@@ -88,6 +88,16 @@ export interface LanguageConfiguration {
 }
 
 /**
+ * @internal
+ */
+type OrUndefined<T> = { [P in keyof T]: T[P] | undefined };
+
+/**
+ * @internal
+ */
+export type ExplicitLanguageConfiguration = OrUndefined<Required<LanguageConfiguration>>;
+
+/**
  * Describes indentation rules for a language.
  */
 export interface IndentationRule {

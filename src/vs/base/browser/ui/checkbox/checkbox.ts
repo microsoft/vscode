@@ -205,6 +205,12 @@ export class Checkbox extends Widget {
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 
+	// This function is used for cases like the Settings editor where the
+	// actual setting the checkbox represents is known later.
+	setTitle(newTitle: string): void {
+		this.domNode.title = newTitle;
+		this.domNode.setAttribute('aria-label', newTitle);
+	}
 }
 
 export class SimpleCheckbox extends Widget {
