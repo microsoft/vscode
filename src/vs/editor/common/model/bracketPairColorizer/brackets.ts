@@ -22,10 +22,6 @@ export class BracketTokens {
 		const openingBrackets = new Set</* openingText */ string>();
 
 		for (const [openingText, closingText] of brackets) {
-			if (openingText === '' || closingText === '') {
-				continue;
-			}
-
 			openingBrackets.add(openingText);
 
 			let info = closingBrackets.get(closingText);

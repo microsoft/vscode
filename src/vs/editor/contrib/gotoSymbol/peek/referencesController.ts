@@ -55,7 +55,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 
 		this._referenceSearchVisible = ctxReferenceSearchVisible.bindTo(contextKeyService);

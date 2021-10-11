@@ -546,6 +546,42 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
+		'editor.language.brackets': {
+			type: 'array',
+			default: false, // We want to distinguish the empty array from not configured.
+			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+			items: {
+				type: 'array',
+				items: [
+					{
+						type: 'string',
+						description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+					},
+					{
+						type: 'string',
+						description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+					}
+				]
+			}
+		},
+		'editor.language.colorizedBracketPairs': {
+			type: 'array',
+			default: false, // We want to distinguish the empty array from not configured.
+			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
+			items: {
+				type: 'array',
+				items: [
+					{
+						type: 'string',
+						description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+					},
+					{
+						type: 'string',
+						description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+					}
+				]
+			}
+		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',
 			default: 5000,

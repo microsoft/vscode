@@ -22,7 +22,6 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
@@ -50,30 +49,107 @@ export interface IIndentConverter {
 export interface ILanguageConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	onLanguageConfigurationDidChange(languageId: LanguageId, resource: URI | undefined, onChangeHandler: () => void): IDisposable
-	getLanguageConfiguration(languageId: LanguageId, resource: URI | undefined): ResolvedLanguageConfiguration;
+	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
+	getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration;
+}
+
+export class LanguageConfigurationServiceChangeEvent {
+	constructor(public readonly languageIdentifier: LanguageIdentifier | undefined) { }
+
+	public affects(languageIdentifier: LanguageIdentifier): boolean {
+		return !this.languageIdentifier ? true : this.languageIdentifier.id === languageIdentifier.id;
+	}
 }
 
 export const ILanguageConfigurationService = createDecorator<ILanguageConfigurationService>('languageConfigurationService');
 
-function getCacheKey(languageId: LanguageId, resource?: URI): string {
-	let result = `${languageId}`;
-	if (resource) {
-		result += `:${resource.toString()}`;
+export class LanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
+	_serviceBrand: undefined;
+
+	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
+	public readonly onDidChange = this.onDidChangeEmitter.event;
+
+	private readonly configurations = new Map<LanguageId, ResolvedLanguageConfiguration>();
+
+	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService
+	) {
+		super();
+
+		const languageConfigKeys = new Set(Object.values(customizedLanguageConfigKeys));
+
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			const globalConfigChanged = e.change.keys.some((k) =>
+				languageConfigKeys.has(k)
+			);
+			const localConfigChanged = e.change.overrides
+				.filter(([overrideLangName, keys]) =>
+					keys.some((k) => languageConfigKeys.has(k))
+				)
+				.map(([overrideLangName]) => this.modeService.getLanguageIdentifier(overrideLangName));
+
+			if (globalConfigChanged) {
+				this.configurations.clear();
+				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(undefined));
+			} else {
+				for (const languageIdentifier of localConfigChanged) {
+					if (languageIdentifier) {
+						this.configurations.delete(languageIdentifier.id);
+						this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(languageIdentifier));
+					}
+				}
+			}
+		}));
+
+		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
+			this.configurations.delete(e.languageIdentifier.id);
+			this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageIdentifier));
+		}));
 	}
-	return result;
+
+	public getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration {
+		let result = this.configurations.get(languageId);
+		if (!result) {
+			result = computeConfig(languageId, this.configurationService, this.modeService);
+			this.configurations.set(languageId, result);
+		}
+		return result;
+	}
 }
 
-function getCustomizedLanguageConfig(languageIdentifier: LanguageIdentifier, resource: URI | undefined, configurationService: IConfigurationService): LanguageConfiguration {
-	// TODO how should these keys be registered to the JSON schema?
+function computeConfig(
+	languageId: LanguageId,
+	configurationService: IConfigurationService,
+	modeService: IModeService,
+): ResolvedLanguageConfiguration {
+	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
 
-	const brackets = configurationService.getValue('editor.language.brackets', {
-		resource,
+	if (!languageConfig) {
+		const languageIdentifier = modeService.getLanguageIdentifier(languageId);
+		if (!languageIdentifier) {
+			throw new Error('Unexpected languageId');
+		}
+		languageConfig = new ResolvedLanguageConfiguration(languageIdentifier, {});
+	}
+
+	const customizedConfig = getCustomizedLanguageConfig(languageConfig.languageIdentifier, configurationService);
+	const data = combineLanguageConfigurations([languageConfig.underlyingConfig, customizedConfig]);
+	const config = new ResolvedLanguageConfiguration(languageConfig.languageIdentifier, data);
+	return config;
+}
+
+const customizedLanguageConfigKeys = {
+	brackets: 'editor.language.brackets',
+	colorizedBracketPairs: 'editor.language.colorizedBracketPairs'
+};
+
+function getCustomizedLanguageConfig(languageIdentifier: LanguageIdentifier, configurationService: IConfigurationService): LanguageConfiguration {
+	const brackets = configurationService.getValue(customizedLanguageConfigKeys.brackets, {
 		overrideIdentifier: languageIdentifier.language,
 	});
 
-	const colorizedBracketPairs = configurationService.getValue('editor.language.colorizedBracketPairs', {
-		resource,
+	const colorizedBracketPairs = configurationService.getValue(customizedLanguageConfigKeys.colorizedBracketPairs, {
 		overrideIdentifier: languageIdentifier.language,
 	});
 
@@ -93,117 +169,6 @@ function validateBracketPairs(data: unknown): CharacterPair[] | undefined {
 		}
 		return [pair[0], pair[1]] as CharacterPair;
 	}).filter((p): p is CharacterPair => !!p);
-}
-
-class CustomizedConfigurationWatcher extends Disposable {
-	public config!: ResolvedLanguageConfiguration;
-
-	private readonly onChangeEmitter = new Emitter<void>({ onLastListenerRemove: () => this.onUnsubscribe() });
-	public readonly onDidChange = this.onChangeEmitter.event;
-
-	constructor(
-		public readonly languageId: LanguageId,
-		public readonly resource: URI | undefined,
-		public readonly configurationService: IConfigurationService,
-		public readonly modeService: IModeService,
-		public readonly onUnsubscribe: () => void
-	) {
-		super();
-
-		this.config = computeConfig(this.languageId, this.resource, this.configurationService, this.modeService);
-
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			this.update();
-		}));
-		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
-			if (e.languageIdentifier.id === languageId) {
-				this.update();
-			}
-		}));
-	}
-
-	private update(): void {
-		const oldConfig = this.config;
-		this.config = computeConfig(this.languageId, this.resource, this.configurationService, this.modeService);
-		if (!oldConfig.equals(this.config)) {
-			this.onChangeEmitter.fire();
-		}
-	}
-}
-
-function computeConfig(
-	languageId: LanguageId,
-	resource: URI | undefined,
-	configurationService: IConfigurationService,
-	modeService: IModeService,
-): ResolvedLanguageConfiguration {
-	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
-
-	if (!languageConfig) {
-		const languageIdentifier = modeService.getLanguageIdentifier(languageId);
-		if (!languageIdentifier) {
-			throw new Error('Unexpected languageId');
-		}
-		languageConfig = new ResolvedLanguageConfiguration(languageIdentifier, {});
-	}
-
-	const customizedConfig = getCustomizedLanguageConfig(languageConfig.languageIdentifier, resource, configurationService);
-	const data = combineLanguageConfigurations([languageConfig.underlyingConfig, customizedConfig]);
-	const config = new ResolvedLanguageConfiguration(languageConfig.languageIdentifier, data);
-	return config;
-}
-
-export class LanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
-	private readonly watchers = new Map<string, CustomizedConfigurationWatcher>();
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IModeService private readonly modeService: IModeService
-	) {
-		super();
-
-		this._register(toDisposable(() => {
-			this.watchers.forEach(watcher => watcher.dispose());
-			this.watchers.clear();
-		}));
-	}
-	_serviceBrand: undefined;
-
-	public onLanguageConfigurationDidChange(languageId: LanguageId, resource: URI | undefined, handler: () => void): IDisposable {
-		const cacheKey = getCacheKey(languageId, resource);
-
-		let watcher = this.watchers.get(cacheKey);
-
-		if (!watcher) {
-			watcher = new CustomizedConfigurationWatcher(
-				languageId,
-				resource,
-				this.configurationService,
-				this.modeService,
-				() => {
-					watcher!.dispose();
-					this.watchers.delete(cacheKey);
-				}
-			);
-			this.watchers.set(cacheKey, watcher);
-		}
-
-		return watcher.onDidChange(handler);
-	}
-
-	public getLanguageConfiguration(languageId: LanguageId, resource?: URI): ResolvedLanguageConfiguration {
-		const cacheKey = getCacheKey(languageId, resource);
-
-		let config =
-			this.watchers.get(cacheKey)?.config ??
-			computeConfig(
-				languageId,
-				resource,
-				this.configurationService,
-				this.modeService
-			);
-		return config;
-	}
 }
 
 export class LanguageConfigurationChangeEvent {
@@ -924,8 +889,6 @@ class LanguageConfigurationContribution {
 	}
 }
 
-export class UnconfiguredLanguage { }
-
 /**
  * Immutable.
 */
@@ -1008,10 +971,6 @@ export class ResolvedLanguageConfiguration {
 		);
 	}
 
-	public equals(other: ResolvedLanguageConfiguration): boolean {
-		return deepStrictEqual(this.underlyingConfig, other.underlyingConfig);
-	}
-
 	private static _handleComments(
 		conf: LanguageConfiguration
 	): ICommentsConfiguration | null {
@@ -1034,34 +993,6 @@ export class ResolvedLanguageConfiguration {
 
 		return comments;
 	}
-}
-
-function deepStrictEqual(a: unknown, b: unknown): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (Array.isArray(a) && Array.isArray(b)) {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (!deepStrictEqual(a[i], b[i])) {
-				return false;
-			}
-		}
-		return true;
-	} else if (typeof a === 'object' && typeof b === 'object' && a && b) {
-		if (Object.keys(a).length !== Object.keys(b).length) {
-			return false;
-		}
-		for (const [key, value] of Object.entries(a)) {
-			if (!deepStrictEqual(value, (b as any)[key])) {
-				return false;
-			}
-		}
-		return true;
-	}
-	return false;
 }
 
 registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);

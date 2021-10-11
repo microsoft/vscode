@@ -396,11 +396,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 
-		this._languageRegistryListener = this._languageConfigurationService.onLanguageConfigurationDidChange(
-			this._languageIdentifier.id,
-			this._associatedResource,
-			() => {
-				this._onDidChangeLanguageConfiguration.fire({});
+		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
+			e => {
+				if (e.affects(this._languageIdentifier)) {
+					this._onDidChangeLanguageConfiguration.fire({});
+				}
 			}
 		);
 
@@ -2150,7 +2150,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration {
-		return this._languageConfigurationService.getLanguageConfiguration(languageId, this.uri);
+		return this._languageConfigurationService.getLanguageConfiguration(languageId);
 	}
 
 	// Having tokens allows implementing additional helper methods

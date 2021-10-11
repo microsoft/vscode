@@ -68,26 +68,26 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		this._register(textModel.onDidChangeAttached(() => {
 			this.updateCache();
 		}));
+
+		this._register(
+			this.languageConfigurationService.onDidChange(e => {
+				if (!e.languageIdentifier || this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
+					this.cache.clear();
+					this.updateCache();
+				}
+			})
+		);
 	}
 
 	private updateCache() {
 		if (this.bracketsRequested || (this.textModel.isAttachedToEditor() && this.isDocumentSupported && this.options.enabled)) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
-				const watchedIds = new Set<LanguageId>();
 
 				this.cache.value = createDisposableRef(
 					store.add(
 						new BracketPairColorizerImpl(this.textModel, (languageId) => {
-							if (!watchedIds.has(languageId)) {
-								watchedIds.add(languageId);
-								store.add(this.languageConfigurationService.onLanguageConfigurationDidChange(languageId, this.textModel.uri, () => {
-									this.cache.clear();
-									this.updateCache();
-								}));
-							}
-
-							return this.languageConfigurationService.getLanguageConfiguration(languageId, this.textModel.uri);
+							return this.languageConfigurationService.getLanguageConfiguration(languageId);
 						})
 					),
 					store
