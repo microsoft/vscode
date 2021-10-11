@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownIt, Token } from 'markdown-it';
+import MarkdownIt = require('markdown-it');
+import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownContributionProvider as MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
@@ -14,11 +15,10 @@ import { WebviewResourceProvider } from './util/resources';
 
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
-interface MarkdownItConfig {
-	readonly breaks: boolean;
-	readonly linkify: boolean;
-	readonly typographer: boolean;
-}
+/**
+ * The markdown-it options that we expose in the settings.
+ */
+type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'linkify' | 'typographer'>>>;
 
 class TokenCache {
 	private cachedDocument?: {
@@ -85,7 +85,8 @@ export class MarkdownEngine {
 
 	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this.md) {
-			this.md = import('markdown-it').then(async markdownIt => {
+			this.md = (async () => {
+				const markdownIt = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 
 				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
@@ -122,7 +123,7 @@ export class MarkdownEngine {
 				this.addNamedHeaders(md);
 				this.addLinkRenderer(md);
 				return md;
-			});
+			})();
 		}
 
 		const md = await this.md!;
@@ -170,7 +171,7 @@ export class MarkdownEngine {
 		};
 
 		const html = engine.renderer.render(tokens, {
-			...(engine as any).options,
+			...engine.options,
 			...config
 		}, env);
 
@@ -201,7 +202,7 @@ export class MarkdownEngine {
 
 	private addLineNumberRenderer(md: MarkdownIt, ruleName: string): void {
 		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
 				token.attrSet('data-line', token.map[0] + '');
@@ -211,14 +212,14 @@ export class MarkdownEngine {
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
 	private addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
-		md.renderer.rules.image = (tokens: Token[], idx: number, options: any, env: RenderEnv, self: any) => {
+		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
 			const token = tokens[idx];
 			token.attrJoin('class', 'loading');
 
@@ -237,20 +238,24 @@ export class MarkdownEngine {
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
 	private addFencedRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules['fenced'];
-		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
 			if (token.map && token.map.length) {
 				token.attrJoin('class', 'hljs');
 			}
 
-			return original(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
 	}
 
@@ -282,8 +287,8 @@ export class MarkdownEngine {
 
 	private addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
-		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
-			const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
+			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 			let slug = this.slugifier.fromHeading(title);
 
 			if (this._slugCount.has(slug.value)) {
@@ -294,30 +299,31 @@ export class MarkdownEngine {
 				this._slugCount.set(slug.value, 0);
 			}
 
-			tokens[idx].attrs = tokens[idx].attrs || [];
-			tokens[idx].attrs.push(['id', slug.value]);
+			tokens[idx].attrSet('id', slug.value);
 
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {
-				return self.renderToken(tokens, idx, options, env, self);
+				return self.renderToken(tokens, idx, options);
 			}
 		};
 	}
 
 	private addLinkRenderer(md: MarkdownIt): void {
-		const old_render = md.renderer.rules.link_open || ((tokens: Token[], idx: number, options: any, _env: any, self: any) => {
-			return self.renderToken(tokens, idx, options);
-		});
+		const original = md.renderer.rules.link_open;
 
-		md.renderer.rules.link_open = (tokens: Token[], idx: number, options: any, env: any, self: any) => {
+		md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
-			const hrefIndex = token.attrIndex('href');
-			if (hrefIndex >= 0) {
-				const href = token.attrs[hrefIndex][1];
-				token.attrPush(['data-href', href]);
+			const href = token.attrGet('href');
+			// A string, including empty string, may be `href`.
+			if (typeof href === 'string') {
+				token.attrSet('data-href', href);
 			}
-			return old_render(tokens, idx, options, env, self);
+			if (original) {
+				return original(tokens, idx, options, env, self);
+			} else {
+				return self.renderToken(tokens, idx, options);
+			}
 		};
 	}
 
@@ -366,7 +372,7 @@ export class MarkdownEngine {
 	}
 }
 
-async function getMarkdownOptions(md: () => MarkdownIt) {
+async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Options> {
 	const hljs = await import('highlight.js');
 	return {
 		html: true,
