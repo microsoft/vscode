@@ -138,7 +138,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidOpenTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const emmetMode = getEmmetMode(e.languageId, {}, []) ?? '';
 		const syntaxes = getSyntaxes();
 		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
 			addFileToParseCache(e);
@@ -146,7 +146,7 @@ export function activateEmmetExtension(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidCloseTextDocument((e) => {
-		const emmetMode = getEmmetMode(e.languageId, []) ?? '';
+		const emmetMode = getEmmetMode(e.languageId, {}, []) ?? '';
 		const syntaxes = getSyntaxes();
 		if (syntaxes.markup.includes(emmetMode) || syntaxes.stylesheet.includes(emmetMode)) {
 			removeFileFromParseCache(e);
