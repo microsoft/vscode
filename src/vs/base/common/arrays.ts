@@ -323,9 +323,14 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 }
 
 /**
+ * @deprecated use {@link distinctES6} because this function `O(n2)` runtime
+ */
+export function distinct<T>(array: ReadonlyArray<T>): T[];
+/**
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning a unique string for each.
  */
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (t: T) => string): T[];
 export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
 	if (!keyFn) {
 		return array.filter((element, position) => {
