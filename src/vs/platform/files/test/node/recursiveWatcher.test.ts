@@ -504,6 +504,14 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], testDir);
 
+		excludes = service.toExcludePaths(testDir, ['**/**']);
+		assert.strictEqual(excludes?.length, 1);
+		assert.strictEqual(excludes[0], testDir);
+
+		excludes = service.toExcludePaths(testDir, ['**\\**']);
+		assert.strictEqual(excludes?.length, 1);
+		assert.strictEqual(excludes[0], testDir);
+
 		excludes = service.toExcludePaths(testDir, ['**/node_modules/**']);
 		assert.strictEqual(excludes?.length, 1);
 		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));

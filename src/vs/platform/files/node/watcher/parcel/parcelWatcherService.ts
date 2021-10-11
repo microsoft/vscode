@@ -73,6 +73,8 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 	private static readonly GLOB_MARKERS = {
 		Star: '*',
 		GlobStar: '**',
+		GlobStarPosix: '**/**',
+		GlobStarWindows: '**\\**',
 		GlobStarPathStartPosix: '**/',
 		GlobStarPathEndPosix: '/**',
 		StarPathEndPosix: '/*',
@@ -166,8 +168,12 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 			let normalizedExclude: string | undefined = undefined;
 			if (isGlob) {
 
-				// Examples: **
-				if (exclude === ParcelWatcherService.GLOB_MARKERS.GlobStar) {
+				// Examples: **, **/**, **\**
+				if (
+					exclude === ParcelWatcherService.GLOB_MARKERS.GlobStar ||
+					exclude === ParcelWatcherService.GLOB_MARKERS.GlobStarPosix ||
+					exclude === ParcelWatcherService.GLOB_MARKERS.GlobStarWindows
+				) {
 					normalizedExclude = path;
 				}
 
