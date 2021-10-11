@@ -25,7 +25,6 @@ import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watche
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
 import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 
@@ -533,7 +532,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | ParcelWatcherService | undefined;
+	private recursiveWatcher: UnixWatcherService | NsfwWatcherService | ParcelWatcherService | undefined;
 	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
@@ -598,7 +597,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
 						watcherOptions?: IWatcherOptions
-					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService | ParcelWatcherService
+					): UnixWatcherService | NsfwWatcherService | ParcelWatcherService
 				};
 
 				let watcherOptions: IWatcherOptions | undefined = undefined;
