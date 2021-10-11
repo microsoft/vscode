@@ -45,6 +45,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { isAbsolute } from 'vs/base/common/path';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1650,6 +1651,7 @@ export function registerTerminalActions() {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
+			const configurationService = accessor.get(IConfigurationService);
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				const activeInstance = terminalService.activeInstance;
@@ -1672,12 +1674,23 @@ export function registerTerminalActions() {
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 					if (!workspace) {
 						// Don't create the instance if the workspace picker was canceled
 						return;
 					}
 					eventOrOptions.cwd = workspace.uri;
+					const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: workspace.uri });
+					if (typeof cwdConfig === 'string' && cwdConfig.length > 0) {
+						if (isAbsolute(cwdConfig)) {
+							eventOrOptions.cwd = URI.from({
+								scheme: workspace.uri.scheme,
+								path: cwdConfig
+							});
+						} else {
+							eventOrOptions.cwd = URI.joinPath(workspace.uri, cwdConfig);
+						}
+					}
 					instance = await terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
