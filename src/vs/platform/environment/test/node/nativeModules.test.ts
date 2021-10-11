@@ -42,6 +42,11 @@ suite('Native Modules (all platforms)', () => {
 		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('nsfw'));
 	});
 
+	test('parcel', async () => {
+		const parcelWatcher = await import('@parcel/watcher');
+		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('parcel'));
+	});
+
 	test('sqlite3', async () => {
 		const sqlite3 = await import('@vscode/sqlite3');
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));

@@ -11,10 +11,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
-function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-	return new FileChangesEvent(toFileChanges(changes), !isLinux);
-}
-
 class TestFileWatcher {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[], event: FileChangesEvent }>;
 
@@ -37,8 +33,12 @@ class TestFileWatcher {
 
 		// Emit through event emitter
 		if (normalizedEvents.length > 0) {
-			this._onDidFilesChange.fire({ raw: toFileChanges(normalizedEvents), event: toFileChangesEvent(normalizedEvents) });
+			this._onDidFilesChange.fire({ raw: toFileChanges(normalizedEvents), event: this.toFileChangesEvent(normalizedEvents) });
 		}
+	}
+
+	private toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
+		return new FileChangesEvent(toFileChanges(changes), !isLinux);
 	}
 }
 
@@ -50,7 +50,7 @@ enum Path {
 
 suite('Watcher Events Normalizer', () => {
 
-	test('simple add/update/delete', function (done: () => void) {
+	test('simple add/update/delete', done => {
 		const watch = new TestFileWatcher();
 
 		const added = uri.file('/users/data/src/added.txt');
@@ -63,12 +63,12 @@ suite('Watcher Events Normalizer', () => {
 			{ path: deleted.fsPath, type: FileChangeType.DELETED },
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
 			assert.strictEqual(raw.length, 3);
-			assert.ok(e.contains(added, FileChangeType.ADDED));
-			assert.ok(e.contains(updated, FileChangeType.UPDATED));
-			assert.ok(e.contains(deleted, FileChangeType.DELETED));
+			assert.ok(event.contains(added, FileChangeType.ADDED));
+			assert.ok(event.contains(updated, FileChangeType.UPDATED));
+			assert.ok(event.contains(deleted, FileChangeType.DELETED));
 
 			done();
 		});
@@ -76,20 +76,19 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	let pathSpecs = isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX];
-	pathSpecs.forEach((p) => {
-		test('delete only reported for top level folder (' + p + ')', function (done: () => void) {
+	(isWindows ? [Path.WINDOWS, Path.UNC] : [Path.UNIX]).forEach(path => {
+		test(`delete only reported for top level folder (${path})`, done => {
 			const watch = new TestFileWatcher();
 
-			const deletedFolderA = uri.file(p === Path.UNIX ? '/users/data/src/todelete1' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
-			const deletedFolderB = uri.file(p === Path.UNIX ? '/users/data/src/todelete2' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
-			const deletedFolderBF1 = uri.file(p === Path.UNIX ? '/users/data/src/todelete2/file.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\file.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\file.txt');
-			const deletedFolderBF2 = uri.file(p === Path.UNIX ? '/users/data/src/todelete2/more/test.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\more\\test.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\more\\test.txt');
-			const deletedFolderBF3 = uri.file(p === Path.UNIX ? '/users/data/src/todelete2/super/bar/foo.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\super\\bar\\foo.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\super\\bar\\foo.txt');
-			const deletedFileA = uri.file(p === Path.UNIX ? '/users/data/src/deleteme.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\deleteme.txt' : '\\\\localhost\\users\\data\\src\\deleteme.txt');
+			const deletedFolderA = uri.file(path === Path.UNIX ? '/users/data/src/todelete1' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
+			const deletedFolderB = uri.file(path === Path.UNIX ? '/users/data/src/todelete2' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
+			const deletedFolderBF1 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/file.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\file.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\file.txt');
+			const deletedFolderBF2 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/more/test.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\more\\test.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\more\\test.txt');
+			const deletedFolderBF3 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/super/bar/foo.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\super\\bar\\foo.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\super\\bar\\foo.txt');
+			const deletedFileA = uri.file(path === Path.UNIX ? '/users/data/src/deleteme.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\deleteme.txt' : '\\\\localhost\\users\\data\\src\\deleteme.txt');
 
-			const addedFile = uri.file(p === Path.UNIX ? '/users/data/src/added.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
-			const updatedFile = uri.file(p === Path.UNIX ? '/users/data/src/updated.txt' : p === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
+			const addedFile = uri.file(path === Path.UNIX ? '/users/data/src/added.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
+			const updatedFile = uri.file(path === Path.UNIX ? '/users/data/src/updated.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
 
 			const raw: IDiskFileChange[] = [
 				{ path: deletedFolderA.fsPath, type: FileChangeType.DELETED },
@@ -102,15 +101,15 @@ suite('Watcher Events Normalizer', () => {
 				{ path: updatedFile.fsPath, type: FileChangeType.UPDATED }
 			];
 
-			watch.onDidFilesChange(({ event: e, raw }) => {
-				assert.ok(e);
+			watch.onDidFilesChange(({ event, raw }) => {
+				assert.ok(event);
 				assert.strictEqual(raw.length, 5);
 
-				assert.ok(e.contains(deletedFolderA, FileChangeType.DELETED));
-				assert.ok(e.contains(deletedFolderB, FileChangeType.DELETED));
-				assert.ok(e.contains(deletedFileA, FileChangeType.DELETED));
-				assert.ok(e.contains(addedFile, FileChangeType.ADDED));
-				assert.ok(e.contains(updatedFile, FileChangeType.UPDATED));
+				assert.ok(event.contains(deletedFolderA, FileChangeType.DELETED));
+				assert.ok(event.contains(deletedFolderB, FileChangeType.DELETED));
+				assert.ok(event.contains(deletedFileA, FileChangeType.DELETED));
+				assert.ok(event.contains(addedFile, FileChangeType.ADDED));
+				assert.ok(event.contains(updatedFile, FileChangeType.UPDATED));
 
 				done();
 			});
@@ -119,7 +118,7 @@ suite('Watcher Events Normalizer', () => {
 		});
 	});
 
-	test('event normalization: ignore CREATE followed by DELETE', function (done: () => void) {
+	test('event normalization: ignore CREATE followed by DELETE', done => {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -132,11 +131,11 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
 			assert.strictEqual(raw.length, 1);
 
-			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
+			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
 		});
@@ -144,7 +143,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: flatten DELETE followed by CREATE into CHANGE', function (done: () => void) {
+	test('event normalization: flatten DELETE followed by CREATE into CHANGE', done => {
 		const watch = new TestFileWatcher();
 
 		const deleted = uri.file('/users/data/src/related');
@@ -157,12 +156,12 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
-			assert.ok(e.contains(deleted, FileChangeType.UPDATED));
-			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
+			assert.ok(event.contains(deleted, FileChangeType.UPDATED));
+			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
 		});
@@ -170,7 +169,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: ignore UPDATE when CREATE received', function (done: () => void) {
+	test('event normalization: ignore UPDATE when CREATE received', done => {
 		const watch = new TestFileWatcher();
 
 		const created = uri.file('/users/data/src/related');
@@ -183,13 +182,13 @@ suite('Watcher Events Normalizer', () => {
 			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
-			assert.ok(e.contains(created, FileChangeType.ADDED));
-			assert.ok(!e.contains(created, FileChangeType.UPDATED));
-			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
+			assert.ok(event.contains(created, FileChangeType.ADDED));
+			assert.ok(!event.contains(created, FileChangeType.UPDATED));
+			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
 		});
@@ -197,7 +196,7 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: apply DELETE', function (done: () => void) {
+	test('event normalization: apply DELETE', done => {
 		const watch = new TestFileWatcher();
 
 		const updated = uri.file('/users/data/src/related');
@@ -212,13 +211,13 @@ suite('Watcher Events Normalizer', () => {
 			{ path: updated.fsPath, type: FileChangeType.DELETED }
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
 			assert.strictEqual(raw.length, 2);
 
-			assert.ok(e.contains(deleted, FileChangeType.DELETED));
-			assert.ok(!e.contains(updated, FileChangeType.UPDATED));
-			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
+			assert.ok(event.contains(deleted, FileChangeType.DELETED));
+			assert.ok(!event.contains(updated, FileChangeType.UPDATED));
+			assert.ok(event.contains(unrelated, FileChangeType.UPDATED));
 
 			done();
 		});
@@ -226,35 +225,25 @@ suite('Watcher Events Normalizer', () => {
 		watch.report(raw);
 	});
 
-	test('event normalization: track case renames', function (done: () => void) {
+	test('event normalization: track case renames', done => {
 		const watch = new TestFileWatcher();
 
-		const updated = uri.file('/users/data/src/related');
-		const updated2 = uri.file('/users/data/src/Related');
-
-		const added = uri.file('/users/data/src/added');
-		const added2 = uri.file('/users/data/src/ADDED');
+		const oldPath = uri.file('/users/data/src/added');
+		const newPath = uri.file('/users/data/src/ADDED');
 
 		const raw: IDiskFileChange[] = [
-			{ path: updated.fsPath, type: FileChangeType.UPDATED },
-			{ path: updated2.fsPath, type: FileChangeType.UPDATED },
-			{ path: added.fsPath, type: FileChangeType.ADDED },
-			{ path: added2.fsPath, type: FileChangeType.ADDED },
+			{ path: newPath.fsPath, type: FileChangeType.ADDED },
+			{ path: oldPath.fsPath, type: FileChangeType.DELETED }
 		];
 
-		watch.onDidFilesChange(({ event: e, raw }) => {
-			assert.ok(e);
-			assert.strictEqual(raw.length, 4);
-
+		watch.onDidFilesChange(({ event, raw }) => {
+			assert.ok(event);
+			assert.strictEqual(raw.length, 2);
 
 			for (const r of raw) {
-				if (isEqual(r.resource, updated)) {
-					assert.strictEqual(r.type, isLinux ? FileChangeType.UPDATED : FileChangeType.DELETED);
-				} else if (isEqual(r.resource, updated2)) {
-					assert.strictEqual(r.type, FileChangeType.UPDATED);
-				} else if (isEqual(r.resource, added)) {
+				if (isEqual(r.resource, oldPath)) {
 					assert.strictEqual(r.type, isLinux ? FileChangeType.ADDED : FileChangeType.DELETED);
-				} else if (isEqual(r.resource, added2)) {
+				} else if (isEqual(r.resource, newPath)) {
 					assert.strictEqual(r.type, FileChangeType.ADDED);
 				} else {
 					assert.fail();

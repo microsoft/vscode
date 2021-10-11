@@ -22,6 +22,7 @@ import { createFileSystemProviderError, FileDeleteOptions, FileOpenOptions, File
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
+import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
 import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
 import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
@@ -36,7 +37,7 @@ export interface IWatcherOptions {
 export interface IDiskFileSystemProviderOptions {
 	bufferSize?: number;
 	watcher?: IWatcherOptions;
-	enableLegacyRecursiveWatcher?: boolean;
+	legacyWatcher?: string;
 }
 
 export class DiskFileSystemProvider extends Disposable implements
@@ -532,7 +533,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
+	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | ParcelWatcherService | undefined;
 	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
@@ -577,7 +578,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private doRefreshRecursiveWatchers(): void {
 
 		// Reuse existing
-		if (this.recursiveWatcher instanceof NsfwWatcherService) {
+		if (this.recursiveWatcher instanceof NsfwWatcherService || this.recursiveWatcher instanceof ParcelWatcherService) {
 			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
 		}
 
@@ -597,7 +598,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						onLogMessage: (msg: ILogMessage) => void,
 						verboseLogging: boolean,
 						watcherOptions?: IWatcherOptions
-					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService
+					): WindowsWatcherService | UnixWatcherService | NsfwWatcherService | ParcelWatcherService
 				};
 
 				let watcherOptions: IWatcherOptions | undefined = undefined;
@@ -608,30 +609,27 @@ export class DiskFileSystemProvider extends Disposable implements
 					watcherOptions = this.options?.watcher;
 				}
 
+				// can use efficient watcher
 				else {
-
-					// Conditionally fallback to our legacy file watcher:
-					// - If provided as option from the outside (i.e. via settings)
-					// - Linux: until we support ignore patterns (unless insiders)
-					let enableLegacyWatcher: boolean;
-					if (this.options?.enableLegacyRecursiveWatcher) {
-						enableLegacyWatcher = true;
+					let enableLegacyWatcher = false;
+					if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
+						enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
 					} else {
-						enableLegacyWatcher = product.quality === 'stable' && isLinux;
-					}
-
-					// Legacy Watcher
-					if (enableLegacyWatcher && this.recursiveFoldersToWatch.length === 1) {
-						if (isWindows) {
-							watcherImpl = WindowsWatcherService;
-						} else {
-							watcherImpl = UnixWatcherService;
+						if (product.quality === 'stable') {
+							// in stable use legacy for single folder workspaces
+							// TODO@bpasero remove me eventually
+							enableLegacyWatcher = this.recursiveFoldersToWatch.length === 1;
 						}
 					}
 
-					// Standard Watcher
-					else {
-						watcherImpl = NsfwWatcherService;
+					if (enableLegacyWatcher) {
+						if (isLinux) {
+							watcherImpl = UnixWatcherService;
+						} else {
+							watcherImpl = NsfwWatcherService;
+						}
+					} else {
+						watcherImpl = ParcelWatcherService;
 					}
 				}
 
