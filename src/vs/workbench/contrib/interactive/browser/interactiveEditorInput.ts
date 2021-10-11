@@ -146,7 +146,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 			return true;
 		}
 		if (otherInput instanceof InteractiveEditorInput) {
-			return isEqual(this.resource, otherInput.resource);
+			return isEqual(this.resource, otherInput.resource) && isEqual(this.inputResource, otherInput.inputResource);
 		}
 		return false;
 	}
