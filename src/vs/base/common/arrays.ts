@@ -323,42 +323,18 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 }
 
 /**
- * @deprecated use {@link distinctES6} because this function has `O(n2)` runtime-behaviour
- */
-export function distinct<T>(array: ReadonlyArray<T>): T[];
-/**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equality by returning a unique string for each.
+ * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (t: T) => string): T[];
-export function distinct<T>(array: ReadonlyArray<T>, keyFn?: (t: T) => string): T[] {
-	if (!keyFn) {
-		return array.filter((element, position) => {
-			return array.indexOf(element) === position;
-		});
-	}
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+	const seen = new Set<any>();
 
-	const seen: { [key: string]: boolean; } = Object.create(null);
-	return array.filter((elem) => {
-		const key = keyFn(elem);
-		if (seen[key]) {
-			return false;
-		}
-
-		seen[key] = true;
-
-		return true;
-	});
-}
-
-export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
-	const seen = new Set<T>();
 	return array.filter(element => {
-		if (seen.has(element)) {
+		const key = keyFn!(element);
+		if (seen.has(key)) {
 			return false;
 		}
-
-		seen.add(element);
+		seen.add(key);
 		return true;
 	});
 }
