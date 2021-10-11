@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as performance from 'vs/base/common/performance';
-import { originalFSPath, joinPath } from 'vs/base/common/resources';
+import { originalFSPath, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { asPromise, Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
@@ -38,7 +38,6 @@ import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } fro
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtensionSecrets } from 'vs/workbench/api/common/extHostSecrets';
 import { Schemas } from 'vs/base/common/network';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -88,7 +87,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected readonly _logService: ILogService;
 	protected readonly _extHostTunnelService: IExtHostTunnelService;
 	protected readonly _extHostTerminalService: IExtHostTerminalService;
-	protected readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -124,7 +122,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
 		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
-		@IExtHostFileSystemInfo extHostFileSystemInfo: IExtHostFileSystemInfo
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -136,7 +133,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._logService = logService;
 		this._extHostTunnelService = extHostTunnelService;
 		this._extHostTerminalService = extHostTerminalService;
-		this._extHostFileSystemInfo = extHostFileSystemInfo;
 		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -279,7 +275,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	public async getExtensionPathIndex(): Promise<TernarySearchTree<URI, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
 			this._extensionPathIndex = (async () => {
-				const tst = TernarySearchTree.forUris<IExtensionDescription>(key => this._extHostFileSystemInfo.extUri.ignorePathCasing(key));
+				const tst = TernarySearchTree.forUris<IExtensionDescription>(key => {
+					// using the default/biased extUri-util because the IExtHostFileSystemInfo-service
+					// isn't ready to be used yet, e.g the knowledge about `file` protocol and others
+					// comes in while this code runs
+					return extUriBiasedIgnorePathCase.ignorePathCasing(key);
+				});
+				// const tst = TernarySearchTree.forUris<IExtensionDescription>(key => true);
 				for (const ext of this._registry.getAllExtensionDescriptions()) {
 					if (this._getEntryPoint(ext)) {
 						const uri = await this._realPathExtensionUri(ext.extensionLocation);
