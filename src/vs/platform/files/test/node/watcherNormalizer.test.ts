@@ -242,7 +242,7 @@ suite('Watcher Events Normalizer', () => {
 
 			for (const r of raw) {
 				if (isEqual(r.resource, oldPath)) {
-					assert.strictEqual(r.type, isLinux ? FileChangeType.ADDED : FileChangeType.DELETED);
+					assert.strictEqual(r.type, FileChangeType.DELETED);
 				} else if (isEqual(r.resource, newPath)) {
 					assert.strictEqual(r.type, FileChangeType.ADDED);
 				} else {
