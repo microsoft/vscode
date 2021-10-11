@@ -128,9 +128,7 @@ export class GitHubServer implements IGitHubServer {
 	public async login(scopes: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
-		// TODO@joaomoreno TODO@TylerLeonhardt
-		const nocors = await this.isNoCorsEnvironment();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate${nocors ? '?nocors=true' : ''}`));
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
 
 		if (this.isTestEnvironment(callbackUri)) {
 			const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
@@ -160,7 +158,7 @@ export class GitHubServer implements IGitHubServer {
 		const existingStates = this._pendingStates.get(scopes) || [];
 		this._pendingStates.set(scopes, [...existingStates, state]);
 
-		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com${nocors ? '&nocors=true' : ''}`);
+		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
 		await vscode.env.openExternal(uri);
 
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
@@ -208,34 +206,23 @@ export class GitHubServer implements IGitHubServer {
 			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
 			this._logger.info('Exchanging code for token...');
 
-			// TODO@joao: remove
-			if (query.nocors) {
-				try {
-					const json: any = await vscode.commands.executeCommand('_workbench.fetchJSON', url, 'POST');
+			try {
+				const result = await fetch(url, {
+					method: 'POST',
+					headers: {
+						Accept: 'application/json'
+					}
+				});
+
+				if (result.ok) {
+					const json = await result.json();
 					this._logger.info('Token exchange success!');
 					resolve(json.access_token);
-				} catch (err) {
-					reject(err);
+				} else {
+					reject(result.statusText);
 				}
-			} else {
-				try {
-					const result = await fetch(url, {
-						method: 'POST',
-						headers: {
-							Accept: 'application/json'
-						}
-					});
-
-					if (result.ok) {
-						const json = await result.json();
-						this._logger.info('Token exchange success!');
-						resolve(json.access_token);
-					} else {
-						reject(result.statusText);
-					}
-				} catch (ex) {
-					reject(ex);
-				}
+			} catch (ex) {
+				reject(ex);
 			}
 		};
 
