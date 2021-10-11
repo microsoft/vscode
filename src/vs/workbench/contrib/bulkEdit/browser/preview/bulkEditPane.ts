@@ -186,7 +186,7 @@ export class BulkEditPane extends ViewPane {
 
 		this._currentInput = input;
 
-		return new Promise<ResourceEdit[] | undefined>(async resolve => {
+		return new Promise<ResourceEdit[] | undefined>(resolve => {
 
 			token.onCancellationRequested(() => resolve(undefined));
 

@@ -503,7 +503,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	private deleteKeys(keys: string[]): Promise<void> {
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			if (keys.length === 0) {
 				return c();
 			}
@@ -519,7 +519,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	reset(): Promise<void> {
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			transaction.oncomplete = () => c();
 			transaction.onerror = () => e(transaction.error);

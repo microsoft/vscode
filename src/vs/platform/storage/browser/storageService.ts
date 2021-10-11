@@ -250,7 +250,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	getItems(): Promise<Map<string, string>> {
-		return new Promise<Map<string, string>>(async resolve => {
+		return Promises.withAsyncBody<Map<string, string>>(async resolve => {
 			const items = new Map<string, string>();
 
 			// Open a IndexedDB Cursor to iterate over key/values
@@ -323,7 +323,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		}
 
 		// Update `ItemTable` with inserts and/or deletes
-		return new Promise<boolean>(async (resolve, reject) => {
+		return Promises.withAsyncBody<boolean, DOMException | null>(async (resolve, reject) => {
 			const db = await this.whenConnected;
 
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
@@ -359,7 +359,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	clear(): Promise<void> {
-		return new Promise<void>(async (resolve, reject) => {
+		return Promises.withAsyncBody<void, DOMException | null>(async (resolve, reject) => {
 			const db = await this.whenConnected;
 
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');

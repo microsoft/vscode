@@ -15,6 +15,7 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 /**
  * The maximum of time we accept to wait on resolving the shell
@@ -69,7 +70,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = new Promise(async (resolve, reject) => {
+			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv, string>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
 				// Give up resolving shell env after some time
@@ -99,7 +100,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 }
 
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	return new Promise<typeof process.env>(async (resolve, reject) => {
+	return Promises.withAsyncBody<typeof process.env, Error>(async (resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
@@ -120,7 +121,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
 		if (token.isCancellationRequested) {
-			return reject(canceled);
+			return reject(canceled());
 		}
 
 		// handle popular non-POSIX shells
@@ -147,7 +148,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		token.onCancellationRequested(() => {
 			child.kill();
 
-			return reject(canceled);
+			return reject(canceled());
 		});
 
 		child.on('error', err => {
