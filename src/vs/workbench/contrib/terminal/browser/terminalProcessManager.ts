@@ -557,7 +557,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
-			throw new Error('No process');
+			throw new Error('Cannot refresh property when process is undefined');
 		}
 		return this._process.refreshProperty(type);
 	}

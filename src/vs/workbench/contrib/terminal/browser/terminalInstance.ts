@@ -2139,6 +2139,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		await this.processReady;
 		return this._processManager.refreshProperty(type);
 	}
 
