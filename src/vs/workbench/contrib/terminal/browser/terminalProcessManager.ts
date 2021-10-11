@@ -181,15 +181,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async detachFromProcess(): Promise<void> {
-		if (!this._process) {
-			return;
-		}
-		if (this._process.detach) {
-			await this._process.detach();
-		} else {
-			throw new Error('This terminal process does not support detaching');
-		}
-		this._process = null;
+		await this._process?.detach?.();
 	}
 
 	async createProcess(
