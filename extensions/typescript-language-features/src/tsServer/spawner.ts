@@ -56,11 +56,13 @@ export class TypeScriptServerSpawner {
 	): ITypeScriptServer {
 		let primaryServer: ITypeScriptServer;
 		const serverType = this.getCompositeServerType(version, capabilities, configuration);
+		const shouldUseSeparateDiagnosticsServer = this.shouldUseSeparateDiagnosticsServer(configuration);
+
 		switch (serverType) {
 			case CompositeServerType.SeparateSyntax:
 			case CompositeServerType.DynamicSeparateSyntax:
 				{
-					const enableDynamicRouting = serverType === CompositeServerType.DynamicSeparateSyntax;
+					const enableDynamicRouting = !shouldUseSeparateDiagnosticsServer && serverType === CompositeServerType.DynamicSeparateSyntax;
 					primaryServer = new SyntaxRoutingTsServer({
 						syntax: this.spawnTsServer(TsServerProcessKind.Syntax, version, configuration, pluginManager, cancellerFactory),
 						semantic: this.spawnTsServer(TsServerProcessKind.Semantic, version, configuration, pluginManager, cancellerFactory),
@@ -79,7 +81,7 @@ export class TypeScriptServerSpawner {
 				}
 		}
 
-		if (this.shouldUseSeparateDiagnosticsServer(configuration)) {
+		if (shouldUseSeparateDiagnosticsServer) {
 			return new GetErrRoutingTsServer({
 				getErr: this.spawnTsServer(TsServerProcessKind.Diagnostics, version, configuration, pluginManager, cancellerFactory),
 				primary: primaryServer,
