@@ -323,7 +323,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
 }
 
 /**
- * @deprecated use {@link distinctES6} because this function `O(n2)` runtime
+ * @deprecated use {@link distinctES6} because this function has `O(n2)` runtime-behaviour
  */
 export function distinct<T>(array: ReadonlyArray<T>): T[];
 /**
