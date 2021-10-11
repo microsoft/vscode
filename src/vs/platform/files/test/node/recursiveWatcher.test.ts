@@ -475,9 +475,11 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		assert.strictEqual(excludes[2], join(testDir, 'other', 'deep'));
 
 		// wrong casing is normalized for root
-		excludes = service.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
-		assert.strictEqual(excludes?.length, 1);
-		assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
+		if (!isLinux) {
+			excludes = service.toExcludePaths(testDir, [join(testDir.toUpperCase(), 'node_modules', '**')]);
+			assert.strictEqual(excludes?.length, 1);
+			assert.strictEqual(excludes[0], join(testDir, 'node_modules'));
+		}
 
 		// exclude ignored if not parent of watched dir
 		excludes = service.toExcludePaths(testDir, [join(dirname(testDir), 'node_modules', '**')]);
