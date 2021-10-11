@@ -48,7 +48,30 @@ export class IndexedDB {
 		return fsp;
 	}
 
-	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+	private async openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+		let indexedDB = await this.createIndexedDB(name, version, stores);
+		if (!indexedDB) {
+			return null;
+		}
+
+		// It is possible though that the object stores are not created. Try to recreate then.
+		const notCreatedStore = stores.find(store => !indexedDB!.objectStoreNames.contains(store));
+		if (notCreatedStore) {
+			console.error(`Error while opening indexedDB. Could not find ${notCreatedStore} object store`);
+			console.info(`Attempting to recreate the indexedDB once.`, name);
+			try {
+				// Try to delete the db
+				await this.deleteIndexedDB(indexedDB);
+			} catch (error) {
+				console.error(`Error while deleting the indexedDB`, getErrorMessage(error));
+				throw error;
+			}
+		}
+
+		return this.createIndexedDB(name, version, stores);
+	}
+
+	private createIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
 		return new Promise((c, e) => {
 			const request = window.indexedDB.open(name, version);
 			request.onerror = (err) => e(request.error);
@@ -71,6 +94,18 @@ export class IndexedDB {
 					}
 				}
 			};
+		});
+	}
+
+	private deleteIndexedDB(indexedDB: IDBDatabase): Promise<void> {
+		return new Promise((c, e) => {
+			// Close any opened connections
+			indexedDB.close();
+
+			// Delete the db
+			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
+			deleteRequest.onerror = (err) => e(deleteRequest.error);
+			deleteRequest.onsuccess = () => c();
 		});
 	}
 }
