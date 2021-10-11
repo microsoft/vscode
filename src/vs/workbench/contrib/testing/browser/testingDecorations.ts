@@ -12,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { setImmediate } from 'vs/base/common/platform';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -463,7 +462,7 @@ abstract class TitleLensContentWidget {
 	private viewZoneId?: string;
 
 	constructor(private readonly editor: ICodeEditor) {
-		setImmediate(() => {
+		queueMicrotask(() => {
 			this.applyStyling();
 			this.editor.addContentWidget(this);
 		});
