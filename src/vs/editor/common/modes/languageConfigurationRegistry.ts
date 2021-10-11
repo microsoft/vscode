@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
+import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, StandardAutoClosingPairConditional, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { CharacterPairSupport } from 'vs/editor/common/modes/supports/characterPair';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
@@ -186,20 +186,34 @@ class LanguageConfigurationEntries {
 			return null;
 		}
 		this._entries.sort(LanguageConfigurationEntry.cmp);
-		const result: LanguageConfiguration = {};
+		let result: ExplicitLanguageConfiguration = {
+			comments: undefined,
+			brackets: undefined,
+			wordPattern: undefined,
+			indentationRules: undefined,
+			onEnterRules: undefined,
+			autoClosingPairs: undefined,
+			surroundingPairs: undefined,
+			autoCloseBefore: undefined,
+			folding: undefined,
+			colorizedBracketPairs: undefined,
+			__electricCharacterSupport: undefined,
+		};
 		for (const entry of this._entries) {
 			const conf = entry.configuration;
-			result.comments = conf.comments || result.comments;
-			result.brackets = conf.brackets || result.brackets;
-			result.wordPattern = conf.wordPattern || result.wordPattern;
-			result.indentationRules = conf.indentationRules || result.indentationRules;
-			result.onEnterRules = conf.onEnterRules || result.onEnterRules;
-			result.autoClosingPairs = conf.autoClosingPairs || result.autoClosingPairs;
-			result.surroundingPairs = conf.surroundingPairs || result.surroundingPairs;
-			result.autoCloseBefore = conf.autoCloseBefore || result.autoCloseBefore;
-			result.folding = conf.folding || result.folding;
-			result.colorizedBracketPairs = conf.colorizedBracketPairs || result.colorizedBracketPairs;
-			result.__electricCharacterSupport = conf.__electricCharacterSupport || result.__electricCharacterSupport;
+			result = {
+				comments: conf.comments || result.comments,
+				brackets: conf.brackets || result.brackets,
+				wordPattern: conf.wordPattern || result.wordPattern,
+				indentationRules: conf.indentationRules || result.indentationRules,
+				onEnterRules: conf.onEnterRules || result.onEnterRules,
+				autoClosingPairs: conf.autoClosingPairs || result.autoClosingPairs,
+				surroundingPairs: conf.surroundingPairs || result.surroundingPairs,
+				autoCloseBefore: conf.autoCloseBefore || result.autoCloseBefore,
+				folding: conf.folding || result.folding,
+				colorizedBracketPairs: conf.colorizedBracketPairs || result.colorizedBracketPairs,
+				__electricCharacterSupport: conf.__electricCharacterSupport || result.__electricCharacterSupport,
+			};
 		}
 		return result;
 	}
