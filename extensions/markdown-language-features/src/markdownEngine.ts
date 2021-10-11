@@ -16,6 +16,30 @@ import { WebviewResourceProvider } from './util/resources';
 const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
 /**
+ * Adds begin line index to the output via the 'data-line' data attribute.
+ */
+const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
+	// Set the attribute on every possible token.
+	md.core.ruler.push('source_map_data_attribute', (state): void => {
+		for (const token of state.tokens) {
+			if (token.map && token.type !== 'inline') {
+				token.attrSet('data-line', String(token.map[0]));
+				token.attrJoin('class', 'code-line');
+			}
+		}
+	});
+
+	// The 'html_block' renderer doesn't respect `attrs`. We need to insert a marker.
+	const originalHtmlBlockRenderer = md.renderer.rules['html_block'];
+	if (originalHtmlBlockRenderer) {
+		md.renderer.rules['html_block'] = (tokens, idx, options, env, self) => (
+			`<div ${self.renderAttrs(tokens[idx])} ></div>\n` +
+			originalHtmlBlockRenderer(tokens, idx, options, env, self)
+		);
+	}
+};
+
+/**
  * The markdown-it options that we expose in the settings.
  */
 type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'linkify' | 'typographer'>>>;
@@ -112,16 +136,13 @@ export class MarkdownEngine {
 					alt: ['paragraph', 'reference', 'blockquote', 'list']
 				});
 
-				for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
-					this.addLineNumberRenderer(md, renderName);
-				}
-
 				this.addImageRenderer(md);
 				this.addFencedRenderer(md);
 				this.addLinkNormalizer(md);
 				this.addLinkValidator(md);
 				this.addNamedHeaders(md);
 				this.addLinkRenderer(md);
+				md.use(pluginSourceMap);
 				return md;
 			})();
 		}
@@ -197,23 +218,6 @@ export class MarkdownEngine {
 			breaks: config.get<boolean>('preview.breaks', false),
 			linkify: config.get<boolean>('preview.linkify', true),
 			typographer: config.get<boolean>('preview.typographer', false)
-		};
-	}
-
-	private addLineNumberRenderer(md: MarkdownIt, ruleName: string): void {
-		const original = md.renderer.rules[ruleName];
-		md.renderer.rules[ruleName] = (tokens: Token[], idx: number, options, env, self) => {
-			const token = tokens[idx];
-			if (token.map && token.map.length) {
-				token.attrSet('data-line', token.map[0] + '');
-				token.attrJoin('class', 'code-line');
-			}
-
-			if (original) {
-				return original(tokens, idx, options, env, self);
-			} else {
-				return self.renderToken(tokens, idx, options);
-			}
 		};
 	}
 
