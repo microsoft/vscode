@@ -87,7 +87,7 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "#### Missing Area Label\n\nFeature area labels are light or strong blue (`1d76db` or `c5def5') and they denote a specific feature or feature area, like `editor-clipboard` or `file-explorer`"
+    "value": "#### Missing Area Label\n\nFeature area labels are light or strong blue (`1d76db` or `c5def5`) and they denote a specific feature or feature area, like `editor-clipboard` or `file-explorer`"
   },
   {
     "kind": 2,
