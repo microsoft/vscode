@@ -233,19 +233,57 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	private connect(): Promise<IDBDatabase> {
+		return this.doConnect(true /* retry once on error */);
+	}
+
+	private doConnect(retryOnError: boolean): Promise<IDBDatabase> {
 		return new Promise<IDBDatabase>((resolve, reject) => {
 			const request = window.indexedDB.open(this.name);
 
-			// Create `ItemTable` object-store when this DB is new
+			// Create `ItemTable` object-store in case this DB is new
 			request.onupgradeneeded = () => {
 				request.result.createObjectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
 			};
 
 			// IndexedDB opened successfully
-			request.onsuccess = () => resolve(request.result);
+			request.onsuccess = () => {
+				const db = request.result;
+
+				// It is still possible though that the object store
+				// we expect is not there (seen in Safari). As such,
+				// we validate the store is there and otherwise attempt
+				// once to re-create.
+				if (!db.objectStoreNames.contains(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE)) {
+					this.logService.error(`[IndexedDB Storage ${this.name}] onsuccess(): ${IndexedDBStorageDatabase.STORAGE_OBJECT_STORE} does not exist.`);
+
+					if (retryOnError) {
+						this.logService.info(`[IndexedDB Storage ${this.name}] onsuccess(): Attempting to recreate the DB once.`);
+
+						// Close any opened connections
+						db.close();
+
+						// Try to delete the db
+						const deleteRequest = window.indexedDB.deleteDatabase(this.name);
+						deleteRequest.onsuccess = () => this.doConnect(false /* do not retry anymore from here */).then(resolve, reject);
+						deleteRequest.onerror = () => {
+							this.logService.error(`[IndexedDB Storage ${this.name}] deleteDatabase(): ${deleteRequest.error}`);
+
+							reject(deleteRequest.error);
+						};
+
+						return;
+					}
+				}
+
+				return resolve(db);
+			};
 
 			// Fail on error (we will then fallback to in-memory DB)
-			request.onerror = () => reject(request.error);
+			request.onerror = () => {
+				this.logService.error(`[IndexedDB Storage ${this.name}] onerror(): ${request.error}`);
+
+				reject(request.error);
+			};
 		});
 	}
 
