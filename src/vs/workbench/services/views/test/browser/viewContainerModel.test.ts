@@ -377,7 +377,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidRemoveVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidRemoveVisibleViewDescriptors(targetEvent);
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
 		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
@@ -402,7 +403,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -428,7 +430,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', false);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -458,7 +461,8 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
 
-		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
+		const targetEvent = sinon.spy();
+		testObject.onDidAddVisibleViewDescriptors(targetEvent);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
