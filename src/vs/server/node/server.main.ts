@@ -1015,26 +1015,18 @@ export async function main(options: IServerOptions): Promise<void> {
 			process.exit(1);
 		});
 
-		if (parsedArgs.socket) {
-			server.listen(parsedArgs.socket, () => {
-				logService.info(`Server listening on ${parsedArgs.socket}`);
-			});
-		} else {
-			let port = 3000;
-			if (parsedArgs.port) {
-				port = Number(parsedArgs.port);
-			} else if (typeof options.port === 'number') {
-				port = options.port;
-			}
-
-			const host = parsedArgs.host || '0.0.0.0';
-			server.listen(port, host, () => {
-				const addressInfo = server.address() as net.AddressInfo;
+		const port = parsedArgs.port ? Number(parsedArgs.port) : (typeof options.port === 'number' ? options.port : 3000);
+		const host = parsedArgs.host || '0.0.0.0';
+		const listenOpts: net.ListenOptions = parsedArgs.socket ? { path: parsedArgs.socket } : { port, host };
+		server.listen(listenOpts, () => {
+			const addressInfo = server.address();
+			if (typeof addressInfo === 'string') {
+				logService.info(`Server listening on ${addressInfo}`);
+			} else if (addressInfo) {
 				const address = addressInfo.address === '0.0.0.0' || addressInfo.address === '127.0.0.1' ? 'localhost' : addressInfo.address;
 				const formattedPort = addressInfo.port === 80 ? '' : String(addressInfo.port);
 				logService.info(`Web UI available at http://${address}:${formattedPort}`);
-			});
-		}
-
+			}
+		});
 	});
 }
