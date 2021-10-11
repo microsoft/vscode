@@ -28,7 +28,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 	public static readonly minVersion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<undefined | vscode.Uri>();
+	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
 
 	constructor(
@@ -40,7 +40,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
 			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
-				this._onDidChangeInlayHints.fire(undefined);
+				this._onDidChangeInlayHints.fire();
 			}
 		}));
 	}
@@ -57,7 +57,8 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		if (modelUri === vscode.window.activeTextEditor?.document.uri.toString()) {
 			for (const visibleEditor of vscode.window.visibleTextEditors) {
 				if (isSupportedLanguageMode(visibleEditor.document) && visibleEditor.document.uri.toString() !== modelUri) {
-					this._onDidChangeInlayHints.fire(visibleEditor.document.uri);
+					this._onDidChangeInlayHints.fire();
+					break;
 				}
 			}
 		}

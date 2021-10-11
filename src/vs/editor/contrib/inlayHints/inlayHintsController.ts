@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { hash } from 'vs/base/common/hash';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -20,7 +20,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, IWordAtPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { InlayHint, InlayHintKind, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
+import { InlayHint, InlayHintKind, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRequestDelays } from 'vs/editor/common/modes/languageFeatureRegistry';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -29,18 +29,49 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const MAX_DECORATORS = 1500;
 
-export async function getInlayHints(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHint[]> {
+class RequestMap<T = any> {
+
+	private readonly _data = new ResourceMap<Set<T>>();
+
+	push(model: ITextModel, provider: T): void {
+		const value = this._data.get(model.uri);
+		if (value === undefined) {
+			this._data.set(model.uri, new Set([provider]));
+		} else {
+			value.add(provider);
+		}
+	}
+
+	pop(model: ITextModel, provider: T): void {
+		const value = this._data.get(model.uri);
+		if (value) {
+			value.delete(provider);
+			if (value.size === 0) {
+				this._data.delete(model.uri);
+			}
+		}
+	}
+
+	has(model: ITextModel, provider: T): boolean {
+		return Boolean(this._data.get(model.uri)?.has(provider));
+	}
+}
+
+export async function getInlayHints(model: ITextModel, ranges: Range[], requests: RequestMap<InlayHintsProvider>, token: CancellationToken): Promise<InlayHint[]> {
 	const all: InlayHint[][] = [];
 	const providers = InlayHintsProviderRegistry.ordered(model).reverse();
 
 	const promises = providers.map(provider => ranges.map(async range => {
 		try {
+			requests.push(model, provider);
 			const result = await provider.provideInlayHints(model, range, token);
 			if (result?.length) {
 				all.push(result.filter(hint => range.containsPosition(hint.position)));
 			}
 		} catch (err) {
 			onUnexpectedExternalError(err);
+		} finally {
+			requests.pop(model, provider);
 		}
 	}));
 
@@ -122,6 +153,8 @@ export class InlayHintsController implements IEditorContribution {
 			this._updateHintsDecorators([model.getFullModelRange()], cached);
 		}
 
+		const requests = new RequestMap<InlayHintsProvider>();
+
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
@@ -129,7 +162,7 @@ export class InlayHintsController implements IEditorContribution {
 			this._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 
 			const ranges = this._getHintsRanges();
-			const result = await getInlayHints(model, ranges, cts.token);
+			const result = await getInlayHints(model, ranges, requests, cts.token);
 			scheduler.delay = this._getInlayHintsDelays.update(model, Date.now() - t1);
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -151,8 +184,8 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.add(providerListener);
 		for (const provider of InlayHintsProviderRegistry.all(model)) {
 			if (typeof provider.onDidChangeInlayHints === 'function') {
-				providerListener.add(provider.onDidChangeInlayHints(uri => {
-					if (!uri || uri.toString() === model.uri.toString()) {
+				providerListener.add(provider.onDidChangeInlayHints(() => {
+					if (!requests.has(model, provider)) {
 						scheduler.schedule();
 					}
 				}));
@@ -315,7 +348,7 @@ CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, .
 
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		const data = await getInlayHints(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		const data = await getInlayHints(ref.object.textEditorModel, [Range.lift(range)], new RequestMap(), CancellationToken.None);
 		return data;
 
 	} finally {
