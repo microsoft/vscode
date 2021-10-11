@@ -87,8 +87,6 @@ export class TelemetryService implements ITelemetryService {
 		const crashReporterSetting = this._configurationService.getValue('telemetry.enableCrashReporter');
 		if (oldTelemetryValue === false || crashReporterSetting === false) {
 			this._configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
-			this._configurationService.updateValue(TELEMETRY_OLD_SETTING_ID, undefined);
-			this._configurationService.updateValue('telemetry.enableCrashReporter', undefined);
 		}
 	}
 
@@ -261,14 +259,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'string',
 			'enum': [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.OFF],
 			'enumDescriptions': [
-				localize('telemetry.enableTelemetry.default', "Enables all telemetry data to be collected."),
-				localize('telemetry.enableTelemetry.error', "Enables only error telemetry data and not general usage data."),
-				localize('telemetry.enableTelemetry.off', "Disables all product telemetry.")
+				localize('telemetry.telemetryLevel.default', "Enables all telemetry data to be collected."),
+				localize('telemetry.telemetryLevel.error', "Enables only error telemetry data and not general usage data."),
+				localize('telemetry.telemetryLevel.off', "Disables all product telemetry.")
 			],
 			'markdownDescription':
 				!product.privacyStatementUrl ?
-					localize('telemetry.enableTelemetry', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made.", product.nameLong) + restartString :
-					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl) + restartString,
+					localize('telemetry.telemetryLevel', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. If this setting is set to 'off' no telemetry will be sent regardless of other settings.", product.nameLong) + restartString :
+					localize('telemetry.telemetryLevelMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. If this setting is set to 'off' no telemetry will be sent regardless of other settings. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl) + restartString,
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
@@ -292,7 +290,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 					localize('telemetry.enableTelemetryMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl),
 			'default': true,
 			'restricted': true,
-			'markdownDeprecationMessage': localize('enableTelemetryDeprecated', "Deprecated in favor of the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
+			'markdownDeprecationMessage': localize('enableTelemetryDeprecated', "Deprecated in favor of the {0} setting. If this setting is false, no telemetry will be sent regardless of the new setting's value.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			'scope': ConfigurationScope.APPLICATION,
 			'tags': ['usesOnlineServices', 'telemetry']
 		}
