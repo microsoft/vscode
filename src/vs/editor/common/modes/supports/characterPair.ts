@@ -26,15 +26,15 @@ export class CharacterPairSupport {
 		}
 
 		if (config.colorizedBracketPairs) {
-			this._colorizedBracketPairs = config.colorizedBracketPairs.map(b => [b[0], b[1]]);
+			this._colorizedBracketPairs = filterValidBrackets(config.colorizedBracketPairs.map(b => [b[0], b[1]]));
 		} else if (config.brackets) {
-			this._colorizedBracketPairs = config.brackets
+			this._colorizedBracketPairs = filterValidBrackets(config.brackets
 				.map((b) => [b[0], b[1]] as [string, string])
 				// Many languages set < ... > as bracket pair, even though they also use it as comparison operator.
 				// This leads to problems when colorizing this bracket, so we exclude it by default.
 				// Languages can still override this by configuring `colorizedBracketPairs`
 				// https://github.com/microsoft/vscode/issues/132476
-				.filter((p) => !(p[0] === '<' && p[1] === '>'));
+				.filter((p) => !(p[0] === '<' && p[1] === '>')));
 		} else {
 			this._colorizedBracketPairs = [];
 		}
@@ -73,7 +73,11 @@ export class CharacterPairSupport {
 		return this._surroundingPairs;
 	}
 
-	public getColorizedBrackets(): CharacterPair[] {
+	public getColorizedBrackets(): readonly CharacterPair[] {
 		return this._colorizedBracketPairs;
 	}
+}
+
+function filterValidBrackets(bracketPairs: [string, string][]): [string, string][] {
+	return bracketPairs.filter(([open, close]) => open !== '' && close !== '');
 }

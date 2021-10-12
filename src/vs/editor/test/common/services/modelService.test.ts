@@ -31,6 +31,7 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 const GENERATE_TESTS = false;
 
@@ -43,7 +44,7 @@ suite('ModelService', () => {
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
 		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
+		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()), new TestLanguageConfigurationService());
 	});
 
 	teardown(() => {
@@ -404,7 +405,8 @@ suite('ModelSemanticColoring', () => {
 			new TestTextResourcePropertiesService(configService),
 			themeService,
 			new NullLogService(),
-			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
+			new TestLanguageConfigurationService()
 		));
 		modeService = disposables.add(new ModeServiceImpl(false));
 	});

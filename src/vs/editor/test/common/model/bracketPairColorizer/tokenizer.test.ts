@@ -14,6 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageId, LanguageIdentifier, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
 	test('Basic', () => {
@@ -35,10 +36,11 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 			brackets: [['{', '}'], ['[', ']'], ['(', ')'], ['begin', 'end']],
 		}));
 
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider);
-
 		const model = createTextModel(document.getText(), {}, mode1);
 		model.forceTokenization(model.getLineCount());
+
+		const languageConfigService = new TestLanguageConfigurationService();
+		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigService.getLanguageConfiguration(l, undefined));
 
 		const tokens = readAllTokens(new TextBufferTokenizer(model, brackets));
 

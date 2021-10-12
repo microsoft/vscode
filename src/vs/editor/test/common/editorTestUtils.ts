@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -44,5 +45,5 @@ export function createTextModel(text: string, _options: IRelaxedTextModelCreatio
 	const dialogService = new TestDialogService();
 	const notificationService = new TestNotificationService();
 	const undoRedoService = new UndoRedoService(dialogService, notificationService);
-	return new TextModel(text, options, languageIdentifier, uri, undoRedoService);
+	return new TextModel(text, options, languageIdentifier, uri, undoRedoService, new TestLanguageConfigurationService());
 }

@@ -53,6 +53,7 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('MainThreadEditors', () => {
 
@@ -78,7 +79,14 @@ suite('MainThreadEditors', () => {
 		const dialogService = new TestDialogService();
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), undoRedoService);
+		modelService = new ModelServiceImpl(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			new TestThemeService(),
+			new NullLogService(),
+			undoRedoService,
+			new TestLanguageConfigurationService()
+		);
 
 
 		const services = new ServiceCollection();

@@ -13,7 +13,7 @@ import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { LanguageId } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
 } from 'vs/editor/common/view/editorColorRegistry';
@@ -45,17 +45,13 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	private bracketsRequested = false;
 	private options: BracketPairColorizationOptions;
 
-	constructor(private readonly textModel: TextModel) {
+	constructor(
+		private readonly textModel: TextModel,
+		private readonly languageConfigurationService: ILanguageConfigurationService
+	) {
 		super();
 
 		this.options = textModel.getOptions().bracketPairColorizationOptions;
-
-		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
-			if (this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
-				this.cache.clear();
-				this.updateCache();
-			}
-		}));
 
 		this._register(textModel.onDidChangeOptions(e => {
 			this.options = textModel.getOptions().bracketPairColorizationOptions;
@@ -72,13 +68,30 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		this._register(textModel.onDidChangeAttached(() => {
 			this.updateCache();
 		}));
+
+		this._register(
+			this.languageConfigurationService.onDidChange(e => {
+				if (!e.languageIdentifier || this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
+					this.cache.clear();
+					this.updateCache();
+				}
+			})
+		);
 	}
 
 	private updateCache() {
 		if (this.bracketsRequested || (this.textModel.isAttachedToEditor() && this.isDocumentSupported && this.options.enabled)) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
-				this.cache.value = createDisposableRef(store.add(new BracketPairColorizerImpl(this.textModel)), store);
+
+				this.cache.value = createDisposableRef(
+					store.add(
+						new BracketPairColorizerImpl(this.textModel, (languageId) => {
+							return this.languageConfigurationService.getLanguageConfiguration(languageId);
+						})
+					),
+					store
+				);
 				store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
 				this.didChangeDecorationsEmitter.fire();
 			}
@@ -151,7 +164,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider,
 	private astWithTokens: AstNode | undefined;
 
 	private readonly denseKeyProvider = new DenseKeyProvider<string>();
-	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider);
+	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
 	public didLanguageChange(languageId: LanguageId): boolean {
 		return this.brackets.didLanguageChange(languageId);
@@ -159,7 +172,10 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider,
 
 	readonly onDidChangeDecorations = this.didChangeDecorationsEmitter.event;
 
-	constructor(private readonly textModel: TextModel) {
+	constructor(
+		private readonly textModel: TextModel,
+		private readonly getLanguageConfiguration: (languageId: LanguageId) => ResolvedLanguageConfiguration
+	) {
 		super();
 
 		this._register(textModel.onBackgroundTokenizationStateChanged(() => {

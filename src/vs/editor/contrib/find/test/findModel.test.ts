@@ -14,6 +14,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
@@ -44,9 +45,20 @@ suite('FindModel', () => {
 			ptBuilder.acceptChunk(text.substr(94, 101));
 			ptBuilder.acceptChunk(text.substr(195, 59));
 			const factory = ptBuilder.finish();
-			withTestCodeEditor([],
+			withTestCodeEditor(
+				[],
 				{
-					model: new TextModel(factory, TextModel.DEFAULT_CREATION_OPTIONS, null, null, new UndoRedoService(new TestDialogService(), new TestNotificationService()))
+					model: new TextModel(
+						factory,
+						TextModel.DEFAULT_CREATION_OPTIONS,
+						null,
+						null,
+						new UndoRedoService(
+							new TestDialogService(),
+							new TestNotificationService()
+						),
+						new TestLanguageConfigurationService()
+					),
 				},
 				(editor) => callback(editor as IActiveCodeEditor)
 			);

@@ -25,7 +25,7 @@ import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/mode
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
@@ -334,14 +334,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
 	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
 
+	private readonly _languageConfigurationService: ILanguageConfigurationService;
+
 	constructor(
 		source: string | model.ITextBufferFactory,
 		creationOptions: model.ITextModelCreationOptions,
 		languageIdentifier: LanguageIdentifier | null,
 		associatedResource: URI | null = null,
-		undoRedoService: IUndoRedoService
+		undoRedoService: IUndoRedoService,
+		languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
+
+		this._languageConfigurationService = languageConfigurationService;
 
 		this._register(this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => {
 			this._onDidChangeContentOrInjectedText.fire(e.rawContentChangedEvent);
@@ -391,11 +396,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 
-		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
-			if (e.languageIdentifier.id === this._languageIdentifier.id) {
-				this._onDidChangeLanguageConfiguration.fire({});
+		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
+			e => {
+				if (e.affects(this._languageIdentifier)) {
+					this._onDidChangeLanguageConfiguration.fire({});
+				}
 			}
-		});
+		);
 
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 		this._lastDecorationId = 0;
@@ -411,7 +418,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens2 = new TokensStore2();
 		this._tokenization = new TextModelTokenization(this);
 
-		this._bracketPairColorizer = this._register(new BracketPairColorizer(this));
+		this._bracketPairColorizer = this._register(new BracketPairColorizer(this, this._languageConfigurationService));
 		this._decorationProvider = this._bracketPairColorizer;
 
 		this._register(this._decorationProvider.onDidChangeDecorations(() => {
@@ -2142,6 +2149,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
+	private getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration {
+		return this._languageConfigurationService.getLanguageConfiguration(languageId);
+	}
+
 	// Having tokens allows implementing additional helper methods
 
 	public getWordAtPosition(_position: IPosition): model.IWordAtPosition | null {
@@ -2155,7 +2166,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const [rbStartOffset, rbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex);
 		const rightBiasedWord = getWordAtText(
 			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex)),
+			this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex)).getWordDefinition(),
 			lineContent.substring(rbStartOffset, rbEndOffset),
 			rbStartOffset
 		);
@@ -2170,7 +2181,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			const [lbStartOffset, lbEndOffset] = TextModel._findLanguageBoundaries(lineTokens, tokenIndex - 1);
 			const leftBiasedWord = getWordAtText(
 				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(lineTokens.getLanguageId(tokenIndex - 1)),
+				this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex - 1)).getWordDefinition(),
 				lineContent.substring(lbStartOffset, lbEndOffset),
 				lbStartOffset
 			);
@@ -2223,7 +2234,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		let lineTokens = this._getLineTokens(position.lineNumber);
 		let languageId = lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
-		let bracketsSupport = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+		let bracketsSupport = this.getLanguageConfiguration(languageId).brackets;
 
 		if (!bracketsSupport) {
 			return null;
@@ -2284,7 +2295,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (tokenIndex < 0) {
 			return null;
 		}
-		const currentModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(tokenIndex));
+		const currentModeBrackets = this.getLanguageConfiguration(lineTokens.getLanguageId(tokenIndex)).brackets;
 
 		// check that the token is not to be ignored
 		if (currentModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
@@ -2324,7 +2335,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		// If position is in between two tokens, try also looking in the previous token
 		if (tokenIndex > 0 && lineTokens.getStartOffset(tokenIndex) === position.column - 1) {
 			const prevTokenIndex = tokenIndex - 1;
-			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(lineTokens.getLanguageId(prevTokenIndex));
+			const prevModeBrackets = this.getLanguageConfiguration(lineTokens.getLanguageId(prevTokenIndex)).brackets;
 
 			// check that previous token is not to be ignored
 			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
@@ -2567,7 +2578,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 				}
 			}
 
@@ -2585,7 +2596,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						prevSearchInToken = false;
 					}
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 				}
 
 				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
@@ -2645,7 +2656,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 				}
 			}
 
@@ -2663,7 +2674,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						prevSearchInToken = false;
 					}
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 				}
 
 				const searchInToken = (!!modeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex)));
@@ -2774,7 +2785,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				const tokenLanguageId = lineTokens.getLanguageId(tokenIndex);
 				if (languageId !== tokenLanguageId) {
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 					resetCounts(languageId, modeBrackets);
 				}
 			}
@@ -2793,7 +2804,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						prevSearchInToken = false;
 					}
 					languageId = tokenLanguageId;
-					modeBrackets = LanguageConfigurationRegistry.getBracketsSupport(languageId);
+					modeBrackets = this.getLanguageConfiguration(languageId).brackets;
 					resetCounts(languageId, modeBrackets);
 				}
 
@@ -2894,7 +2905,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			throw new Error('Illegal value for lineNumber');
 		}
 
-		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		const foldingRules = this.getLanguageConfiguration(this._languageIdentifier.id).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
 		let up_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
@@ -3175,7 +3186,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			throw new Error('Illegal value for endLineNumber');
 		}
 
-		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		const foldingRules = this.getLanguageConfiguration(this._languageIdentifier.id).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
 		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);

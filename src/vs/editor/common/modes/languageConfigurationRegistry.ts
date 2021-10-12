@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,6 +19,10 @@ import { IndentConsts, IndentRulesSupport } from 'vs/editor/common/modes/support
 import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
  * Interface used to support insertion of mode specific comments.
@@ -42,186 +46,137 @@ export interface IIndentConverter {
 	normalizeIndentation?(indentation: string): string;
 }
 
-export class RichEditSupport {
+export interface ILanguageConfigurationService {
+	readonly _serviceBrand: undefined;
 
-	private readonly _conf: LanguageConfiguration;
-	private readonly _languageIdentifier: LanguageIdentifier;
-	private _brackets: RichEditBrackets | null;
-	private _electricCharacter: BracketElectricCharacterSupport | null;
-	private readonly _onEnterSupport: OnEnterSupport | null;
+	onDidChange: Event<LanguageConfigurationServiceChangeEvent>;
+	getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration;
+}
 
-	public readonly comments: ICommentsConfiguration | null;
-	public readonly characterPair: CharacterPairSupport;
-	public readonly wordDefinition: RegExp;
-	public readonly indentRulesSupport: IndentRulesSupport | null;
-	public readonly indentationRules: IndentationRule | undefined;
-	public readonly foldingRules: FoldingRules;
+export class LanguageConfigurationServiceChangeEvent {
+	constructor(public readonly languageIdentifier: LanguageIdentifier | undefined) { }
 
-	constructor(languageIdentifier: LanguageIdentifier, rawConf: LanguageConfiguration) {
-		this._languageIdentifier = languageIdentifier;
-		this._brackets = null;
-		this._electricCharacter = null;
-		this._conf = rawConf;
-		this._onEnterSupport = (this._conf.brackets || this._conf.indentationRules || this._conf.onEnterRules ? new OnEnterSupport(this._conf) : null);
-		this.comments = RichEditSupport._handleComments(this._conf);
-		this.characterPair = new CharacterPairSupport(this._conf);
-		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
-		this.indentationRules = this._conf.indentationRules;
-		if (this._conf.indentationRules) {
-			this.indentRulesSupport = new IndentRulesSupport(this._conf.indentationRules);
-		} else {
-			this.indentRulesSupport = null;
-		}
-		this.foldingRules = this._conf.folding || {};
-	}
-
-	public get brackets(): RichEditBrackets | null {
-		if (!this._brackets && this._conf.brackets) {
-			this._brackets = new RichEditBrackets(this._languageIdentifier, this._conf.brackets);
-		}
-		return this._brackets;
-	}
-
-	public get electricCharacter(): BracketElectricCharacterSupport | null {
-		if (!this._electricCharacter) {
-			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets);
-		}
-		return this._electricCharacter;
-	}
-
-	public onEnter(autoIndent: EditorAutoIndentStrategy, previousLineText: string, beforeEnterText: string, afterEnterText: string): EnterAction | null {
-		if (!this._onEnterSupport) {
-			return null;
-		}
-		return this._onEnterSupport.onEnter(autoIndent, previousLineText, beforeEnterText, afterEnterText);
-	}
-
-	private static _handleComments(conf: LanguageConfiguration): ICommentsConfiguration | null {
-		let commentRule = conf.comments;
-		if (!commentRule) {
-			return null;
-		}
-
-		// comment configuration
-		let comments: ICommentsConfiguration = {};
-
-		if (commentRule.lineComment) {
-			comments.lineCommentToken = commentRule.lineComment;
-		}
-		if (commentRule.blockComment) {
-			let [blockStart, blockEnd] = commentRule.blockComment;
-			comments.blockCommentStartToken = blockStart;
-			comments.blockCommentEndToken = blockEnd;
-		}
-
-		return comments;
+	public affects(languageIdentifier: LanguageIdentifier): boolean {
+		return !this.languageIdentifier ? true : this.languageIdentifier.id === languageIdentifier.id;
 	}
 }
 
-export class LanguageConfigurationChangeEvent {
-	constructor(
-		public readonly languageIdentifier: LanguageIdentifier
-	) { }
-}
+export const ILanguageConfigurationService = createDecorator<ILanguageConfigurationService>('languageConfigurationService');
 
-class LanguageConfigurationEntry {
+export class LanguageConfigurationService extends Disposable implements ILanguageConfigurationService {
+	_serviceBrand: undefined;
 
-	constructor(
-		public readonly configuration: LanguageConfiguration,
-		public readonly priority: number,
-		public readonly order: number
-	) { }
+	private readonly onDidChangeEmitter = this._register(new Emitter<LanguageConfigurationServiceChangeEvent>());
+	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	public static cmp(a: LanguageConfigurationEntry, b: LanguageConfigurationEntry) {
-		if (a.priority === b.priority) {
-			// higher order last
-			return a.order - b.order;
-		}
-		// higher priority last
-		return a.priority - b.priority;
-	}
-}
-
-class LanguageConfigurationEntries {
-
-	private readonly _entries: LanguageConfigurationEntry[];
-	private _order: number;
-	private _resolved: RichEditSupport | null = null;
+	private readonly configurations = new Map<LanguageId, ResolvedLanguageConfiguration>();
 
 	constructor(
-		public readonly languageIdentifier: LanguageIdentifier
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IModeService private readonly modeService: IModeService
 	) {
-		this._entries = [];
-		this._order = 0;
-		this._resolved = null;
-	}
+		super();
 
-	public register(configuration: LanguageConfiguration, priority: number): IDisposable {
-		const entry = new LanguageConfigurationEntry(configuration, priority, ++this._order);
-		this._entries.push(entry);
-		this._resolved = null;
-		return toDisposable(() => {
-			for (let i = 0; i < this._entries.length; i++) {
-				if (this._entries[i] === entry) {
-					this._entries.splice(i, 1);
-					this._resolved = null;
-					break;
+		const languageConfigKeys = new Set(Object.values(customizedLanguageConfigKeys));
+
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			const globalConfigChanged = e.change.keys.some((k) =>
+				languageConfigKeys.has(k)
+			);
+			const localConfigChanged = e.change.overrides
+				.filter(([overrideLangName, keys]) =>
+					keys.some((k) => languageConfigKeys.has(k))
+				)
+				.map(([overrideLangName]) => this.modeService.getLanguageIdentifier(overrideLangName));
+
+			if (globalConfigChanged) {
+				this.configurations.clear();
+				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(undefined));
+			} else {
+				for (const languageIdentifier of localConfigChanged) {
+					if (languageIdentifier) {
+						this.configurations.delete(languageIdentifier.id);
+						this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(languageIdentifier));
+					}
 				}
 			}
-		});
+		}));
+
+		this._register(LanguageConfigurationRegistry.onDidChange((e) => {
+			this.configurations.delete(e.languageIdentifier.id);
+			this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageIdentifier));
+		}));
 	}
 
-	public getRichEditSupport(): RichEditSupport | null {
-		if (!this._resolved) {
-			const config = this._resolve();
-			if (config) {
-				this._resolved = new RichEditSupport(this.languageIdentifier, config);
-			}
-		}
-		return this._resolved;
-	}
-
-	private _resolve(): LanguageConfiguration | null {
-		if (this._entries.length === 0) {
-			return null;
-		}
-		this._entries.sort(LanguageConfigurationEntry.cmp);
-		let result: ExplicitLanguageConfiguration = {
-			comments: undefined,
-			brackets: undefined,
-			wordPattern: undefined,
-			indentationRules: undefined,
-			onEnterRules: undefined,
-			autoClosingPairs: undefined,
-			surroundingPairs: undefined,
-			autoCloseBefore: undefined,
-			folding: undefined,
-			colorizedBracketPairs: undefined,
-			__electricCharacterSupport: undefined,
-		};
-		for (const entry of this._entries) {
-			const conf = entry.configuration;
-			result = {
-				comments: conf.comments || result.comments,
-				brackets: conf.brackets || result.brackets,
-				wordPattern: conf.wordPattern || result.wordPattern,
-				indentationRules: conf.indentationRules || result.indentationRules,
-				onEnterRules: conf.onEnterRules || result.onEnterRules,
-				autoClosingPairs: conf.autoClosingPairs || result.autoClosingPairs,
-				surroundingPairs: conf.surroundingPairs || result.surroundingPairs,
-				autoCloseBefore: conf.autoCloseBefore || result.autoCloseBefore,
-				folding: conf.folding || result.folding,
-				colorizedBracketPairs: conf.colorizedBracketPairs || result.colorizedBracketPairs,
-				__electricCharacterSupport: conf.__electricCharacterSupport || result.__electricCharacterSupport,
-			};
+	public getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration {
+		let result = this.configurations.get(languageId);
+		if (!result) {
+			result = computeConfig(languageId, this.configurationService, this.modeService);
+			this.configurations.set(languageId, result);
 		}
 		return result;
 	}
 }
 
-export class LanguageConfigurationRegistryImpl {
+function computeConfig(
+	languageId: LanguageId,
+	configurationService: IConfigurationService,
+	modeService: IModeService,
+): ResolvedLanguageConfiguration {
+	let languageConfig = LanguageConfigurationRegistry.getLanguageConfiguration(languageId);
 
-	private readonly _entries = new Map<LanguageId, LanguageConfigurationEntries>();
+	if (!languageConfig) {
+		const languageIdentifier = modeService.getLanguageIdentifier(languageId);
+		if (!languageIdentifier) {
+			throw new Error('Unexpected languageId');
+		}
+		languageConfig = new ResolvedLanguageConfiguration(languageIdentifier, {});
+	}
+
+	const customizedConfig = getCustomizedLanguageConfig(languageConfig.languageIdentifier, configurationService);
+	const data = combineLanguageConfigurations([languageConfig.underlyingConfig, customizedConfig]);
+	const config = new ResolvedLanguageConfiguration(languageConfig.languageIdentifier, data);
+	return config;
+}
+
+const customizedLanguageConfigKeys = {
+	brackets: 'editor.language.brackets',
+	colorizedBracketPairs: 'editor.language.colorizedBracketPairs'
+};
+
+function getCustomizedLanguageConfig(languageIdentifier: LanguageIdentifier, configurationService: IConfigurationService): LanguageConfiguration {
+	const brackets = configurationService.getValue(customizedLanguageConfigKeys.brackets, {
+		overrideIdentifier: languageIdentifier.language,
+	});
+
+	const colorizedBracketPairs = configurationService.getValue(customizedLanguageConfigKeys.colorizedBracketPairs, {
+		overrideIdentifier: languageIdentifier.language,
+	});
+
+	return {
+		brackets: validateBracketPairs(brackets),
+		colorizedBracketPairs: validateBracketPairs(colorizedBracketPairs),
+	};
+}
+
+function validateBracketPairs(data: unknown): CharacterPair[] | undefined {
+	if (!Array.isArray(data)) {
+		return undefined;
+	}
+	return data.map(pair => {
+		if (!Array.isArray(pair) || pair.length !== 2) {
+			return undefined;
+		}
+		return [pair[0], pair[1]] as CharacterPair;
+	}).filter((p): p is CharacterPair => !!p);
+}
+
+export class LanguageConfigurationChangeEvent {
+	constructor(public readonly languageIdentifier: LanguageIdentifier) { }
+}
+
+export class LanguageConfigurationRegistryImpl {
+	private readonly _entries = new Map<LanguageId, ComposedLanguageConfiguration>();
 
 	private readonly _onDidChange = new Emitter<LanguageConfigurationChangeEvent>();
 	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
@@ -232,7 +187,7 @@ export class LanguageConfigurationRegistryImpl {
 	public register(languageIdentifier: LanguageIdentifier, configuration: LanguageConfiguration, priority: number = 0): IDisposable {
 		let entries = this._entries.get(languageIdentifier.id);
 		if (!entries) {
-			entries = new LanguageConfigurationEntries(languageIdentifier);
+			entries = new ComposedLanguageConfiguration(languageIdentifier);
 			this._entries.set(languageIdentifier.id, entries);
 		}
 
@@ -245,20 +200,20 @@ export class LanguageConfigurationRegistryImpl {
 		});
 	}
 
-	private _getRichEditSupport(languageId: LanguageId): RichEditSupport | null {
-		const entries = this._entries.get(languageId);
-		return entries ? entries.getRichEditSupport() : null;
+	public getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration | null {
+		let entries = this._entries.get(languageId);
+		return entries?.getResolvedConfiguration() || null;
 	}
 
 	public getIndentationRules(languageId: LanguageId): IndentationRule | null {
-		const value = this._getRichEditSupport(languageId);
+		const value = this.getLanguageConfiguration(languageId);
 		return value ? value.indentationRules || null : null;
 	}
 
 	// begin electricCharacter
 
 	private _getElectricCharacterSupport(languageId: LanguageId): BracketElectricCharacterSupport | null {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -288,7 +243,7 @@ export class LanguageConfigurationRegistryImpl {
 	// end electricCharacter
 
 	public getComments(languageId: LanguageId): ICommentsConfiguration | null {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -298,7 +253,7 @@ export class LanguageConfigurationRegistryImpl {
 	// begin characterPair
 
 	private _getCharacterPairSupport(languageId: LanguageId): CharacterPairSupport | null {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -334,7 +289,7 @@ export class LanguageConfigurationRegistryImpl {
 	// end characterPair
 
 	public getWordDefinition(languageId: LanguageId): RegExp {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return ensureValidWordDefinition(null);
 		}
@@ -344,7 +299,7 @@ export class LanguageConfigurationRegistryImpl {
 	public getWordDefinitions(): [LanguageId, RegExp][] {
 		let result: [LanguageId, RegExp][] = [];
 		for (const [language, entries] of this._entries) {
-			const value = entries.getRichEditSupport();
+			const value = entries.getResolvedConfiguration();
 			if (value) {
 				result.push([language, value.wordDefinition]);
 			}
@@ -353,7 +308,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	public getFoldingRules(languageId: LanguageId): FoldingRules {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return {};
 		}
@@ -363,7 +318,7 @@ export class LanguageConfigurationRegistryImpl {
 	// begin Indent Rules
 
 	public getIndentRulesSupport(languageId: LanguageId): IndentRulesSupport | null {
-		let value = this._getRichEditSupport(languageId);
+		let value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
@@ -371,7 +326,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	/**
-	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+	 * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.
 	 * Result:
 	 * -1: run into the boundary of embedded languages
 	 * 0: every line above are invalid
@@ -541,7 +496,7 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
-		const richEditSupport = this._getRichEditSupport(languageId);
+		const richEditSupport = this.getLanguageConfiguration(languageId);
 		if (!richEditSupport) {
 			return null;
 		}
@@ -754,7 +709,7 @@ export class LanguageConfigurationRegistryImpl {
 
 	public getEnterAction(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range): CompleteEnterAction | null {
 		const scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
-		const richEditSupport = this._getRichEditSupport(scopedLineTokens.languageId);
+		const richEditSupport = this.getLanguageConfiguration(scopedLineTokens.languageId);
 		if (!richEditSupport) {
 			return null;
 		}
@@ -836,16 +791,229 @@ export class LanguageConfigurationRegistryImpl {
 	// end onEnter
 
 	public getBracketsSupport(languageId: LanguageId): RichEditBrackets | null {
-		const value = this._getRichEditSupport(languageId);
+		const value = this.getLanguageConfiguration(languageId);
 		if (!value) {
 			return null;
 		}
 		return value.brackets || null;
 	}
 
-	public getColorizedBracketPairs(languageId: LanguageId): CharacterPair[] {
-		return this._getRichEditSupport(languageId)?.characterPair.getColorizedBrackets() || [];
+	public getColorizedBracketPairs(languageId: LanguageId): readonly CharacterPair[] {
+		return this.getLanguageConfiguration(languageId)?.characterPair.getColorizedBrackets() || [];
 	}
 }
 
 export const LanguageConfigurationRegistry = new LanguageConfigurationRegistryImpl();
+
+class ComposedLanguageConfiguration {
+	private readonly _entries: LanguageConfigurationContribution[];
+	private _order: number;
+	private _resolved: ResolvedLanguageConfiguration | null = null;
+
+	constructor(public readonly languageIdentifier: LanguageIdentifier) {
+		this._entries = [];
+		this._order = 0;
+		this._resolved = null;
+	}
+
+	public register(
+		configuration: LanguageConfiguration,
+		priority: number
+	): IDisposable {
+		const entry = new LanguageConfigurationContribution(
+			configuration,
+			priority,
+			++this._order
+		);
+		this._entries.push(entry);
+		this._resolved = null;
+		return toDisposable(() => {
+			for (let i = 0; i < this._entries.length; i++) {
+				if (this._entries[i] === entry) {
+					this._entries.splice(i, 1);
+					this._resolved = null;
+					break;
+				}
+			}
+		});
+	}
+
+	public getResolvedConfiguration(): ResolvedLanguageConfiguration | null {
+		if (!this._resolved) {
+			const config = this._resolve();
+			if (config) {
+				this._resolved = new ResolvedLanguageConfiguration(
+					this.languageIdentifier,
+					config
+				);
+			}
+		}
+		return this._resolved;
+	}
+
+	private _resolve(): LanguageConfiguration | null {
+		if (this._entries.length === 0) {
+			return null;
+		}
+		this._entries.sort(LanguageConfigurationContribution.cmp);
+		return combineLanguageConfigurations(this._entries.map(e => e.configuration));
+	}
+}
+
+function combineLanguageConfigurations(configs: LanguageConfiguration[]): LanguageConfiguration {
+	let result: ExplicitLanguageConfiguration = {
+		comments: undefined,
+		brackets: undefined,
+		wordPattern: undefined,
+		indentationRules: undefined,
+		onEnterRules: undefined,
+		autoClosingPairs: undefined,
+		surroundingPairs: undefined,
+		autoCloseBefore: undefined,
+		folding: undefined,
+		colorizedBracketPairs: undefined,
+		__electricCharacterSupport: undefined,
+	};
+	for (const entry of configs) {
+		result = {
+			comments: entry.comments || result.comments,
+			brackets: entry.brackets || result.brackets,
+			wordPattern: entry.wordPattern || result.wordPattern,
+			indentationRules: entry.indentationRules || result.indentationRules,
+			onEnterRules: entry.onEnterRules || result.onEnterRules,
+			autoClosingPairs: entry.autoClosingPairs || result.autoClosingPairs,
+			surroundingPairs: entry.surroundingPairs || result.surroundingPairs,
+			autoCloseBefore: entry.autoCloseBefore || result.autoCloseBefore,
+			folding: entry.folding || result.folding,
+			colorizedBracketPairs: entry.colorizedBracketPairs || result.colorizedBracketPairs,
+			__electricCharacterSupport: entry.__electricCharacterSupport || result.__electricCharacterSupport,
+		};
+	}
+
+	return result;
+}
+
+class LanguageConfigurationContribution {
+	constructor(
+		public readonly configuration: LanguageConfiguration,
+		public readonly priority: number,
+		public readonly order: number
+	) { }
+
+	public static cmp(a: LanguageConfigurationContribution, b: LanguageConfigurationContribution) {
+		if (a.priority === b.priority) {
+			// higher order last
+			return a.order - b.order;
+		}
+		// higher priority last
+		return a.priority - b.priority;
+	}
+}
+
+/**
+ * Immutable.
+*/
+export class ResolvedLanguageConfiguration {
+	private _brackets: RichEditBrackets | null;
+	private _electricCharacter: BracketElectricCharacterSupport | null;
+	private readonly _onEnterSupport: OnEnterSupport | null;
+
+	public readonly comments: ICommentsConfiguration | null;
+	public readonly characterPair: CharacterPairSupport;
+	public readonly wordDefinition: RegExp;
+	public readonly indentRulesSupport: IndentRulesSupport | null;
+	public readonly indentationRules: IndentationRule | undefined;
+	public readonly foldingRules: FoldingRules;
+
+	constructor(
+		public readonly languageIdentifier: LanguageIdentifier,
+		public readonly underlyingConfig: LanguageConfiguration
+	) {
+		this._brackets = null;
+		this._electricCharacter = null;
+		this._onEnterSupport =
+			this.underlyingConfig.brackets ||
+				this.underlyingConfig.indentationRules ||
+				this.underlyingConfig.onEnterRules
+				? new OnEnterSupport(this.underlyingConfig)
+				: null;
+		this.comments = ResolvedLanguageConfiguration._handleComments(this.underlyingConfig);
+		this.characterPair = new CharacterPairSupport(this.underlyingConfig);
+
+		this.wordDefinition = this.underlyingConfig.wordPattern || DEFAULT_WORD_REGEXP;
+		this.indentationRules = this.underlyingConfig.indentationRules;
+		if (this.underlyingConfig.indentationRules) {
+			this.indentRulesSupport = new IndentRulesSupport(
+				this.underlyingConfig.indentationRules
+			);
+		} else {
+			this.indentRulesSupport = null;
+		}
+		this.foldingRules = this.underlyingConfig.folding || {};
+	}
+
+	public getWordDefinition(): RegExp {
+		return ensureValidWordDefinition(this.wordDefinition);
+	}
+
+	public get brackets(): RichEditBrackets | null {
+		if (!this._brackets && this.underlyingConfig.brackets) {
+			this._brackets = new RichEditBrackets(
+				this.languageIdentifier,
+				this.underlyingConfig.brackets
+			);
+		}
+		return this._brackets;
+	}
+
+	public get electricCharacter(): BracketElectricCharacterSupport | null {
+		if (!this._electricCharacter) {
+			this._electricCharacter = new BracketElectricCharacterSupport(
+				this.brackets
+			);
+		}
+		return this._electricCharacter;
+	}
+
+	public onEnter(
+		autoIndent: EditorAutoIndentStrategy,
+		previousLineText: string,
+		beforeEnterText: string,
+		afterEnterText: string
+	): EnterAction | null {
+		if (!this._onEnterSupport) {
+			return null;
+		}
+		return this._onEnterSupport.onEnter(
+			autoIndent,
+			previousLineText,
+			beforeEnterText,
+			afterEnterText
+		);
+	}
+
+	private static _handleComments(
+		conf: LanguageConfiguration
+	): ICommentsConfiguration | null {
+		let commentRule = conf.comments;
+		if (!commentRule) {
+			return null;
+		}
+
+		// comment configuration
+		let comments: ICommentsConfiguration = {};
+
+		if (commentRule.lineComment) {
+			comments.lineCommentToken = commentRule.lineComment;
+		}
+		if (commentRule.blockComment) {
+			let [blockStart, blockEnd] = commentRule.blockComment;
+			comments.blockCommentStartToken = blockStart;
+			comments.blockCommentEndToken = blockEnd;
+		}
+
+		return comments;
+	}
+}
+
+registerSingleton(ILanguageConfigurationService, LanguageConfigurationService);
