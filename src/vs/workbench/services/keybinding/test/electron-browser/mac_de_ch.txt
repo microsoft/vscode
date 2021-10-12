@@ -470,9 +470,9 @@ isUSStandard: false
 |          Ctrl+Shift+Alt+Period |   ÷   |          Ctrl+Shift+Alt+; |     |          Ctrl+Shift+Alt+. |        ctrl+shift+alt+[Period] |                      null |        ctrl+shift+alt+[Period] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                          Slash |   -   |                         - |     |                         - |                              - |                         - |                        [Slash] |         |
-|                     Ctrl+Slash |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                      null |                   ctrl+[Slash] |         |
+|                     Ctrl+Slash |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                    Ctrl+- |                   ctrl+[Slash] |         |
 |                    Shift+Slash |   _   |                   Shift+- |     |                   Shift+- |                        shift+- |                   Shift+- |                  shift+[Slash] |         |
-|               Ctrl+Shift+Slash |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |                      null |             ctrl+shift+[Slash] |         |
+|               Ctrl+Shift+Slash |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |              Ctrl+Shift+- |             ctrl+shift+[Slash] |         |
 |                      Alt+Slash |   -   |                     Alt+- |     |                     Alt+- |                          alt+- |                     Alt+- |                    alt+[Slash] |         |
 |                 Ctrl+Alt+Slash |   –   |                Ctrl+Alt+- |     |                Ctrl+Alt+- |                     ctrl+alt+- |                Ctrl+Alt+- |               ctrl+alt+[Slash] |         |
 |                Shift+Alt+Slash |   _   |               Shift+Alt+- |     |               Shift+Alt+- |                    shift+alt+- |               Shift+Alt+- |              shift+alt+[Slash] |         |

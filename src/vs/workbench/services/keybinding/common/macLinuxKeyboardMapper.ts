@@ -885,12 +885,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		// Check if this scanCode always maps to the same keyCode and back
 		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 
-		// See https://github.com/microsoft/vscode/issues/108880
-		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
-			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion
-			return null;
-		}
-
 		if (constantKeyCode !== KeyCode.DependsOnKbLayout) {
 			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
