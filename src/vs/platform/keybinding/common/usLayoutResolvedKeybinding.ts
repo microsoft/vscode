@@ -52,18 +52,7 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 			return null;
 		}
 
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		return KeyCodeUtils.toString(keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keyCode);
 	}
 
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {

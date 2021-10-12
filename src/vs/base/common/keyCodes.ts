@@ -228,13 +228,24 @@ class KeyCodeStrMap {
 const uiMap = new KeyCodeStrMap();
 const userSettingsUSMap = new KeyCodeStrMap();
 const userSettingsGeneralMap = new KeyCodeStrMap();
+const electronAcceleratorMap = new KeyCodeStrMap();
 
 (function () {
 
-	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
+	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel?: string, generalUserSettingsLabel?: string, electronAcceleratorLabel?: string): void {
+		if (typeof usUserSettingsLabel === 'undefined') {
+			usUserSettingsLabel = uiLabel;
+		}
+		if (typeof generalUserSettingsLabel === 'undefined') {
+			generalUserSettingsLabel = usUserSettingsLabel;
+		}
+		if (typeof electronAcceleratorLabel === 'undefined') {
+			electronAcceleratorLabel = uiLabel;
+		}
 		uiMap.define(keyCode, uiLabel);
 		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
 		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
+		electronAcceleratorMap.define(keyCode, electronAcceleratorLabel);
 	}
 
 	define(KeyCode.Unknown, 'unknown');
@@ -254,10 +265,10 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.End, 'End');
 	define(KeyCode.Home, 'Home');
 
-	define(KeyCode.LeftArrow, 'LeftArrow', 'Left');
-	define(KeyCode.UpArrow, 'UpArrow', 'Up');
-	define(KeyCode.RightArrow, 'RightArrow', 'Right');
-	define(KeyCode.DownArrow, 'DownArrow', 'Down');
+	define(KeyCode.LeftArrow, 'LeftArrow', 'Left', undefined, 'Left');
+	define(KeyCode.UpArrow, 'UpArrow', 'Up', undefined, 'Up');
+	define(KeyCode.RightArrow, 'RightArrow', 'Right', undefined, 'Right');
+	define(KeyCode.DownArrow, 'DownArrow', 'Down', undefined, 'Down');
 	define(KeyCode.Insert, 'Insert');
 	define(KeyCode.Delete, 'Delete');
 
@@ -377,6 +388,10 @@ export namespace KeyCodeUtils {
 	}
 	export function fromUserSettings(key: string): KeyCode {
 		return userSettingsUSMap.strToKeyCode(key) || userSettingsGeneralMap.strToKeyCode(key);
+	}
+
+	export function toElectronAccelerator(keyCode: KeyCode): string {
+		return electronAcceleratorMap.keyCodeToStr(keyCode);
 	}
 }
 

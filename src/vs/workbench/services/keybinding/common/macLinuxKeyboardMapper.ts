@@ -878,19 +878,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			return null;
 		}
 
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keyCode);
 	}
 
 	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
