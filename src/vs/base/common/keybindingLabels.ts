@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Modifiers } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 
@@ -12,13 +13,6 @@ export interface ModifierLabels {
 	readonly altKey: string;
 	readonly metaKey: string;
 	readonly separator: string;
-}
-
-export interface Modifiers {
-	readonly ctrlKey: boolean;
-	readonly shiftKey: boolean;
-	readonly altKey: boolean;
-	readonly metaKey: boolean;
 }
 
 export interface KeyLabelProvider<T extends Modifiers> {

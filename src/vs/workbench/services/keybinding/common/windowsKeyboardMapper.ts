@@ -67,9 +67,6 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 	}
 
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
-		}
 		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
 	}
 

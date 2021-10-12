@@ -876,9 +876,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		if (!binding) {
 			return null;
 		}
-		if (binding.isDuplicateModifierCase()) {
-			return null;
-		}
 
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {

@@ -468,7 +468,18 @@ export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem):
 	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }
 
-export class SimpleKeybinding {
+export interface Modifiers {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+}
+
+export interface IBaseKeybinding extends Modifiers {
+	isDuplicateModifierCase(): boolean;
+}
+
+export class SimpleKeybinding implements IBaseKeybinding {
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;

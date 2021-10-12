@@ -47,9 +47,6 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 	}
 
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
-		}
 		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
