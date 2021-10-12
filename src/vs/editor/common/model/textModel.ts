@@ -3089,9 +3089,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return { startLineNumber, endLineNumber, indent };
 	}
 
-	public getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): model.IndentGuide[][] {
+	public getLinesBracketGuides(
+		startLineNumber: number,
+		endLineNumber: number,
+		activePosition: IPosition | null,
+		options: model.BracketGuideOptions
+	): model.IndentGuide[][] {
 		const result: model.IndentGuide[][] = [];
-
 		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRange(
 			new Range(
 				startLineNumber,
@@ -3125,48 +3129,124 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 
 		const queue = new ArrayQueue(bracketPairs);
-		const activeBracketPairs = new Array<model.BracketPair>();
+		/** Indexed by nesting level */
+		const activeGuides = new Array<{
+			nestingLevel: number,
+			guideVisibleColumn: number,
+			start: Position,
+			visibleStartColumn: number,
+			end: Position,
+			visibleEndColumn: number,
+			bracketPair: model.BracketPair,
+			renderHorizontalEndLineAtTheBottom: boolean
+		}>();
+		const nextGuides = new Array<model.IndentGuide>();
 		const colorProvider = new BracketPairGuidesClassNames();
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const guides = new Array<model.IndentGuide>();
+			let guides = new Array<model.IndentGuide>();
+			if (nextGuides.length > 0) {
+				guides = guides.concat(nextGuides);
+				nextGuides.length = 0;
+			}
 			result.push(guides);
 
-			for (const pair of queue.takeWhile(b => b.openingBracketRange.startLineNumber < lineNumber) || []) {
-				activeBracketPairs[pair.nestingLevel] = pair;
-			}
-
-			let lastVisibleColumnCount = Number.MAX_SAFE_INTEGER;
-			// Going backwards, so the last guide is before the others
-			for (let i = activeBracketPairs.length - 1; i >= 0; i--) {
-				const pair = activeBracketPairs[i];
-				if (pair.range.endLineNumber <= lineNumber) {
+			// Update activeGuides
+			for (const pair of queue.takeWhile(b => b.openingBracketRange.startLineNumber <= lineNumber) || []) {
+				if (pair.range.startLineNumber === pair.range.endLineNumber) {
+					// ignore single line brackets
 					continue;
 				}
-
-				const minIndentation = Math.min(
+				const guideVisibleColumn = Math.min(
 					this.getVisibleColumnFromPosition(pair.openingBracketRange.getStartPosition()),
 					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition())
 				);
-
-				if (minIndentation > lastVisibleColumnCount) {
-					continue;
+				let renderHorizontalEndLineAtTheBottom = false;
+				if (pair.closingBracketRange) {
+					const firstNonWsIndex = strings.firstNonWhitespaceIndex(this.getLineContent(pair.closingBracketRange.startLineNumber));
+					if (firstNonWsIndex < pair.closingBracketRange.startColumn - 1) {
+						renderHorizontalEndLineAtTheBottom = true;
+					}
 				}
-				lastVisibleColumnCount = minIndentation;
+				// TODO: Consider indentation when computing guideVisibleColumn
+				const start = pair.openingBracketRange.getStartPosition();
+				const end = (pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition());
+				activeGuides[pair.nestingLevel] = {
+					nestingLevel: pair.nestingLevel,
+					guideVisibleColumn,
+					start,
+					visibleStartColumn: this.getVisibleColumnFromPosition(start),
+					end,
+					visibleEndColumn: this.getVisibleColumnFromPosition(end),
+					bracketPair: pair,
+					renderHorizontalEndLineAtTheBottom
+				};
+			}
 
-				const isActive = highlightActiveGuides && activeBracketPairRange &&
-					pair.range.equalsRange(activeBracketPairRange);
+			for (const line of activeGuides) {
+				const isActive = activeBracketPairRange && line.bracketPair.range.equalsRange(activeBracketPairRange);
 
 				const className =
-					colorProvider.getInlineClassNameOfLevel(pair.nestingLevel) +
-					(isActive ? ' ' + colorProvider.activeClassName : '');
+					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
+					(options.highlightActive && isActive ? ' ' + colorProvider.activeClassName : '');
 
-				if (isActive || includeNonActiveGuides) {
-					guides.push(new model.IndentGuide(minIndentation, className));
+				if (
+					(isActive && options.horizontalGuides !== model.HorizontalGuidesState.Disabled)
+					|| (options.includeInactive && options.horizontalGuides === model.HorizontalGuidesState.Enabled)
+				) {
+					if (line.start.lineNumber === lineNumber) {
+						if (line.guideVisibleColumn < line.visibleStartColumn) {
+							guides.push(new model.IndentGuide(line.guideVisibleColumn, className,
+								new model.IndentGuideHorizontalLine(false, line.start.column)));
+						}
+					}
+					if (line.end.lineNumber === lineNumber + 1) {
+						// The next line might have horizontal guides.
+						// However, the next line might also have a new bracket pair with the same indentation,
+						// so the current bracket pair might get replaced. That's why we push the guide to nextGuides one line ahead.
+						if (line.guideVisibleColumn < line.visibleEndColumn) {
+							nextGuides.push(new model.IndentGuide(line.guideVisibleColumn, className,
+								new model.IndentGuideHorizontalLine(!line.renderHorizontalEndLineAtTheBottom, line.end.column)));
+						}
+					}
 				}
 			}
 
-			guides.reverse();
+			let lastVisibleColumnCount = Number.MAX_SAFE_INTEGER;
+			// Going backwards, so the last guide potentially replaces others
+			for (let i = activeGuides.length - 1; i >= 0; i--) {
+				const line = activeGuides[i];
+
+				const isActive = options.highlightActive && activeBracketPairRange &&
+					line.bracketPair.range.equalsRange(activeBracketPairRange);
+
+				const className =
+					colorProvider.getInlineClassNameOfLevel(line.nestingLevel) +
+					(isActive ? ' ' + colorProvider.activeClassName : '');
+
+				if (isActive || options.includeInactive) {
+					if (line.renderHorizontalEndLineAtTheBottom && line.end.lineNumber === lineNumber + 1) {
+						nextGuides.push(new model.IndentGuide(line.guideVisibleColumn, className, null));
+					}
+				}
+
+				if (line.end.lineNumber <= lineNumber
+					|| line.start.lineNumber >= lineNumber) {
+					continue;
+				}
+
+				if (line.guideVisibleColumn > lastVisibleColumnCount) {
+					continue;
+				}
+				lastVisibleColumnCount = line.guideVisibleColumn;
+
+
+				if (isActive || options.includeInactive) {
+					guides.push(new model.IndentGuide(line.guideVisibleColumn, className, null));
+				}
+			}
+
+			guides.sort((a, b) => a.visibleColumn - b.visibleColumn);
 		}
 		return result;
 	}
