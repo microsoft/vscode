@@ -30,7 +30,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -44,6 +43,7 @@ import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -582,6 +582,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IUriIdentityService readonly uriService: IUriIdentityService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -632,7 +633,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 					templateData.disposables.push(ref);
 				} catch {
 					const textFileContent = await this.nativeTextFileService.read(sourceURI);
-					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService);
+					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService, this._languageConfigurationService);
 					templateData.disposables.push(textModel);
 				}
 
