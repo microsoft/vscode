@@ -260,11 +260,11 @@ function getTelemetryLevelSettingDescription(): string {
 	const usageDescription = localize('telemetry.usageDescription', "Usage data collects information about how features are used in {0} which helps us prioritize future product improvements.", product.nameLong);
 
 	const telemetryDefinitions = `
-|||
-|----|----|
-| **${crashReportsHeader}** | ${crashReportsDescription} |
-| **${errorsHeader}** | ${errorsDescription} |
-| **${usageHeader}** | ${usageDescription} |
+|                           |                            |  off  | crash | error |  all  |
+|---------------------------|----------------------------|:-----:|:-----:|:-----:|:-----:|
+| **${crashReportsHeader}** | ${crashReportsDescription} |   -   |   ✓   |   ✓   |   ✓   |
+|    **${errorsHeader}**    |    ${errorsDescription}    |   -   |   -   |   ✓   |   ✓   |
+|    **${usageHeader}**     |    ${usageDescription}     |   -   |   -   |   -   |   ✓   |
 `;
 
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
