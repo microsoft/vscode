@@ -885,26 +885,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		// Check if this scanCode always maps to the same keyCode and back
 		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 
-		if (!this._isUSStandard) {
-			// Electron cannot handle these key codes on anything else than standard US
-			const isOEMKey = (
-				constantKeyCode === KeyCode.US_SEMICOLON
-				|| constantKeyCode === KeyCode.US_EQUAL
-				|| constantKeyCode === KeyCode.US_COMMA
-				|| constantKeyCode === KeyCode.US_MINUS
-				|| constantKeyCode === KeyCode.US_DOT
-				|| constantKeyCode === KeyCode.US_SLASH
-				|| constantKeyCode === KeyCode.US_BACKTICK
-				|| constantKeyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| constantKeyCode === KeyCode.US_BACKSLASH
-				|| constantKeyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
-			);
-
-			if (isOEMKey) {
-				return null;
-			}
-		}
-
 		// See https://github.com/microsoft/vscode/issues/108880
 		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
 			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion

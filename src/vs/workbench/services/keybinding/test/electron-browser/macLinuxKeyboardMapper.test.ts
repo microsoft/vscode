@@ -1478,7 +1478,7 @@ suite('keyboardMapper', () => {
 			{
 				label: 'Ctrl+`',
 				ariaLabel: 'Control+`',
-				electronAccelerator: null,
+				electronAccelerator: 'Ctrl+`',
 				userSettingsLabel: 'ctrl+`',
 				isWYSIWYG: true,
 				isChord: false,
@@ -1645,7 +1645,7 @@ suite('keyboardMapper - LINUX en_uk', () => {
 			{
 				label: 'Ctrl+Alt+-',
 				ariaLabel: 'Control+Alt+-',
-				electronAccelerator: null,
+				electronAccelerator: 'Ctrl+Alt+-',
 				userSettingsLabel: 'ctrl+alt+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
