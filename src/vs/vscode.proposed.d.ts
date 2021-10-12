@@ -2265,24 +2265,27 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The resource represented by the tab if availble.
+		 * The resource represented by the tab if available.
 		 * Note: Not all tabs have a resource associated with them.
 		 */
-		readonly resource?: Uri;
+		readonly resource: Uri | undefined;
 
 		/**
 		 * The identifier of the view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId?: string;
+		readonly viewId: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
 		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
 		 * always be at index 0.
 		 */
-		additionalResourcesAndViewIds: { resource?: Uri, viewId?: string }[];
+		readonly additionalResourcesAndViewIds: readonly {
+			readonly resource: Uri | undefined,
+			readonly viewId: string | undefined
+		}[];
 
 		/**
 		 * Whether or not the tab is currently active
