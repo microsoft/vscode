@@ -633,12 +633,12 @@ export class DefaultSettings extends Disposable {
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
 
 				let enumToUse = prop.enum;
-				let enumDescriptions = prop.enumDescriptions ?? prop.markdownEnumDescriptions;
-				let enumDescriptionsAreMarkdown = !prop.enumDescriptions;
+				let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
+				let enumDescriptionsAreMarkdown = !!prop.markdownEnumDescriptions;
 				if (listItemType === 'enum' && !isArray(prop.items)) {
 					enumToUse = prop.items!.enum;
-					enumDescriptions = prop.items!.enumDescriptions ?? prop.items!.markdownEnumDescriptions;
-					enumDescriptionsAreMarkdown = enumDescriptionsAreMarkdown && !prop.items!.enumDescriptions;
+					enumDescriptions = prop.items!.markdownEnumDescriptions ?? prop.items!.enumDescriptions;
+					enumDescriptionsAreMarkdown = !!prop.items!.markdownEnumDescriptions;
 				}
 
 				let allKeysAreBoolean = false;
