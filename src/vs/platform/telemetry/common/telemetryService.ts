@@ -82,16 +82,15 @@ export class TelemetryService implements ITelemetryService {
 		this._experimentProperties[name] = value;
 	}
 
-	private _convertOldTelemetrySettingToNew(): void {
+	private _notifyMismatchTelemetrySetting(): void {
 		const oldTelemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
 		const crashReporterSetting = this._configurationService.getValue('telemetry.enableCrashReporter');
-		if (oldTelemetryValue === false || crashReporterSetting === false) {
-			this._configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
-		}
+		const currentTelemetrySetting = this._configurationService.getValue(TELEMETRY_SETTING_ID);
+		console.log(oldTelemetryValue, crashReporterSetting, currentTelemetrySetting);
 	}
 
 	private _updateTelemetryLevel(): void {
-		this._convertOldTelemetrySettingToNew();
+		this._notifyMismatchTelemetrySetting();
 		this._telemetryLevel = getTelemetryLevel(this._configurationService);
 	}
 
@@ -249,6 +248,31 @@ export class TelemetryService implements ITelemetryService {
 }
 
 const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'Some features may require a restart to take effect.') : '';
+const telemetryText = localize('telemetry.telemetryLevelMd', "Controls all core and first party extension telemetry. This helps us to better understand how {0} is performing, where improvements need to be made, and how features are being used. View what settings affect what data is collected in the table below. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl);
+const tableHeader = '| Level | Crash Reports | Error | Usage |';
+const tableFormatter = '|:----|:----:|:----:|:----:|';
+const usageRow = '|All|✓|✓|✓|';
+const errorRow = '|Error|✓|✓| |';
+const crashRow = '|Crash|✓| | |';
+const offRow = '|Off| | | |';
+const table = tableHeader + '\n' + tableFormatter + '\n' + usageRow + '\n' + errorRow + '\n' + crashRow + '\n' + offRow;
+console.log(restartString);
+const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "**Note**: If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.");
+const telemetryDescription = `
+${telemetryText}
+
+
+&nbsp;
+
+
+${table}
+
+
+&nbsp;
+
+
+${deprecatedSettingNote}
+`;
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
@@ -257,16 +281,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		[TELEMETRY_SETTING_ID]: {
 			'type': 'string',
-			'enum': [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.OFF],
+			'enum': [TelemetryConfiguration.ON, TelemetryConfiguration.ERROR, TelemetryConfiguration.CRASH, TelemetryConfiguration.OFF],
 			'enumDescriptions': [
-				localize('telemetry.telemetryLevel.default', "Enables all telemetry data to be collected."),
-				localize('telemetry.telemetryLevel.error', "Enables only error telemetry data and not general usage data."),
+				localize('telemetry.telemetryLevel.default', "Sends usage data, errors, and crash reports."),
+				localize('telemetry.telemetryLevel.error', "Sends general error telemetry and crash reports."),
+				localize('telemetry.telemetryLevel.crash', "Sends OS level crash reports."),
 				localize('telemetry.telemetryLevel.off', "Disables all product telemetry.")
 			],
-			'markdownDescription':
-				!product.privacyStatementUrl ?
-					localize('telemetry.telemetryLevel', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. If this setting is set to 'off' no telemetry will be sent regardless of other settings.", product.nameLong) + restartString :
-					localize('telemetry.telemetryLevelMd', "Enable diagnostic data to be collected. This helps us to better understand how {0} is performing and where improvements need to be made. If this setting is set to 'off' no telemetry will be sent regardless of other settings. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl) + restartString,
+			'markdownDescription': telemetryDescription,
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,

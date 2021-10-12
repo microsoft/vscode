@@ -77,14 +77,16 @@ export const TELEMETRY_SECTION_ID = 'telemetry';
 export const TELEMETRY_SETTING_ID = 'telemetry.telemetryLevel';
 export const TELEMETRY_OLD_SETTING_ID = 'telemetry.enableTelemetry';
 
-export const enum TelemetryLevel {
+export enum TelemetryLevel {
 	NONE = 0,
+	CRASH = 1,
 	ERROR = 2,
 	USAGE = 3
 }
 
-export const enum TelemetryConfiguration {
+export enum TelemetryConfiguration {
 	OFF = 'off',
+	CRASH = 'crash',
 	ERROR = 'error',
-	ON = 'on'
+	ON = 'all'
 }
