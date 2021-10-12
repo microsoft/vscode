@@ -24,7 +24,7 @@ import { editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { timeout } from 'vs/base/common/async';
+import { Promises, timeout } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
@@ -225,8 +225,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise<string | null>(async (c) => {
+		return Promises.withAsyncBody<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
