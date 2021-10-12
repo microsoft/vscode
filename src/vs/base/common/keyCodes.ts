@@ -228,24 +228,13 @@ class KeyCodeStrMap {
 const uiMap = new KeyCodeStrMap();
 const userSettingsUSMap = new KeyCodeStrMap();
 const userSettingsGeneralMap = new KeyCodeStrMap();
-const electronAcceleratorMap = new KeyCodeStrMap();
 
 (function () {
 
-	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel?: string, generalUserSettingsLabel?: string, electronAcceleratorLabel?: string): void {
-		if (typeof usUserSettingsLabel === 'undefined') {
-			usUserSettingsLabel = uiLabel;
-		}
-		if (typeof generalUserSettingsLabel === 'undefined') {
-			generalUserSettingsLabel = usUserSettingsLabel;
-		}
-		if (typeof electronAcceleratorLabel === 'undefined') {
-			electronAcceleratorLabel = uiLabel;
-		}
+	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
 		uiMap.define(keyCode, uiLabel);
 		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
 		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
-		electronAcceleratorMap.define(keyCode, electronAcceleratorLabel);
 	}
 
 	define(KeyCode.Unknown, 'unknown');
@@ -265,10 +254,10 @@ const electronAcceleratorMap = new KeyCodeStrMap();
 	define(KeyCode.End, 'End');
 	define(KeyCode.Home, 'Home');
 
-	define(KeyCode.LeftArrow, 'LeftArrow', 'Left', undefined, 'Left');
-	define(KeyCode.UpArrow, 'UpArrow', 'Up', undefined, 'Up');
-	define(KeyCode.RightArrow, 'RightArrow', 'Right', undefined, 'Right');
-	define(KeyCode.DownArrow, 'DownArrow', 'Down', undefined, 'Down');
+	define(KeyCode.LeftArrow, 'LeftArrow', 'Left');
+	define(KeyCode.UpArrow, 'UpArrow', 'Up');
+	define(KeyCode.RightArrow, 'RightArrow', 'Right');
+	define(KeyCode.DownArrow, 'DownArrow', 'Down');
 	define(KeyCode.Insert, 'Insert');
 	define(KeyCode.Delete, 'Delete');
 
@@ -352,23 +341,23 @@ const electronAcceleratorMap = new KeyCodeStrMap();
 	define(KeyCode.OEM_8, 'OEM_8');
 	define(KeyCode.OEM_102, 'OEM_102');
 
-	define(KeyCode.NUMPAD_0, 'NumPad0', undefined, undefined, 'num0');
-	define(KeyCode.NUMPAD_1, 'NumPad1', undefined, undefined, 'num1');
-	define(KeyCode.NUMPAD_2, 'NumPad2', undefined, undefined, 'num2');
-	define(KeyCode.NUMPAD_3, 'NumPad3', undefined, undefined, 'num3');
-	define(KeyCode.NUMPAD_4, 'NumPad4', undefined, undefined, 'num4');
-	define(KeyCode.NUMPAD_5, 'NumPad5', undefined, undefined, 'num5');
-	define(KeyCode.NUMPAD_6, 'NumPad6', undefined, undefined, 'num6');
-	define(KeyCode.NUMPAD_7, 'NumPad7', undefined, undefined, 'num7');
-	define(KeyCode.NUMPAD_8, 'NumPad8', undefined, undefined, 'num8');
-	define(KeyCode.NUMPAD_9, 'NumPad9', undefined, undefined, 'num9');
+	define(KeyCode.NUMPAD_0, 'NumPad0');
+	define(KeyCode.NUMPAD_1, 'NumPad1');
+	define(KeyCode.NUMPAD_2, 'NumPad2');
+	define(KeyCode.NUMPAD_3, 'NumPad3');
+	define(KeyCode.NUMPAD_4, 'NumPad4');
+	define(KeyCode.NUMPAD_5, 'NumPad5');
+	define(KeyCode.NUMPAD_6, 'NumPad6');
+	define(KeyCode.NUMPAD_7, 'NumPad7');
+	define(KeyCode.NUMPAD_8, 'NumPad8');
+	define(KeyCode.NUMPAD_9, 'NumPad9');
 
-	define(KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply', undefined, undefined, 'nummult');
-	define(KeyCode.NUMPAD_ADD, 'NumPad_Add', undefined, undefined, 'numadd');
-	define(KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator', undefined, undefined, 'numsep');
-	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract', undefined, undefined, 'numsub');
-	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal', undefined, undefined, 'numdec');
-	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide', undefined, undefined, 'numdiv');
+	define(KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply');
+	define(KeyCode.NUMPAD_ADD, 'NumPad_Add');
+	define(KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator');
+	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract');
+	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal');
+	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide');
 
 })();
 
@@ -402,7 +391,19 @@ export namespace KeyCodeUtils {
 			// We therefore need to fall back to custom rendering for numpad keys.
 			return null;
 		}
-		return electronAcceleratorMap.keyCodeToStr(keyCode);
+
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		return uiMap.keyCodeToStr(keyCode);
 	}
 }
 
