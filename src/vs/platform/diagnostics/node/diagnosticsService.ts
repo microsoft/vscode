@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
 import { Iterable } from 'vs/base/common/iterator';
+import { Promises } from 'vs/base/common/async';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join } from 'vs/base/common/path';
@@ -11,7 +12,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ProcessItem } from 'vs/base/common/processes';
 import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { IDirent, Promises } from 'vs/base/node/pfs';
+import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDiagnosticsService, IMachineInfo, IRemoteDiagnosticError, IRemoteDiagnosticInfo, isRemoteDiagnosticError, IWorkspaceInformation, PerformanceInfo, SystemInfo, WorkspaceStatItem, WorkspaceStats } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
@@ -66,11 +67,10 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise(async resolve => {
+		return Promises.withAsyncBody(async resolve => {
 			let files: IDirent[];
 			try {
-				files = await Promises.readdir(dir, { withFileTypes: true });
+				files = await pfs.readdir(dir, { withFileTypes: true });
 			} catch (error) {
 				// Ignore folders that can't be read
 				resolve();
@@ -173,7 +173,7 @@ export async function collectLaunchConfigs(folder: string): Promise<WorkspaceSta
 		const launchConfigs = new Map<string, number>();
 		const launchConfig = join(folder, '.vscode', 'launch.json');
 
-		const contents = await Promises.readFile(launchConfig);
+		const contents = await pfs.readFile(launchConfig);
 
 		const errors: ParseError[] = [];
 		const json = parse(contents.toString(), errors);

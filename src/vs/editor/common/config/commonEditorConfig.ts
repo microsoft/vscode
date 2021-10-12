@@ -278,7 +278,13 @@ function migrateOptions(options: IEditorOptions): void {
 	};
 	if (!options.guides) {
 		options.guides = {};
+	} else {
+		// migrate bracketPairs: boolean -> : 'all' | 'active' | 'none'
+		if (options.guides.bracketPairs as any === true) {
+			options.guides.bracketPairs = 'all';
+		}
 	}
+
 	if (renderIndentGuides !== undefined) {
 		options.guides.indentation = !!renderIndentGuides;
 	}

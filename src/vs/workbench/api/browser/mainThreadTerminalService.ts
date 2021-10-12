@@ -21,6 +21,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { TerminalEditorLocationOptions } from 'vscode';
+import { Promises } from 'vs/base/common/async';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -141,7 +142,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			useShellEnvironment: launchConfig.useShellEnvironment,
 		};
 		// eslint-disable-next-line no-async-promise-executor
-		const terminal = new Promise<ITerminalInstance>(async r => {
+
+		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
 				config: shellLaunchConfig,
 				location: await this._deserializeParentTerminal(launchConfig.location)
