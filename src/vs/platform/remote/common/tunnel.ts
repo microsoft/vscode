@@ -218,21 +218,22 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	}
 
 	public get tunnels(): Promise<readonly RemoteTunnel[]> {
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise(async (resolve) => {
-			const tunnels: RemoteTunnel[] = [];
-			const tunnelArray = Array.from(this._tunnels.values());
-			for (let portMap of tunnelArray) {
-				const portArray = Array.from(portMap.values());
-				for (let x of portArray) {
-					const tunnelValue = await x.value;
-					if (tunnelValue) {
-						tunnels.push(tunnelValue);
-					}
+		return this.getTunnels();
+	}
+
+	private async getTunnels(): Promise<readonly RemoteTunnel[]> {
+		const tunnels: RemoteTunnel[] = [];
+		const tunnelArray = Array.from(this._tunnels.values());
+		for (let portMap of tunnelArray) {
+			const portArray = Array.from(portMap.values());
+			for (let x of portArray) {
+				const tunnelValue = await x.value;
+				if (tunnelValue) {
+					tunnels.push(tunnelValue);
 				}
 			}
-			resolve(tunnels);
-		});
+		}
+		return tunnels;
 	}
 
 	async dispose(): Promise<void> {
