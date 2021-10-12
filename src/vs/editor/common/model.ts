@@ -1394,6 +1394,27 @@ export class BracketPair {
 /**
  * @internal
  */
+export class BracketPairWithMinIndentation extends BracketPair {
+	constructor(
+		range: Range,
+		openingBracketRange: Range,
+		closingBracketRange: Range | undefined,
+		/**
+		 * 0-based
+		*/
+		nestingLevel: number,
+		/**
+		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
+		*/
+		public readonly minVisibleColumnIndentation: number,
+	) {
+		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+	}
+}
+
+/**
+ * @internal
+ */
 export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
