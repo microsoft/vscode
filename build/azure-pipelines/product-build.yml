@@ -6,8 +6,8 @@ schedules:
     branches:
       include:
         - main
-  - cron: "0 5 * * Mon-Fri"
-    displayName: Mon-Fri at 7:00 (joao/web)
+  - cron: "0 6 * * Mon-Fri"
+    displayName: Mon-Fri at 8:00 (joao/web)
     branches:
       include:
         - joao/web
