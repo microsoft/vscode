@@ -7,7 +7,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPair, BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
+import { BracketPair, BracketPairColorizationOptions, BracketPairWithMinIndentation, IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
@@ -31,6 +31,12 @@ export interface IBracketPairs {
 	 * The result is sorted by the start position.
 	 */
 	getBracketPairsInRange(range: Range): BracketPair[];
+
+	/**
+	 * Gets all bracket pairs that intersect the given position.
+	 * The result is sorted by the start position.
+	 */
+	getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentation[];
 }
 
 export class BracketPairColorizer extends Disposable implements DecorationProvider, IBracketPairs {
@@ -136,7 +142,13 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	getBracketPairsInRange(range: Range): BracketPair[] {
 		this.bracketsRequested = true;
 		this.updateCache();
-		return this.cache.value?.object.getBracketPairsInRange(range) || [];
+		return this.cache.value?.object.getBracketPairsInRange(range, false) || [];
+	}
+
+	getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentation[] {
+		this.bracketsRequested = true;
+		this.updateCache();
+		return this.cache.value?.object.getBracketPairsInRange(range, true) || [];
 	}
 }
 
@@ -147,7 +159,7 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-class BracketPairColorizerImpl extends Disposable implements DecorationProvider, IBracketPairs {
+class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
 	private readonly didChangeDecorationsEmitter = new Emitter<void>();
 	private readonly colorProvider = new ColorProvider();
 
@@ -274,14 +286,15 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider,
 		return this.getDecorationsInRange(new Range(1, 1, this.textModel.getLineCount(), 1), ownerId, filterOutValidation);
 	}
 
-	getBracketPairsInRange(range: Range): BracketPair[] {
-		const result = new Array<BracketPair>();
+	getBracketPairsInRange(range: Range, includeMinIndentation: boolean): BracketPairWithMinIndentation[] {
+		const result = new Array<BracketPairWithMinIndentation>();
 
 		const startLength = positionToLength(range.getStartPosition());
 		const endLength = positionToLength(range.getEndPosition());
 
 		const node = this.initialAstWithoutTokens || this.astWithTokens!;
-		collectBracketPairs(node, lengthZero, node.length, startLength, endLength, result);
+		const context = new CollectBracketPairsContext(result, includeMinIndentation, this.textModel);
+		collectBracketPairs(node, lengthZero, node.length, startLength, endLength, context);
 
 		return result;
 	}
@@ -334,16 +347,31 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 	}
 }
 
-function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketPair[], level: number = 0) {
+class CollectBracketPairsContext {
+	constructor(
+		public readonly result: BracketPairWithMinIndentation[],
+		public readonly includeMinIndentation: boolean,
+		public readonly textModel: ITextModel,
+	) {
+	}
+}
+
+function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, context: CollectBracketPairsContext, level: number = 0) {
 	if (node.kind === AstNodeKind.Pair) {
 		const openingBracketEnd = lengthAdd(nodeOffset, node.openingBracket.length);
-		result.push(new BracketPair(
+		let minIndentation = -1;
+		if (context.includeMinIndentation) {
+			minIndentation = node.computeMinIndentation(nodeOffset, context.textModel);
+		}
+
+		context.result.push(new BracketPairWithMinIndentation(
 			lengthsToRange(nodeOffset, nodeOffsetEnd),
 			lengthsToRange(nodeOffset, openingBracketEnd),
 			node.closingBracket
 				? lengthsToRange(lengthAdd(openingBracketEnd, node.child?.length || lengthZero), nodeOffsetEnd)
 				: undefined,
-			level
+			level,
+			minIndentation
 		));
 		level++;
 	}
@@ -354,7 +382,7 @@ function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: L
 		curOffset = lengthAdd(curOffset, child.length);
 
 		if (lengthLessThanEqual(childOffset, endOffset) && lengthLessThanEqual(startOffset, curOffset)) {
-			collectBracketPairs(child, childOffset, curOffset, startOffset, endOffset, result, level);
+			collectBracketPairs(child, childOffset, curOffset, startOffset, endOffset, context, level);
 		}
 	}
 }

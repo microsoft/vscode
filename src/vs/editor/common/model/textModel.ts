@@ -3096,7 +3096,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		options: model.BracketGuideOptions
 	): model.IndentGuide[][] {
 		const result: model.IndentGuide[][] = [];
-		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRange(
+		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRangeWithMinIndentation(
 			new Range(
 				startLineNumber,
 				1,
@@ -3159,7 +3159,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 				const guideVisibleColumn = Math.min(
 					this.getVisibleColumnFromPosition(pair.openingBracketRange.getStartPosition()),
-					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition())
+					this.getVisibleColumnFromPosition(pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition()),
+					pair.minVisibleColumnIndentation + 1
 				);
 				let renderHorizontalEndLineAtTheBottom = false;
 				if (pair.closingBracketRange) {
