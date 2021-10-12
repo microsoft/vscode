@@ -407,7 +407,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
-		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this._model, this._eventDispatcher!, diffResult);
+		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult);
 
 		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
 		this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
@@ -487,7 +487,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	static computeDiff(instantiationService: IInstantiationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult) {
+	static computeDiff(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult) {
 		const cellChanges = diffResult.cellsDiff.changes;
 		const diffElementViewModels: DiffElementViewModelBase[] = [];
 		const originalModel = model.original.notebook;
@@ -496,6 +496,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		let modifiedCellIndex = 0;
 
 		let firstChangeIndex = -1;
+		const initData = {
+			metadataStatusHeight: configurationService.getValue('notebook.diff.ignoreMetadata') ? 0 : 25,
+			outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25
+		};
 
 		for (let i = 0; i < cellChanges.length; i++) {
 			const change = cellChanges[i];
@@ -511,7 +515,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'unchanged',
-						eventDispatcher
+						eventDispatcher,
+						initData
 					));
 				} else {
 					if (firstChangeIndex === -1) {
@@ -524,12 +529,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
 						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
 						'modified',
-						eventDispatcher!
+						eventDispatcher!,
+						initData
 					));
 				}
 			}
 
-			const modifiedLCS = NotebookTextDiffEditor.computeModifiedLCS(instantiationService, change, originalModel, modifiedModel, eventDispatcher);
+			const modifiedLCS = NotebookTextDiffEditor.computeModifiedLCS(instantiationService, change, originalModel, modifiedModel, eventDispatcher, initData);
 			if (modifiedLCS.length && firstChangeIndex === -1) {
 				firstChangeIndex = diffElementViewModels.length;
 			}
@@ -546,7 +552,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
 				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
 				'unchanged',
-				eventDispatcher
+				eventDispatcher,
+				initData
 			));
 		}
 
@@ -556,7 +563,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		};
 	}
 
-	static computeModifiedLCS(instantiationService: IInstantiationService, change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, eventDispatcher: NotebookDiffEditorEventDispatcher) {
+	static computeModifiedLCS(instantiationService: IInstantiationService, change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, eventDispatcher: NotebookDiffEditorEventDispatcher, initData: {
+		metadataStatusHeight: number,
+		outputStatusHeight: number
+	}) {
 		const result: DiffElementViewModelBase[] = [];
 		// modified cells
 		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
@@ -569,7 +579,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				isTheSame ? 'unchanged' : 'modified',
-				eventDispatcher
+				eventDispatcher,
+				initData
 			));
 		}
 
@@ -581,7 +592,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
 				undefined,
 				'delete',
-				eventDispatcher
+				eventDispatcher,
+				initData
 			));
 		}
 
@@ -593,7 +605,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				undefined,
 				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
 				'insert',
-				eventDispatcher
+				eventDispatcher,
+				initData
 			));
 		}
 

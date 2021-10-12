@@ -940,6 +940,44 @@ suite('Async', () => {
 		});
 	});
 
+	suite('Promises.withAsyncBody', () => {
+		test('basics', async () => {
+
+			const p1 = async.Promises.withAsyncBody(async (resolve, reject) => {
+				resolve(1);
+			});
+
+			const p2 = async.Promises.withAsyncBody(async (resolve, reject) => {
+				reject(new Error('error'));
+			});
+
+			const p3 = async.Promises.withAsyncBody(async (resolve, reject) => {
+				throw new Error('error');
+			});
+
+			const r1 = await p1;
+			assert.strictEqual(r1, 1);
+
+			let e2: Error | undefined = undefined;
+			try {
+				await p2;
+			} catch (error) {
+				e2 = error;
+			}
+
+			assert.ok(e2 instanceof Error);
+
+			let e3: Error | undefined = undefined;
+			try {
+				await p3;
+			} catch (error) {
+				e3 = error;
+			}
+
+			assert.ok(e3 instanceof Error);
+		});
+	});
+
 	suite('ThrottledWorker', () => {
 
 		function assertArrayEquals(actual: unknown[], expected: unknown[]) {

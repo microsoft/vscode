@@ -68,6 +68,9 @@ import product from 'vs/platform/product/common/product';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
+import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -334,7 +337,11 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'openFolder': {
-				this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()))) {
+					this.commandService.executeCommand(AddRootFolderAction.ID);
+				} else {
+					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+				}
 				break;
 			}
 			case 'selectCategory': {

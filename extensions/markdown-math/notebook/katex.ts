@@ -44,6 +44,9 @@ export async function activate(ctx: RendererContext<void>) {
 
 	const katex = require('@iktakahiro/markdown-it-katex');
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
-		return md.use(katex, { globalGroup: true });
+		return md.use(katex, {
+			globalGroup: true,
+			enableBareBlocks: true,
+		});
 	});
 }

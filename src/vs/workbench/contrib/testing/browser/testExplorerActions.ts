@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -730,21 +730,34 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		let bestNode: InternalTestItem | undefined;
+		const profileService = accessor.get(ITestProfileService);
 
+		let bestNodes: InternalTestItem[] = [];
+		let bestRange: IRange | undefined;
+
+		// testsInFile will descend in the test tree. We assume that as we go
+		// deeper, ranges get more specific. We'll want to run all tests whose
+		// range is equal to the most specific range we find (see #133519)
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (test.item.range && Range.containsPosition(test.item.range, position)) {
-					bestNode = test;
+				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+					continue;
+				}
+
+				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+					bestNodes.push(test);
+				} else {
+					bestRange = test.item.range;
+					bestNodes = [test];
 				}
 			}
 		})());
 
 
-		if (bestNode) {
+		if (bestNodes.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: [bestNode],
+				tests: bestNodes,
 			});
 		}
 	}

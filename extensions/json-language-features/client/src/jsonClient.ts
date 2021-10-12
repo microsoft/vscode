@@ -220,7 +220,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 					 */
 					runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 				}
-				return runtime.http.getContent(uriPath);
+				return runtime.http.getContent(uriPath).catch(e => {
+					return Promise.reject(new ResponseError(4, e.toString()));
+				});
 			} else {
 				return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 			}
@@ -233,7 +235,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}
 			return false;
 		};
-
 		const handleActiveEditorChange = (activeEditor?: TextEditor) => {
 			if (!activeEditor) {
 				return;

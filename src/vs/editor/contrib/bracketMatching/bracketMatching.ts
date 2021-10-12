@@ -161,6 +161,14 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 				this._updateBracketsSoon.schedule();
 			}
 		}));
+
+		this._register(editor.onDidBlurEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
+
+		this._register(editor.onDidFocusEditorWidget(() => {
+			this._updateBracketsSoon.schedule();
+		}));
 	}
 
 	public jumpToBracket(): void {
@@ -290,8 +298,8 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private _recomputeBrackets(): void {
-		if (!this._editor.hasModel()) {
-			// no model => no brackets!
+		if (!this._editor.hasModel() || !this._editor.hasWidgetFocus()) {
+			// no model or no focus => no brackets!
 			this._lastBracketsData = [];
 			this._lastVersionId = 0;
 			return;

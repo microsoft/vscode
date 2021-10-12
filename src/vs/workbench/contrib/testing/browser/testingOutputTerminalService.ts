@@ -98,6 +98,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		if (ended) {
 			ended[1].clear();
 			this.showResultsInTerminal(ended[0], ended[1], result);
+			return;
 		}
 
 		const output = new TestOutputProcess();

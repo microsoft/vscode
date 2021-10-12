@@ -93,7 +93,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<URI, IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
@@ -103,7 +103,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public load(_request: string, parent: URI): any {
 
 		// get extension id from filename and api for extension
-		const ext = this._extensionPaths.findSubstr(parent.fsPath);
+		const ext = this._extensionPaths.findSubstr(parent);
 		if (ext) {
 			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
 			if (!apiImpl) {
@@ -117,7 +117,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		if (!this._defaultApiImpl) {
 			let extensionPathsPretty = '';
 			this._extensionPaths.forEach((value, index) => extensionPathsPretty += `\t${index} -> ${value.identifier.value}\n`);
-			this._logService.warn(`Could not identify extension for 'vscode' require call from ${parent.fsPath}. These are the extension path mappings: \n${extensionPathsPretty}`);
+			this._logService.warn(`Could not identify extension for 'vscode' require call from ${parent}. These are the extension path mappings: \n${extensionPathsPretty}`);
 			this._defaultApiImpl = this._apiFactory(nullExtensionDescription, this._extensionRegistry, this._configProvider);
 		}
 		return this._defaultApiImpl;
@@ -232,7 +232,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<URI, IExtensionDescription>,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {
@@ -257,7 +257,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 
 	public load(request: string, parent: URI, original: LoadFunction): any {
 		// get extension id from filename and api for extension
-		const extension = this._extensionPaths.findSubstr(parent.fsPath);
+		const extension = this._extensionPaths.findSubstr(parent);
 		if (extension) {
 			this._extensionId = extension.identifier.value;
 			this.sendShimmingTelemetry();

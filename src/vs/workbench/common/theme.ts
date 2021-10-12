@@ -328,7 +328,7 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 
 export const BANNER_BACKGROUND = registerColor('banner.background', {
 	dark: listActiveSelectionBackground,
-	light: listActiveSelectionBackground,
+	light: darken(listActiveSelectionBackground, 0.3),
 	hc: listActiveSelectionBackground
 }, localize('banner.background', "Banner background color. The banner is shown under the title bar of the window."));
 

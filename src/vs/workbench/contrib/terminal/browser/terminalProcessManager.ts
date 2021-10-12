@@ -181,15 +181,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async detachFromProcess(): Promise<void> {
-		if (!this._process) {
-			return;
-		}
-		if (this._process.detach) {
-			await this._process.detach();
-		} else {
-			throw new Error('This terminal process does not support detaching');
-		}
-		this._process = null;
+		await this._process?.detach?.();
 	}
 
 	async createProcess(
@@ -565,7 +557,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
-			throw new Error('No process');
+			throw new Error('Cannot refresh property when process is undefined');
 		}
 		return this._process.refreshProperty(type);
 	}

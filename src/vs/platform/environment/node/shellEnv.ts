@@ -15,6 +15,7 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 /**
  * The maximum of time we accept to wait on resolving the shell
@@ -69,13 +70,13 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = new Promise(async (resolve, reject) => {
+			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
 				// Give up resolving shell env after some time
 				const timeout = setTimeout(() => {
 					cts.dispose(true);
-					reject(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."));
+					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration.")));
 				}, MAX_SHELL_RESOLVE_TIME);
 
 				// Resolve shell env and handle errors
@@ -83,10 +84,10 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
 					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
-						reject(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error)));
+						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
+					} else {
+						resolve({});
 					}
-
-					resolve({});
 				} finally {
 					clearTimeout(timeout);
 					cts.dispose();
@@ -99,7 +100,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 }
 
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	return new Promise<typeof process.env>(async (resolve, reject) => {
+	return Promises.withAsyncBody<typeof process.env, Error>(async (resolve, reject) => {
 		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
 		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
@@ -120,7 +121,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
 		if (token.isCancellationRequested) {
-			return reject(canceled);
+			return reject(canceled());
 		}
 
 		// handle popular non-POSIX shells
@@ -147,7 +148,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		token.onCancellationRequested(() => {
 			child.kill();
 
-			return reject(canceled);
+			return reject(canceled());
 		});
 
 		child.on('error', err => {

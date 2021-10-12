@@ -1222,8 +1222,7 @@ export class FileService extends Disposable implements IFileService {
 			stream = streamOrBufferedStream;
 		}
 
-		return new Promise(async (resolve, reject) => {
-
+		return new Promise((resolve, reject) => {
 			listenStream(stream, {
 				onData: async chunk => {
 

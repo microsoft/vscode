@@ -12,7 +12,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ActiveEditorContext } from 'vs/workbench/common/editor';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -184,9 +184,9 @@ registerAction2(class extends Action2 {
 				f1: false,
 				menu: {
 					id: MenuId.NotebookDiffCellInputTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY
+					when: NOTEBOOK_DIFF_CELL_INPUT
 				},
-				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+				precondition: NOTEBOOK_DIFF_CELL_INPUT
 
 			}
 		);
@@ -206,7 +206,7 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 		return bulkEditService.apply([
 			new ResourceTextEdit(modified.uri, { range: modified.textModel.getFullModelRange(), text: original.textModel.getValue() }),
-		], { quotableLabel: 'Split Notebook Cell' });
+		], { quotableLabel: 'Revert Notebook Cell Content Change' });
 	}
 });
 

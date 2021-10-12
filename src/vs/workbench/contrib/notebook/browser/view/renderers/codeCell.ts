@@ -128,7 +128,10 @@ export class CodeCell extends Disposable {
 			if (e.metadataChanged || e.internalMetadataChanged) {
 				updateEditorOptions();
 
-				if (this.updateForCollapseState()) {
+				this.viewCell.pauseLayout();
+				const updated = this.updateForCollapseState();
+				this.viewCell.resumeLayout();
+				if (updated) {
 					this.relayoutCell();
 				}
 			}

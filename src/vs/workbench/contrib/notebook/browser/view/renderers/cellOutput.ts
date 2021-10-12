@@ -137,6 +137,12 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
+	forceReadDOM() {
+		if (this.useDedicatedDOM && this.innerContainer) {
+			this._height = this.innerContainer.offsetHeight;
+		}
+	}
+
 	updateDOMTop(top: number) {
 		if (this.useDedicatedDOM) {
 			if (this.innerContainer) {
@@ -639,6 +645,8 @@ export class CellOutputContainer extends Disposable {
 				if (outputEntry.renderResult.type !== RenderOutputType.Mainframe) {
 					this.notebookEditor.createOutput(this.viewCell, outputEntry.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else if (!initRendering) {
+					// force read otherwise the real height is updated in next frame through resize observer
+					outputEntry.forceReadDOM();
 					this.viewCell.updateOutputHeight(index, outputEntry.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
 				}
 			} else {

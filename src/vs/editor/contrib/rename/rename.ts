@@ -226,6 +226,9 @@ class RenameController implements IEditorContribution {
 				return;
 			}
 
+			// collapse selection to active end
+			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
+
 			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
