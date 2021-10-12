@@ -90,8 +90,7 @@ class InsertSnippetAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		// eslint-disable-next-line no-async-promise-executor
-		const snippet = await new Promise<Snippet | undefined>(async (resolve) => {
+		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
 			let { snippet, name, langId } = Args.fromUser(arg);
@@ -129,13 +128,13 @@ class InsertSnippetAction extends EditorAction {
 
 			if (name) {
 				// take selected snippet
-				const snippet = (await snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })).find(snippet => snippet.name === name);
-				resolve(snippet);
+				snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })
+					.then(snippets => snippets.find(snippet => snippet.name === name))
+					.then(resolve, reject);
 
 			} else {
 				// let user pick a snippet
-				const snippet = await this._pickSnippet(snippetService, quickInputService, languageId);
-				resolve(snippet);
+				resolve(this._pickSnippet(snippetService, quickInputService, languageId));
 			}
 		});
 

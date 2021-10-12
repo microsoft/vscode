@@ -429,8 +429,9 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 			// this is a little weird but otherwise editors and other cusomers
 			// will dispose my models before they should be disposed...
 			// And all of this is off the eventloop to prevent endless recursion
-			// eslint-disable-next-line no-async-promise-executor
-			new Promise(async () => this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri)));
+			queueMicrotask(async () => {
+				this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri));
+			});
 		}
 		return model;
 	}
