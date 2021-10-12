@@ -613,7 +613,7 @@ export class DefaultSettings extends Disposable {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
-				let description = (prop.description || prop.markdownDescription || '');
+				let description = (prop.markdownDescription || prop.description || '');
 				if (typeof description !== 'string') {
 					description = '';
 				}
@@ -652,7 +652,7 @@ export class DefaultSettings extends Disposable {
 					key,
 					value,
 					description: descriptionLines,
-					descriptionIsMarkdown: !prop.description,
+					descriptionIsMarkdown: !!prop.markdownDescription,
 					range: nullRange,
 					keyRange: nullRange,
 					valueRange: nullRange,
