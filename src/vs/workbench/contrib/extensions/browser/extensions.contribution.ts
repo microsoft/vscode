@@ -62,7 +62,7 @@ import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workb
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
+import { isArray, isDefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -273,20 +273,25 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
 							default: false
+						},
+						'donotSync': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.donotSync', "When enabled, VS Code do not sync this extension when Settings Sync is on."),
+							default: false
 						}
 					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, donotSync?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
 			if (typeof arg === 'string') {
 				const [extension] = await extensionGalleryService.getExtensions([{ id: arg }], CancellationToken.None);
 				if (extension) {
-					await extensionManagementService.installFromGallery(extension);
+					await extensionManagementService.installFromGallery(extension, isDefined(options?.donotSync) ? { isMachineScoped: options?.donotSync } : undefined);
 				} else {
 					throw new Error(localize('notFound', "Extension '{0}' not found.", arg));
 				}
