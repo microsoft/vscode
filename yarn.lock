@@ -6885,10 +6885,10 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-2.2.1.tgz#537023ec6e73591a68659f6a14eba8e1965b0633"
-  integrity sha512-rsEf2gbFFNEy3MxxQocCn9XpNyqBa8kMFFrjXFWCp3lWuhk3svHnWYZOj3Or8lNoAIjVxAPLdMClraLXHz6dnw==
+native-keymap@2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-2.3.0.tgz#8d55b20db56186d297ce8c246acaf507037055ac"
+  integrity sha512-B2DtkLmMLjuO/iAv1wTJWHeeigvJkKwpqL3cG24t+rXdPNPnNnREo7V+jWX+8zywSR/DRxuIHk/jAE5tsheonw==
 
 native-watchdog@1.3.0:
   version "1.3.0"
