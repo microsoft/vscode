@@ -22,6 +22,7 @@ import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLau
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { Promises } from 'vs/base/common/async';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -716,8 +717,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
 
 		for (const provider of this._linkProviders) {
-			// eslint-disable-next-line no-async-promise-executor
-			promises.push(new Promise(async r => {
+			promises.push(Promises.withAsyncBody(async r => {
 				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
 				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];
 				if (!cancellationSource.token.isCancellationRequested) {

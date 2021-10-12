@@ -49,7 +49,7 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject, TerminalLocation, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { AutoOpenBarrier } from 'vs/base/common/async';
+import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -596,8 +596,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}
-		// eslint-disable-next-line no-async-promise-executor
-		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
+		xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
 			const Terminal = await this._terminalInstanceService.getXtermConstructor();
 			// Localize strings
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
