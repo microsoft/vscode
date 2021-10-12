@@ -24,7 +24,7 @@ import { TestingDecorations, TestingDecorationService } from 'vs/workbench/contr
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -114,7 +114,7 @@ registerAction2(ToggleTestingPeekHistory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressUiService, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressTrigger, LifecyclePhase.Eventually);
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
