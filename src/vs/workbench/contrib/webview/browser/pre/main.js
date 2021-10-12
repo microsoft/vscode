@@ -451,7 +451,7 @@ const handleInnerClick = (event) => {
 		return;
 	}
 
-	const baseElement = event.view.document.getElementsByTagName('base')[0];
+	const baseElement = event.view.document.querySelector('base');
 
 	for (const pathElement of event.composedPath()) {
 		/** @type {any} */
