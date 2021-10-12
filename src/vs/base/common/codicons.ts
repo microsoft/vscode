@@ -596,6 +596,11 @@ export namespace Codicon {
 	export const bracket = new Codicon('bracket', { fontCharacter: '\\eb0f' });
 	export const bracketDot = new Codicon('bracket-dot', { fontCharacter: '\\ebe5' });
 	export const bracketError = new Codicon('bracket-error', { fontCharacter: '\\ebe6' });
+	export const pinnedDirtySmall = new Codicon('pinned-dirty-small', { fontCharacter: '\\ebe7' });
+	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe8' });
+	export const pinnedSmall = new Codicon('pinned-small', { fontCharacter: '\\ebe9' });
+	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebea' });
+
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }
