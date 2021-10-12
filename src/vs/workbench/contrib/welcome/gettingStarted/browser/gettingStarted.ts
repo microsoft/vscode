@@ -426,12 +426,14 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async openWalkthroughSelector() {
-		const selection = await this.quickInputService.pick(this.gettingStartedCategories.map(x => ({
-			id: x.id,
-			label: x.title,
-			detail: x.description,
-			description: x.source,
-		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+		const selection = await this.quickInputService.pick(this.gettingStartedCategories
+			.filter(c => this.contextService.contextMatchesRules(c.when))
+			.map(x => ({
+				id: x.id,
+				label: x.title,
+				detail: x.description,
+				description: x.source,
+			})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			this.runDispatchCommand('selectCategory', selection.id);
 		}
