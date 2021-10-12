@@ -174,6 +174,7 @@ export default class PHPValidationProvider {
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<void>(async (resolve) => {
 			const executable = this.config!.executable;
 			if (!executable) {

@@ -716,6 +716,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		const promises: vscode.ProviderResult<{ provider: vscode.TerminalLinkProvider, links: vscode.TerminalLink[] }>[] = [];
 
 		for (const provider of this._linkProviders) {
+			// eslint-disable-next-line no-async-promise-executor
 			promises.push(new Promise(async r => {
 				cancellationSource.token.onCancellationRequested(() => r({ provider, links: [] }));
 				const links = (await provider.provideTerminalLinks(context, cancellationSource.token)) || [];

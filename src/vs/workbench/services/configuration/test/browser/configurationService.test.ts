@@ -1113,14 +1113,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('creating workspace settings', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
-		await new Promise<void>(async (c) => {
+		await new Promise<void>((c, e) => {
 			const disposable = testObject.onDidChangeConfiguration(e => {
 				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
 				assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
 				disposable.dispose();
 				c();
 			});
-			await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
+			fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }')).catch(e);
 		});
 	});
 
@@ -1129,9 +1129,9 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const workspaceSettingsResource = joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json');
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
-		const e = await new Promise<IConfigurationChangeEvent>(async (c) => {
+		const e = await new Promise<IConfigurationChangeEvent>((c, e) => {
 			Event.once(testObject.onDidChangeConfiguration)(c);
-			await fileService.del(workspaceSettingsResource);
+			fileService.del(workspaceSettingsResource).catch(e);
 		});
 		assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'userValue');

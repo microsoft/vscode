@@ -273,6 +273,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 
 	public static async getDefaultTerminalLinuxReady(): Promise<string> {
 		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
+			// eslint-disable-next-line no-async-promise-executor
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
 					const isDebian = await pfs.Promises.exists('/etc/debian_version');

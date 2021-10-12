@@ -316,6 +316,7 @@ export class AzureActiveDirectoryService {
 			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
 		}
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise(async (resolve, reject) => {
 			const runsRemote = vscode.env.remoteName !== undefined;
 			const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;

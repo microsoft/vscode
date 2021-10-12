@@ -54,6 +54,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 	private async textBufferFactoryFromResource(resource: URI): Promise<ITextBufferFactory> {
 		let ongoing = this.loads.get(resource.toString());
 		if (!ongoing) {
+			// eslint-disable-next-line no-async-promise-executor
 			ongoing = new Promise(async c => {
 				c(createTextBufferFactory(await requireToContent(this.instantiationService, resource)));
 				this.loads.delete(resource.toString());

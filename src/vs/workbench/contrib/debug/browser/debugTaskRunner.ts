@@ -200,6 +200,7 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise(async (c, e) => {
 			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
 				resolve();

@@ -266,6 +266,7 @@ export class SimpleFileDialog {
 			}
 		}
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<URI | undefined>(async (resolve) => {
 			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
 			this.busy = true;

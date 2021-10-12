@@ -100,26 +100,26 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 }
 
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	return Promises.withAsyncBody<typeof process.env, Error>(async (resolve, reject) => {
-		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
+	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
+	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
-		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-		logService.trace('getUnixShellEnvironment#noAttach', noAttach);
+	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
-		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-		const regex = new RegExp(mark + '(.*)' + mark);
+	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
+	const regex = new RegExp(mark + '(.*)' + mark);
 
-		const env = {
-			...process.env,
-			ELECTRON_RUN_AS_NODE: '1',
-			ELECTRON_NO_ATTACH_CONSOLE: '1'
-		};
+	const env = {
+		...process.env,
+		ELECTRON_RUN_AS_NODE: '1',
+		ELECTRON_NO_ATTACH_CONSOLE: '1'
+	};
 
-		logService.trace('getUnixShellEnvironment#env', env);
-		const systemShellUnix = await getSystemShell(OS, env);
-		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
+	logService.trace('getUnixShellEnvironment#env', env);
+	const systemShellUnix = await getSystemShell(OS, env);
+	logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
+	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
 			return reject(canceled());
 		}

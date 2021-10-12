@@ -104,6 +104,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const promises: Promise<ISerializedTerminalState>[] = [];
 		for (const [persistentProcessId, persistentProcess] of this._ptys.entries()) {
 			if (ids.indexOf(persistentProcessId) !== -1) {
+				// eslint-disable-next-line no-async-promise-executor
 				promises.push(new Promise<ISerializedTerminalState>(async r => {
 					r({
 						id: persistentProcessId,

@@ -98,6 +98,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<IRequestContext>(async (c, e) => {
 			let req: http.ClientRequest;
 

@@ -90,6 +90,7 @@ class InsertSnippetAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 
+		// eslint-disable-next-line no-async-promise-executor
 		const snippet = await new Promise<Snippet | undefined>(async (resolve) => {
 
 			const { lineNumber, column } = editor.getPosition();

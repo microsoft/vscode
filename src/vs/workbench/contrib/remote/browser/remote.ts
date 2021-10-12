@@ -265,6 +265,7 @@ class HelpItemValue {
 	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<string>(async (resolve) => {
 			if (this._url === undefined) {
 				if (this.urlOrCommand) {

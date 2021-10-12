@@ -287,12 +287,13 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		});
 	}
 
-	getItems(): Promise<Map<string, string>> {
-		return Promises.withAsyncBody<Map<string, string>>(async resolve => {
+	async getItems(): Promise<Map<string, string>> {
+		const db = await this.whenConnected;
+
+		return new Promise<Map<string, string>>(resolve => {
 			const items = new Map<string, string>();
 
 			// Open a IndexedDB Cursor to iterate over key/values
-			const db = await this.whenConnected;
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
 			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
 			const cursor = objectStore.openCursor();
@@ -361,9 +362,8 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		}
 
 		// Update `ItemTable` with inserts and/or deletes
-		return Promises.withAsyncBody<boolean, DOMException | null>(async (resolve, reject) => {
-			const db = await this.whenConnected;
-
+		const db = await this.whenConnected;
+		return new Promise<boolean>((resolve, reject) => {
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
 			transaction.oncomplete = () => resolve(true);
 			transaction.onerror = () => reject(transaction.error);
@@ -396,10 +396,10 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 		return db.close();
 	}
 
-	clear(): Promise<void> {
-		return Promises.withAsyncBody<void, DOMException | null>(async (resolve, reject) => {
-			const db = await this.whenConnected;
+	async clear(): Promise<void> {
+		const db = await this.whenConnected;
 
+		return new Promise<void>((resolve, reject) => {
 			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
 			transaction.oncomplete = () => resolve();
 			transaction.onerror = () => reject(transaction.error);

@@ -222,6 +222,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	loadModel(): Promise<ITextModel> {
+		// eslint-disable-next-line no-async-promise-executor
 		this.loadModelPromise = new Promise<ITextModel>(async (c, e) => {
 			try {
 				let content = '';

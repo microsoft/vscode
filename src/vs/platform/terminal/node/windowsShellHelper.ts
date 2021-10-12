@@ -128,6 +128,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (this._currentRequest) {
 			return this._currentRequest;
 		}
+		// eslint-disable-next-line no-async-promise-executor
 		this._currentRequest = new Promise<string>(async resolve => {
 			if (!windowsProcessTree) {
 				windowsProcessTree = await import('windows-process-tree');

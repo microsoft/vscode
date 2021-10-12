@@ -66,6 +66,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise(async resolve => {
 			let files: IDirent[];
 			try {

@@ -225,6 +225,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): Promise<string | null> {
 		this._keybindingInputWidget.clear();
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<string | null>(async (c) => {
 			if (!this._isVisible) {
 				this._isVisible = true;

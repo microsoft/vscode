@@ -51,6 +51,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 						logService.trace('tunnelFactory: tunnel provider error');
 					}
 
+					// eslint-disable-next-line no-async-promise-executor
 					return new Promise(async (resolve) => {
 						if (!tunnelPromise) {
 							resolve(undefined);

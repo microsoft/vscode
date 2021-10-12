@@ -216,6 +216,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 				}));
 			}
 
+			// eslint-disable-next-line no-async-promise-executor
 			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];

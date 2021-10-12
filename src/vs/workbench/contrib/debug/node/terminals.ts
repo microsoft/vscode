@@ -53,6 +53,7 @@ export function hasChildProcesses(processId: number | undefined): Promise<boolea
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
+			// eslint-disable-next-line no-async-promise-executor
 			return new Promise<boolean>(async (resolve) => {
 				// See #123296
 				const windowsProcessTree = await import('windows-process-tree');

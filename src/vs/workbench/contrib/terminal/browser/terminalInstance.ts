@@ -596,6 +596,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}
+		// eslint-disable-next-line no-async-promise-executor
 		xtermConstructor = new Promise<typeof XTermTerminal>(async (resolve) => {
 			const Terminal = await this._terminalInstanceService.getXtermConstructor();
 			// Localize strings
