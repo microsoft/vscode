@@ -26,7 +26,7 @@ function onDidChangeNotebookCells(e: NotebookCellsChangeEvent) {
 	e.changes.forEach(change => {
 		change.items.forEach(cell => {
 			const cellMetadata = getCellMetadata(cell);
-			if (cellMetadata?.id && isCellIdUnique(cellMetadata.id, e.document, cell)) {
+			if (cellMetadata?.id) {
 				return;
 			}
 			const id = generateCellId(e.document);
