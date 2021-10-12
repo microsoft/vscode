@@ -460,10 +460,9 @@ const handleInnerClick = (event) => {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-				if (scrollTarget) {
-					scrollTarget.scrollIntoView();
-				}
+				const fragment = node.hash.substr(1, node.hash.length - 1);
+				const scrollTarget = event.view.document.getElementById(decodeURIComponent(fragment));
+				scrollTarget?.scrollIntoView();
 			} else {
 				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
 			}
