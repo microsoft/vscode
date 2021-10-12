@@ -80,7 +80,11 @@ flakySuite('Recursive Watcher (parcel)', () => {
 	teardown(async () => {
 		await service.stop();
 
-		return Promises.rm(testDir);
+		// Possible that the file watcher is still holding
+		// onto the folders on Windows specifically and the
+		// unlink would fail. In that case, do not fail the
+		// test suite.
+		return Promises.rm(testDir).catch(error => console.error(error));
 	});
 
 	function toMsg(type: FileChangeType): string {
@@ -91,12 +95,13 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		}
 	}
 
-	function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEvent?: boolean): Promise<void> {
+	async function awaitEvent(service: TestParcelWatcherService, path: string, type: FileChangeType, failOnEvent?: boolean): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
-		return new Promise<void>((resolve, reject) => {
+		// Await the event
+		await new Promise<void>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.path === path && event.type === type) {
@@ -110,13 +115,13 @@ flakySuite('Recursive Watcher (parcel)', () => {
 					}
 				}
 			});
-		}).then(() => {
-			// Unwind a bit to avoid calling watcher methods directly
-			// after a file event was send. At least one test was seen
-			// to crash when immediately re-watching the same folder
-			// from within the event callback due to a mutex lock issue.
-			return timeout(5);
 		});
+
+		// Unwind a bit to avoid calling watcher methods directly
+		// after a file event was send. At least one test was seen
+		// to crash when immediately re-watching the same folder
+		// from within the event callback due to a mutex lock issue.
+		return await timeout(5);
 	}
 
 	test('basics', async function () {
