@@ -52,18 +52,6 @@ function isCellIdRequired(metadata: Pick<Partial<nbformat.INotebookContent>, 'nb
 	}
 	return false;
 }
-function isCellIdUnique(id: string, notebook: NotebookDocument, cellToIgnore: NotebookCell) {
-	for (let index = 0; index < notebook.cellCount; index++) {
-		const cell = notebook.cellAt(index);
-		if (cell === cellToIgnore) {
-			continue;
-		}
-		if (getCellMetadata(cell)?.id === id) {
-			return false;
-		}
-	}
-	return true;
-}
 
 function generateCellId(notebook: NotebookDocument) {
 	while (true) {
