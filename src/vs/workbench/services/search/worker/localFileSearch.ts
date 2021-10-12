@@ -14,6 +14,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { createRegExp } from 'vs/base/common/strings';
+import { Promises } from 'vs/base/common/async';
 
 const PERF = false;
 
@@ -216,8 +217,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 				}));
 			}
 
-			// eslint-disable-next-line no-async-promise-executor
-			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
+			const entries = Promises.withAsyncBody<(FileNode | DirNode)[]>(async c => {
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];
 
