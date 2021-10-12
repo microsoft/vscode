@@ -22,12 +22,12 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		this._proxy = proxy;
 	}
 
-	withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Thenable<R> {
+	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
 
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
+		await this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
