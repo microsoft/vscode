@@ -402,28 +402,6 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
-		if (!this.isUSStandard) {
-			// See https://github.com/electron/electron/issues/26888
-			// Electron does not render accelerators respecting the current keyboard layout since 3.x
-			const keyCode = keybinding.keyCode;
-			const isOEMKey = (
-				keyCode === KeyCode.US_SEMICOLON
-				|| keyCode === KeyCode.US_EQUAL
-				|| keyCode === KeyCode.US_COMMA
-				|| keyCode === KeyCode.US_MINUS
-				|| keyCode === KeyCode.US_DOT
-				|| keyCode === KeyCode.US_SLASH
-				|| keyCode === KeyCode.US_BACKTICK
-				|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| keyCode === KeyCode.US_BACKSLASH
-				|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
-				|| keyCode === KeyCode.OEM_8
-				|| keyCode === KeyCode.OEM_102
-			);
-			if (isOEMKey) {
-				return null;
-			}
-		}
 		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
