@@ -22,6 +22,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
+import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 
 type WorkspaceId = string;
 
@@ -81,6 +82,14 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
 	}
+
+	setIgnoreProcessNames(names: string[]): Promise<void> {
+		return new Promise((_resolve, _reject) => {
+			ignoreProcessNames.length = 0;
+			ignoreProcessNames.push(...names);
+		});
+	}
+
 	onPtyHostExit?: Event<number> | undefined;
 	onPtyHostStart?: Event<void> | undefined;
 	onPtyHostUnresponsive?: Event<void> | undefined;
