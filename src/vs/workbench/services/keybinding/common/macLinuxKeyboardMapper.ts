@@ -872,15 +872,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToDispatch[binding.scanCode];
 	}
 
-	private _getElectronLabelForKeyCode(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		return KeyCodeUtils.toElectronAccelerator(keyCode);
-	}
-
 	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
 			return null;
@@ -891,7 +882,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(immutableKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(immutableKeyCode);
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
@@ -924,7 +915,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		if (constantKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(constantKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
 
 		return null;

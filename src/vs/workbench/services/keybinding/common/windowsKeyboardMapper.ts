@@ -427,16 +427,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				return null;
 			}
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
-	}
-
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		return KeyCodeUtils.toElectronAccelerator(keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {

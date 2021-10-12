@@ -32,7 +32,7 @@ export abstract class BaseResolvedKeybinding<T extends Modifiers> extends Resolv
 
 	public getElectronAccelerator(): string | null {
 		if (this._parts.length > 1) {
-			// Electron cannot handle chords
+			// [Electron Accelerators] Electron cannot handle chords
 			return null;
 		}
 		return ElectronAcceleratorLabelProvider.toLabel(this._os, this._parts, (keybinding) => this._getElectronAccelerator(keybinding));

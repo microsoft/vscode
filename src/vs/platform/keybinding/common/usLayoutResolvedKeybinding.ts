@@ -46,20 +46,11 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 		return KeyCodeUtils.toString(keybinding.keyCode);
 	}
 
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		return KeyCodeUtils.toElectronAccelerator(keyCode);
-	}
-
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
 		if (keybinding.isDuplicateModifierCase()) {
 			return null;
 		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
 	protected _getUserSettingsLabel(keybinding: SimpleKeybinding): string | null {
