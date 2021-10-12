@@ -7,22 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IssueReporterData } from 'vs/platform/issue/common/issue';
 
-export const IWebIssueService = createDecorator<IWebIssueService>('webIssueService');
-
-export interface IIssueReporterOptions {
-	extensionId?: string;
-}
-
-export interface IWebIssueService {
-	readonly _serviceBrand: undefined;
-	openReporter(options?: IIssueReporterOptions): Promise<void>;
-}
-
-export class WebIssueService implements IWebIssueService {
+export class WebIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -31,7 +21,12 @@ export class WebIssueService implements IWebIssueService {
 		@IProductService private readonly productService: IProductService
 	) { }
 
-	async openReporter(options: IIssueReporterOptions): Promise<void> {
+	//TODO @TylerLeonhardt @Tyriar to implement a process explorer for the web
+	async openProcessExplorer(): Promise<void> {
+		console.error('openProcessExplorer is not implemented in web');
+	}
+
+	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
 		let repositoryUrl = this.productService.reportIssueUrl;
 		if (options.extensionId) {
 			const extensionGitHubUrl = await this.getExtensionGitHubUrl(options.extensionId);
