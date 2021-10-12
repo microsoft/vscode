@@ -38,4 +38,5 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           typescriptVersion: 0.6.0-next.19
           configFiles: .lsifrc.json
+          environment: development
         continue-on-error: true
