@@ -12,7 +12,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption, InternalGuidesOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IndentGuide } from 'vs/editor/common/model';
+import { HorizontalGuidesState, IndentGuide } from 'vs/editor/common/model';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { BracketPairGuidesClassNames } from 'vs/editor/common/model/textModel';
 import { Color } from 'vs/base/common/color';
@@ -134,7 +134,16 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
 					break;
 				}
-				result += `<div class="core-guide ${guide.className}" style="left:${left}px;height:${lineHeight}px;width:${this._spaceWidth}px"></div>`;
+
+				const className = guide.horizontalLine ? (guide.horizontalLine.top ? 'horizontal-top' : 'horizontal-bottom') : 'vertical';
+
+				const width = guide.horizontalLine
+					? (ctx.visibleRangeForPosition(
+						new Position(lineNumber, guide.horizontalLine.endColumn)
+					)?.left ?? (left + this._spaceWidth)) - left
+					: this._spaceWidth;
+
+				result += `<div class="core-guide ${guide.className} ${className}" style="left:${left}px;height:${lineHeight}px;width:${width}px"></div>`;
 			}
 			output[lineIndex] = result;
 		}
@@ -146,13 +155,20 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		visibleEndLineNumber: number,
 		activeCursorPosition: Position | null
 	): IndentGuide[][] {
-		const bracketGuides = this._bracketPairGuideOptions.bracketPairs
+		const bracketGuides = this._bracketPairGuideOptions.bracketPairs !== 'none'
 			? this._context.model.getBracketGuidesInRangeByLine(
 				visibleStartLineNumber,
 				visibleEndLineNumber,
 				activeCursorPosition,
-				true,
-				true
+				{
+					highlightActive: this._bracketPairGuideOptions.highlightActiveBracketPair,
+					horizontalGuides: this._bracketPairGuideOptions.bracketPairsHorizontal === 'all'
+						? HorizontalGuidesState.Enabled
+						: this._bracketPairGuideOptions.bracketPairsHorizontal === 'active'
+							? HorizontalGuidesState.EnabledForActive
+							: HorizontalGuidesState.Disabled,
+					includeInactive: this._bracketPairGuideOptions.bracketPairs === 'all',
+				}
 			)
 			: null;
 
@@ -195,8 +211,15 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 					lineNumber <= activeIndentEndLineNumber &&
 					indentLvl === activeIndentLevel;
 				lineGuides.push(...bracketGuidesInLineQueue.takeWhile(g => g.visibleColumn < indentGuide) || []);
-				if (bracketGuidesInLineQueue.peek()?.visibleColumn !== indentGuide) {
-					lineGuides.push(new IndentGuide(indentGuide, isActive ? 'core-guide-indent-active' : 'core-guide-indent'));
+				const peeked = bracketGuidesInLineQueue.peek();
+				if (!peeked || peeked.visibleColumn !== indentGuide || peeked.horizontalLine) {
+					lineGuides.push(
+						new IndentGuide(
+							indentGuide,
+							isActive ? 'core-guide-indent-active' : 'core-guide-indent',
+							null
+						)
+					);
 				}
 			}
 
@@ -245,7 +268,9 @@ registerThemingParticipant((theme, collector) => {
 
 	for (let level = 0; level < 30; level++) {
 		const color = colorValues[level % colorValues.length];
-		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')} { opacity: 0.3; box-shadow: 1px 0 0 0 ${color} inset; }`);
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')}.vertical { opacity: 0.3; box-shadow: 1px 0 0 0 ${color} inset; }`);
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')}.horizontal-top { opacity: 0.3; border-top: 1px solid ${color}; }`);
+		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level).replace(/ /g, '.')}.horizontal-bottom { opacity: 0.3; border-bottom: 1px solid ${color}; }`);
 	}
 
 	collector.addRule(`.monaco-editor .${colorProvider.activeClassName} { opacity: 1 !important; }`);
