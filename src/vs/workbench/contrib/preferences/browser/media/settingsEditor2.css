@@ -124,6 +124,11 @@
 	padding-right: 8px;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
+	/* Add an extra pixel due to it not getting the outline */
+	padding-bottom: 8px;
+}
+
 .settings-editor > .settings-body {
 	position: relative;
 	margin-top: 14px;
