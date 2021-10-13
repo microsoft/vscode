@@ -90,16 +90,19 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 						.map((suggestItem, index) => {
 							const inlineSuggestItem = suggestionToInlineCompletion(suggestController, position, suggestItem, this.isShiftKeyPressed);
 							const normalizedSuggestItem = minimizeInlineCompletion(textModel, inlineSuggestItem);
+							if (!normalizedSuggestItem) {
+								return undefined;
+							}
 							const valid =
 								normalizedSuggestItem.range.equalsRange(normalizedItemToPreselect.range) &&
 								normalizedItemToPreselect.text.startsWith(normalizedSuggestItem.text);
 							return { index, valid, prefixLength: normalizedSuggestItem.text.length, suggestItem };
 						})
-						.filter(item => item.valid);
+						.filter(item => item && item.valid);
 
 					const result = findMaxBy(
 						candidates,
-						compareBy(s => s.prefixLength, compareByNumber())
+						compareBy(s => s!.prefixLength, compareByNumber())
 					);
 					return result ? result.index : - 1;
 				}
@@ -187,7 +190,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	}
 }
 
-function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion {
+function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion | undefined {
 	// additionalTextEdits might not be resolved here, this could be problematic.
 	if (Array.isArray(item.completion.additionalTextEdits) && item.completion.additionalTextEdits.length > 0) {
 		// cannot represent additional text edits
@@ -201,11 +204,14 @@ function suggestionToInlineCompletion(suggestController: SuggestController, posi
 	if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
 		const snippet = new SnippetParser().parse(insertText);
 		const model = suggestController.editor.getModel()!;
-		SnippetSession.adjustWhitespace(
-			model, position, snippet,
-			true,
-			true
-		);
+
+		// Ignore snippets that are too large.
+		// Adjust whitespace is expensive for them.
+		if (snippet.children.length > 100) {
+			return undefined;
+		}
+
+		SnippetSession.adjustWhitespace(model, position, snippet, true, true);
 		insertText = snippet.toString();
 	}
 
