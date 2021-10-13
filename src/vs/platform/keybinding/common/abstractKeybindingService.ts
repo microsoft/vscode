@@ -173,8 +173,11 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {
+		this._log(`/ Dispatching keybinding triggered via menu entry accelerator - ${userSettingsLabel}`);
 		const keybindings = this.resolveUserBinding(userSettingsLabel);
-		if (keybindings.length >= 1) {
+		if (keybindings.length === 0) {
+			this._log(`\\ Could not resolve - ${userSettingsLabel}`);
+		} else {
 			this._doDispatch(keybindings[0], target, /*isSingleModiferChord*/false);
 		}
 	}

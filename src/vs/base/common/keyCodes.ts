@@ -378,6 +378,33 @@ export namespace KeyCodeUtils {
 	export function fromUserSettings(key: string): KeyCode {
 		return userSettingsUSMap.strToKeyCode(key) || userSettingsGeneralMap.strToKeyCode(key);
 	}
+
+	export function toElectronAccelerator(keyCode: KeyCode): string | null {
+		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+			// [Electron Accelerators] Electron is able to parse numpad keys, but unfortunately it
+			// renders them just as regular keys in menus. For example, num0 is rendered as "0",
+			// numdiv is rendered as "/", numsub is rendered as "-".
+			//
+			// This can lead to incredible confusion, as it makes numpad based keybindings indistinguishable
+			// from keybindings based on regular keys.
+			//
+			// We therefore need to fall back to custom rendering for numpad keys.
+			return null;
+		}
+
+		switch (keyCode) {
+			case KeyCode.UpArrow:
+				return 'Up';
+			case KeyCode.DownArrow:
+				return 'Down';
+			case KeyCode.LeftArrow:
+				return 'Left';
+			case KeyCode.RightArrow:
+				return 'Right';
+		}
+
+		return uiMap.keyCodeToStr(keyCode);
+	}
 }
 
 /**
@@ -442,7 +469,18 @@ export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem):
 	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
 }
 
-export class SimpleKeybinding {
+export interface Modifiers {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+}
+
+export interface IBaseKeybinding extends Modifiers {
+	isDuplicateModifierCase(): boolean;
+}
+
+export class SimpleKeybinding implements IBaseKeybinding {
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;
