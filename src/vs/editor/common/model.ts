@@ -1026,7 +1026,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, highlightActiveGuides: boolean, includeNonActiveGuides: boolean): IndentGuide[][];
+	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
 
 	/**
 	 * Change the decorations. The callback will be called with a change accessor
@@ -1336,10 +1336,43 @@ export interface ITextModel {
 /**
  * @internal
  */
+export enum HorizontalGuidesState {
+	Disabled,
+	EnabledForActive,
+	Enabled
+}
+
+/**
+ * @internal
+ */
+export interface BracketGuideOptions {
+	includeInactive: boolean,
+	horizontalGuides: HorizontalGuidesState,
+	highlightActive: boolean,
+}
+
+/**
+ * @internal
+ */
 export class IndentGuide {
 	constructor(
 		public readonly visibleColumn: number,
-		public readonly className: string
+		public readonly className: string,
+		/**
+		 * If set, this indent guide is a horizontal guide (no vertical part).
+		 * It starts at visibleColumn and continues until endColumn.
+		*/
+		public readonly horizontalLine: IndentGuideHorizontalLine | null,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class IndentGuideHorizontalLine {
+	constructor(
+		public readonly top: boolean,
+		public readonly endColumn: number,
 	) { }
 }
 
@@ -1356,6 +1389,27 @@ export class BracketPair {
 		*/
 		public readonly nestingLevel: number,
 	) { }
+}
+
+/**
+ * @internal
+ */
+export class BracketPairWithMinIndentation extends BracketPair {
+	constructor(
+		range: Range,
+		openingBracketRange: Range,
+		closingBracketRange: Range | undefined,
+		/**
+		 * 0-based
+		*/
+		nestingLevel: number,
+		/**
+		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
+		*/
+		public readonly minVisibleColumnIndentation: number,
+	) {
+		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+	}
 }
 
 /**

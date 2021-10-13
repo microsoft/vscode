@@ -3864,8 +3864,19 @@ declare namespace monaco.editor {
 	export interface IGuidesOptions {
 		/**
 		 * Enable rendering of bracket pair guides.
+		 * Defaults to 'none'.
 		*/
-		bracketPairs?: boolean;
+		bracketPairs?: 'all' | 'active' | 'none';
+		/**
+		 * Enable rendering of vertical bracket pair guides.
+		 * Defaults to 'active'.
+		 */
+		bracketPairsHorizontal?: 'all' | 'active' | 'none';
+		/**
+		 * Enable highlighting of the active bracket pair.
+		 * Defaults to true.
+		*/
+		highlightActiveBracketPair?: boolean;
 		/**
 		 * Enable rendering of indent guides.
 		 * Defaults to true.

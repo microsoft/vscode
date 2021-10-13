@@ -171,7 +171,7 @@ class NonPeekableTextBufferTokenizer {
 		// limits the length of text tokens.
 		// If text tokens get too long, incremental updates will be slow
 		let lengthHeuristic = 0;
-		while (lengthHeuristic < 1000) {
+		while (true) {
 			const lineTokens = this.lineTokens!;
 			const tokenCount = lineTokens.getCount();
 
@@ -237,10 +237,27 @@ class NonPeekableTextBufferTokenizer {
 				this.line = this.lineTokens.getLineContent();
 				this.lineCharOffset = 0;
 
-				lengthHeuristic++;
+				lengthHeuristic += 33; // max 1000/33 = 30 lines
+				// This limits the amount of work to recompute min-indentation
+
+				if (lengthHeuristic > 1000) {
+					// only break (automatically) at the end of line.
+					break;
+				}
+			}
+
+			if (lengthHeuristic > 1500) {
+				// Eventually break regardless of the line length so that
+				// very long lines do not cause bad performance.
+				// This effective limits max indentation to 500, as
+				// indentation is not computed across multiple text nodes.
+				break;
 			}
 		}
 
+		// If a token contains some proper indentation, it also contains \n{INDENTATION+}(?!{INDENTATION}),
+		// unless the line is too long.
+		// Thus, the min indentation of the document is the minimum min indentation of every text node.
 		const length = lengthDiff(startLineIdx, startLineCharOffset, this.lineIdx, this.lineCharOffset);
 		return new Token(length, TokenKind.Text, -1, SmallImmutableSet.getEmpty(), new TextAstNode(length));
 	}
@@ -286,6 +303,7 @@ export class FastTokenizer implements Tokenizer {
 
 		if (regexp) {
 			regexp.lastIndex = 0;
+			// If a token contains indentation, it also contains \n{INDENTATION+}(?!{INDENTATION})
 			while ((match = regexp.exec(text)) !== null) {
 				const curOffset = match.index;
 				const value = match[0];

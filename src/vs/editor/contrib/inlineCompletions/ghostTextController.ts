@@ -5,9 +5,11 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/consts';
@@ -21,6 +23,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 export class GhostTextController extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
+	public static readonly inlineSuggestionHasIndentationLessThanTabSize = new RawContextKey<boolean>('inlineSuggestionHasIndentationLessThanTabSize', true, nls.localize('inlineSuggestionHasIndentationLessThanTabSize', "Whether the inline suggestion starts with whitespace that is less than what would be inserted by tab"));
 
 	static ID = 'editor.contrib.ghostTextController';
 
@@ -111,6 +114,7 @@ export class GhostTextController extends Disposable {
 class GhostTextContextKeys {
 	public readonly inlineCompletionVisible = GhostTextController.inlineSuggestionVisible.bindTo(this.contextKeyService);
 	public readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
+	public readonly inlineCompletionSuggestsIndentationLessThanTabSize = GhostTextController.inlineSuggestionHasIndentationLessThanTabSize.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
 	}
@@ -135,6 +139,7 @@ export class ActiveGhostTextController extends Disposable {
 		this._register(toDisposable(() => {
 			this.contextKeys.inlineCompletionVisible.set(false);
 			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+			this.contextKeys.inlineCompletionSuggestsIndentationLessThanTabSize.set(true);
 		}));
 
 		this._register(this.model.onDidChange(() => {
@@ -148,21 +153,33 @@ export class ActiveGhostTextController extends Disposable {
 			this.model.activeInlineCompletionsModel?.ghostText !== undefined
 		);
 
+		let startsWithIndentation = false;
+		let startsWithIndentationLessThanTabSize = true;
+
 		const ghostText = this.model.inlineCompletionsModel.ghostText;
-		if (ghostText && ghostText.parts.length > 0) {
+		if (!!this.model.activeInlineCompletionsModel && ghostText && ghostText.parts.length > 0) {
 			const { column, lines } = ghostText.parts[0];
-			const suggestionStartsWithWs = lines[0].startsWith(' ') || lines[0].startsWith('\t');
+
+			const firstLine = lines[0];
 
 			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(ghostText.lineNumber);
 			const inIndentation = column <= indentationEndColumn;
 
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(
-				!!this.model.activeInlineCompletionsModel
-				&& suggestionStartsWithWs && inIndentation
-			);
-		} else {
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+			if (inIndentation) {
+				let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
+				if (firstNonWsIdx === -1) {
+					firstNonWsIdx = firstLine.length - 1;
+				}
+				startsWithIndentation = firstNonWsIdx > 0;
+
+				const tabSize = this.editor.getModel().getOptions().tabSize;
+				const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
+				startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
+			}
 		}
+
+		this.contextKeys.inlineCompletionSuggestsIndentation.set(startsWithIndentation);
+		this.contextKeys.inlineCompletionSuggestsIndentationLessThanTabSize.set(startsWithIndentationLessThanTabSize);
 	}
 }
 
@@ -184,7 +201,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(
 		commitInlineSuggestionAction.precondition,
 		EditorContextKeys.tabMovesFocus.toNegated(),
-		GhostTextController.inlineSuggestionHasIndentation.toNegated()
+		GhostTextController.inlineSuggestionHasIndentationLessThanTabSize
 	),
 });
 

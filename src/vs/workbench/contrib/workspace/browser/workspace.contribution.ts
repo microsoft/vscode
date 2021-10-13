@@ -280,6 +280,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			}
 			const trusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
 
+			// eslint-disable-next-line no-async-promise-executor
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
 				if (trusted && (e.changes.added.length || e.changes.changed.length)) {

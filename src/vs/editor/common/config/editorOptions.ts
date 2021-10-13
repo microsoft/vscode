@@ -3347,8 +3347,21 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 export interface IGuidesOptions {
 	/**
 	 * Enable rendering of bracket pair guides.
+	 * Defaults to 'none'.
 	*/
-	bracketPairs?: boolean;
+	bracketPairs?: 'all' | 'active' | 'none';
+
+	/**
+	 * Enable rendering of vertical bracket pair guides.
+	 * Defaults to 'active'.
+	 */
+	bracketPairsHorizontal?: 'all' | 'active' | 'none';
+
+	/**
+	 * Enable highlighting of the active bracket pair.
+	 * Defaults to true.
+	*/
+	highlightActiveBracketPair?: boolean;
 
 	/**
 	 * Enable rendering of indent guides.
@@ -3374,7 +3387,10 @@ export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesOptions> {
 	constructor() {
 		const defaults: InternalGuidesOptions = {
-			bracketPairs: false,
+			bracketPairs: 'none',
+			bracketPairsHorizontal: 'active',
+			highlightActiveBracketPair: true,
+
 			indentation: true,
 			highlightActiveIndentation: true
 		};
@@ -3383,9 +3399,21 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 			EditorOption.guides, 'guides', defaults,
 			{
 				'editor.guides.bracketPairs': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['all', 'active', 'none'],
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
+				},
+				'editor.guides.bracketPairsHorizontal': {
+					type: 'string',
+					enum: ['all', 'active', 'none'],
+					default: defaults.bracketPairsHorizontal,
+					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
+				},
+				'editor.guides.highlightActiveBracketPair': {
+					type: 'boolean',
+					default: defaults.highlightActiveBracketPair,
+					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether bracket pair guides are enabled or not.")
 				},
 				'editor.guides.indentation': {
 					type: 'boolean',
@@ -3407,7 +3435,10 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 		}
 		const input = _input as IGuidesOptions;
 		return {
-			bracketPairs: boolean(input.bracketPairs, this.defaultValue.bracketPairs),
+			bracketPairs: stringSet(input.bracketPairs, this.defaultValue.bracketPairs, ['all', 'active', 'none']),
+			bracketPairsHorizontal: stringSet(input.bracketPairsHorizontal, this.defaultValue.bracketPairsHorizontal, ['all', 'active', 'none']),
+			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
+
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
 			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
 		};

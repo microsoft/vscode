@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthAdd, lengthZero, Length, lengthHash } from './length';
+import { lengthAdd, lengthZero, Length, lengthHash, lengthGetLineCount, lengthToObj } from './length';
 import { OpeningBracketId } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
+import { ITextModel } from 'vs/editor/common/model';
+import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 
 export const enum AstNodeKind {
 	Text = 0,
@@ -76,6 +78,8 @@ abstract class BaseAstNode {
 	 * Creates a deep clone.
 	 */
 	public abstract deepClone(): AstNode;
+
+	public abstract computeMinIndentation(offset: Length, textModel: ITextModel): number;
 }
 
 /**
@@ -181,6 +185,10 @@ export class PairAstNode extends BaseAstNode {
 			this.missingOpeningBracketIds
 		);
 	}
+
+	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
+		return this.child ? this.child.computeMinIndentation(lengthAdd(offset, this.openingBracket.length), textModel) : Number.MAX_SAFE_INTEGER;
+	}
 }
 
 export abstract class ListAstNode extends BaseAstNode {
@@ -237,6 +245,8 @@ export abstract class ListAstNode extends BaseAstNode {
 	public get missingOpeningBracketIds(): SmallImmutableSet<OpeningBracketId> {
 		return this._missingOpeningBracketIds;
 	}
+
+	private cachedMinIndentation: number = -1;
 
 	/**
 	 * Use ListAstNode.create.
@@ -319,6 +329,7 @@ export abstract class ListAstNode extends BaseAstNode {
 
 		this._length = length;
 		this._missingOpeningBracketIds = unopenedBrackets;
+		this.cachedMinIndentation = -1;
 	}
 
 	public flattenLists(): ListAstNode {
@@ -332,6 +343,25 @@ export abstract class ListAstNode extends BaseAstNode {
 			}
 		}
 		return ListAstNode.create(items);
+	}
+
+	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
+		if (this.cachedMinIndentation !== -1) {
+			return this.cachedMinIndentation;
+		}
+
+		let minIndentation = Number.MAX_SAFE_INTEGER;
+		let childOffset = offset;
+		for (let i = 0; i < this.childrenLength; i++) {
+			const child = this.getChild(i);
+			if (child) {
+				minIndentation = Math.min(minIndentation, child.computeMinIndentation(childOffset, textModel));
+				childOffset = lengthAdd(childOffset, child.length);
+			}
+		}
+
+		this.cachedMinIndentation = minIndentation;
+		return minIndentation;
 	}
 
 	/**
@@ -583,6 +613,29 @@ export class TextAstNode extends ImmutableLeafAstNode {
 		// Otherwise, long brackets might not be detected.
 		return !endLineDidChange;
 	}
+
+	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
+		const start = lengthToObj(offset);
+		// Text ast nodes don't have partial indentation (ensured by the tokenizer).
+		// Thus, if this text node does not start at column 0, the first line cannot have any indentation at all.
+		const startLineNumber = (start.columnCount === 0 ? start.lineCount : start.lineCount + 1) + 1;
+		const endLineNumber = lengthGetLineCount(lengthAdd(offset, this.length)) + 1;
+
+		let result = Number.MAX_SAFE_INTEGER;
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			const firstNonWsColumn = textModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			const lineContent = textModel.getLineContent(lineNumber);
+			if (firstNonWsColumn === 0) {
+				continue;
+			}
+
+			const visibleColumn = CursorColumns.visibleColumnFromColumn(lineContent, firstNonWsColumn, textModel.getOptions().tabSize)!;
+			result = Math.min(result, visibleColumn);
+		}
+
+		return result;
+	}
 }
 
 export class BracketAstNode extends ImmutableLeafAstNode {
@@ -621,6 +674,10 @@ export class BracketAstNode extends ImmutableLeafAstNode {
 		// Their parent may be reused.
 		return false;
 	}
+
+	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
+		return Number.MAX_SAFE_INTEGER;
+	}
 }
 
 export class InvalidBracketAstNode extends ImmutableLeafAstNode {
@@ -640,5 +697,9 @@ export class InvalidBracketAstNode extends ImmutableLeafAstNode {
 		_endLineDidChange: boolean
 	) {
 		return !openedBracketIds.intersects(this.missingOpeningBracketIds);
+	}
+
+	public computeMinIndentation(offset: Length, textModel: ITextModel): number {
+		return Number.MAX_SAFE_INTEGER;
 	}
 }

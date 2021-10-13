@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt = require('markdown-it');
+const MarkdownIt: typeof import('markdown-it') = require('markdown-it');
 import * as DOMPurify from 'dompurify';
-import type * as markdownIt from 'markdown-it';
+import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const sanitizerOptions: DOMPurify.Config = {
@@ -196,12 +196,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 };
 
 
-function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
+function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
-		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 		let slug = slugFromHeading(title);
 
 		if (slugCounter.has(slug)) {
@@ -212,13 +212,12 @@ function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
 			slugCounter.set(slug, 0);
 		}
 
-		tokens[idx].attrs = tokens[idx].attrs || [];
-		tokens[idx].attrs.push(['id', slug]);
+		tokens[idx].attrSet('id', slug);
 
 		if (originalHeaderOpen) {
 			return originalHeaderOpen(tokens, idx, options, env, self);
 		} else {
-			return self.renderToken(tokens, idx, options, env, self);
+			return self.renderToken(tokens, idx, options);
 		}
 	};
 

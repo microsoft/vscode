@@ -48,14 +48,13 @@ export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestAr
 	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
-export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
+export async function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			return new Promise<boolean>(async (resolve) => {
-				// See #123296
-				const windowsProcessTree = await import('windows-process-tree');
+			const windowsProcessTree = await import('windows-process-tree');
+			return new Promise<boolean>(resolve => {
 				windowsProcessTree.getProcessTree(processId, (processTree) => {
 					resolve(processTree.children.length > 0);
 				});

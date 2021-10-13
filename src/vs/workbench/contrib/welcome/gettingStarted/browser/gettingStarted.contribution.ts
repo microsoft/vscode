@@ -184,15 +184,18 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const commandService = accessor.get(ICommandService);
+		const contextService = accessor.get(IContextKeyService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const gettingStartedService = accessor.get(IWalkthroughsService);
 		const categories = gettingStartedService.getWalkthroughs();
-		const selection = await quickInputService.pick(categories.map(x => ({
-			id: x.id,
-			label: x.title,
-			detail: x.description,
-			description: x.source,
-		})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
+		const selection = await quickInputService.pick(categories
+			.filter(c => contextService.contextMatchesRules(c.when))
+			.map(x => ({
+				id: x.id,
+				label: x.title,
+				detail: x.description,
+				description: x.source,
+			})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
 		if (selection) {
 			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
 		}

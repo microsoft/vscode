@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Promises } from 'vs/base/common/async';
 import { listenStream } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
@@ -16,10 +15,10 @@ export class ChecksumService implements IChecksumService {
 
 	constructor(@IFileService private readonly fileService: IFileService) { }
 
-	checksum(resource: URI): Promise<string> {
-		return Promises.withAsyncBody<string>(async (resolve, reject) => {
+	async checksum(resource: URI): Promise<string> {
+		const stream = (await this.fileService.readFileStream(resource)).value;
+		return new Promise<string>((resolve, reject) => {
 			const hash = createHash('md5');
-			const stream = (await this.fileService.readFileStream(resource)).value;
 
 			listenStream(stream, {
 				onData: data => hash.update(data.buffer),

@@ -10,6 +10,7 @@ import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/brac
 import { Token, TokenKind } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('Bracket Pair Colorizer - Brackets', () => {
 	test('Basic', () => {
@@ -35,7 +36,8 @@ suite('Bracket Pair Colorizer - Brackets', () => {
 			]
 		}));
 
-		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider);
+		const languageConfigService = new TestLanguageConfigurationService();
+		const brackets = new LanguageAgnosticBracketTokens(denseKeyProvider, l => languageConfigService.getLanguageConfiguration(l, undefined));
 		const bracketsExpected = [
 			{ text: '{', length: 1, kind: 'OpeningBracket', bracketId: getKey('{'), bracketIds: getImmutableSet(['{']) },
 			{ text: '[', length: 1, kind: 'OpeningBracket', bracketId: getKey('['), bracketIds: getImmutableSet(['[']) },
