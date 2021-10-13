@@ -40,5 +40,4 @@ jobs:
           configFiles: .lsifrc.json
           environment: development
           nugetFeed: https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-buildservices/nuget/v3/index.json
-          isPrivateFeed: false
         continue-on-error: true
