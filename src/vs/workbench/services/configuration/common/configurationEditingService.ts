@@ -480,10 +480,15 @@ export class ConfigurationEditingService {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 		const configurationScope = configurationProperties[operation.key]?.scope;
 
-		// Any key must be a known setting from the registry (unless this is a standalone config)
+		/**
+		 * Key to update must be a known setting from the registry unless
+		 * 	- the key is standalone configuration (eg: tasks, debug)
+		 * 	- the key is an override identifier
+		 * 	- the operation is to delete the key
+		 */
 		if (!operation.workspaceStandAloneConfigurationKey) {
 			const validKeys = this.configurationService.keys().default;
-			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
+			if (validKeys.indexOf(operation.key) < 0 && !OVERRIDE_PROPERTY_PATTERN.test(operation.key) && operation.value !== undefined) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY, target, operation);
 			}
 		}
@@ -517,15 +522,14 @@ export class ConfigurationEditingService {
 			}
 
 			if (!operation.workspaceStandAloneConfigurationKey && !OVERRIDE_PROPERTY_PATTERN.test(operation.key)) {
-				if (configurationScope && !FOLDER_SCOPES.includes(configurationScope)) {
+				if (configurationScope !== undefined && !FOLDER_SCOPES.includes(configurationScope)) {
 					throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_FOLDER_CONFIGURATION, target, operation);
 				}
 			}
 		}
 
 		if (overrides.overrideIdentifier) {
-			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[operation.key].scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+			if (configurationScope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
 				throw this.toConfigurationEditingError(ConfigurationEditingErrorCode.ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION, target, operation);
 			}
 		}

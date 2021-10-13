@@ -1064,7 +1064,6 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.languageSetting', { resource: workspaceService.getWorkspace().folders[0].uri, overrideIdentifier: 'jsonc' }), 'languageValueUpdated');
 	});
 
-
 	test('remove setting from all targets', async () => {
 		const key = 'configurationService.folder.testSetting';
 		await testObject.updateValue(key, 'workspaceValue', ConfigurationTarget.WORKSPACE);
@@ -1243,6 +1242,20 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.restrictedSetting": "workspaceValue" }'));
 
 		return promise;
+	});
+
+	test('remove an unregistered setting', async () => {
+		const key = 'configurationService.folder.unknownSetting';
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.unknownSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.unknownSetting": "workspaceValue" }'));
+
+		await testObject.reloadConfiguration();
+		await testObject.updateValue(key, undefined);
+
+		const actual = testObject.inspect(key, { resource: workspaceService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
 	});
 });
 
@@ -1903,6 +1916,28 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
 		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
 		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
+	});
+
+	test('remove an unregistered setting', async () => {
+		const key = 'configurationService.workspace.unknownSetting';
+		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "userValue" }'));
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.unknownSetting': 'workspaceValue' } }], true);
+		await fileService.writeFile(joinPath(workspaceContextService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "workspaceFolderValue1" }'));
+		await fileService.writeFile(joinPath(workspaceContextService.getWorkspace().folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.workspace.unknownSetting": "workspaceFolderValue2" }'));
+
+		await testObject.reloadConfiguration();
+		await testObject.updateValue(key, undefined, { resource: workspaceContextService.getWorkspace().folders[0].uri });
+
+		let actual = testObject.inspect(key, { resource: workspaceContextService.getWorkspace().folders[0].uri });
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+
+		await testObject.updateValue(key, undefined, { resource: workspaceContextService.getWorkspace().folders[1].uri });
+		actual = testObject.inspect(key, { resource: workspaceContextService.getWorkspace().folders[1].uri });
+		assert.strictEqual(actual.userValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
 	});
 
 });
