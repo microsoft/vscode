@@ -186,6 +186,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
+				nodeIntegrationInWorker: true,
 				contextIsolation: false,
 				enableWebSQL: false,
 				spellcheck: false,

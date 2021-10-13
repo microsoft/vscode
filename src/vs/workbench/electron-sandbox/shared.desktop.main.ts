@@ -187,6 +187,9 @@ export abstract class SharedDesktopMain extends Disposable {
 		const sharedProcessWorkerWorkbenchService = new SharedProcessWorkerWorkbenchService(this.configuration.windowId, logService, sharedProcessService);
 		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
 
+		// TODO@bpasero remove me
+		sharedProcessWorkerWorkbenchService.createWorkerChannel('vs/platform/files/node/watcher/parcel/watcherApp');
+
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
