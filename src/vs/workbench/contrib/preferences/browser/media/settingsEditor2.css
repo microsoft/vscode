@@ -382,7 +382,11 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
-	display: block;
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
+	margin-right: 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
