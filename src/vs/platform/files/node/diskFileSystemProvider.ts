@@ -203,7 +203,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private readonly mapHandleToPos: Map<number, number> = new Map();
+	private readonly mapHandleToPos = new Map<number, number>();
 
 	private readonly writeHandles = new Map<number, URI>();
 	private canFlush: boolean = true;
