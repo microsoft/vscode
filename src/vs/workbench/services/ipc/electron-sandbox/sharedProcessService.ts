@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ipcMessagePort } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcMessagePort, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -49,7 +49,8 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		// Ask to create message channel inside the window
 		// and send over a UUID to correlate the response
 		const nonce = generateUuid();
-		ipcMessagePort.connect('vscode:createSharedProcessMessageChannel', 'vscode:createSharedProcessMessageChannelResult', nonce);
+		ipcMessagePort.acquire('vscode:createSharedProcessMessageChannelResult', nonce);
+		ipcRenderer.send('vscode:createSharedProcessMessageChannel', nonce);
 
 		// Wait until the main side has returned the `MessagePort`
 		// We need to filter by the `nonce` to ensure we listen

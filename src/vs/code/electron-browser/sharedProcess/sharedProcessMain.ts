@@ -94,6 +94,8 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
+import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 
 class SharedProcessMain extends Disposable {
 
@@ -159,6 +161,9 @@ class SharedProcessMain extends Disposable {
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
 		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
+
+		// Worker
+		services.set(ISharedProcessWorkerService, new SyncDescriptor(SharedProcessWorkerService));
 
 		// Environment
 		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
@@ -367,6 +372,10 @@ class SharedProcessMain extends Disposable {
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService));
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
+
+		// Worker
+		const sharedProcessWorkerChannel = ProxyChannel.fromService(accessor.get(ISharedProcessWorkerService));
+		this.server.registerChannel(ipcSharedProcessWorkerChannelName, sharedProcessWorkerChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
