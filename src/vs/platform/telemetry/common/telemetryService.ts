@@ -241,7 +241,8 @@ export class TelemetryService implements ITelemetryService {
 
 function getTelemetryLevelSettingDescription(): string {
 	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls all core and first party extension telemetry. This helps us to better understand how {0} is performing, where improvements need to be made, and how features are being used.", product.nameLong);
-	const privacyStatement = product.privacyStatementUrl ? ' ' + localize("telemetry.privacyStatement", "[Read more]({1}) about what we collect and our privacy statement.", product.privacyStatementUrl) : '';
+	const docsStatement = ' ' + localize("telemetry.docsStatement", "Read more about the [data we collect]({0})", 'https://aka.ms/vscode-telemetry');
+	const privacyStatement = product.privacyStatementUrl || true ? docsStatement + ' ' + localize("telemetry.privacyStatement", "and our [privacy statement]({0}).", product.privacyStatementUrl) : docsStatement + '.';
 	const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'A full restart of the application is necessary for crash reporting changes to take effect.') : '';
 
 	const crashReportsHeader = localize('telemetry.crashReports', "Crash Reports");
