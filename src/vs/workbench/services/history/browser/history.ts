@@ -113,7 +113,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
 
-	private readonly editorStackListeners = new Map();
+	private readonly editorStackListeners = new Map<EditorInput, DisposableStore>();
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
