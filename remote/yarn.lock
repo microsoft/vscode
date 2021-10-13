@@ -631,10 +631,10 @@ vscode-windows-registry@1.0.3:
   resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.3.tgz#377e9a8bf75c0acac81a188282a4f16f748ecd47"
   integrity sha512-IXCwNAm+H5yPCn6JBz89T9AAMgy5xEN2LxbxrvHPlErmyQqCYtpCCjvisfgT2dCuaJ2T9FfiqIeIrOpDm2Jc4Q==
 
-windows-process-tree@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.0.tgz#cf0d9291b22fba2a7f5a687c8272866e28fbcafd"
-  integrity sha512-0bKI4gcd5MOsOpn2TdStCSlnjThtH6BdHrocekY9qCgTqgEtdaUs0B5BaqyzF9jXoTSwz38NMdE1F55o4fgv9Q==
+windows-process-tree@^0.3.2:
+  version "0.3.2"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.2.tgz#8c39f39e7707e09fd74638a7ef644b5f389096d3"
+  integrity sha512-x8Y4KOV8tUhhPiO0TH7wOMTZ677rw7VEwq+dTuHHiLTClkrNXWSY3XzP6ez3fs2Cab4FajrtmiqRs0jTMZHfyw==
   dependencies:
     nan "^2.13.2"
 
