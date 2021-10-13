@@ -14,7 +14,7 @@ import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, ITelemetryAppender, telemetryConfigToLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -83,10 +83,15 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _notifyMismatchTelemetrySetting(): void {
-		const oldTelemetryValue = this._configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
-		const crashReporterSetting = this._configurationService.getValue('telemetry.enableCrashReporter');
-		const currentTelemetrySetting = this._configurationService.getValue(TELEMETRY_SETTING_ID);
-		console.log(oldTelemetryValue, crashReporterSetting, currentTelemetrySetting);
+		const currentTelemetryLevel = getTelemetryLevel(this._configurationService);
+		const currentTelemetrySetting = this._configurationService.getValue<TelemetryConfiguration | undefined>(TELEMETRY_SETTING_ID);
+		if (!currentTelemetrySetting) {
+			return;
+		}
+		// If there is a mismatch between the setting and actual level it means that the old settings are conflicting
+		if (telemetryConfigToLevel(currentTelemetrySetting) !== currentTelemetryLevel) {
+			// this._notificationService.warn(localize('telemetry.promptWarning', "You have old deprecated settings which mismatch the new telemetry setting. Your old settings are still being respected, but we recommend deleting those from your `setting.json` and setting the new setting to the correct value."));
+		}
 	}
 
 	private _updateTelemetryLevel(): void {
@@ -249,23 +254,23 @@ export class TelemetryService implements ITelemetryService {
 
 function getTelemetryLevelSettingDescription(): string {
 	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls all core and first party extension telemetry. This helps us to better understand how {0} is performing, where improvements need to be made, and how features are being used. [Read more]({1}) about what we collect and our privacy statement.", product.nameLong, product.privacyStatementUrl);
-	const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'A full restart of the application is necessary for changes to take effect.') : '';
+	const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'A full restart of the application is necessary for crash reporting changes to take effect.') : '';
 
 	const crashReportsHeader = localize('telemetry.crashReports', "Crash Reports");
 	const errorsHeader = localize('telemetry.errors', "Error Telemetry");
 	const usageHeader = localize('telemetry.usage', "Usage Data");
 
-	const crashReportsDescription = localize('telemetry.crashReportsDescription', "Crash reports collect diagnostic information when {0} crashes to help us understand why it occurred.", product.nameLong);
-	const errorsDescription = localize('telemetry.errorsDescription', "Error telemetry collects information about errors that do not crash the application but are unexpected.");
-	const usageDescription = localize('telemetry.usageDescription', "Usage data collects information about how features are used in {0} which helps us prioritize future product improvements.", product.nameLong);
+	// const crashReportsDescription = localize('telemetry.crashReportsDescription', "Crash reports collect diagnostic information when {0} crashes to help us understand why it occurred.", product.nameLong);
+	// const errorsDescription = localize('telemetry.errorsDescription', "Error telemetry collects information about errors that do not crash the application but are unexpected.");
+	// const usageDescription = localize('telemetry.usageDescription', "Usage data collects information about how features are used in {0} which helps us prioritize future product improvements.", product.nameLong);
 
-	const telemetryDefinitions = `
-|                           |                            |  off  | crash | error |  all  |
-|---------------------------|----------------------------|:-----:|:-----:|:-----:|:-----:|
-| **${crashReportsHeader}** | ${crashReportsDescription} |   -   |   ✓   |   ✓   |   ✓   |
-|    **${errorsHeader}**    |    ${errorsDescription}    |   -   |   -   |   ✓   |   ✓   |
-|    **${usageHeader}**     |    ${usageDescription}     |   -   |   -   |   -   |   ✓   |
-`;
+	// 	const telemetryDefinitions = `
+	// |                           |                            |  off  | crash | error |  all  |
+	// |---------------------------|----------------------------|:-----:|:-----:|:-----:|:-----:|
+	// | **${crashReportsHeader}** | ${crashReportsDescription} |   -   |   ✓   |   ✓   |   ✓   |
+	// |    **${errorsHeader}**    |    ${errorsDescription}    |   -   |   -   |   ✓   |   ✓   |
+	// |    **${usageHeader}**     |    ${usageDescription}     |   -   |   -   |   -   |   ✓   |
+	// `;
 
 	const telemetryTableDescription = localize('telemetry.telemetryLevel.tableDescription', "The following table outlines the data sent with each setting:");
 	const telemetryTable = `
@@ -283,7 +288,8 @@ ${telemetryText}${restartString}
 
 &nbsp;
 
-${telemetryDefinitions}
+${telemetryTableDescription}
+${telemetryTable}
 
 &nbsp;
 
