@@ -558,6 +558,9 @@ interface IInstructionColumnTemplateData {
 	// TODO: hover widget?
 	instruction: HTMLElement;
 	sourcecode: HTMLElement;
+	// disposed when cell is closed.
+	cellDisposable: IDisposable[];
+	// disposed when template is closed.
 	disposables: IDisposable[];
 }
 
@@ -600,13 +603,14 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		this.applyFontInfo(sourcecode);
 		this.applyFontInfo(instruction);
 		const currentElement: { element?: IDisassembledInstructionEntry } = { element: undefined };
+		const cellDisposable: IDisposable[] = [];
 
 		const disposables = [
 			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
 			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction!)),
 		];
 
-		return { currentElement, instruction, sourcecode, disposables };
+		return { currentElement, instruction, sourcecode, cellDisposable, disposables };
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
@@ -629,11 +633,11 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				try {
 					const ref = await this.textModelService.createModelReference(sourceURI);
 					textModel = ref.object.textEditorModel;
-					templateData.disposables.push(ref);
+					templateData.cellDisposable.push(ref);
 				} catch {
 					const textFileContent = await this.nativeTextFileService.read(sourceURI);
 					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService, this._languageConfigurationService);
-					templateData.disposables.push(textModel);
+					templateData.cellDisposable.push(textModel);
 				}
 
 				if (textModel) {
@@ -684,6 +688,11 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.instruction.innerText = sb.build();
 
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
+	}
+
+	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
+		dispose(templateData.cellDisposable);
+		templateData.cellDisposable = [];
 	}
 
 	disposeTemplate(templateData: IInstructionColumnTemplateData): void {
