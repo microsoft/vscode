@@ -6,11 +6,6 @@ schedules:
     branches:
       include:
         - main
-  - cron: "0 6 * * Mon-Fri"
-    displayName: Mon-Fri at 8:00 (joao/web)
-    branches:
-      include:
-        - joao/web
 
 parameters:
   - name: VSCODE_QUALITY
