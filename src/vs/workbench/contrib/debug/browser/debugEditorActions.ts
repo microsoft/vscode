@@ -177,7 +177,7 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 
 	public static readonly ID = 'debug.action.toggleDisassemblyViewSourceCode';
-	public static readonly configID: string = 'debug.disassemblyviewShowSourceCode';
+	public static readonly configID: string = 'debug.disassemblyView.showSourceCode';
 
 	constructor() {
 		super({
