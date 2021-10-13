@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, IDebugSession, IInstructionBreakpoint, State, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -98,7 +98,7 @@ export class DisassemblyView extends EditorPane {
 
 			if (e.affectsConfiguration('debug')) {
 				// show/hide source code requires changing height which WorkbenchTable doesn't support dynamic height, thus force a total reload.
-				const newValue = this._configurationService.getValue<boolean>('debug.disassemblyviewShowSourceCode');
+				const newValue = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 				if (this._enableSourceCodeRender !== newValue) {
 					this._enableSourceCodeRender = newValue;
 					this.reloadDisassembly(undefined);
@@ -137,7 +137,7 @@ export class DisassemblyView extends EditorPane {
 	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
-		this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyviewShowSourceCode');
+		this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
@@ -266,7 +266,7 @@ export class DisassemblyView extends EditorPane {
 				(this._previousDebuggingState !== State.Running && this._previousDebuggingState !== State.Stopped)) {
 				// Just started debugging, clear the view
 				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length, [disassemblyNotAvailable]);
-				this._enableSourceCodeRender = this._configurationService.getValue('debug.disassemblyviewShowSourceCode');
+				this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 			}
 			this._previousDebuggingState = e;
 		}));

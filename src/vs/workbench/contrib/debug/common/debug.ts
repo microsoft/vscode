@@ -549,7 +549,9 @@ export interface IDebugConfiguration {
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
 	confirmOnExit: 'always' | 'never';
-	disassemblyviewShowSourceCode: boolean;
+	disassemblyView: {
+		showSourceCode: boolean;
+	}
 }
 
 export interface IGlobalConfig {

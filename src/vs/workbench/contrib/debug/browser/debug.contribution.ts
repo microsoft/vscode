@@ -538,10 +538,10 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'never'
 		},
-		'debug.disassemblyviewShowSourceCode': {
+		'debug.disassemblyView.showSourceCode': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('debug.disassemblyview.showSourceCode', "Show Source Code in Disassembly View.")
+			description: nls.localize('debug.disassemblyView.showSourceCode', "Show Source Code in Disassembly View.")
 		},
 	}
 });
