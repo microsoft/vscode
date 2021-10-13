@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { getDelayedChannel, IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ipcMessagePort } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -22,13 +22,14 @@ export interface ISharedProcessWorkerWorkbenchService {
 
 	/**
 	 * Creates a worker off the shared process that spawns the provided
-	 * `moduleId` as process and wires in the communication to that process
-	 * via message ports and channels.
+	 * `process` and wires in the communication to that process via message
+	 * ports and channels.
 	 *
-	 * @param moduleId the identifier of the module to spawn from
-	 * the shared process worker.
+	 * @param process information around the process to spawn from the shared
+	 * process worker.
+	 * @param channelName the name of the channel the process will respond to.
 	 */
-	createWorkerChannel(moduleId: string): IChannel;
+	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IChannel;
 }
 
 export class SharedProcessWorkerWorkbenchService extends Disposable implements ISharedProcessWorkerWorkbenchService {
@@ -43,11 +44,11 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		super();
 	}
 
-	createWorkerChannel(moduleId: string): IChannel {
-		return getDelayedChannel(this.doCreateWorkerChannel(moduleId).then(connection => connection.getChannel('default')));
+	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IChannel {
+		return getDelayedChannel(this.doCreateWorkerChannel(process).then(connection => connection.getChannel(channelName)));
 	}
 
-	private async doCreateWorkerChannel(moduleId: string): Promise<MessagePortClient> {
+	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess): Promise<MessagePortClient> {
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel');
 
 		// Ask to create message channel inside the shared
@@ -66,7 +67,7 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		// Actually talk with the shared process service
 		const sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName));
 		sharedProcessWorkerService.createWorker({
-			moduleId,
+			process,
 			reply: { windowId: this.windowId, channel: replyChannel, nonce }
 		});
 
@@ -74,6 +75,6 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel: connection established');
 
-		return this._register(new MessagePortClient(port, `window:${this.windowId},module:${moduleId}`));
+		return this._register(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
 	}
 }

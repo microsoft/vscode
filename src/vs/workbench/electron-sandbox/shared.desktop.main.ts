@@ -50,6 +50,8 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
+// eslint-disable-next-line code-import-patterns, code-layering
+import { IWatcherService } from 'vs/platform/files/node/watcher/parcel/watcher';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -188,7 +190,20 @@ export abstract class SharedDesktopMain extends Disposable {
 		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
 
 		// TODO@bpasero remove me
-		sharedProcessWorkerWorkbenchService.createWorkerChannel('vs/platform/files/node/watcher/parcel/watcherApp');
+		if (isSingleFolderWorkspaceIdentifier(this.configuration.workspace)) {
+			const watcherChannel = sharedProcessWorkerWorkbenchService.createWorkerChannel({
+				moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
+				type: 'watcherService',
+				name: 'File Watcher (parcel)'
+			}, 'watcher');
+
+			const watcherService = ProxyChannel.toService<IWatcherService>(watcherChannel);
+			watcherService.onDidChangeFile(e => console.log('Shared process worker file events: ', e));
+			watcherService.watch([{
+				path: this.configuration.workspace.uri.fsPath,
+				excludes: []
+			}]);
+		}
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
