@@ -111,14 +111,24 @@ export function supportsTelemetry(productService: IProductService, environmentSe
 	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
 }
 
-
 /**
- * Given the telemetryLevel configuration value, converts it to a TelemetryLevel
- * @param telemetryConfiguration A telemetry coniguration value from `TELEMETRY_SETTING_ID`
- * @returns The matching telemetry level. Note: This function doesn't take old settings into account for that use `getTelemetryLevel()`
+ * Determines how telemetry is handled based on the user's configuration.
+ *
+ * @param configurationService
+ * @returns OFF, ERROR, ON
  */
-export function telemetryConfigToLevel(telemetryConfiguration: TelemetryConfiguration): TelemetryLevel {
-	switch (telemetryConfiguration) {
+export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
+	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
+	const crashReporterConfig = configurationService.getValue<boolean | undefined>('telemetry.enableCrashReporter');
+	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
+
+	// If `telemetry.enableCrashReporter` is false or `telemetry.enableTelemetry' is false, disable telemetry
+	if (oldConfig === false || crashReporterConfig === false) {
+		return TelemetryLevel.NONE;
+	}
+
+	// Maps new telemetry setting to a telemetry level
+	switch (newConfig ?? TelemetryConfiguration.ON) {
 		case TelemetryConfiguration.ON:
 			return TelemetryLevel.USAGE;
 		case TelemetryConfiguration.ERROR:
@@ -128,33 +138,6 @@ export function telemetryConfigToLevel(telemetryConfiguration: TelemetryConfigur
 		case TelemetryConfiguration.OFF:
 			return TelemetryLevel.NONE;
 	}
-}
-/**
- * Determines how telemetry is handled based on the user's configuration.
- *
- * @param configurationService
- * @returns OFF, ERROR, ON
- */
-export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
-	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
-	const crashReporterConfig = configurationService.getValue<boolean>('telemetry.enableCrashReporter');
-	const oldConfig = configurationService.getValue(TELEMETRY_OLD_SETTING_ID);
-
-	// Check old config for disablement
-	if (oldConfig !== undefined && oldConfig === false) {
-		return TelemetryLevel.NONE;
-	}
-
-	if (crashReporterConfig !== undefined && crashReporterConfig === false) {
-		return TelemetryLevel.NONE;
-	}
-
-	// Old telemetry off + old crash reporter on + new telemetry not off => crash reporter should be only thing enabled
-	if (oldConfig !== undefined && oldConfig === false && crashReporterConfig !== undefined && crashReporterConfig === true && newConfig !== TelemetryConfiguration.OFF) {
-		return TelemetryLevel.CRASH;
-	}
-
-	return telemetryConfigToLevel(newConfig ?? TelemetryConfiguration.ON);
 }
 
 export interface Properties {
