@@ -13,8 +13,7 @@ interface IMessageChannelResult {
 	source: unknown;
 }
 
-export async function acquirePort(requestChannel: string | undefined, responseChannel: string): Promise<MessagePort> {
-	const nonce = generateUuid();
+export async function acquirePort(requestChannel: string | undefined, responseChannel: string, nonce = generateUuid()): Promise<MessagePort> {
 
 	// Get ready to acquire the message port from the
 	// provided `responseChannel` via preload helper.
