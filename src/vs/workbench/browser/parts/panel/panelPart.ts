@@ -662,7 +662,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		return false;
 	}
 
-	private getToolbarWidth(): number {
+	protected getToolbarWidth(): number {
 		const activePanel = this.getActivePaneComposite();
 		if (!activePanel || !this.toolBar) {
 			return 0;
@@ -883,6 +883,10 @@ export class PanelPart extends BasePanelPart {
 		this.updateGlobalToolbarActions();
 
 		return element;
+	}
+
+	override getToolbarWidth(): number {
+		return super.getToolbarWidth() + (this.globalToolBar?.getItemsWidth() ?? 0);
 	}
 
 	override layout(width: number, height: number): void {
