@@ -211,24 +211,24 @@
 		ipcMessagePort: {
 
 			/**
-			 * @param {string} channelResponse
-			 * @param {string} requestNonce
+			 * @param {string} responseChannel
+			 * @param {string} nonce
 			 */
-			acquire(channelResponse, requestNonce) {
-				if (validateIPC(channelResponse)) {
+			acquire(responseChannel, nonce) {
+				if (validateIPC(responseChannel)) {
 					const responseListener = (/** @type {IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
 						// send the `MessagePort` safely over, even when context
 						// isolation is enabled
-						if (requestNonce === responseNonce) {
-							ipcRenderer.off(channelResponse, responseListener);
-							window.postMessage(requestNonce, '*', e.ports);
+						if (nonce === responseNonce) {
+							ipcRenderer.off(responseChannel, responseListener);
+							window.postMessage(nonce, '*', e.ports);
 						}
 					};
 
 					// handle reply from main
-					ipcRenderer.on(channelResponse, responseListener);
+					ipcRenderer.on(responseChannel, responseListener);
 				}
 			}
 		},
