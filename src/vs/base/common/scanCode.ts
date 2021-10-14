@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { IBaseKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 
 /**
  * keyboardEvent.code
@@ -228,7 +228,7 @@ export const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
  */
 export const IMMUTABLE_KEY_CODE_TO_CODE: ScanCode[] = [];
 
-export class ScanCodeBinding {
+export class ScanCodeBinding implements IBaseKeybinding {
 	public readonly ctrlKey: boolean;
 	public readonly shiftKey: boolean;
 	public readonly altKey: boolean;

@@ -65,6 +65,8 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { safeStringify } from 'vs/base/common/objects';
+import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
+import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 
 class BrowserMain extends Disposable {
 
@@ -329,6 +331,7 @@ class BrowserMain extends Disposable {
 				const dialogService = accessor.get(IDialogService);
 				const hostService = accessor.get(IHostService);
 				const storageService = accessor.get(IStorageService);
+				const credentialsService = accessor.get(ICredentialsService);
 				const result = await dialogService.confirm({
 					message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 				});
@@ -337,6 +340,9 @@ class BrowserMain extends Disposable {
 					await provider?.reset();
 					if (storageService instanceof BrowserStorageService) {
 						await storageService.clear();
+					}
+					if (credentialsService instanceof BrowserCredentialsService) {
+						await credentialsService.clear();
 					}
 				}
 

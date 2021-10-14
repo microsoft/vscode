@@ -273,7 +273,6 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private async getLocalGlobalState(): Promise<IGlobalState> {
-		this.logService.trace('GlobalStateSync#getLocalGlobalState');
 		const storage: IStringDictionary<IStorageValue> = {};
 		const argvContent: string = await this.getLocalArgvContent();
 		const argvValue: IStringDictionary<any> = parse(argvContent);
@@ -293,11 +292,12 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getLocalArgvContent(): Promise<string> {
 		try {
-			this.logService.trace('GlobalStateSync#getLocalArgvContent', this.environmentService.argvResource);
+			this.logService.debug('GlobalStateSync#getLocalArgvContent', this.environmentService.argvResource);
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
+			this.logService.debug('GlobalStateSync#getLocalArgvContent - Resolved', this.environmentService.argvResource);
 			return content.value.toString();
 		} catch (error) {
-			this.logService.trace(getErrorMessage(error));
+			this.logService.debug(getErrorMessage(error));
 		}
 		return '{}';
 	}

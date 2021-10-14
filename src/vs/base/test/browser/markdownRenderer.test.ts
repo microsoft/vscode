@@ -83,7 +83,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 1000);
+				setTimeout(resolve, 250);
 			});
 		});
 
@@ -102,8 +102,8 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 1000);
-				}, 500);
+					setTimeout(resolve, 250);
+				}, 250);
 			});
 		});
 	});

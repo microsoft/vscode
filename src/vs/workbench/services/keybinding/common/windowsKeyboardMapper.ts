@@ -67,9 +67,6 @@ export class WindowsNativeResolvedKeybinding extends BaseResolvedKeybinding<Simp
 	}
 
 	protected _getElectronAccelerator(keybinding: SimpleKeybinding): string | null {
-		if (keybinding.isDuplicateModifierCase()) {
-			return null;
-		}
 		return this._mapper.getElectronAcceleratorForKeyBinding(keybinding);
 	}
 
@@ -405,50 +402,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public getElectronAcceleratorForKeyBinding(keybinding: SimpleKeybinding): string | null {
-		if (!this.isUSStandard) {
-			// See https://github.com/electron/electron/issues/26888
-			// Electron does not render accelerators respecting the current keyboard layout since 3.x
-			const keyCode = keybinding.keyCode;
-			const isOEMKey = (
-				keyCode === KeyCode.US_SEMICOLON
-				|| keyCode === KeyCode.US_EQUAL
-				|| keyCode === KeyCode.US_COMMA
-				|| keyCode === KeyCode.US_MINUS
-				|| keyCode === KeyCode.US_DOT
-				|| keyCode === KeyCode.US_SLASH
-				|| keyCode === KeyCode.US_BACKTICK
-				|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| keyCode === KeyCode.US_BACKSLASH
-				|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
-				|| keyCode === KeyCode.OEM_8
-				|| keyCode === KeyCode.OEM_102
-			);
-			if (isOEMKey) {
-				return null;
-			}
-		}
-		return this._keyCodeToElectronAccelerator(keybinding.keyCode);
-	}
-
-	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
+		return KeyCodeUtils.toElectronAccelerator(keybinding.keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {

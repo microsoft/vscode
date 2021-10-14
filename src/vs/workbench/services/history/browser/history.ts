@@ -113,7 +113,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor?: IEditorIdentifier;
 
-	private readonly editorStackListeners = new Map();
+	private readonly editorStackListeners = new Map<EditorInput, DisposableStore>();
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -886,7 +886,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private history: Array<EditorInput | IResourceEditorInput> | undefined = undefined;
 
-	private readonly editorHistoryListeners = new Map();
+	private readonly editorHistoryListeners = new Map<EditorInput, DisposableStore>();
 
 	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
 		const matcher = this._register(this.instantiationService.createInstance(

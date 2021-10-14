@@ -133,7 +133,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				if (isReadonly && isOrphaned) {
 					return {
 						color: listErrorForeground,
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
@@ -142,7 +142,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Readonly
 				else if (isReadonly) {
 					return {
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						tooltip: localize('readonly', "Read Only"),
 					};
 				}

@@ -872,45 +872,24 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToDispatch[binding.scanCode];
 	}
 
-	private _getElectronLabelForKeyCode(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
-	}
-
 	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
 			return null;
 		}
 
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(immutableKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(immutableKeyCode);
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
 		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 
-		if (!this._isUSStandard) {
-			// Electron cannot handle these key codes on anything else than standard US
+		if (this._OS === OperatingSystem.Linux && !this._isUSStandard) {
+			// [Electron Accelerators] On Linux, Electron does not handle correctly OEM keys.
+			// when using a different keyboard layout than US Standard.
+			// See https://github.com/microsoft/vscode/issues/23706
+			// See https://github.com/microsoft/vscode/pull/134890#issuecomment-941671791
 			const isOEMKey = (
 				constantKeyCode === KeyCode.US_SEMICOLON
 				|| constantKeyCode === KeyCode.US_EQUAL
@@ -929,14 +908,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
-		// See https://github.com/microsoft/vscode/issues/108880
-		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
-			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion
-			return null;
-		}
-
 		if (constantKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(constantKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
 
 		return null;

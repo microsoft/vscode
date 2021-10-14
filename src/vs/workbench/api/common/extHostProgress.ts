@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export class ExtHostProgress implements ExtHostProgressShape {
 
@@ -27,7 +28,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		const { title, location, cancellable } = options;
 		const source = { label: localize('extensionSource', "{0} (Extension)", extension.displayName || extension.name), id: extension.identifier.value };
 
-		await this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension);
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, extension).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 

@@ -316,79 +316,74 @@ export class AzureActiveDirectoryService {
 			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
 		}
 
-		// eslint-disable-next-line no-async-promise-executor
-		return new Promise(async (resolve, reject) => {
-			const runsRemote = vscode.env.remoteName !== undefined;
-			const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+		const runsRemote = vscode.env.remoteName !== undefined;
+		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+		if (runsRemote || runsServerless) {
+			return this.loginWithoutLocalServer(scope);
+		}
 
-			if (runsRemote || runsServerless) {
-				resolve(this.loginWithoutLocalServer(scope));
-				return;
+		const nonce = randomBytes(16).toString('base64');
+		const { server, redirectPromise, codePromise } = createServer(nonce);
+
+		let token: IToken | undefined;
+		try {
+			const port = await startServer(server);
+			vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`));
+
+			const redirectReq = await redirectPromise;
+			if ('err' in redirectReq) {
+				const { err, res } = redirectReq;
+				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
+				res.end();
+				throw err;
 			}
 
-			const nonce = randomBytes(16).toString('base64');
-			const { server, redirectPromise, codePromise } = createServer(nonce);
+			const host = redirectReq.req.headers.host || '';
+			const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
+			const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
 
-			let token: IToken | undefined;
+			const state = `${updatedPort},${encodeURIComponent(nonce)}`;
+
+			const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
+			const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+			const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
+
+			redirectReq.res.writeHead(302, { Location: loginUrl });
+			redirectReq.res.end();
+
+			const codeRes = await codePromise;
+			const res = codeRes.res;
+
 			try {
-				const port = await startServer(server);
-				vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`));
-
-				const redirectReq = await redirectPromise;
-				if ('err' in redirectReq) {
-					const { err, res } = redirectReq;
-					res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-					res.end();
-					throw err;
+				if ('err' in codeRes) {
+					throw codeRes.err;
 				}
-
-				const host = redirectReq.req.headers.host || '';
-				const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
-				const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
-
-				const state = `${updatedPort},${encodeURIComponent(nonce)}`;
-
-				const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-				const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-				const loginUrl = `${loginEndpointUrl}${tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scope)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
-
-				await redirectReq.res.writeHead(302, { Location: loginUrl });
-				redirectReq.res.end();
-
-				const codeRes = await codePromise;
-				const res = codeRes.res;
-
-				try {
-					if ('err' in codeRes) {
-						throw codeRes.err;
-					}
-					token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
-					this.setToken(token, scope);
-					Logger.info('Login successful');
-					res.writeHead(302, { Location: '/' });
-					const session = await this.convertToSession(token);
-					resolve(session);
-					res.end();
-				} catch (err) {
-					res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-					res.end();
-					reject(err.message);
-				}
-			} catch (e) {
-				Logger.error(e.message);
-
-				// If the error was about starting the server, try directly hitting the login endpoint instead
-				if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-					await this.loginWithoutLocalServer(scope);
-				}
-
-				reject(e.message);
+				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scope);
+				this.setToken(token, scope);
+				Logger.info('Login successful');
+				res.writeHead(302, { Location: '/' });
+				const session = await this.convertToSession(token);
+				return session;
+			} catch (err) {
+				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
+				throw err;
 			} finally {
-				setTimeout(() => {
-					server.close();
-				}, 5000);
+				res.end();
 			}
-		});
+		} catch (e) {
+			Logger.error(e.message);
+
+			// If the error was about starting the server, try directly hitting the login endpoint instead
+			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
+				return this.loginWithoutLocalServer(scope);
+			}
+
+			throw e;
+		} finally {
+			setTimeout(() => {
+				server.close();
+			}, 5000);
+		}
 	}
 
 	public dispose(): void {

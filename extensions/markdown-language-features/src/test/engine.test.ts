@@ -12,7 +12,7 @@ import { InMemoryDocument } from './inMemoryDocument';
 
 const testFileName = vscode.Uri.file('test.md');
 
-suite.only('markdown.engine', () => {
+suite('markdown.engine', () => {
 	suite('rendering', () => {
 		const input = '# hello\n\nworld!';
 		const output = '<h1 data-line="0" class="code-line" id="hello">hello</h1>\n'
