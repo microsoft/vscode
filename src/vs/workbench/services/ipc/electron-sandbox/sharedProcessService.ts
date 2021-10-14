@@ -44,6 +44,7 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		// is more cruicial.
 		await Promise.race([this.restoredBarrier.wait(), timeout(2000)]);
 
+		// Acquire a message port connected to the shared process
 		mark('code/willConnectSharedProcess');
 
 		// Ask to create message channel inside the window
