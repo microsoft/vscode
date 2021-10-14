@@ -254,7 +254,7 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
-		this._webExtensionContributedProfileContextKey.set(this._terminalContributionService.terminalProfiles.length > 0);
+		this._webExtensionContributedProfileContextKey.set(isWeb && this._terminalContributionService.terminalProfiles.length > 0);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -511,7 +511,7 @@ export class TerminalService implements ITerminalService {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
-		this._webExtensionContributedProfileContextKey.set(this._terminalContributionService.terminalProfiles.length > 0);
+		this._webExtensionContributedProfileContextKey.set(isWeb && this._terminalContributionService.terminalProfiles.length > 0);
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = result;
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);

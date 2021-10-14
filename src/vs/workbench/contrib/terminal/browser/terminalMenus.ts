@@ -441,7 +441,7 @@ export function setupTerminalMenus(): void {
 					order: 0,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
-						TerminalContextKeys.webExtensionContributedProfile
+						ContextKeyExpr.or(TerminalContextKeys.webExtensionContributedProfile, TerminalContextKeys.processSupported)
 					)
 				}
 			}
