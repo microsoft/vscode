@@ -109,9 +109,14 @@ export class Debugger implements IDebugger {
 	}
 
 	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
+
+		return this.configurationResolverService.resolveAnyAsync(folder, config).then(config => {
 			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
 		});
+
+		// return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
+		// 	return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
+		// });
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
