@@ -505,8 +505,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
-		const isRemote = this.extension?.location.scheme === Schemas.vscodeRemote;
-		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
+		const isRemote = this.extension?.location?.scheme === Schemas.vscodeRemote;
+		const remoteAuthority = this.extension?.location?.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
 		return value
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
