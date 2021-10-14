@@ -21,7 +21,7 @@ import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '
 import { IFileService } from 'vs/platform/files/common/files';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
@@ -663,7 +663,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_N,
+	primary: isWeb ? (KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_N) : KeyMod.CtrlCmd | KeyCode.KEY_N,
+	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KEY_N] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
 	description: {
 		description: NEW_UNTITLED_FILE_LABEL,
