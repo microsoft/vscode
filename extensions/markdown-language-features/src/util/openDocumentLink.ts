@@ -7,8 +7,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
-import { isMarkdownFile } from '../util/file';
-import { extname } from '../util/path';
+import { isMarkdownFile } from './file';
+import { extname } from './path';
 
 export interface OpenDocumentLinkArgs {
 	readonly parts: vscode.Uri;
