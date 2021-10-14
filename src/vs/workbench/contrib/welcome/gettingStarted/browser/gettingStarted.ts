@@ -882,7 +882,11 @@ export class GettingStartedPage extends EditorPane {
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
-		const footer = $('.footer', $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
+		const footer = $('.footer', {},
+			$('p.showOnStartup', {},
+				showOnStartupCheckbox,
+				$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))
+			));
 
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
@@ -932,8 +936,12 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		const someStepsComplete = this.gettingStartedCategories.some(category => category.steps.find(s => s.done));
-		if (!someStepsComplete && !this.hasScrolledToFirstCategory) {
 
+		if (this.editorInput.showTelemetryNotice && product.openToWelcomeMainPage) {
+			const telemetryNotice = $('p.telemetry-notice');
+			this.buildTelemetryFooter(telemetryNotice);
+			footer.appendChild(telemetryNotice);
+		} else if (!product.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
@@ -1408,18 +1416,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const categoryFooter = $('.getting-started-footer');
 		if (this.editorInput.showTelemetryNotice && getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE && product.enableTelemetry) {
-			const mdRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
-
-			const privacyStatementCopy = localize('privacy statement', "privacy statement");
-			const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
-
-			const optOutCopy = localize('optOut', "opt out");
-			const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
-
-			const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
-				"{0} collects usage data. Read our {1} and learn how to {2}.", product.nameShort, privacyStatementButton, optOutButton);
-
-			categoryFooter.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+			this.buildTelemetryFooter(categoryFooter);
 		}
 
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
@@ -1431,6 +1428,22 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageScrollbar?.scanDomNode();
 
 		this.registerDispatchListeners();
+	}
+
+	private buildTelemetryFooter(parent: HTMLElement) {
+		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+
+		const privacyStatementCopy = localize('privacy statement', "privacy statement");
+		const privacyStatementButton = `[${privacyStatementCopy}](command:workbench.action.openPrivacyStatementUrl)`;
+
+		const optOutCopy = localize('optOut', "opt out");
+		const optOutButton = `[${optOutCopy}](command:settings.filterByTelemetry)`;
+
+		const text = localize({ key: 'footer', comment: ['fist substitution is "vs code", second is "privacy statement", third is "opt out".'] },
+			"{0} collects usage data. Read our {1} and learn how to {2}.", product.nameShort, privacyStatementButton, optOutButton);
+
+		parent.append(mdRenderer.render({ value: text, isTrusted: true }).element);
+		mdRenderer.dispose();
 	}
 
 	private getKeybindingLabel(command: string) {
