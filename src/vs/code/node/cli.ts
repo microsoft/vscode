@@ -357,7 +357,7 @@ export async function main(argv: string[]): Promise<any> {
 
 		const options: SpawnOptions = {
 			detached: true,
-			env
+			env: {}
 		};
 
 		if (!verbose) {
@@ -367,7 +367,7 @@ export async function main(argv: string[]): Promise<any> {
 		let child: ChildProcess;
 		if (!isMacOSBigSurOrNewer) {
 			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
+			child = spawn(process.execPath, argv.slice(2), { ...options, env });
 		} else {
 			// On Big Sur, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
@@ -428,13 +428,7 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			const truncatedOptions = {
-				detached: options.detached,
-				stdio: options['stdio'],
-				env: {}
-			};
-
-			child = spawn('open', spawnArgs, truncatedOptions);
+			child = spawn('open', spawnArgs, options);
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
