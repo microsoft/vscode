@@ -430,15 +430,20 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	private async onDidClickPreviewLink(href: string) {
 		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
+		let hrefParts: vscode.Uri | undefined;
 
-		if (hrefPath[0] !== '/') {
-			// We perviously already resolve absolute paths.
-			// Now make sure we handle relative file paths
-			const dirnameUri = vscode.Uri.parse(path.dirname(this.resource.path));
-			hrefPath = vscode.Uri.joinPath(dirnameUri, hrefPath).path;
+		if (hrefPath[0] === '/') {
+			// Absolute path. Try to resolve relative to the workspace
+			const workspace = vscode.workspace.getWorkspaceFolder(this.resource);
+			if (workspace) {
+				hrefParts = vscode.Uri.joinPath(workspace.uri, hrefPath.slice(1));
+				hrefPath = hrefParts.path;
+			}
 		} else {
-			// Handle any normalized file paths
-			hrefPath = vscode.Uri.parse(hrefPath.replace('/file', '')).path;
+			// Relative path. Resolve relative to the md file
+			const dirnameUri = this.resource.with({ path: path.dirname(this.resource.path) });
+			hrefParts = vscode.Uri.joinPath(dirnameUri, hrefPath);
+			hrefPath = hrefParts.path;
 		}
 
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
@@ -451,7 +456,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}
 
-		OpenDocumentLinkCommand.execute(this.engine, { parts: { path: hrefPath }, fragment, fromResource: this.resource.toJSON() });
+		OpenDocumentLinkCommand.execute(this.engine, { parts: hrefParts ?? { path: hrefPath }, fragment, fromResource: this.resource.toJSON() });
 	}
 
 	//#region WebviewResourceProvider
