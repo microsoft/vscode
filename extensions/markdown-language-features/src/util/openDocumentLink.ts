@@ -73,7 +73,7 @@ export async function openDocumentLink(engine: MarkdownEngine, targetResource: v
 }
 
 async function tryOpenMdFile(engine: MarkdownEngine, resource: vscode.Uri, column: vscode.ViewColumn): Promise<boolean> {
-	await vscode.commands.executeCommand('vscode.open', resource, column);
+	await vscode.commands.executeCommand('vscode.open', resource.with({ fragment: '' }), column);
 	return tryNavigateToFragmentInActiveEditor(engine, resource);
 }
 
