@@ -66,7 +66,6 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { safeStringify } from 'vs/base/common/objects';
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
-import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 
 class BrowserMain extends Disposable {
 
@@ -330,7 +329,7 @@ class BrowserMain extends Disposable {
 						if (storageService instanceof BrowserStorageService) {
 							await storageService.clear();
 						}
-						if (credentialsService instanceof BrowserCredentialsService) {
+						if (credentialsService.clear) {
 							await credentialsService.clear();
 						}
 					}
