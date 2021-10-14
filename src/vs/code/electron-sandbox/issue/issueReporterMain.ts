@@ -244,9 +244,9 @@ export class IssueReporter extends Disposable {
 			return ext.isTheme ? 'themes' : 'nonThemes';
 		});
 
-		const numberOfThemeExtesions = themes && themes.length;
-		this.issueReporterModel.update({ numberOfThemeExtesions, enabledNonThemeExtesions: nonThemes, allExtensions: installedExtensions });
-		this.updateExtensionTable(nonThemes, numberOfThemeExtesions);
+		const numberOfThemeExtensions = themes && themes.length;
+		this.issueReporterModel.update({ numberOfThemeExtensions, enabledNonThemeExtensions: nonThemes, allExtensions: installedExtensions });
+		this.updateExtensionTable(nonThemes, numberOfThemeExtensions);
 
 		if (this.configuration.disableExtensions || installedExtensions.length === 0) {
 			(<HTMLButtonElement>this.getElementById('disableExtensions')).disabled = true;

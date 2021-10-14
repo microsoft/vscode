@@ -21,9 +21,9 @@ export interface IssueReporterData {
 	includeExtensions: boolean;
 	includeExperiments: boolean;
 
-	numberOfThemeExtesions?: number;
+	numberOfThemeExtensions?: number;
 	allExtensions: IssueReporterExtensionData[];
-	enabledNonThemeExtesions?: IssueReporterExtensionData[];
+	enabledNonThemeExtensions?: IssueReporterExtensionData[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
 	fileOnMarketplace?: boolean;
@@ -232,19 +232,19 @@ ${this._data.experimentInfo}
 			return 'Extensions disabled';
 		}
 
-		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
+		const themeExclusionStr = this._data.numberOfThemeExtensions ? `\n(${this._data.numberOfThemeExtensions} theme extensions excluded)` : '';
 
-		if (!this._data.enabledNonThemeExtesions) {
+		if (!this._data.enabledNonThemeExtensions) {
 			return 'Extensions: none' + themeExclusionStr;
 		}
 
 		const tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
-		const table = this._data.enabledNonThemeExtesions.map(e => {
+		const table = this._data.enabledNonThemeExtensions.map(e => {
 			return `${e.name}|${e.publisher?.substr(0, 3) ?? 'N/A'}|${e.version}`;
 		}).join('\n');
 
-		return `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>
+		return `<details><summary>Extensions (${this._data.enabledNonThemeExtensions.length})</summary>
 
 ${tableHeader}
 ${table}
