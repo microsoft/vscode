@@ -341,7 +341,8 @@ class BrowserMain extends Disposable {
 					if (storageService instanceof BrowserStorageService) {
 						await storageService.clear();
 					}
-					if (credentialsService instanceof BrowserCredentialsService) {
+
+					if (credentialsService.clear) {
 						await credentialsService.clear();
 					}
 				}
