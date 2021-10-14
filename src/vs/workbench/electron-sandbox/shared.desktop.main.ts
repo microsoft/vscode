@@ -22,7 +22,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { SharedProcessService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
@@ -130,7 +131,13 @@ export abstract class SharedDesktopMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void | Promise<void>;
+	protected abstract registerFileSystemProviders(
+		mainProcessService: IMainProcessService,
+		environmentService: INativeWorkbenchEnvironmentService,
+		fileService: IFileService,
+		logService: ILogService,
+		nativeHostService: INativeHostService
+	): void | Promise<void>;
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
@@ -170,6 +177,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, environmentService.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
 		serviceCollection.set(ILogService, logService);
 
+		// Shared Process
+		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
+		serviceCollection.set(ISharedProcessService, sharedProcessService);
+
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -204,7 +215,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const result = this.registerFileSystemProviders(environmentService, fileService, logService, nativeHostService);
+		const result = this.registerFileSystemProviders(mainProcessService, environmentService, fileService, logService, nativeHostService);
 		if (result instanceof Promise) {
 			await result;
 		}

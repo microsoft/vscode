@@ -72,9 +72,13 @@ export function registerMainProcessRemoteService<T>(id: ServiceIdentifier<T>, ch
 export const ISharedProcessService = createDecorator<ISharedProcessService>('sharedProcessService');
 
 export interface ISharedProcessService {
+
 	readonly _serviceBrand: undefined;
+
 	getChannel(channelName: string): IChannel;
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;
+
+	notifyRestored(): void;
 }
 
 class SharedProcessRemoteServiceStub<T> extends RemoteServiceStub<T> {

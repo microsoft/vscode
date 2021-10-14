@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ipcMessagePort } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcMessagePort, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { mark } from 'vs/base/common/performance';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 
 export class SharedProcessService extends Disposable implements ISharedProcessService {
 
@@ -23,10 +20,11 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	private readonly withSharedProcessConnection: Promise<MessagePortClient>;
 
+	private readonly restoredBarrier = new Barrier();
+
 	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@ILogService private readonly logService: ILogService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		readonly windowId: number,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -44,14 +42,15 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		// timeout to be safe against possible deadlocks.
 		// TODO@sandbox revisit this when the shared process connection
 		// is more cruicial.
-		await Promise.race([this.lifecycleService.when(LifecyclePhase.Restored), timeout(2000)]);
+		await Promise.race([this.restoredBarrier.wait(), timeout(2000)]);
 
 		mark('code/willConnectSharedProcess');
 
 		// Ask to create message channel inside the window
 		// and send over a UUID to correlate the response
 		const nonce = generateUuid();
-		ipcMessagePort.connect('vscode:createSharedProcessMessageChannel', 'vscode:createSharedProcessMessageChannelResult', nonce);
+		ipcMessagePort.acquire('vscode:createSharedProcessMessageChannelResult', nonce);
+		ipcRenderer.send('vscode:createSharedProcessMessageChannel', nonce);
 
 		// Wait until the main side has returned the `MessagePort`
 		// We need to filter by the `nonce` to ensure we listen
@@ -62,7 +61,13 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		mark('code/didConnectSharedProcess');
 		this.logService.trace('Renderer->SharedProcess#connect: connection established');
 
-		return this._register(new MessagePortClient(port, `window:${this.nativeHostService.windowId}`));
+		return this._register(new MessagePortClient(port, `window:${this.windowId}`));
+	}
+
+	notifyRestored(): void {
+		if (!this.restoredBarrier.isOpen()) {
+			this.restoredBarrier.open();
+		}
 	}
 
 	getChannel(channelName: string): IChannel {
@@ -73,5 +78,3 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
 	}
 }
-
-registerSingleton(ISharedProcessService, SharedProcessService, true);

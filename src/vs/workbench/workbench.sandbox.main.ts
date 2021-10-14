@@ -60,7 +60,6 @@ import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncService'
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncAccountService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataSyncStoreManagementService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/userDataAutoSyncService';
-import 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
 import 'vs/workbench/services/timer/electron-sandbox/timerService';
 import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';

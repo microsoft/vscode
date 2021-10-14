@@ -10,6 +10,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { initFileSystem, simpleFileSystemProvider, simpleWorkspaceDir } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -17,7 +19,13 @@ class DesktopMain extends SharedDesktopMain {
 		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } });
 	}
 
-	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<void> {
+	protected registerFileSystemProviders(
+		mainProcessService: IMainProcessService,
+		environmentService: INativeWorkbenchEnvironmentService,
+		fileService: IFileService,
+		logService: ILogService,
+		nativeHostService: INativeHostService
+	): Promise<void> {
 
 		// Local Files
 		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);

@@ -163,6 +163,8 @@ export class TestSharedProcessService implements ISharedProcessService {
 	getChannel(channelName: string): any { return undefined; }
 
 	registerChannel(channelName: string, channel: any): void { }
+
+	notifyRestored(): void { }
 }
 
 export class TestNativeHostService implements INativeHostService {

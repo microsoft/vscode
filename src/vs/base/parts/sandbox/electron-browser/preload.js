@@ -211,12 +211,11 @@
 		ipcMessagePort: {
 
 			/**
-			 * @param {string} channelRequest
 			 * @param {string} channelResponse
 			 * @param {string} requestNonce
 			 */
-			connect(channelRequest, channelResponse, requestNonce) {
-				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
+			acquire(channelResponse, requestNonce) {
+				if (validateIPC(channelResponse)) {
 					const responseListener = (/** @type {IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
@@ -228,9 +227,8 @@
 						}
 					};
 
-					// request message port from main and await result
+					// handle reply from main
 					ipcRenderer.on(channelResponse, responseListener);
-					ipcRenderer.send(channelRequest, requestNonce);
 				}
 			}
 		},

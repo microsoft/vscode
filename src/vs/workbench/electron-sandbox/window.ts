@@ -60,6 +60,7 @@ import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 export class NativeWindow extends Disposable {
 
@@ -109,7 +110,8 @@ export class NativeWindow extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
 		super();
 
@@ -448,8 +450,9 @@ export class NativeWindow extends Disposable {
 		// Handle open calls
 		this.setupOpenHandlers();
 
-		// Notify main side when window ready
+		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
 
 		// Integrity warning
 		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));

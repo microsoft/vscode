@@ -89,7 +89,7 @@
 						(<any>self).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data);
+					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
 						self.onmessage(beforeReadyMessages.shift()!);
 					}

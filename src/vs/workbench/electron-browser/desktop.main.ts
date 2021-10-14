@@ -13,6 +13,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskF
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -23,7 +24,13 @@ class DesktopMain extends SharedDesktopMain {
 		gracefulify(fs);
 	}
 
-	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {
+	protected registerFileSystemProviders(
+		mainProcessService: IMainProcessService,
+		environmentService: INativeWorkbenchEnvironmentService,
+		fileService: IFileService,
+		logService: ILogService,
+		nativeHostService: INativeHostService
+	): void {
 
 		// Local Files
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, { legacyWatcher: this.configuration.legacyWatcher }));
