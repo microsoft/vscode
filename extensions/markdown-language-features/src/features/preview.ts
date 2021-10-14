@@ -5,12 +5,12 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { OpenDocumentLinkCommand, resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { openDocumentLink, resolveDocumentLink, resolveLinkToMarkdownFile } from '../util/openDocumentLink';
 import * as path from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
@@ -429,34 +429,19 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 
 	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
-		let hrefParts: vscode.Uri | undefined;
-
-		if (hrefPath[0] === '/') {
-			// Absolute path. Try to resolve relative to the workspace
-			const workspace = vscode.workspace.getWorkspaceFolder(this.resource);
-			if (workspace) {
-				hrefParts = vscode.Uri.joinPath(workspace.uri, hrefPath.slice(1));
-				hrefPath = hrefParts.path;
-			}
-		} else {
-			// Relative path. Resolve relative to the md file
-			const dirnameUri = this.resource.with({ path: path.dirname(this.resource.path) });
-			hrefParts = vscode.Uri.joinPath(dirnameUri, hrefPath);
-			hrefPath = hrefParts.path;
-		}
+		const targetResource = resolveDocumentLink(href, this.resource);
 
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(hrefPath);
+			const markdownLink = await resolveLinkToMarkdownFile(targetResource);
 			if (markdownLink) {
-				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, fragment);
+				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, targetResource.fragment);
 				return;
 			}
 		}
 
-		OpenDocumentLinkCommand.execute(this.engine, { parts: hrefParts ?? { path: hrefPath }, fragment, fromResource: this.resource.toJSON() });
+		return openDocumentLink(this.engine, targetResource, this.resource);
 	}
 
 	//#region WebviewResourceProvider
