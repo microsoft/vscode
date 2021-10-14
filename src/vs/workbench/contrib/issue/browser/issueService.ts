@@ -40,7 +40,7 @@ export class WebIssueService implements IWorkbenchIssueService {
 		}
 
 		if (repositoryUrl) {
-			repositoryUrl = `${repositoryUrl}?body=${encodeURIComponent(await this.getIssueDescription(selectedExtension))}`;
+			repositoryUrl = `${repositoryUrl}?body=${encodeURIComponent(await this.getIssueDescription(selectedExtension))}&labels=web`;
 			return this.openerService.open(URI.parse(repositoryUrl)).then(_ => { });
 		} else {
 			throw new Error(`Unable to find issue reporting url for ${options.extensionId}`);
