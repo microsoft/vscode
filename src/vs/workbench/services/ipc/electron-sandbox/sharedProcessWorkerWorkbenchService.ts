@@ -20,13 +20,14 @@ export interface ISharedProcessWorkerWorkbenchService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a worker off the shared process that spawns the provided
-	 * `process` and wires in the communication to that process via message
-	 * ports and channels.
+	 * Will fork a new process with the provided module identifier off the shared
+	 * process and establishes a message port connection to that process.
 	 *
-	 * @param process information around the process to spawn from the shared
-	 * process worker.
-	 * @param channelName the name of the channel the process will respond to.
+	 * Requires the forked process to be AMD module that uses our IPC channel framework
+	 * to respond to the provided `channelName` as a server.
+	 *
+	 * @param process information around the process to fork
+	 * @param channelName the name of the channel the process will respond to
 	 */
 	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IChannel;
 }
@@ -34,6 +35,15 @@ export interface ISharedProcessWorkerWorkbenchService {
 export class SharedProcessWorkerWorkbenchService extends Disposable implements ISharedProcessWorkerWorkbenchService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private _sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
+	private get sharedProcessWorkerService(): ISharedProcessWorkerService {
+		if (!this._sharedProcessWorkerService) {
+			this._sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName));
+		}
+
+		return this._sharedProcessWorkerService;
+	}
 
 	constructor(
 		readonly windowId: number,
@@ -52,12 +62,11 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		// Get ready to acquire the message port from the shared process worker
 		const nonce = generateUuid();
-		const responseChannel = `vscode:createSharedProcessWorkerMessageChannelResult`;
+		const responseChannel = 'vscode:createSharedProcessWorkerMessageChannelResult';
 		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, responseChannel, nonce);
 
 		// Actually talk with the shared process service
-		const sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName));
-		sharedProcessWorkerService.createWorker({
+		this.sharedProcessWorkerService.createWorker({
 			process,
 			reply: { windowId: this.windowId, channel: responseChannel, nonce }
 		});
