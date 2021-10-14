@@ -204,7 +204,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	}
 
-	private async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean, showSilentPrompt: boolean): Promise<modes.AuthenticationSession | undefined> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
@@ -224,7 +224,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 								throw new Error('User did not consent to login.');
 							}
 						} else {
-							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
+							if (showSilentPrompt) {
+								this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
+							}
 							return undefined;
 						}
 					}
@@ -242,9 +244,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, potentialSessions);
 	}
 
-	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, forceNewSession: boolean | { detail: string }, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, forceNewSession: boolean | { detail: string }, clearSessionPreference: boolean, solelyCheckExistence?: boolean }): Promise<modes.AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 		let silent = !options.createIfNone;
+		// TODO: remove this property and implement a proper $hasSession function.
+		let showSilentPrompt = !options.solelyCheckExistence;
 
 		if (options.forceNewSession && !sessions.length) {
 			throw new Error('No existing sessions found.');
@@ -263,14 +267,16 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 							throw new Error('User did not consent to login.');
 						}
 					} else if (allowed !== false) {
-						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, [session]);
+						if (showSilentPrompt) {
+							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, [session]);
+						}
 						return undefined;
 					} else {
 						return undefined;
 					}
 				}
 			} else {
-				return this.selectSession(providerId, extensionId, extensionName, scopes, sessions, !!options.clearSessionPreference, silent);
+				return this.selectSession(providerId, extensionId, extensionName, scopes, sessions, !!options.clearSessionPreference, silent, showSilentPrompt);
 			}
 		} else {
 			// If we are forceRecreating, we need to show the prompt.
@@ -285,7 +291,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				session = await this.authenticationService.createSession(providerId, scopes, true);
 				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
-				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+				if (showSilentPrompt) {
+					await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+				}
 			}
 		}
 
