@@ -5,6 +5,7 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
@@ -73,6 +74,12 @@ export class ExtHostWebview implements vscode.Webview {
 	}
 
 	public get cspSource(): string {
+		const extensionLocation = this.#extension.extensionLocation;
+		if (extensionLocation.scheme === Schemas.https || extensionLocation.scheme === Schemas.http) {
+			// The extension is being served up from a CDN.
+			// Also include the CDN in the default csp.
+			return extensionLocation + ' ' + webviewGenericCspSource;
+		}
 		return webviewGenericCspSource;
 	}
 
