@@ -30,12 +30,17 @@ export function create(): { onmessage: (message: ISharedProcessWorkerMessage, tr
 					if (transfer[0] instanceof MessagePort) {
 						console.info('SharedProcess [worker]: received the message port and configuration', message.configuration);
 
-						// Spawn a new worker process with given configuration
-						const workerProcess = new SharedProcessWorkerProcess(transfer[0], message.configuration, message.environment);
-						workerProcess.spawn();
+						try {
 
-						// Indicate we are ready
-						postMessage(SharedProcessWorkerMessages.WorkerReady);
+							// Spawn a new worker process with given configuration
+							const workerProcess = new SharedProcessWorkerProcess(transfer[0], message.configuration, message.environment);
+							workerProcess.spawn();
+
+							// Indicate we are ready
+							postMessage(SharedProcessWorkerMessages.WorkerReady);
+						} catch (error) {
+							console.info('SharedProcess [worker]: unexpected error forking worker process', error, message.configuration);
+						}
 					}
 					break;
 
@@ -87,11 +92,11 @@ class SharedProcessWorkerProcess extends Disposable {
 			{ env }
 		);
 
-		this.child.on('error', error => console.warn('SharedProcess [worker]: error from child process', error));
+		this.child.on('error', error => console.warn('SharedProcess [worker]: error from child process', error, this.configuration));
 
 		this.child.on('exit', (code, signal) => {
 			if (code !== 0 && signal !== 'SIGTERM') {
-				console.warn(`SharedProcess [worker]: crashed with exit code ${code} and signal ${signal}`);
+				console.warn(`SharedProcess [worker]: crashed with exit code ${code} and signal ${signal}`, this.configuration);
 			}
 		});
 
@@ -101,7 +106,7 @@ class SharedProcessWorkerProcess extends Disposable {
 
 			// Handle remote console logs specially
 			if (isRemoteConsoleLog(msg)) {
-				log(msg, `Shared process worker process log message: ${this.configuration.process.name}`);
+				log(msg, `SharedProcess [worker]: `);
 			}
 
 			// Anything else goes to the outside
