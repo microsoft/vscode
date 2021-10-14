@@ -64,6 +64,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
+	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _defaultProfileName?: string;
@@ -233,6 +234,11 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
+
+		// in web, we don't want to show the dropdown unless there's a web extension
+		// that contributes a profile
+		this._extensionService.onDidChangeExtensions(() => this._refreshAvailableProfiles());
+
 		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -247,6 +253,7 @@ export class TerminalService implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -508,10 +515,14 @@ export class TerminalService implements ITerminalService {
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
+			this._updateWebContextKey();
 			await this._refreshPlatformConfig(result);
 		}
 	}
 
+	private _updateWebContextKey(): void {
+		this._webExtensionContributedProfileContextKey.set(isWeb && this._terminalContributionService.terminalProfiles.length > 0);
+	}
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
