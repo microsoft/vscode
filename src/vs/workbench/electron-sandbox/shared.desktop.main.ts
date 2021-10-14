@@ -191,22 +191,28 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		// TODO@bpasero remove me
 		if (isSingleFolderWorkspaceIdentifier(this.configuration.workspace)) {
-			const watcherChannel = sharedProcessWorkerWorkbenchService.createWorkerChannel({
-				moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
-				type: 'watcherService',
-				name: 'File Watcher (parcel)'
-			}, 'watcher');
+			const folderPath = this.configuration.workspace.uri.fsPath;
+			(async () => {
+				const watcherChannel = sharedProcessWorkerWorkbenchService.createWorkerChannel({
+					moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
+					type: 'watcherService',
+					name: 'File Watcher (parcel)'
+				}, 'watcher');
 
-			console.log('Asking shared process to watch in : ' + this.configuration.workspace.uri.fsPath);
+				console.log('Shared process worker: Asking shared process to watch in : ' + folderPath);
 
-			const watcherService = ProxyChannel.toService<IWatcherService>(watcherChannel);
-			watcherService.onDidLogMessage(e => console.log('Shared process worker watcher log message: ', e.message));
-			await watcherService.setVerboseLogging(true);
-			watcherService.onDidChangeFile(e => console.log('Shared process worker watcher file events: ', e));
-			watcherService.watch([{
-				path: this.configuration.workspace.uri.fsPath,
-				excludes: []
-			}]);
+				const watcherService = ProxyChannel.toService<IWatcherService>(watcherChannel);
+				watcherService.onDidLogMessage(e => console.log('Shared process worker watcher log message: ', e.message));
+				await watcherService.setVerboseLogging(true);
+
+				console.log('Shared process worker: successfully set verbose logging');
+
+				watcherService.onDidChangeFile(e => console.log('Shared process worker watcher file events: ', e));
+				watcherService.watch([{
+					path: folderPath,
+					excludes: []
+				}]);
+			})();
 		}
 
 		// Remote

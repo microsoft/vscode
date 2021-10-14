@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { SHARED_PROCESS_WORKER_REQUEST, SHARED_PROCESS_WORKER_RESPONSE, ISharedProcessWorkerMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
+import { SharedProcessWorkerMessages, ISharedProcessWorkerMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 /**
  * The `create` function needs to be there by convention because
@@ -20,18 +20,22 @@ import { SHARED_PROCESS_WORKER_REQUEST, SHARED_PROCESS_WORKER_RESPONSE, ISharedP
 export function create(): { onmessage: (message: ISharedProcessWorkerMessage, transfer: Transferable[]) => void } {
 
 	// Ask to receive the message channel port & config
-	postMessage(SHARED_PROCESS_WORKER_REQUEST);
+	postMessage(SharedProcessWorkerMessages.RequestPort);
 
 	// Return a message handler that awaits port and config
 	return {
 		onmessage: (message, transfer) => {
 			switch (message.id) {
-				case SHARED_PROCESS_WORKER_RESPONSE:
+				case SharedProcessWorkerMessages.ReceivePort:
 					if (transfer[0] instanceof MessagePort) {
 						console.info('SharedProcess [worker]: received the message port and configuration', message.configuration);
 
+						// Spawn a new worker process with given configuration
 						const workerProcess = new SharedProcessWorkerProcess(transfer[0], message.configuration, message.environment);
 						workerProcess.spawn();
+
+						// Indicate we are ready
+						postMessage(SharedProcessWorkerMessages.WorkerReady);
 					}
 					break;
 

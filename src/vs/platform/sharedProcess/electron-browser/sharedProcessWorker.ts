@@ -5,8 +5,15 @@
 
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 
-export const SHARED_PROCESS_WORKER_REQUEST = 'vscode:receiveSharedProcessWorkerMessageChannelPort';
-export const SHARED_PROCESS_WORKER_RESPONSE = 'vscode:receiveSharedProcessWorkerMessageChannelPortResult';
+export enum SharedProcessWorkerMessages {
+
+	// Message Port Exchange
+	RequestPort = 'vscode:requestSharedProcessWorkerPort',
+	ReceivePort = 'vscode:receiveSharedProcessWorkerPort',
+
+	// Lifecycle
+	WorkerReady = 'vscode:sharedProcessWorkerReady'
+}
 
 export interface ISharedProcessWorkerEnvironment {
 
