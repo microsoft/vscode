@@ -621,8 +621,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $extensionTestsExit(code: number): Promise<void> {
-		this._logService.info(`extension host terminating: test runner requested exit with code ${code}`);
-		this._logService.info(`exiting with code ${code}`);
+		this._logService.info(`Extension host terminating: test runner requested exit with code ${code}`);
+		this._logService.info(`Extension host with pid ${process.pid} exiting with code ${code}`);
 		this._logService.flush();
 		this._hostUtils.exit(code);
 	}
@@ -638,7 +638,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			.then(() => this._handleEagerExtensions())
 			.then(() => {
 				this._eagerExtensionsActivated.open();
-				this._logService.info(`eager extensions activated`);
+				this._logService.info(`Eager extensions activated`);
 			});
 	}
 

@@ -70,7 +70,7 @@ export class ExtensionHostMain {
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
 		performance.mark(`code/extHost/didCreateServices`);
-		this._logService.info('extension host started');
+		this._logService.info(`Extension host with pid ${process.pid} started`);
 		this._logService.trace('initData', initData);
 
 		// ugly self - inject
@@ -136,7 +136,7 @@ export class ExtensionHostMain {
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
 			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				this._logService.info(`exiting with code 0`);
+				this._logService.info(`Extension host with pid ${process.pid} exiting with code 0`);
 				this._logService.flush();
 				this._logService.dispose();
 				this._hostUtils.exit(0);
