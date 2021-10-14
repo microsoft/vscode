@@ -428,15 +428,10 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			// Keep just the _ env var here,
-			// because it's still needed to open Code,
-			// even though the open command doesn't understand it.
 			const truncatedOptions = {
 				detached: options.detached,
 				stdio: options['stdio'],
-				env: {
-					'_': options.env?.['_']
-				}
+				env: {}
 			};
 
 			child = spawn('open', spawnArgs, truncatedOptions);
