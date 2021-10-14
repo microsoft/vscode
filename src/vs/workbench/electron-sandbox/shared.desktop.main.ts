@@ -197,8 +197,12 @@ export abstract class SharedDesktopMain extends Disposable {
 				name: 'File Watcher (parcel)'
 			}, 'watcher');
 
+			console.log('Asking shared process to watch in : ' + this.configuration.workspace.uri.fsPath);
+
 			const watcherService = ProxyChannel.toService<IWatcherService>(watcherChannel);
-			watcherService.onDidChangeFile(e => console.log('Shared process worker file events: ', e));
+			watcherService.onDidLogMessage(e => console.log('Shared process worker watcher log message: ', e.message));
+			await watcherService.setVerboseLogging(true);
+			watcherService.onDidChangeFile(e => console.log('Shared process worker watcher file events: ', e));
 			watcherService.watch([{
 				path: this.configuration.workspace.uri.fsPath,
 				excludes: []

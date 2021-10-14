@@ -13,13 +13,13 @@ export interface ISharedProcessWorkerProcess {
 	moduleId: string;
 
 	/**
-	 * The name of the worker appears in log messages.
+	 * The name of the process appears in log messages.
 	 */
 	name: string;
 
 	/**
-	 * The type of the worker appears in the arguments of the
-	 * forked process within the worker to identify the process.
+	 * The type of the process appears in the arguments of the
+	 * forked process to identify it easier.
 	 */
 	type: string;
 }
@@ -27,12 +27,13 @@ export interface ISharedProcessWorkerProcess {
 export interface ISharedProcessWorkerConfiguration {
 
 	/**
-	 * Configuration specific to the worker process to fork.
+	 * Configuration specific to the process to fork.
 	 */
 	process: ISharedProcessWorkerProcess;
 
 	/**
-	 * Configuration specific for how to reply with the `MessagePort`.
+	 * Configuration specific for how to respond with the
+	 * communication message port.
 	 */
 	reply: {
 		windowId: number;
@@ -50,11 +51,10 @@ export interface ISharedProcessWorkerService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Creates a new worker with node.js enabled loading the provided
-	 * `moduleId` as a child process and wiring in the communication
-	 * from the child process through a `MessagePort`.
-	 *
-	 * Caller needs to listen to `reply.channel` for a response.
+	 * Forks the provided process from the passed in configuration inside
+	 * the shared process and establishes a `MessagePort` communication
+	 * channel that is being sent back to via the `reply` options of the
+	 * configuration.
 	 */
 	createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void>;
 }

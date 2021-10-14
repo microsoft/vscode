@@ -9,6 +9,7 @@ import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SHARED_PROCESS_WORKER_REQUEST, SHARED_PROCESS_WORKER_RESPONSE, ISharedProcessWorkerMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
@@ -48,31 +49,50 @@ class SharedProcessWorkerProcess extends Disposable {
 	constructor(
 		private readonly port: MessagePort,
 		private readonly configuration: ISharedProcessWorkerConfiguration,
-		private readonly environment: ISharedProcessWorkerEnvironment,
+		private readonly environment: ISharedProcessWorkerEnvironment
 	) {
 		super();
 	}
 
 	spawn(): void {
-		console.info('SharedProcess [worker]: forking worker process');
+		console.info('SharedProcess [worker]: forking worker process', this.configuration);
 
 		// TODO@bpasero `workerMain` does not seem to have support for node.js imports
 		const cp = require.__$__nodeRequire('child_process') as typeof import('child_process');
+
+		// Build environment
+		const env: NodeJS.ProcessEnv = {
+			...deepClone(process.env),
+			VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
+			VSCODE_PIPE_LOGGING: 'true',
+			VSCODE_VERBOSE_LOGGING: 'true',
+			VSCODE_PARENT_PID: String(process.pid)
+		};
+
+		// Unset `DEBUG`, as an invalid value might lead to crashes
+		// See https://github.com/microsoft/vscode/issues/130072
+		delete env['DEBUG'];
+
+		if (isMacintosh) {
+			// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
+			// See https://github.com/microsoft/vscode/issues/104525
+			delete env['DYLD_LIBRARY_PATH'];
+		}
 
 		// Fork module via boottrap-fork for AMD support
 		this.child = cp.fork(
 			this.environment.bootstrapPath,
 			[`--type=${this.configuration.process.type}`],
-			{
-				env: {
-					...deepClone(process.env),
-					VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
-					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client
-					VSCODE_PARENT_PID: String(process.pid)
-				}
-			}
+			{ env }
 		);
+
+		this.child.on('error', error => console.warn('SharedProcess [worker]: error from child process', error));
+
+		this.child.on('exit', (code, signal) => {
+			if (code !== 0 && signal !== 'SIGTERM') {
+				console.warn(`SharedProcess [worker]: crashed with exit code ${code} and signal ${signal}`);
+			}
+		});
 
 		const onMessageEmitter = new Emitter<VSBuffer>();
 		const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
@@ -80,19 +100,25 @@ class SharedProcessWorkerProcess extends Disposable {
 
 			// Handle remote console logs specially
 			if (isRemoteConsoleLog(msg)) {
-				log(msg, `IPC Library: ${this.configuration.process.name}`);
-
-				return;
+				log(msg, `Shared process worker process log message: ${this.configuration.process.name}`);
 			}
 
 			// Anything else goes to the outside
-			onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
+			else {
+				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
+			}
 		});
 
-		const send = (buffer: VSBuffer) => this.child && this.child.connected && this.child.send((<Buffer>buffer.buffer).toString('base64'));
-		const onMessage = onMessageEmitter.event;
+		const send = (buffer: VSBuffer) => {
+			if (this.child?.connected) {
+				this.child.send((<Buffer>buffer.buffer).toString('base64'));
+			} else {
+				console.warn('SharedProcess [worker]: unable to deliver message to disconnected child', this.configuration);
+			}
+		};
 
 		// Re-emit messages from the process via the port
+		const onMessage = onMessageEmitter.event;
 		onMessage(buffer => this.port.postMessage(buffer));
 
 		// Relay message from the port into the process
