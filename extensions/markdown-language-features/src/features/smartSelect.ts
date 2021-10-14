@@ -157,7 +157,7 @@ function createFencedRange(token: MarkdownItTokenWithMap, cursorLine: number, do
 	if (contentRange) {
 		return new vscode.SelectionRange(contentRange, new vscode.SelectionRange(fenceRange, parent));
 	} else {
-		if (parent?.range.isEqual(fenceRange)) {
+		if (contentRange && parent?.range.isEqual(fenceRange)) {
 			return parent;
 		} else {
 			return new vscode.SelectionRange(fenceRange, parent);
