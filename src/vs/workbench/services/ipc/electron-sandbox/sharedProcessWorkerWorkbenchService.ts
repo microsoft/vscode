@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -12,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { getDelayedChannel, IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ipcMessagePort } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 
 export const ISharedProcessWorkerWorkbenchService = createDecorator<ISharedProcessWorkerWorkbenchService>('sharedProcessWorkerWorkbenchService');
 
@@ -51,27 +50,19 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess): Promise<MessagePortClient> {
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel');
 
-		// Ask to create message channel inside the shared
-		// process from a new worker and send over a UUID
-		// to correlate the response
+		// Get ready to acquire the message port from the shared process worker
 		const nonce = generateUuid();
-		const replyChannel = `vscode:createSharedProcessWorkerMessageChannelResult`;
-		ipcMessagePort.acquire(replyChannel, nonce);
-
-		// Wait until the main side has returned the `MessagePort`
-		// We need to filter by the `nonce` to ensure we listen
-		// to the right response.
-		const onMessageChannelResult = Event.fromDOMEventEmitter<{ nonce: string, port: MessagePort, source: unknown }>(window, 'message', (e: MessageEvent) => ({ nonce: e.data, port: e.ports[0], source: e.source }));
-		const portPromise = Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce && e.source === window)));
+		const responseChannel = `vscode:createSharedProcessWorkerMessageChannelResult`;
+		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, responseChannel, nonce);
 
 		// Actually talk with the shared process service
 		const sharedProcessWorkerService = ProxyChannel.toService<ISharedProcessWorkerService>(this.sharedProcessService.getChannel(ipcSharedProcessWorkerChannelName));
 		sharedProcessWorkerService.createWorker({
 			process,
-			reply: { windowId: this.windowId, channel: replyChannel, nonce }
+			reply: { windowId: this.windowId, channel: responseChannel, nonce }
 		});
 
-		const { port } = await portPromise;
+		const port = await portPromise;
 
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel: connection established');
 
