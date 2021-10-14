@@ -64,6 +64,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
+	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _defaultProfileName?: string;
@@ -233,6 +234,11 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
+
+		// in web, we don't want to show the dropdown unless there's a web extension
+		// that contributes a profile
+		this._extensionService.onDidChangeExtensions(() => this._refreshAvailableProfiles());
+
 		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -247,6 +253,8 @@ export class TerminalService implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
+		this._webExtensionContributedProfileContextKey.set(this._terminalContributionService.terminalProfiles.length > 0);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -503,6 +511,7 @@ export class TerminalService implements ITerminalService {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		this._webExtensionContributedProfileContextKey.set(this._terminalContributionService.terminalProfiles.length > 0);
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = result;
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
