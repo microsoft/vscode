@@ -241,9 +241,10 @@ export class TelemetryService implements ITelemetryService {
 
 function getTelemetryLevelSettingDescription(): string {
 	const telemetryText = localize('telemetry.telemetryLevelMd', "Controls all core and first party extension telemetry. This helps us to better understand how {0} is performing, where improvements need to be made, and how features are being used.", product.nameLong);
-	const docsStatement = ' ' + localize("telemetry.docsStatement", "Read more about the [data we collect]({0})", 'https://aka.ms/vscode-telemetry');
-	const privacyStatement = product.privacyStatementUrl || true ? docsStatement + ' ' + localize("telemetry.privacyStatement", "and our [privacy statement]({0}).", product.privacyStatementUrl) : docsStatement + '.';
-	const restartString = !isWeb ? ' ' + localize('telemetry.restart', 'A full restart of the application is necessary for crash reporting changes to take effect.') : '';
+	const externalLinksStatement = !product.privacyStatementUrl ?
+		localize("telemetry.docsStatement", "Read more about the [data we collect]({0}).", 'https://aka.ms/vscode-telemetry') :
+		localize("telemetry.docsAndPrivacyStatement", "Read more about the [data we collect]({0}) and our [privacy statement]({1}).", 'https://aka.ms/vscode-telemetry', product.privacyStatementUrl);
+	const restartString = !isWeb ? localize('telemetry.restart', 'A full restart of the application is necessary for crash reporting changes to take effect.') : '';
 
 	const crashReportsHeader = localize('telemetry.crashReports', "Crash Reports");
 	const errorsHeader = localize('telemetry.errors', "Error Telemetry");
@@ -261,7 +262,7 @@ function getTelemetryLevelSettingDescription(): string {
 
 	const deprecatedSettingNote = localize('telemetry.telemetryLevel.deprecated', "****Note:*** If this setting is 'off', no telemetry will be sent regardless of other telemetry settings. If this setting is set to anything except 'off' and telemetry is disabled with deprecated settings, no telemetry will be sent.*");
 	const telemetryDescription = `
-${telemetryText}${privacyStatement}${restartString}
+${telemetryText} ${externalLinksStatement} ${restartString}
 
 &nbsp;
 
