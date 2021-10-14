@@ -947,7 +947,7 @@ export class GettingStartedPage extends EditorPane {
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories[0];
+				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
 				this.hasScrolledToFirstCategory = true;
 				if (first) {
 					this.currentWalkthrough = first;
