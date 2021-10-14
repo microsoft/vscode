@@ -13,13 +13,18 @@ interface IMessageChannelResult {
 	source: unknown;
 }
 
-export async function acquirePort(requestChannel: string, responseChannel: string): Promise<MessagePort> {
-
-	// Ask to create message channel inside the window
-	// and send over a UUID to correlate the response
+export async function acquirePort(requestChannel: string | undefined, responseChannel: string): Promise<MessagePort> {
 	const nonce = generateUuid();
+
+	// Get ready to acquire the message port from the
+	// provided `responseChannel` via preload helper.
 	ipcMessagePort.acquire(responseChannel, nonce);
-	ipcRenderer.send(requestChannel, nonce);
+
+	// If a `requestChannel` is provided, we are in charge
+	// to trigger acquisition of the message port from main
+	if (typeof requestChannel === 'string') {
+		ipcRenderer.send(requestChannel, nonce);
+	}
 
 	// Wait until the main side has returned the `MessagePort`
 	// We need to filter by the `nonce` to ensure we listen
