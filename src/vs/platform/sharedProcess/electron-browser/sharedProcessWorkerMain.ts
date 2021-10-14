@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ChildProcess } from 'child_process';
+import { ChildProcess, fork } from 'child_process';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -61,9 +61,6 @@ class SharedProcessWorkerProcess extends Disposable {
 	spawn(): void {
 		console.info('SharedProcess [worker]: forking worker process', this.configuration);
 
-		// TODO@bpasero `workerMain` does not seem to have support for node.js imports
-		const cp = require.__$__nodeRequire('child_process') as typeof import('child_process');
-
 		// Build environment
 		const env: NodeJS.ProcessEnv = {
 			...deepClone(process.env),
@@ -84,7 +81,7 @@ class SharedProcessWorkerProcess extends Disposable {
 		}
 
 		// Fork module via boottrap-fork for AMD support
-		this.child = cp.fork(
+		this.child = fork(
 			this.environment.bootstrapPath,
 			[`--type=${this.configuration.process.type}`],
 			{ env }

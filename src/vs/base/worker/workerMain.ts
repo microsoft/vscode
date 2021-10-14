@@ -82,6 +82,7 @@
 				baseUrl: monacoBaseUrl,
 				catchError: true,
 				trustedTypesPolicy,
+				amdModulesPattern: /^vs\//
 			});
 			require([moduleId], function (ws) {
 				setTimeout(function () {
