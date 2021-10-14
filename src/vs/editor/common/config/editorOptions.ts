@@ -3347,15 +3347,15 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 export interface IGuidesOptions {
 	/**
 	 * Enable rendering of bracket pair guides.
-	 * Defaults to 'none'.
+	 * Defaults to false.
 	*/
-	bracketPairs?: 'all' | 'active' | 'none';
+	bracketPairs?: boolean | 'active';
 
 	/**
 	 * Enable rendering of vertical bracket pair guides.
 	 * Defaults to 'active'.
 	 */
-	bracketPairsHorizontal?: 'all' | 'active' | 'none';
+	bracketPairsHorizontal?: boolean | 'active';
 
 	/**
 	 * Enable highlighting of the active bracket pair.
@@ -3387,7 +3387,7 @@ export type InternalGuidesOptions = Readonly<Required<IGuidesOptions>>;
 class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesOptions> {
 	constructor() {
 		const defaults: InternalGuidesOptions = {
-			bracketPairs: 'none',
+			bracketPairs: false,
 			bracketPairsHorizontal: 'active',
 			highlightActiveBracketPair: true,
 
@@ -3399,14 +3399,14 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 			EditorOption.guides, 'guides', defaults,
 			{
 				'editor.guides.bracketPairs': {
-					type: 'string',
-					enum: ['all', 'active', 'none'],
+					type: ['boolean', 'string'],
+					enum: [true, 'active', false],
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
 				},
 				'editor.guides.bracketPairsHorizontal': {
-					type: 'string',
-					enum: ['all', 'active', 'none'],
+					type: ['boolean', 'string'],
+					enum: [true, 'active', false],
 					default: defaults.bracketPairsHorizontal,
 					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
 				},
@@ -3435,14 +3435,22 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 		}
 		const input = _input as IGuidesOptions;
 		return {
-			bracketPairs: stringSet(input.bracketPairs, this.defaultValue.bracketPairs, ['all', 'active', 'none']),
-			bracketPairsHorizontal: stringSet(input.bracketPairsHorizontal, this.defaultValue.bracketPairsHorizontal, ['all', 'active', 'none']),
+			bracketPairs: primitiveSet(input.bracketPairs, this.defaultValue.bracketPairs, [true, false, 'active']),
+			bracketPairsHorizontal: primitiveSet(input.bracketPairsHorizontal, this.defaultValue.bracketPairsHorizontal, [true, false, 'active']),
 			highlightActiveBracketPair: boolean(input.highlightActiveBracketPair, this.defaultValue.highlightActiveBracketPair),
 
 			indentation: boolean(input.indentation, this.defaultValue.indentation),
 			highlightActiveIndentation: boolean(input.highlightActiveIndentation, this.defaultValue.highlightActiveIndentation),
 		};
 	}
+}
+
+function primitiveSet<T extends string | boolean>(value: unknown, defaultValue: T, allowedValues: T[]): T {
+	const idx = allowedValues.indexOf(value as any);
+	if (idx === -1) {
+		return defaultValue;
+	}
+	return allowedValues[idx];
 }
 
 //#endregion

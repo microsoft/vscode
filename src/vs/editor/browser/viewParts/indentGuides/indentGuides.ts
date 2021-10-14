@@ -105,7 +105,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (!this._bracketPairGuideOptions.indentation && !this._bracketPairGuideOptions.bracketPairs) {
+		if (!this._bracketPairGuideOptions.indentation && this._bracketPairGuideOptions.bracketPairs === false) {
 			this._renderResult = null;
 			return;
 		}
@@ -155,19 +155,19 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		visibleEndLineNumber: number,
 		activeCursorPosition: Position | null
 	): IndentGuide[][] {
-		const bracketGuides = this._bracketPairGuideOptions.bracketPairs !== 'none'
+		const bracketGuides = this._bracketPairGuideOptions.bracketPairs !== false
 			? this._context.model.getBracketGuidesInRangeByLine(
 				visibleStartLineNumber,
 				visibleEndLineNumber,
 				activeCursorPosition,
 				{
 					highlightActive: this._bracketPairGuideOptions.highlightActiveBracketPair,
-					horizontalGuides: this._bracketPairGuideOptions.bracketPairsHorizontal === 'all'
+					horizontalGuides: this._bracketPairGuideOptions.bracketPairsHorizontal === true
 						? HorizontalGuidesState.Enabled
 						: this._bracketPairGuideOptions.bracketPairsHorizontal === 'active'
 							? HorizontalGuidesState.EnabledForActive
 							: HorizontalGuidesState.Disabled,
-					includeInactive: this._bracketPairGuideOptions.bracketPairs === 'all',
+					includeInactive: this._bracketPairGuideOptions.bracketPairs === true,
 				}
 			)
 			: null;
