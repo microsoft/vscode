@@ -753,15 +753,15 @@ async function spyPromise<T>(p: Promise<T>, whenDone: () => void): Promise<T> {
 }
 
 type LocalProcessExtensionHostStartupTimesClassification = {
-	didCreateExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didListenOnPipe: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didFindDebugPort: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didGetShellEnv: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didStartExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didReceiveConnection: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didReceiveReady: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didReceiveInitialized: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	didFinishHandhsake: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	didCreateExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didListenOnPipe: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didFindDebugPort: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didGetShellEnv: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didStartExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveConnection: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveReady: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveInitialized: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didFinishHandhsake: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 };
 type LocalProcessExtensionHostStartupTimesEvent = {
 	didCreateExtensionHost: number;
