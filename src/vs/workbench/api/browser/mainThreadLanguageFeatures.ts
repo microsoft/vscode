@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion, ITypeHierarchyItemDto, RangeSuggestDataDto } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -463,7 +463,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: data[ISuggestDataDtoField.insertText] ?? (typeof label === 'string' ? label : label.label),
-			range: data[ISuggestDataDtoField.range] ?? defaultRange,
+			range: RangeSuggestDataDto.from(data[ISuggestDataDtoField.range]) ?? defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
