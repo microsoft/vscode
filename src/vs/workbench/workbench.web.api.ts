@@ -18,6 +18,7 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -143,6 +144,12 @@ interface ICommand {
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
 	id: string,
+
+	/**
+	 * The optional label of the command. If provided, the command will appear
+	 * in the command palette.
+	 */
+	label?: string,
 
 	/**
 	 * A function that is being executed with any arguments passed over. The
@@ -629,12 +636,19 @@ function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions)
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
-		for (const command of options.commands) {
+		for (const c of options.commands) {
+			const command: ICommand = c;
+
 			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
 				// we currently only pass on the arguments but not the accessor
 				// to the command to reduce our exposure of internal API.
 				return command.handler(...args);
 			});
+
+			// Commands with labels appear in the command palette
+			if (command.label) {
+				MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: command.id, title: command.label } });
+			}
 		}
 	}
 
