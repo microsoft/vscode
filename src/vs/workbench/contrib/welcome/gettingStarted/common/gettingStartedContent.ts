@@ -195,6 +195,15 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
+					id: 'menuBar',
+					title: localize('gettingStarted.menuBar.title', "Just the right amount of UI"),
+					description: localize('gettingStarted.menuBar.description.interpolated', "The full menu bar is available in the dropdown menu to make room for your code. Toggle its apperance for faster access. \n{0}", Button(localize('toggleMenuBar', "Toggle Menu Bar"), 'command:workbench.action.toggleMenuBar')),
+					when: 'isWeb',
+					media: {
+						type: 'svg', altText: 'Comparing menu dropdown with the visible menu bar.', path: 'menuBar.svg'
+					},
+				},
+				{
 					id: 'extensionsWeb',
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
 					description: localize('gettingStarted.extensionsWeb.description.interpolated', "Extensions are VS Code's power-ups. A growing number are becoming available in the web.\n{0}", Button(localize('browsePopular', "Browse Popular Web Extensions"), 'command:workbench.extensions.action.showPopularExtensions')),
