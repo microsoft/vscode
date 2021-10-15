@@ -23,6 +23,7 @@ import { localize } from 'vs/nls';
 import { extUri } from 'vs/base/common/resources';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Codicon } from 'vs/base/common/codicons';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class CheckedStates<T extends object> {
 
@@ -353,9 +354,6 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	static emptyPreview = URI.from({ scheme: BulkEditPreviewProvider.Schema, fragment: 'empty' });
 
-	static asPreviewUri(uri: URI): URI {
-		return URI.from({ scheme: BulkEditPreviewProvider.Schema, path: uri.path, query: uri.toString() });
-	}
 
 	static fromPreviewUri(uri: URI): URI {
 		return URI.parse(uri.query);
@@ -364,6 +362,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	private readonly _disposables = new DisposableStore();
 	private readonly _ready: Promise<any>;
 	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
+	private readonly _instanceId = generateUuid();
 
 	constructor(
 		private readonly _operations: BulkFileOperations,
@@ -377,6 +376,10 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	dispose(): void {
 		this._disposables.dispose();
+	}
+
+	asPreviewUri(uri: URI): URI {
+		return URI.from({ scheme: BulkEditPreviewProvider.Schema, authority: this._instanceId, path: uri.path, query: uri.toString() });
 	}
 
 	private async _init() {
@@ -404,7 +407,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	private async _getOrCreatePreviewModel(uri: URI) {
-		const previewUri = BulkEditPreviewProvider.asPreviewUri(uri);
+		const previewUri = this.asPreviewUri(uri);
 		let model = this._modelService.getModel(previewUri);
 		if (!model) {
 			try {
