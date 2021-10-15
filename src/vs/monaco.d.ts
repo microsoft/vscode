@@ -6710,7 +6710,6 @@ declare namespace monaco.languages {
 		aliases?: string[];
 		mimetypes?: string[];
 		configuration?: Uri;
-		icon?: string;
 	}
 	/**
 	 * A Monarch language definition
