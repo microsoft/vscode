@@ -94,7 +94,6 @@ stages:
           addProjectDirToScanningExclusionList: true
         env:
           npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: CodeQL
@@ -106,7 +105,6 @@ stages:
           retry { exec { yarn --frozen-lockfile } }
         env:
           npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
           CHILD_CONCURRENCY: 1
