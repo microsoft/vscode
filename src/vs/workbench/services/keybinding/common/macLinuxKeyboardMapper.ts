@@ -1019,7 +1019,21 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._toResolvedKeybinding(parts);
 	}
 
+	private static _redirectCharCode(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_IDEOGRAPHIC_FULL_STOP: return CharCode.Period; // CJK 。 => .
+			case CharCode.U_LEFT_CORNER_BRACKET: return CharCode.OpenSquareBracket; // CJK 「 => [
+			case CharCode.U_RIGHT_CORNER_BRACKET: return CharCode.CloseSquareBracket; // CJK 」 => ]
+			case CharCode.U_LEFT_BLACK_LENTICULAR_BRACKET: return CharCode.OpenSquareBracket; // CJK 【 => [
+			case CharCode.U_RIGHT_BLACK_LENTICULAR_BRACKET: return CharCode.CloseSquareBracket; // CJK 】 => ]
+			case CharCode.U_FULLWIDTH_SEMICOLON: return CharCode.Semicolon; // CJK ； => ;
+			case CharCode.U_FULLWIDTH_COMMA: return CharCode.Comma; // CJK ， => ,
+		}
+		return charCode;
+	}
+
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } | null {
+		charCode = this._redirectCharCode(charCode);
 		if (charCode < CHAR_CODE_TO_KEY_CODE.length) {
 			return CHAR_CODE_TO_KEY_CODE[charCode];
 		}
@@ -1029,7 +1043,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * Attempt to map a combining character to a regular one that renders the same way.
 	 *
-	 * To the brave person following me: Good Luck!
 	 * https://www.compart.com/en/unicode/bidiclass/NSM
 	 */
 	public static getCharCode(char: string): number {

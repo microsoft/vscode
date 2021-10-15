@@ -70,7 +70,7 @@ export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMa
 		const expected = buff.toString().replace(/\r\n/g, '\n');
 		const actual = mapper.dumpDebugInfo().replace(/\r\n/g, '\n');
 		if (actual !== expected && writeFileIfDifferent) {
-			const destPath = filePath.replace(/vscode[\/\\]out[\/\\]vs/, 'vscode/src/vs');
+			const destPath = filePath.replace(/[\/\\]out[\/\\]vs[\/\\]workbench/, '/src/vs/workbench');
 			Promises.writeFile(destPath, actual);
 		}
 		assert.deepStrictEqual(actual, expected);
