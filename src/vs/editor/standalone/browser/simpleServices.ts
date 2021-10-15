@@ -341,7 +341,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		if (keybinding) {
 			this._dynamicKeybindings.push({
-				keybinding: keybinding,
+				keybinding: keybinding.parts,
 				command: commandId,
 				when: when,
 				weight1: 1000,
@@ -397,7 +397,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = this.resolveKeybinding(keybinding);
+				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}
