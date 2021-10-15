@@ -150,7 +150,7 @@
           ],
           "scope": "resource",
           "default": null,
-          "description": "%html.format.wrapAttributesIndentSize.desc%"
+          "markdownDescription": "%html.format.wrapAttributesIndentSize.desc%"
         },
         "html.format.templating": {
           "type": "boolean",
