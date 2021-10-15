@@ -442,9 +442,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public setHiddenAreas(ranges: Range[]): void {
+		let lineMappingChanged = false;
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			let lineMappingChanged = this._lines.setHiddenAreas(ranges);
+			lineMappingChanged = this._lines.setHiddenAreas(ranges);
 			if (lineMappingChanged) {
 				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
@@ -458,6 +459,10 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.endEmitViewEvents();
 		}
 		this._updateConfigurationViewLineCount.schedule();
+
+		if (lineMappingChanged) {
+			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
+		}
 	}
 
 	public getVisibleRangesPlusViewportAboveBelow(): Range[] {

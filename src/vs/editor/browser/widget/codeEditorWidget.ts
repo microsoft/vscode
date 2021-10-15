@@ -207,6 +207,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
+
+	private readonly _onDidChangeHiddenAreas: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeHiddenAreas: Event<void> = this._onDidChangeHiddenAreas.event;
 	//#endregion
 
 	public readonly isSimpleWidget: boolean;
@@ -1534,6 +1537,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ViewZonesChanged:
 					this._onDidChangeViewZones.fire();
+					break;
+				case OutgoingViewModelEventKind.HiddenAreasChanged:
+					this._onDidChangeHiddenAreas.fire();
 					break;
 				case OutgoingViewModelEventKind.ReadOnlyEditAttempt:
 					this._onDidAttemptReadOnlyEdit.fire();
