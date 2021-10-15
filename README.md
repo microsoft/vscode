@@ -23,9 +23,9 @@ At Gitpod, we've been asked a lot about how we do it. So we thought we might as 
 ### Docker
 
 - Start the server:
-	```bash
-	docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/openvscode-server
-	```
+```bash
+docker run -it --init -p 3000:3000 -v "$(pwd):/home/workspace:cached" gitpod/openvscode-server
+```
 - Visit [localhost:3000](http://localhost:3000).
 
 _Note_: Feel free to use the `nightly` tag to test the latest version, i.e. `gitpod/openvscode-server:nightly`.
@@ -47,11 +47,11 @@ _Note_: Feel free to use the `nightly` tag to test the latest version, i.e. `git
 
 - [Download the latest release](https://github.com/gitpod-io/openvscode-server/releases/latest)
 - Untar and run the server:
-	```bash
-	tar -xzf openvscode-server-v${OPENVSCODE_SERVER_VERSION}.tar.gz
-	cd openvscode-server-v${OPENVSCODE_SERVER_VERSION}
-	./server.sh
-	```
+```bash
+tar -xzf openvscode-server-v${OPENVSCODE_SERVER_VERSION}.tar.gz
+cd openvscode-server-v${OPENVSCODE_SERVER_VERSION}
+./server.sh
+```
 - Visit [localhost:3000](http://localhost:3000).
 
 _Note_: You can use [pre-releases](https://github.com/gitpod-io/openvscode-server/releases) to test nightly changes.
