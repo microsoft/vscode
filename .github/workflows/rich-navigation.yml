@@ -34,10 +34,10 @@ jobs:
 
       - uses: brianaeng/RichCodeNavIndexer@v0.1
         with:
+          environment: development
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           typescriptVersion: 0.6.0-next.19
           configFiles: .lsifrc.json
-          environment: development
           nugetFeed: https://pkgs.dev.azure.com/azure-public/vside/_packaging/vs-buildservices/nuget/v3/index.json
         continue-on-error: true
