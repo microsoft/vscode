@@ -48,6 +48,7 @@ import { IShellEnvironmentService } from 'vs/workbench/services/environment/elec
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { SerializedError } from 'vs/base/common/errors';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -239,15 +240,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					objects.mixin(env, this._environmentService.debugExtensionHost.env);
 				}
 
-				// Unset `DEBUG`, as an invalid value might lead to extension host crashes
-				// See https://github.com/microsoft/vscode/issues/130072
-				delete env['DEBUG'];
-
-				if (platform.isMacintosh) {
-					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
-					// See https://github.com/microsoft/vscode/issues/104525
-					delete env['DYLD_LIBRARY_PATH'];
-				}
+				removeDangerousEnvVariables(env);
 
 				if (this._isExtensionDevHost) {
 					// Unset `VSCODE_CODE_CACHE_PATH` when developing extensions because it might

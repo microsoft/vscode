@@ -10,7 +10,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
+import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
@@ -140,15 +140,7 @@ class SharedProcessWorkerProcess extends Disposable {
 			VSCODE_PARENT_PID: String(process.pid)
 		};
 
-		// Unset `DEBUG`, as an invalid value might lead to crashes
-		// See https://github.com/microsoft/vscode/issues/130072
-		delete env['DEBUG'];
-
-		if (isMacintosh) {
-			// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
-			// See https://github.com/microsoft/vscode/issues/104525
-			delete env['DYLD_LIBRARY_PATH'];
-		}
+		removeDangerousEnvVariables(env);
 
 		return env;
 	}
