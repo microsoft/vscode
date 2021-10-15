@@ -57,6 +57,8 @@ class SharedProcessWorkerProcess extends Disposable {
 
 	private child: ChildProcess | undefined = undefined;
 
+	private isDisposed = false;
+
 	constructor(
 		private readonly port: MessagePort,
 		private readonly configuration: ISharedProcessWorkerConfiguration,
@@ -67,6 +69,67 @@ class SharedProcessWorkerProcess extends Disposable {
 
 	spawn(): void {
 		Logger.trace('Forking worker process');
+
+		// Fork module via bootstrap-fork for AMD support
+		this.child = fork(
+			this.environment.bootstrapPath,
+			[`--type=${this.configuration.process.type}`],
+			{ env: this.getEnv() }
+		);
+
+		// Re-emit errors to outside
+		this.child.on('error', error => Logger.warn(`Error from child process: ${toErrorMessage(error)}`));
+
+		// Handle unexpected termination
+		this.child.on('exit', (code, signal) => {
+			if (this.isDisposed) {
+				return;
+			}
+
+			if (code !== 0 && signal !== 'SIGTERM') {
+				Logger.error(`Crashed with exit code ${code} and signal ${signal}`);
+			}
+		});
+
+		const onMessageEmitter = new Emitter<VSBuffer>();
+		const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
+		onRawMessage(msg => {
+			if (this.isDisposed) {
+				return;
+			}
+
+			// Handle remote console logs specially
+			if (isRemoteConsoleLog(msg)) {
+				log(msg, `SharedProcess [worker]: `);
+			}
+
+			// Anything else goes to the outside
+			else {
+				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
+			}
+		});
+
+		const send = (buffer: VSBuffer) => {
+			if (this.isDisposed) {
+				return;
+			}
+
+			if (this.child?.connected) {
+				this.child.send((<Buffer>buffer.buffer).toString('base64'));
+			} else {
+				Logger.warn('Unable to deliver message to disconnected child');
+			}
+		};
+
+		// Re-emit messages from the process via the port
+		const onMessage = onMessageEmitter.event;
+		onMessage(buffer => this.port.postMessage(buffer));
+
+		// Relay message from the port into the process
+		this.port.onmessage = (e => send(VSBuffer.wrap(e.data)));
+	}
+
+	private getEnv(): NodeJS.ProcessEnv {
 
 		// Build environment
 		const env: NodeJS.ProcessEnv = {
@@ -87,56 +150,13 @@ class SharedProcessWorkerProcess extends Disposable {
 			delete env['DYLD_LIBRARY_PATH'];
 		}
 
-		// Fork module via boottrap-fork for AMD support
-		this.child = fork(
-			this.environment.bootstrapPath,
-			[`--type=${this.configuration.process.type}`],
-			{ env }
-		);
-
-		this.child.on('error', error => Logger.warn(`Error from child process: ${toErrorMessage(error)}`));
-
-		this.child.on('exit', (code, signal) => {
-			if (code !== 0 && signal !== 'SIGTERM') {
-				Logger.error(`Crashed with exit code ${code} and signal ${signal}`);
-			}
-		});
-
-		const onMessageEmitter = new Emitter<VSBuffer>();
-		const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
-		onRawMessage(msg => {
-
-			// Handle remote console logs specially
-			if (isRemoteConsoleLog(msg)) {
-				log(msg, `SharedProcess [worker]: `);
-			}
-
-			// Anything else goes to the outside
-			else {
-				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
-			}
-		});
-
-		const send = (buffer: VSBuffer) => {
-			if (this.child?.connected) {
-				this.child.send((<Buffer>buffer.buffer).toString('base64'));
-			} else {
-				Logger.warn('Unable to deliver message to disconnected child');
-			}
-		};
-
-		// Re-emit messages from the process via the port
-		const onMessage = onMessageEmitter.event;
-		onMessage(buffer => this.port.postMessage(buffer));
-
-		// Relay message from the port into the process
-		this.port.onmessage = (e => send(VSBuffer.wrap(e.data)));
-
-		// TODO@bpasero handle child process unexpected terminates and trigger auto-restart?
+		return env;
 	}
 
 	override dispose(): void {
 		super.dispose();
+
+		this.isDisposed = true;
 
 		this.child?.kill();
 	}
