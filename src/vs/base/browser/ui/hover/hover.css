@@ -25,7 +25,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: 500px;
+	max-width: 100%;
 	word-wrap: break-word;
 }
 

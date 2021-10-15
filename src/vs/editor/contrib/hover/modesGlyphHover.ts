@@ -9,12 +9,13 @@ import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlConte
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { isSafari } from 'vs/base/browser/browser';
 
 const $ = dom.$;
 
@@ -174,7 +175,28 @@ export class ModesGlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+		// codeClasses.forEach(node => this._editor.applyFontInfo(node));
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+		const fontFeatureSettings = fontInfo.fontFeatureSettings;
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const letterSpacing = fontInfo.letterSpacing;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+		const letterSpacingPx = `${letterSpacing}px`;
+
+		codeClasses.forEach(domNode => {
+			domNode.style.fontFamily = fontFamily;
+			domNode.style.fontWeight = fontWeight;
+			domNode.style.fontSize = fontSizePx;
+			domNode.style.fontFeatureSettings = fontFeatureSettings;
+			domNode.style.lineHeight = lineHeightPx;
+			domNode.style.letterSpacing = letterSpacingPx;
+		});
 	}
 
 	private _updateContents(node: Node): void {

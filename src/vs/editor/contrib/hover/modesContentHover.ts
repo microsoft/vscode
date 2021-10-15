@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -14,7 +15,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Constants } from 'vs/base/common/uint';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
@@ -230,7 +231,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		});
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.hover)) {
 				this._updateFont();
 			}
 		}));
@@ -379,7 +380,28 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
+		// codeClasses.forEach(node => this._editor.applyFontInfo(node));
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+		const fontFeatureSettings = fontInfo.fontFeatureSettings;
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const letterSpacing = fontInfo.letterSpacing;
+		const fontWeight = fontInfo.fontWeight;
+		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
+		const letterSpacingPx = `${letterSpacing}px`;
+
+		codeClasses.forEach(domNode => {
+			domNode.style.fontFamily = fontFamily;
+			domNode.style.fontWeight = fontWeight;
+			domNode.style.fontSize = fontSizePx;
+			domNode.style.fontFeatureSettings = fontFeatureSettings;
+			domNode.style.lineHeight = lineHeightPx;
+			domNode.style.letterSpacing = letterSpacingPx;
+		});
 	}
 
 	private _updateContents(node: Node): void {
@@ -392,13 +414,25 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+		// const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		// const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+
+
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const HoverInfo = this._editor.getOption(EditorOption.hover);
+		const fontSize = HoverInfo.fontSize || fontInfo.fontSize;
+		const lineHeight = HoverInfo.lineHeight || fontInfo.lineHeight;
+		const maxWidth = HoverInfo.maxWidth || Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
+		const maxHeight = HoverInfo.maxHeight || Math.max(this._editor.getLayoutInfo().height / 4, 250);
 
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
 		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+
+		// this._hover.contentsDomNode.style.maxHeight = `${height}px`;
+		// this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${maxHeight}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${maxWidth}px`;
+
 	}
 
 	public onModelDecorationsChanged(): void {
