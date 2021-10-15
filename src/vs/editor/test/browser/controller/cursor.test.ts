@@ -1628,6 +1628,26 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #128602: When cutting multiple lines (ctrl x), the last line will not be erased', () => {
+		withTestCodeEditor([
+			'a1',
+			'a2',
+			'a3'
+		], {}, (editor, viewModel) => {
+			const model = editor.getModel()!;
+
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(2, 1, 2, 1),
+				new Selection(3, 1, 3, 1),
+			]);
+
+			viewModel.cut('keyboard');
+			assert.strictEqual(model.getLineCount(), 1);
+			assert.strictEqual(model.getLineContent(1), '');
+		});
+	});
+
 	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
 		let mode = new SurroundingMode();
 		usingCursor({
