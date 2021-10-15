@@ -38,6 +38,22 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.completion.attributeDefaultValue": {
+          "type": "string",
+          "scope": "resource",
+          "enum": [
+            "doublequotes",
+            "singlequotes",
+            "empty"
+          ],
+          "enumDescriptions": [
+            "%html.completion.attributeDefaultValue.doublequotes%",
+            "%html.completion.attributeDefaultValue.singlequotes%",
+            "%html.completion.attributeDefaultValue.empty%"
+          ],
+          "default": "doublequotes",
+          "description": "%html.completion.attributeDefaultValue%"
+        },
         "html.customData": {
           "type": "array",
           "markdownDescription": "%html.customData.desc%",

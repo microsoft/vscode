@@ -26,6 +26,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			if (doAutoComplete) {
 				options.hideAutoCompleteProposals = true;
 			}
+			options.attributeDefaultValue = settings.html.completion.attributeDefaultValue ?? 'doublequotes';
 
 			const htmlDocument = htmlDocuments.get(document);
 			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
