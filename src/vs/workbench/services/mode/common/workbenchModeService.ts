@@ -16,6 +16,7 @@ import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/file
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -137,7 +138,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 							aliases: ext.aliases,
 							mimetypes: ext.mimetypes,
 							configuration: configuration,
-							icon: ext.icon
+							icon: ThemeIcon.fromString(ext.icon)
 						});
 					}
 				}
@@ -235,8 +236,8 @@ function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, collec
 		collector.error(nls.localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
 		return false;
 	}
-	if (typeof value.icon !== 'undefined' && typeof value.icon !== 'string') {
-		collector.error(nls.localize('opt.icon', "property `{0}` can be omitted and must be of type `string`", 'icon'));
+	if (typeof value.icon !== 'undefined' && !ThemeIcon.fromString(value.icon)) {
+		collector.error(nls.localize('opt.icon', "property `{0}` can be omitted and must be of type `string`. It must in the form $([a-zA-Z0-9-]+)", 'icon'));
 		return false;
 	}
 	return true;
