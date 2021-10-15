@@ -166,6 +166,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
+		if (this.instances.length === 0) {
+			return;
+		}
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
 			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 		pane?.setExpanded(true);
