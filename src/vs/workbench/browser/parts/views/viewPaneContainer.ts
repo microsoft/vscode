@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, Dimension, EventType, isAncestor } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IPaneViewOptions, PaneView } from 'vs/base/browser/ui/splitview/paneview';
+import { IAction } from 'vs/base/common/actions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { combinedDisposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { assertIsDefined } from 'vs/base/common/types';
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { EventType, Dimension, addDisposableListener, isAncestor } from 'vs/base/browser/dom';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { PaneView, IPaneViewOptions } from 'vs/base/browser/ui/splitview/paneview';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel, IViewsService, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { Component } from 'vs/workbench/common/component';
-import { registerAction2, Action2, IAction2Options, MenuId, MenuRegistry, ISubmenuItem, IMenuService } from 'vs/platform/actions/common/actions';
-import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
+import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { activeContrastBorder, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { Component } from 'vs/workbench/common/component';
+import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
+import { FocusedViewContext, IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -770,6 +770,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
+					fromExtensionId: (viewDescriptor as Partial<ICustomViewDescriptor>).extensionId,
 					expanded: !collapsed
 				});
 

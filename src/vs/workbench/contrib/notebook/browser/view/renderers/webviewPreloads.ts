@@ -1476,6 +1476,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
 
+		// Transparent overlay that prevents elements from inside the webview from eating
+		// drag events.
+		private dragOverlay?: HTMLElement;
+
 		constructor() {
 			document.addEventListener('dragover', e => {
 				// Allow dropping dragged markup cells
@@ -1511,6 +1515,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.currentDrag = { cellId, clientY: e.clientY };
 
+			const overlayZIndex = 9999;
+			if (!this.dragOverlay) {
+				this.dragOverlay = document.createElement('div');
+				this.dragOverlay.style.position = 'absolute';
+				this.dragOverlay.style.top = '0';
+				this.dragOverlay.style.left = '0';
+				this.dragOverlay.style.zIndex = `${overlayZIndex}`;
+				this.dragOverlay.style.width = '100%';
+				this.dragOverlay.style.height = '100%';
+				this.dragOverlay.style.background = 'transparent';
+				document.body.appendChild(this.dragOverlay);
+			}
+			(e.target as HTMLElement).style.zIndex = `${overlayZIndex + 1}`;
 			(e.target as HTMLElement).classList.add('dragging');
 
 			postNotebookMessage<webviewMessages.ICellDragStartMessage>('cell-drag-start', {
@@ -1548,8 +1565,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.ICellDragEndMessage>('cell-drag-end', {
 				cellId: cellId
 			});
-		}
 
+			if (this.dragOverlay) {
+				document.body.removeChild(this.dragOverlay);
+				this.dragOverlay = undefined;
+			}
+
+			(e.target as HTMLElement).style.zIndex = '';
+		}
 	}();
 }
 

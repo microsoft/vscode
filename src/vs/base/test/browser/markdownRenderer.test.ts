@@ -133,6 +133,37 @@ suite('MarkdownRenderer', () => {
 			let result: HTMLElement = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<p>$(zap) $(not a theme icon) <span class="codicon codicon-add"></span></p>`);
 		});
+
+		test('render icon in link', () => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
+			mds.appendMarkdown(`[$(zap)-link](#link)`);
+
+			let result: HTMLElement = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<p><a title="#link" data-href="#link" href="#"><span class="codicon codicon-zap"></span>-link</a></p>`);
+		});
+
+		test('render icon in table', () => {
+			const mds = new MarkdownString(undefined, { supportThemeIcons: true });
+			mds.appendMarkdown(`
+| text   | text                 |
+|--------|----------------------|
+| $(zap) | [$(zap)-link](#link) |`);
+
+			let result: HTMLElement = renderMarkdown(mds).element;
+			assert.strictEqual(result.innerHTML, `<table>
+<thead>
+<tr>
+<th>text</th>
+<th>text</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><span class="codicon codicon-zap"></span></td>
+<td><a title="#link" data-href="#link" href="#"><span class="codicon codicon-zap"></span>-link</a></td>
+</tr>
+</tbody></table>
+`);
+		});
 	});
 
 	suite('ThemeIcons Support Off', () => {

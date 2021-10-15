@@ -121,7 +121,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// after a file event was send. At least one test was seen
 		// to crash when immediately re-watching the same folder
 		// from within the event callback due to a mutex lock issue.
-		return await timeout(5);
+		return await timeout(15);
 	}
 
 	test('basics', async function () {

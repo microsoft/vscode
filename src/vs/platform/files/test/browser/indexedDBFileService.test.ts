@@ -233,7 +233,7 @@ flakySuite('IndexedDB File Service', function () {
 	}
 
 	const makeBatchTester = (size: number, name: string) => {
-		const batch = Array.from({ length: 50 }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', name, `Hello${i}.txt`]) }));
+		const batch = Array.from({ length: size }).map((_, i) => ({ contents: `Hello${i}`, resource: userdataURIFromPaths(['batched', name, `Hello${i}.txt`]) }));
 		let stats: Promise<IFileStatWithMetadata[]> | undefined = undefined;
 		return {
 			async create() {

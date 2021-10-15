@@ -201,6 +201,7 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function hasSession(providerId: string, scopes: readonly string[]): Thenable<boolean>;
 	}
 
 	export namespace workspace {
