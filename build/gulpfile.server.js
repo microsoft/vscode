@@ -2,7 +2,6 @@
 * Copyright (C) Gitpod. All rights reserved.
 *--------------------------------------------------------*/
 
-// @ts-check
 'use strict';
 
 const cp = require('child_process');
@@ -10,6 +9,7 @@ const gulp = require('gulp');
 const path = require('path');
 const es = require('event-stream');
 const util = require('./lib/util');
+const buildfile = require('../src/buildfile');
 const task = require('./lib/task');
 const common = require('./lib/optimize');
 const product = require('../product.json');
@@ -77,14 +77,13 @@ function defineTasks(options) {
 		'!**/test/**'
 	];
 
-	const buildfile = require('../src/buildfile');
-
 	const webEntryPoints = _.flatten([
 		buildfile.entrypoint('vs/workbench/workbench.web.api'),
 		buildfile.base,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,
+		buildfile.workerLocalFileSearch,
 		buildfile.keyboardMaps,
 		buildfile.workbenchWeb
 	]).map(p => {
@@ -100,10 +99,7 @@ function defineTasks(options) {
 	const serverEntryPoints = _.flatten([
 		buildfile.entrypoint(`vs/${qualifier}/node/cli`),
 		buildfile.entrypoint(`vs/${qualifier}/node/server`),
-		buildfile.entrypoint('vs/workbench/services/extensions/node/extensionHostProcess'),
-		buildfile.entrypoint('vs/platform/files/node/watcher/unix/watcherApp'),
-		buildfile.entrypoint('vs/platform/files/node/watcher/nsfw/watcherApp'),
-		buildfile.entrypoint('vs/platform/terminal/node/ptyHostMain')
+		buildfile.codeServer
 	]);
 
 	const outWeb = `out-${qualifier}-web`;

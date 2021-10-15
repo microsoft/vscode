@@ -30,4 +30,6 @@ exports.keyboardMaps = [
 
 exports.code = require('./vs/code/buildfile').collectModules();
 
+exports.codeServer = require('./vs/server/buildfile.server').collectModules();
+
 exports.entrypoint = createModuleDescription;
