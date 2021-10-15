@@ -98,7 +98,7 @@ function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects
 	return true;
 }
 
-let keybindingType: IJSONSchema = {
+const keybindingType: IJSONSchema = {
 	type: 'object',
 	default: { command: '', key: '' },
 	properties: {
@@ -205,7 +205,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
-			let newDispatchConfig = getDispatchConfig(configurationService);
+			const newDispatchConfig = getDispatchConfig(configurationService);
 			if (dispatchConfig === newDispatchConfig) {
 				return;
 			}
@@ -239,8 +239,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		keybindingsExtPoint.setHandler((extensions) => {
 
-			let keybindings: IKeybindingRule2[] = [];
-			for (let extension of extensions) {
+			const keybindings: IKeybindingRule2[] = [];
+			for (const extension of extensions) {
 				this._handleKeybindingsExtensionPointUser(extension.description.identifier, extension.description.isBuiltin, extension.value, extension.collector, keybindings);
 			}
 
@@ -275,7 +275,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.isComposingGlobalContextKey.set(false);
 		}));
 
-		let data = this.keyboardLayoutService.getCurrentKeyboardLayout();
+		const data = this.keyboardLayoutService.getCurrentKeyboardLayout();
 		/* __GDPR__FRAGMENT__
 			"IKeyboardLayoutInfo" : {
 				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -379,7 +379,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		const result: ResolvedKeybindingItem[] = [];
+		let resultLen = 0;
 		for (const item of items) {
 			const when = item.when || undefined;
 			const keybinding = item.keybinding;
@@ -403,7 +404,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _resolveUserKeybindingItems(items: IUserKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
-		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
+		const result: ResolvedKeybindingItem[] = [];
+		let resultLen = 0;
 		for (const item of items) {
 			const when = item.when || undefined;
 			const parts = item.parts;
@@ -430,7 +432,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		for (let part of kb.parts) {
+		for (const part of kb.parts) {
 			if (!part.metaKey && !part.altKey && !part.ctrlKey && !part.shiftKey) {
 				continue;
 			}
@@ -517,10 +519,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _handleKeybinding(extensionId: ExtensionIdentifier, isBuiltin: boolean, idx: number, keybindings: ContributedKeyBinding, collector: ExtensionMessageCollector, result: IKeybindingRule2[]): void {
 
-		let rejects: string[] = [];
+		const rejects: string[] = [];
 
 		if (isValidContributedKeyBinding(keybindings, rejects)) {
-			let rule = this._asCommandRule(extensionId, isBuiltin, idx++, keybindings);
+			const rule = this._asCommandRule(extensionId, isBuiltin, idx++, keybindings);
 			if (rule) {
 				result.push(rule);
 			}
@@ -538,7 +540,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private _asCommandRule(extensionId: ExtensionIdentifier, isBuiltin: boolean, idx: number, binding: ContributedKeyBinding): IKeybindingRule2 | undefined {
 
-		let { command, args, when, key, mac, linux, win } = binding;
+		const { command, args, when, key, mac, linux, win } = binding;
 
 		let weight: number;
 		if (isBuiltin) {
@@ -547,8 +549,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			weight = KeybindingWeight.ExternalExtension + idx;
 		}
 
-		let commandAction = MenuRegistry.getCommand(command);
-		let precondition = commandAction && commandAction.precondition;
+		const commandAction = MenuRegistry.getCommand(command);
+		const precondition = commandAction && commandAction.precondition;
 		let fullWhen: ContextKeyExpression | undefined;
 		if (when && precondition) {
 			fullWhen = ContextKeyExpr.and(precondition, ContextKeyExpr.deserialize(when));
@@ -558,7 +560,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			fullWhen = precondition;
 		}
 
-		let desc: IKeybindingRule2 = {
+		const desc: IKeybindingRule2 = {
 			id: command,
 			args,
 			when: fullWhen,
@@ -590,10 +592,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private static _getDefaultKeybindings(defaultKeybindings: readonly ResolvedKeybindingItem[]): string {
-		let out = new OutputBuilder();
+		const out = new OutputBuilder();
 		out.writeLine('[');
 
-		let lastIndex = defaultKeybindings.length - 1;
+		const lastIndex = defaultKeybindings.length - 1;
 		defaultKeybindings.forEach((k, index) => {
 			KeybindingIO.writeKeybindingItem(out, k);
 			if (index !== lastIndex) {
@@ -608,7 +610,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
 		const unboundCommands = getAllUnboundCommands(boundCommands);
-		let pretty = unboundCommands.sort().join('\n// - ');
+		const pretty = unboundCommands.sort().join('\n// - ');
 		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
 	}
 
@@ -707,11 +709,11 @@ class UserKeybindings extends Disposable {
 	}
 }
 
-let schemaId = 'vscode://schemas/keybindings';
-let commandsSchemas: IJSONSchema[] = [];
-let commandsEnum: string[] = [];
-let commandsEnumDescriptions: (string | undefined)[] = [];
-let schema: IJSONSchema = {
+const schemaId = 'vscode://schemas/keybindings';
+const commandsSchemas: IJSONSchema[] = [];
+const commandsEnum: string[] = [];
+const commandsEnumDescriptions: (string | undefined)[] = [];
+const schema: IJSONSchema = {
 	id: schemaId,
 	type: 'array',
 	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
@@ -769,7 +771,7 @@ let schema: IJSONSchema = {
 	}
 };
 
-let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
 function updateSchema(additionalContributions: readonly IJSONSchema[]) {
