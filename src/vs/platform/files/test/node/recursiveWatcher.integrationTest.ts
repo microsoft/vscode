@@ -325,7 +325,8 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		await Promise.all([deleteFolderFuture1, deleteFolderFuture2]);
 	});
 
-	test('subsequent watch updates watchers (path)', async function () {
+	// TODO@bpasero native crash: https://github.com/microsoft/vscode/issues/135069
+	test.skip('subsequent watch updates watchers (path)', async function () {
 		await service.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
 
 		// New file (*.txt)
