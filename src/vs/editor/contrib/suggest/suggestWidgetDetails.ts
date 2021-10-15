@@ -371,68 +371,73 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 		const info = this.widget.getLayoutInfo();
 
-		let maxSizeTop: dom.Dimension;
-		let maxSizeBottom: dom.Dimension;
-		let minSize = new dom.Dimension(220, 2 * info.lineHeight);
+		const defaultMinSize = new dom.Dimension(220, 2 * info.lineHeight);
+		const defaultTop = anchorBox.top;
 
-		let left = 0;
-		let top = anchorBox.top;
-		let bottom = anchorBox.top + anchorBox.height - info.borderHeight;
+		type Placement = { top: number, left: number, width: number, maxSizeTop: dom.Dimension, maxSizeBottom: dom.Dimension, minSize: dom.Dimension };
 
-		let alignAtTop: boolean;
-		let alignEast: boolean;
+		// EAST
+		const eastPlacement: Placement = (function () {
+			const width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
+			const left = -info.borderWidth + anchorBox.left + anchorBox.width;
+			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+			return { top: defaultTop, left, width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize };
+		})();
 
-		// position: EAST, west, south
-		let width = bodyBox.width - (anchorBox.left + anchorBox.width + info.borderWidth + info.horizontalPadding);
-		left = -info.borderWidth + anchorBox.left + anchorBox.width;
-		alignEast = true;
-		maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
-		maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+		// WEST
+		const westPlacement: Placement = (function () {
+			const width = anchorBox.left - info.borderWidth - info.horizontalPadding;
+			const left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
+			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
+			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
+			return { top: defaultTop, left, width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize };
+		})();
 
-		// find a better place if the widget is wider than there is space available
-		if (size.width > width) {
-			// position: east, WEST, south
-			if (anchorBox.left > width) {
-				// pos = SuggestDetailsPosition.West;
-				width = anchorBox.left - info.borderWidth - info.horizontalPadding;
-				alignEast = false;
-				left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
-				maxSizeTop = maxSizeTop.with(width);
-				maxSizeBottom = maxSizeTop.with(undefined, maxSizeBottom.height);
-			}
+		// SOUTH
+		const southPacement: Placement = (function () {
+			const width = anchorBox.width;
+			const left = anchorBox.left;
+			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
+			const maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
+			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top - info.verticalPadding);
+			return { top, left, width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(maxSizeTop.width) };
+		})();
 
-			// position: east, west, SOUTH
-			if (anchorBox.width > width * 1.3 && bodyBox.height - (anchorBox.top + anchorBox.height) > anchorBox.height) {
-				width = anchorBox.width;
-				left = anchorBox.left;
-				top = -info.borderWidth + anchorBox.top + anchorBox.height;
-				maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
-				maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top - info.verticalPadding);
-				minSize = minSize.with(maxSizeTop.width);
-			}
+
+
+		let placement: Placement;
+		if (size.width <= eastPlacement.width) {
+			placement = eastPlacement;
+		} else if (size.width <= westPlacement.width) {
+			placement = westPlacement;
+		} else {
+			placement = southPacement;
 		}
 
 		// top/bottom placement
+		const bottom = anchorBox.top + anchorBox.height - info.borderHeight;
+		let alignAtTop: boolean;
 		let height = size.height;
-		let maxHeight = Math.max(maxSizeTop.height, maxSizeBottom.height);
+		const maxHeight = Math.max(placement.maxSizeTop.height, placement.maxSizeBottom.height);
 		if (height > maxHeight) {
 			height = maxHeight;
 		}
 		let maxSize: dom.Dimension;
-		if (height <= maxSizeTop.height) {
+		if (height <= placement.maxSizeTop.height) {
 			alignAtTop = true;
-			maxSize = maxSizeTop;
+			maxSize = placement.maxSizeTop;
 		} else {
 			alignAtTop = false;
-			maxSize = maxSizeBottom;
+			maxSize = placement.maxSizeBottom;
 		}
 
-		this._applyTopLeft({ left, top: alignAtTop ? top : bottom - height });
+		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
 		this.getDomNode().style.position = 'fixed';
 
-		this._resizable.enableSashes(!alignAtTop, alignEast, alignAtTop, !alignEast);
+		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 
-		this._resizable.minSize = minSize;
+		this._resizable.minSize = defaultMinSize;
 		this._resizable.maxSize = maxSize;
 		this._resizable.layout(height, Math.min(maxSize.width, size.width));
 		this.widget.layout(this._resizable.size.width, this._resizable.size.height);
