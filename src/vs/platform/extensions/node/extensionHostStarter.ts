@@ -13,6 +13,8 @@ import { StringDecoder } from 'string_decoder';
 import * as platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { mixin } from 'vs/base/common/objects';
+import { cwd } from 'vs/base/common/process';
 
 class ExtensionHostProcess extends Disposable {
 
@@ -45,7 +47,11 @@ class ExtensionHostProcess extends Disposable {
 	}
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
-		this._process = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
+		this._process = fork(
+			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			['--type=extensionHost', '--skipWorkspaceStorageLock'],
+			mixin({ cwd: cwd() }, opts),
+		);
 		const pid = this._process.pid;
 
 		this._logService.info(`Starting extension host with pid ${pid}.`);
