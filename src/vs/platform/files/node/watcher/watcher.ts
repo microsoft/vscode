@@ -3,9 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+
+/**
+ * Base class of any watcher service we support.
+ */
+export abstract class WatcherService extends Disposable {
+
+	/**
+	 * Asks to watch the provided folders.
+	 */
+	abstract watch(requests: IWatchRequest[]): void;
+
+	/**
+	 * Enable verbose logging from the watcher.
+	 */
+	abstract setVerboseLogging(verboseLogging: boolean): void;
+}
 
 export interface IWatchRequest {
 

@@ -13,11 +13,6 @@ export interface ISharedProcessWorkerProcess {
 	moduleId: string;
 
 	/**
-	 * The name of the process appears in log messages.
-	 */
-	name: string;
-
-	/**
 	 * The type of the process appears in the arguments of the
 	 * forked process to identify it easier.
 	 */
