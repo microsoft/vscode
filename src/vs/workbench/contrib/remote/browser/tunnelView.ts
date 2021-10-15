@@ -295,7 +295,7 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Privacy");
+	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Visibility");
 	readonly tooltip: string = nls.localize('tunnel.privacyColumn.tooltip', "The availability of the forwarded port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
