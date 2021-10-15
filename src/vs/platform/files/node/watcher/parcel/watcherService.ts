@@ -34,7 +34,7 @@ export class FileWatcher extends WatcherService {
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (parcel, node.js)',
-				args: ['--type=parcelWatcherService'],
+				args: ['--type=watcherServiceParcel'],
 				env: {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/parcel/watcherApp',
 					VSCODE_PIPE_LOGGING: 'true',

@@ -34,7 +34,7 @@ export class FileWatcher extends WatcherService {
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (nsfw)',
-				args: ['--type=nsfwWatcherService'],
+				args: ['--type=watcherServiceNSFW'],
 				env: {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
 					VSCODE_PIPE_LOGGING: 'true',

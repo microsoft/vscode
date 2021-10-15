@@ -31,7 +31,7 @@ export class FileWatcher extends WatcherService {
 		// Acquire parcel watcher via shared process worker
 		const watcherChannel = this.sharedProcessWorkerWorkbenchService.createWorkerChannel({
 			moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
-			type: 'sharedProcessParcelWatcherService'
+			type: 'watcherServiceParcelSharedProcess'
 		}, 'watcher');
 
 		// Initialize watcher

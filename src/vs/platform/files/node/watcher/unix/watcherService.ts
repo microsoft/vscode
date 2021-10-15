@@ -38,7 +38,7 @@ export class FileWatcher extends WatcherService {
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (chokidar)',
-				args: ['--type=chokidarWatcherService'],
+				args: ['--type=watcherServiceChokidar'],
 				env: {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
 					VSCODE_PIPE_LOGGING: 'true',
