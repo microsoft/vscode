@@ -59,7 +59,7 @@
 	];
 
 	const settings = getSettings();
-	const isMac = settings.isMac;
+	const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
 	const vscode = acquireVsCodeApi();
 
