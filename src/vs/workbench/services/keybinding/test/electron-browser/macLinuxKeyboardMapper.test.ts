@@ -1690,6 +1690,20 @@ suite('keyboardMapper - MAC zh_hant', () => {
 	});
 });
 
+suite('keyboardMapper - MAC zh_hant2', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup(async () => {
+		const _mapper = await createKeyboardMapper(false, 'mac_zh_hant2', OperatingSystem.Macintosh);
+		mapper = _mapper;
+	});
+
+	test('mapping', () => {
+		return assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'mac_zh_hant2.txt');
+	});
+});
+
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {
