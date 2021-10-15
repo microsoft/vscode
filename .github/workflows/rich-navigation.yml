@@ -32,7 +32,7 @@ jobs:
         env:
           CHILD_CONCURRENCY: 1
 
-      - uses: microsoft/RichCodeNavIndexer@v0.1
+      - uses: brianaeng/RichCodeNavIndexer@v0.1
         with:
           languages: typescript
           repo-token: ${{ secrets.GITHUB_TOKEN }}
