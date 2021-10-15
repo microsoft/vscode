@@ -917,8 +917,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const viewBox = this.submenuContainer.getBoundingClientRect();
 
 			const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
-			this.submenuContainer.style.left = `${left}px`;
-			this.submenuContainer.style.top = `${top}px`;
+			// subtract offsets caused by transform parent
+			this.submenuContainer.style.left = `${left - viewBox.left}px`;
+			this.submenuContainer.style.top = `${top - viewBox.top}px`;
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);

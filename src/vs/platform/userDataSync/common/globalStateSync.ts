@@ -6,6 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
 import { applyEdits } from 'vs/base/common/jsonEdit';
@@ -98,7 +99,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IGlobalStateResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<IGlobalStateResourcePreview[]> {
 		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
 
 		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
@@ -291,9 +292,13 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private async getLocalArgvContent(): Promise<string> {
 		try {
+			this.logService.debug('GlobalStateSync#getLocalArgvContent', this.environmentService.argvResource);
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
+			this.logService.debug('GlobalStateSync#getLocalArgvContent - Resolved', this.environmentService.argvResource);
 			return content.value.toString();
-		} catch (error) { }
+		} catch (error) {
+			this.logService.debug(getErrorMessage(error));
+		}
 		return '{}';
 	}
 

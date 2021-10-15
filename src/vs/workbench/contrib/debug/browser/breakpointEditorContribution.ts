@@ -182,7 +182,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	 * setting on lines where breakpoint "run" actions are present.
 	 */
 	public getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel) {
-		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+		if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 			return [];
 		}
 
@@ -196,7 +196,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!this.debugService.getAdapterManager().hasDebuggers()) {
+			if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 				return;
 			}
 
@@ -279,7 +279,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
-				if (!this.debugService.getAdapterManager().hasDebuggers()) {
+				if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 					return;
 				}
 

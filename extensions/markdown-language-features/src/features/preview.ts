@@ -5,12 +5,12 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { OpenDocumentLinkCommand, resolveLinkToMarkdownFile } from '../commands/openDocumentLink';
 import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { openDocumentLink, resolveDocumentLink, resolveLinkToMarkdownFile } from '../util/openDocumentLink';
 import * as path from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
@@ -429,29 +429,19 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 
 	private async onDidClickPreviewLink(href: string) {
-		let [hrefPath, fragment] = href.split('#').map(c => decodeURIComponent(c));
-
-		if (hrefPath[0] !== '/') {
-			// We perviously already resolve absolute paths.
-			// Now make sure we handle relative file paths
-			const dirnameUri = vscode.Uri.parse(path.dirname(this.resource.path));
-			hrefPath = vscode.Uri.joinPath(dirnameUri, hrefPath).path;
-		} else {
-			// Handle any normalized file paths
-			hrefPath = vscode.Uri.parse(hrefPath.replace('/file', '')).path;
-		}
+		const targetResource = resolveDocumentLink(href, this.resource);
 
 		const config = vscode.workspace.getConfiguration('markdown', this.resource);
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
-			const markdownLink = await resolveLinkToMarkdownFile(hrefPath);
+			const markdownLink = await resolveLinkToMarkdownFile(targetResource);
 			if (markdownLink) {
-				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, fragment);
+				this.delegate.openPreviewLinkToMarkdownFile(markdownLink, targetResource.fragment);
 				return;
 			}
 		}
 
-		OpenDocumentLinkCommand.execute(this.engine, { parts: { path: hrefPath }, fragment, fromResource: this.resource.toJSON() });
+		return openDocumentLink(this.engine, targetResource, this.resource);
 	}
 
 	//#region WebviewResourceProvider

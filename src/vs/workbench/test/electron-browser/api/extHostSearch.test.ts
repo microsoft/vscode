@@ -401,6 +401,43 @@ suite('ExtHostSearch', () => {
 				]);
 		});
 
+		// https://github.com/microsoft/vscode-remotehub/issues/255
+		test('include, sibling exclude, and subfolder', async () => {
+			const reportedResults = [
+				'foo/file1.ts',
+				'foo/file1.js',
+			];
+
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+					return Promise.resolve(reportedResults
+						.map(relativePath => joinPath(options.folder, relativePath)));
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				includePattern: { '**/*.ts': true },
+				excludePattern: {
+					'*.js': {
+						when: '$(basename).ts'
+					}
+				},
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const { results } = await runFileSearch(query);
+			compareURIs(
+				results,
+				[
+					joinPath(rootFolderA, 'foo/file1.ts')
+				]);
+		});
+
 		test('multiroot sibling exclude clause', async () => {
 
 			await registerTestFileSearchProvider({

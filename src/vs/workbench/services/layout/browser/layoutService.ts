@@ -19,6 +19,7 @@ export const enum Parts {
 	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
+	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -159,30 +160,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getDimension(part: Parts): Dimension | undefined;
 
 	/**
-	 * Set activity bar hidden or not
+	 * Set part hidden or not
 	 */
-	setActivityBarHidden(hidden: boolean): void;
-
-	/**
-	 * Set banner hidden or not
-	 */
-	setBannerHidden(hidden: boolean): void;
-
-	/**
-	 *
-	 * Set editor area hidden or not
-	 */
-	setEditorHidden(hidden: boolean): void;
-
-	/**
-	 * Set sidebar hidden or not
-	 */
-	setSideBarHidden(hidden: boolean): void;
-
-	/**
-	 * Set panel part hidden or not
-	 */
-	setPanelHidden(hidden: boolean): void;
+	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.

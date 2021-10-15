@@ -173,10 +173,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		}
 		TokenizationRegistry.setColorMap([null!, defaultForeground, defaultBackground]);
 
-		this._modeService.onDidCreateMode((mode) => {
-			let modeId = mode.getId();
-			this._createdModes.push(modeId);
-			this._registerDefinitionIfAvailable(modeId);
+		this._modeService.onDidEncounterLanguage((languageIdentifier) => {
+			this._createdModes.push(languageIdentifier.language);
+			this._registerDefinitionIfAvailable(languageIdentifier.language);
 		});
 	}
 
@@ -281,7 +280,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						this._onDidEncounterLanguage.fire(languageId);
 					}
 				});
-				return new TMTokenizationSupport(r.languageId, tokenization, this._configurationService);
+				return new TMTokenizationSupport(languageIdentifier, tokenization, this._configurationService);
 			} catch (err) {
 				onUnexpectedError(err);
 				return null;
@@ -419,16 +418,20 @@ class TMTokenizationSupport implements ITokenizationSupport {
 	private _maxTokenizationLineLength: number;
 
 	constructor(
-		languageId: LanguageId,
+		languageId: LanguageIdentifier,
 		actual: TMTokenization,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		this._languageId = languageId;
+		this._languageId = languageId.id;
 		this._actual = actual;
-		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+			overrideIdentifier: languageId.language
+		});
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
-				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+					overrideIdentifier: languageId.language
+				});
 			}
 		});
 	}

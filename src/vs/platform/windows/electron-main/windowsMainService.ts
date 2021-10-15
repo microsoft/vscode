@@ -231,6 +231,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
 	}
 
+	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
+
+		// Bring window to front
+		window.focus();
+
+		// Handle --wait
+		this.handleWaitMarkerFile(openConfig, [window]);
+	}
+
 	open(openConfig: IOpenConfiguration): ICodeWindow[] {
 		this.logService.trace('windowsManager#open');
 
@@ -370,6 +379,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			this.workspacesHistoryMainService.addRecentlyOpened(recents);
 		}
 
+		// Handle --wait
+		this.handleWaitMarkerFile(openConfig, usedWindows);
+
+		return usedWindows;
+	}
+
+	private handleWaitMarkerFile(openConfig: IOpenConfiguration, usedWindows: ICodeWindow[]): void {
+
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window
 		// used for the edit operation is closed or loaded to a different folder so that the waiting
 		// process can continue. We do this by deleting the waitMarkerFilePath.
@@ -385,8 +402,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				}
 			})();
 		}
-
-		return usedWindows;
 	}
 
 	private doOpen(
@@ -1255,6 +1270,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			os: { release: release(), hostname: hostname() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
+			legacyWatcher: this.configurationService.getValue('files.legacyWatcher'),
+			experimentalSandboxedFileService: this.configurationService.getValue('files.experimentalSandboxedFileService'),
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: {
@@ -1325,6 +1342,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration.verbose = currentWindowConfig.verbose;
 				configuration['inspect-brk-extensions'] = currentWindowConfig['inspect-brk-extensions'];
 				configuration.debugId = currentWindowConfig.debugId;
+				configuration.extensionEnvironment = currentWindowConfig.extensionEnvironment;
 				configuration['inspect-extensions'] = currentWindowConfig['inspect-extensions'];
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}

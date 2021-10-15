@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -17,27 +18,21 @@ export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;
 	readonly onCountChange: Event<CountSummary>;
 	readonly onTextChange: Event<string>;
+
+	update(): void;
 }
 
 export const ITestingProgressUiService = createDecorator<ITestingProgressUiService>('testingProgressUiService');
 
-export class TestingProgressUiService extends Disposable implements ITestingProgressUiService {
-	declare _serviceBrand: undefined;
-
-	private readonly current = this._register(new MutableDisposable<UnmanagedProgress>());
-	private readonly updateCountsEmitter = new Emitter<CountSummary>();
-	private readonly updateTextEmitter = new Emitter<string>();
-
-	public readonly onCountChange = this.updateCountsEmitter.event;
-	public readonly onTextChange = this.updateTextEmitter.event;
-
+/** Workbench contribution that triggers updates in the TestingProgressUi service */
+export class TestingProgressTrigger extends Disposable {
 	constructor(
-		@ITestResultService private readonly resultService: ITestResultService,
-		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+		@ITestResultService resultService: ITestResultService,
+		@ITestingProgressUiService progressService: ITestingProgressUiService,
 	) {
 		super();
 
-		const scheduler = this._register(new RunOnceScheduler(() => this.updateProgress(), 200));
+		const scheduler = this._register(new RunOnceScheduler(() => progressService.update(), 200));
 
 		this._register(resultService.onResultsChanged(() => {
 			if (!scheduler.isScheduled()) {
@@ -51,8 +46,28 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 			}
 		}));
 	}
+}
 
-	private updateProgress() {
+export class TestingProgressUiService extends Disposable implements ITestingProgressUiService {
+	declare _serviceBrand: undefined;
+
+	private readonly windowProg = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly testViewProg = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly updateCountsEmitter = new Emitter<CountSummary>();
+	private readonly updateTextEmitter = new Emitter<string>();
+
+	public readonly onCountChange = this.updateCountsEmitter.event;
+	public readonly onTextChange = this.updateTextEmitter.event;
+
+	constructor(
+		@ITestResultService private readonly resultService: ITestResultService,
+		@IInstantiationService private readonly instantiaionService: IInstantiationService,
+	) {
+		super();
+	}
+
+	/** @inheritdoc */
+	public update() {
 		const allResults = this.resultService.results;
 		const running = allResults.filter(r => r.completedAt === undefined);
 		if (!running.length) {
@@ -65,12 +80,19 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 				this.updateCountsEmitter.fire(collectTestStateCounts(false));
 			}
 
-			this.current.clear();
+			this.windowProg.clear();
+			this.testViewProg.clear();
 			return;
 		}
 
-		if (!this.current.value) {
-			this.current.value = this.instantiaionService.createInstance(UnmanagedProgress, { location: ProgressLocation.Window });
+		if (!this.windowProg.value) {
+			this.windowProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+				location: ProgressLocation.Window,
+			});
+			this.testViewProg.value = this.instantiaionService.createInstance(UnmanagedProgress, {
+				location: Testing.ViewletId,
+				total: 100,
+			});
 		}
 
 		const collected = collectTestStateCounts(true, ...running.map(r => r.counts));
@@ -78,7 +100,8 @@ export class TestingProgressUiService extends Disposable implements ITestingProg
 
 		const message = getTestProgressText(true, collected);
 		this.updateTextEmitter.fire(message);
-		this.current.value.report({ message });
+		this.windowProg.value.report({ message });
+		this.testViewProg.value!.report({ increment: collected.runSoFar, total: collected.totalWillBeRun });
 	}
 }
 

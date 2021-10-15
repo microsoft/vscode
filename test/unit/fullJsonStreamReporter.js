@@ -35,6 +35,8 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 			test = clean(test);
 			test.actual = err.actual;
 			test.expected = err.expected;
+			test.actualJSON = err.actualJSON;
+			test.expectedJSON = err.expectedJSON;
 			test.err = err.message;
 			test.stack = err.stack || null;
 			writeEvent(['fail', test]);

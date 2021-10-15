@@ -1372,6 +1372,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTree.expandAll();
 			}
 
+			this.settingsTree.scrollTop = 0;
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
 			return result;

@@ -23,7 +23,7 @@ import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -368,7 +368,8 @@ class NewWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N
+				primary: isWeb ? (KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_N) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N,
+				secondary: isWeb ? [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N] : undefined
 			},
 			menu: {
 				id: MenuId.MenubarFileMenu,

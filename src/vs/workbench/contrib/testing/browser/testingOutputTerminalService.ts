@@ -98,6 +98,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		if (ended) {
 			ended[1].clear();
 			this.showResultsInTerminal(ended[0], ended[1], result);
+			return;
 		}
 
 		const output = new TestOutputProcess();
@@ -147,6 +148,9 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 }
 
 class TestOutputProcess extends Disposable implements ITerminalChildProcess {
+	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;

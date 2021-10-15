@@ -282,6 +282,38 @@ export class NotebookClipboardContribution extends Disposable {
 		};
 	}
 
+	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
+		const windowSelection = window.getSelection();
+
+		if (windowSelection?.rangeCount !== 1) {
+			return false;
+		}
+
+		const activeSelection = windowSelection.getRangeAt(0);
+		if (activeSelection.startContainer === activeSelection.endContainer && activeSelection.endOffset - activeSelection.startOffset === 0) {
+			return false;
+		}
+
+		let container: any = activeSelection.commonAncestorContainer;
+		const body = editor.getDomNode();
+
+		if (!body.contains(container)) {
+			return false;
+		}
+
+		while (container
+			&&
+			container !== body) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('monaco-editor')) {
+				return true;
+			}
+
+			container = container.parentNode;
+		}
+
+		return false;
+	}
+
 	runCopyAction(accessor: ServicesAccessor) {
 		const activeElement = <HTMLElement>document.activeElement;
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -290,6 +322,10 @@ export class NotebookClipboardContribution extends Disposable {
 
 		const { editor } = this._getContext();
 		if (!editor) {
+			return false;
+		}
+
+		if (this._focusInsideEmebedMonaco(editor)) {
 			return false;
 		}
 

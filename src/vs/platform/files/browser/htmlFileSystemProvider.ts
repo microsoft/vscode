@@ -14,7 +14,6 @@ import { normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { generateUuid } from 'vs/base/common/uuid';
 import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
@@ -290,24 +289,30 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	private readonly directories = new Map<string, FileSystemDirectoryHandle>();
 
 	registerFileHandle(handle: FileSystemFileHandle): URI {
-		const handleId = generateUuid();
-		this.files.set(handleId, handle);
-
-		return this.toHandleUri(handle, handleId);
+		return this.registerHandle(handle, this.files);
 	}
 
 	registerDirectoryHandle(handle: FileSystemDirectoryHandle): URI {
-		const handleId = generateUuid();
-		this.directories.set(handleId, handle);
-
-		return this.toHandleUri(handle, handleId);
+		return this.registerHandle(handle, this.directories);
 	}
 
-	private toHandleUri(handle: FileSystemHandle, handleId: string): URI {
-		return URI.from({ scheme: Schemas.file, path: `/${handle.name}`, query: handleId });
+	private registerHandle(handle: FileSystemHandle, map: Map<string, FileSystemHandle>): URI {
+		let handleId = `/${handle.name}`;
+
+		// Compute a valid handle ID in case this exists already
+		if (map.has(handleId)) {
+			let handleIdCounter = 2;
+			do {
+				handleId = `/${handle.name}-${handleIdCounter++}`;
+			} while (map.has(handleId));
+		}
+
+		map.set(handleId, handle);
+
+		return URI.from({ scheme: Schemas.file, path: handleId });
 	}
 
-	private async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
+	async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
 
 		// First: try to find a well known handle first
 		let handle = this.getHandleSync(resource);
@@ -340,7 +345,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return undefined;
 		}
 
-		const handleId = resource.query;
+		const handleId = resource.path;
 
 		const handle = this.files.get(handleId) || this.directories.get(handleId);
 		if (!handle) {

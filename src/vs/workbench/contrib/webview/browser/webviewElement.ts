@@ -98,7 +98,17 @@ export class IFrameWebview extends Disposable implements Webview {
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
 
 	private _focused: boolean | undefined;
-	public get isFocused(): boolean { return !!this._focused; }
+	public get isFocused(): boolean {
+		if (!this._focused) {
+			return false;
+		}
+		if (document.activeElement && document.activeElement !== this.element) {
+			// looks like https://github.com/microsoft/vscode/issues/132641
+			// where the focus is actually not in the `<iframe>`
+			return false;
+		}
+		return true;
+	}
 
 	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
@@ -495,8 +505,8 @@ export class IFrameWebview extends Disposable implements Webview {
 	}
 
 	private rewriteVsCodeResourceUrls(value: string): string {
-		const isRemote = this.extension?.location.scheme === Schemas.vscodeRemote;
-		const remoteAuthority = this.extension?.location.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
+		const isRemote = this.extension?.location?.scheme === Schemas.vscodeRemote;
+		const remoteAuthority = this.extension?.location?.scheme === Schemas.vscodeRemote ? this.extension.location.authority : undefined;
 		return value
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({

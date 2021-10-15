@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ensureAllNewCellsHaveCellIds } from './cellIdService';
 import { NotebookSerializer } from './notebookSerializer';
 
 // From {nbformat.INotebookMetadata} in @jupyterlab/coreutils
@@ -27,6 +28,7 @@ type NotebookMetadata = {
 
 export function activate(context: vscode.ExtensionContext) {
 	const serializer = new NotebookSerializer(context);
+	ensureAllNewCellsHaveCellIds(context);
 	context.subscriptions.push(vscode.workspace.registerNotebookSerializer('jupyter-notebook', serializer, {
 		transientOutputs: false,
 		transientCellMetadata: {

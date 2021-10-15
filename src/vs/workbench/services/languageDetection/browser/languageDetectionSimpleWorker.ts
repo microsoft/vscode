@@ -92,7 +92,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			case 'php':
 				modelResult.confidence += LanguageDetectionSimpleWorker.positiveConfidenceCorrectionBucket1;
 				break;
-			case 'yaml':
+			// case 'yaml': // YAML has been know to cause incorrect language detection because the language is pretty simple. We don't want to increase the confidence for this.
 			case 'cpp':
 			case 'shellscript':
 			case 'java':

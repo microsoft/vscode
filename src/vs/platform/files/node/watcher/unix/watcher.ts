@@ -4,12 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-
-export interface IWatcherRequest {
-	path: string;
-	excludes: string[];
-}
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -24,7 +19,7 @@ export interface IWatcherService {
 
 	init(options: IWatcherOptions): Promise<void>;
 
-	setRoots(roots: IWatcherRequest[]): Promise<void>;
+	watch(paths: IWatchRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
 
 	stop(): Promise<void>;

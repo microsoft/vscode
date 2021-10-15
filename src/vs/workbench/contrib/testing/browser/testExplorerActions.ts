@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
@@ -19,7 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { FocusedViewContext } from 'vs/workbench/common/views';
+import { FocusedViewContext, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -36,7 +36,7 @@ import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 const category = CATEGORIES.Test;
 
@@ -526,6 +526,31 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 	}
 }
 
+export class TestingSortByDurationAction extends ViewAction<TestingExplorerView> {
+	public static readonly ID = 'testing.sortByDuration';
+	constructor() {
+		super({
+			id: TestingSortByDurationAction.ID,
+			viewId: Testing.ExplorerViewId,
+			title: localize('testing.sortByDuration', "Sort by Duration"),
+			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByDuration),
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Sort,
+				group: 'sortBy',
+				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	/**
+	 * @override
+	 */
+	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		view.viewModel.viewSorting = TestExplorerViewSorting.ByDuration;
+	}
+}
+
 export class ShowMostRecentOutputAction extends Action2 {
 	public static readonly ID = 'testing.showMostRecentOutput';
 	constructor() {
@@ -705,21 +730,34 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		let bestNode: InternalTestItem | undefined;
+		const profileService = accessor.get(ITestProfileService);
 
+		let bestNodes: InternalTestItem[] = [];
+		let bestRange: IRange | undefined;
+
+		// testsInFile will descend in the test tree. We assume that as we go
+		// deeper, ranges get more specific. We'll want to run all tests whose
+		// range is equal to the most specific range we find (see #133519)
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (test.item.range && Range.containsPosition(test.item.range, position)) {
-					bestNode = test;
+				if (!test.item.range || !Range.containsPosition(test.item.range, position) || !(profileService.capabilitiesForTest(test) & this.group)) {
+					continue;
+				}
+
+				if (bestRange && Range.equalsRange(test.item.range, bestRange)) {
+					bestNodes.push(test);
+				} else {
+					bestRange = test.item.range;
+					bestNodes = [test];
 				}
 			}
 		})());
 
 
-		if (bestNode) {
+		if (bestNodes.length) {
 			await testService.runTests({
 				group: this.group,
-				tests: [bestNode],
+				tests: bestNodes,
 			});
 		}
 	}
@@ -1020,8 +1058,8 @@ export class SearchForTestExtension extends Action2 {
 	}
 
 	public async run(accessor: ServicesAccessor) {
-		const viewletService = accessor.get(IViewletService);
-		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const viewlet = (await paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 		viewlet.search('@category:"testing"');
 		viewlet.focus();
 	}
@@ -1105,6 +1143,7 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
+	TestingSortByDurationAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,

@@ -49,6 +49,8 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 	readonly mimeTypes: readonly string[];
 	private readonly mimeTypeGlobs: glob.ParsedPattern[];
 
+	readonly isBuiltin: boolean;
+
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
@@ -62,6 +64,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.id = descriptor.id;
 		this.extensionId = descriptor.extension.identifier;
 		this.extensionLocation = descriptor.extension.extensionLocation;
+		this.isBuiltin = descriptor.extension.isBuiltin;
 
 		if (typeof descriptor.entrypoint === 'string') {
 			this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);

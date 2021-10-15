@@ -181,7 +181,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private readonly _participants: IEditorHoverParticipant[];
 
 	private readonly _hover: HoverWidget;
-	private readonly _id: string;
 	private readonly _editor: ICodeEditor;
 	private _isVisible: boolean;
 	private _showAtPosition: Position | null;
@@ -216,12 +215,13 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
 		];
 
-		this._hover = this._register(new HoverWidget());
-		this._id = ModesContentHoverWidget.ID;
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
 		this._renderDisposable = null;
+
+		this._hover = this._register(new HoverWidget());
+		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -285,7 +285,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public getId(): string {
-		return this._id;
+		return ModesContentHoverWidget.ID;
 	}
 
 	public getDomNode(): HTMLElement {
@@ -396,7 +396,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
-		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
+		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
 		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
 		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}

@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createNotebookCellList, setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
@@ -288,9 +289,10 @@ suite('NotebookCellList focus/selection', () => {
 			],
 			(editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				viewModel.deleteCell(1, true, false);
+				runDeleteAction(editor, viewModel.cellAt(1)!);
+				// viewModel.deleteCell(1, true, false);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), []);
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
 			});
 	});
 

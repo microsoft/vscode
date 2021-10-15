@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import { IWatcherRequest } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
 
 suite('Chokidar normalizeRoots', async () => {
 
@@ -13,7 +13,7 @@ suite('Chokidar normalizeRoots', async () => {
 	// from failing to start if `chokidar` was not properly installed
 	const { normalizeRoots } = await import('vs/platform/files/node/watcher/unix/chokidarWatcherService');
 
-	function newRequest(basePath: string, ignored: string[] = []): IWatcherRequest {
+	function newRequest(basePath: string, ignored: string[] = []): IWatchRequest {
 		return { path: basePath, excludes: ignored };
 	}
 
@@ -23,7 +23,7 @@ suite('Chokidar normalizeRoots', async () => {
 		assert.deepStrictEqual(Object.keys(actual).sort(), expectedPaths);
 	}
 
-	function assertNormalizedRequests(inputRequests: IWatcherRequest[], expectedRequests: { [path: string]: IWatcherRequest[] }) {
+	function assertNormalizedRequests(inputRequests: IWatchRequest[], expectedRequests: { [path: string]: IWatchRequest[] }) {
 		const actual = normalizeRoots(inputRequests);
 		const actualPath = Object.keys(actual).sort();
 		const expectedPaths = Object.keys(expectedRequests).sort();

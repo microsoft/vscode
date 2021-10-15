@@ -50,6 +50,5 @@ suite('ResourceEditorInput', () => {
 
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
-		assert.strictEqual(input.isOrphaned(), false);
 	});
 });

@@ -1153,11 +1153,11 @@ export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event:
 	};
 }
 
-export function domContentLoaded(): Promise<any> {
-	return new Promise<any>(resolve => {
+export function domContentLoaded(): Promise<unknown> {
+	return new Promise<unknown>(resolve => {
 		const readyState = document.readyState;
 		if (readyState === 'complete' || (document && document.body !== null)) {
-			platform.setImmediate(resolve);
+			resolve(undefined);
 		} else {
 			window.addEventListener('DOMContentLoaded', resolve, false);
 		}
@@ -1367,7 +1367,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 export function safeInnerHtml(node: HTMLElement, value: string): void {
 	const options: dompurify.Config = {
 		ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder'],
+		ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
 		RETURN_DOM: false,
 		RETURN_DOM_FRAGMENT: false,
 	};

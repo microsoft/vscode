@@ -39,7 +39,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
-		initialCwd: ''
+		initialCwd: '',
+		fixedDimensions: { cols: undefined, rows: undefined }
 	};
 
 	private _capabilities: ProcessCapability[] = [];
@@ -135,6 +136,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		return this._remoteTerminalChannel.refreshProperty(this._id, type);
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<any> {
+		return this._remoteTerminalChannel.updateProperty(this._id, type, value);
 	}
 
 	handleData(e: string | IProcessDataEvent) {

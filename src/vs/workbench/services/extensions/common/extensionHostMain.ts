@@ -91,7 +91,7 @@ export class ExtensionHostMain {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
 					fileName = call.getFileName();
 					if (!extension && fileName) {
-						extension = map.findSubstr(fileName);
+						extension = map.findSubstr(URI.file(fileName));
 					}
 
 				}

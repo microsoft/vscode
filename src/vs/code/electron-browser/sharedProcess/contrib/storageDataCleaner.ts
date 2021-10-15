@@ -31,7 +31,7 @@ export class StorageDataCleaner extends Disposable {
 	}
 
 	private async cleanUpStorage(): Promise<void> {
-		this.logService.info('[storage cleanup]: Starting to clean up storage folders.');
+		this.logService.trace('[storage cleanup]: Starting to clean up storage folders.');
 
 		try {
 
@@ -50,7 +50,7 @@ export class StorageDataCleaner extends Disposable {
 				}
 
 				if (emptyWorkspaces.indexOf(storageFolder) === -1) {
-					this.logService.info(`[storage cleanup]: Deleting storage folder ${storageFolder}.`);
+					this.logService.trace(`[storage cleanup]: Deleting storage folder ${storageFolder}.`);
 
 					await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, storageFolder));
 				}

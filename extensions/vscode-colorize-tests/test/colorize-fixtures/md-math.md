@@ -87,3 +87,11 @@ $$
     \end{aligned}
     $$
     **xyz**
+
+
+<!-- Support both \text{stuff} and \text {stuff} -->
+
+$$
+\text{stuff}
+\text {stuff}
+$$

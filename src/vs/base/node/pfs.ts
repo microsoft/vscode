@@ -270,7 +270,7 @@ export namespace SymlinkSupport {
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
 
-			// If the link points to a non-existing file we still want
+			// If the link points to a nonexistent file we still want
 			// to return it as result while setting dangling: true flag
 			if (error.code === 'ENOENT' && lstats) {
 				return { stat: lstats, symbolicLink: { dangling: true } };
@@ -285,7 +285,7 @@ export namespace SymlinkSupport {
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
 
-					// If the link points to a non-existing file we still want
+					// If the link points to a nonexistent file we still want
 					// to return it as result while setting dangling: true flag
 					if (error.code === 'ENOENT' && lstats) {
 						return { stat: lstats, symbolicLink: { dangling: true } };
@@ -304,7 +304,7 @@ export namespace SymlinkSupport {
 	 * for symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.
@@ -326,7 +326,7 @@ export namespace SymlinkSupport {
 	 * symlinks.
 	 *
 	 * Note: this will return `false` for a symlink that exists on
-	 * disk but is dangling (pointing to a non-existing path).
+	 * disk but is dangling (pointing to a nonexistent path).
 	 *
 	 * Use `exists` if you only care about the path existing on disk
 	 * or not without support for symbolic links.
@@ -407,6 +407,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 			}
 
 			// Flush contents (not metadata) of the file to disk
+			// https://github.com/microsoft/vscode/issues/9589
 			fs.fdatasync(fd, (syncError: Error | null) => {
 
 				// In some exotic setups it is well possible that node fails to sync
@@ -444,7 +445,7 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 
 		// Flush contents (not metadata) of the file to disk
 		try {
-			fs.fdatasyncSync(fd);
+			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
 			canFlush = false;

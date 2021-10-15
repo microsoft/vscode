@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 
 /**
  * Represents a non-negative length in terms of line and column count.
- * Prefer using {@link Length}.
+ * Prefer using {@link Length} for performance reasons.
 */
 export class LengthObj {
 	public static zero = new LengthObj(0, 0);

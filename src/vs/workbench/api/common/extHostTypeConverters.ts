@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -12,6 +12,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
@@ -119,6 +120,41 @@ export namespace Position {
 	}
 	export function from(position: types.Position | vscode.Position): IPosition {
 		return { lineNumber: position.line + 1, column: position.character + 1 };
+	}
+}
+
+export namespace DocumentSelector {
+
+	export function from(value: vscode.DocumentSelector, uriTransformer?: IURITransformer): extHostProtocol.IDocumentFilterDto[] {
+		return coalesce(asArray(value).map(sel => _doTransformDocumentSelector(sel, uriTransformer)));
+	}
+
+	function _doTransformDocumentSelector(selector: string | vscode.DocumentFilter, uriTransformer: IURITransformer | undefined): extHostProtocol.IDocumentFilterDto | undefined {
+		if (typeof selector === 'string') {
+			return {
+				$serialized: true,
+				language: selector
+			};
+		}
+
+		if (selector) {
+			return {
+				$serialized: true,
+				language: selector.language,
+				scheme: _transformScheme(selector.scheme, uriTransformer),
+				pattern: typeof selector.pattern === 'undefined' ? undefined : GlobPattern.from(selector.pattern),
+				exclusive: selector.exclusive
+			};
+		}
+
+		return undefined;
+	}
+
+	function _transformScheme(scheme: string | undefined, uriTransformer: IURITransformer | undefined): string | undefined {
+		if (uriTransformer && typeof scheme === 'string') {
+			return uriTransformer.transformOutgoingScheme(scheme);
+		}
+		return scheme;
 	}
 }
 

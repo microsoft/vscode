@@ -38,7 +38,8 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInputCapabilities, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -687,7 +688,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		this.reLayout();
 	}
 
-	protected override toEditorViewStateResource(input: IEditorInput): URI | undefined {
+	protected override toEditorViewStateResource(input: EditorInput): URI | undefined {
 		if (input.typeId === SearchEditorInputTypeId) {
 			return (input as SearchEditorInput).modelUri;
 		}
@@ -704,7 +705,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
 	}
 
-	protected tracksEditorViewState(input: IEditorInput): boolean {
+	protected tracksEditorViewState(input: EditorInput): boolean {
 		return input.typeId === SearchEditorInputTypeId;
 	}
 

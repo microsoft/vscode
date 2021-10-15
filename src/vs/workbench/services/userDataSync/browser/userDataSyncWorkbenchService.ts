@@ -546,7 +546,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			return this.authenticationProviders[0];
 		}
 
-		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
+		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(c => {
 			let result: UserDataSyncAccount | IAuthenticationProvider | undefined;
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();

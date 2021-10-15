@@ -24,7 +24,6 @@ export class NodeReader {
 
 	/**
 	 * Returns the longest node at `offset` that satisfies the predicate.
-	 * Has runtime O(log n) where n is the number of nodes in the tree.
 	 * @param offset must be greater than or equal to the last offset this method has been called with!
 	*/
 	readLongestNodeAt(offset: Length, predicate: (node: AstNode) => boolean): AstNode | undefined {
@@ -55,11 +54,12 @@ export class NodeReader {
 					this.nextNodeAfterCurrent();
 				} else {
 					// The reader is somewhere in the current node.
-					if (curNode.children.length > 0) {
+					const nextChildIdx = getNextChildIdx(curNode);
+					if (nextChildIdx !== -1) {
 						// Go to the first child and repeat.
-						this.nextNodes.push(curNode.children[0]);
+						this.nextNodes.push(curNode.getChild(nextChildIdx)!);
 						this.offsets.push(curNodeOffset);
-						this.idxs.push(0);
+						this.idxs.push(nextChildIdx);
 					} else {
 						// We don't have children
 						this.nextNodeAfterCurrent();
@@ -71,16 +71,17 @@ export class NodeReader {
 					this.nextNodeAfterCurrent();
 					return curNode;
 				} else {
+					const nextChildIdx = getNextChildIdx(curNode);
 					// look for shorter node
-					if (curNode.children.length === 0) {
+					if (nextChildIdx === -1) {
 						// There is no shorter node.
 						this.nextNodeAfterCurrent();
 						return undefined;
 					} else {
 						// Descend into first child & repeat.
-						this.nextNodes.push(curNode.children[0]);
+						this.nextNodes.push(curNode.getChild(nextChildIdx)!);
 						this.offsets.push(curNodeOffset);
-						this.idxs.push(0);
+						this.idxs.push(nextChildIdx);
 					}
 				}
 			}
@@ -102,19 +103,30 @@ export class NodeReader {
 
 			// Parent is not undefined, because idxs is not empty
 			const parent = lastOrUndefined(this.nextNodes)!;
+			const nextChildIdx = getNextChildIdx(parent, this.idxs[this.idxs.length - 1]);
 
-			this.idxs[this.idxs.length - 1]++;
-			const parentIdx = this.idxs[this.idxs.length - 1];
-
-			if (parentIdx < parent.children.length) {
-				this.nextNodes.push(parent.children[parentIdx]);
+			if (nextChildIdx !== -1) {
+				this.nextNodes.push(parent.getChild(nextChildIdx)!);
 				this.offsets.push(lengthAdd(currentOffset!, currentNode!.length));
+				this.idxs[this.idxs.length - 1] = nextChildIdx;
 				break;
 			} else {
 				this.idxs.pop();
 			}
 			// We fully consumed the parent.
 			// Current node is now parent, so call nextNodeAfterCurrent again
+		}
+	}
+}
+
+function getNextChildIdx(node: AstNode, curIdx: number = -1): number | -1 {
+	while (true) {
+		curIdx++;
+		if (curIdx >= node.childrenLength) {
+			return -1;
+		}
+		if (node.getChild(curIdx)) {
+			return curIdx;
 		}
 	}
 }

@@ -390,6 +390,10 @@
 	margin-bottom: 0;
 }
 
+.monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs.markdown-docs .monaco-tokenized-source {
+	white-space: pre;
+}
+
 .monaco-editor .suggest-details>.monaco-scrollable-element>.body>.docs .code {
 	white-space: pre-wrap;
 	word-wrap: break-word;

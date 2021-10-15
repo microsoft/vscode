@@ -157,6 +157,19 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- rename
 	new ApiCommand(
+		'vscode.prepareRename', '_executePrepareRename', 'Execute the prepareRename of rename provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<modes.RenameLocation, { range: types.Range, placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
+			if (!value) {
+				return undefined;
+			}
+			return {
+				range: typeConverters.Range.to(value.range),
+				placeholder: value.text
+			};
+		})
+	),
+	new ApiCommand(
 		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position, ApiCommandArgument.String.with('newName', 'The new symbol name')],
 		new ApiCommandResult<IWorkspaceEditDto & { rejectReason?: string }, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {

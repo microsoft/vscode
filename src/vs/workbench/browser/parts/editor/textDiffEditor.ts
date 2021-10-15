@@ -9,7 +9,8 @@ import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUnde
 import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities, isEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -287,7 +288,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return super.getControl() as IDiffEditor | undefined;
 	}
 
-	protected override tracksEditorViewState(input: IEditorInput): boolean {
+	protected override tracksEditorViewState(input: EditorInput): boolean {
 		return input instanceof DiffEditorInput;
 	}
 
@@ -314,7 +315,7 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		return withNullAsUndefined(control.saveViewState());
 	}
 
-	protected override toEditorViewStateResource(modelOrInput: IDiffEditorModel | IEditorInput): URI | undefined {
+	protected override toEditorViewStateResource(modelOrInput: IDiffEditorModel | EditorInput): URI | undefined {
 		let original: URI | undefined;
 		let modified: URI | undefined;
 

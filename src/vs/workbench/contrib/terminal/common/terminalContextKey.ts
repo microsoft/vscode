@@ -11,10 +11,12 @@ export const enum TerminalContextKeyStrings {
 	Count = 'terminalCount',
 	GroupCount = 'terminalGroupCount',
 	TabsNarrow = 'isTerminalTabsNarrow',
+	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
 	Focus = 'terminalFocus',
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
+	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
@@ -46,8 +48,14 @@ export namespace TerminalContextKeys {
 	/** Whether the terminal tabs view is narrow. */
 	export const tabsNarrow = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsNarrow, false, true);
 
+	/** Whether the terminal tabs view is narrow. */
+	export const terminalHasFixedWidth = new RawContextKey<boolean>(TerminalContextKeyStrings.HasFixedWidth, false, true);
+
 	/** Whether the terminal tabs widget is focused. */
 	export const tabsFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsFocus, false, localize('terminalTabsFocusContextKey', "Whether the terminal tabs widget is focused."));
+
+	/** Whether a web extension has contributed a profile */
+	export const webExtensionContributedProfile = new RawContextKey<boolean>(TerminalContextKeyStrings.WebExtensionContributedProfile, false, true);
 
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);

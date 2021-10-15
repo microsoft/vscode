@@ -73,9 +73,7 @@ export function updateProxyConfigurationsScope(scope: ConfigurationScope): void 
 let proxyConfiguration: IConfigurationNode | undefined;
 function registerProxyConfigurations(scope: ConfigurationScope): void {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	if (proxyConfiguration) {
-		configurationRegistry.deregisterConfigurations([proxyConfiguration]);
-	}
+	const oldProxyConfiguration = proxyConfiguration;
 	proxyConfiguration = {
 		id: 'http',
 		order: 15,
@@ -122,7 +120,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 			}
 		}
 	};
-	configurationRegistry.registerConfiguration(proxyConfiguration);
+	configurationRegistry.updateConfigurations({ add: [proxyConfiguration], remove: oldProxyConfiguration ? [oldProxyConfiguration] : [] });
 }
 
 registerProxyConfigurations(ConfigurationScope.MACHINE);

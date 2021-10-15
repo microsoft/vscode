@@ -81,7 +81,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 		this._onDidCreate.fire(workingCopy);
 	}
 
-	protected remove(resource: URI): void {
+	protected remove(resource: URI): boolean {
 
 		// Dispose any existing listener
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -91,7 +91,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 		}
 
 		// Remove from our working copy map
-		this.mapResourceToWorkingCopy.delete(resource);
+		return this.mapResourceToWorkingCopy.delete(resource);
 	}
 
 	//#region Get / Get all

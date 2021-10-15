@@ -5,7 +5,7 @@
 
 import { ChildProcess, spawn, SpawnOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir, tmpdir } from 'os';
+import { homedir, release, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from 'vs/base/common/event';
 import { isAbsolute, join, resolve } from 'vs/base/common/path';
@@ -195,6 +195,8 @@ export async function main(argv: string[]): Promise<any> {
 			}
 		}
 
+		const isMacOSBigSurOrNewer = isMacintosh && release() > '20.0.0';
+
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
 		// to wait for it to be deleted to monitor that the edited file
@@ -212,11 +214,11 @@ export async function main(argv: string[]): Promise<any> {
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
 				let childExitPromise;
-				if (isMacintosh) {
-					// On macOS, we resolve the following promise only when the child,
+				if (isMacOSBigSurOrNewer) {
+					// On Big Sur, we resolve the following promise only when the child,
 					// i.e. the open command, exited with a signal or error. Otherwise, we
 					// wait for the marker file to be deleted or for the child to error.
-					childExitPromise = new Promise<void>((resolve) => {
+					childExitPromise = new Promise<void>(resolve => {
 						// Only resolve this promise if the child (i.e. open) exited with an error
 						child.on('exit', (code, signal) => {
 							if (code !== 0 || signal) {
@@ -363,11 +365,11 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (!isMacintosh) {
+		if (!isMacOSBigSurOrNewer) {
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
-			// On mac, we spawn using the open command to obtain behavior
+			// On Big Sur, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
 
@@ -388,7 +390,7 @@ export async function main(argv: string[]): Promise<any> {
 					spawnArgs.push(`--${outputType}`, tmpName);
 
 					// Listener to redirect content to stdout/stderr
-					processCallbacks.push(async (child: ChildProcess) => {
+					processCallbacks.push(async child => {
 						try {
 							const stream = outputType === 'stdout' ? process.stdout : process.stderr;
 
@@ -402,6 +404,17 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
+			for (const e in env) {
+				// Ignore the _ env var, because the open command
+				// ignores it anyway.
+				// Pass the rest of the env vars in to fix
+				// https://github.com/microsoft/vscode/issues/134696.
+				if (e !== '_') {
+					spawnArgs.push('--env');
+					spawnArgs.push(`${e}=${env[e]}`);
+				}
+			}
+
 			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
 
 			if (env['VSCODE_DEV']) {
@@ -410,10 +423,23 @@ export async function main(argv: string[]): Promise<any> {
 				// it needs the full vscode source arg to launch properly.
 				const curdir = '.';
 				const launchDirIndex = spawnArgs.indexOf(curdir);
-				spawnArgs[launchDirIndex] = resolve(curdir);
+				if (launchDirIndex !== -1) {
+					spawnArgs[launchDirIndex] = resolve(curdir);
+				}
 			}
 
-			child = spawn('open', spawnArgs, options);
+			// Keep just the _ env var here,
+			// because it's still needed to open Code,
+			// even though the open command doesn't understand it.
+			const truncatedOptions = {
+				detached: options.detached,
+				stdio: options['stdio'],
+				env: {
+					'_': options.env?.['_']
+				}
+			};
+
+			child = spawn('open', spawnArgs, truncatedOptions);
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));

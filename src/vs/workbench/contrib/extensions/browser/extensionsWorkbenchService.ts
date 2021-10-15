@@ -999,9 +999,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return true;
 		}
 
-		if (this.webExtensions) {
-			const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(extension.gallery.identifier);
-			return configuredExtensionKind ? configuredExtensionKind.includes('web') : await this.webExtensions.canInstall(extension.gallery);
+		if (this.webExtensions && await this.webExtensions.canInstall(extension.gallery)) {
+			return true;
 		}
 
 		return false;

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ChildProcess, fork } from 'child_process';
 import { Server, Socket, createServer } from 'net';
+import { findFreePort } from 'vs/base/node/ports';
+import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+
+import * as nls from 'vs/nls';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { FileAccess } from 'vs/base/common/network';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,11 +17,9 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRemoteConsoleLog, log } from 'vs/base/common/console';
-import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
-import { findFreePort } from 'vs/base/node/ports';
+import { logRemoteEntry, logRemoteEntryIfError } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -45,9 +44,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { isUUID } from 'vs/base/common/uuid';
 import { join } from 'vs/base/common/path';
-import { Readable, Writable } from 'stream';
-import { StringDecoder } from 'string_decoder';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
+import { SerializedError } from 'vs/base/common/errors';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -61,6 +61,50 @@ export interface ILocalProcessExtensionHostDataProvider {
 const enum NativeLogMarkers {
 	Start = 'START_NATIVE_LOG',
 	End = 'END_NATIVE_LOG',
+}
+
+class ExtensionHostProcess {
+
+	private readonly _id: string;
+
+	public get onStdout(): Event<string> {
+		return this._extensionHostStarter.onDynamicStdout(this._id);
+	}
+
+	public get onStderr(): Event<string> {
+		return this._extensionHostStarter.onDynamicStderr(this._id);
+	}
+
+	public get onMessage(): Event<any> {
+		return this._extensionHostStarter.onDynamicMessage(this._id);
+	}
+
+	public get onError(): Event<{ error: SerializedError; }> {
+		return this._extensionHostStarter.onDynamicError(this._id);
+	}
+
+	public get onExit(): Event<{ code: number; signal: string }> {
+		return this._extensionHostStarter.onDynamicExit(this._id);
+	}
+
+	constructor(
+		id: string,
+		private readonly _extensionHostStarter: IExtensionHostStarter,
+	) {
+		this._id = id;
+	}
+
+	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+		return this._extensionHostStarter.start(this._id, opts);
+	}
+
+	public enableInspectPort(): Promise<boolean> {
+		return this._extensionHostStarter.enableInspectPort(this._id);
+	}
+
+	public kill(): Promise<void> {
+		return this._extensionHostStarter.kill(this._id);
+	}
 }
 
 export class LocalProcessExtensionHost implements IExtensionHost {
@@ -88,7 +132,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server | null;
 	private _inspectPort: number | null;
-	private _extensionHostProcess: ChildProcess | null;
+	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _extensionHostConnection: Socket | null;
 	private _messageProtocol: Promise<PersistentProtocol> | null;
 
@@ -107,7 +151,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@IExtensionHostDebugService private readonly _extensionHostDebugService: IExtensionHostDebugService,
 		@IHostService private readonly _hostService: IHostService,
 		@IProductService private readonly _productService: IProductService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService
+		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
+		@IExtensionHostStarter private readonly _extensionHostStarter: IExtensionHostStarter,
 	) {
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;
@@ -151,18 +196,34 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this.terminate();
 	}
 
+	private async _createExtensionHost(): Promise<{ id: string; }> {
+		const sw = new StopWatch(false);
+		const result = await this._extensionHostStarter.createExtensionHost();
+		if (sw.elapsed() > 20) {
+			// communicating to the shared process took more than 20ms
+			this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.createExtensionHost() took ${sw.elapsed()} ms.`);
+		}
+		return result;
+	}
+
 	public start(): Promise<IMessagePassingProtocol> | null {
 		if (this._terminating) {
 			// .terminate() was called
 			return null;
 		}
 
+		const timer = new LocalProcessExtensionHostStartupTimer();
+
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
-				this._tryListenOnPipe(),
-				this._tryFindDebugPort(),
-				this._shellEnvironmentService.getShellEnv()
-			]).then(([pipeName, portNumber, processEnv]) => {
+				spyPromise(this._createExtensionHost(), () => timer.markDidCreateExtensionHost()),
+				spyPromise(this._tryListenOnPipe(), () => timer.markDidListenOnPipe()),
+				spyPromise(this._tryFindDebugPort(), () => timer.markDidFindDebugPort()),
+				spyPromise(this._shellEnvironmentService.getShellEnv(), () => timer.markDidGetShellEnv()),
+			]).then(([extensionHostCreationResult, pipeName, portNumber, processEnv]) => {
+
+				this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
+
 				const env = objects.mixin(processEnv, {
 					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
 					VSCODE_PIPE_LOGGING: 'true',
@@ -173,6 +234,14 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
 					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
 				});
+
+				if (this._environmentService.debugExtensionHost.env) {
+					objects.mixin(env, this._environmentService.debugExtensionHost.env);
+				}
+
+				// Unset `DEBUG`, as an invalid value might lead to extension host crashes
+				// See https://github.com/microsoft/vscode/issues/130072
+				delete env['DEBUG'];
 
 				if (platform.isMacintosh) {
 					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
@@ -238,13 +307,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
-				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost', '--skipWorkspaceStorageLock'], opts);
-
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };
-				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.stdout!);
-				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.stderr!);
+				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
+				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
 				const onOutput = Event.any(
 					Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 					Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))
@@ -278,15 +344,16 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				});
 
 				// Support logging from extension host
-				this._extensionHostProcess.on('message', msg => {
+				this._extensionHostProcess.onMessage(msg => {
 					if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
 						this._logExtensionHostMessage(<IRemoteConsoleLog>msg);
 					}
 				});
 
 				// Lifecycle
-				this._extensionHostProcess.on('error', (err) => this._onExtHostProcessError(err));
-				this._extensionHostProcess.on('exit', (code: number, signal: string) => this._onExtHostProcessExit(code, signal));
+
+				this._extensionHostProcess.onError((e) => this._onExtHostProcessError(e.error));
+				this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal));
 
 				// Notify debugger that we are ready to attach to the process if we run a development extension
 				if (portNumber) {
@@ -316,7 +383,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Initialize extension host process with hand shakes
-				return this._tryExtHostHandshake().then((protocol) => {
+				return this._tryExtHostHandshake(opts, timer).then((protocol) => {
+					timer.markDidFinishHandhsake();
+
+					const localProcessExtensionHostStartupTimesEvent = timer.toEvent();
+					this._telemetryService.publicLog2<LocalProcessExtensionHostStartupTimesEvent, LocalProcessExtensionHostStartupTimesClassification>('localProcessExtensionHostStartupTimes', localProcessExtensionHostStartupTimesEvent);
+
 					clearTimeout(startupTimeoutHandle);
 					return protocol;
 				});
@@ -374,7 +446,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return port || 0;
 	}
 
-	private _tryExtHostHandshake(): Promise<PersistentProtocol> {
+	private _tryExtHostHandshake(opts: IExtensionHostProcessOptions, timer: LocalProcessExtensionHostStartupTimer): Promise<PersistentProtocol> {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
@@ -385,10 +457,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					this._namedPipeServer.close();
 					this._namedPipeServer = null;
 				}
-				reject('timeout');
+				reject('The local extension host took longer than 60s to connect.');
 			}, 60 * 1000);
 
 			this._namedPipeServer!.on('connection', socket => {
+				timer.markDidReceiveConnection();
+
 				clearTimeout(handle);
 				if (this._namedPipeServer) {
 					this._namedPipeServer.close();
@@ -402,6 +476,18 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection)));
 			});
 
+			// Now that the named pipe listener is installed, start the ext host process
+			const sw = new StopWatch(false);
+			this._extensionHostProcess!.start(opts).then(() => {
+				sw.stop();
+				timer.markDidStartExtensionHost();
+
+				this._logService.info(`[LocalProcessExtensionHost]: IExtensionHostStarter.start() took ${sw.elapsed()} ms.`);
+			}, (err) => {
+				// Starting the ext host process resulted in an error
+				reject(err);
+			});
+
 		}).then((protocol) => {
 
 			// 1) wait for the incoming `ready` event and send the initialization data.
@@ -411,7 +497,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				let timeoutHandle: NodeJS.Timer;
 				const installTimeoutCheck = () => {
 					timeoutHandle = setTimeout(() => {
-						reject('timeout');
+						reject('The local extenion host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 				};
 				const uninstallTimeoutCheck = () => {
@@ -424,6 +510,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				const disposable = protocol.onMessage(msg => {
 
 					if (isMessageOfType(msg, MessageType.Ready)) {
+						timer.markDidReceiveReady();
+
 						// 1) Extension Host is ready to receive messages, initialize it
 						uninstallTimeoutCheck();
 
@@ -438,6 +526,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					}
 
 					if (isMessageOfType(msg, MessageType.Initialized)) {
+						timer.markDidReceiveInitialized();
+
 						// 2) Extension Host is initialized
 						uninstallTimeoutCheck();
 
@@ -483,7 +573,8 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				configuration: withNullAsUndefined(workspace.configuration),
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
-				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
+				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
+				transient: workspace.transient
 			},
 			remote: {
 				authority: this._environmentService.remoteAuthority,
@@ -503,19 +594,25 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private _logExtensionHostMessage(entry: IRemoteConsoleLog) {
-
 		if (this._isExtensionDevTestFromCli) {
-
-			// Log on main side if running tests from cli
+			// If running tests from cli, log to the log service everything
 			logRemoteEntry(this._logService, entry);
 		} else {
-
-			// Send to local console
+			// Log to the log service only errors and log everything to local console
+			logRemoteEntryIfError(this._logService, entry, 'Extension Host');
 			log(entry, 'Extension Host');
 		}
 	}
 
-	private _onExtHostProcessError(err: any): void {
+	private _onExtHostProcessError(_err: SerializedError): void {
+		let err: any = _err;
+		if (_err && _err.$isError) {
+			err = new Error();
+			err.name = _err.name;
+			err.message = _err.message;
+			err.stack = _err.stack;
+		}
+
 		let errorMessage = toErrorMessage(err);
 		if (errorMessage === this._lastExtensionHostError) {
 			return; // prevent error spam
@@ -535,40 +632,35 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this._onExit.fire([code, signal]);
 	}
 
-	private _handleProcessOutputStream(stream: Readable) {
+	private _handleProcessOutputStream(stream: Event<string>) {
 		let last = '';
 		let isOmitting = false;
 		const event = new Emitter<string>();
-		const decoder = new StringDecoder('utf-8');
-		stream.pipe(new Writable({
-			write(chunk, _encoding, callback) {
-				// not a fancy approach, but this is the same approach used by the split2
-				// module which is well-optimized (https://github.com/mcollina/split2)
-				last += typeof chunk === 'string' ? chunk : decoder.write(chunk);
-				let lines = last.split(/\r?\n/g);
-				last = lines.pop()!;
+		stream((chunk) => {
+			// not a fancy approach, but this is the same approach used by the split2
+			// module which is well-optimized (https://github.com/mcollina/split2)
+			last += chunk;
+			let lines = last.split(/\r?\n/g);
+			last = lines.pop()!;
 
-				// protected against an extension spamming and leaking memory if no new line is written.
-				if (last.length > 10_000) {
-					lines.push(last);
-					last = '';
-				}
-
-				for (const line of lines) {
-					if (isOmitting) {
-						if (line === NativeLogMarkers.End) {
-							isOmitting = false;
-						}
-					} else if (line === NativeLogMarkers.Start) {
-						isOmitting = true;
-					} else if (line.length) {
-						event.fire(line + '\n');
-					}
-				}
-
-				callback();
+			// protected against an extension spamming and leaking memory if no new line is written.
+			if (last.length > 10_000) {
+				lines.push(last);
+				last = '';
 			}
-		}));
+
+			for (const line of lines) {
+				if (isOmitting) {
+					if (line === NativeLogMarkers.End) {
+						isOmitting = false;
+					}
+				} else if (line === NativeLogMarkers.Start) {
+					isOmitting = true;
+				} else if (line.length) {
+					event.fire(line + '\n');
+				}
+			}
+		});
 
 		return event;
 	}
@@ -582,26 +674,13 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			return false;
 		}
 
-		interface ProcessExt {
-			_debugProcess?(n: number): any;
-		}
-
-		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
-			// use (undocumented) _debugProcess feature of node
-			(<ProcessExt>process)._debugProcess!(this._extensionHostProcess.pid);
-			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
-			return typeof this._inspectPort === 'number';
-
-		} else if (!platform.isWindows) {
-			// use KILL USR1 on non-windows platforms (fallback)
-			this._extensionHostProcess.kill('SIGUSR1');
-			await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
-			return typeof this._inspectPort === 'number';
-
-		} else {
-			// not supported...
+		const result = await this._extensionHostProcess.enableInspectPort();
+		if (!result) {
 			return false;
 		}
+
+		await Promise.race([Event.toPromise(this._onDidSetInspectPort.event), timeout(1000)]);
+		return typeof this._inspectPort === 'number';
 	}
 
 	public getInspectPort(): number | undefined {
@@ -666,5 +745,102 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */), 'join.extensionDevelopment');
 		}
+	}
+}
+
+async function spyPromise<T>(p: Promise<T>, whenDone: () => void): Promise<T> {
+	const result = await p;
+	whenDone();
+	return result;
+}
+
+type LocalProcessExtensionHostStartupTimesClassification = {
+	didCreateExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didListenOnPipe: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didFindDebugPort: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didGetShellEnv: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didStartExtensionHost: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveConnection: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveReady: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didReceiveInitialized: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	didFinishHandhsake: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+};
+type LocalProcessExtensionHostStartupTimesEvent = {
+	didCreateExtensionHost: number;
+	didListenOnPipe: number;
+	didFindDebugPort: number;
+	didGetShellEnv: number;
+	didStartExtensionHost: number;
+	didReceiveConnection: number;
+	didReceiveReady: number;
+	didReceiveInitialized: number;
+	didFinishHandhsake: number;
+};
+
+class LocalProcessExtensionHostStartupTimer {
+
+	private readonly _sw: StopWatch;
+
+	constructor() {
+		this._sw = new StopWatch(false);
+	}
+
+	public toEvent(): LocalProcessExtensionHostStartupTimesEvent {
+		return {
+			didCreateExtensionHost: this.didCreateExtensionHost,
+			didListenOnPipe: this.didListenOnPipe,
+			didFindDebugPort: this.didFindDebugPort,
+			didGetShellEnv: this.didGetShellEnv,
+			didStartExtensionHost: this.didStartExtensionHost,
+			didReceiveConnection: this.didReceiveConnection,
+			didReceiveReady: this.didReceiveReady,
+			didReceiveInitialized: this.didReceiveInitialized,
+			didFinishHandhsake: this.didFinishHandhsake,
+		};
+	}
+
+	private didCreateExtensionHost = 0;
+	public markDidCreateExtensionHost() {
+		this.didCreateExtensionHost = this._sw.elapsed();
+	}
+
+	private didListenOnPipe = 0;
+	public markDidListenOnPipe() {
+		this.didListenOnPipe = this._sw.elapsed();
+	}
+
+	private didFindDebugPort = 0;
+	public markDidFindDebugPort() {
+		this.didFindDebugPort = this._sw.elapsed();
+	}
+
+	private didGetShellEnv = 0;
+	public markDidGetShellEnv() {
+		this.didGetShellEnv = this._sw.elapsed();
+	}
+
+	private didStartExtensionHost = 0;
+	public markDidStartExtensionHost() {
+		this.didStartExtensionHost = this._sw.elapsed();
+	}
+
+	private didReceiveConnection = 0;
+	public markDidReceiveConnection() {
+		this.didReceiveConnection = this._sw.elapsed();
+	}
+
+	private didReceiveReady = 0;
+	public markDidReceiveReady() {
+		this.didReceiveReady = this._sw.elapsed();
+	}
+
+	private didReceiveInitialized = 0;
+	public markDidReceiveInitialized() {
+		this.didReceiveInitialized = this._sw.elapsed();
+	}
+
+	private didFinishHandhsake = 0;
+	public markDidFinishHandhsake() {
+		this.didFinishHandhsake = this._sw.elapsed();
 	}
 }

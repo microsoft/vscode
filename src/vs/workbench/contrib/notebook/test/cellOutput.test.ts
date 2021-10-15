@@ -5,12 +5,14 @@
 
 import * as assert from 'assert';
 import * as DOM from 'vs/base/browser/dom';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { CodeCellRenderTemplate, ICellOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellRenderTemplate, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { getStringValue } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
@@ -90,8 +92,8 @@ suite('NotebookViewModel Outputs', async () => {
 			],
 			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
+					outputContainer: new FastDomNode(document.createElement('div')),
+					outputShowMoreContainer: new FastDomNode(document.createElement('div')),
 					editor: {
 						getContentHeight: () => {
 							return 100;
@@ -169,8 +171,8 @@ suite('NotebookViewModel Outputs', async () => {
 			],
 			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
-					outputContainer: document.createElement('div'),
-					outputShowMoreContainer: document.createElement('div'),
+					outputContainer: new FastDomNode(document.createElement('div')),
+					outputShowMoreContainer: new FastDomNode(document.createElement('div')),
 					editor: {
 						getContentHeight: () => {
 							return 100;
@@ -182,14 +184,14 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.strictEqual(container.renderedOutputEntries.length, 5);
 				assert.strictEqual(container.renderedOutputEntries[0].element.useDedicatedDOM, true);
 				assert.strictEqual(container.renderedOutputEntries[1].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12');
+				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer?.innerText, '12');
 
 				assert.strictEqual(container.renderedOutputEntries[2].element.useDedicatedDOM, true);
-				assert.strictEqual(container.renderedOutputEntries[2].element.innerContainer.innerText, '1000');
+				assert.strictEqual(container.renderedOutputEntries[2].element.innerContainer?.innerText, '1000');
 
 				assert.strictEqual(container.renderedOutputEntries[3].element.useDedicatedDOM, true);
 				assert.strictEqual(container.renderedOutputEntries[4].element.useDedicatedDOM, false);
-				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer.innerText, '45');
+				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer?.innerText, '45');
 
 
 				editor.textModel.applyEdits([{
@@ -222,7 +224,7 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[3].element.innerContainer);
 				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer, container.renderedOutputEntries[4].element.innerContainer);
 
-				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer.innerText, '12756');
+				assert.strictEqual(container.renderedOutputEntries[0].element.innerContainer?.innerText, '12756');
 			},
 			instantiationService
 		);

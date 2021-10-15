@@ -319,7 +319,7 @@ export class CommentController implements IEditorContribution {
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
-		this.editor = null!; // Strict null override — nulling out in dispose
+		this.editor = null!; // Strict null override — nulling out in dispose
 	}
 
 	public onModelChanged(e: IModelChangedEvent): void {

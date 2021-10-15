@@ -74,9 +74,23 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set language(newLanguage: string) {
-		if (this._textModel && this._textModel.getLanguageIdentifier().language !== newLanguage) {
-			const newMode = this._modeService.create(newLanguage);
-			this._textModel.setMode(newMode.languageIdentifier);
+		if (this._textModel
+			// 1. the language update is from workspace edit, checking if it's the same as text model's mode
+			&& this._textModel.getLanguageIdentifier().language === this._modeService.getModeIdForLanguageName(newLanguage)
+			// 2. the text model's mode might be the same as the `this.language`, even if the language friendly name is not the same, we should not trigger an update
+			&& this._textModel.getLanguageIdentifier().language === this._modeService.getModeIdForLanguageName(this.language)) {
+			return;
+		}
+
+		const newMode = this._modeService.getModeIdForLanguageName(newLanguage);
+
+		if (newMode === null) {
+			return;
+		}
+
+		if (this._textModel) {
+			const languageId = this._modeService.create(newMode);
+			this._textModel.setMode(languageId.languageIdentifier);
 		}
 
 		if (this._language === newLanguage) {
@@ -149,7 +163,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textModel = m;
 		if (this._textModel) {
 			// Init language from text model
-			this.language = this._textModel.getLanguageIdentifier().language;
+			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback (plaintext)
+			// If so let's not modify the language
+			if (!(this._modeService.getModeId(this.language) === null && this._textModel.getLanguageIdentifier().language === 'plaintext')) {
+				this.language = this._textModel.getLanguageIdentifier().language;
+			}
 
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
@@ -204,7 +222,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		this._hash = hash([hash(this.language), hash(this.getValue()), this._getPersisentMetadata(), this.transientOptions.transientOutputs ? [] : this._outputs.map(op => ({
-			outputs: op.outputs,
+			outputs: op.outputs.map(output => ({
+				mime: output.mime,
+				data: Array.from(output.data.buffer)
+			})),
 			metadata: op.metadata
 		}))]);
 		return this._hash;
@@ -238,6 +259,54 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
 		this._onDidChangeOutputs.fire(splice);
 	}
+
+	private _outputNotEqualFastCheck(left: ICellOutput[], right: ICellOutput[]) {
+		if (left.length !== right.length) {
+			return false;
+		}
+
+		for (let i = 0; i < this.outputs.length; i++) {
+			const l = left[i];
+			const r = right[i];
+
+			if (l.outputs.length !== r.outputs.length) {
+				return false;
+			}
+
+			for (let k = 0; k < l.outputs.length; k++) {
+				if (l.outputs[k].mime !== r.outputs[k].mime) {
+					return false;
+				}
+
+				if (l.outputs[k].data.byteLength !== r.outputs[k].data.byteLength) {
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	equal(b: NotebookCellTextModel): boolean {
+		if (this.language !== b.language) {
+			return false;
+		}
+
+		if (this.getTextLength() !== b.getTextLength()) {
+			return false;
+		}
+
+		if (!this.transientOptions.transientOutputs) {
+			// compare outputs
+
+			if (!this._outputNotEqualFastCheck(this.outputs, b.outputs)) {
+				return false;
+			}
+		}
+
+		return this.getHashValue() === b.getHashValue();
+	}
+
 	override dispose() {
 		dispose(this._outputs);
 		// Manually release reference to previous text buffer to avoid large leaks

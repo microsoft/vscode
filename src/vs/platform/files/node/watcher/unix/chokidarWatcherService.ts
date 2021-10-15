@@ -16,8 +16,8 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IWatcherOptions, IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -28,7 +28,7 @@ interface IWatcher {
 	stop(): Promise<void>;
 }
 
-interface ExtendedWatcherRequest extends IWatcherRequest {
+interface ExtendedWatcherRequest extends IWatchRequest {
 	parsedPattern?: ParsedPattern;
 }
 
@@ -68,7 +68,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		this.verboseLogging = enabled;
 	}
 
-	async setRoots(requests: IWatcherRequest[]): Promise<void> {
+	async watch(requests: IWatchRequest[]): Promise<void> {
 		const watchers = new Map<string, IWatcher>();
 		const newRequests: string[] = [];
 
@@ -93,13 +93,13 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 		// start all new watchers
 		for (const basePath of newRequests) {
 			const requests = requestsByBasePath[basePath];
-			watchers.set(basePath, this.watch(basePath, requests));
+			watchers.set(basePath, this.doWatch(basePath, requests));
 		}
 
 		this.watchers = watchers;
 	}
 
-	private watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
+	private doWatch(basePath: string, requests: IWatchRequest[]): IWatcher {
 		const pollingInterval = this.pollingInterval || 5000;
 		let usePolling = this.usePolling; // boolean or a list of path patterns
 		if (Array.isArray(usePolling)) {
@@ -344,11 +344,11 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
  * Normalizes a set of root paths by grouping by the most parent root path.
  * equests with Sub paths are skipped if they have the same ignored set as the parent.
  */
-export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
+export function normalizeRoots(requests: IWatchRequest[]): { [basePath: string]: IWatchRequest[] } {
 	requests = requests.sort((r1, r2) => r1.path.localeCompare(r2.path));
 
-	let prevRequest: IWatcherRequest | null = null;
-	const result: { [basePath: string]: IWatcherRequest[] } = Object.create(null);
+	let prevRequest: IWatchRequest | null = null;
+	const result: { [basePath: string]: IWatchRequest[] } = Object.create(null);
 	for (const request of requests) {
 		const basePath = request.path;
 		const ignored = (request.excludes || []).sort();
@@ -365,7 +365,7 @@ export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string
 	return result;
 }
 
-function isEqualRequests(r1: readonly IWatcherRequest[], r2: readonly IWatcherRequest[]) {
+function isEqualRequests(r1: readonly IWatchRequest[], r2: readonly IWatchRequest[]) {
 	return equals(r1, r2, (a, b) => a.path === b.path && isEqualIgnore(a.excludes, b.excludes));
 }
 

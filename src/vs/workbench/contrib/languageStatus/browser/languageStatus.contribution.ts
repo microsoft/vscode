@@ -11,9 +11,9 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { NOTIFICATIONS_BORDER, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { NOTIFICATIONS_BORDER, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -157,27 +157,24 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		} else {
 			const [first] = model.combined;
-			let text: string = '$(info)';
-			if (first.severity === Severity.Error) {
-				text = '$(error)';
-			} else if (first.severity === Severity.Warning) {
-				text = '$(warning)';
-			}
+			const showSeverity = first.severity >= Severity.Warning;
+			const text = EditorStatusContribution._severityToComboCodicon(first.severity);
+
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, this._renderDisposables));
+				element.appendChild(this._renderStatus(status, showSeverity, this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
 			}
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
+				command: ShowTooltipCommand,
 				text,
-				command: ShowTooltipCommand
 			};
 			if (!this._combinedEntry) {
-				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, 100.11);
+				this._combinedEntry = this._statusBarService.addEntry(props, EditorStatusContribution._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
 			} else {
 				this._combinedEntry.update(props);
 			}
@@ -200,14 +197,25 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		this._dedicatedEntries = newDedicatedEntries;
 	}
 
-	private _renderStatus(status: ILanguageStatus, store: DisposableStore): HTMLElement {
+	private _renderStatus(status: ILanguageStatus, showSeverity: boolean, store: DisposableStore): HTMLElement {
 
-		const node = document.createElement('div');
-		node.classList.add('hover-language-status-element');
+		const parent = document.createElement('div');
+		parent.classList.add('hover-language-status');
+
+		const severity = document.createElement('div');
+		severity.classList.add('severity', `sev${status.severity}`);
+		severity.classList.toggle('show', showSeverity);
+		const severityText = EditorStatusContribution._severityToSingleCodicon(status.severity);
+		dom.append(severity, ...renderLabelWithIcons(severityText));
+		parent.appendChild(severity);
+
+		const element = document.createElement('div');
+		element.classList.add('element');
+		parent.appendChild(element);
 
 		const left = document.createElement('div');
 		left.classList.add('left');
-		node.appendChild(left);
+		element.appendChild(left);
 
 		const label = document.createElement('span');
 		label.classList.add('label');
@@ -221,20 +229,18 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const right = document.createElement('div');
 		right.classList.add('right');
-		node.appendChild(right);
+		element.appendChild(right);
 
 		// -- command (if available)
 		const { command } = status;
 		if (command) {
-			const link = new Link({
+			store.add(new Link(right, {
 				label: command.title,
 				title: command.tooltip,
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, undefined, this._openerService);
-			store.add(link);
-			dom.append(right, link.el);
+			}, undefined, this._openerService));
 		}
 
 		// -- pin
@@ -249,7 +255,23 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		actionBar.push(action, { icon: true, label: false });
 		store.add(action);
 
-		return node;
+		return parent;
+	}
+
+	private static _severityToComboCodicon(sev: Severity): string {
+		switch (sev) {
+			case Severity.Error: return '$(bracket-error)';
+			case Severity.Warning: return '$(bracket-dot)';
+			default: return '$(bracket)';
+		}
+	}
+
+	private static _severityToSingleCodicon(sev: Severity): string {
+		switch (sev) {
+			case Severity.Error: return '$(error)';
+			case Severity.Warning: return '$(info)';
+			default: return '$(check)';
+		}
 	}
 
 	private _renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
@@ -258,9 +280,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				const link = new Link(node, undefined, this._openerService);
-				store.add(link);
-				dom.append(target, link.el);
+				store.add(new Link(target, node, undefined, this._openerService));
 			}
 		}
 	}
@@ -278,12 +298,25 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	// ---
 
 	private static _asStatusbarEntry(item: ILanguageStatus): IStatusbarEntry {
+
+		let color: ThemeColor | undefined;
+		let backgroundColor: ThemeColor | undefined;
+		if (item.severity === Severity.Warning) {
+			color = themeColorFromId(STATUS_BAR_WARNING_ITEM_FOREGROUND);
+			backgroundColor = themeColorFromId(STATUS_BAR_WARNING_ITEM_BACKGROUND);
+		} else if (item.severity === Severity.Error) {
+			color = themeColorFromId(STATUS_BAR_ERROR_ITEM_FOREGROUND);
+			backgroundColor = themeColorFromId(STATUS_BAR_ERROR_ITEM_BACKGROUND);
+		}
+
 		return {
-			name: item.name,
+			name: localize('name.pattern', '{0} (Language Status)', item.name),
 			text: item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
 			tooltip: new MarkdownString(item.detail, true),
+			color,
+			backgroundColor,
 			command: item.command
 		};
 	}
@@ -292,7 +325,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`:root {
 		--code-notifications-border: ${theme.getColor(NOTIFICATIONS_BORDER)};
-		--code-language-status-item-active-background: ${theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND)?.darken(.8)};
+		--code-language-status-color2: ${theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND)};
+		--code-language-status-color3: ${theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND)};
 	}`);
 });
 

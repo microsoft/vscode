@@ -207,7 +207,7 @@ export class TerminalTabbedView extends Disposable {
 			const style = window.getComputedStyle(this._tabListElement);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
-				return Math.max(p, ctx.measureText(c.title + (c.shellLaunchConfig.description || '')).width + this._getAdditionalWidth(c));
+				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);
 			idealWidth = Math.ceil(Math.max(maxInstanceWidth, TerminalTabsListSizes.WideViewMinimumWidth));
 		}
@@ -222,7 +222,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
-		const additionalWidth = 30;
+		const additionalWidth = 40;
 		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
 		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
@@ -340,25 +340,19 @@ export class TerminalTabbedView extends Disposable {
 			event.stopPropagation();
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalGroupService.instances.length === 0) {
+			const terminal = this._terminalGroupService.activeInstance;
+			if (this._terminalGroupService.instances.length === 0 || !terminal) {
+				this._cancelContextMenu = true;
 				return;
 			}
 
 			if (event.which === 2 && isLinux) {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
-				const terminal = this._terminalGroupService.activeInstance;
-				if (terminal) {
-					terminal.focus();
-				}
+				terminal.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalGroupService.activeInstance;
-					if (!terminal) {
-						return;
-					}
-
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);

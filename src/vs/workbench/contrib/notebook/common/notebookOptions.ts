@@ -24,6 +24,8 @@ export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
 }
 
+export const OutputInnerContainerTopPadding = 4;
+
 export interface NotebookLayoutConfiguration {
 	cellRightMargin: number;
 	cellRunGutter: number;
@@ -105,10 +107,10 @@ export class NotebookOptions extends Disposable {
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 
-	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string }) {
+	constructor(private readonly configurationService: IConfigurationService, private readonly overrides?: { cellToolbarInteraction: string, globalToolbar: boolean }) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
-		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
+		const globalToolbar = overrides?.globalToolbar ?? this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
@@ -234,7 +236,7 @@ export class NotebookOptions extends Disposable {
 			configuration.insertToolbarPosition = this._computeInsertToolbarPositionOption();
 		}
 
-		if (globalToolbar) {
+		if (globalToolbar && this.overrides?.globalToolbar === undefined) {
 			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? true;
 		}
 
@@ -461,10 +463,10 @@ export class NotebookOptions extends Disposable {
 	computeDiffWebviewOptions() {
 		return {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
-			outputNodeLeftPadding: 32,
+			outputNodeLeftPadding: 0,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
 			markdownLeftMargin: 0,
-			leftMargin: 0,
+			leftMargin: 32,
 			rightMargin: 0,
 			runGutter: 0,
 			dragAndDropEnabled: false,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorResourceAccessor, IEditorInput, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor, EditorCloseContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -172,8 +172,29 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 
 		// Observe any editor closing from this moment on
 		const listener = editorService.onDidCloseEditor(async event => {
-			const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-			const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+			if (event.context === EditorCloseContext.MOVE) {
+				return; // ignore move events where the editor will open in another group
+			}
+
+			let primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+			let secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+
+			// Specially handle an editor getting replaced: if the new active editor
+			// matches any of the resources from the closed editor, ignore those
+			// resources because they were actually not closed, but replaced.
+			// (see https://github.com/microsoft/vscode/issues/134299)
+			if (event.context === EditorCloseContext.REPLACE) {
+				const newPrimaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const newSecondaryResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.SECONDARY });
+
+				if (uriIdentityService.extUri.isEqual(primaryResource, newPrimaryResource)) {
+					primaryResource = undefined;
+				}
+
+				if (uriIdentityService.extUri.isEqual(secondaryResource, newSecondaryResource)) {
+					secondaryResource = undefined;
+				}
+			}
 
 			// Remove from resources to wait for being closed based on the
 			// resources from editors that got closed
@@ -222,7 +243,7 @@ export function whenEditorClosed(accessor: ServicesAccessor, resources: URI[]): 
 
 //#region ARIA
 
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
+export function computeEditorAriaLabel(input: EditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
 	let ariaLabel = input.getAriaLabel();
 	if (group && !group.isPinned(input)) {
 		ariaLabel = localize('preview', "{0}, preview", ariaLabel);

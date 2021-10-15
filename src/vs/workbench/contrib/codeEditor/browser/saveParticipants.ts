@@ -249,23 +249,19 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
 		const mode = this.configurationService.getValue<'file' | 'modifications' | 'modificationsIfAvailable'>('editor.formatOnSaveMode', overrides);
 
-		// keeping things DRY :)
-		const formatWholeFile = async () => {
+		if (mode === 'file') {
 			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
-		};
 
-		if (mode === 'modifications' || mode === 'modificationsIfAvailable') {
-			// try formatting modifications
-			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
-			if (ranges) {
-				// version control reports changes
-				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
-			} else if (ranges === null) {
-				// version control not found
-				await formatWholeFile();
-			}
 		} else {
-			await formatWholeFile();
+			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
+			if (ranges === null && mode === 'modificationsIfAvailable') {
+				// no SCM, fallback to formatting the whole file iff wanted
+				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+
+			} else if (ranges) {
+				// formatted modified ranges
+				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+			}
 		}
 	}
 }

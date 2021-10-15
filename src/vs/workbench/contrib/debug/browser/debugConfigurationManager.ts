@@ -133,6 +133,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
+		// The resolver can change the type, ensure activation happens, #135090
+		if (result?.type && result.type !== config.type) {
+			await this.activateDebuggers('onDebugResolve', result.type);
+		}
+
 		return result;
 	}
 
@@ -573,10 +578,6 @@ class Launch extends AbstractLaunch implements ILaunch {
 					throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error.message));
 				}
 			}
-		}
-
-		if (content === '') {
-			return { editor: null, created: false };
 		}
 
 		const index = content.indexOf(`"${this.configurationManager.selectedConfiguration.name}"`);

@@ -31,6 +31,7 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
+import { showHistoryKeybindingHint } from 'vs/platform/browser/historyWidgetKeybindingHint';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -851,9 +852,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this._findInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
+			if (this._keybindingService.dispatchEvent(e, e.target)) {
+				e.preventDefault();
+				return;
+			} else {
+				this._findInput.inputBox.insertAtCursor('\n');
+				e.preventDefault();
+				return;
+			}
 		}
 
 		if (e.equals(KeyCode.Tab)) {
@@ -883,21 +889,26 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 		if (e.equals(ctrlKeyMod | KeyCode.Enter)) {
-			if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
-				// this is the first time when users press Ctrl + Enter to replace all
-				this._notificationService.info(
-					nls.localize('ctrlEnter.keybindingChanged',
-						'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
-				);
+			if (this._keybindingService.dispatchEvent(e, e.target)) {
+				e.preventDefault();
+				return;
+			} else {
+				if (platform.isWindows && platform.isNative && !this._ctrlEnterReplaceAllWarningPrompted) {
+					// this is the first time when users press Ctrl + Enter to replace all
+					this._notificationService.info(
+						nls.localize('ctrlEnter.keybindingChanged',
+							'Ctrl+Enter now inserts line break instead of replacing all. You can modify the keybinding for editor.action.replaceAll to override this behavior.')
+					);
 
-				this._ctrlEnterReplaceAllWarningPrompted = true;
-				this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+					this._ctrlEnterReplaceAllWarningPrompted = true;
+					this._storageService.store(ctrlEnterReplaceAllWarningPromptedKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+				}
 
+				this._replaceInput.inputBox.insertAtCursor('\n');
+				e.preventDefault();
+				return;
 			}
 
-			this._replaceInput.inputBox.insertAtCursor('\n');
-			e.preventDefault();
-			return;
 		}
 
 		if (e.equals(KeyCode.Tab)) {
@@ -966,7 +977,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			},
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
@@ -1105,7 +1117,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			history: [],
 			flexibleHeight,
 			flexibleWidth,
-			flexibleMaxHeight: 118
+			flexibleMaxHeight: 118,
+			showHistoryHint: () => showHistoryKeybindingHint(this._keybindingService)
 		}, this._contextKeyService, true));
 		this._replaceInput.setPreserveCase(!!this._state.preserveCase);
 		this._register(this._replaceInput.onKeyDown((e) => this._onReplaceInputKeyDown(e)));

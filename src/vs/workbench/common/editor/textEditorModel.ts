@@ -79,6 +79,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
 	setMode(mode: string): void {
+
 		// Remember that an explicit mode was set
 		this._hasModeSetExplicitly = true;
 

@@ -17,6 +17,7 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspa
 import { isBoolean } from 'vs/base/common/types';
 import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isWeb } from 'vs/base/common/platform';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -221,7 +222,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		// Not an UI extension if it has main
 		if (manifest.main) {
 			if (manifest.browser) {
-				return ['workspace', 'web'];
+				return isWeb ? ['workspace', 'web'] : ['workspace'];
 			}
 			return ['workspace'];
 		}
@@ -232,9 +233,9 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 		let result = [...ALL_EXTENSION_KINDS];
 
-		// Extension pack defaults to workspace, web extensionKind
 		if (isNonEmptyArray(manifest.extensionPack) || isNonEmptyArray(manifest.extensionDependencies)) {
-			result = ['workspace', 'web'];
+			// Extension pack defaults to [workspace, web] in web and only [workspace] in desktop
+			result = isWeb ? ['workspace', 'web'] : ['workspace'];
 		}
 
 		if (manifest.contributes) {
@@ -270,7 +271,8 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			return extensionPointExtensionKind;
 		}
 
-		return ['workspace', 'web'] /* Unknown extension point => workspace, web */;
+		/* Unknown extension point */
+		return isWeb ? ['workspace', 'web'] : ['workspace'];
 	}
 
 	private getConfiguredExtensionKind(manifest: IExtensionManifest): (ExtensionKind | '-web')[] | null {

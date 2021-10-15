@@ -5,15 +5,15 @@
 
 import * as assert from 'assert';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
+import { PaneCompositeDescriptor, Extensions, PaneCompositeRegistry, PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { isFunction } from 'vs/base/common/types';
 
 suite('Viewlets', () => {
 
-	class TestViewlet extends Viewlet {
+	class TestViewlet extends PaneComposite {
 
 		constructor() {
-			super('id', null!, null!, null!, null!, null!, null!, null!, null!, null!);
+			super('id', null!, null!, null!, null!, null!, null!, null!);
 		}
 
 		override layout(dimension: any): void {
@@ -24,7 +24,7 @@ suite('Viewlets', () => {
 	}
 
 	test('ViewletDescriptor API', function () {
-		let d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
+		let d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 		assert.strictEqual(d.cssClass, 'class');
@@ -32,25 +32,25 @@ suite('Viewlets', () => {
 	});
 
 	test('Editor Aware ViewletDescriptor API', function () {
-		let d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
+		let d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 
-		d = ViewletDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
+		d = PaneCompositeDescriptor.create(TestViewlet, 'id', 'name', 'class', 5);
 		assert.strictEqual(d.id, 'id');
 		assert.strictEqual(d.name, 'name');
 	});
 
 	test('Viewlet extension point and registration', function () {
-		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet));
-		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet));
-		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite));
+		assert(isFunction(Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites));
 
-		let oldCount = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length;
-		let d = ViewletDescriptor.create(TestViewlet, 'reg-test-id', 'name');
-		Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
+		let oldCount = Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length;
+		let d = PaneCompositeDescriptor.create(TestViewlet, 'reg-test-id', 'name');
+		Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).registerPaneComposite(d);
 
-		assert(d === Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
-		assert.strictEqual(oldCount + 1, Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
+		assert(d === Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposite('reg-test-id'));
+		assert.strictEqual(oldCount + 1, Registry.as<PaneCompositeRegistry>(Extensions.Viewlets).getPaneComposites().length);
 	});
 });

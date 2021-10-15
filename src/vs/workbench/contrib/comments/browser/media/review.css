@@ -96,6 +96,7 @@
 
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
+	line-height: 22px;
 	margin: 0 5px 0 5px;
 	padding: 0 2px 0 2px;
 	font-style: italic;

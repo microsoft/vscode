@@ -67,6 +67,16 @@
 	margin-left: 3px;
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > :first-child {
+	margin-right: 3px;
+	margin-left: 0;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > :first-child {
+	margin-right: 0;
+	margin-left: 3px;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
 	padding-left: 7px; /* Add padding to the most left status bar item */
 }
@@ -75,7 +85,7 @@
 	padding-right: 7px; /* Add padding to the most right status bar item */
 }
 
-/* tweak appearance for items with background to improve hover feedback */
+/* Tweak appearance for items with background to improve hover feedback */
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item,
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.right.last-visible-item {
 	padding-right: 0;
@@ -89,6 +99,16 @@
 	padding-right: 10px;
 }
 
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left.has-background-color > :first-child {
+	padding-left: 3px;
+	padding-right: 10px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right.has-background-color > :first-child {
+	padding-left: 10px;
+	padding-right: 3px;
+}
+
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a {
 	cursor: pointer;
 	display: flex;
@@ -99,6 +119,14 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	outline-width: 0px; /* do not render focus outline, we already have background */
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-left > a {
+	padding: 0 5px 0 3px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.compact-right > a {
+	padding: 0 3px 0 5px;
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover:not(.disabled) {

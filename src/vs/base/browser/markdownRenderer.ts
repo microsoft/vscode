@@ -160,10 +160,6 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	};
 	renderer.paragraph = (text): string => {
-		if (markdown.supportThemeIcons) {
-			const elements = renderLabelWithIcons(text);
-			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
-		}
 		return `<p>${text}</p>`;
 	};
 
@@ -246,7 +242,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		value = markdownEscapeEscapedIcons(value);
 	}
 
-	const renderedMarkdown = marked.parse(value, markedOptions);
+	let renderedMarkdown = marked.parse(value, markedOptions);
+
+	// Rewrite theme icons
+	if (markdown.supportThemeIcons) {
+		const elements = renderLabelWithIcons(renderedMarkdown);
+		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
+	}
+
 	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
 
 	// signal that async code blocks can be now be inserted

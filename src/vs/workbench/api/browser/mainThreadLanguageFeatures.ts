@@ -566,10 +566,10 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
 	}
 
-	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
+	$emitInlayHintsEvent(eventHandle: number): void {
 		const obj = this._registrations.get(eventHandle);
 		if (obj instanceof Emitter) {
-			obj.fire(event);
+			obj.fire(undefined);
 		}
 	}
 

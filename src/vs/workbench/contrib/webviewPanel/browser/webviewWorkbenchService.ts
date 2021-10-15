@@ -12,7 +12,8 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
@@ -263,7 +264,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		}
 	}
 
-	private findTopLevelEditorForWebview(webview: WebviewInput): IEditorInput {
+	private findTopLevelEditorForWebview(webview: WebviewInput): EditorInput {
 		for (const editor of this._editorService.editors) {
 			if (editor === webview) {
 				return editor;

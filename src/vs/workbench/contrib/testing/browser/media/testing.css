@@ -204,7 +204,6 @@
 
 .test-message-inline-content {
 	font-family: var(--testMessageDecorationFontFamily);
-	padding: 0px 12px 0px 24px;
 	font-size: var(--testMessageDecorationFontSize);
 	cursor: pointer;
 }

@@ -17,11 +17,11 @@ import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ProjectStatus } from './tsServer/projectStatus';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
-import { VersionStatus } from './tsServer/versionStatus';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import { IntellisenseStatus } from './ui/intellisenseStatus';
+import { VersionStatus } from './ui/versionStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { coalesce, flatten } from './utils/arrays';
 import { ServiceConfigurationProvider } from './utils/configuration';
@@ -94,7 +94,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
 		this._register(new VersionStatus(this.client));
-		this._register(new ProjectStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
+		this._register(new IntellisenseStatus(this.client, services.commandManager, services.activeJsTsEditorTracker));
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
 		this._register(LargeProjectStatus.create(this.client));

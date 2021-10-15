@@ -1024,6 +1024,11 @@ export interface ITextModel {
 	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 
 	/**
+	 * @internal
+	 */
+	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
+
+	/**
 	 * Change the decorations. The callback will be called with a change accessor
 	 * that becomes invalid as soon as the callback finishes executing.
 	 * This allows for all events to be queued up until the change
@@ -1326,6 +1331,85 @@ export interface ITextModel {
 	 * @internal
 	*/
 	getLineIndentColumn(lineNumber: number): number;
+}
+
+/**
+ * @internal
+ */
+export enum HorizontalGuidesState {
+	Disabled,
+	EnabledForActive,
+	Enabled
+}
+
+/**
+ * @internal
+ */
+export interface BracketGuideOptions {
+	includeInactive: boolean,
+	horizontalGuides: HorizontalGuidesState,
+	highlightActive: boolean,
+}
+
+/**
+ * @internal
+ */
+export class IndentGuide {
+	constructor(
+		public readonly visibleColumn: number,
+		public readonly className: string,
+		/**
+		 * If set, this indent guide is a horizontal guide (no vertical part).
+		 * It starts at visibleColumn and continues until endColumn.
+		*/
+		public readonly horizontalLine: IndentGuideHorizontalLine | null,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class IndentGuideHorizontalLine {
+	constructor(
+		public readonly top: boolean,
+		public readonly endColumn: number,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class BracketPair {
+	constructor(
+		public readonly range: Range,
+		public readonly openingBracketRange: Range,
+		public readonly closingBracketRange: Range | undefined,
+		/**
+		 * 0-based
+		*/
+		public readonly nestingLevel: number,
+	) { }
+}
+
+/**
+ * @internal
+ */
+export class BracketPairWithMinIndentation extends BracketPair {
+	constructor(
+		range: Range,
+		openingBracketRange: Range,
+		closingBracketRange: Range | undefined,
+		/**
+		 * 0-based
+		*/
+		nestingLevel: number,
+		/**
+		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
+		*/
+		public readonly minVisibleColumnIndentation: number,
+	) {
+		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+	}
 }
 
 /**

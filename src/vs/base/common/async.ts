@@ -978,12 +978,16 @@ declare function cancelIdleCallback(handle: number): void;
 
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		const dummyIdle: IdleDeadline = Object.freeze({
-			didTimeout: true,
-			timeRemaining() { return 15; }
-		});
 		runWhenIdle = (runner) => {
-			const handle = setTimeout(() => runner(dummyIdle));
+			const handle = setTimeout(() => {
+				const end = Date.now() + 15; // one frame at 64fps
+				runner(Object.freeze({
+					didTimeout: true,
+					timeRemaining() {
+						return Math.max(0, end - Date.now());
+					}
+				}));
+			});
 			let disposed = false;
 			return {
 				dispose() {
@@ -1304,6 +1308,27 @@ export namespace Promises {
 		}
 
 		return result as unknown as T[]; // cast is needed and protected by the `throw` above
+	}
+
+	/**
+	 * A helper to create a new `Promise<T>` with a body that is a promise
+	 * itself. By default, an error that raises from the async body will
+	 * end up as a unhandled rejection, so this utility properly awaits the
+	 * body and rejects the promise as a normal promise does without async
+	 * body.
+	 *
+	 * This method should only be used in rare cases where otherwise `async`
+	 * cannot be used (e.g. when callbacks are involved that require this).
+	 */
+	export function withAsyncBody<T, E = Error>(bodyFn: (resolve: (value: T) => unknown, reject: (error: E) => unknown) => Promise<unknown>): Promise<T> {
+		// eslint-disable-next-line no-async-promise-executor
+		return new Promise<T>(async (resolve, reject) => {
+			try {
+				await bodyFn(resolve, reject);
+			} catch (error) {
+				reject(error);
+			}
+		});
 	}
 }
 

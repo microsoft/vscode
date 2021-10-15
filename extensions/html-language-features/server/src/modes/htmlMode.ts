@@ -12,7 +12,7 @@ import {
 } from './languageModes';
 
 export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace: Workspace): LanguageMode {
-	let htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
+	const htmlDocuments = getLanguageModelCache<HTMLDocument>(10, 60, document => htmlLanguageService.parseHTMLDocument(document));
 	return {
 		getId() {
 			return 'html';
@@ -21,14 +21,13 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return htmlLanguageService.getSelectionRanges(document, [position])[0];
 		},
 		doComplete(document: TextDocument, position: Position, documentContext: DocumentContext, settings = workspace.settings) {
-			let options = settings && settings.html && settings.html.suggest;
-			let doAutoComplete = settings && settings.html && settings.html.autoClosingTags;
-			if (doAutoComplete) {
-				options.hideAutoCompleteProposals = true;
-			}
+			const htmlSettings = settings?.html;
+			const options = merge(htmlSettings?.suggest, {});
+			options.hideAutoCompleteProposals = htmlSettings?.autoClosingTags === true;
+			options.attributeDefaultValue = htmlSettings?.completion?.attributeDefaultValue ?? 'doublequotes';
 
 			const htmlDocument = htmlDocuments.get(document);
-			let completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
+			const completionList = htmlLanguageService.doComplete2(document, position, htmlDocument, documentContext, options);
 			return completionList;
 		},
 		async doHover(document: TextDocument, position: Position, settings?: Settings) {
@@ -44,26 +43,21 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			return htmlLanguageService.findDocumentSymbols(document, htmlDocuments.get(document));
 		},
 		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
-			let formatSettings: HTMLFormatConfiguration = settings && settings.html && settings.html.format;
-			if (formatSettings) {
-				formatSettings = merge(formatSettings, {});
-			} else {
-				formatSettings = {};
-			}
+			const formatSettings: HTMLFormatConfiguration = merge(settings?.html?.format, {});
 			if (formatSettings.contentUnformatted) {
 				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script';
 			} else {
 				formatSettings.contentUnformatted = 'script';
 			}
-			formatSettings = merge(formatParams, formatSettings);
+			merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
 			return htmlLanguageService.getFoldingRanges(document);
 		},
 		async doAutoClose(document: TextDocument, position: Position) {
-			let offset = document.offsetAt(position);
-			let text = document.getText();
+			const offset = document.offsetAt(position);
+			const text = document.getText();
 			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
 				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
 			}
@@ -91,9 +85,11 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 }
 
 function merge(src: any, dst: any): any {
-	for (const key in src) {
-		if (src.hasOwnProperty(key)) {
-			dst[key] = src[key];
+	if (src) {
+		for (const key in src) {
+			if (src.hasOwnProperty(key)) {
+				dst[key] = src[key];
+			}
 		}
 	}
 	return dst;

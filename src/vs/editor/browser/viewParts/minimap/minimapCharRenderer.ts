@@ -32,7 +32,9 @@ export class MinimapCharRenderer {
 		dy: number,
 		chCode: number,
 		color: RGBA8,
+		foregroundAlpha: number,
 		backgroundColor: RGBA8,
+		backgroundAlpha: number,
 		fontScale: number,
 		useLighterFont: boolean,
 		force1pxHeight: boolean
@@ -58,6 +60,8 @@ export class MinimapCharRenderer {
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
 
+		const destAlpha = Math.max(foregroundAlpha, backgroundAlpha);
+
 		const dest = target.data;
 		let sourceOffset = charIndex * charWidth * charHeight;
 
@@ -65,11 +69,11 @@ export class MinimapCharRenderer {
 		for (let y = 0; y < renderHeight; y++) {
 			let column = row;
 			for (let x = 0; x < charWidth; x++) {
-				const c = charData[sourceOffset++] / 255;
+				const c = (charData[sourceOffset++] / 255) * (foregroundAlpha / 255);
 				dest[column++] = backgroundR + deltaR * c;
 				dest[column++] = backgroundG + deltaG * c;
 				dest[column++] = backgroundB + deltaB * c;
-				column++;
+				dest[column++] = destAlpha;
 			}
 
 			row += destWidth;
@@ -81,8 +85,9 @@ export class MinimapCharRenderer {
 		dx: number,
 		dy: number,
 		color: RGBA8,
+		foregroundAlpha: number,
 		backgroundColor: RGBA8,
-		useLighterFont: boolean,
+		backgroundAlpha: number,
 		force1pxHeight: boolean
 	): void {
 		const charWidth = Constants.BASE_CHAR_WIDTH * this.scale;
@@ -95,7 +100,7 @@ export class MinimapCharRenderer {
 
 		const destWidth = target.width * Constants.RGBA_CHANNELS_CNT;
 
-		const c = 0.5;
+		const c = 0.5 * (foregroundAlpha / 255);
 
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
@@ -109,6 +114,8 @@ export class MinimapCharRenderer {
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
 
+		const destAlpha = Math.max(foregroundAlpha, backgroundAlpha);
+
 		const dest = target.data;
 
 		let row = dy * destWidth + dx * Constants.RGBA_CHANNELS_CNT;
@@ -118,7 +125,7 @@ export class MinimapCharRenderer {
 				dest[column++] = colorR;
 				dest[column++] = colorG;
 				dest[column++] = colorB;
-				column++;
+				dest[column++] = destAlpha;
 			}
 
 			row += destWidth;

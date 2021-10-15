@@ -40,3 +40,23 @@ export interface CellOutputMetadata {
 	 */
 	__isJson?: boolean;
 }
+
+
+/**
+ * Metadata we store in VS Code cells.
+ * This contains the original metadata from the Jupyuter cells.
+ */
+export interface CellMetadata {
+	/**
+	 * Cell id for notebooks created with the new 4.5 version of nbformat.
+	*/
+	id?: string;
+	/**
+	 * Stores attachments for cells.
+	 */
+	attachments?: nbformat.IAttachments;
+	/**
+	 * Stores cell metadata.
+	 */
+	metadata?: Partial<nbformat.ICellMetadata>;
+}

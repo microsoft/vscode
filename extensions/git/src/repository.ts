@@ -842,7 +842,7 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
-	private isRepositoryHuge = false;
+	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
 	private resourceCommandResolver = new ResourceCommandResolver(this);
@@ -917,6 +917,8 @@ export class Repository implements Disposable {
 			|| e.affectsConfiguration('git.untrackedChanges', root)
 			|| e.affectsConfiguration('git.ignoreSubmodules', root)
 			|| e.affectsConfiguration('git.openDiffOnClick', root)
+			|| e.affectsConfiguration('git.rebaseWhenSync', root)
+			|| e.affectsConfiguration('git.showUnpublishedCommitsButton', root)
 		)(this.updateModelState, this, this.disposables);
 
 		const updateInputBoxVisibility = () => {
@@ -971,6 +973,14 @@ export class Repository implements Disposable {
 	}
 
 	validateInput(text: string, position: number): SourceControlInputBoxValidation | undefined {
+		let tooManyChangesWarning: SourceControlInputBoxValidation | undefined;
+		if (this.isRepositoryHuge) {
+			tooManyChangesWarning = {
+				message: localize('tooManyChangesWarning', "Too many changes were detected. Only the first {0} changes will be shown below.", this.isRepositoryHuge.limit),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
+
 		if (this.rebaseCommit) {
 			if (this.rebaseCommit.message !== text) {
 				return {
@@ -984,7 +994,7 @@ export class Repository implements Disposable {
 		const setting = config.get<'always' | 'warn' | 'off'>('inputValidation');
 
 		if (setting === 'off') {
-			return;
+			return tooManyChangesWarning;
 		}
 
 		if (/^\s+$/.test(text)) {
@@ -1020,7 +1030,7 @@ export class Repository implements Disposable {
 
 		if (line.length <= threshold) {
 			if (setting !== 'always') {
-				return;
+				return tooManyChangesWarning;
 			}
 
 			return {
@@ -1790,12 +1800,16 @@ export class Repository implements Disposable {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const ignoreSubmodules = scopedConfig.get<boolean>('ignoreSubmodules');
 
-		const { status, didHitLimit } = await this.repository.getStatus({ ignoreSubmodules });
+		const limit = scopedConfig.get<number>('statusLimit', 5000);
+
+		const { status, didHitLimit } = await this.repository.getStatus({ limit, ignoreSubmodules });
 
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 		const useIcons = !config.get<boolean>('decorations.enabled', true);
-		this.isRepositoryHuge = didHitLimit;
+		this.isRepositoryHuge = didHitLimit ? { limit } : false;
+		// Triggers or clears any validation warning
+		this._sourceControl.inputBox.validateInput = this._sourceControl.inputBox.validateInput;
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
@@ -1808,18 +1822,21 @@ export class Repository implements Disposable {
 
 				const addKnown = localize('add known', "Would you like to add '{0}' to .gitignore?", folderName);
 				const yes = { title: localize('yes', "Yes") };
+				const no = { title: localize('no', "No") };
 
-				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
-
-				if (result === neverAgain) {
-					config.update('ignoreLimitWarning', true, false);
-					this.didWarnAboutLimit = true;
-				} else if (result === yes) {
+				const result = await window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, no, neverAgain);
+				if (result === yes) {
 					this.ignore([Uri.file(folderPath)]);
+				} else {
+					if (result === neverAgain) {
+						config.update('ignoreLimitWarning', true, false);
+					}
+
+					this.didWarnAboutLimit = true;
 				}
 			} else {
-				const result = await window.showWarningMessage(gitWarn, neverAgain);
-
+				const ok = { title: localize('ok', "OK") };
+				const result = await window.showWarningMessage(gitWarn, ok, neverAgain);
 				if (result === neverAgain) {
 					config.update('ignoreLimitWarning', true, false);
 				}
@@ -1905,6 +1922,37 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
+
+		let actionButton: SourceControl['actionButton'];
+		if (HEAD !== undefined) {
+			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
+
+			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0)) {
+				if (HEAD.name && HEAD.commit) {
+					if (HEAD.upstream) {
+						if (HEAD.ahead) {
+							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
+
+							actionButton = {
+								command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
+								title: localize('scm button sync title', ' Sync Changes $(sync){0}{1}', HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
+								tooltip: this.syncTooltip,
+								arguments: [this._sourceControl],
+							};
+						}
+					} else {
+						actionButton = {
+							command: 'git.publish',
+							title: localize('scm button publish title', "$(cloud-upload) Publish Changes"),
+							tooltip: localize('scm button publish tooltip', "Publish Changes"),
+							arguments: [this._sourceControl],
+						};
+					}
+				}
+			}
+		}
+		this._sourceControl.actionButton = actionButton;
 
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;

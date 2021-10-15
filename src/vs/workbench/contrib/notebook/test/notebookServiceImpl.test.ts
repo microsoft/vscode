@@ -37,7 +37,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IAccessibilityService>() { },
 			instantiationService,
 			new class extends mock<IFileService>() {
-				override canHandleResource() { return true; }
+				override hasProvider() { return true; }
 			},
 			new class extends mock<INotebookEditorModelResolverService>() { }
 		);

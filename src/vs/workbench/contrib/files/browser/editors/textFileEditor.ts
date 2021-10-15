@@ -12,11 +12,11 @@ import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -33,6 +33,8 @@ import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 /**
  * An implementation of editor for file system resources.
@@ -46,7 +48,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -230,7 +232,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 		// Best we can do is to reveal the folder in the explorer
 		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
-			await this.viewletService.openViewlet(VIEWLET_ID);
+			await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 
 			this.explorerService.select(input.preferredResource, true);
 		}
@@ -249,7 +251,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		}
 	}
 
-	protected override tracksEditorViewState(input: IEditorInput): boolean {
+	protected override tracksEditorViewState(input: EditorInput): boolean {
 		return input instanceof FileEditorInput;
 	}
 

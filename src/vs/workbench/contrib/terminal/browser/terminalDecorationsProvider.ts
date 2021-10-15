@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';

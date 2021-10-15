@@ -30,7 +30,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 	private list: HTMLUListElement;
 	private scrollbar: DomScrollableElement;
 
-	private entries: T[];
+	private entries: undefined | T[];
 
 	private lastRendered: string[] | undefined;
 
@@ -48,7 +48,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 
 		this.contextService = options.contextService;
 
-		this.entries = [];
+		this.entries = undefined;
 
 		this.itemCount = 0;
 		this.list = $('ul');
@@ -93,27 +93,27 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		this.setEntries(this.entries);
 	}
 
-	setEntries(entries: T[]) {
+	setEntries(entries: undefined | T[]) {
+		let entryList = entries ?? [];
+
 		this.itemCount = 0;
 
 		const ranker = this.options.rankElement;
 		if (ranker) {
-			entries = entries.filter(e => ranker(e) !== null);
-			entries.sort((a, b) => ranker(b)! - ranker(a)!);
+			entryList = entryList.filter(e => ranker(e) !== null);
+			entryList.sort((a, b) => ranker(b)! - ranker(a)!);
 		}
 
-
-		this.entries = entries;
-
-		const activeEntries = entries.filter(e => !e.when || this.contextService.contextMatchesRules(e.when));
+		const activeEntries = entryList.filter(e => !e.when || this.contextService.contextMatchesRules(e.when));
 		const limitedEntries = activeEntries.slice(0, this.options.limit);
 
 		const toRender = limitedEntries.map(e => e.id);
 
-		if (equals(toRender, this.lastRendered)) { return; }
+		if (this.entries === entries && equals(toRender, this.lastRendered)) { return; }
+		this.entries = entries;
 
 		this.contextKeysToWatch.clear();
-		entries.forEach(e => {
+		entryList.forEach(e => {
 			const keys = e.when?.keys();
 			if (keys) {
 				keys.forEach(key => this.contextKeysToWatch.add(key));
@@ -137,7 +137,7 @@ export class GettingStartedIndexList<T extends { id: string; when?: ContextKeyEx
 		if (activeEntries.length > limitedEntries.length && this.options.more) {
 			this.list.appendChild(this.options.more);
 		}
-		else if (this.itemCount === 0 && this.options.empty) {
+		else if (entries !== undefined && this.itemCount === 0 && this.options.empty) {
 			this.list.appendChild(this.options.empty);
 		}
 		else if (this.options.footer) {

@@ -229,9 +229,6 @@ export interface IColorScheme {
 export interface IWindowConfiguration {
 	remoteAuthority?: string;
 
-	colorScheme: IColorScheme;
-	autoDetectHighContrast?: boolean;
-
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
 }
@@ -288,6 +285,11 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
+	colorScheme: IColorScheme;
+	autoDetectHighContrast?: boolean;
+
+	legacyWatcher?: string; // TODO@bpasero remove me once watcher is settled
+	experimentalSandboxedFileService?: boolean; // TODO@bpasero remove me once sandbox is settled
 
 	perfMarks: PerformanceMark[];
 

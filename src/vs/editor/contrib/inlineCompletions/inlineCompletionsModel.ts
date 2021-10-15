@@ -69,6 +69,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this._register(toDisposable(() => {
 			this.disposed = true;
 		}));
+
+		this._register(this.editor.onDidBlurEditorWidget(() => {
+			this.hide();
+		}));
 	}
 
 	private handleUserInput() {
@@ -583,6 +587,11 @@ export async function provideInlineCompletions(
 	};
 }
 
+/**
+ * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
+ * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
+ * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
+ */
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
 export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {

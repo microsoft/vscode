@@ -15,7 +15,7 @@ const testFileName = vscode.Uri.file('test.md');
 suite('markdown.engine', () => {
 	suite('rendering', () => {
 		const input = '# hello\n\nworld!';
-		const output = '<h1 id="hello" data-line="0" class="code-line">hello</h1>\n'
+		const output = '<h1 data-line="0" class="code-line" id="hello">hello</h1>\n'
 			+ '<p data-line="2" class="code-line">world!</p>\n';
 
 		test('Renders a document', async () => {

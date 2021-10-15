@@ -19,7 +19,7 @@ import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
@@ -121,9 +121,17 @@ export class LaunchMainService implements ILaunchMainService {
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
 		const remoteAuthority = args.remote || undefined;
 
+		const baseConfig: IOpenConfiguration = {
+			context,
+			cli: args,
+			userEnv,
+			waitMarkerFileURI,
+			remoteAuthority
+		};
+
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
 		// Start without file/folder arguments
@@ -159,13 +167,9 @@ export class LaunchMainService implements ILaunchMainService {
 			// Open new Window
 			if (openNewWindow) {
 				usedWindows = this.windowsMainService.open({
-					context,
-					cli: args,
-					userEnv,
+					...baseConfig,
 					forceNewWindow: true,
-					forceEmpty: true,
-					waitMarkerFileURI,
-					remoteAuthority
+					forceEmpty: true
 				});
 			}
 
@@ -173,11 +177,14 @@ export class LaunchMainService implements ILaunchMainService {
 			else {
 				const lastActive = this.windowsMainService.getLastActiveWindow();
 				if (lastActive) {
-					lastActive.focus();
+					this.windowsMainService.openExistingWindow(lastActive, baseConfig);
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
+					usedWindows = this.windowsMainService.open({
+						...baseConfig,
+						forceEmpty: true
+					});
 				}
 			}
 		}
@@ -185,18 +192,14 @@ export class LaunchMainService implements ILaunchMainService {
 		// Start with file/folder arguments
 		else {
 			usedWindows = this.windowsMainService.open({
-				context,
-				cli: args,
-				userEnv,
+				...baseConfig,
 				forceNewWindow: args['new-window'],
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
-				waitMarkerFileURI,
-				gotoLineMode: args.goto,
-				remoteAuthority
+				gotoLineMode: args.goto
 			});
 		}
 

@@ -1002,8 +1002,8 @@ class GotoPreviousFoldAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.gotoPreviousFold',
-			label: nls.localize('gotoPreviousFold.label', "Go to Previous Fold"),
-			alias: 'Go to Previous Fold',
+			label: nls.localize('gotoPreviousFold.label', "Go to Previous Folding Range"),
+			alias: 'Go to Previous Folding Range',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -1033,8 +1033,8 @@ class GotoNextFoldAction extends FoldingAction<void> {
 	constructor() {
 		super({
 			id: 'editor.gotoNextFold',
-			label: nls.localize('gotoNextFold.label', "Go to Next Fold"),
-			alias: 'Go to Next Fold',
+			label: nls.localize('gotoNextFold.label', "Go to Next Folding Range"),
+			alias: 'Go to Next Folding Range',
 			precondition: CONTEXT_FOLDING_ENABLED,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,

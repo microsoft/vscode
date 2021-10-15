@@ -746,7 +746,8 @@ suite('SplitLinesCollection', () => {
 				description: 'example',
 				after: {
 					content: 'very very long injected text that causes a line break'
-				}
+				},
+				showIfCollapsed: true,
 			}
 		}]);
 

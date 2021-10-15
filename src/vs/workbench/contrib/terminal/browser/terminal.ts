@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, ITerminalProfileType, TerminalLocation, ICreateContributedTerminalProfileOptions, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, IExtensionTerminalProfile, ITerminalProfileType, TerminalLocation, ICreateContributedTerminalProfileOptions, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { ICommandTracker, INavigationMode, IOffProcessTerminalService, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -189,6 +189,11 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getDefaultProfileName(): string;
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined
+	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
+}
+
+export interface ITerminalServiceNativeDelegate {
+	getWindowCount(): Promise<number>;
 }
 
 /**
@@ -401,6 +406,14 @@ export interface ITerminalInstance {
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 
+	readonly processName: string;
+	readonly sequence?: string;
+	readonly staticTitle?: string;
+	readonly workspaceFolder?: string;
+	readonly cwd?: string;
+	readonly initialCwd?: string;
+	readonly capabilities: ProcessCapability[];
+
 	readonly statusList: ITerminalStatusList;
 
 	/**
@@ -564,6 +577,8 @@ export interface ITerminalInstance {
 	readonly navigationMode: INavigationMode | undefined;
 
 	description: string | undefined;
+
+	userHome: string | undefined
 	/**
 	 * Shows the environment information hover if the widget exists.
 	 */
@@ -724,13 +739,27 @@ export interface ITerminalInstance {
 	relaunch(): void;
 
 	/**
-	 * Sets the title of the terminal instance.
+	 * Sets the title and description of the terminal instance's label.
 	 */
-	setTitle(title: string, eventSource: TitleEventSource): void;
+	refreshTabLabels(title: string, eventSource: TitleEventSource): void;
 
 	waitForTitle(): Promise<string>;
 
-	setDimensions(dimensions: ITerminalDimensions): void;
+	/**
+	 * Sets the terminal instance's dimensions to the values provided via the onDidOverrideDimensions event,
+	 * which allows overriding the the regular dimensions (fit to the size of the panel).
+	 */
+	setOverrideDimensions(dimensions: ITerminalDimensions): void;
+
+	/**
+	 * Sets the terminal instance's dimensions to the values provided via quick input.
+	 */
+	setFixedDimensions(): Promise<void>;
+
+	/**
+	 * Toggles terminal line wrapping.
+	 */
+	toggleSizeToContentWidth(): Promise<void>;
 
 	addDisposable(disposable: IDisposable): void;
 

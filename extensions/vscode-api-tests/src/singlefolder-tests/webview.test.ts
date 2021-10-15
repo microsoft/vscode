@@ -17,8 +17,8 @@ function workspaceFile(...segments: string[]) {
 
 const testDocument = workspaceFile('bower.json');
 
-// Disable webview tests on web
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - webview', () => {
+
+suite('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -255,18 +255,23 @@ const testDocument = workspaceFile('bower.json');
 					img.addEventListener('load', () => {
 						vscode.postMessage({ value: true });
 					});
-					img.addEventListener('error', () => {
+					img.addEventListener('error', (e) => {
+						console.log(e);
 						vscode.postMessage({ value: false });
 					});
 					img.src = message.data.src;
 					document.body.appendChild(img);
 				});
 
-				vscode.postMessage({ type: 'ready' });
+				vscode.postMessage({ type: 'ready', userAgent: window.navigator.userAgent });
 			</script>`);
 
 		const ready = getMessage(webview);
-		await ready;
+		if ((await ready).userAgent.indexOf('Firefox') >= 0) {
+			// Skip on firefox web for now.
+			// Firefox service workers never seem to get any 'fetch' requests here. Other browsers work fine
+			return;
+		}
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
@@ -337,14 +342,22 @@ const testDocument = workspaceFile('bower.json');
 			<img src="${imagePath}">
 			<script>
 				const vscode = acquireVsCodeApi();
+				vscode.postMessage({ type: 'ready', userAgent: window.navigator.userAgent });
+
 				const img = document.getElementsByTagName('img')[0];
 				img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
 				img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
 			</script>`);
 
-		const firstResponse = getMessage(webview);
+		const ready = getMessage(webview);
+		if ((await ready).userAgent.indexOf('Firefox') >= 0) {
+			// Skip on firefox web for now.
+			// Firefox service workers never seem to get any 'fetch' requests here. Other browsers work fine
+			return;
+		}
+		const firstResponse = await sendRecieveMessage(webview, { src: imagePath.toString() });
 
-		assert.strictEqual((await firstResponse).value, true);
+		assert.strictEqual(firstResponse.value, true);
 	});
 
 	test('webviews should have real view column after they are created, #56097', async () => {

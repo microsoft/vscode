@@ -17,6 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/windows/electron-main/windows';
 
@@ -50,7 +51,10 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Shared process connections from workbench windows
-		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
+		ipcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
+
+		// Shared process worker relay
+		ipcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
@@ -79,6 +83,20 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		// send the port back to the requesting window
 		e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
+	}
+
+	private onWorkerConnection(e: IpcMainEvent, configuration: ISharedProcessWorkerConfiguration): void {
+		this.logService.trace('SharedProcess: on vscode:relaySharedProcessWorkerMessageChannel', configuration);
+
+		const receiver = BrowserWindow.fromId(configuration.reply.windowId)?.webContents;
+		if (!receiver || receiver.isDestroyed()) {
+			return; // ensure the sender is a valid target to send to
+		}
+
+		// The shared process window asks us to relay a `MessagePort`
+		// from a shared process worker to the target window. It needs
+		// to be send via `postMessage` to transfer the port.
+		receiver.postMessage(configuration.reply.channel, configuration.reply.nonce, e.ports);
 	}
 
 	private onWillShutdown(): void {
@@ -168,6 +186,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
+				nodeIntegrationInWorker: true,
 				contextIsolation: false,
 				enableWebSQL: false,
 				spellcheck: false,

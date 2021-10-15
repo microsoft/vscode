@@ -182,7 +182,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (this.fileService.canHandleResource(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
+		if (this.fileService.hasProvider(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
 			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 		} else {
 			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
@@ -281,8 +281,6 @@ class MarkerWidget extends Disposable {
 	private readonly multilineActionbar: ActionBar;
 	private readonly messageAndDetailsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
-
-	private _codeLink?: Link;
 
 	constructor(
 		private parent: HTMLElement,
@@ -386,9 +384,10 @@ class MarkerWidget extends Disposable {
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code, codeMatches);
 				} else {
-					this._codeLink = new Link({ href: marker.code.target.toString(), label: '', title: marker.code.target.toString() }, undefined, this._openerService);
-					dom.append(parent, this._codeLink.el);
-					const code = new HighlightedLabel(dom.append(this._codeLink.el, dom.$('.marker-code')), false);
+					// TODO@sandeep: these widgets should be disposed
+					const container = dom.$('.marker-code');
+					const code = new HighlightedLabel(container, false);
+					new Link(parent, { href: marker.code.target.toString(), label: container, title: marker.code.target.toString() }, undefined, this._openerService);
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}

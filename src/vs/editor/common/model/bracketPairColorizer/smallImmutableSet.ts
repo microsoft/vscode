@@ -37,7 +37,7 @@ export class SmallImmutableSet<T> {
 	) {
 	}
 
-	public add(value: T, keyProvider: DenseKeyProvider<T>): SmallImmutableSet<T> {
+	public add(value: T, keyProvider: IDenseKeyProvider<T>): SmallImmutableSet<T> {
 		const key = keyProvider.getKey(value);
 		let idx = key >> 5; // divided by 32
 		if (idx === 0) {
@@ -59,7 +59,7 @@ export class SmallImmutableSet<T> {
 		return SmallImmutableSet.create(this.items, newItems);
 	}
 
-	public has(value: T, keyProvider: DenseKeyProvider<T>): boolean {
+	public has(value: T, keyProvider: IDenseKeyProvider<T>): boolean {
 		const key = keyProvider.getKey(value);
 		let idx = key >> 5; // divided by 32
 		if (idx === 0) {
@@ -129,6 +129,16 @@ export class SmallImmutableSet<T> {
 	}
 }
 
+export interface IDenseKeyProvider<T> {
+	getKey(value: T): number;
+}
+
+export const identityKeyProvider: IDenseKeyProvider<number> = {
+	getKey(value: number) {
+		return value;
+	}
+};
+
 /**
  * Assigns values a unique incrementing key.
 */
@@ -142,5 +152,23 @@ export class DenseKeyProvider<T> {
 			this.items.set(value, existing);
 		}
 		return existing;
+	}
+
+	reverseLookup(value: number): T | undefined {
+		return [...this.items].find(([_key, v]) => v === value)?.[0];
+	}
+
+	reverseLookupSet(set: SmallImmutableSet<T>): T[] {
+		const result: T[] = [];
+		for (const [key] of this.items) {
+			if (set.has(key, this)) {
+				result.push(key);
+			}
+		}
+		return result;
+	}
+
+	keys(): IterableIterator<T> {
+		return this.items.keys();
 	}
 }

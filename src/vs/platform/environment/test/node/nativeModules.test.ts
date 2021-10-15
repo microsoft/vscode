@@ -38,8 +38,13 @@ suite('Native Modules (all platforms)', () => {
 	});
 
 	test('nsfw', async () => {
-		const nsfWatcher = await import('nsfw');
+		const nsfWatcher = await import('vscode-nsfw');
 		assert.ok(typeof nsfWatcher === 'function', testErrorMessage('nsfw'));
+	});
+
+	test('parcel', async () => {
+		const parcelWatcher = await import('@parcel/watcher');
+		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('parcel'));
 	});
 
 	test('sqlite3', async () => {

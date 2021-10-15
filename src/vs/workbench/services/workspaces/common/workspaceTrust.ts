@@ -48,6 +48,10 @@ export class CanonicalWorkspace implements IWorkspace {
 		});
 	}
 
+	get transient(): boolean | undefined {
+		return this.originalWorkspace.transient;
+	}
+
 	get configuration(): URI | null | undefined {
 		return this.canonicalConfiguration ?? this.originalWorkspace.configuration;
 	}

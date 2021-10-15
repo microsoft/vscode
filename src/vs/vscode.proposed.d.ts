@@ -44,12 +44,22 @@ declare module 'vscode' {
 		isTrusted?: boolean;
 	}
 
+	export interface TunnelPrivacy {
+		themeIcon: string;
+		id: string;
+		label: string;
+	}
+
 	export interface TunnelOptions {
 		remoteAddress: { port: number, host: string; };
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
 		public?: boolean;
+		privacy?: string;
 		protocol?: string;
 	}
 
@@ -57,7 +67,11 @@ declare module 'vscode' {
 		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
+		/**
+		 * @deprecated Use privacy instead
+		 */
 		public?: boolean;
+		privacy?: string;
 		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
 		protocol?: string;
 	}
@@ -144,7 +158,14 @@ declare module 'vscode' {
 		 */
 		tunnelFeatures?: {
 			elevation: boolean;
+			/**
+			 * @deprecated Use privacy instead
+			 */
 			public: boolean;
+			/**
+			 * One of the the options must have the ID "private".
+			 */
+			privacyOptions: TunnelPrivacy[];
 		};
 
 		candidatePortSource?: CandidatePortSource;
@@ -180,6 +201,7 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function hasSession(providerId: string, scopes: readonly string[]): Thenable<boolean>;
 	}
 
 	export namespace workspace {
@@ -906,46 +928,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal state event https://github.com/microsoft/vscode/issues/127717
-
-	/**
-	 * Represents the state of a {@link Terminal}.
-	 */
-	export interface TerminalState {
-		/**
-		 * Whether the {@link Terminal} has been interacted with. Interaction means that the
-		 * terminal has sent data to the process which depending on the terminal's _mode_. By
-		 * default input is sent when a key is pressed or when a command or extension sends text,
-		 * but based on the terminal's mode it can also happen on:
-		 *
-		 * - a pointer click event
-		 * - a pointer scroll event
-		 * - a pointer move event
-		 * - terminal focus in/out
-		 *
-		 * For more information on events that can send data see "DEC Private Mode Set (DECSET)" on
-		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
-		 */
-		// todo@API Maybe, isInteractedWith to align with other isXYZ
-		readonly interactedWith: boolean;
-	}
-
-	export interface Terminal {
-		/**
-		 * The current state of the {@link Terminal}.
-		 */
-		readonly state: TerminalState;
-	}
-
-	export namespace window {
-		/**
-		 * An {@link Event} which fires when a {@link Terminal.state terminal's state} has changed.
-		 */
-		export const onDidChangeTerminalState: Event<Terminal>;
-	}
-
-	//#endregion
-
 	//#region Terminal location https://github.com/microsoft/vscode/issues/45407
 
 	export interface TerminalOptions {
@@ -1143,7 +1125,7 @@ declare module 'vscode' {
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		/*
-		 * An optional flag that can be set to true to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
+		 * An optional flag to maintain the scroll position of the quick pick when the quick pick items are updated. Defaults to false.
 		 */
 		keepScrollPosition?: boolean;
 	}
@@ -1427,7 +1409,7 @@ declare module 'vscode' {
 	export interface NotebookDecorationRenderOptions {
 		backgroundColor?: string | ThemeColor;
 		borderColor?: string | ThemeColor;
-		top: ThemableDecorationAttachmentRenderOptions;
+		top?: ThemableDecorationAttachmentRenderOptions;
 	}
 
 	export interface NotebookEditorDecorationType {
@@ -1863,6 +1845,7 @@ declare module 'vscode' {
 		 * An optional event to signal that inlay hints have changed.
 		 * @see {@link EventEmitter}
 		 */
+		//todo@API needs proper doc (like others)
 		onDidChangeInlayHints?: Event<void>;
 
 		/**
@@ -1905,64 +1888,6 @@ declare module 'vscode' {
 		 */
 		notebook: NotebookDocument | undefined;
 	}
-	//#endregion
-
-	//#region non-error test output https://github.com/microsoft/vscode/issues/129201
-	interface TestRun {
-		/**
-		 * Appends raw output from the test runner. On the user's request, the
-		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
-		 *
-		 * @param output Output text to append.
-		 * @param location Indicate that the output was logged at the given
-		 * location.
-		 * @param test Test item to associate the output with.
-		 */
-		appendOutput(output: string, location?: Location, test?: TestItem): void;
-	}
-	//#endregion
-
-	//#region test tags https://github.com/microsoft/vscode/issues/129456
-	/**
-	 * Tags can be associated with {@link TestItem TestItems} and
-	 * {@link TestRunProfile TestRunProfiles}. A profile with a tag can only
-	 * execute tests that include that tag in their {@link TestItem.tags} array.
-	 */
-	export class TestTag {
-		/**
-		 * ID of the test tag. `TestTag` instances with the same ID are considered
-		 * to be identical.
-		 */
-		readonly id: string;
-
-		/**
-		 * Creates a new TestTag instance.
-		 * @param id ID of the test tag.
-		 */
-		constructor(id: string);
-	}
-
-	export interface TestRunProfile {
-		/**
-		 * Associated tag for the profile. If this is set, only {@link TestItem}
-		 * instances with the same tag will be eligible to execute in this profile.
-		 */
-		tag?: TestTag;
-	}
-
-	export interface TestItem {
-		/**
-		 * Tags associated with this test item. May be used in combination with
-		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
-		 */
-		tags: readonly TestTag[];
-	}
-
-	export interface TestController {
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
-	}
-
 	//#endregion
 
 	//#region proposed test APIs https://github.com/microsoft/vscode/issues/107467
@@ -2331,28 +2256,58 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The position of the tab
+		 * The index of the tab within the column
+		 */
+		readonly index: number;
+
+		/**
+		 * The column which the tab belongs to
 		 */
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The resource represented by the tab if availble.
+		 * The resource represented by the tab if available.
 		 * Note: Not all tabs have a resource associated with them.
 		 */
-		readonly resource?: Uri;
+		readonly resource: Uri | undefined;
 
 		/**
 		 * The identifier of the view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId?: string;
+		readonly viewId: string | undefined;
+
+		/**
+		 * All the resources and viewIds represented by a tab
+		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * always be at index 0.
+		 */
+		readonly additionalResourcesAndViewIds: readonly {
+			readonly resource: Uri | undefined,
+			readonly viewId: string | undefined
+		}[];
 
 		/**
 		 * Whether or not the tab is currently active
 		 * Dictated by being the selected tab in the active group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 * @param index The index to move the tab to
+		 * @param viewColumn The column to move the tab into
+		 */
+		move(index: number, viewColumn: ViewColumn): Thenable<void>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 */
+		close(): Thenable<void>;
 	}
 
 	export namespace window {
@@ -2857,19 +2812,10 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @mjbvz https://github.com/microsoft/vscode/issues/40607
-	export interface MarkdownString {
-		/**
-		 * Indicates that this markdown string can contain raw html tags. Default to false.
-		 *
-		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
-		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
-		 *
-		 * When `supportHtml` is true, the markdown render will also allow a safe subset of html tags
-		 * and attributes to be rendered. See https://github.com/microsoft/vscode/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
-		 * for a list of all supported tags and attributes.
-		 */
-		supportHtml?: boolean;
+	//#region @eamodio https://github.com/microsoft/vscode/issues/133935
+
+	export interface SourceControl {
+		actionButton?: Command;
 	}
 
 	//#endregion

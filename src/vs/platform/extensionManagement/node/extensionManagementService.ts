@@ -288,12 +288,25 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 
-		const local = await this.installExtension(installableExtension, token);
-		if (existingExtension && semver.neq(existingExtension.manifest.version, this.gallery.version)) {
-			await this.extensionsScanner.setUninstalled(existingExtension);
+		try {
+			const local = await this.installExtension(installableExtension, token);
+			if (existingExtension && semver.neq(existingExtension.manifest.version, this.gallery.version)) {
+				await this.extensionsScanner.setUninstalled(existingExtension);
+			}
+			return local;
+		} catch (error) {
+			await this.deleteDownloadedVSIX(installableExtension.zipPath);
+			throw error;
 		}
-		try { await this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)); } catch (error) { /* Ignore */ }
-		return local;
+	}
+
+	private async deleteDownloadedVSIX(vsix: string): Promise<void> {
+		try {
+			await this.extensionsDownloader.delete(URI.file(vsix));
+		} catch (error) {
+			/* Ignore */
+			this.logService.warn('Error while deleting the downloaded vsix', vsix.toString(), getErrorMessage(error));
+		}
 	}
 
 	private async downloadInstallableExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<Required<InstallableExtension>> {
@@ -316,6 +329,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 			const manifest = await getManifest(zipPath);
 			return (<Required<InstallableExtension>>{ zipPath, identifierWithVersion: new ExtensionIdentifierWithVersion(extension.identifier, manifest.version), metadata });
 		} catch (error) {
+			await this.deleteDownloadedVSIX(zipPath);
 			throw new ExtensionManagementError(joinErrors(error).message, INSTALL_ERROR_VALIDATING);
 		}
 	}

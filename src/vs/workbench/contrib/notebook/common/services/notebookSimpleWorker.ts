@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
+import { doHash, hash, numberHash } from 'vs/base/common/hash';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
@@ -12,6 +12,16 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { VSBuffer } from 'vs/base/common/buffer';
+
+function bufferHash(buffer: VSBuffer): number {
+	let initialHashVal = numberHash(104579, 0);
+	for (let k = 0; k < buffer.buffer.length; k++) {
+		initialHashVal = doHash(buffer.buffer[k], initialHashVal);
+	}
+
+	return initialHashVal;
+}
 
 class MirrorCell {
 	private _textBuffer!: model.IReadonlyTextBuffer;
@@ -74,7 +84,7 @@ class MirrorCell {
 		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
 			outputs: op.outputs.map(output => ({
 				mime: output.mime,
-				data: output.data
+				data: bufferHash(output.data)
 			})),
 			metadata: op.metadata
 		}))]);

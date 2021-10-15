@@ -26,11 +26,9 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export class StatusbarEntryItem extends Disposable {
 
-	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
 	private entry: IStatusbarEntry | undefined = undefined;
-	get name(): string { return assertIsDefined(this.entry).name; }
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -38,7 +36,17 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
 
-	private readonly hover = this._register(new MutableDisposable<ICustomHover>());
+	private hover: ICustomHover | undefined = undefined;
+
+	readonly labelContainer: HTMLElement;
+
+	get name(): string {
+		return assertIsDefined(this.entry).name;
+	}
+
+	get hasCommand(): boolean {
+		return typeof this.entry?.command !== 'undefined';
+	}
 
 	constructor(
 		private container: HTMLElement,
@@ -95,9 +103,14 @@ export class StatusbarEntryItem extends Disposable {
 			this.labelContainer.setAttribute('role', entry.role || 'button');
 		}
 
-		// Update: Hover (on the container, because label can be disabled)
+		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			this.hover.value = setupCustomHover(this.hoverDelegate, this.labelContainer, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
+			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			if (this.hover) {
+				this.hover.update(hoverContents);
+			} else {
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
+			}
 		}
 
 		// Update: Command
@@ -106,7 +119,7 @@ export class StatusbarEntryItem extends Disposable {
 			this.commandKeyboardListener.clear();
 
 			const command = entry.command;
-			if (command && (command !== ShowTooltipCommand || this.hover.value) /* "Show Hover" is only valid when we have a hover */) {
+			if (command && (command !== ShowTooltipCommand || this.hover) /* "Show Hover" is only valid when we have a hover */) {
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
@@ -161,7 +174,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Custom command from us: Show tooltip
 		if (command === ShowTooltipCommand) {
-			this.hover.value?.show();
+			this.hover?.show(true /* focus */);
 		}
 
 		// Any other command is going through command service

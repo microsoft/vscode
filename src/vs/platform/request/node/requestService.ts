@@ -63,9 +63,17 @@ export class RequestService extends Disposable implements IRequestService {
 		this.logService.trace('RequestService#request', options.url);
 
 		const { proxyUrl, strictSSL } = this;
+
+		let shellEnv: typeof process.env | undefined = undefined;
+		try {
+			shellEnv = await resolveShellEnv(this.logService, this.environmentService.args, process.env);
+		} catch (error) {
+			this.logService.error('RequestService#request resolving shell environment failed', error);
+		}
+
 		const env = {
 			...process.env,
-			...(await resolveShellEnv(this.logService, this.environmentService.args, process.env)),
+			...shellEnv
 		};
 		const agent = options.agent ? options.agent : await getProxyAgent(options.url || '', env, { proxyUrl, strictSSL });
 
@@ -90,6 +98,7 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private _request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 
+		// eslint-disable-next-line no-async-promise-executor
 		return new Promise<IRequestContext>(async (c, e) => {
 			let req: http.ClientRequest;
 

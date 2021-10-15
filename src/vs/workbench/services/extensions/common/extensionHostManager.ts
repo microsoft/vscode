@@ -135,7 +135,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
-				console.error(`Error received from starting extension host (kind: ${this.kind})`);
+				console.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
 				console.error(err);
 
 				// Track errors during extension host startup
@@ -373,6 +373,11 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not use a resolver
+			return uri;
+		}
 		const proxy = await this._getProxy();
 		if (!proxy) {
 			throw new Error(`Cannot resolve canonical URI`);

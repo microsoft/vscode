@@ -244,17 +244,29 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 }
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId);
+	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId, args.extensionEnvironment);
 }
 
 export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
+	return parseDebugParams(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild, args.extensionEnvironment);
 }
 
-function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+export function parsePtyHostPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
+	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild, args.extensionEnvironment);
+}
+
+function parseDebugParams(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuild: boolean, debugId?: string, environmentString?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
 	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
 	const brk = port ? Boolean(!!debugBrkArg) : false;
+	let env: Record<string, string> | undefined;
+	if (environmentString) {
+		try {
+			env = JSON.parse(environmentString);
+		} catch {
+			// ignore
+		}
+	}
 
-	return { port, break: brk, debugId };
+	return { port, break: brk, debugId, env };
 }

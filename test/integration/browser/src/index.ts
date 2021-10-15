@@ -45,6 +45,16 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
+	page.on('console', async msg => {
+		try {
+			consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		} catch (err) {
+			console.error('Error logging console', err);
+		}
+	});
+	page.on('requestfailed', e => {
+		console.error('Request Failed', e.url(), e.failure()?.errorText);
+	});
 
 	const host = endpoint.host;
 	const protocol = 'vscode-remote';
@@ -80,6 +90,20 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 
 		process.exit(code);
 	});
+}
+
+function consoleLogFn(msg) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
 }
 
 function pkill(pid: number): Promise<void> {

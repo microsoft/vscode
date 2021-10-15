@@ -22,7 +22,7 @@ import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 
 const MINIMUM_FONT_SIZE = 6;
-const MAXIMUM_FONT_SIZE = 25;
+const MAXIMUM_FONT_SIZE = 100;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform

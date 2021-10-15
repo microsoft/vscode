@@ -271,7 +271,8 @@ class SimpleTunnelService implements ITunnelService {
 
 	tunnels: Promise<readonly RemoteTunnel[]> = Promise.resolve([]);
 	canElevate: boolean = false;
-	canMakePublic = false;
+	canChangePrivacy = false;
+	privacyOptions = [];
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
 	onAddedTunnelProvider = Event.None;

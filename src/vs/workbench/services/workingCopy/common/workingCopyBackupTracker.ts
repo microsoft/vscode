@@ -14,7 +14,8 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -236,8 +237,8 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 
 		// Figure out already opened editors for backups vs
 		// non-opened.
-		const openedEditorsForBackups = new Set<IEditorInput>();
-		const nonOpenedEditorsForBackups = new Set<IEditorInput>();
+		const openedEditorsForBackups = new Set<EditorInput>();
+		const nonOpenedEditorsForBackups = new Set<EditorInput>();
 
 		// Ensure each backup that can be handled has an
 		// associated editor.
