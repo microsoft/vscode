@@ -78,7 +78,12 @@ export class ExtHostWebview implements vscode.Webview {
 		if (extensionLocation.scheme === Schemas.https || extensionLocation.scheme === Schemas.http) {
 			// The extension is being served up from a CDN.
 			// Also include the CDN in the default csp.
-			return extensionLocation + ' ' + webviewGenericCspSource;
+			let extensionCspRule = extensionLocation.toString();
+			if (!extensionCspRule.endsWith('/')) {
+				// Always treat the location as a directory so that we allow all content under it
+				extensionCspRule += '/';
+			}
+			return extensionCspRule + ' ' + webviewGenericCspSource;
 		}
 		return webviewGenericCspSource;
 	}
