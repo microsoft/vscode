@@ -24,7 +24,7 @@ import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watc
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges, WatcherService } from 'vs/platform/files/node/watcher/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 
@@ -532,7 +532,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
-	private recursiveWatcher: UnixWatcherService | NsfwWatcherService | ParcelWatcherService | undefined;
+	private recursiveWatcher: WatcherService | undefined;
 	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
@@ -574,85 +574,90 @@ export class DiskFileSystemProvider extends Disposable implements
 		});
 	}
 
+	protected createRecursiveWatcher(
+		folders: IWatchRequest[],
+		onChange: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	): WatcherService {
+		let watcherImpl: {
+			new(
+				folders: IWatchRequest[],
+				onChange: (changes: IDiskFileChange[]) => void,
+				onLogMessage: (msg: ILogMessage) => void,
+				verboseLogging: boolean,
+				watcherOptions?: IWatcherOptions
+			): WatcherService
+		};
+
+		let watcherOptions: IWatcherOptions | undefined = undefined;
+
+		// requires a polling watcher
+		if (this.options?.watcher?.usePolling) {
+			watcherImpl = UnixWatcherService;
+			watcherOptions = this.options?.watcher;
+		}
+
+		// can use efficient watcher
+		else {
+			let enableLegacyWatcher = false;
+			if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
+				enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
+			} else {
+				if (product.quality === 'stable') {
+					// in stable use legacy for single folder workspaces
+					// TODO@bpasero remove me eventually
+					enableLegacyWatcher = this.recursiveFoldersToWatch.length === 1;
+				}
+			}
+
+			if (enableLegacyWatcher) {
+				if (isLinux) {
+					watcherImpl = UnixWatcherService;
+				} else {
+					watcherImpl = NsfwWatcherService;
+				}
+			} else {
+				watcherImpl = ParcelWatcherService;
+			}
+		}
+
+		// Create and start watching
+		return new watcherImpl(
+			folders,
+			changes => onChange(changes),
+			msg => onLogMessage(msg),
+			verboseLogging,
+			watcherOptions
+		);
+	}
+
 	private doRefreshRecursiveWatchers(): void {
 
 		// Reuse existing
-		if (this.recursiveWatcher instanceof NsfwWatcherService || this.recursiveWatcher instanceof ParcelWatcherService) {
+		if (this.recursiveWatcher) {
 			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
 		}
 
-		// Create new
-		else {
-
-			// Dispose old
-			dispose(this.recursiveWatcher);
-			this.recursiveWatcher = undefined;
-
-			// Create new if we actually have folders to watch
-			if (this.recursiveFoldersToWatch.length > 0) {
-				let watcherImpl: {
-					new(
-						folders: IWatchRequest[],
-						onChange: (changes: IDiskFileChange[]) => void,
-						onLogMessage: (msg: ILogMessage) => void,
-						verboseLogging: boolean,
-						watcherOptions?: IWatcherOptions
-					): UnixWatcherService | NsfwWatcherService | ParcelWatcherService
-				};
-
-				let watcherOptions: IWatcherOptions | undefined = undefined;
-
-				// requires a polling watcher
-				if (this.options?.watcher?.usePolling) {
-					watcherImpl = UnixWatcherService;
-					watcherOptions = this.options?.watcher;
-				}
-
-				// can use efficient watcher
-				else {
-					let enableLegacyWatcher = false;
-					if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
-						enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
-					} else {
-						if (product.quality === 'stable') {
-							// in stable use legacy for single folder workspaces
-							// TODO@bpasero remove me eventually
-							enableLegacyWatcher = this.recursiveFoldersToWatch.length === 1;
-						}
+		// Otherwise, create new if we have folders to watch
+		else if (this.recursiveFoldersToWatch.length > 0) {
+			this.recursiveWatcher = this.createRecursiveWatcher(
+				this.recursiveFoldersToWatch,
+				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				msg => {
+					if (msg.type === 'error') {
+						this._onDidWatchErrorOccur.fire(msg.message);
 					}
 
-					if (enableLegacyWatcher) {
-						if (isLinux) {
-							watcherImpl = UnixWatcherService;
-						} else {
-							watcherImpl = NsfwWatcherService;
-						}
-					} else {
-						watcherImpl = ParcelWatcherService;
-					}
-				}
+					this.logService[msg.type](msg.message);
+				},
+				this.logService.getLevel() === LogLevel.Trace
+			);
 
-				// Create and start watching
-				this.recursiveWatcher = new watcherImpl(
-					this.recursiveFoldersToWatch,
-					event => this._onDidChangeFile.fire(toFileChanges(event)),
-					msg => {
-						if (msg.type === 'error') {
-							this._onDidWatchErrorOccur.fire(msg.message);
-						}
-
-						this.logService[msg.type](msg.message);
-					},
-					this.logService.getLevel() === LogLevel.Trace,
-					watcherOptions
-				);
-
-				if (!this.recursiveWatcherLogLevelListener) {
-					this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
-						this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-					});
-				}
-			}
+			// Apply log levels dynamicaly
+			this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
+				this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+			});
 		}
 	}
 

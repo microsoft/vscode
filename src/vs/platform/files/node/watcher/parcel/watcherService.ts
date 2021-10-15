@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IWatcherService } from 'vs/platform/files/node/watcher/parcel/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/node/watcher/watcher';
 
-export class FileWatcher extends Disposable {
+export class FileWatcher extends WatcherService {
 
 	private static readonly MAX_RESTARTS = 5;
 
@@ -23,7 +22,7 @@ export class FileWatcher extends Disposable {
 		private requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
-		private verboseLogging: boolean,
+		private verboseLogging: boolean
 	) {
 		super();
 
@@ -34,8 +33,8 @@ export class FileWatcher extends Disposable {
 		const client = this._register(new Client(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
-				serverName: 'File Watcher (parcel)',
-				args: ['--type=watcherService'],
+				serverName: 'File Watcher (parcel, node.js)',
+				args: ['--type=parcelWatcherService'],
 				env: {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/parcel/watcherApp',
 					VSCODE_PIPE_LOGGING: 'true',

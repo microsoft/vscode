@@ -49,6 +49,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
+import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -133,6 +134,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 	protected abstract registerFileSystemProviders(
 		mainProcessService: IMainProcessService,
+		sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
 		environmentService: INativeWorkbenchEnvironmentService,
 		fileService: IFileService,
 		logService: ILogService,
@@ -181,6 +183,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);
 		serviceCollection.set(ISharedProcessService, sharedProcessService);
 
+		// Shared Process Worker
+		const sharedProcessWorkerWorkbenchService = new SharedProcessWorkerWorkbenchService(this.configuration.windowId, logService, sharedProcessService);
+		serviceCollection.set(ISharedProcessWorkerWorkbenchService, sharedProcessWorkerWorkbenchService);
+
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
@@ -215,7 +221,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const result = this.registerFileSystemProviders(mainProcessService, environmentService, fileService, logService, nativeHostService);
+		const result = this.registerFileSystemProviders(mainProcessService, sharedProcessWorkerWorkbenchService, environmentService, fileService, logService, nativeHostService);
 		if (result instanceof Promise) {
 			await result;
 		}

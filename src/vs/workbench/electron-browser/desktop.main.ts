@@ -9,11 +9,12 @@ import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } fro
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-browser/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -26,6 +27,7 @@ class DesktopMain extends SharedDesktopMain {
 
 	protected registerFileSystemProviders(
 		mainProcessService: IMainProcessService,
+		sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
 		environmentService: INativeWorkbenchEnvironmentService,
 		fileService: IFileService,
 		logService: ILogService,
@@ -33,7 +35,7 @@ class DesktopMain extends SharedDesktopMain {
 	): void {
 
 		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, { legacyWatcher: this.configuration.legacyWatcher }));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, sharedProcessWorkerWorkbenchService, { legacyWatcher: this.configuration.legacyWatcher, experimentalSandbox: !!this.configuration.experimentalSandboxedFileService }));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider

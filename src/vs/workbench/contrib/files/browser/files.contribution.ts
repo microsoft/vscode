@@ -305,7 +305,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
-		}
+		},
+		'files.experimentalSandboxedFileService': {
+			'type': 'boolean',
+			'description': nls.localize('files.experimentalSandboxedFileService', "Experimental: changes the file service to be sandboxed. Do not change this unless instructed!"),
+			'default': false
+		},
 	}
 });
 

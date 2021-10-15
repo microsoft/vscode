@@ -12,6 +12,7 @@ import { initFileSystem, simpleFileSystemProvider, simpleWorkspaceDir } from 'vs
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -21,6 +22,7 @@ class DesktopMain extends SharedDesktopMain {
 
 	protected registerFileSystemProviders(
 		mainProcessService: IMainProcessService,
+		sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
 		environmentService: INativeWorkbenchEnvironmentService,
 		fileService: IFileService,
 		logService: ILogService,

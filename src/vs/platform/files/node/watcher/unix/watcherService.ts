@@ -3,35 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/node/watcher/watcher';
 
 /**
  * @deprecated
  */
-export class FileWatcher extends Disposable {
+export class FileWatcher extends WatcherService {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private isDisposed: boolean;
-	private restartCounter: number;
 	private service: IWatcherService | undefined;
 
+	private isDisposed = false;
+	private restartCounter = 0;
+
 	constructor(
-		private folders: IWatchRequest[],
+		private requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private readonly watcherOptions: IWatcherOptions = {}
 	) {
 		super();
-
-		this.isDisposed = false;
-		this.restartCounter = 0;
 
 		this.startWatching();
 	}
@@ -41,7 +38,7 @@ export class FileWatcher extends Disposable {
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			{
 				serverName: 'File Watcher (chokidar)',
-				args: ['--type=watcherService'],
+				args: ['--type=chokidarWatcherService'],
 				env: {
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/unix/watcherApp',
 					VSCODE_PIPE_LOGGING: 'true',
@@ -68,31 +65,30 @@ export class FileWatcher extends Disposable {
 		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
 		this.service.init({ ...this.watcherOptions, verboseLogging: this.verboseLogging });
 
+		// Wire in event handlers
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
 		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
-		this.service.watch(this.folders);
+		this.watch(this.requests);
+	}
+
+	setVerboseLogging(verboseLogging: boolean): void {
+		this.verboseLogging = verboseLogging;
+
+		if (!this.isDisposed) {
+			this.service?.setVerboseLogging(verboseLogging);
+		}
 	}
 
 	error(message: string) {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (chokidar)] ${message}` });
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.verboseLogging = verboseLogging;
+	watch(requests: IWatchRequest[]): void {
+		this.requests = requests;
 
-		if (this.service) {
-			this.service.setVerboseLogging(verboseLogging);
-		}
-	}
-
-	watch(folders: IWatchRequest[]): void {
-		this.folders = folders;
-
-		if (this.service) {
-			this.service.watch(folders);
-		}
+		this.service?.watch(requests);
 	}
 
 	override dispose(): void {
