@@ -75,6 +75,13 @@
 	},
 	{
 		"type": "label",
+		"name": "notebook-triage",
+		"regex": "notebook.*",
+		"action": "updateLabels",
+		"addLabel": "needs-notebook-triage"
+	},
+	{
+		"type": "label",
 		"name": "L10N",
 		"assign": [
 			"csigs",
