@@ -17,7 +17,7 @@ import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
+import { FileIconThemeData, FileIconThemeLoader } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -39,7 +39,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 // implementation
 
@@ -92,6 +92,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private readonly fileIconThemeRegistry: ThemeRegistry<FileIconThemeData>;
 	private currentFileIconTheme: FileIconThemeData;
 	private readonly onFileIconThemeChange: Emitter<IWorkbenchFileIconTheme>;
+	private readonly fileIconThemeLoader: FileIconThemeLoader;
 	private readonly fileIconThemeWatcher: ThemeFileWatcher;
 	private readonly fileIconThemeSequencer: Sequencer;
 
@@ -115,7 +116,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IModeService readonly modeService: IModeService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -128,6 +129,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
 		this.fileIconThemeRegistry = new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme);
+		this.fileIconThemeLoader = new FileIconThemeLoader(fileService, modeService);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
@@ -566,7 +568,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (iconTheme !== this.currentFileIconTheme.id || !this.currentFileIconTheme.isLoaded) {
 
 				const newThemeData = this.fileIconThemeRegistry.findThemeById(iconTheme) || FileIconThemeData.noIconTheme;
-				await newThemeData.ensureLoaded(this.instantiationService);
+				await newThemeData.ensureLoaded(this.fileIconThemeLoader);
 
 				this.applyAndSetFileIconTheme(newThemeData); // updates this.currentFileIconTheme
 			}
@@ -585,7 +587,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private async reloadCurrentFileIconTheme() {
 		return this.fileIconThemeSequencer.queue(async () => {
-			await this.currentFileIconTheme.reload(this.instantiationService);
+			await this.currentFileIconTheme.reload(this.fileIconThemeLoader);
 			this.applyAndSetFileIconTheme(this.currentFileIconTheme);
 		});
 	}

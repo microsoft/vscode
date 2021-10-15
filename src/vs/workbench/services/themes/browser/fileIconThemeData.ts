@@ -13,7 +13,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconRegistry, IconDefaults } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -46,16 +45,16 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 		this.hidesExplorerArrows = false;
 	}
 
-	public ensureLoaded(instantiationService: IInstantiationService): Promise<string | undefined> {
-		return !this.isLoaded ? this.load(instantiationService) : Promise.resolve(this.styleSheetContent);
+	public ensureLoaded(themeLoader: FileIconThemeLoader): Promise<string | undefined> {
+		return !this.isLoaded ? this.load(themeLoader) : Promise.resolve(this.styleSheetContent);
 	}
 
-	public reload(instantiationService: IInstantiationService): Promise<string | undefined> {
-		return this.load(instantiationService);
+	public reload(themeLoader: FileIconThemeLoader): Promise<string | undefined> {
+		return this.load(themeLoader);
 	}
 
-	private load(instantiationService: IInstantiationService): Promise<string | undefined> {
-		return instantiationService.createInstance(FileIconThemeLoader).load(this);
+	private load(themeLoader: FileIconThemeLoader): Promise<string | undefined> {
+		return themeLoader.load(this);
 	}
 
 	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
@@ -190,13 +189,12 @@ interface IconThemeDocument extends IconsAssociation {
 	hidesExplorerArrows?: boolean;
 }
 
-class FileIconThemeLoader {
+export class FileIconThemeLoader {
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IModeService private readonly modeService: IModeService
+		private readonly fileService: IFileService,
+		private readonly modeService: IModeService
 	) {
-
 	}
 
 	public load(data: FileIconThemeData): Promise<string | undefined> {
