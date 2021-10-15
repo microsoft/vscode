@@ -317,6 +317,10 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			type: 'boolean',
 			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
 		};
+		schema.properties!['ozone-platform'] = {
+			type: 'string',
+			description: localize('argv.ozone-platform', "Configures the ozone platform implementation to be used by the runtime. Allowed values are 'wayland', 'x11'."),
+		};
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);

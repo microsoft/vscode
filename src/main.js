@@ -167,6 +167,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// Specify ozone platform implementation to use.
+		SUPPORTED_ELECTRON_SWITCHES.push('ozone-platform');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -194,12 +197,20 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				}
 			}
 
-			// Others
+			// Other 'enabled' flags
 			else if (argvValue === true || argvValue === 'true') {
 				if (argvKey === 'disable-hardware-acceleration') {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
 				} else {
 					app.commandLine.appendSwitch(argvKey);
+				}
+			}
+
+			// ozone platform
+			else if (argvKey === 'ozone-platform') {
+				if (argvValue) {
+					app.commandLine.appendSwitch(argvKey, argvValue);
+					app.commandLine.appendSwitch('enable-features', 'UseOzonePlatform');
 				}
 			}
 		}
