@@ -20,7 +20,10 @@ export interface ILanguageExtensionPoint {
 	aliases?: string[];
 	mimetypes?: string[];
 	configuration?: URI;
-	icon?: string;
+	/**
+	 * @internal
+	 */
+	icon?: ThemeIcon;
 }
 
 export interface ILanguageSelection {

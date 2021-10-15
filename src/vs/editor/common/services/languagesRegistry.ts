@@ -232,7 +232,7 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		if (lang.icon) {
-			resolvedLanguage.icons.push({ id: lang.icon });
+			resolvedLanguage.icons.push(lang.icon);
 		}
 	}
 
