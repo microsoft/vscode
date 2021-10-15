@@ -2159,6 +2159,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			}
 
 			if (options) {
+				options.cwd = cwd;
 				instance = await terminalService.createTerminal(options);
 			} else {
 				instance = await terminalService.showProfileQuickPick('createInstance', cwd);
