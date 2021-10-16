@@ -115,7 +115,7 @@
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
 	content: '';
 	width: 2px;
-	height: 32px;
+	height: 24px;
 	display: block;
 	background-color: var(--insert-border-color);
 	opacity: 0;

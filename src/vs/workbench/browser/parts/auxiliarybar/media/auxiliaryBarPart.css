@@ -79,8 +79,8 @@
 	padding-left: 10px;
 	padding-right: 10px;
 	font-size: 11px;
-	padding-bottom: 3px; /* puts the bottom border down */
-	padding-top: 4px;
+	padding-bottom: 1px; /* puts the bottom border down */
+	padding-top: 2px;
 	display: flex;
 }
 
@@ -88,6 +88,7 @@
 .monaco-workbench .part.auxiliarybar > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
 	content: '';
 	width: 2px;
+	height: 24px;
 	display: block;
 	background-color: var(--insert-border-color);
 	opacity: 0;
