@@ -492,10 +492,11 @@ export class ExplorerView extends ViewPane {
 		}
 	}
 
-	private setContextKeys(stat: ExplorerItem | null | undefined): void {
+	private async setContextKeys(stat: ExplorerItem | null | undefined): Promise<void> {
 		const folders = this.contextService.getWorkspace().folders;
 		const resource = stat ? stat.resource : folders[folders.length - 1].uri;
 		stat = stat || this.explorerService.findClosest(resource);
+		await stat?.resolveMetadata();
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
@@ -529,7 +530,7 @@ export class ExplorerView extends ViewPane {
 
 		// update dynamic contexts
 		this.fileCopiedContextKey.set(await this.clipboardService.hasResources());
-		this.setContextKeys(stat);
+		await this.setContextKeys(stat);
 
 		const selection = this.tree.getSelection();
 
@@ -560,9 +561,9 @@ export class ExplorerView extends ViewPane {
 		});
 	}
 
-	private onFocusChanged(elements: ExplorerItem[]): void {
+	private async onFocusChanged(elements: ExplorerItem[]): Promise<void> {
 		const stat = elements && elements.length ? elements[0] : undefined;
-		this.setContextKeys(stat);
+		await this.setContextKeys(stat);
 
 		if (stat) {
 			const enableTrash = this.configurationService.getValue<IFilesConfiguration>().files.enableTrash;

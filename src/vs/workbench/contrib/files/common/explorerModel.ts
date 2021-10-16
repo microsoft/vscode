@@ -83,6 +83,8 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
+	private _metadataResolution: Promise<void> | undefined;
+
 	constructor(
 		public resource: URI,
 		private readonly fileService: IFileService,
@@ -95,6 +97,23 @@ export class ExplorerItem {
 		private _unknown = false
 	) {
 		this._isDirectoryResolved = false;
+		if (_isDirectory !== undefined && _isSymbolicLink !== undefined && _mtime !== undefined && _readonly !== undefined) {
+			this._metadataResolution = Promise.resolve();
+		}
+	}
+
+	async resolveMetadata(): Promise<void> {
+		if (!this._metadataResolution) {
+			this._metadataResolution =
+				this.fileService.resolve(this.resource, { resolveMetadata: true })
+					.then(stat => {
+						this._readonly = stat.readonly;
+						this._isDirectory = stat.isDirectory;
+						this._isSymbolicLink = stat.isSymbolicLink;
+						this._mtime = stat.mtime;
+					});
+		}
+		return this._metadataResolution;
 	}
 
 	get isExcluded(): boolean {
