@@ -1618,7 +1618,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 		// If in process of showing, toggle whether or not panel is maximized
 		if (!hidden) {
-			if (isPanelMaximized !== panelOpensMaximized) {
+			if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
 				this.toggleMaximizedPanel();
 			}
 		}
