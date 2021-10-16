@@ -36,11 +36,6 @@ export interface IWatcher extends IDisposable {
 	request: IWatchRequest;
 
 	/**
-	 * Associated ignored patterns for the watcher that can be updated.
-	 */
-	ignored: ParsedPattern[];
-
-	/**
 	 * How often this watcher has been restarted in case of an unexpected
 	 * shutdown.
 	 */
@@ -250,12 +245,13 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		const watcher: IWatcher = {
 			request,
 			instance,
-			ignored: this.toExcludePatterns(request.excludes),
 			restarts,
 			token: cts.token,
 			stop: async () => {
 				cts.dispose(true);
-				(await instance)?.unsubscribe();
+
+				const watcherInstance = await instance;
+				await watcherInstance?.unsubscribe();
 			},
 			dispose: () => {
 				watcher.stop();
@@ -266,6 +262,9 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
+		// Warm up exclude patterns for usage
+		const excludePatterns = this.toExcludePatterns(request.excludes);
+
 		let undeliveredFileEvents: IDiskFileChange[] = [];
 
 		const onRawFileEvent = (path: string, type: FileChangeType) => {
@@ -273,7 +272,7 @@ export class ParcelWatcherService extends Disposable implements IWatcherService 
 				this.log(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
 			}
 
-			if (!this.isPathIgnored(path, watcher.ignored)) {
+			if (!this.isPathIgnored(path, excludePatterns)) {
 				undeliveredFileEvents.push({ type, path });
 			} else {
 				if (this.verboseLogging) {
