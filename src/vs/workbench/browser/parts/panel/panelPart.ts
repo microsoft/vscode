@@ -588,6 +588,13 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 		};
 	}
 
+	override onTitleAreaUpdate(compositeId: string): void {
+		super.onTitleAreaUpdate(compositeId);
+
+		// If title actions change, relayout the composite bar
+		this.layoutCompositeBar();
+	}
+
 	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(this.partId)) {
 			return;
