@@ -288,7 +288,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 			};
 			if (this._dataProvider.onDidChangeEmpty) {
-				this._register(this._dataProvider.onDidChangeEmpty(() => this._onDidChangeWelcomeState.fire()));
+				this._register(this._dataProvider.onDidChangeEmpty(() => {
+					this.updateCollapseAllToggle();
+					this._onDidChangeWelcomeState.fire();
+				}));
 			}
 			this.updateMessage();
 			this.refresh();
