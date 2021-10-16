@@ -232,6 +232,7 @@ export class FileService extends Disposable implements IFileService {
 	private async toFileStat(provider: IFileSystemProvider, resource: URI, stat: IStat | { type: FileType; } & Partial<IStat>, siblings: number | undefined, resolveMetadata: boolean, recurse: (stat: IFileStat, siblings?: number) => boolean): Promise<IFileStat> {
 		const { providerExtUri } = this.getExtUri(provider);
 
+		const readonly = Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 		// convert to file stat
 		const fileStat: IFileStat = {
 			resource,
@@ -242,7 +243,7 @@ export class FileService extends Disposable implements IFileService {
 			mtime: stat.mtime,
 			ctime: stat.ctime,
 			size: stat.size,
-			readonly: Boolean((stat.permissions ?? 0) & FilePermission.Readonly) || Boolean(provider.capabilities & FileSystemProviderCapabilities.Readonly),
+			readonly,
 			etag: etag({ mtime: stat.mtime, size: stat.size })
 		};
 
@@ -253,7 +254,7 @@ export class FileService extends Disposable implements IFileService {
 				const resolvedEntries = await Promises.settled(entries.map(async ([name, type]) => {
 					try {
 						const childResource = providerExtUri.joinPath(resource, name);
-						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
+						const childStat = resolveMetadata ? await provider.stat(childResource) : { type, permissions: readonly ? FilePermission.Readonly : undefined };
 
 						return await this.toFileStat(provider, childResource, childStat, entries.length, resolveMetadata, recurse);
 					} catch (error) {
