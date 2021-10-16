@@ -184,6 +184,15 @@ declare module 'vscode' {
 		 * Defaults to false.
 		 */
 		forceNewSession?: boolean | { detail: string };
+		/**
+		 * Whether we should show the indication to sign in in the Accounts menu.
+		 *
+		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
+		 * If true, no indication will be shown.
+		 *
+		 * Defaults to false.
+		 */
+		silent?: boolean;
 	}
 
 	export namespace authentication {
