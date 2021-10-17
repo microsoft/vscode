@@ -997,6 +997,11 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
 		},
+		'search.searchEditor.openLocationToMatch': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.openLocationToMatch', "When opening a location from the search editor, set selection to first match in line.")
+		},
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
 			default: false,

@@ -62,7 +62,7 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(: | )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
@@ -241,9 +241,21 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 				const position = e.target.position;
 				if (position && behaviour !== 'selectWord') {
 					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(RESULT_LINE_REGEX)) {
+					const lineMatch = line.match(RESULT_LINE_REGEX);
+					if (lineMatch) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+						// Check if we should select the first match
+						let selectionRange: Range | undefined;
+						if (this.searchConfig.searchEditor.openLocationToMatch) {
+							const searchMatchDecoration = this.searchResultEditor.getModel()?.getLineDecorations(position.lineNumber).find(ld => ld.options.description === 'search-editor-find-match');
+							if (searchMatchDecoration) {
+								const matchRange = searchMatchDecoration.range;
+								const offset = lineMatch[1].length + lineMatch[2].length + lineMatch[3].length;
+								const matchLine = parseInt(lineMatch[2], 10);
+								selectionRange = new Range(matchLine, matchRange.startColumn - offset, matchLine, matchRange.endColumn - offset);
+							}
+						}
+						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide', { selectionRange: selectionRange });
 					} else if (line.match(FILE_LINE_REGEX)) {
 						this.searchResultEditor.setSelection(Range.fromPositions(position));
 						this.commandService.executeCommand('editor.action.peekDefinition');
