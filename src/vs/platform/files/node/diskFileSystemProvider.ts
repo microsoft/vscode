@@ -10,7 +10,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
-import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname, normalize } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
@@ -536,8 +536,6 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly recursiveFoldersToWatch: IWatchRequest[] = [];
 	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
-	private recursiveWatcherLogLevelListener: IDisposable | undefined;
-
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		if (opts.recursive) {
 			return this.watchRecursive(resource, opts);
@@ -572,6 +570,35 @@ export class DiskFileSystemProvider extends Disposable implements
 		this.recursiveWatchRequestDelayer.trigger(async () => {
 			this.doRefreshRecursiveWatchers();
 		});
+	}
+
+	private doRefreshRecursiveWatchers(): void {
+
+		// Reuse existing
+		if (this.recursiveWatcher) {
+			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
+		}
+
+		// Otherwise, create new if we have folders to watch
+		else if (this.recursiveFoldersToWatch.length > 0) {
+			this.recursiveWatcher = this._register(this.createRecursiveWatcher(
+				this.recursiveFoldersToWatch,
+				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				msg => {
+					if (msg.type === 'error') {
+						this._onDidWatchErrorOccur.fire(msg.message);
+					}
+
+					this.logService[msg.type](msg.message);
+				},
+				this.logService.getLevel() === LogLevel.Trace
+			));
+
+			// Apply log levels dynamicaly
+			this._register(this.logService.onDidChangeLogLevel(() => {
+				this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+			}));
+		}
 	}
 
 	protected createRecursiveWatcher(
@@ -630,35 +657,6 @@ export class DiskFileSystemProvider extends Disposable implements
 			verboseLogging,
 			watcherOptions
 		);
-	}
-
-	private doRefreshRecursiveWatchers(): void {
-
-		// Reuse existing
-		if (this.recursiveWatcher) {
-			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
-		}
-
-		// Otherwise, create new if we have folders to watch
-		else if (this.recursiveFoldersToWatch.length > 0) {
-			this.recursiveWatcher = this.createRecursiveWatcher(
-				this.recursiveFoldersToWatch,
-				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
-				msg => {
-					if (msg.type === 'error') {
-						this._onDidWatchErrorOccur.fire(msg.message);
-					}
-
-					this.logService[msg.type](msg.message);
-				},
-				this.logService.getLevel() === LogLevel.Trace
-			);
-
-			// Apply log levels dynamicaly
-			this.recursiveWatcherLogLevelListener = this.logService.onDidChangeLogLevel(() => {
-				this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-			});
-		}
 	}
 
 	private watchNonRecursive(resource: URI): IDisposable {
@@ -741,14 +739,4 @@ export class DiskFileSystemProvider extends Disposable implements
 	}
 
 	//#endregion
-
-	override dispose(): void {
-		super.dispose();
-
-		dispose(this.recursiveWatcher);
-		this.recursiveWatcher = undefined;
-
-		dispose(this.recursiveWatcherLogLevelListener);
-		this.recursiveWatcherLogLevelListener = undefined;
-	}
 }

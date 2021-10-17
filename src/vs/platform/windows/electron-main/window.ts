@@ -1291,7 +1291,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	send(channel: string, ...args: any[]): void {
 		if (this._win) {
 			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
-				this.logService.warn(`Sending IPC message to channel ${channel} for window that is destroyed`);
+				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);
 				return;
 			}
 

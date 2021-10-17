@@ -7,17 +7,19 @@ import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/com
 
 export enum SharedProcessWorkerMessages {
 
-	// Message Port Exchange
-	RequestPort = 'vscode:requestSharedProcessWorkerPort',
-	ReceivePort = 'vscode:receiveSharedProcessWorkerPort',
+	// Process
+	WorkerSpawn = 'vscode:shared-process->shared-process-worker=spawn',
+	WorkerTerminate = 'vscode:shared-process->shared-process-worker=terminate',
 
 	// Lifecycle
-	WorkerReady = 'vscode:sharedProcessWorkerReady',
+	WorkerReady = 'vscode:shared-process-worker->shared-process=ready',
+	WorkerAck = 'vscode:shared-process-worker->shared-process=ack',
 
 	// Diagnostics
-	WorkerTrace = 'vscode:sharedProcessWorkerTrace',
-	WorkerWarn = 'vscode:sharedProcessWorkerWarn',
-	WorkerError = 'vscode:sharedProcessWorkerError'
+	WorkerTrace = 'vscode:shared-process-worker->shared-process=trace',
+	WorkerInfo = 'vscode:shared-process-worker->shared-process=info',
+	WorkerWarn = 'vscode:shared-process-worker->shared-process=warn',
+	WorkerError = 'vscode:shared-process-worker->shared-process=error'
 }
 
 export interface ISharedProcessWorkerEnvironment {
@@ -31,10 +33,12 @@ export interface ISharedProcessWorkerEnvironment {
 export interface ISharedProcessToWorkerMessage {
 	id: string;
 	configuration: ISharedProcessWorkerConfiguration;
-	environment: ISharedProcessWorkerEnvironment;
+	environment?: ISharedProcessWorkerEnvironment;
+	nonce?: string;
 }
 
 export interface IWorkerToSharedProcessMessage {
 	id: string;
 	message?: string;
+	nonce?: string;
 }

@@ -26,6 +26,9 @@ export interface ISharedProcessWorkerWorkbenchService {
 	 * Requires the forked process to be AMD module that uses our IPC channel framework
 	 * to respond to the provided `channelName` as a server.
 	 *
+	 * The process will be automatically terminated when the workbench window closes,
+	 * crashes or loads/reloads.
+	 *
 	 * @param process information around the process to fork
 	 * @param channelName the name of the channel the process will respond to
 	 */

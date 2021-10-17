@@ -6,7 +6,7 @@
 import { BrowserWindow, Event as ElectronEvent, ipcMain, IpcMainEvent, MessagePortMain } from 'electron';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -86,17 +86,42 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private onWorkerConnection(e: IpcMainEvent, configuration: ISharedProcessWorkerConfiguration): void {
-		this.logService.trace('SharedProcess: on vscode:relaySharedProcessWorkerMessageChannel', configuration);
+		this.logService.trace('SharedProcess: onWorkerConnection', configuration);
 
-		const receiver = BrowserWindow.fromId(configuration.reply.windowId)?.webContents;
-		if (!receiver || receiver.isDestroyed()) {
-			return; // ensure the sender is a valid target to send to
+		const disposables = new DisposableStore();
+
+		const disposeWorker = (reason: string) => {
+			this.logService.trace(`SharedProcess: disposing worker (reason: '${reason}')`, configuration);
+
+			// Only once!
+			disposables.dispose();
+
+			// Send this into the shared process who owns workers
+			this.send('vscode:electron-main->shared-process=disposeWorker', configuration);
+		};
+
+		// ensure the sender is a valid target to send to
+		const receiverWindow = BrowserWindow.fromId(configuration.reply.windowId);
+		if (!receiverWindow || receiverWindow.isDestroyed() || receiverWindow.webContents.isDestroyed()) {
+			disposeWorker('unavailable');
+
+			return;
+		}
+
+		// attach to lifecycle of receiver to manage worker lifecycle
+		disposables.add(Event.fromNodeEventEmitter(receiverWindow, 'closed')(() => disposeWorker('closed')));
+		for (const webContentsEvent of [
+			'destroyed',			// receiver window closed
+			'render-process-gone',	// receiver window crashed
+			'did-start-loading'		// receiver window loaded: since workers are bound to window contents, treat as disposal
+		]) {
+			disposables.add(Event.fromNodeEventEmitter(receiverWindow.webContents, webContentsEvent)(() => disposeWorker(webContentsEvent)));
 		}
 
 		// The shared process window asks us to relay a `MessagePort`
 		// from a shared process worker to the target window. It needs
 		// to be send via `postMessage` to transfer the port.
-		receiver.postMessage(configuration.reply.channel, configuration.reply.nonce, e.ports);
+		receiverWindow.webContents.postMessage(configuration.reply.channel, configuration.reply.nonce, e.ports);
 	}
 
 	private onWillShutdown(): void {
@@ -106,9 +131,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
-			window.webContents.send('vscode:electron-main->shared-process=exit');
-		}
+		this.send('vscode:electron-main->shared-process=exit');
 
 		// Shut the shared process down when we are quitting
 		//
@@ -131,6 +154,16 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 			this.window = undefined;
 		}, 0);
+	}
+
+	private send(channel: string, ...args: any[]): void {
+		const window = this.window;
+		if (!window || window.isDestroyed() || window.webContents.isDestroyed()) {
+			this.logService.warn(`Sending IPC message to channel '${channel}' for shared process window that is destroyed`);
+			return;
+		}
+
+		window.webContents.send(channel, ...args);
 	}
 
 	private _whenReady: Promise<void> | undefined = undefined;
