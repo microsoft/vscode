@@ -640,7 +640,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 					templateData.cellDisposable.push(textModel);
 				}
 
-				if (textModel) {
+				// templateData could have moved on during async.  Double check if it is still the same source.
+				if (textModel && templateData.currentElement.element !== element) {
 					let lineNumber = instruction.line;
 
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
