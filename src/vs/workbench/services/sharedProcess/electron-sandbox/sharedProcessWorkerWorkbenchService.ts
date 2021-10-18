@@ -69,9 +69,9 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		return {
 			channel: getDelayedChannel(this.doCreateWorkerChannel(process, channelName, cts.token)),
-			dispose: () => {
+			dispose: async () => {
+				await this.disposeWorkerChannel(process);
 				cts.dispose(true);
-				this.disposeWorkerChannel(process);
 			}
 		};
 	}

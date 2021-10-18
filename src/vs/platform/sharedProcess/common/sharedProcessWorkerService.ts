@@ -46,8 +46,7 @@ export interface ISharedProcessWorkerConfiguration {
 export function hash(configuration: ISharedProcessWorkerConfiguration): number {
 	return hashObject({
 		moduleId: configuration.process.moduleId,
-		windowId: configuration.reply.windowId,
-		channelId: configuration.reply.channel
+		windowId: configuration.reply.windowId
 	});
 }
 
