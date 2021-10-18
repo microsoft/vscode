@@ -59,7 +59,7 @@ export const enum TsServerProcessKind {
 
 export interface TsServerProcessFactory {
 	fork(
-		tsServerPath: string,
+		version: TypeScriptVersion,
 		args: readonly string[],
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,

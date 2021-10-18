@@ -12,7 +12,7 @@ import { LanguageConfigurationManager } from './languageFeatures/languageConfigu
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
-import { ChildServerProcess } from './tsServer/serverProcess.electron';
+import { ElectronServiceProcessFactory } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { ElectronServiceConfigurationProvider } from './utils/configuration.electron';
@@ -46,7 +46,7 @@ export function activate(
 		logDirectoryProvider,
 		cancellerFactory: nodeRequestCancellerFactory,
 		versionProvider,
-		processFactory: ChildServerProcess,
+		processFactory: new ElectronServiceProcessFactory(),
 		activeJsTsEditorTracker,
 		serviceConfigurationProvider: new ElectronServiceConfigurationProvider(),
 	}, item => {
