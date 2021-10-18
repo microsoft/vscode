@@ -42,8 +42,8 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (!languageIdentifier || languageIdentifier.language !== languageId) {
+		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		if (!validLanguageId || validLanguageId !== languageId) {
 			return Promise.reject(new Error(`Unknown language id: ${languageId}`));
 		}
 

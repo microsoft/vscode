@@ -29,7 +29,7 @@ function staticCodeActionProvider(...actions: modes.CodeAction[]): modes.CodeAct
 
 suite('CodeAction', () => {
 
-	let langId = new modes.LanguageIdentifier('fooLang', 17);
+	let langId = 'fooLang';
 	let uri = URI.parse('untitled:path');
 	let model: TextModel;
 	const disposables = new DisposableStore();

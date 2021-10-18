@@ -168,6 +168,7 @@ export module StaticServices {
 				standaloneThemeService.get(o),
 				logService.get(o),
 				undoRedoService.get(o),
+				modeService.get(o),
 				languageConfigurationService.get(o)
 			)
 	);

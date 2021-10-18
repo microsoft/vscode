@@ -36,7 +36,7 @@ if (isWeb) {
 
 		createSuite({
 			setup: async () => {
-				const instantiationService = workbenchInstantiationService();
+				const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 				const logService = new NullLogService();
 				const fileService = new FileService(logService);

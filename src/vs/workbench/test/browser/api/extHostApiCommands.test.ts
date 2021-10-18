@@ -53,24 +53,6 @@ import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.b'));
-
-let rpcProtocol: TestRPCProtocol;
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let commands: ExtHostCommands;
-let disposables: vscode.Disposable[] = [];
-let originalErrorHandler: (e: any) => any;
-
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
 }
@@ -81,9 +63,26 @@ function isLocation(value: vscode.Location | vscode.LocationLink): value is vsco
 }
 
 suite('ExtHostLanguageFeatureCommands', function () {
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+
+	let rpcProtocol: TestRPCProtocol;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let commands: ExtHostCommands;
+	let disposables: vscode.Disposable[] = [];
+	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
-
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.b'));
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
@@ -132,7 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				modeId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),

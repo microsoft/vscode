@@ -99,6 +99,8 @@ suite('Suggest Widget Model', () => {
 			range: '[1,4 -> 1,4]',
 			text: 'ction'
 		});
+
+		model.dispose();
 	});
 });
 

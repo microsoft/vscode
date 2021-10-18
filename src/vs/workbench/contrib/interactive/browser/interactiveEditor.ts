@@ -29,7 +29,7 @@ import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -486,7 +486,7 @@ export class InteractiveEditor extends EditorPane {
 
 		if (selectedOrSuggested) {
 			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#modeService.create(language).languageIdentifier : PLAINTEXT_LANGUAGE_IDENTIFIER;
+			const newMode = language ? this.#modeService.create(language).languageId : PLAINTEXT_MODE_ID;
 			textModel.setMode(newMode);
 		}
 	}

@@ -15,13 +15,16 @@ import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench - TerminalProcessManager', () => {
+	let disposables: DisposableStore;
 	let instantiationService: ITestInstantiationService;
 	let manager: TerminalProcessManager;
 
 	setup(async () => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
 		await configurationService.setUserConfiguration('terminal', {
@@ -37,6 +40,10 @@ suite('Workbench - TerminalProcessManager', () => {
 
 		const configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	suite('process persistence', () => {

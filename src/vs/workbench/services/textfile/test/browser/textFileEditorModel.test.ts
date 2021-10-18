@@ -18,6 +18,7 @@ import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/e
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -27,12 +28,14 @@ suite('Files - TextFileEditorModel', () => {
 		return stat ? stat.mtime : -1;
 	}
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let content: string;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 		content = accessor.fileService.getContent();
 	});
@@ -40,6 +43,7 @@ suite('Files - TextFileEditorModel', () => {
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 		accessor.fileService.setContent(content);
+		disposables.dispose();
 	});
 
 	test('basic events', async function () {
@@ -302,7 +306,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		await model.resolve();
 
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));

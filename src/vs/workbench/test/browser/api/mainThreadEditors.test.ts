@@ -23,7 +23,7 @@ import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnviro
 import { BulkEditService } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IReference, ImmortalReference } from 'vs/base/common/lifecycle';
+import { IReference, ImmortalReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -54,9 +54,11 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 
 suite('MainThreadEditors', () => {
 
+	let disposables: DisposableStore;
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
@@ -68,6 +70,7 @@ suite('MainThreadEditors', () => {
 	const deletedResources = new Set<URI>();
 
 	setup(() => {
+		disposables = new DisposableStore();
 
 		movedResources.clear();
 		copiedResources.clear();
@@ -85,6 +88,7 @@ suite('MainThreadEditors', () => {
 			new TestThemeService(),
 			new NullLogService(),
 			undoRedoService,
+			disposables.add(new ModeServiceImpl()),
 			new TestLanguageConfigurationService()
 		);
 
@@ -189,6 +193,10 @@ suite('MainThreadEditors', () => {
 		const documentAndEditor = instaService.createInstance(MainThreadDocumentsAndEditors, rpcProtocol);
 
 		editors = instaService.createInstance(MainThreadTextEditors, documentAndEditor, SingleProxyRPCProtocol(null));
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test(`applyWorkspaceEdit returns false if model is changed by user`, () => {

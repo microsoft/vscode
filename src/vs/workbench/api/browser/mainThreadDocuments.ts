@@ -198,7 +198,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageId());
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {

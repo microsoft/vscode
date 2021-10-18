@@ -21,17 +21,17 @@ suite('NotebookKernelService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
-	const dispoables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
 
 	setup(function () {
-		dispoables.clear();
+		disposables = new DisposableStore();
 
 		onDidAddNotebookDocument = new Emitter();
-		dispoables.add(onDidAddNotebookDocument);
+		disposables.add(onDidAddNotebookDocument);
 
-		instantiationService = setupInstantiationService();
+		instantiationService = setupInstantiationService(disposables);
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
 			override onWillRemoveNotebookDocument = Event.None;
@@ -41,6 +41,9 @@ suite('NotebookKernelService', () => {
 		instantiationService.set(INotebookKernelService, kernelService);
 	});
 
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	test('notebook priorities', function () {
 

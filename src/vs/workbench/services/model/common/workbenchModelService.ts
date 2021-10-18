@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -22,10 +23,11 @@ export class WorkbenchModelServiceImpl extends ModelServiceImpl {
 		@IThemeService themeService: IThemeService,
 		@ILogService logService: ILogService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IPathService private readonly _pathService: IPathService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@IModeService modeService: IModeService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
-		super(configurationService, resourcePropertiesService, themeService, logService, undoRedoService, languageConfigurationService);
+		super(configurationService, resourcePropertiesService, themeService, logService, undoRedoService, modeService, languageConfigurationService);
 	}
 
 	protected override _schemaShouldMaintainUndoRedoElements(resource: URI) {

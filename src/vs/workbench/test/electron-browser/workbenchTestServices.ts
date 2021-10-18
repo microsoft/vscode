@@ -46,6 +46,7 @@ import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import product from 'vs/platform/product/common/product';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -259,11 +260,11 @@ export class TestNativeHostService implements INativeHostService {
 	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
 }
 
-export function workbenchInstantiationService(): ITestInstantiationService {
+export function workbenchInstantiationService(disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
 		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService),
 		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
-	});
+	}, disposables);
 
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);

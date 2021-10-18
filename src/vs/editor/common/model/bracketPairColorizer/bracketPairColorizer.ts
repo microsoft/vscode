@@ -12,7 +12,6 @@ import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/sm
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageId } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
@@ -77,7 +76,7 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 
 		this._register(
 			this.languageConfigurationService.onDidChange(e => {
-				if (!e.languageIdentifier || this.cache.value?.object.didLanguageChange(e.languageIdentifier.id)) {
+				if (!e.languageId || this.cache.value?.object.didLanguageChange(e.languageId)) {
 					this.cache.clear();
 					this.updateCache();
 				}
@@ -178,7 +177,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 	private readonly denseKeyProvider = new DenseKeyProvider<string>();
 	private readonly brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 
-	public didLanguageChange(languageId: LanguageId): boolean {
+	public didLanguageChange(languageId: string): boolean {
 		return this.brackets.didLanguageChange(languageId);
 	}
 
@@ -186,7 +185,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 
 	constructor(
 		private readonly textModel: TextModel,
-		private readonly getLanguageConfiguration: (languageId: LanguageId) => ResolvedLanguageConfiguration
+		private readonly getLanguageConfiguration: (languageId: string) => ResolvedLanguageConfiguration
 	) {
 		super();
 
@@ -217,7 +216,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 
 		if (textModel.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
 			// There are no token information yet
-			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageIdentifier().id);
+			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageId());
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
 			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;

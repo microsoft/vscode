@@ -1619,7 +1619,7 @@ class SCMInputWidget extends Disposable {
 		this.repositoryDisposables.add(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
 
 		// Adaptive indentation rules
-		const opts = this.modelService.getCreationOptions(textModel.getLanguageIdentifier().language, textModel.uri, textModel.isForSimpleWidget);
+		const opts = this.modelService.getCreationOptions(textModel.getLanguageId(), textModel.uri, textModel.isForSimpleWidget);
 		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
 		this.repositoryDisposables.add(onEnter(() => textModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 

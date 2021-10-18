@@ -426,7 +426,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			activeCodeEditor = activeTextEditorControl;
 		}
 
-		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
+		return activeCodeEditor?.getModel()?.getLanguageId();
 	}
 
 	get count(): number {

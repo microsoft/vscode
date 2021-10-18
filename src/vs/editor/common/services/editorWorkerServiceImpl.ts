@@ -168,7 +168,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 				if (candidate === model) {
 					models.unshift(candidate.uri);
 
-				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
+				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageId() === model.getLanguageId()) {
 					models.push(candidate.uri);
 				}
 			}
@@ -178,7 +178,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 			return undefined; // File too large, no other files
 		}
 
-		const wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		const wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 		const word = model.getWordAtPosition(position);
 		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
@@ -503,7 +503,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			if (!model) {
 				return Promise.resolve(null);
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
@@ -516,7 +516,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

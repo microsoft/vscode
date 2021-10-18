@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, ILanguageIdCodec, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
@@ -21,6 +21,7 @@ export class LineTokens implements IViewLineTokens {
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 
 	public static defaultTokenMetadata = (
 		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
@@ -28,20 +29,21 @@ export class LineTokens implements IViewLineTokens {
 		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
 	) >>> 0;
 
-	public static createEmpty(lineContent: string): LineTokens {
+	public static createEmpty(lineContent: string, decoder: ILanguageIdCodec): LineTokens {
 		const defaultMetadata = LineTokens.defaultTokenMetadata;
 
 		const tokens = new Uint32Array(2);
 		tokens[0] = lineContent.length;
 		tokens[1] = defaultMetadata;
 
-		return new LineTokens(tokens, lineContent);
+		return new LineTokens(tokens, lineContent, decoder);
 	}
 
-	constructor(tokens: Uint32Array, text: string) {
+	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
+		this._languageIdCodec = decoder;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -88,9 +90,10 @@ export class LineTokens implements IViewLineTokens {
 		return metadata;
 	}
 
-	public getLanguageId(tokenIndex: number): LanguageId {
+	public getLanguageId(tokenIndex: number): string {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getLanguageId(metadata);
+		const languageId = TokenMetadata.getLanguageId(metadata);
+		return this._languageIdCodec.decodeLanguageId(languageId);
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
@@ -212,7 +215,7 @@ export class LineTokens implements IViewLineTokens {
 			}
 		}
 
-		return new LineTokens(new Uint32Array(newTokens), text);
+		return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
 	}
 }
 

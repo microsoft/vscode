@@ -137,7 +137,7 @@ suite('WorkspaceContextService - Workspace', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = disposables.add(instantiationService.createInstance(RemoteAgentService, null));
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -195,7 +195,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -438,7 +438,7 @@ suite('WorkspaceService - Initialization', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -685,7 +685,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const folder = joinPath(ROOT, 'a');
 		await fileService.createFolder(folder);
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -1332,7 +1332,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
-		const instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, null);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
@@ -1993,7 +1993,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		machineSettingsResource = joinPath(ROOT, 'machine-settings.json');
 		remoteSettingsResource = machineSettingsResource.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 		const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
@@ -2198,7 +2198,7 @@ suite('ConfigurationService - Configuration Defaults', () => {
 	});
 
 	function createConfigurationService(configurationDefaults: Record<string, any>): IConfigurationService {
-		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService()).createInstance(RemoteAgentService, null);
+		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService(undefined, disposableStore)).createInstance(RemoteAgentService, null);
 		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: joinPath(ROOT, 'logs'), workspaceId: '', configurationDefaults }, TestProductService);
 		const fileService = new FileService(new NullLogService());
 		return disposableStore.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));

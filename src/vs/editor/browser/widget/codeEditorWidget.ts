@@ -1498,7 +1498,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const listenersToRemove: IDisposable[] = [];
 
-		this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
+		this._domElement.setAttribute('data-mode-id', model.getLanguageId());
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
 		this._configuration.setMaxLineNumber(model.getLineCount());
 
@@ -1515,7 +1515,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
 		listenersToRemove.push(model.onDidChangeLanguage((e) => {
-			this._domElement.setAttribute('data-mode-id', model.getLanguageIdentifier().language);
+			this._domElement.setAttribute('data-mode-id', model.getLanguageId());
 			this._onDidChangeModelLanguage.fire(e);
 		}));
 		listenersToRemove.push(model.onDidChangeLanguageConfiguration((e) => this._onDidChangeModelLanguageConfiguration.fire(e)));
@@ -1961,7 +1961,7 @@ export class EditorModeContext extends Disposable {
 			return;
 		}
 		this._contextKeyService.bufferChangeEvents(() => {
-			this._langId.set(model.getLanguageIdentifier().language);
+			this._langId.set(model.getLanguageId());
 			this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
 			this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
 			this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));

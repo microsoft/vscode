@@ -211,7 +211,7 @@ export async function renderMarkdownDocument(
 				modeService.triggerMode(modeId);
 				support = await TokenizationRegistry.getPromise(modeId) ?? undefined;
 			}
-			callback(null, `<code>${tokenizeToString(code, support)}</code>`);
+			callback(null, `<code>${tokenizeToString(code, modeService.languageIdCodec, support)}</code>`);
 		});
 		return '';
 	};

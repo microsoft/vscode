@@ -738,7 +738,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
-				const modeId = textModel.getLanguageIdentifier().language;
+				const modeId = textModel.getLanguageId();
 				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
 			}
 		}
@@ -1107,7 +1107,7 @@ export class ChangeModeAction extends Action {
 		let currentLanguageId: string | undefined;
 		let currentModeId: string | undefined;
 		if (textModel) {
-			currentModeId = textModel.getLanguageIdentifier().language;
+			currentModeId = textModel.getLanguageId();
 			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
 		}
 
@@ -1232,7 +1232,7 @@ export class ChangeModeAction extends Action {
 
 				// Change mode
 				if (typeof languageSelection !== 'undefined') {
-					modeSupport.setMode(languageSelection.languageIdentifier.language);
+					modeSupport.setMode(languageSelection.languageId);
 				}
 			}
 

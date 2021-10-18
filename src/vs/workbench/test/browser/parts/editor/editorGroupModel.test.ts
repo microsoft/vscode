@@ -313,7 +313,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('openEditor - prefers existing side by side editor if same', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const group = createEditorGroupModel();
 		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
@@ -341,7 +341,7 @@ suite('EditorGroupModel', () => {
 	});
 
 	test('indexOf() - prefers direct matching editor over side by side matching one', () => {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const group = createEditorGroupModel();
 		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
@@ -362,7 +362,7 @@ suite('EditorGroupModel', () => {
 
 	test('contains() - untyped', function () {
 		const group = createEditorGroupModel();
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const input1 = input('input1', false, URI.file('/input1'));
 		const input2 = input('input2', false, URI.file('/input2'));
@@ -483,7 +483,7 @@ suite('EditorGroupModel', () => {
 
 	test('contains()', () => {
 		const group = createEditorGroupModel();
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const input1 = input();
 		const input2 = input();

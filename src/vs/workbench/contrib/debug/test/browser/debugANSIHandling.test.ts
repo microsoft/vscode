@@ -17,9 +17,11 @@ import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Debug - ANSI Handling', () => {
 
+	let disposables: DisposableStore;
 	let model: DebugModel;
 	let session: DebugSession;
 	let linkDetector: LinkDetector;
@@ -29,10 +31,11 @@ suite('Debug - ANSI Handling', () => {
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
+		disposables = new DisposableStore();
 		model = createMockDebugModel();
 		session = createMockSession(model);
 
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
 
 		const colors: { [id: string]: string; } = {};
@@ -41,6 +44,10 @@ suite('Debug - ANSI Handling', () => {
 		}
 		const testTheme = new TestColorTheme(colors);
 		themeService = new TestThemeService(testTheme);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('appendStylizedStringToContainer', () => {

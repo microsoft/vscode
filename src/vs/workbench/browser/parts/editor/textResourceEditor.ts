@@ -181,7 +181,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			return; // require a live model
 		}
 
-		const currentMode = textModel.getModeId();
+		const currentMode = textModel.getLanguageId();
 		if (currentMode !== PLAINTEXT_MODE_ID) {
 			return; // require current mode to be unspecific
 		}

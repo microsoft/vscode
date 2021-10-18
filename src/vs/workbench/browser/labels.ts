@@ -325,8 +325,8 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (isEqual(model.uri, resource)) {
-			if (this.lastKnownDetectedModeId !== model.getModeId()) {
-				this.lastKnownDetectedModeId = model.getModeId();
+			if (this.lastKnownDetectedModeId !== model.getLanguageId()) {
+				this.lastKnownDetectedModeId = model.getLanguageId();
 				this.render({ updateIcon: true, updateDecoration: false }); // update if the language id of the model has changed from our last known state
 			}
 		}

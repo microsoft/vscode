@@ -94,7 +94,7 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	}
 
 	public getMode(): string | undefined {
-		return this.model.getModeId();
+		return this.model.getLanguageId();
 	}
 }
 
