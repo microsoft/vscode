@@ -70,6 +70,13 @@ export interface ISharedProcessWorkerService {
 	 * The process will be automatically terminated when the receiver window closes,
 	 * crashes or loads/reloads. It can also explicitly be terminated by calling
 	 * `disposeWorker`.
+	 *
+	 * Note on affinity: repeated calls to `createWorker` with the same `moduleId` from
+	 * the same window will result in any previous forked process to get terminated.
+	 * In other words, it is not possible, nor intended to create multiple workers of
+	 * the same process from one window. The intent of these workers is to be reused per
+	 * window and the communication channel allows to dynamically update the processes
+	 * after the fact.
 	 */
 	createWorker(configuration: ISharedProcessWorkerConfiguration): Promise<void>;
 
