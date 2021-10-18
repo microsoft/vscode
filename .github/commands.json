@@ -78,7 +78,7 @@
 		"name": "notebook-triage",
 		"regex": "notebook.*",
 		"action": "updateLabels",
-		"addLabel": "needs-notebook-triage"
+		"addLabel": "notebook-triage"
 	},
 	{
 		"type": "label",
