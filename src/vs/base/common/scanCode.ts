@@ -665,11 +665,11 @@ export class ScanCodeBinding implements IBaseKeybinding {
 	define(ScanCode.MediaRecord, KeyCode.Unknown);
 	define(ScanCode.MediaFastForward, KeyCode.Unknown);
 	define(ScanCode.MediaRewind, KeyCode.Unknown);
-	define(ScanCode.MediaTrackNext, KeyCode.Unknown);
-	define(ScanCode.MediaTrackPrevious, KeyCode.Unknown);
-	define(ScanCode.MediaStop, KeyCode.Unknown);
+	define(ScanCode.MediaTrackNext, KeyCode.MediaTrackNext);
+	define(ScanCode.MediaTrackPrevious, KeyCode.MediaTrackPrevious);
+	define(ScanCode.MediaStop, KeyCode.MediaStop);
 	define(ScanCode.Eject, KeyCode.Unknown);
-	define(ScanCode.MediaPlayPause, KeyCode.Unknown);
+	define(ScanCode.MediaPlayPause, KeyCode.MediaPlayPause);
 	define(ScanCode.MediaSelect, KeyCode.Unknown);
 	define(ScanCode.LaunchMail, KeyCode.Unknown);
 	define(ScanCode.LaunchApp2, KeyCode.Unknown);

@@ -393,11 +393,15 @@ declare namespace monaco {
 		ABNT_C2 = 111,
 		BrowserBack = 112,
 		BrowserForward = 113,
+		MediaTrackNext = 114,
+		MediaTrackPrevious = 115,
+		MediaStop = 116,
+		MediaPlayPause = 117,
 		/**
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 114
+		MAX_VALUE = 118
 	}
 	export class KeyMod {
 		static readonly CtrlCmd: number;

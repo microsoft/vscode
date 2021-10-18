@@ -593,10 +593,10 @@ function _getNativeMap() {
 		VK_VOLUME_MUTE: KeyCode.Unknown, // MISSING
 		VK_VOLUME_DOWN: KeyCode.Unknown, // MISSING
 		VK_VOLUME_UP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_NEXT_TRACK: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PREV_TRACK: KeyCode.Unknown, // MISSING
-		VK_MEDIA_STOP: KeyCode.Unknown, // MISSING
-		VK_MEDIA_PLAY_PAUSE: KeyCode.Unknown, // MISSING
+		VK_MEDIA_NEXT_TRACK: KeyCode.MediaTrackNext,
+		VK_MEDIA_PREV_TRACK: KeyCode.MediaTrackPrevious,
+		VK_MEDIA_STOP: KeyCode.MediaStop,
+		VK_MEDIA_PLAY_PAUSE: KeyCode.MediaPlayPause,
 		VK_MEDIA_LAUNCH_MAIL: KeyCode.Unknown, // MISSING
 		VK_MEDIA_LAUNCH_MEDIA_SELECT: KeyCode.Unknown, // MISSING
 		VK_MEDIA_LAUNCH_APP1: KeyCode.Unknown, // MISSING

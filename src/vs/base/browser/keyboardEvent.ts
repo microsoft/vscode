@@ -124,6 +124,10 @@ let INVERSE_KEY_CODE_MAP: KeyCode[] = new Array(KeyCode.MAX_VALUE);
 
 	define(166, KeyCode.BrowserBack);
 	define(167, KeyCode.BrowserForward);
+	define(176, KeyCode.MediaTrackNext);
+	define(177, KeyCode.MediaTrackPrevious);
+	define(178, KeyCode.MediaStop);
+	define(179, KeyCode.MediaPlayPause);
 
 	define(186, KeyCode.US_SEMICOLON);
 	define(187, KeyCode.US_EQUAL);

@@ -194,8 +194,13 @@ export const enum KeyCode {
 	ABNT_C1 = 110, // Brazilian (ABNT) Keyboard
 	ABNT_C2 = 111, // Brazilian (ABNT) Keyboard
 
-	BrowserBack = 112, // BrowserBack
-	BrowserForward = 113, // BrowserBack
+	BrowserBack = 112,
+	BrowserForward = 113,
+
+	MediaTrackNext = 114,
+	MediaTrackPrevious = 115,
+	MediaStop = 116,
+	MediaPlayPause = 117,
 
 	/**
 	 * Placed last to cover the length of the enum.
@@ -364,6 +369,11 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 
 	define(KeyCode.BrowserBack, 'BrowserBack');
 	define(KeyCode.BrowserForward, 'BrowserForward');
+
+	define(KeyCode.MediaTrackNext, 'MediaTrackNext');
+	define(KeyCode.MediaTrackPrevious, 'MediaTrackPrevious');
+	define(KeyCode.MediaStop, 'MediaStop');
+	define(KeyCode.MediaPlayPause, 'MediaPlayPause');
 
 })();
 
