@@ -10,10 +10,11 @@ import { isRemoteConsoleLog } from 'vs/base/common/console';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
+import { SharedProcessWorkerMessages, ISharedProcessToWorkerMessage, ISharedProcessWorkerEnvironment, IWorkerToSharedProcessMessage } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorker';
 
 /**
  * The `create` function needs to be there by convention because
@@ -23,7 +24,7 @@ export function create(): { onmessage: (message: ISharedProcessToWorkerMessage, 
 	const sharedProcessWorkerMain = new SharedProcessWorkerMain();
 
 	// Signal we are ready
-	postMessage({ id: SharedProcessWorkerMessages.WorkerReady });
+	send({ id: SharedProcessWorkerMessages.Ready });
 
 	return {
 		onmessage: (message, transfer) => sharedProcessWorkerMain.onMessage(message, transfer)
@@ -32,7 +33,7 @@ export function create(): { onmessage: (message: ISharedProcessToWorkerMessage, 
 
 class SharedProcessWorkerMain {
 
-	private readonly processes = new Map<number /* process configuration hash */, SharedProcessWorkerProcess>();
+	private readonly processes = new Map<number /* process configuration hash */, IDisposable>();
 
 	onMessage(message: ISharedProcessToWorkerMessage, transfer?: Transferable[]): void {
 
@@ -40,14 +41,14 @@ class SharedProcessWorkerMain {
 		switch (message.id) {
 
 			// Spawn new process
-			case SharedProcessWorkerMessages.WorkerSpawn:
+			case SharedProcessWorkerMessages.Spawn:
 				if (transfer && transfer[0] instanceof MessagePort && message.environment) {
 					this.spawn(transfer[0], message.configuration, message.environment);
 				}
 				break;
 
 			// Terminate exisisting process
-			case SharedProcessWorkerMessages.WorkerTerminate:
+			case SharedProcessWorkerMessages.Terminate:
 				this.terminate(message.configuration);
 				break;
 
@@ -57,8 +58,8 @@ class SharedProcessWorkerMain {
 
 		// Acknowledge message processed if we have a nonce
 		if (message.nonce) {
-			postMessage({
-				id: SharedProcessWorkerMessages.WorkerAck,
+			send({
+				id: SharedProcessWorkerMessages.Ack,
 				nonce: message.nonce
 			});
 		}
@@ -74,35 +75,51 @@ class SharedProcessWorkerMain {
 			const process = new SharedProcessWorkerProcess(port, configuration, environment);
 			process.spawn();
 
+			// Handle unexpected exits of the child process
+			const listener = Event.once(process.onDidProcessExit)(() => {
+				send({
+					id: SharedProcessWorkerMessages.Exit,
+					configuration
+				});
+			});
+
 			// Remember in map for lifecycle
-			this.processes.set(hash(configuration), process);
+			const configurationHash = hash(configuration);
+			this.processes.set(configurationHash, toDisposable(() => {
+				listener.dispose();
+
+				// Terminate process
+				process.dispose();
+
+				// Remove from processes
+				this.processes.delete(configurationHash);
+			}));
 		} catch (error) {
 			Logger.error(`Unexpected error forking worker process: ${toErrorMessage(error)}`);
 		}
 	}
 
 	private terminate(configuration: ISharedProcessWorkerConfiguration): void {
-		const configurationHash = hash(configuration);
-		const process = this.processes.get(configurationHash);
-		if (process) {
-			this.processes.delete(configurationHash);
-
-			process.kill();
+		const processDisposable = this.processes.get(hash(configuration));
+		if (processDisposable) {
+			processDisposable.dispose();
 		}
 	}
 }
 
-class SharedProcessWorkerProcess {
+class SharedProcessWorkerProcess extends Disposable {
+
+	private readonly _onDidProcessExit = this._register(new Emitter<void>());
+	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	private child: ChildProcess | undefined = undefined;
-
-	private isKilled = false;
 
 	constructor(
 		private readonly port: MessagePort,
 		private readonly configuration: ISharedProcessWorkerConfiguration,
 		private readonly environment: ISharedProcessWorkerEnvironment
 	) {
+		super();
 	}
 
 	spawn(): void {
@@ -115,30 +132,30 @@ class SharedProcessWorkerProcess {
 			{ env: this.getEnv() }
 		);
 
-		Logger.info(`Starting worker process with pid ${this.child.pid} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`);
+		Logger.info(`Starting worker process with pid ${this.child.pid} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId}).`);
 
 		// Re-emit errors to outside
-		this.child.on('error', error => Logger.warn(`Error from child process: ${toErrorMessage(error)}`));
+		const onError = Event.fromNodeEventEmitter(this.child, 'error');
+		this._register(onError(error => Logger.warn(`Error from child process: ${toErrorMessage(error)}`)));
 
 		// Handle unexpected termination
-		this.child.on('exit', (code, signal) => {
-			Logger.info(`Worker process with pid ${this.child?.pid} exited with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`);
-
-			if (this.isKilled) {
-				return;
-			}
-
+		const onExit = Event.fromNodeEventEmitter<{ code: number | null, signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
+		this._register(onExit(({ code, signal }) => {
+			const logMsg = `Worker process with pid ${this.child?.pid} exited with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`;
 			if (code !== 0 && signal !== 'SIGTERM') {
-				Logger.error(`Child process crashed with exit code ${code} and signal ${signal}`);
+				Logger.error(logMsg);
+			} else {
+				Logger.info(logMsg);
 			}
-		});
 
-		const onMessageEmitter = new Emitter<VSBuffer>();
+			this.child = undefined;
+
+			this._onDidProcessExit.fire();
+		}));
+
+		const onMessageEmitter = this._register(new Emitter<VSBuffer>());
 		const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
-		onRawMessage(msg => {
-			if (this.isKilled) {
-				return;
-			}
+		this._register(onRawMessage(msg => {
 
 			// Handle remote console logs specially
 			if (isRemoteConsoleLog(msg)) {
@@ -149,13 +166,9 @@ class SharedProcessWorkerProcess {
 			else {
 				onMessageEmitter.fire(VSBuffer.wrap(Buffer.from(msg, 'base64')));
 			}
-		});
+		}));
 
 		const send = (buffer: VSBuffer) => {
-			if (this.isKilled) {
-				return;
-			}
-
 			if (this.child?.connected) {
 				this.child.send((<Buffer>buffer.buffer).toString('base64'));
 			} else {
@@ -165,10 +178,11 @@ class SharedProcessWorkerProcess {
 
 		// Re-emit messages from the process via the port
 		const onMessage = onMessageEmitter.event;
-		onMessage(message => this.port.postMessage(message.buffer));
+		this._register(onMessage(message => this.port.postMessage(message.buffer)));
 
 		// Relay message from the port into the process
 		this.port.onmessage = (e => send(VSBuffer.wrap(e.data)));
+		this._register(toDisposable(() => this.port.onmessage = null));
 	}
 
 	private getEnv(): NodeJS.ProcessEnv {
@@ -186,12 +200,19 @@ class SharedProcessWorkerProcess {
 		return env;
 	}
 
-	kill(): void {
-		Logger.trace('Terminating worker process');
+	override dispose(): void {
+		super.dispose();
 
-		this.isKilled = true;
+		this.terminate();
+	}
 
-		this.child?.kill();
+	private terminate(): void {
+		if (!this.child) {
+			return;
+		}
+
+		this.child.kill();
+		Logger.info(`Worker process with pid ${this.child?.pid} terminated normally (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId}).`);
 	}
 }
 
@@ -201,18 +222,25 @@ class SharedProcessWorkerProcess {
 namespace Logger {
 
 	export function error(message: string): void {
-		postMessage({ id: SharedProcessWorkerMessages.WorkerError, message });
+		send({ id: SharedProcessWorkerMessages.Error, message });
 	}
 
 	export function warn(message: string): void {
-		postMessage({ id: SharedProcessWorkerMessages.WorkerWarn, message });
+		send({ id: SharedProcessWorkerMessages.Warn, message });
 	}
 
 	export function info(message: string): void {
-		postMessage({ id: SharedProcessWorkerMessages.WorkerInfo, message });
+		send({ id: SharedProcessWorkerMessages.Info, message });
 	}
 
 	export function trace(message: string): void {
-		postMessage({ id: SharedProcessWorkerMessages.WorkerTrace, message });
+		send({ id: SharedProcessWorkerMessages.Trace, message });
 	}
+}
+
+/**
+ * Helper for typed `postMessage` usage.
+ */
+function send(message: IWorkerToSharedProcessMessage): void {
+	postMessage(message);
 }

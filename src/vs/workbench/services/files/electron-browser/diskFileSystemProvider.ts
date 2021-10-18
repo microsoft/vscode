@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as SharedProcessWorkerParcelWatcherService } from 'vs/workbench/services/files/electron-browser/watcherService';
+import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-browser/parcelWatcherService';
 
 export interface IDiskFileSystemProviderOptions extends INodeDiskFileSystemProviderOptions {
 	experimentalSandbox: boolean;
@@ -43,7 +43,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 			return super.createRecursiveWatcher(folders, onChange, onLogMessage, verboseLogging);
 		}
 
-		return new SharedProcessWorkerParcelWatcherService(
+		return new ParcelFileWatcher(
 			folders,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),

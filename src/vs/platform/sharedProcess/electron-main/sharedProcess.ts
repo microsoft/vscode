@@ -102,7 +102,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		// ensure the sender is a valid target to send to
 		const receiverWindow = BrowserWindow.fromId(configuration.reply.windowId);
-		if (!receiverWindow || receiverWindow.isDestroyed() || receiverWindow.webContents.isDestroyed()) {
+		if (!receiverWindow || receiverWindow.isDestroyed() || receiverWindow.webContents.isDestroyed() || !configuration.reply.channel) {
 			disposeWorker('unavailable');
 
 			return;

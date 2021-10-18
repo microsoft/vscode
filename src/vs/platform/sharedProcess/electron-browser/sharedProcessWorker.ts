@@ -8,18 +8,19 @@ import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/com
 export enum SharedProcessWorkerMessages {
 
 	// Process
-	WorkerSpawn = 'vscode:shared-process->shared-process-worker=spawn',
-	WorkerTerminate = 'vscode:shared-process->shared-process-worker=terminate',
+	Spawn = 'vscode:shared-process->shared-process-worker=spawn',
+	Terminate = 'vscode:shared-process->shared-process-worker=terminate',
 
 	// Lifecycle
-	WorkerReady = 'vscode:shared-process-worker->shared-process=ready',
-	WorkerAck = 'vscode:shared-process-worker->shared-process=ack',
+	Ready = 'vscode:shared-process-worker->shared-process=ready',
+	Ack = 'vscode:shared-process-worker->shared-process=ack',
+	Exit = 'vscode:shared-process-worker->shared-process=exit',
 
 	// Diagnostics
-	WorkerTrace = 'vscode:shared-process-worker->shared-process=trace',
-	WorkerInfo = 'vscode:shared-process-worker->shared-process=info',
-	WorkerWarn = 'vscode:shared-process-worker->shared-process=warn',
-	WorkerError = 'vscode:shared-process-worker->shared-process=error'
+	Trace = 'vscode:shared-process-worker->shared-process=trace',
+	Info = 'vscode:shared-process-worker->shared-process=info',
+	Warn = 'vscode:shared-process-worker->shared-process=warn',
+	Error = 'vscode:shared-process-worker->shared-process=error'
 }
 
 export interface ISharedProcessWorkerEnvironment {
@@ -30,15 +31,17 @@ export interface ISharedProcessWorkerEnvironment {
 	bootstrapPath: string;
 }
 
-export interface ISharedProcessToWorkerMessage {
+interface IBaseMessage {
 	id: string;
-	configuration: ISharedProcessWorkerConfiguration;
-	environment?: ISharedProcessWorkerEnvironment;
 	nonce?: string;
 }
 
-export interface IWorkerToSharedProcessMessage {
-	id: string;
+export interface ISharedProcessToWorkerMessage extends IBaseMessage {
+	configuration: ISharedProcessWorkerConfiguration;
+	environment?: ISharedProcessWorkerEnvironment;
+}
+
+export interface IWorkerToSharedProcessMessage extends IBaseMessage {
+	configuration?: ISharedProcessWorkerConfiguration;
 	message?: string;
-	nonce?: string;
 }

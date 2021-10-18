@@ -33,8 +33,8 @@ export interface ISharedProcessWorkerConfiguration {
 	 */
 	reply: {
 		windowId: number;
-		channel: string;
-		nonce: string;
+		channel?: string;
+		nonce?: string;
 	};
 }
 

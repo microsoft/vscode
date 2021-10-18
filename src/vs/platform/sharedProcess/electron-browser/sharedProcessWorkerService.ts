@@ -5,7 +5,8 @@
 
 import { ipcRenderer } from 'electron';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -98,6 +99,10 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService);
 			webWorkerPromise = sharedProcessWorker.init();
 
+			sharedProcessWorker.onDidProcessExit(configuration => {
+				this.disposeWorker(configuration);
+			});
+
 			this.workers.set(configuration.process.moduleId, webWorkerPromise);
 		}
 
@@ -114,7 +119,10 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 	}
 }
 
-class SharedProcessWebWorker {
+class SharedProcessWebWorker extends Disposable {
+
+	private readonly _onDidProcessExit = this._register(new Emitter<ISharedProcessWorkerConfiguration>());
+	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	private readonly workerReady: Promise<Worker> = this.doInit();
 	private readonly mapMessageNonceToMessageResolve = new Map<string, () => void>();
@@ -123,6 +131,7 @@ class SharedProcessWebWorker {
 		private readonly type: string,
 		private readonly logService: ILogService
 	) {
+		super();
 	}
 
 	async init(): Promise<SharedProcessWebWorker> {
@@ -148,17 +157,17 @@ class SharedProcessWebWorker {
 		};
 
 		worker.onmessage = event => {
-			const { id, message, nonce } = event.data as IWorkerToSharedProcessMessage;
+			const { id, message, configuration, nonce } = event.data as IWorkerToSharedProcessMessage;
 
 			switch (id) {
 
 				// Lifecycle: Ready
-				case SharedProcessWorkerMessages.WorkerReady:
+				case SharedProcessWorkerMessages.Ready:
 					readyResolve(worker);
 					break;
 
 				// Lifecycle: Ack
-				case SharedProcessWorkerMessages.WorkerAck:
+				case SharedProcessWorkerMessages.Ack:
 					if (nonce) {
 						const messageAwaiter = this.mapMessageNonceToMessageResolve.get(nonce);
 						if (messageAwaiter) {
@@ -168,26 +177,33 @@ class SharedProcessWebWorker {
 					}
 					break;
 
+				// Lifecycle: Process exit
+				case SharedProcessWorkerMessages.Exit:
+					if (configuration) {
+						this._onDidProcessExit.fire(configuration);
+					}
+					break;
+
 				// Diagostics: trace
-				case SharedProcessWorkerMessages.WorkerTrace:
-					this.logService.trace(`SharedProcess (${this.type}) [worker]:`, message);
+				case SharedProcessWorkerMessages.Trace:
+					this.logService.trace(`SharedProcess (worker, ${this.type}):`, message);
 					break;
 
 				// Diagostics: info
-				case SharedProcessWorkerMessages.WorkerInfo:
+				case SharedProcessWorkerMessages.Info:
 					if (message) {
 						this.logService.info(message); // take as is
 					}
 					break;
 
 				// Diagostics: warn
-				case SharedProcessWorkerMessages.WorkerWarn:
-					this.logService.warn(`SharedProcess (${this.type}) [worker]:`, message);
+				case SharedProcessWorkerMessages.Warn:
+					this.logService.warn(`SharedProcess (worker, ${this.type}):`, message);
 					break;
 
 				// Diagnostics: error
-				case SharedProcessWorkerMessages.WorkerError:
-					this.logService.error(`SharedProcess (${this.type}) [worker]:`, message);
+				case SharedProcessWorkerMessages.Error:
+					this.logService.error(`SharedProcess (worker, ${this.type}):`, message);
 					break;
 
 				// Any other message
@@ -228,7 +244,7 @@ class SharedProcessWebWorker {
 
 	spawn(configuration: ISharedProcessWorkerConfiguration, port: MessagePort, token: CancellationToken): Promise<void> {
 		const workerMessage: ISharedProcessToWorkerMessage = {
-			id: SharedProcessWorkerMessages.WorkerSpawn,
+			id: SharedProcessWorkerMessages.Spawn,
 			configuration,
 			environment: {
 				bootstrapPath: FileAccess.asFileUri('bootstrap-fork', require).fsPath
@@ -240,7 +256,7 @@ class SharedProcessWebWorker {
 
 	terminate(configuration: ISharedProcessWorkerConfiguration, token: CancellationToken): Promise<void> {
 		const workerMessage: ISharedProcessToWorkerMessage = {
-			id: SharedProcessWorkerMessages.WorkerTerminate,
+			id: SharedProcessWorkerMessages.Terminate,
 			configuration
 		};
 
