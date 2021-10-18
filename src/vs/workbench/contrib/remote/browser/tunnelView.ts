@@ -295,7 +295,7 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
-	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Privacy");
+	readonly label: string = nls.localize('tunnel.privacyColumn.label', "Visibility");
 	readonly tooltip: string = nls.localize('tunnel.privacyColumn.tooltip', "The availability of the forwarded port.");
 	readonly weight: number = 1;
 	readonly templateId: string = 'actionbar';
@@ -1579,7 +1579,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 2,
 	submenu: MenuId.TunnelPrivacy,
-	title: nls.localize('tunnelContext.privacyMenu', "Port Privacy"),
+	title: nls.localize('tunnelContext.privacyMenu', "Port Visibility"),
 	when: ContextKeyExpr.and(isForwardedExpr, TunnelPrivacyEnabledContextKey)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
