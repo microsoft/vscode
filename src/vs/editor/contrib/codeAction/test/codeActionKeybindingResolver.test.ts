@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/codeActionMenu';

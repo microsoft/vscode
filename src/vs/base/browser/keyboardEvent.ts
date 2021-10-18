@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import { KeyCode, KeyCodeUtils, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding } from 'vs/base/common/keybindings';
 import * as platform from 'vs/base/common/platform';
 
 let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = new Array(230);

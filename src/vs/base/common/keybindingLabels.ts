@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Modifiers } from 'vs/base/common/keyCodes';
+import { Modifiers } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 

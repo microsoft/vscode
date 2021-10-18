@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { suggestWidgetStatusbarMenu } from 'vs/editor/contrib/suggest/suggest';
 import { localize } from 'vs/nls';
