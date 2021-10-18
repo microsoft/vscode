@@ -194,6 +194,9 @@ export const enum KeyCode {
 	ABNT_C1 = 110, // Brazilian (ABNT) Keyboard
 	ABNT_C2 = 111, // Brazilian (ABNT) Keyboard
 
+	BrowserBack = 112, // BrowserBack
+	BrowserForward = 113, // BrowserBack
+
 	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
@@ -358,6 +361,9 @@ const userSettingsGeneralMap = new KeyCodeStrMap();
 	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract');
 	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal');
 	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide');
+
+	define(KeyCode.BrowserBack, 'BrowserBack');
+	define(KeyCode.BrowserForward, 'BrowserForward');
 
 })();
 

@@ -553,11 +553,13 @@ export enum KeyCode {
 	KEY_IN_COMPOSITION = 109,
 	ABNT_C1 = 110,
 	ABNT_C2 = 111,
+	BrowserBack = 112,
+	BrowserForward = 113,
 	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 112
+	MAX_VALUE = 114
 }
 
 export enum MarkerSeverity {

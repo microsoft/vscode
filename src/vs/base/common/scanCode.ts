@@ -678,8 +678,8 @@ export class ScanCodeBinding implements IBaseKeybinding {
 	define(ScanCode.LaunchScreenSaver, KeyCode.Unknown);
 	define(ScanCode.BrowserSearch, KeyCode.Unknown);
 	define(ScanCode.BrowserHome, KeyCode.Unknown);
-	define(ScanCode.BrowserBack, KeyCode.Unknown);
-	define(ScanCode.BrowserForward, KeyCode.Unknown);
+	define(ScanCode.BrowserBack, KeyCode.BrowserBack);
+	define(ScanCode.BrowserForward, KeyCode.BrowserForward);
 	define(ScanCode.BrowserStop, KeyCode.Unknown);
 	define(ScanCode.BrowserRefresh, KeyCode.Unknown);
 	define(ScanCode.BrowserFavorites, KeyCode.Unknown);

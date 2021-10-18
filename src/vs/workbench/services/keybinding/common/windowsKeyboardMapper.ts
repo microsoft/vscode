@@ -583,8 +583,8 @@ function _getNativeMap() {
 		VK_RCONTROL: KeyCode.Ctrl,
 		VK_LMENU: KeyCode.Unknown, // MISSING
 		VK_RMENU: KeyCode.Unknown, // MISSING
-		VK_BROWSER_BACK: KeyCode.Unknown, // MISSING
-		VK_BROWSER_FORWARD: KeyCode.Unknown, // MISSING
+		VK_BROWSER_BACK: KeyCode.BrowserBack,
+		VK_BROWSER_FORWARD: KeyCode.BrowserForward,
 		VK_BROWSER_REFRESH: KeyCode.Unknown, // MISSING
 		VK_BROWSER_STOP: KeyCode.Unknown, // MISSING
 		VK_BROWSER_SEARCH: KeyCode.Unknown, // MISSING
