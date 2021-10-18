@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherService } from 'vs/platform/files/node/watcher/parcel/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatcherService, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 export class ParcelFileWatcher extends WatcherService {
@@ -42,11 +41,11 @@ export class ParcelFileWatcher extends WatcherService {
 		}
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
-		this.service.setVerboseLogging(verboseLogging);
+	setVerboseLogging(verboseLogging: boolean): Promise<void> {
+		return this.service.setVerboseLogging(verboseLogging);
 	}
 
-	watch(requests: IWatchRequest[]): void {
-		this.service.watch(requests);
+	watch(requests: IWatchRequest[]): Promise<void> {
+		return this.service.watch(requests);
 	}
 }

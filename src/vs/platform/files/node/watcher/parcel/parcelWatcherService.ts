@@ -20,8 +20,7 @@ import { rtrim } from 'vs/base/common/strings';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IWatcherService } from 'vs/platform/files/node/watcher/parcel/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest, IWatcherService } from 'vs/platform/files/common/watcher';
 
 export interface IWatcher extends IDisposable {
 

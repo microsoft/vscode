@@ -3,10 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+
+export interface IWatcherService {
+
+	/**
+	 * A normalized file change event from the raw events
+	 * the watcher emits.
+	 */
+	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+
+	/**
+	 * An event to indicate a message that should get logged.
+	 */
+	readonly onDidLogMessage: Event<ILogMessage>;
+
+	/**
+	 * Configures the watcher service to watch according
+	 * to the requests. Any existing watched path that
+	 * is not in the array, will be removed from watching
+	 * and any new path will be added to watching.
+	 */
+	watch(requests: IWatchRequest[]): Promise<void>;
+
+	/**
+	 * Enable verbose logging in the watcher.
+	 */
+	setVerboseLogging(enabled: boolean): Promise<void>;
+
+	/**
+	 * Stop all watchers.
+	 */
+	stop(): Promise<void>;
+}
 
 /**
  * Base class of any watcher service we support.
@@ -16,12 +49,12 @@ export abstract class WatcherService extends Disposable {
 	/**
 	 * Asks to watch the provided folders.
 	 */
-	abstract watch(requests: IWatchRequest[]): void;
+	abstract watch(requests: IWatchRequest[]): Promise<void>;
 
 	/**
 	 * Enable verbose logging from the watcher.
 	 */
-	abstract setVerboseLogging(verboseLogging: boolean): void;
+	abstract setVerboseLogging(verboseLogging: boolean): Promise<void>;
 }
 
 export interface IWatchRequest {

@@ -13,7 +13,7 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcher, ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/parcelWatcherService';
-import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
 flakySuite('Recursive Watcher (parcel)', () => {
 

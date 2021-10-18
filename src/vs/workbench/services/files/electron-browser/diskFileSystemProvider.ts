@@ -11,8 +11,8 @@ import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemPr
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
-import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/node/watcher/watcher';
-import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-browser/parcelWatcherService';
+import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
+import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
 
 export interface IDiskFileSystemProviderOptions extends INodeDiskFileSystemProviderOptions {
 	experimentalSandbox: boolean;

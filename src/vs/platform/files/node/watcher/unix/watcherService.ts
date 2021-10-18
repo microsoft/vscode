@@ -7,7 +7,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 
 /**
  * @deprecated
@@ -73,11 +73,11 @@ export class FileWatcher extends WatcherService {
 		this.watch(this.requests);
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
+	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
 		if (!this.isDisposed) {
-			this.service?.setVerboseLogging(verboseLogging);
+			await this.service?.setVerboseLogging(verboseLogging);
 		}
 	}
 
@@ -85,10 +85,10 @@ export class FileWatcher extends WatcherService {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (chokidar)] ${message}` });
 	}
 
-	watch(requests: IWatchRequest[]): void {
+	async watch(requests: IWatchRequest[]): Promise<void> {
 		this.requests = requests;
 
-		this.service?.watch(requests);
+		await this.service?.watch(requests);
 	}
 
 	override dispose(): void {

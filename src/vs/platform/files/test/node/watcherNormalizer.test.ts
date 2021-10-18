@@ -9,7 +9,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[], event: FileChangesEvent }>;
