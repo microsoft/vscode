@@ -12,6 +12,7 @@
 	cursor: pointer;
 	justify-content: center;
 	align-items: center;
+	white-space: normal;
 }
 
 .monaco-text-button:focus {
