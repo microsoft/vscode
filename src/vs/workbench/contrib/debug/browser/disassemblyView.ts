@@ -44,6 +44,7 @@ import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -581,6 +582,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextFileService private readonly nativeTextFileService: ITextFileService,
+		@IModeService private readonly _modeService: IModeService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IUriIdentityService readonly uriService: IUriIdentityService,
@@ -636,7 +638,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 					templateData.cellDisposable.push(ref);
 				} catch {
 					const textFileContent = await this.nativeTextFileService.read(sourceURI);
-					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService, this._languageConfigurationService);
+					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService, this._modeService, this._languageConfigurationService);
 					templateData.cellDisposable.push(textModel);
 				}
 
