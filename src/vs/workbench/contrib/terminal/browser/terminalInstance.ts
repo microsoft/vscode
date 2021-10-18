@@ -93,7 +93,8 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxSupportedCols = 5000
+	MaxSupportedCols = 5000,
+	MaxCanvasWidth = 8000
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -585,7 +586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._wrapperElement) {
 			return undefined;
 		}
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
