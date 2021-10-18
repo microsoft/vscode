@@ -272,7 +272,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			cwd: undefined,
 			env: generatePatchedEnv(process.env, tsServerPath),
 			execArgv: getExecArgv(kind, configuration),
-			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
 		});
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
