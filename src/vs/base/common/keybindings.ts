@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { illegalArgument } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, ScanCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -166,6 +166,44 @@ export class ChordKeybinding {
 }
 
 export type Keybinding = ChordKeybinding;
+
+export class ScanCodeBinding implements IBaseKeybinding {
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly scanCode: ScanCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, scanCode: ScanCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.scanCode = scanCode;
+	}
+
+	public equals(other: ScanCodeBinding): boolean {
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.scanCode === other.scanCode
+		);
+	}
+
+	/**
+	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 */
+	public isDuplicateModifierCase(): boolean {
+		return (
+			(this.ctrlKey && (this.scanCode === ScanCode.ControlLeft || this.scanCode === ScanCode.ControlRight))
+			|| (this.shiftKey && (this.scanCode === ScanCode.ShiftLeft || this.scanCode === ScanCode.ShiftRight))
+			|| (this.altKey && (this.scanCode === ScanCode.AltLeft || this.scanCode === ScanCode.AltRight))
+			|| (this.metaKey && (this.scanCode === ScanCode.MetaLeft || this.scanCode === ScanCode.MetaRight))
+		);
+	}
+}
 
 export class ResolvedKeybindingPart {
 	readonly ctrlKey: boolean;

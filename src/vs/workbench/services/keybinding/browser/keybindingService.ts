@@ -9,8 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -45,7 +45,6 @@ import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboa
 import { getDispatchConfig } from 'vs/platform/keyboardLayout/common/dispatchConfig';
 import { isArray } from 'vs/base/common/types';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
