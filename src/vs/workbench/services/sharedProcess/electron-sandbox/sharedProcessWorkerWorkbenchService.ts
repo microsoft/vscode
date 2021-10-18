@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -69,15 +69,16 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		return {
 			channel: getDelayedChannel(this.doCreateWorkerChannel(process, channelName, cts.token)),
-			dispose: async () => {
-				await this.disposeWorkerChannel(process);
-				cts.dispose(true);
-			}
+			dispose: () => cts.dispose(true)
 		};
 	}
 
 	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string, token: CancellationToken): Promise<IChannel> {
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel');
+
+		// Dispose when cancelled
+		const disposables = new DisposableStore();
+		token.onCancellationRequested(() => disposables.dispose());
 
 		// Get ready to acquire the message port from the shared process worker
 		const nonce = generateUuid();
@@ -85,27 +86,26 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		const portPromise = acquirePort(undefined /* we trigger the request via service call! */, responseChannel, nonce);
 
 		// Actually talk with the shared process service
+		// to create a new process from a worker
 		this.sharedProcessWorkerService.createWorker({
 			process,
 			reply: { windowId: this.windowId, channel: responseChannel, nonce }
 		});
 
+		// Dispose worker upon disposal via shared process service
+		disposables.add(toDisposable(() => {
+			this.sharedProcessWorkerService.disposeWorker({
+				process,
+				reply: { windowId: this.windowId }
+			});
+		}));
+
 		const port = await portPromise;
 
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel: connection established');
 
-		const client = new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`);
-
-		// Handle cancellation
-		token.onCancellationRequested(() => client.dispose());
+		const client = disposables.add(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
 
 		return client.getChannel(channelName);
-	}
-
-	private disposeWorkerChannel(process: ISharedProcessWorkerProcess): Promise<void> {
-		return this.sharedProcessWorkerService.disposeWorker({
-			process,
-			reply: { windowId: this.windowId }
-		});
 	}
 }
