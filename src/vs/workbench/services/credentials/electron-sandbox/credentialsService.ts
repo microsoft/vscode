@@ -45,6 +45,10 @@ export class KeytarCredentialsService extends Disposable implements ICredentials
 	findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
 		return this.nativeHostService.findCredentials(service);
 	}
+
+	// This class doesn't implement the clear() function because we don't know
+	// what services have stored credentials. For reference, a "service" is an extension.
+	// TODO: should we clear credentials for the built-in auth extensions?
 }
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);

@@ -141,6 +141,11 @@ export class BrowserWindow extends Disposable {
 		// will trigger the `beforeunload`.
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
+				if (this.environmentService.options?.externalURLOpener) {
+					if (await this.environmentService.options?.externalURLOpener.openExternal(href)) {
+						return true;
+					}
+				}
 
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {

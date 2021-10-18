@@ -231,6 +231,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
+			// TODO: optimize this API to only return the boolean over the wire
+			async hasSession(providerId: string, scopes: readonly string[]) {
+				checkProposedApiEnabled(extension);
+				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { solelyCheckExistence: true } as any));
+			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},

@@ -27,6 +27,12 @@ const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty'
 // Arbitrary Internal Errors (should never be thrown in production)
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
 
+class MissingStoresError extends Error {
+	constructor(readonly db: IDBDatabase) {
+		super('Missing stores');
+	}
+}
+
 export class IndexedDB {
 
 	private indexedDBPromise: Promise<IDBDatabase | null>;
@@ -48,16 +54,38 @@ export class IndexedDB {
 		return fsp;
 	}
 
-	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+	private async openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
+		try {
+			return await this.createIndexedDB(name, version, stores);
+		} catch (err) {
+			if (err instanceof MissingStoresError) {
+				console.info(`Attempting to recreate the indexedDB once.`, name);
+
+				try {
+					// Try to delete the db
+					await this.deleteIndexedDB(err.db);
+				} catch (error) {
+					console.error(`Error while deleting the indexedDB`, getErrorMessage(error));
+					throw error;
+				}
+
+				return await this.createIndexedDB(name, version, stores);
+			}
+
+			throw err;
+		}
+	}
+
+	private createIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
 			const request = window.indexedDB.open(name, version);
-			request.onerror = (err) => e(request.error);
+			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
 				for (const store of stores) {
 					if (!db.objectStoreNames.contains(store)) {
-						console.error(`Error while creating indexedDB. Could not create ${store} object store`);
-						c(null);
+						console.error(`Error while opening indexedDB. Could not find ${store} object store`);
+						e(new MissingStoresError(db));
 						return;
 					}
 				}
@@ -71,6 +99,18 @@ export class IndexedDB {
 					}
 				}
 			};
+		});
+	}
+
+	private deleteIndexedDB(indexedDB: IDBDatabase): Promise<void> {
+		return new Promise((c, e) => {
+			// Close any opened connections
+			indexedDB.close();
+
+			// Delete the db
+			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
+			deleteRequest.onerror = (err) => e(deleteRequest.error);
+			deleteRequest.onsuccess = () => c();
 		});
 	}
 }

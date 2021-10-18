@@ -21,9 +21,9 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import product from 'vs/platform/product/common/product';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -40,6 +40,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IProductService private readonly productService: IProductService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService
@@ -51,8 +52,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
-			product.enableTelemetry
-			&& product.showTelemetryOptOut
+			this.productService.enableTelemetry
+			&& this.productService.showTelemetryOptOut
 			&& getTelemetryLevel(this.configurationService) !== TelemetryLevel.NONE
 			&& !this.environmentService.skipWelcome
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)

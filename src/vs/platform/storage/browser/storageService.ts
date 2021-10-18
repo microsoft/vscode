@@ -250,43 +250,47 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	getItems(): Promise<Map<string, string>> {
-		return new Promise<Map<string, string>>(async resolve => {
-			const items = new Map<string, string>();
+		return new Promise<Map<string, string>>(async (resolve, reject) => {
+			try {
+				const items = new Map<string, string>();
 
-			// Open a IndexedDB Cursor to iterate over key/values
-			const db = await this.whenConnected;
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			const cursor = objectStore.openCursor();
-			if (!cursor) {
-				return resolve(items); // this means the `ItemTable` was empty
-			}
-
-			// Iterate over rows of `ItemTable` until the end
-			cursor.onsuccess = () => {
-				if (cursor.result) {
-
-					// Keep cursor key/value in our map
-					if (typeof cursor.result.value === 'string') {
-						items.set(cursor.result.key.toString(), cursor.result.value);
-					}
-
-					// Advance cursor to next row
-					cursor.result.continue();
-				} else {
-					resolve(items); // reached end of table
+				// Open a IndexedDB Cursor to iterate over key/values
+				const db = await this.whenConnected;
+				const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
+				const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+				const cursor = objectStore.openCursor();
+				if (!cursor) {
+					return resolve(items); // this means the `ItemTable` was empty
 				}
-			};
 
-			const onError = (error: Error | null) => {
-				this.logService.error(`[IndexedDB Storage ${this.name}] getItems(): ${toErrorMessage(error, true)}`);
+				// Iterate over rows of `ItemTable` until the end
+				cursor.onsuccess = () => {
+					if (cursor.result) {
 
-				resolve(items);
-			};
+						// Keep cursor key/value in our map
+						if (typeof cursor.result.value === 'string') {
+							items.set(cursor.result.key.toString(), cursor.result.value);
+						}
 
-			// Error handlers
-			cursor.onerror = () => onError(cursor.error);
-			transaction.onerror = () => onError(transaction.error);
+						// Advance cursor to next row
+						cursor.result.continue();
+					} else {
+						resolve(items); // reached end of table
+					}
+				};
+
+				const onError = (error: Error | null) => {
+					this.logService.error(`[IndexedDB Storage ${this.name}] getItems(): ${toErrorMessage(error, true)}`);
+
+					resolve(items);
+				};
+
+				// Error handlers
+				cursor.onerror = () => onError(cursor.error);
+				transaction.onerror = () => onError(transaction.error);
+			} catch (error) {
+				reject(error);
+			}
 		});
 	}
 
@@ -324,26 +328,30 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 		// Update `ItemTable` with inserts and/or deletes
 		return new Promise<boolean>(async (resolve, reject) => {
-			const db = await this.whenConnected;
+			try {
+				const db = await this.whenConnected;
 
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve(true);
-			transaction.onerror = () => reject(transaction.error);
+				const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
+				transaction.oncomplete = () => resolve(true);
+				transaction.onerror = () => reject(transaction.error);
 
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+				const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
 
-			// Inserts
-			if (toInsert) {
-				for (const [key, value] of toInsert) {
-					objectStore.put(value, key);
+				// Inserts
+				if (toInsert) {
+					for (const [key, value] of toInsert) {
+						objectStore.put(value, key);
+					}
 				}
-			}
 
-			// Deletes
-			if (toDelete) {
-				for (const key of toDelete) {
-					objectStore.delete(key);
+				// Deletes
+				if (toDelete) {
+					for (const key of toDelete) {
+						objectStore.delete(key);
+					}
 				}
+			} catch (error) {
+				reject(error);
 			}
 		});
 	}
@@ -360,15 +368,19 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 
 	clear(): Promise<void> {
 		return new Promise<void>(async (resolve, reject) => {
-			const db = await this.whenConnected;
+			try {
+				const db = await this.whenConnected;
 
-			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
-			transaction.oncomplete = () => resolve();
-			transaction.onerror = () => reject(transaction.error);
+				const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
+				transaction.oncomplete = () => resolve();
+				transaction.onerror = () => reject(transaction.error);
 
-			// Clear every row in the `ItemTable`
-			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
-			objectStore.clear();
+				// Clear every row in the `ItemTable`
+				const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+				objectStore.clear();
+			} catch (error) {
+				reject(error);
+			}
 		});
 	}
 }
