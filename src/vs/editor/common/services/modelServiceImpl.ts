@@ -14,9 +14,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IModelLanguageChangedEvent, IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { LanguageIdentifier, DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
-import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageSelection } from 'vs/editor/common/services/modeService';
+import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/modes';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService, DocumentTokensProvider } from 'vs/editor/common/services/modelService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -90,8 +90,8 @@ class ModelData implements IDisposable {
 	public setLanguage(languageSelection: ILanguageSelection): void {
 		this._disposeLanguageSelection();
 		this._languageSelection = languageSelection;
-		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageIdentifier));
-		this.model.setMode(languageSelection.languageIdentifier);
+		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId));
+		this.model.setMode(languageSelection.languageId);
 	}
 }
 
@@ -162,6 +162,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IModeService private readonly _modeService: IModeService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
@@ -169,7 +170,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
 		this._disposedModelsHeapSize = 0;
-		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._logService));
+		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._modeService, this._logService));
 
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
 		this._updateModelOptions();
@@ -286,7 +287,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const modelId = keys[i];
 			const modelData = this._models[modelId];
-			const language = modelData.model.getLanguageIdentifier().language;
+			const language = modelData.model.getLanguageId();
 			const uri = modelData.model.uri;
 			const oldOptions = oldOptionsByLanguageAndResource[language + uri];
 			const newOptions = this.getCreationOptions(language, uri, modelData.model.isForSimpleWidget);
@@ -364,16 +365,17 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		}
 	}
 
-	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageId: string, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
-		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
+		const options = this.getCreationOptions(languageId, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(
 			value,
 			options,
-			languageIdentifier,
+			languageId,
 			resource,
 			this._undoRedoService,
-			this._languageConfigurationService
+			this._modeService,
+			this._languageConfigurationService,
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
@@ -420,7 +422,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	}
 
 	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
-		const options = this.getCreationOptions(model.getLanguageIdentifier().language, model.uri, model.isForSimpleWidget);
+		const options = this.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
 		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 
 		// Return early if the text is already set in that form
@@ -496,10 +498,10 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		let modelData: ModelData;
 
 		if (languageSelection) {
-			modelData = this._createModelData(value, languageSelection.languageIdentifier, resource, isForSimpleWidget);
+			modelData = this._createModelData(value, languageSelection.languageId, resource, isForSimpleWidget);
 			this.setMode(modelData.model, languageSelection);
 		} else {
-			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource, isForSimpleWidget);
+			modelData = this._createModelData(value, PLAINTEXT_MODE_ID, resource, isForSimpleWidget);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -616,14 +618,14 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		modelData.dispose();
 
 		// clean up cache
-		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageIdentifier().language + model.uri];
+		delete this._modelCreationOptionsByLanguageAndResource[model.getLanguageId() + model.uri];
 
 		this._onModelRemoved.fire(model);
 	}
 
 	private _onDidChangeLanguage(model: ITextModel, e: IModelLanguageChangedEvent): void {
 		const oldModeId = e.oldLanguage;
-		const newModeId = model.getLanguageIdentifier().language;
+		const newModeId = model.getLanguageId();
 		const oldOptions = this.getCreationOptions(oldModeId, model.uri, model.isForSimpleWidget);
 		const newOptions = this.getCreationOptions(newModeId, model.uri, model.isForSimpleWidget);
 		ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
@@ -638,7 +640,7 @@ export interface ILineSequence {
 export const SEMANTIC_HIGHLIGHTING_SETTING_ID = 'editor.semanticHighlighting';
 
 export function isSemanticColoringEnabled(model: ITextModel, themeService: IThemeService, configurationService: IConfigurationService): boolean {
-	const setting = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageIdentifier().language, resource: model.uri })?.enabled;
+	const setting = configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: model.getLanguageId(), resource: model.uri })?.enabled;
 	if (typeof setting === 'boolean') {
 		return setting;
 	}
@@ -702,6 +704,7 @@ class SemanticStyling extends Disposable {
 
 	constructor(
 		private readonly _themeService: IThemeService,
+		private readonly _modeService: IModeService,
 		private readonly _logService: ILogService
 	) {
 		super();
@@ -713,7 +716,7 @@ class SemanticStyling extends Disposable {
 
 	public get(provider: DocumentTokensProvider): SemanticTokensProviderStyling {
 		if (!this._caches.has(provider)) {
-			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._logService));
+			this._caches.set(provider, new SemanticTokensProviderStyling(provider.getLegend(), this._themeService, this._modeService, this._logService));
 		}
 		return this._caches.get(provider)!;
 	}
@@ -953,7 +956,7 @@ export class ModelSemanticColoring extends Disposable {
 
 			this._currentDocumentResponse = new SemanticTokensResponse(provider, tokens.resultId, tokens.data);
 
-			const result = toMultilineTokens2(tokens, styling, this._model.getLanguageIdentifier());
+			const result = toMultilineTokens2(tokens, styling, this._model.getLanguageId());
 
 			// Adjust incoming semantic tokens
 			if (pendingChanges.length > 0) {

@@ -43,12 +43,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				const langWordPairs = LanguageConfigurationRegistry.getWordDefinitions();
 				let wordDefinitionDtos: ILanguageWordDefinitionDto[] = [];
 				for (const [languageId, wordDefinition] of langWordPairs) {
-					const language = this._modeService.getLanguageIdentifier(languageId);
-					if (!language) {
-						continue;
-					}
 					wordDefinitionDtos.push({
-						languageId: language.language,
+						languageId: languageId,
 						regexSource: wordDefinition.source,
 						regexFlags: wordDefinition.flags
 					});
@@ -56,9 +52,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
 			LanguageConfigurationRegistry.onDidChange((e) => {
-				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageIdentifier.id);
+				const wordDefinition = LanguageConfigurationRegistry.getWordDefinition(e.languageId);
 				this._proxy.$setWordDefinitions([{
-					languageId: e.languageIdentifier.language,
+					languageId: e.languageId,
 					regexSource: wordDefinition.source,
 					regexFlags: wordDefinition.flags
 				}]);
@@ -775,9 +771,9 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			};
 		}
 
-		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
-		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
+		const validLanguageId = this._modeService.validateLanguageId(languageId);
+		if (validLanguageId) {
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(validLanguageId, configuration, 100));
 		}
 	}
 

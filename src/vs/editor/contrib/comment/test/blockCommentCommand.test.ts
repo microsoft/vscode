@@ -9,7 +9,7 @@ import { CommentMode } from 'vs/editor/test/common/commentMode';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, true), expectedLines, expectedSelection);
 	mode.dispose();
 }
 
@@ -475,7 +475,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 	test('insertSpace false', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 
@@ -494,7 +494,7 @@ suite('Editor Contrib - Block Comment Command', () => {
 	test('insertSpace false does not remove space', () => {
 		function testLineCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 			let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
-			testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
+			testCommand(lines, mode.languageId, selection, (sel) => new BlockCommentCommand(sel, false), expectedLines, expectedSelection);
 			mode.dispose();
 		}
 

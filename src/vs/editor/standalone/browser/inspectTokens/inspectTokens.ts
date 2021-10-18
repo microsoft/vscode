@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Token } from 'vs/editor/common/core/token';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, IState, ITokenizationSupport, LanguageIdentifier, StandardTokenType, TokenMetadata, TokenizationRegistry } from 'vs/editor/common/modes';
+import { FontStyle, IState, ITokenizationSupport, StandardTokenType, TokenMetadata, TokenizationRegistry, ILanguageIdCodec } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -103,7 +103,7 @@ interface ICompleteLineTokenization {
 }
 
 interface IDecodedMetadata {
-	languageIdentifier: LanguageIdentifier;
+	languageId: string;
 	tokenType: StandardTokenType;
 	fontStyle: FontStyle;
 	foreground: Color;
@@ -130,15 +130,16 @@ function renderTokenText(tokenText: string): string {
 	return result;
 }
 
-function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITokenizationSupport {
-	let tokenizationSupport = TokenizationRegistry.get(languageIdentifier.language);
+function getSafeTokenizationSupport(languageIdCodec: ILanguageIdCodec, languageId: string): ITokenizationSupport {
+	const tokenizationSupport = TokenizationRegistry.get(languageId);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
+	const encodedLanguageId = languageIdCodec.encodeLanguageId(languageId);
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize(languageIdentifier.language, line, state, deltaOffset),
-		tokenize2: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(languageIdentifier.id, line, state, deltaOffset)
+		tokenize: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
+		tokenize2: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(encodedLanguageId, line, state, deltaOffset)
 	};
 }
 
@@ -165,7 +166,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'tokens-inspect-widget';
-		this._tokenizationSupport = getSafeTokenizationSupport(this._model.getLanguageIdentifier());
+		this._tokenizationSupport = getSafeTokenizationSupport(this._modeService.languageIdCodec, this._model.getLanguageId());
 		this._compute(this._editor.getPosition());
 		this._register(this._editor.onDidChangeCursorPosition((e) => this._compute(this._editor.getPosition())));
 		this._editor.addContentWidget(this);
@@ -218,7 +219,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 			$('tbody', undefined,
 				$('tr', undefined,
 					$('td.tm-metadata-key', undefined, 'language'),
-					$('td.tm-metadata-value', undefined, `${metadata ? metadata.languageIdentifier.language : '-?-'}`)
+					$('td.tm-metadata-value', undefined, `${metadata ? metadata.languageId : '-?-'}`)
 				),
 				$('tr', undefined,
 					$('td.tm-metadata-key', undefined, 'token type' as string),
@@ -255,7 +256,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
+			languageId: this._modeService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
 			fontStyle: fontStyle,
 			foreground: colorMap[foreground],

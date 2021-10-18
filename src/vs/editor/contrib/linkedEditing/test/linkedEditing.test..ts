@@ -30,16 +30,16 @@ interface TestEditor {
 	redo(): void;
 }
 
-const languageIdentifier = new modes.LanguageIdentifier('linkedEditingTestLangage', 74);
-LanguageConfigurationRegistry.register(languageIdentifier, {
-	wordPattern: /[a-zA-Z]+/
-});
+const languageId = 'linkedEditingTestLangage';
 
 suite('linked editing', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.clear();
+		disposables.add(LanguageConfigurationRegistry.register(languageId, {
+			wordPattern: /[a-zA-Z]+/
+		}));
 	});
 
 	teardown(() => {
@@ -48,8 +48,8 @@ suite('linked editing', () => {
 
 	function createMockEditor(text: string | string[]): ITestCodeEditor {
 		const model = typeof text === 'string'
-			? createTextModel(text, undefined, languageIdentifier, mockFile)
-			: createTextModel(text.join('\n'), undefined, languageIdentifier, mockFile);
+			? createTextModel(text, undefined, languageId, mockFile)
+			: createTextModel(text.join('\n'), undefined, languageId, mockFile);
 
 		const editor = createTestCodeEditor({ model });
 		disposables.add(model);

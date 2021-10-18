@@ -48,7 +48,7 @@ suite('ViewContainerModel', () => {
 
 	setup(() => {
 		disposableStore = new DisposableStore();
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposableStore);
 		contextKeyService = instantiationService.createInstance(ContextKeyService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		storageService = instantiationService.get(IStorageService);

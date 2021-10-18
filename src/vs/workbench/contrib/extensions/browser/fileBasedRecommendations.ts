@@ -192,7 +192,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 */
 	private promptRecommendationsForModel(model: ITextModel): void {
 		const uri = model.uri;
-		const language = model.getLanguageIdentifier().language;
+		const language = model.getLanguageId();
 		const fileExtension = extname(uri).toLowerCase();
 		if (this.processedLanguages.includes(language) && this.processedFileExtensions.includes(fileExtension)) {
 			return;

@@ -258,7 +258,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	canSetBreakpointsIn(model: ITextModel): boolean {
-		const modeId = model.getLanguageIdentifier().language;
+		const modeId = model.getLanguageId();
 		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
 			// do not allow breakpoints in our settings files and output
 			return false;
@@ -296,7 +296,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
 			model = activeTextEditorControl.getModel();
-			const language = model ? model.getLanguageIdentifier().language : undefined;
+			const language = model ? model.getLanguageId() : undefined;
 			if (language) {
 				languageLabel = this.modeService.getLanguageName(language);
 			}

@@ -166,6 +166,16 @@ function loadTests(opts) {
 		});
 	});
 
+	let assertCleanState;
+	loader.require(['vs/workbench/test/electron-browser/testing'], function(testing) {
+		assertCleanState = testing.assertCleanState;
+		suite('Tests are using suiteSetup and setup correctly', () => {
+			test('assertCleanState - check that registries are clean at the start of test running', () => {
+				assertCleanState();
+			});
+		});
+	});
+
 	return loadTestModules(opts).then(() => {
 		suite('Unexpected Errors & Loader Errors', function () {
 			test('should not have unexpected errors', function () {
@@ -177,6 +187,10 @@ function loadTests(opts) {
 					});
 					assert.ok(false, errors);
 				}
+			});
+
+			test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
+				assertCleanState();
 			});
 		});
 	});

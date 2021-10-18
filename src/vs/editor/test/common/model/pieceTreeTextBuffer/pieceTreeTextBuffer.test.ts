@@ -1787,6 +1787,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot1));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 1', () => {
@@ -1807,6 +1809,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 2', () => {
@@ -1827,6 +1831,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.strictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 
 	test('immutable snapshot 3', () => {
@@ -1846,6 +1852,8 @@ suite('snapshot', () => {
 		]);
 
 		assert.notStrictEqual(model.getLinesContent().join('\n'), getValueInSnapshot(snapshot));
+
+		model.dispose();
 	});
 });
 

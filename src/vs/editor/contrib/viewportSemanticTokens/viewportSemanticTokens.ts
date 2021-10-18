@@ -117,7 +117,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			if (!r || model.isDisposed() || model.getVersionId() !== requestVersionId) {
 				return;
 			}
-			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageIdentifier()));
+			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageId()));
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;
 	}

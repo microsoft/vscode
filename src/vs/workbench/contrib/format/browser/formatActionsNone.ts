@@ -62,7 +62,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		} else if (model.isTooLargeForSyncing()) {
 			notificationService.warn(nls.localize('too.large', "This file cannot be formatted because it is too large"));
 		} else {
-			const langName = model.getLanguageIdentifier().language;
+			const langName = model.getLanguageId();
 			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);
 			const res = await dialogService.show(
 				Severity.Info,

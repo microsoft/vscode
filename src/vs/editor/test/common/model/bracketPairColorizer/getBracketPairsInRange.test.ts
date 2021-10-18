@@ -8,7 +8,6 @@ import { Disposable, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPair } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -238,13 +237,13 @@ class MockLanguage extends Disposable {
 	private static id = 0;
 
 	public static create(options: MockLanguageOptions) {
-		const id = new LanguageIdentifier(`lang${this.id++}`, this.id++);
+		const id = `lang${this.id++}`;
 
 		return new MockLanguage(id, options);
 	}
 
 	constructor(
-		public readonly id: LanguageIdentifier,
+		public readonly id: string,
 		options: MockLanguageOptions
 	) {
 		super();

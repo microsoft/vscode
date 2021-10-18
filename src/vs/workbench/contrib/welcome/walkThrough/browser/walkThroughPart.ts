@@ -319,7 +319,7 @@ export class WalkThroughPart extends EditorPane {
 					const id = `snippet-${model.uri.fragment}`;
 					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
-					const options = this.getEditorOptions(model.getModeId());
+					const options = this.getEditorOptions(model.getLanguageId());
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -365,7 +365,7 @@ export class WalkThroughPart extends EditorPane {
 
 					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
-							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
+							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
 					}));
 

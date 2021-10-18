@@ -76,9 +76,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	set language(newLanguage: string) {
 		if (this._textModel
 			// 1. the language update is from workspace edit, checking if it's the same as text model's mode
-			&& this._textModel.getLanguageIdentifier().language === this._modeService.getModeIdForLanguageName(newLanguage)
+			&& this._textModel.getLanguageId() === this._modeService.getModeIdForLanguageName(newLanguage)
 			// 2. the text model's mode might be the same as the `this.language`, even if the language friendly name is not the same, we should not trigger an update
-			&& this._textModel.getLanguageIdentifier().language === this._modeService.getModeIdForLanguageName(this.language)) {
+			&& this._textModel.getLanguageId() === this._modeService.getModeIdForLanguageName(this.language)) {
 			return;
 		}
 
@@ -90,7 +90,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 		if (this._textModel) {
 			const languageId = this._modeService.create(newMode);
-			this._textModel.setMode(languageId.languageIdentifier);
+			this._textModel.setMode(languageId.languageId);
 		}
 
 		if (this._language === newLanguage) {
@@ -165,8 +165,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Init language from text model
 			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback (plaintext)
 			// If so let's not modify the language
-			if (!(this._modeService.getModeId(this.language) === null && this._textModel.getLanguageIdentifier().language === 'plaintext')) {
-				this.language = this._textModel.getLanguageIdentifier().language;
+			if (!(this._modeService.getModeId(this.language) === null && this._textModel.getLanguageId() === 'plaintext')) {
+				this.language = this._textModel.getLanguageId();
 			}
 
 			// Listen to language changes on the model

@@ -329,7 +329,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
 			if (this.model && activeEditorControl.hasModel()) {
-				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
+				this.model.setMode(activeEditorControl.getModel().getLanguageId());
 			}
 		}
 	}

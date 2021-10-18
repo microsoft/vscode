@@ -10,7 +10,6 @@ import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemKind, completionKindFromString } from 'vs/editor/common/modes';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -82,7 +81,7 @@ export class LRUMemory extends Memory {
 	private _seq = 0;
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
-		const key = `${model.getLanguageIdentifier().language}/${item.textLabel}`;
+		const key = `${model.getLanguageId()}/${item.textLabel}`;
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.completion.kind,
@@ -110,7 +109,7 @@ export class LRUMemory extends Memory {
 				// consider only top items
 				break;
 			}
-			const key = `${model.getLanguageIdentifier().language}/${items[i].textLabel}`;
+			const key = `${model.getLanguageId()}/${items[i].textLabel}`;
 			const item = this._cache.peek(key);
 			if (item && item.touch > seq && item.type === items[i].completion.kind && item.insertText === items[i].completion.insertText) {
 				seq = item.touch;
@@ -158,7 +157,7 @@ export class PrefixMemory extends Memory {
 
 	memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
 		const { word } = model.getWordUntilPosition(pos);
-		const key = `${model.getLanguageIdentifier().language}/${word}`;
+		const key = `${model.getLanguageId()}/${word}`;
 		this._trie.set(key, {
 			type: item.completion.kind,
 			insertText: item.completion.insertText,
@@ -171,7 +170,7 @@ export class PrefixMemory extends Memory {
 		if (!word) {
 			return super.select(model, pos, items);
 		}
-		let key = `${model.getLanguageIdentifier().language}/${word}`;
+		let key = `${model.getLanguageId()}/${word}`;
 		let item = this._trie.get(key);
 		if (!item) {
 			item = this._trie.findSubstr(key);
@@ -236,7 +235,6 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
-		@IModeService private readonly _modeService: IModeService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this._persistSoon = new RunOnceScheduler(() => this._saveState(), 500);
@@ -264,7 +262,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 	private _withStrategy(model: ITextModel, pos: IPosition): Memory {
 
 		const mode = this._configService.getValue<MemMode>('editor.suggestSelection', {
-			overrideIdentifier: this._modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(pos.lineNumber, pos.column))?.language,
+			overrideIdentifier: model.getLanguageIdAtPosition(pos.lineNumber, pos.column),
 			resource: model.uri
 		});
 

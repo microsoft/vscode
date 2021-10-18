@@ -52,7 +52,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && configValue === 'text') {
+		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_MODE_ID && configValue === 'text') {
 			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}

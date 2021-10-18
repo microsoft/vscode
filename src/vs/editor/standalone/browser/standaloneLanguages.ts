@@ -14,7 +14,7 @@ import * as modes from 'vs/editor/common/modes';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
+import { ILanguageExtensionPoint, IModeService } from 'vs/editor/common/services/modeService';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { StaticServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
@@ -40,8 +40,8 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 }
 
 export function getEncodedLanguageId(languageId: string): number {
-	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	return lid ? lid.id : 0;
+	const modeService = StaticServices.modeService.get();
+	return modeService.languageIdCodec.encodeLanguageId(languageId);
 }
 
 /**
@@ -49,8 +49,8 @@ export function getEncodedLanguageId(languageId: string): number {
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
-	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((languageIdentifier) => {
-		if (languageIdentifier.language === languageId) {
+	let disposable = StaticServices.modeService.get().onDidEncounterLanguage((languageId) => {
+		if (languageId === languageId) {
 			// stop listening
 			disposable.dispose();
 			// invoke actual listener
@@ -64,11 +64,11 @@ export function onLanguage(languageId: string, callback: () => void): IDisposabl
  * Set the editing configuration for a language.
  */
 export function setLanguageConfiguration(languageId: string, configuration: LanguageConfiguration): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
+	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	if (!validLanguageId) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100);
+	return LanguageConfigurationRegistry.register(validLanguageId, configuration, 100);
 }
 
 /**
@@ -76,11 +76,11 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
  */
 export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
+	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
 
-	constructor(languageIdentifier: modes.LanguageIdentifier, actual: EncodedTokensProvider) {
-		this._languageIdentifier = languageIdentifier;
+	constructor(languageId: string, actual: EncodedTokensProvider) {
+		this._languageId = languageId;
 		this._actual = actual;
 	}
 
@@ -90,7 +90,7 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
 		if (typeof this._actual.tokenize === 'function') {
-			return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
+			return TokenizationSupport2Adapter.adaptTokenize(this._languageId, <{ tokenize(line: string, state: modes.IState): ILineTokens; }>this._actual, line, state, offsetDelta);
 		}
 		throw new Error('Not supported!');
 	}
@@ -106,14 +106,12 @@ export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSu
  */
 export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _standaloneThemeService: IStandaloneThemeService;
-	private readonly _languageIdentifier: modes.LanguageIdentifier;
-	private readonly _actual: TokensProvider;
-
-	constructor(standaloneThemeService: IStandaloneThemeService, languageIdentifier: modes.LanguageIdentifier, actual: TokensProvider) {
-		this._standaloneThemeService = standaloneThemeService;
-		this._languageIdentifier = languageIdentifier;
-		this._actual = actual;
+	constructor(
+		private readonly _languageId: string,
+		private readonly _actual: TokensProvider,
+		private readonly _modeService: IModeService,
+		private readonly _standaloneThemeService: IStandaloneThemeService,
+	) {
 	}
 
 	public getInitialState(): modes.IState {
@@ -159,11 +157,11 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public tokenize(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult {
-		return TokenizationSupport2Adapter.adaptTokenize(this._languageIdentifier.language, this._actual, line, state, offsetDelta);
+		return TokenizationSupport2Adapter.adaptTokenize(this._languageId, this._actual, line, state, offsetDelta);
 	}
 
-	private _toBinaryTokens(tokens: IToken[], offsetDelta: number): Uint32Array {
-		const languageId = this._languageIdentifier.id;
+	private _toBinaryTokens(languageIdCodec: modes.ILanguageIdCodec, tokens: IToken[], offsetDelta: number): Uint32Array {
+		const languageId = languageIdCodec.encodeLanguageId(this._languageId);
 		const tokenTheme = this._standaloneThemeService.getColorTheme().tokenTheme;
 
 		let result: number[] = [], resultLen = 0;
@@ -202,7 +200,7 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
 	public tokenize2(line: string, hasEOL: boolean, state: modes.IState, offsetDelta: number): TokenizationResult2 {
 		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
+		let tokens = this._toBinaryTokens(this._modeService.languageIdCodec, actualResult.tokens, offsetDelta);
 
 		let endState: modes.IState;
 		// try to save an object if possible
@@ -331,15 +329,20 @@ export function setColorMap(colorMap: string[] | null): void {
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider | Thenable<TokensProvider | EncodedTokensProvider>): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
+	const validLanguageId = StaticServices.modeService.get().validateLanguageId(languageId);
+	if (!validLanguageId) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
 	const create = (provider: TokensProvider | EncodedTokensProvider) => {
 		if (isEncodedTokensProvider(provider)) {
-			return new EncodedTokenizationSupport2Adapter(languageIdentifier!, provider);
+			return new EncodedTokenizationSupport2Adapter(validLanguageId, provider);
 		} else {
-			return new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier!, provider);
+			return new TokenizationSupport2Adapter(
+				validLanguageId,
+				provider,
+				StaticServices.modeService.get(),
+				StaticServices.standaloneThemeService.get(),
+			);
 		}
 	};
 	if (isThenable<TokensProvider | EncodedTokensProvider>(provider)) {

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IModeService = createDecorator<IModeService>('modeService');
@@ -22,14 +22,16 @@ export interface ILanguageExtensionPoint {
 }
 
 export interface ILanguageSelection {
-	readonly languageIdentifier: LanguageIdentifier;
-	readonly onDidChange: Event<LanguageIdentifier>;
+	readonly languageId: string;
+	readonly onDidChange: Event<string>;
 }
 
 export interface IModeService {
 	readonly _serviceBrand: undefined;
 
-	onDidEncounterLanguage: Event<LanguageIdentifier>;
+	readonly languageIdCodec: ILanguageIdCodec;
+
+	onDidEncounterLanguage: Event<string>;
 	onLanguagesMaybeChanged: Event<void>;
 
 	// --- reading
@@ -43,7 +45,7 @@ export interface IModeService {
 	getModeIdForLanguageName(alias: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
-	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier | null;
+	validateLanguageId(modeId: string): string | null;
 	getConfigurationFiles(modeId: string): URI[];
 
 	// --- instantiation

@@ -15,7 +15,7 @@ import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScr
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity, IndentGuide, BracketGuideOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -32,6 +32,7 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -70,7 +71,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.model = model;
 		this._eventDispatcher = new ViewModelEventDispatcher();
 		this.onEvent = this._eventDispatcher.onEvent;
-		this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
+		this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration);
 		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
 		this._hasFocus = false;
@@ -244,7 +245,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 
 		if (CursorConfiguration.shouldRecreate(e)) {
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
+			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}
 	}
@@ -405,12 +406,12 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
+			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}));
 
 		this._register(this.model.onDidChangeLanguage((e) => {
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
+			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}));
 
@@ -431,7 +432,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._updateConfigurationViewLineCount.schedule();
 			}
 
-			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this._configuration);
+			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration);
 			this._cursor.updateConfiguration(this.cursorConfig);
 		}));
 
@@ -829,8 +830,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
-		const languageId = this.model.getLanguageIdentifier();
-		if (languageId.id === LanguageId.PlainText) {
+		const languageId = this.model.getLanguageId();
+		if (languageId === PLAINTEXT_MODE_ID) {
 			return null;
 		}
 
@@ -870,7 +871,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 
 		return {
-			mode: languageId.language,
+			mode: languageId,
 			html: (
 				`<div style="`
 				+ `color: ${colorMap[ColorId.DefaultForeground]};`

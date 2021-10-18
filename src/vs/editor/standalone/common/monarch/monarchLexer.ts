@@ -304,7 +304,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 
 	public enterMode(startOffset: number, modeId: string): void {
-		this._currentLanguageId = this._modeService.getLanguageIdentifier(modeId)!.id;
+		this._currentLanguageId = this._modeService.languageIdCodec.encodeLanguageId(modeId);
 	}
 
 	public emit(startOffset: number, type: string): void {

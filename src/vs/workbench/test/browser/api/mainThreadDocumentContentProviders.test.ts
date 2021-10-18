@@ -45,6 +45,7 @@ suite('MainThreadDocumentContentProviders', function () {
 					reject(err);
 				}
 				if (model.getValue() === '1\n2\n3') {
+					model.dispose();
 					resolve();
 				}
 			});

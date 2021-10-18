@@ -18,6 +18,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
 import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';
@@ -43,9 +44,11 @@ suite('MainThreadHostTreeView', function () {
 	let container: ViewContainer;
 	let mainThreadTreeViews: MainThreadTreeViews;
 	let extHostTreeViewsShape: MockExtHostTreeViewsShape;
+	let disposables: DisposableStore;
 
 	setup(async () => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
@@ -76,6 +79,7 @@ suite('MainThreadHostTreeView', function () {
 
 	teardown(() => {
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
+		disposables.dispose();
 	});
 
 	test('getChildren keeps custom properties', async () => {

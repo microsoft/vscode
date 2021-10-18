@@ -27,13 +27,13 @@ suite('NotebookEditorKernelManager', () => {
 
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
-	const dispoables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(function () {
 
-		dispoables.clear();
+		disposables = new DisposableStore();
 
-		instantiationService = setupInstantiationService();
+		instantiationService = setupInstantiationService(disposables);
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = Event.None;
@@ -44,6 +44,10 @@ suite('NotebookEditorKernelManager', () => {
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
 
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {

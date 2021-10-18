@@ -643,7 +643,7 @@ export class DisassemblyViewContribution implements IWorkbenchContribution {
 
 			const activeTextEditorControl = editorService.activeTextEditorControl;
 			if (isCodeEditor(activeTextEditorControl)) {
-				const language = activeTextEditorControl.getModel()?.getLanguageIdentifier().language;
+				const language = activeTextEditorControl.getModel()?.getLanguageId();
 				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
 				// support disassembly
 				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().isDebuggerInterestedInLanguage(language));

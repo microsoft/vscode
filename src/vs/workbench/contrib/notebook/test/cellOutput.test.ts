@@ -9,6 +9,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICellOutputViewModel, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -43,42 +44,52 @@ OutputRendererRegistry.registerOutputTransform(class implements IOutputTransform
 });
 
 suite('NotebookViewModel Outputs', async () => {
-	const instantiationService = setupInstantiationService();
-	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-		override getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: [], output: IOutputDto) {
-			if (output.outputId === 'output_id_err') {
+
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let openerService: IOpenerService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+			override getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: [], output: IOutputDto) {
+				if (output.outputId === 'output_id_err') {
+					return [{
+						mimeType: 'application/vnd.code.notebook.stderr',
+						rendererId: BUILTIN_RENDERER_ID,
+						isTrusted: true
+					}];
+				}
 				return [{
-					mimeType: 'application/vnd.code.notebook.stderr',
+					mimeType: 'application/vnd.code.notebook.stdout',
 					rendererId: BUILTIN_RENDERER_ID,
 					isTrusted: true
 				}];
 			}
-			return [{
-				mimeType: 'application/vnd.code.notebook.stdout',
-				rendererId: BUILTIN_RENDERER_ID,
-				isTrusted: true
-			}];
-		}
+		});
+
+		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(arg: any, context: any): any {
+				return {
+					onDidChange: () => { },
+					getActions: (arg: any) => {
+						return [];
+					}
+				};
+			}
+		});
+
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
+			override lookupKeybinding(arg: any): any {
+				return null;
+			}
+		});
+
+		openerService = instantiationService.stub(IOpenerService, {});
 	});
 
-	instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-		override createMenu(arg: any, context: any): any {
-			return {
-				onDidChange: () => { },
-				getActions: (arg: any) => {
-					return [];
-				}
-			};
-		}
-	});
-
-	instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
-		override lookupKeybinding(arg: any): any {
-			return null;
-		}
-	});
-
-	const openerService = instantiationService.stub(IOpenerService, {});
+	suiteTeardown(() => disposables.dispose());
 
 	test('stream outputs reuse output container', async () => {
 		await withTestNotebook(

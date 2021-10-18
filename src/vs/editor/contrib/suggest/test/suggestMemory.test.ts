@@ -26,6 +26,10 @@ suite('SuggestMemories', function () {
 		];
 	});
 
+	teardown(() => {
+		buffer.dispose();
+	});
+
 	test('AbstractMemory, select', function () {
 
 		const mem = new class extends Memory {

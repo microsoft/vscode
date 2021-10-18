@@ -15,16 +15,19 @@ import { timeout } from 'vs/base/common/async';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('StoredFileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IStoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		manager = new StoredFileWorkingCopyManager<TestStoredFileWorkingCopyModel>(
@@ -39,6 +42,7 @@ suite('StoredFileWorkingCopyManager', () => {
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('resolve', async () => {

@@ -334,7 +334,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
 
-		this._reviewPane = new DiffReview(this);
+		this._reviewPane = instantiationService.createInstance(DiffReview, this);
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);

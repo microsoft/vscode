@@ -24,9 +24,9 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguag
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
+import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -43,6 +43,7 @@ import { ArrayQueue, findLast } from 'vs/base/common/arrays';
 import { BracketPairColorizer, IBracketPairs } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -268,7 +269,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public readonly id: string;
 	public readonly isForSimpleWidget: boolean;
 	private readonly _associatedResource: URI;
-	private readonly _undoRedoService: IUndoRedoService;
 	private _attachedEditorCount: number;
 	private _buffer: model.ITextBuffer;
 	private _bufferDisposable: IDisposable;
@@ -305,7 +305,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	//#endregion
 
 	//#region Tokenization
-	private _languageIdentifier: LanguageIdentifier;
+	private _languageId: string;
 	private readonly _languageRegistryListener: IDisposable;
 	private readonly _tokens: TokensStore;
 	private readonly _tokens2: TokensStore2;
@@ -334,19 +334,16 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onBackgroundTokenizationStateChanged = this._register(new Emitter<void>());
 	public readonly onBackgroundTokenizationStateChanged: Event<void> = this._onBackgroundTokenizationStateChanged.event;
 
-	private readonly _languageConfigurationService: ILanguageConfigurationService;
-
 	constructor(
 		source: string | model.ITextBufferFactory,
 		creationOptions: model.ITextModelCreationOptions,
-		languageIdentifier: LanguageIdentifier | null,
+		languageId: string | null,
 		associatedResource: URI | null = null,
-		undoRedoService: IUndoRedoService,
-		languageConfigurationService: ILanguageConfigurationService
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IModeService private readonly _modeService: IModeService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
-
-		this._languageConfigurationService = languageConfigurationService;
 
 		this._register(this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => {
 			this._onDidChangeContentOrInjectedText.fire(e.rawContentChangedEvent);
@@ -361,7 +358,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		} else {
 			this._associatedResource = associatedResource;
 		}
-		this._undoRedoService = undoRedoService;
 		this._attachedEditorCount = 0;
 
 		const { textBuffer, disposable } = createTextBuffer(source, creationOptions.defaultEOL);
@@ -394,11 +390,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._isDisposed = false;
 		this._isDisposing = false;
 
-		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
+		this._languageId = languageId || NULL_MODE_ID;
 
 		this._languageRegistryListener = this._languageConfigurationService.onDidChange(
 			e => {
-				if (e.affects(this._languageIdentifier)) {
+				if (e.affects(this._languageId)) {
 					this._onDidChangeLanguageConfiguration.fire({});
 				}
 			}
@@ -409,14 +405,14 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
 
-		this._commandManager = new EditStack(this, undoRedoService);
+		this._commandManager = new EditStack(this, this._undoRedoService);
 		this._isUndoing = false;
 		this._isRedoing = false;
 		this._trimAutoWhitespaceLines = null;
 
-		this._tokens = new TokensStore();
-		this._tokens2 = new TokensStore2();
-		this._tokenization = new TextModelTokenization(this);
+		this._tokens = new TokensStore(this._modeService.languageIdCodec);
+		this._tokens2 = new TokensStore2(this._modeService.languageIdCodec);
+		this._tokenization = new TextModelTokenization(this, this._modeService.languageIdCodec);
 
 		this._bracketPairColorizer = this._register(new BracketPairColorizer(this, this._languageConfigurationService));
 		this._decorationProvider = this._bracketPairColorizer;
@@ -1975,7 +1971,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			throw new Error('Illegal value for lineNumber');
 		}
 
-		this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
+		this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), tokens, false);
 	}
 
 	public setTokens(tokens: MultilineTokens[], backgroundTokenizationCompleted: boolean = false): void {
@@ -1990,10 +1986,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				for (let j = 0, lenJ = element.tokens.length; j < lenJ; j++) {
 					const lineNumber = element.startLineNumber + j;
 					if (hasChange) {
-						this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
+						this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], false);
 						maxChangedLineNumber = lineNumber;
 					} else {
-						const lineHasChange = this._tokens.setTokens(this._languageIdentifier.id, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
+						const lineHasChange = this._tokens.setTokens(this._languageId, lineNumber - 1, this._buffer.getLineLength(lineNumber), element.tokens[j], true);
 						if (lineHasChange) {
 							hasChange = true;
 							minChangedLineNumber = lineNumber;
@@ -2114,42 +2110,38 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this.getLineContent(lineNumber);
-		const syntacticTokens = this._tokens.getTokens(this._languageIdentifier.id, lineNumber - 1, lineText);
+		const syntacticTokens = this._tokens.getTokens(this._languageId, lineNumber - 1, lineText);
 		return this._tokens2.addSemanticTokens(lineNumber, syntacticTokens);
 	}
 
-	public getLanguageIdentifier(): LanguageIdentifier {
-		return this._languageIdentifier;
+	public getLanguageId(): string {
+		return this._languageId;
 	}
 
-	public getModeId(): string {
-		return this._languageIdentifier.language;
-	}
-
-	public setMode(languageIdentifier: LanguageIdentifier): void {
-		if (this._languageIdentifier.id === languageIdentifier.id) {
+	public setMode(languageId: string): void {
+		if (this._languageId === languageId) {
 			// There's nothing to do
 			return;
 		}
 
 		let e: IModelLanguageChangedEvent = {
-			oldLanguage: this._languageIdentifier.language,
-			newLanguage: languageIdentifier.language
+			oldLanguage: this._languageId,
+			newLanguage: languageId
 		};
 
-		this._languageIdentifier = languageIdentifier;
+		this._languageId = languageId;
 
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
 	}
 
-	public getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId {
+	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
 		const position = this.validatePosition(new Position(lineNumber, column));
 		const lineTokens = this.getLineTokens(position.lineNumber);
 		return lineTokens.getLanguageId(lineTokens.findTokenIndexAtOffset(position.column - 1));
 	}
 
-	private getLanguageConfiguration(languageId: LanguageId): ResolvedLanguageConfiguration {
+	private getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration {
 		return this._languageConfigurationService.getLanguageConfiguration(languageId);
 	}
 
@@ -2386,7 +2378,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		const languageId = bracket.languageIdentifier.id;
+		const languageId = bracket.languageId;
 		const reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
@@ -2473,7 +2465,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
-		const languageId = bracket.languageIdentifier.id;
+		const languageId = bracket.languageId;
 		const bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
@@ -2561,7 +2553,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public findPrevBracket(_position: IPosition): model.IFoundBracket | null {
 		const position = this.validatePosition(_position);
 
-		let languageId: LanguageId = -1;
+		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber >= 1; lineNumber--) {
 			const lineTokens = this._getLineTokens(lineNumber);
@@ -2639,7 +2631,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
 
-		let languageId: LanguageId = -1;
+		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
@@ -2724,10 +2716,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
-		const savedCounts = new Map<number, number[]>();
+		const savedCounts = new Map<string, number[]>();
 
 		let counts: number[] = [];
-		const resetCounts = (languageId: number, modeBrackets: RichEditBrackets | null) => {
+		const resetCounts = (languageId: string, modeBrackets: RichEditBrackets | null) => {
 			if (!savedCounts.has(languageId)) {
 				let tmp = [];
 				for (let i = 0, len = modeBrackets ? modeBrackets.brackets.length : 0; i < len; i++) {
@@ -2768,7 +2760,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			return null;
 		};
 
-		let languageId: LanguageId = -1;
+		let languageId: string | null = null;
 		let modeBrackets: RichEditBrackets | null = null;
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
 			const lineTokens = this._getLineTokens(lineNumber);
@@ -2905,7 +2897,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			throw new Error('Illegal value for lineNumber');
 		}
 
-		const foldingRules = this.getLanguageConfiguration(this._languageIdentifier.id).foldingRules;
+		const foldingRules = this.getLanguageConfiguration(this._languageId).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
 		let up_aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
@@ -3267,7 +3259,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			throw new Error('Illegal value for endLineNumber');
 		}
 
-		const foldingRules = this.getLanguageConfiguration(this._languageIdentifier.id).foldingRules;
+		const foldingRules = this.getLanguageConfiguration(this._languageId).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
 		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);

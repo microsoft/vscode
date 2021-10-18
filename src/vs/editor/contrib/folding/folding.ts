@@ -791,7 +791,7 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 			if (!editorModel) {
 				return;
 			}
-			let comments = LanguageConfigurationRegistry.getComments(editorModel.getLanguageIdentifier().id);
+			const comments = LanguageConfigurationRegistry.getComments(editorModel.getLanguageId());
 			if (comments && comments.blockCommentStartToken) {
 				let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
 				setCollapseStateForMatchingLines(foldingModel, regExp, true);
@@ -824,7 +824,7 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 			if (!editorModel) {
 				return;
 			}
-			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
+			const foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageId());
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
 				let regExp = new RegExp(foldingRules.markers.start);
 				setCollapseStateForMatchingLines(foldingModel, regExp, true);
@@ -857,7 +857,7 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 			if (!editorModel) {
 				return;
 			}
-			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
+			const foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageId());
 			if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
 				let regExp = new RegExp(foldingRules.markers.start);
 				setCollapseStateForMatchingLines(foldingModel, regExp, false);

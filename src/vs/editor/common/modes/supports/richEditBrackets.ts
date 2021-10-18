@@ -6,7 +6,6 @@
 import * as strings from 'vs/base/common/strings';
 import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
 import { Range } from 'vs/editor/common/core/range';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
 interface InternalBracket {
@@ -32,7 +31,7 @@ interface InternalBracket {
 export class RichEditBracket {
 	_richEditBracketBrand: void = undefined;
 
-	readonly languageIdentifier: LanguageIdentifier;
+	readonly languageId: string;
 	/**
 	 * A 0-based consecutive unique identifier for this bracket pair.
 	 * If a language has 5 bracket pairs, out of which 2 are grouped together,
@@ -78,8 +77,8 @@ export class RichEditBracket {
 	private readonly _openSet: Set<string>;
 	private readonly _closeSet: Set<string>;
 
-	constructor(languageIdentifier: LanguageIdentifier, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
-		this.languageIdentifier = languageIdentifier;
+	constructor(languageId: string, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
+		this.languageId = languageId;
 		this.index = index;
 		this.open = open;
 		this.close = close;
@@ -215,12 +214,12 @@ export class RichEditBrackets {
 	 */
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
-	constructor(languageIdentifier: LanguageIdentifier, _brackets: readonly CharacterPair[]) {
+	constructor(languageId: string, _brackets: readonly CharacterPair[]) {
 		const brackets = groupFuzzyBrackets(_brackets);
 
 		this.brackets = brackets.map((b, index) => {
 			return new RichEditBracket(
-				languageIdentifier,
+				languageId,
 				index,
 				b.open,
 				b.close,
