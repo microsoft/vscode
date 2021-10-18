@@ -165,7 +165,7 @@ if (isWindows) {
 	});
 }
 // Delete word right: alt+d
-registerSendSequenceKeybinding('\x1bd', {
+registerSendSequenceKeybinding('\u000d', {
 	primary: KeyMod.CtrlCmd | KeyCode.Delete,
 	mac: { primary: KeyMod.Alt | KeyCode.Delete }
 });
@@ -184,6 +184,21 @@ registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 // Break: ctrl+C
 registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
+});
+// NUL: ctrl+shift+2
+registerSendSequenceKeybinding('\u0000', {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_2,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_2 }
+});
+// RS: ctrl+shift+6
+registerSendSequenceKeybinding('\u001e', {
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_6,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_6 }
+});
+// US (Undo): ctrl+/
+registerSendSequenceKeybinding('\u001f', {
+	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.US_SLASH }
 });
 
 setupTerminalCommands();
