@@ -13,7 +13,7 @@ import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcher, ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/parcelWatcherService';
-import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
 flakySuite('Recursive Watcher (parcel)', () => {
 
@@ -116,12 +116,6 @@ flakySuite('Recursive Watcher (parcel)', () => {
 				}
 			});
 		});
-
-		// Unwind a bit to avoid calling watcher methods directly
-		// after a file event was send. At least one test was seen
-		// to crash when immediately re-watching the same folder
-		// from within the event callback due to a mutex lock issue.
-		return await timeout(15);
 	}
 
 	test('basics', async function () {
@@ -325,8 +319,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		await Promise.all([deleteFolderFuture1, deleteFolderFuture2]);
 	});
 
-	// TODO@bpasero native crash: https://github.com/microsoft/vscode/issues/135069
-	test.skip('subsequent watch updates watchers (path)', async function () {
+	test('subsequent watch updates watchers (path)', async function () {
 		await service.watch([{ path: testDir, excludes: [join(realpathSync(testDir), 'unrelated')] }]);
 
 		// New file (*.txt)

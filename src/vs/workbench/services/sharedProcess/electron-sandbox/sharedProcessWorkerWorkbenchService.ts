@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -12,8 +12,13 @@ import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, IShared
 import { getDelayedChannel, IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const ISharedProcessWorkerWorkbenchService = createDecorator<ISharedProcessWorkerWorkbenchService>('sharedProcessWorkerWorkbenchService');
+
+export interface IWorkerChannel extends IDisposable {
+	channel: IChannel;
+}
 
 export interface ISharedProcessWorkerWorkbenchService {
 
@@ -26,10 +31,16 @@ export interface ISharedProcessWorkerWorkbenchService {
 	 * Requires the forked process to be AMD module that uses our IPC channel framework
 	 * to respond to the provided `channelName` as a server.
 	 *
+	 * The process will be automatically terminated when the workbench window closes,
+	 * crashes or loads/reloads.
+	 *
 	 * @param process information around the process to fork
 	 * @param channelName the name of the channel the process will respond to
+	 *
+	 * @returns the worker channel to communicate with. Provides a `dispose` method that
+	 * allows to terminate the worker if needed.
 	 */
-	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IChannel;
+	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IWorkerChannel;
 }
 
 export class SharedProcessWorkerWorkbenchService extends Disposable implements ISharedProcessWorkerWorkbenchService {
@@ -53,11 +64,19 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		super();
 	}
 
-	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IChannel {
-		return getDelayedChannel(this.doCreateWorkerChannel(process).then(connection => connection.getChannel(channelName)));
+	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IWorkerChannel {
+		const cts = new CancellationTokenSource();
+
+		return {
+			channel: getDelayedChannel(this.doCreateWorkerChannel(process, channelName, cts.token)),
+			dispose: async () => {
+				await this.disposeWorkerChannel(process);
+				cts.dispose(true);
+			}
+		};
 	}
 
-	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess): Promise<MessagePortClient> {
+	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string, token: CancellationToken): Promise<IChannel> {
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel');
 
 		// Get ready to acquire the message port from the shared process worker
@@ -75,6 +94,18 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel: connection established');
 
-		return this._register(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
+		const client = new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`);
+
+		// Handle cancellation
+		token.onCancellationRequested(() => client.dispose());
+
+		return client.getChannel(channelName);
+	}
+
+	private disposeWorkerChannel(process: ISharedProcessWorkerProcess): Promise<void> {
+		return this.sharedProcessWorkerService.disposeWorker({
+			process,
+			reply: { windowId: this.windowId }
+		});
 	}
 }

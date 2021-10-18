@@ -23,7 +23,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { SharedProcessService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessService';
+import { SharedProcessService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
@@ -49,7 +49,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
-import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 export abstract class SharedDesktopMain extends Disposable {
 

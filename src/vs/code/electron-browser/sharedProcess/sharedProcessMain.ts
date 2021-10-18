@@ -94,12 +94,14 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
 
 class SharedProcessMain extends Disposable {
 
 	private server = this._register(new MessagePortServer());
+
+	private sharedProcessWorkerService: ISharedProcessWorkerService | undefined = undefined;
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
@@ -112,10 +114,25 @@ class SharedProcessMain extends Disposable {
 
 	private registerListeners(): void {
 
-		// Dispose on exit
+		// Shared process lifecycle
 		const onExit = () => this.dispose();
 		process.once('exit', onExit);
 		ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
+
+		// Shared process worker lifecycle
+		//
+		// We dispose the listener when the shared process is
+		// disposed to avoid disposing workers when the entire
+		// application is shutting down anyways.
+		//
+		const eventName = 'vscode:electron-main->shared-process=disposeWorker';
+		const onDisposeWorker = (event: unknown, configuration: ISharedProcessWorkerConfiguration) => this.onDisposeWorker(configuration);
+		ipcRenderer.on(eventName, onDisposeWorker);
+		this._register(toDisposable(() => ipcRenderer.removeListener(eventName, onDisposeWorker)));
+	}
+
+	private onDisposeWorker(configuration: ISharedProcessWorkerConfiguration): void {
+		this.sharedProcessWorkerService?.disposeWorker(configuration);
 	}
 
 	async open(): Promise<void> {
@@ -162,9 +179,6 @@ class SharedProcessMain extends Disposable {
 		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
 
-		// Worker
-		services.set(ISharedProcessWorkerService, new SyncDescriptor(SharedProcessWorkerService));
-
 		// Environment
 		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
@@ -182,6 +196,10 @@ class SharedProcessMain extends Disposable {
 
 		const logService = this._register(new FollowerLogService(logLevelClient, multiplexLogger));
 		services.set(ILogService, logService);
+
+		// Worker
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
+		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
