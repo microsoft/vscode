@@ -56,6 +56,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -530,7 +531,9 @@ export class ExplorerView extends ViewPane {
 
 		// update dynamic contexts
 		this.fileCopiedContextKey.set(await this.clipboardService.hasResources());
-		await this.setContextKeys(stat);
+
+		// not awaited, context updates async when stat resolves but menu shows ASAP
+		this.setContextKeys(stat).catch(e => onUnexpectedError(e));
 
 		const selection = this.tree.getSelection();
 
