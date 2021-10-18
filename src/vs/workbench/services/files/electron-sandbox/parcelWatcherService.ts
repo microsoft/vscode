@@ -5,7 +5,7 @@
 
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IDiskFileChange, ILogMessage, IWatcherService, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 export class ParcelFileWatcher extends WatcherService {
 

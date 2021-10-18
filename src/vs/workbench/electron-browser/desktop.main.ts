@@ -14,7 +14,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 class DesktopMain extends SharedDesktopMain {
 

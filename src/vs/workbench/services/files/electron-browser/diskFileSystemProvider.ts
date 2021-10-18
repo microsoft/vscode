@@ -10,7 +10,7 @@ import { FileSystemProviderCapabilities, FileDeleteOptions } from 'vs/platform/f
 import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions as INodeDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
 import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
 
