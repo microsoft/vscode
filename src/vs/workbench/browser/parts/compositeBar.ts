@@ -115,7 +115,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// ... to the same composite location
 			if (currentLocation === this.targetContainerLocation) {
-				return true;
+				return dragData.id !== targetCompositeId;
 			}
 
 			// ... to another composite location
