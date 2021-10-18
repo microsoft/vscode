@@ -75,10 +75,10 @@ class SharedProcessWorkerMain {
 			const process = new SharedProcessWorkerProcess(port, configuration, environment);
 			process.spawn();
 
-			// Handle unexpected exits of the child process
-			const listener = Event.once(process.onDidProcessExit)(() => {
+			// Handle self termination of the child process
+			const listener = Event.once(process.onDidProcessSelfTerminate)(() => {
 				send({
-					id: SharedProcessWorkerMessages.Exit,
+					id: SharedProcessWorkerMessages.SelfTerminated,
 					configuration
 				});
 			});
@@ -109,8 +109,8 @@ class SharedProcessWorkerMain {
 
 class SharedProcessWorkerProcess extends Disposable {
 
-	private readonly _onDidProcessExit = this._register(new Emitter<void>());
-	readonly onDidProcessExit = this._onDidProcessExit.event;
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<void>());
+	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private child: ChildProcess | undefined = undefined;
 
@@ -138,10 +138,12 @@ class SharedProcessWorkerProcess extends Disposable {
 		const onError = Event.fromNodeEventEmitter(this.child, 'error');
 		this._register(onError(error => Logger.warn(`Error from child process: ${toErrorMessage(error)}`)));
 
-		// Handle unexpected termination
+		// Handle termination that happens from the process
+		// itself. This can either be a crash or the process
+		// not being long running.
 		const onExit = Event.fromNodeEventEmitter<{ code: number | null, signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
 		this._register(onExit(({ code, signal }) => {
-			const logMsg = `Worker process with pid ${this.child?.pid} exited with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`;
+			const logMsg = `Worker process with pid ${this.child?.pid} terminated by itself with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`;
 			if (code !== 0 && signal !== 'SIGTERM') {
 				Logger.error(logMsg);
 			} else {
@@ -150,7 +152,7 @@ class SharedProcessWorkerProcess extends Disposable {
 
 			this.child = undefined;
 
-			this._onDidProcessExit.fire();
+			this._onDidProcessSelfTerminate.fire();
 		}));
 
 		const onMessageEmitter = this._register(new Emitter<VSBuffer>());
@@ -203,10 +205,6 @@ class SharedProcessWorkerProcess extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
-		this.terminate();
-	}
-
-	private terminate(): void {
 		if (!this.child) {
 			return;
 		}

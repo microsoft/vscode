@@ -99,7 +99,10 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 			const sharedProcessWorker = new SharedProcessWebWorker(configuration.process.type, this.logService);
 			webWorkerPromise = sharedProcessWorker.init();
 
-			sharedProcessWorker.onDidProcessExit(configuration => {
+			// Make sure to run through our normal
+			// `disposeWorker` call when the process
+			// terminates by itself.
+			sharedProcessWorker.onDidProcessSelfTerminate(configuration => {
 				this.disposeWorker(configuration);
 			});
 
@@ -121,11 +124,11 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
 class SharedProcessWebWorker extends Disposable {
 
-	private readonly _onDidProcessExit = this._register(new Emitter<ISharedProcessWorkerConfiguration>());
-	readonly onDidProcessExit = this._onDidProcessExit.event;
+	private readonly _onDidProcessSelfTerminate = this._register(new Emitter<ISharedProcessWorkerConfiguration>());
+	readonly onDidProcessSelfTerminate = this._onDidProcessSelfTerminate.event;
 
 	private readonly workerReady: Promise<Worker> = this.doInit();
-	private readonly mapMessageNonceToMessageResolve = new Map<string, () => void>();
+	private readonly mapMessageNonceToPendingMessageResolve = new Map<string, () => void>();
 
 	constructor(
 		private readonly type: string,
@@ -169,18 +172,18 @@ class SharedProcessWebWorker extends Disposable {
 				// Lifecycle: Ack
 				case SharedProcessWorkerMessages.Ack:
 					if (nonce) {
-						const messageAwaiter = this.mapMessageNonceToMessageResolve.get(nonce);
+						const messageAwaiter = this.mapMessageNonceToPendingMessageResolve.get(nonce);
 						if (messageAwaiter) {
-							this.mapMessageNonceToMessageResolve.delete(nonce);
+							this.mapMessageNonceToPendingMessageResolve.delete(nonce);
 							messageAwaiter();
 						}
 					}
 					break;
 
-				// Lifecycle: Process exit
-				case SharedProcessWorkerMessages.Exit:
+				// Lifecycle: self termination
+				case SharedProcessWorkerMessages.SelfTerminated:
 					if (configuration) {
-						this._onDidProcessExit.fire(configuration);
+						this._onDidProcessSelfTerminate.fire(configuration);
 					}
 					break;
 
@@ -230,7 +233,7 @@ class SharedProcessWebWorker extends Disposable {
 			// Store the awaiter for resolving when message
 			// is received with the given nonce
 			const nonce = generateUuid();
-			this.mapMessageNonceToMessageResolve.set(nonce, resolve);
+			this.mapMessageNonceToPendingMessageResolve.set(nonce, resolve);
 
 			// Post message into worker
 			const workerMessage: ISharedProcessToWorkerMessage = { ...message, nonce };
@@ -239,6 +242,13 @@ class SharedProcessWebWorker extends Disposable {
 			} else {
 				worker.postMessage(workerMessage);
 			}
+
+			// Release on cancellation if still pending
+			token.onCancellationRequested(() => {
+				if (this.mapMessageNonceToPendingMessageResolve.delete(nonce)) {
+					resolve();
+				}
+			});
 		});
 	}
 

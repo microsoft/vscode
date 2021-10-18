@@ -10,11 +10,11 @@ export enum SharedProcessWorkerMessages {
 	// Process
 	Spawn = 'vscode:shared-process->shared-process-worker=spawn',
 	Terminate = 'vscode:shared-process->shared-process-worker=terminate',
+	SelfTerminated = 'vscode:shared-process-worker->shared-process=selfTerminated',
 
 	// Lifecycle
 	Ready = 'vscode:shared-process-worker->shared-process=ready',
 	Ack = 'vscode:shared-process-worker->shared-process=ack',
-	Exit = 'vscode:shared-process-worker->shared-process=exit',
 
 	// Diagnostics
 	Trace = 'vscode:shared-process-worker->shared-process=trace',

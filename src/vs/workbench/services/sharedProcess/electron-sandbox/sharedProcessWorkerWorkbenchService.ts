@@ -101,6 +101,8 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		// Dispose worker upon disposal via shared process service
 		disposables.add(toDisposable(() => {
+			this.logService.trace('Renderer->SharedProcess#disposeWorker', process);
+
 			this.sharedProcessWorkerService.disposeWorker({
 				process,
 				reply: { windowId: this.windowId }
