@@ -206,174 +206,6 @@ export const enum KeyCode {
 	MAX_VALUE
 }
 
-class KeyCodeStrMap {
-
-	private _keyCodeToStr: string[];
-	private _strToKeyCode: { [str: string]: KeyCode; };
-
-	constructor() {
-		this._keyCodeToStr = [];
-		this._strToKeyCode = Object.create(null);
-	}
-
-	define(keyCode: KeyCode, str: string): void {
-		this._keyCodeToStr[keyCode] = str;
-		this._strToKeyCode[str.toLowerCase()] = keyCode;
-	}
-
-	keyCodeToStr(keyCode: KeyCode): string {
-		return this._keyCodeToStr[keyCode];
-	}
-
-	strToKeyCode(str: string): KeyCode {
-		return this._strToKeyCode[str.toLowerCase()] || KeyCode.Unknown;
-	}
-}
-
-const uiMap = new KeyCodeStrMap();
-const userSettingsUSMap = new KeyCodeStrMap();
-const userSettingsGeneralMap = new KeyCodeStrMap();
-
-(function () {
-
-	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
-		uiMap.define(keyCode, uiLabel);
-		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
-		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
-	}
-
-	define(KeyCode.Unknown, 'unknown');
-
-	define(KeyCode.Backspace, 'Backspace');
-	define(KeyCode.Tab, 'Tab');
-	define(KeyCode.Enter, 'Enter');
-	define(KeyCode.Shift, 'Shift');
-	define(KeyCode.Ctrl, 'Ctrl');
-	define(KeyCode.Alt, 'Alt');
-	define(KeyCode.PauseBreak, 'PauseBreak');
-	define(KeyCode.CapsLock, 'CapsLock');
-	define(KeyCode.Escape, 'Escape');
-	define(KeyCode.Space, 'Space');
-	define(KeyCode.PageUp, 'PageUp');
-	define(KeyCode.PageDown, 'PageDown');
-	define(KeyCode.End, 'End');
-	define(KeyCode.Home, 'Home');
-
-	define(KeyCode.LeftArrow, 'LeftArrow', 'Left');
-	define(KeyCode.UpArrow, 'UpArrow', 'Up');
-	define(KeyCode.RightArrow, 'RightArrow', 'Right');
-	define(KeyCode.DownArrow, 'DownArrow', 'Down');
-	define(KeyCode.Insert, 'Insert');
-	define(KeyCode.Delete, 'Delete');
-
-	define(KeyCode.KEY_0, '0');
-	define(KeyCode.KEY_1, '1');
-	define(KeyCode.KEY_2, '2');
-	define(KeyCode.KEY_3, '3');
-	define(KeyCode.KEY_4, '4');
-	define(KeyCode.KEY_5, '5');
-	define(KeyCode.KEY_6, '6');
-	define(KeyCode.KEY_7, '7');
-	define(KeyCode.KEY_8, '8');
-	define(KeyCode.KEY_9, '9');
-
-	define(KeyCode.KEY_A, 'A');
-	define(KeyCode.KEY_B, 'B');
-	define(KeyCode.KEY_C, 'C');
-	define(KeyCode.KEY_D, 'D');
-	define(KeyCode.KEY_E, 'E');
-	define(KeyCode.KEY_F, 'F');
-	define(KeyCode.KEY_G, 'G');
-	define(KeyCode.KEY_H, 'H');
-	define(KeyCode.KEY_I, 'I');
-	define(KeyCode.KEY_J, 'J');
-	define(KeyCode.KEY_K, 'K');
-	define(KeyCode.KEY_L, 'L');
-	define(KeyCode.KEY_M, 'M');
-	define(KeyCode.KEY_N, 'N');
-	define(KeyCode.KEY_O, 'O');
-	define(KeyCode.KEY_P, 'P');
-	define(KeyCode.KEY_Q, 'Q');
-	define(KeyCode.KEY_R, 'R');
-	define(KeyCode.KEY_S, 'S');
-	define(KeyCode.KEY_T, 'T');
-	define(KeyCode.KEY_U, 'U');
-	define(KeyCode.KEY_V, 'V');
-	define(KeyCode.KEY_W, 'W');
-	define(KeyCode.KEY_X, 'X');
-	define(KeyCode.KEY_Y, 'Y');
-	define(KeyCode.KEY_Z, 'Z');
-
-	define(KeyCode.Meta, 'Meta');
-	define(KeyCode.ContextMenu, 'ContextMenu');
-
-	define(KeyCode.F1, 'F1');
-	define(KeyCode.F2, 'F2');
-	define(KeyCode.F3, 'F3');
-	define(KeyCode.F4, 'F4');
-	define(KeyCode.F5, 'F5');
-	define(KeyCode.F6, 'F6');
-	define(KeyCode.F7, 'F7');
-	define(KeyCode.F8, 'F8');
-	define(KeyCode.F9, 'F9');
-	define(KeyCode.F10, 'F10');
-	define(KeyCode.F11, 'F11');
-	define(KeyCode.F12, 'F12');
-	define(KeyCode.F13, 'F13');
-	define(KeyCode.F14, 'F14');
-	define(KeyCode.F15, 'F15');
-	define(KeyCode.F16, 'F16');
-	define(KeyCode.F17, 'F17');
-	define(KeyCode.F18, 'F18');
-	define(KeyCode.F19, 'F19');
-
-	define(KeyCode.NumLock, 'NumLock');
-	define(KeyCode.ScrollLock, 'ScrollLock');
-
-	define(KeyCode.US_SEMICOLON, ';', ';', 'OEM_1');
-	define(KeyCode.US_EQUAL, '=', '=', 'OEM_PLUS');
-	define(KeyCode.US_COMMA, ',', ',', 'OEM_COMMA');
-	define(KeyCode.US_MINUS, '-', '-', 'OEM_MINUS');
-	define(KeyCode.US_DOT, '.', '.', 'OEM_PERIOD');
-	define(KeyCode.US_SLASH, '/', '/', 'OEM_2');
-	define(KeyCode.US_BACKTICK, '`', '`', 'OEM_3');
-	define(KeyCode.ABNT_C1, 'ABNT_C1');
-	define(KeyCode.ABNT_C2, 'ABNT_C2');
-	define(KeyCode.US_OPEN_SQUARE_BRACKET, '[', '[', 'OEM_4');
-	define(KeyCode.US_BACKSLASH, '\\', '\\', 'OEM_5');
-	define(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', 'OEM_6');
-	define(KeyCode.US_QUOTE, '\'', '\'', 'OEM_7');
-	define(KeyCode.OEM_8, 'OEM_8');
-	define(KeyCode.OEM_102, 'OEM_102');
-
-	define(KeyCode.NUMPAD_0, 'NumPad0');
-	define(KeyCode.NUMPAD_1, 'NumPad1');
-	define(KeyCode.NUMPAD_2, 'NumPad2');
-	define(KeyCode.NUMPAD_3, 'NumPad3');
-	define(KeyCode.NUMPAD_4, 'NumPad4');
-	define(KeyCode.NUMPAD_5, 'NumPad5');
-	define(KeyCode.NUMPAD_6, 'NumPad6');
-	define(KeyCode.NUMPAD_7, 'NumPad7');
-	define(KeyCode.NUMPAD_8, 'NumPad8');
-	define(KeyCode.NUMPAD_9, 'NumPad9');
-
-	define(KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply');
-	define(KeyCode.NUMPAD_ADD, 'NumPad_Add');
-	define(KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator');
-	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract');
-	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal');
-	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide');
-
-	define(KeyCode.BrowserBack, 'BrowserBack');
-	define(KeyCode.BrowserForward, 'BrowserForward');
-
-	define(KeyCode.MediaTrackNext, 'MediaTrackNext');
-	define(KeyCode.MediaTrackPrevious, 'MediaTrackPrevious');
-	define(KeyCode.MediaStop, 'MediaStop');
-	define(KeyCode.MediaPlayPause, 'MediaPlayPause');
-
-})();
-
 /**
  * keyboardEvent.code
  */
@@ -575,6 +407,357 @@ export const enum ScanCode {
 	MailSend,
 
 	MAX_VALUE
+}
+
+class KeyCodeStrMap {
+
+	private _keyCodeToStr: string[];
+	private _strToKeyCode: { [str: string]: KeyCode; };
+
+	constructor() {
+		this._keyCodeToStr = [];
+		this._strToKeyCode = Object.create(null);
+	}
+
+	define(keyCode: KeyCode, str: string): void {
+		this._keyCodeToStr[keyCode] = str;
+		this._strToKeyCode[str.toLowerCase()] = keyCode;
+	}
+
+	keyCodeToStr(keyCode: KeyCode): string {
+		return this._keyCodeToStr[keyCode];
+	}
+
+	strToKeyCode(str: string): KeyCode {
+		return this._strToKeyCode[str.toLowerCase()] || KeyCode.Unknown;
+	}
+}
+
+const uiMap = new KeyCodeStrMap();
+const userSettingsUSMap = new KeyCodeStrMap();
+const userSettingsGeneralMap = new KeyCodeStrMap();
+
+(function () {
+
+	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
+		uiMap.define(keyCode, uiLabel);
+		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
+		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
+	}
+
+	define(KeyCode.Unknown, 'unknown');
+
+	define(KeyCode.Backspace, 'Backspace');
+	define(KeyCode.Tab, 'Tab');
+	define(KeyCode.Enter, 'Enter');
+	define(KeyCode.Shift, 'Shift');
+	define(KeyCode.Ctrl, 'Ctrl');
+	define(KeyCode.Alt, 'Alt');
+	define(KeyCode.PauseBreak, 'PauseBreak');
+	define(KeyCode.CapsLock, 'CapsLock');
+	define(KeyCode.Escape, 'Escape');
+	define(KeyCode.Space, 'Space');
+	define(KeyCode.PageUp, 'PageUp');
+	define(KeyCode.PageDown, 'PageDown');
+	define(KeyCode.End, 'End');
+	define(KeyCode.Home, 'Home');
+
+	define(KeyCode.LeftArrow, 'LeftArrow', 'Left');
+	define(KeyCode.UpArrow, 'UpArrow', 'Up');
+	define(KeyCode.RightArrow, 'RightArrow', 'Right');
+	define(KeyCode.DownArrow, 'DownArrow', 'Down');
+	define(KeyCode.Insert, 'Insert');
+	define(KeyCode.Delete, 'Delete');
+
+	define(KeyCode.KEY_0, '0');
+	define(KeyCode.KEY_1, '1');
+	define(KeyCode.KEY_2, '2');
+	define(KeyCode.KEY_3, '3');
+	define(KeyCode.KEY_4, '4');
+	define(KeyCode.KEY_5, '5');
+	define(KeyCode.KEY_6, '6');
+	define(KeyCode.KEY_7, '7');
+	define(KeyCode.KEY_8, '8');
+	define(KeyCode.KEY_9, '9');
+
+	define(KeyCode.KEY_A, 'A');
+	define(KeyCode.KEY_B, 'B');
+	define(KeyCode.KEY_C, 'C');
+	define(KeyCode.KEY_D, 'D');
+	define(KeyCode.KEY_E, 'E');
+	define(KeyCode.KEY_F, 'F');
+	define(KeyCode.KEY_G, 'G');
+	define(KeyCode.KEY_H, 'H');
+	define(KeyCode.KEY_I, 'I');
+	define(KeyCode.KEY_J, 'J');
+	define(KeyCode.KEY_K, 'K');
+	define(KeyCode.KEY_L, 'L');
+	define(KeyCode.KEY_M, 'M');
+	define(KeyCode.KEY_N, 'N');
+	define(KeyCode.KEY_O, 'O');
+	define(KeyCode.KEY_P, 'P');
+	define(KeyCode.KEY_Q, 'Q');
+	define(KeyCode.KEY_R, 'R');
+	define(KeyCode.KEY_S, 'S');
+	define(KeyCode.KEY_T, 'T');
+	define(KeyCode.KEY_U, 'U');
+	define(KeyCode.KEY_V, 'V');
+	define(KeyCode.KEY_W, 'W');
+	define(KeyCode.KEY_X, 'X');
+	define(KeyCode.KEY_Y, 'Y');
+	define(KeyCode.KEY_Z, 'Z');
+
+	define(KeyCode.Meta, 'Meta');
+	define(KeyCode.ContextMenu, 'ContextMenu');
+
+	define(KeyCode.F1, 'F1');
+	define(KeyCode.F2, 'F2');
+	define(KeyCode.F3, 'F3');
+	define(KeyCode.F4, 'F4');
+	define(KeyCode.F5, 'F5');
+	define(KeyCode.F6, 'F6');
+	define(KeyCode.F7, 'F7');
+	define(KeyCode.F8, 'F8');
+	define(KeyCode.F9, 'F9');
+	define(KeyCode.F10, 'F10');
+	define(KeyCode.F11, 'F11');
+	define(KeyCode.F12, 'F12');
+	define(KeyCode.F13, 'F13');
+	define(KeyCode.F14, 'F14');
+	define(KeyCode.F15, 'F15');
+	define(KeyCode.F16, 'F16');
+	define(KeyCode.F17, 'F17');
+	define(KeyCode.F18, 'F18');
+	define(KeyCode.F19, 'F19');
+
+	define(KeyCode.NumLock, 'NumLock');
+	define(KeyCode.ScrollLock, 'ScrollLock');
+
+	define(KeyCode.US_SEMICOLON, ';', ';', 'OEM_1');
+	define(KeyCode.US_EQUAL, '=', '=', 'OEM_PLUS');
+	define(KeyCode.US_COMMA, ',', ',', 'OEM_COMMA');
+	define(KeyCode.US_MINUS, '-', '-', 'OEM_MINUS');
+	define(KeyCode.US_DOT, '.', '.', 'OEM_PERIOD');
+	define(KeyCode.US_SLASH, '/', '/', 'OEM_2');
+	define(KeyCode.US_BACKTICK, '`', '`', 'OEM_3');
+	define(KeyCode.ABNT_C1, 'ABNT_C1');
+	define(KeyCode.ABNT_C2, 'ABNT_C2');
+	define(KeyCode.US_OPEN_SQUARE_BRACKET, '[', '[', 'OEM_4');
+	define(KeyCode.US_BACKSLASH, '\\', '\\', 'OEM_5');
+	define(KeyCode.US_CLOSE_SQUARE_BRACKET, ']', ']', 'OEM_6');
+	define(KeyCode.US_QUOTE, '\'', '\'', 'OEM_7');
+	define(KeyCode.OEM_8, 'OEM_8');
+	define(KeyCode.OEM_102, 'OEM_102');
+
+	define(KeyCode.NUMPAD_0, 'NumPad0');
+	define(KeyCode.NUMPAD_1, 'NumPad1');
+	define(KeyCode.NUMPAD_2, 'NumPad2');
+	define(KeyCode.NUMPAD_3, 'NumPad3');
+	define(KeyCode.NUMPAD_4, 'NumPad4');
+	define(KeyCode.NUMPAD_5, 'NumPad5');
+	define(KeyCode.NUMPAD_6, 'NumPad6');
+	define(KeyCode.NUMPAD_7, 'NumPad7');
+	define(KeyCode.NUMPAD_8, 'NumPad8');
+	define(KeyCode.NUMPAD_9, 'NumPad9');
+
+	define(KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply');
+	define(KeyCode.NUMPAD_ADD, 'NumPad_Add');
+	define(KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator');
+	define(KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract');
+	define(KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal');
+	define(KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide');
+
+	define(KeyCode.BrowserBack, 'BrowserBack');
+	define(KeyCode.BrowserForward, 'BrowserForward');
+
+	define(KeyCode.MediaTrackNext, 'MediaTrackNext');
+	define(KeyCode.MediaTrackPrevious, 'MediaTrackPrevious');
+	define(KeyCode.MediaStop, 'MediaStop');
+	define(KeyCode.MediaPlayPause, 'MediaPlayPause');
+
+})();
+
+export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = _getNativeMap();
+
+// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
+// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
+function _getNativeMap() {
+	return {
+		VK_BACK: KeyCode.Backspace,
+		VK_TAB: KeyCode.Tab,
+		VK_CLEAR: KeyCode.Unknown, // MISSING
+		VK_RETURN: KeyCode.Enter,
+		VK_SHIFT: KeyCode.Shift,
+		VK_CONTROL: KeyCode.Ctrl,
+		VK_MENU: KeyCode.Alt,
+		VK_PAUSE: KeyCode.PauseBreak,
+		VK_CAPITAL: KeyCode.CapsLock,
+		VK_KANA: KeyCode.Unknown, // MISSING
+		VK_HANGUL: KeyCode.Unknown, // MISSING
+		VK_JUNJA: KeyCode.Unknown, // MISSING
+		VK_FINAL: KeyCode.Unknown, // MISSING
+		VK_HANJA: KeyCode.Unknown, // MISSING
+		VK_KANJI: KeyCode.Unknown, // MISSING
+		VK_ESCAPE: KeyCode.Escape,
+		VK_CONVERT: KeyCode.Unknown, // MISSING
+		VK_NONCONVERT: KeyCode.Unknown, // MISSING
+		VK_ACCEPT: KeyCode.Unknown, // MISSING
+		VK_MODECHANGE: KeyCode.Unknown, // MISSING
+		VK_SPACE: KeyCode.Space,
+		VK_PRIOR: KeyCode.PageUp,
+		VK_NEXT: KeyCode.PageDown,
+		VK_END: KeyCode.End,
+		VK_HOME: KeyCode.Home,
+		VK_LEFT: KeyCode.LeftArrow,
+		VK_UP: KeyCode.UpArrow,
+		VK_RIGHT: KeyCode.RightArrow,
+		VK_DOWN: KeyCode.DownArrow,
+		VK_SELECT: KeyCode.Unknown, // MISSING
+		VK_PRINT: KeyCode.Unknown, // MISSING
+		VK_EXECUTE: KeyCode.Unknown, // MISSING
+		VK_SNAPSHOT: KeyCode.Unknown, // MISSING
+		VK_INSERT: KeyCode.Insert,
+		VK_DELETE: KeyCode.Delete,
+		VK_HELP: KeyCode.Unknown, // MISSING
+
+		VK_0: KeyCode.KEY_0,
+		VK_1: KeyCode.KEY_1,
+		VK_2: KeyCode.KEY_2,
+		VK_3: KeyCode.KEY_3,
+		VK_4: KeyCode.KEY_4,
+		VK_5: KeyCode.KEY_5,
+		VK_6: KeyCode.KEY_6,
+		VK_7: KeyCode.KEY_7,
+		VK_8: KeyCode.KEY_8,
+		VK_9: KeyCode.KEY_9,
+		VK_A: KeyCode.KEY_A,
+		VK_B: KeyCode.KEY_B,
+		VK_C: KeyCode.KEY_C,
+		VK_D: KeyCode.KEY_D,
+		VK_E: KeyCode.KEY_E,
+		VK_F: KeyCode.KEY_F,
+		VK_G: KeyCode.KEY_G,
+		VK_H: KeyCode.KEY_H,
+		VK_I: KeyCode.KEY_I,
+		VK_J: KeyCode.KEY_J,
+		VK_K: KeyCode.KEY_K,
+		VK_L: KeyCode.KEY_L,
+		VK_M: KeyCode.KEY_M,
+		VK_N: KeyCode.KEY_N,
+		VK_O: KeyCode.KEY_O,
+		VK_P: KeyCode.KEY_P,
+		VK_Q: KeyCode.KEY_Q,
+		VK_R: KeyCode.KEY_R,
+		VK_S: KeyCode.KEY_S,
+		VK_T: KeyCode.KEY_T,
+		VK_U: KeyCode.KEY_U,
+		VK_V: KeyCode.KEY_V,
+		VK_W: KeyCode.KEY_W,
+		VK_X: KeyCode.KEY_X,
+		VK_Y: KeyCode.KEY_Y,
+		VK_Z: KeyCode.KEY_Z,
+
+		VK_LWIN: KeyCode.Meta,
+		VK_COMMAND: KeyCode.Meta,
+		VK_RWIN: KeyCode.Meta,
+		VK_APPS: KeyCode.Unknown, // MISSING
+		VK_SLEEP: KeyCode.Unknown, // MISSING
+		VK_NUMPAD0: KeyCode.NUMPAD_0,
+		VK_NUMPAD1: KeyCode.NUMPAD_1,
+		VK_NUMPAD2: KeyCode.NUMPAD_2,
+		VK_NUMPAD3: KeyCode.NUMPAD_3,
+		VK_NUMPAD4: KeyCode.NUMPAD_4,
+		VK_NUMPAD5: KeyCode.NUMPAD_5,
+		VK_NUMPAD6: KeyCode.NUMPAD_6,
+		VK_NUMPAD7: KeyCode.NUMPAD_7,
+		VK_NUMPAD8: KeyCode.NUMPAD_8,
+		VK_NUMPAD9: KeyCode.NUMPAD_9,
+		VK_MULTIPLY: KeyCode.NUMPAD_MULTIPLY,
+		VK_ADD: KeyCode.NUMPAD_ADD,
+		VK_SEPARATOR: KeyCode.NUMPAD_SEPARATOR,
+		VK_SUBTRACT: KeyCode.NUMPAD_SUBTRACT,
+		VK_DECIMAL: KeyCode.NUMPAD_DECIMAL,
+		VK_DIVIDE: KeyCode.NUMPAD_DIVIDE,
+		VK_F1: KeyCode.F1,
+		VK_F2: KeyCode.F2,
+		VK_F3: KeyCode.F3,
+		VK_F4: KeyCode.F4,
+		VK_F5: KeyCode.F5,
+		VK_F6: KeyCode.F6,
+		VK_F7: KeyCode.F7,
+		VK_F8: KeyCode.F8,
+		VK_F9: KeyCode.F9,
+		VK_F10: KeyCode.F10,
+		VK_F11: KeyCode.F11,
+		VK_F12: KeyCode.F12,
+		VK_F13: KeyCode.F13,
+		VK_F14: KeyCode.F14,
+		VK_F15: KeyCode.F15,
+		VK_F16: KeyCode.F16,
+		VK_F17: KeyCode.F17,
+		VK_F18: KeyCode.F18,
+		VK_F19: KeyCode.F19,
+		VK_F20: KeyCode.Unknown, // MISSING
+		VK_F21: KeyCode.Unknown, // MISSING
+		VK_F22: KeyCode.Unknown, // MISSING
+		VK_F23: KeyCode.Unknown, // MISSING
+		VK_F24: KeyCode.Unknown, // MISSING
+		VK_NUMLOCK: KeyCode.NumLock,
+		VK_SCROLL: KeyCode.ScrollLock,
+		VK_LSHIFT: KeyCode.Shift,
+		VK_RSHIFT: KeyCode.Shift,
+		VK_LCONTROL: KeyCode.Ctrl,
+		VK_RCONTROL: KeyCode.Ctrl,
+		VK_LMENU: KeyCode.Unknown, // MISSING
+		VK_RMENU: KeyCode.Unknown, // MISSING
+		VK_BROWSER_BACK: KeyCode.BrowserBack,
+		VK_BROWSER_FORWARD: KeyCode.BrowserForward,
+		VK_BROWSER_REFRESH: KeyCode.Unknown, // MISSING
+		VK_BROWSER_STOP: KeyCode.Unknown, // MISSING
+		VK_BROWSER_SEARCH: KeyCode.Unknown, // MISSING
+		VK_BROWSER_FAVORITES: KeyCode.Unknown, // MISSING
+		VK_BROWSER_HOME: KeyCode.Unknown, // MISSING
+		VK_VOLUME_MUTE: KeyCode.Unknown, // MISSING
+		VK_VOLUME_DOWN: KeyCode.Unknown, // MISSING
+		VK_VOLUME_UP: KeyCode.Unknown, // MISSING
+		VK_MEDIA_NEXT_TRACK: KeyCode.MediaTrackNext,
+		VK_MEDIA_PREV_TRACK: KeyCode.MediaTrackPrevious,
+		VK_MEDIA_STOP: KeyCode.MediaStop,
+		VK_MEDIA_PLAY_PAUSE: KeyCode.MediaPlayPause,
+		VK_MEDIA_LAUNCH_MAIL: KeyCode.Unknown, // MISSING
+		VK_MEDIA_LAUNCH_MEDIA_SELECT: KeyCode.Unknown, // MISSING
+		VK_MEDIA_LAUNCH_APP1: KeyCode.Unknown, // MISSING
+		VK_MEDIA_LAUNCH_APP2: KeyCode.Unknown, // MISSING
+		VK_OEM_1: KeyCode.US_SEMICOLON,
+		VK_OEM_PLUS: KeyCode.US_EQUAL,
+		VK_OEM_COMMA: KeyCode.US_COMMA,
+		VK_OEM_MINUS: KeyCode.US_MINUS,
+		VK_OEM_PERIOD: KeyCode.US_DOT,
+		VK_OEM_2: KeyCode.US_SLASH,
+		VK_OEM_3: KeyCode.US_BACKTICK,
+		VK_ABNT_C1: KeyCode.ABNT_C1,
+		VK_ABNT_C2: KeyCode.ABNT_C2,
+		VK_OEM_4: KeyCode.US_OPEN_SQUARE_BRACKET,
+		VK_OEM_5: KeyCode.US_BACKSLASH,
+		VK_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET,
+		VK_OEM_7: KeyCode.US_QUOTE,
+		VK_OEM_8: KeyCode.OEM_8,
+		VK_OEM_102: KeyCode.OEM_102,
+		VK_PROCESSKEY: KeyCode.Unknown, // MISSING
+		VK_PACKET: KeyCode.Unknown, // MISSING
+		VK_DBE_SBCSCHAR: KeyCode.Unknown, // MISSING
+		VK_DBE_DBCSCHAR: KeyCode.Unknown, // MISSING
+		VK_ATTN: KeyCode.Unknown, // MISSING
+		VK_CRSEL: KeyCode.Unknown, // MISSING
+		VK_EXSEL: KeyCode.Unknown, // MISSING
+		VK_EREOF: KeyCode.Unknown, // MISSING
+		VK_PLAY: KeyCode.Unknown, // MISSING
+		VK_ZOOM: KeyCode.Unknown, // MISSING
+		VK_NONAME: KeyCode.Unknown, // MISSING
+		VK_PA1: KeyCode.Unknown, // MISSING
+		VK_OEM_CLEAR: KeyCode.Unknown, // MISSING
+		VK_UNKNOWN: KeyCode.Unknown,
+	};
 }
 
 const scanCodeIntToStr: string[] = [];
