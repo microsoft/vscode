@@ -47,7 +47,7 @@ class SharedProcessWorkerMain {
 				}
 				break;
 
-			// Terminate exisisting process
+			// Terminate existing process
 			case SharedProcessWorkerMessages.Terminate:
 				this.terminate(message.configuration);
 				break;

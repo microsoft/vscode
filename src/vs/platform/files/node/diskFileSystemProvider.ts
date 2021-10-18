@@ -594,7 +594,7 @@ export class DiskFileSystemProvider extends Disposable implements
 				this.logService.getLevel() === LogLevel.Trace
 			));
 
-			// Apply log levels dynamicaly
+			// Apply log levels dynamically
 			this._register(this.logService.onDidChangeLogLevel(() => {
 				this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 			}));

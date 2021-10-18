@@ -79,7 +79,7 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 
 		// We cannot just send the `MessagePort` through our protocol back
 		// because the port can only be sent via `postMessage`. So we need
-		// to send it through the main process to back to the window.
+		// to send it through the main process back to the window.
 		this.logService.trace(`SharedProcess: createWorker sending message port back to window (${workerLogId})`);
 		ipcRenderer.postMessage('vscode:relaySharedProcessWorkerMessageChannel', configuration, [windowPort]);
 	}
