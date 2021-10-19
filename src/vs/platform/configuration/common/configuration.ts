@@ -189,7 +189,9 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 		for (const key of added) {
 			const override = toOverridesByIdentifier[key];
 			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+				for (let identifier of overrideIdentifierFromKey(key)) {
+					overrides.push([identifier, override.keys]);
+				}
 			}
 		}
 	}
@@ -197,7 +199,9 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 		for (const key of removed) {
 			const override = fromOverridesByIdentifier[key];
 			if (override) {
-				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+				for (let identifier of overrideIdentifierFromKey(key)) {
+					overrides.push([identifier, override.keys]);
+				}
 			}
 		}
 	}
@@ -208,7 +212,10 @@ export function compare(from: IConfigurationModel | undefined, to: IConfiguratio
 			const toOverride = toOverridesByIdentifier[key];
 			if (fromOverride && toOverride) {
 				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
-				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
+
+				for (let identifier of overrideIdentifierFromKey(key)) {
+					overrides.push([identifier, [...result.added, ...result.removed, ...result.updated]]);
+				}
 			}
 		}
 	}
@@ -225,7 +232,7 @@ export function toOverrides(raw: any, conflictReporter: (message: string) => voi
 				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
 			}
 			overrides.push({
-				identifiers: [overrideIdentifierFromKey(key).trim()],
+				identifiers: overrideIdentifierFromKey(key),
 				keys: Object.keys(overrideRaw),
 				contents: toValuesTree(overrideRaw, conflictReporter)
 			});

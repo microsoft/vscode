@@ -156,8 +156,11 @@ export class Configuration extends BaseConfiguration {
 		const overrides: [string, string[]][] = [];
 		for (const key of keys) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
-				const overrideIdentifier = overrideIdentifierFromKey(key);
-				overrides.push([overrideIdentifier, compare(this.getAllKeysForOverrideIdentifier(overrideIdentifier), other.getAllKeysForOverrideIdentifier(overrideIdentifier), overrideIdentifier)]);
+				const overrideIdentifiesr = overrideIdentifierFromKey(key);
+
+				for (let overrideIdentifier of overrideIdentifiesr) {
+					overrides.push([overrideIdentifier, compare(this.getAllKeysForOverrideIdentifier(overrideIdentifier), other.getAllKeysForOverrideIdentifier(overrideIdentifier), overrideIdentifier)]);
+				}
 			}
 		}
 		return { keys, overrides };

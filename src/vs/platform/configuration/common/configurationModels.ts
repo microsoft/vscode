@@ -214,7 +214,7 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 		for (const key of Object.keys(contents)) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 				overrides.push({
-					identifiers: [overrideIdentifierFromKey(key).trim()],
+					identifiers: overrideIdentifierFromKey(key),
 					keys: Object.keys(contents[key]),
 					contents: toValuesTree(contents[key], message => console.error(`Conflict in default settings file: ${message}`)),
 				});
@@ -543,19 +543,26 @@ export class Configuration {
 	}
 
 	compareAndUpdateDefaultConfiguration(defaults: ConfigurationModel, keys: string[]): IConfigurationChange {
+
 		const overrides: [string, string[]][] = keys
 			.filter(key => OVERRIDE_PROPERTY_PATTERN.test(key))
 			.map(key => {
-				const overrideIdentifier = overrideIdentifierFromKey(key);
-				const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
-				const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
-				const keys = [
-					...toKeys.filter(key => fromKeys.indexOf(key) === -1),
-					...fromKeys.filter(key => toKeys.indexOf(key) === -1),
-					...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
-				];
-				return [overrideIdentifier, keys];
-			});
+				const result: [string, string[]][] = [];
+				const overrideIdentifiers = overrideIdentifierFromKey(key);
+
+				for (let overrideIdentifier of overrideIdentifiers) {
+					const fromKeys = this._defaultConfiguration.getKeysForOverrideIdentifier(overrideIdentifier);
+					const toKeys = defaults.getKeysForOverrideIdentifier(overrideIdentifier);
+					const keys = [
+						...toKeys.filter(key => fromKeys.indexOf(key) === -1),
+						...fromKeys.filter(key => toKeys.indexOf(key) === -1),
+						...fromKeys.filter(key => !objects.equals(this._defaultConfiguration.override(overrideIdentifier).getValue(key), defaults.override(overrideIdentifier).getValue(key)))
+					];
+					result.push([overrideIdentifier, keys]);
+				}
+				return result;
+			}).flat();
+
 		this.updateDefaultConfiguration(defaults);
 		return { keys, overrides };
 	}

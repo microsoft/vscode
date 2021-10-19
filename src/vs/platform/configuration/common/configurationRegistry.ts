@@ -259,7 +259,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
 						$ref: resourceLanguageSettingsSchemaId
 					};
-					overrideIdentifiers.push(overrideIdentifierFromKey(key));
+					overrideIdentifiers.push.apply(overrideIdentifiers, overrideIdentifierFromKey(key));
 					this.configurationProperties[key] = property;
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
@@ -508,8 +508,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 const OVERRIDE_PROPERTY = '\\[.*\\]$';
 export const OVERRIDE_PROPERTY_PATTERN = new RegExp(OVERRIDE_PROPERTY);
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
+export function overrideIdentifierFromKey(key: string): string[] {
+	return key.replace(/\[|\]|\s/g, '').split(',');
 }
 
 export function getDefaultValue(type: string | string[] | undefined): any {
