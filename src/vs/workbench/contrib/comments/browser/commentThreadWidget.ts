@@ -981,7 +981,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._isExpanded) {
 			this._isExpanded = false;
 			// Focus the container so that the comment editor will be blurred before it is hidden
-			this.editor.focus();
+			if (this.editor.hasWidgetFocus()) {
+				this.editor.focus();
+			}
 		}
 		super.hide();
 	}
