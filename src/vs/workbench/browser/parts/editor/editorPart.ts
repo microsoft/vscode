@@ -893,7 +893,30 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			onDragEnd: e => overlay.classList.remove('visible')
 		}));
 
-		let panelOpenerTimeout: any;
+		let horizontalOpenerTimeout: any;
+		let verticalOpenerTimeout: any;
+		let lastOpenHorizontalPosition: Position | undefined;
+		let lastOpenVerticalPosition: Position | undefined;
+		const openPartAtPosition = (position: Position) => {
+			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === this.layoutService.getPanelPosition()) {
+				this.layoutService.setPartHidden(false, Parts.PANEL_PART);
+			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === (this.layoutService.getSideBarPosition() === Position.RIGHT ? Position.LEFT : Position.RIGHT)) {
+				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			}
+		};
+
+		const clearAllTimeouts = () => {
+			if (horizontalOpenerTimeout) {
+				clearTimeout(horizontalOpenerTimeout);
+				horizontalOpenerTimeout = undefined;
+			}
+
+			if (verticalOpenerTimeout) {
+				clearTimeout(verticalOpenerTimeout);
+				verticalOpenerTimeout = undefined;
+			}
+		};
+
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(overlay, {
 			onDragOver: e => {
 				EventHelper.stop(e.eventData, true);
@@ -901,55 +924,46 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 					e.eventData.dataTransfer.dropEffect = 'none';
 				}
 
-				if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
-					const boundingRect = overlay.getBoundingClientRect();
+				const boundingRect = overlay.getBoundingClientRect();
 
-					let openPanel = false;
-					const proximity = 100;
-					switch (this.layoutService.getPanelPosition()) {
-						case Position.BOTTOM:
-							if (e.eventData.clientY > boundingRect.bottom - proximity) {
-								openPanel = true;
-							}
-							break;
-						case Position.LEFT:
-							if (e.eventData.clientX < boundingRect.left + proximity) {
-								openPanel = true;
-							}
-							break;
-						case Position.RIGHT:
-							if (e.eventData.clientX > boundingRect.right - proximity) {
-								openPanel = true;
-							}
-							break;
-					}
+				let openHorizontalPosition: Position | undefined = undefined;
+				let openVerticalPosition: Position | undefined = undefined;
+				const proximity = 100;
+				if (e.eventData.clientX < boundingRect.left + proximity) {
+					openHorizontalPosition = Position.LEFT;
+				}
 
-					if (!panelOpenerTimeout && openPanel) {
-						panelOpenerTimeout = setTimeout(() => this.layoutService.setPartHidden(false, Parts.PANEL_PART), 200);
-					} else if (panelOpenerTimeout && !openPanel) {
-						clearTimeout(panelOpenerTimeout);
-						panelOpenerTimeout = undefined;
-					}
+				if (e.eventData.clientX > boundingRect.right - proximity) {
+					openHorizontalPosition = Position.RIGHT;
+				}
+
+				if (e.eventData.clientY > boundingRect.bottom - proximity) {
+					openVerticalPosition = Position.BOTTOM;
+				}
+
+				if (horizontalOpenerTimeout && openHorizontalPosition !== lastOpenHorizontalPosition) {
+					clearTimeout(horizontalOpenerTimeout);
+					horizontalOpenerTimeout = undefined;
+				}
+
+				if (verticalOpenerTimeout && openVerticalPosition !== lastOpenVerticalPosition) {
+					clearTimeout(verticalOpenerTimeout);
+					verticalOpenerTimeout = undefined;
+				}
+
+				if (!horizontalOpenerTimeout && openHorizontalPosition !== undefined) {
+					lastOpenHorizontalPosition = openHorizontalPosition;
+					horizontalOpenerTimeout = setTimeout(() => openPartAtPosition(openHorizontalPosition!), 200);
+				}
+
+				if (!verticalOpenerTimeout && openVerticalPosition !== undefined) {
+					lastOpenVerticalPosition = openVerticalPosition;
+					verticalOpenerTimeout = setTimeout(() => openPartAtPosition(openVerticalPosition!), 200);
 				}
 			},
-			onDragLeave: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
-				}
-			},
-			onDragEnd: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
-				}
-			},
-			onDrop: () => {
-				if (panelOpenerTimeout) {
-					clearTimeout(panelOpenerTimeout);
-					panelOpenerTimeout = undefined;
-				}
-			}
+			onDragLeave: () => clearAllTimeouts(),
+			onDragEnd: () => clearAllTimeouts(),
+			onDrop: () => clearAllTimeouts()
 		}));
 	}
 
