@@ -135,11 +135,10 @@ export abstract class SharedDesktopMain extends Disposable {
 	protected abstract registerFileSystemProviders(
 		mainProcessService: IMainProcessService,
 		sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
-		environmentService: INativeWorkbenchEnvironmentService,
 		fileService: IFileService,
 		logService: ILogService,
 		nativeHostService: INativeHostService
-	): void | Promise<void>;
+	): void;
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
@@ -221,10 +220,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const result = this.registerFileSystemProviders(mainProcessService, sharedProcessWorkerWorkbenchService, environmentService, fileService, logService, nativeHostService);
-		if (result instanceof Promise) {
-			await result;
-		}
+		this.registerFileSystemProviders(mainProcessService, sharedProcessWorkerWorkbenchService, fileService, logService, nativeHostService);
 
 		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);

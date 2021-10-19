@@ -45,7 +45,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
+	private readonly BUFFER_SIZE = this.options?.bufferSize || 256 * 1024;
 
 	constructor(
 		protected readonly logService: ILogService,
@@ -56,7 +56,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#region File Capabilities
 
-	onDidChangeCapabilities: Event<void> = Event.None;
+	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
 	protected _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {

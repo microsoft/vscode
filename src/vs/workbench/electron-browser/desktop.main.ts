@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -28,14 +28,16 @@ class DesktopMain extends SharedDesktopMain {
 	protected registerFileSystemProviders(
 		mainProcessService: IMainProcessService,
 		sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
-		environmentService: INativeWorkbenchEnvironmentService,
 		fileService: IFileService,
 		logService: ILogService,
 		nativeHostService: INativeHostService
 	): void {
 
 		// Local Files
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, sharedProcessWorkerWorkbenchService, { legacyWatcher: this.configuration.legacyWatcher, experimentalSandbox: !!this.configuration.experimentalSandboxedFileService }));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService, mainProcessService, sharedProcessWorkerWorkbenchService, {
+			legacyWatcher: this.configuration.legacyWatcher,
+			experimentalSandbox: !!this.configuration.experimentalSandboxedFileService
+		}));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
