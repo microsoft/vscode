@@ -405,7 +405,7 @@ export async function main(argv: string[]): Promise<any> {
 			}
 
 			for (const e in env) {
-				// Ignore the _ env var, because the open command
+				// Ignore the `_` env var, because the open command
 				// ignores it anyway.
 				// Pass the rest of the env vars in to fix
 				// https://github.com/microsoft/vscode/issues/134696.
@@ -428,18 +428,15 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			// Keep just the _ env var here,
-			// because it's still needed to open Code,
-			// even though the open command doesn't understand it.
-			const truncatedOptions = {
-				detached: options.detached,
-				stdio: options['stdio'],
+			// Keep just the `_` env var here, because it's still
+			// needed to open Code, even though the open command
+			// doesn't understand it.
+			child = spawn('open', spawnArgs, {
+				...options,
 				env: {
 					'_': options.env?.['_']
 				}
-			};
-
-			child = spawn('open', spawnArgs, truncatedOptions);
+			});
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
