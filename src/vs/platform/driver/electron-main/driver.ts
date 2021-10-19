@@ -6,10 +6,10 @@
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IDriver, IDriverOptions, IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';

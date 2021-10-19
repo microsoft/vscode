@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { createKeybinding, createSimpleKeybinding, Keybinding, KeyChord, KeyCode, KeyMod, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { createKeybinding, createSimpleKeybinding, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';

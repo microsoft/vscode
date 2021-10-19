@@ -6,8 +6,7 @@
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { Keybinding, KeybindingModifier, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
+import { Keybinding, KeybindingModifier, ResolvedKeybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';

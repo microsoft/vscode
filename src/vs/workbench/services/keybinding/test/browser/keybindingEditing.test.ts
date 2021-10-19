@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import * as json from 'vs/base/common/json';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
