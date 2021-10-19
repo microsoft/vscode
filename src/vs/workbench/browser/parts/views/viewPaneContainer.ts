@@ -410,6 +410,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
+		this._register(this.paneview.onDidSashReset((index) => this.onDidSashReset(index)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 		this._register(Gesture.addTarget(parent));
 		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
@@ -1088,6 +1089,46 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private onDidScrollPane() {
 		for (const pane of this.panes) {
 			pane.onDidScrollRoot();
+		}
+	}
+
+	private onDidSashReset(index: number) {
+		let firstPane = undefined;
+		let secondPane = undefined;
+
+		// Deal with collapsed views: to be clever, we split the space taken by the nearest uncollapsed views
+		for (let i = index; i >= 0; i--) {
+			if (this.paneItems[i].pane?.isVisible() && this.paneItems[i]?.pane.isExpanded()) {
+				firstPane = this.paneItems[i].pane;
+				break;
+			}
+		}
+
+		for (let i = index + 1; i < this.paneItems.length; i++) {
+			if (this.paneItems[i].pane?.isVisible() && this.paneItems[i]?.pane.isExpanded()) {
+				secondPane = this.paneItems[i].pane;
+				break;
+			}
+		}
+
+		if (firstPane && secondPane) {
+			const firstPaneSize = this.getPaneSize(firstPane);
+			const secondPaneSize = this.getPaneSize(secondPane);
+
+			// Avoid rounding errors and be consistent when resizing
+			// The first pane always get half rounded up and the second is half rounded down
+			const newFirstPaneSize = Math.ceil((firstPaneSize + secondPaneSize) / 2);
+			const newSecondPaneSize = Math.floor((firstPaneSize + secondPaneSize) / 2);
+
+			// Shrink the larger pane first, then grow the smaller pane
+			// This prevents interfering with other view sizes
+			if (firstPaneSize > secondPaneSize) {
+				this.resizePane(firstPane, newFirstPaneSize);
+				this.resizePane(secondPane, newSecondPaneSize);
+			} else {
+				this.resizePane(secondPane, newSecondPaneSize);
+				this.resizePane(firstPane, newFirstPaneSize);
+			}
 		}
 	}
 
