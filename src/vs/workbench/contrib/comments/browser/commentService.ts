@@ -194,8 +194,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
-				.catch(e => {
-					console.log(e);
+				.catch(_ => {
 					return null;
 				}));
 		});
