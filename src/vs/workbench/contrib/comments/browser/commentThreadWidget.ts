@@ -770,6 +770,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (!this._commentReplyComponent?.form.classList.contains('expand')) {
 			this._commentReplyComponent?.form.classList.add('expand');
 			this._commentReplyComponent?.editor.focus();
+			this._commentReplyComponent?.editor.layout();
 		}
 	}
 
