@@ -453,6 +453,7 @@ export class PaneView extends Disposable {
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
 		this.element = append(container, $('.monaco-pane-view'));
 		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
 		this.onDidSashChange = this.splitview.onDidSashChange;
 		this.onDidScroll = this.splitview.onDidScroll;
 	}
