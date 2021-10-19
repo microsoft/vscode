@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -1634,5 +1634,20 @@ registerThemingParticipant((theme, collector) => {
 	if (newBadgeBackground) {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { background-color: ${newBadgeBackground}; }`);
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
+	}
+
+	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
+	if (checkboxBackground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { background-color: ${checkboxBackground}; }`);
+	}
+
+	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
+	if (checkboxForeground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { color: ${checkboxForeground}; }`);
+	}
+
+	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
+	if (checkboxBorder) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { border-color: ${checkboxBorder}; }`);
 	}
 });
