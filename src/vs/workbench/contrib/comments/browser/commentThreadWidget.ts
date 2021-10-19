@@ -135,7 +135,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _error!: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _commentThreadContextValue: IContextKey<string>;
+	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _commentFormActions!: CommentFormActions;
 	private _scopedInstatiationService: IInstantiationService;
 	private _focusedComment: number | undefined = undefined;
@@ -177,7 +177,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
-		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
+		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue.set(_commentThread.contextValue);
 
 		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
 		const controller = this.commentService.getCommentController(this._owner);
