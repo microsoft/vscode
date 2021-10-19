@@ -202,7 +202,7 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		const activeInput = this._editorService.activeEditor;
 
 		let newActiveWebview: WebviewInput | undefined;
-		if (activeInput instanceof WebviewInput) {
+		if (activeInput instanceof WebviewInput && activeInput.webview.isFocused) {
 			newActiveWebview = activeInput;
 		} else if (activeInput instanceof DiffEditorInput) {
 			if (activeInput.primary instanceof WebviewInput && activeInput.primary.webview === this._webviewService.activeWebview) {
