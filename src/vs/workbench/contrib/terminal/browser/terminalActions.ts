@@ -1930,7 +1930,7 @@ export function registerTerminalActions() {
 					title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
 					f1: true,
 					category,
-					precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.webExtensionContributedProfile),
+					precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 					keybinding: [{
 						primary: KeyMod.CtrlCmd | KeyCode.KeyV,
 						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV] },
