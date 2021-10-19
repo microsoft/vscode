@@ -290,6 +290,10 @@ export class MainThreadCommentController {
 		}
 	}
 
+	updateCommentingRanges() {
+		this._commentService.updateCommentingRanges(this._uniqueId);
+	}
+
 	private getKnownThread(commentThreadHandle: number): MainThreadCommentThread {
 		const thread = this._threads.get(commentThreadHandle);
 		if (!thread) {
@@ -471,6 +475,16 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		return provider.deleteCommentThread(commentThreadHandle);
+	}
+
+	$updateCommentingRanges(handle: number) {
+		let provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return;
+		}
+
+		provider.updateCommentingRanges();
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {
