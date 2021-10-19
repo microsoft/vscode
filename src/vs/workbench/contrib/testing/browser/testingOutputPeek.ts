@@ -786,6 +786,7 @@ interface IPeekOutputRenderer extends IDisposable {
 
 const commonEditorOptions: IEditorOptions = {
 	scrollBeyondLastLine: false,
+	links: true,
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
