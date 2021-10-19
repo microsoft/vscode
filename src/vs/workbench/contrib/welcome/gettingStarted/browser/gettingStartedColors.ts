@@ -7,8 +7,6 @@ import { darken, inputBackground, editorWidgetBackground, lighten, registerColor
 import { localize } from 'vs/nls';
 
 // Seprate from main module to break dependency cycles between welcomePage and gettingStarted.
-export const welcomeButtonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-export const welcomeButtonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
 export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
 
 export const welcomePageTileBackground = registerColor('welcomePage.tileBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: '#000' }, localize('welcomePage.tileBackground', 'Background color for the tiles on the Get Started page.'));
