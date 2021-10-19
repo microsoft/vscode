@@ -17,6 +17,7 @@ export const enum TerminalContextKeyStrings {
 	EditorFocus = 'terminalEditorFocus',
 	TabsFocus = 'terminalTabsFocus',
 	WebExtensionContributedProfile = 'terminalWebExtensionContributedProfile',
+	TerminalHasBeenCreated = 'terminalHasBeenCreated',
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
@@ -56,6 +57,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether a web extension has contributed a profile */
 	export const webExtensionContributedProfile = new RawContextKey<boolean>(TerminalContextKeyStrings.WebExtensionContributedProfile, false, true);
+
+	/** Whether at least one terminal has been created */
+	export const terminalHasBeenCreated = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalHasBeenCreated, false, true);
 
 	/** Whether the mouse is within the terminal tabs list. */
 	export const tabsMouse = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsMouse, false, true);

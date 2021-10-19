@@ -65,6 +65,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
+	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _defaultProfileName?: string;
@@ -254,6 +255,7 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
+		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -1264,6 +1266,7 @@ export class TerminalService implements ITerminalService {
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
+			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
 
@@ -1280,12 +1283,14 @@ export class TerminalService implements ITerminalService {
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 			]);
+			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
+		this._terminalHasBeenCreated.set(true);
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
