@@ -20,7 +20,9 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 	const keyCode = e.keyCode;
 
 	// browser quirks
-	if (browser.isFirefox) {
+	if (keyCode === 3) {
+		return KeyCode.PauseBreak;
+	} else if (browser.isFirefox) {
 		if (keyCode === 59) {
 			return KeyCode.US_SEMICOLON;
 		} else if (keyCode === 107) {
