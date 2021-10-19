@@ -412,12 +412,15 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
-		if (typeof providerId !== 'string') {
-			throw new Error('unknown handler');
-		}
-		this._commentService.unregisterCommentController(providerId);
 		this._handlers.delete(handle);
 		this._commentControllers.delete(handle);
+
+		if (typeof providerId !== 'string') {
+			return;
+			// throw new Error('unknown handler');
+		} else {
+			this._commentService.unregisterCommentController(providerId);
+		}
 	}
 
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void {
