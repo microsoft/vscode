@@ -386,7 +386,7 @@ export class TextModelTokenization extends Disposable {
 		let nonWhitespaceColumn = this._textModel.getLineFirstNonWhitespaceColumn(startLineNumber);
 		const fakeLines: string[] = [];
 		let initialState: IState | null = null;
-		for (let i = startLineNumber - 1; nonWhitespaceColumn > 0 && i >= 1; i--) {
+		for (let i = startLineNumber - 1; nonWhitespaceColumn > 1 && i >= 1; i--) {
 			const newNonWhitespaceIndex = this._textModel.getLineFirstNonWhitespaceColumn(i);
 
 			if (newNonWhitespaceIndex === 0) {

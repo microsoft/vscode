@@ -173,9 +173,17 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public tokenizeViewport(): void {
 		const linesViewportData = this.viewLayout.getLinesViewportData();
-		const startPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.startLineNumber, 1));
-		const endPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(linesViewportData.endLineNumber, 1));
-		this.model.tokenizeViewport(startPosition.lineNumber, endPosition.lineNumber);
+		const viewVisibleRange = new Range(
+			linesViewportData.startLineNumber,
+			this.getLineMinColumn(linesViewportData.startLineNumber),
+			linesViewportData.endLineNumber,
+			this.getLineMaxColumn(linesViewportData.endLineNumber)
+		);
+		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
+
+		for (const modelVisibleRange of modelVisibleRanges) {
+			this.model.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
+		}
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
