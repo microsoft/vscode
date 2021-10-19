@@ -404,6 +404,17 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
+			for (const e in env) {
+				// Ignore the _ env var, because the open command
+				// ignores it anyway.
+				// Pass the rest of the env vars in to fix
+				// https://github.com/microsoft/vscode/issues/134696.
+				if (e !== '_') {
+					spawnArgs.push('--env');
+					spawnArgs.push(`${e}=${env[e]}`);
+				}
+			}
+
 			spawnArgs.push('--args', ...argv.slice(2)); // pass on our arguments
 
 			if (env['VSCODE_DEV']) {
@@ -412,10 +423,15 @@ export async function main(argv: string[]): Promise<any> {
 				// it needs the full vscode source arg to launch properly.
 				const curdir = '.';
 				const launchDirIndex = spawnArgs.indexOf(curdir);
-				spawnArgs[launchDirIndex] = resolve(curdir);
+				if (launchDirIndex !== -1) {
+					spawnArgs[launchDirIndex] = resolve(curdir);
+				}
 			}
 
-			child = spawn('open', spawnArgs, options);
+			// We already passed over the env variables
+			// using the --env flags, so we can leave them out here.
+			// Also, we don't need to pass env._, which is different from argv._
+			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
