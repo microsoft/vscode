@@ -6,7 +6,7 @@
 import { NotSupportedError } from 'vs/base/common/errors';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
-import { SmallImmutableSet } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
+import { SmallImmutableSet } from './smallImmutableSet';
 import { StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';

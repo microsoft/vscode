@@ -7,7 +7,7 @@ import assert = require('assert');
 import { Disposable, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPair } from 'vs/editor/common/model';
+import { BracketPairInfo } from 'vs/editor/common/model/bracketPairs/bracketPairs';
 import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -161,7 +161,7 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 	});
 });
 
-function bracketPairToJSON(pair: BracketPair): unknown {
+function bracketPairToJSON(pair: BracketPairInfo): unknown {
 	return {
 		level: pair.nestingLevel,
 		range: pair.openingBracketRange.toString(),

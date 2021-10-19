@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
-import { SmallImmutableSet, DenseKeyProvider, identityKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
 import { ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { BracketAstNode } from './ast';
+import { toLength } from './length';
+import { DenseKeyProvider, identityKeyProvider, SmallImmutableSet } from './smallImmutableSet';
 import { OpeningBracketId, Token, TokenKind } from './tokenizer';
 
 export class BracketTokens {

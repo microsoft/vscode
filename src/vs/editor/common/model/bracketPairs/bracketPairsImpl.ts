@@ -3,44 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPair, BracketPairColorizationOptions, BracketPairWithMinIndentation, IModelDecoration, ITextModel } from 'vs/editor/common/model';
-import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairColorizer/smallImmutableSet';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
+import { ITextModel } from 'vs/editor/common/model';
+import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/view/editorColorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { AstNode, AstNodeKind } from './ast';
-import { TextEditInfo } from './beforeEditPositionMapper';
-import { LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
-import { parseDocument } from './parser';
-import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
+import { AstNode, AstNodeKind } from './impl/ast';
+import { TextEditInfo } from './impl/beforeEditPositionMapper';
+import { LanguageAgnosticBracketTokens } from './impl/brackets';
+import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './impl/length';
+import { parseDocument } from './impl/parser';
+import { DenseKeyProvider } from './impl/smallImmutableSet';
+import { FastTokenizer, TextBufferTokenizer } from './impl/tokenizer';
 
-export interface IBracketPairs {
-	/**
-	 * Gets all bracket pairs that intersect the given position.
-	 * The result is sorted by the start position.
-	 */
-	getBracketPairsInRange(range: Range): BracketPair[];
+export class BracketPairs extends Disposable implements IBracketPairs {
+	private readonly cache = this._register(new MutableDisposable<IReference<ActiveBracketPairsImpl>>());
 
-	/**
-	 * Gets all bracket pairs that intersect the given position.
-	 * The result is sorted by the start position.
-	 */
-	getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentation[];
-}
-
-export class BracketPairColorizer extends Disposable implements DecorationProvider, IBracketPairs {
-	private readonly didChangeDecorationsEmitter = new Emitter<void>();
-	private readonly cache = this._register(new MutableDisposable<IReference<BracketPairColorizerImpl>>());
+	private readonly onDidChangeEmitter = new Emitter<void>();
+	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	get isDocumentSupported() {
 		const maxSupportedDocumentLength = /* max lines */ 50_000 * /* average column count */ 100;
@@ -48,7 +31,6 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	}
 
 	private bracketsRequested = false;
-	private options: BracketPairColorizationOptions;
 
 	constructor(
 		private readonly textModel: TextModel,
@@ -56,21 +38,13 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	) {
 		super();
 
-		this.options = textModel.getOptions().bracketPairColorizationOptions;
-
 		this._register(textModel.onDidChangeOptions(e => {
-			this.options = textModel.getOptions().bracketPairColorizationOptions;
-
 			this.cache.clear();
 			this.updateCache();
 		}));
 
 		this._register(textModel.onDidChangeLanguage(e => {
 			this.cache.clear();
-			this.updateCache();
-		}));
-
-		this._register(textModel.onDidChangeAttached(() => {
 			this.updateCache();
 		}));
 
@@ -85,24 +59,24 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 	}
 
 	private updateCache() {
-		if (this.bracketsRequested || (this.textModel.isAttachedToEditor() && this.isDocumentSupported && this.options.enabled)) {
+		if (this.bracketsRequested && this.isDocumentSupported) {
 			if (!this.cache.value) {
 				const store = new DisposableStore();
 
 				this.cache.value = createDisposableRef(
 					store.add(
-						new BracketPairColorizerImpl(this.textModel, (languageId) => {
+						new ActiveBracketPairsImpl(this.textModel, (languageId) => {
 							return this.languageConfigurationService.getLanguageConfiguration(languageId);
 						})
 					),
 					store
 				);
-				store.add(this.cache.value.object.onDidChangeDecorations(e => this.didChangeDecorationsEmitter.fire(e)));
-				this.didChangeDecorationsEmitter.fire();
+				store.add(this.cache.value.object.onDidChange(e => this.onDidChangeEmitter.fire(e)));
+				this.onDidChangeEmitter.fire();
 			}
 		} else {
 			this.cache.clear();
-			this.didChangeDecorationsEmitter.fire();
+			this.onDidChangeEmitter.fire();
 		}
 	}
 
@@ -110,44 +84,26 @@ export class BracketPairColorizer extends Disposable implements DecorationProvid
 		this.cache.value?.object.handleContentChanged(change);
 	}
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
-		}
-		if (!this.options.enabled) {
-			return [];
-		}
-		return this.cache.value?.object.getDecorationsInRange(range, ownerId, filterOutValidation) || [];
-	}
-
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		if (ownerId === undefined) {
-			return [];
-		}
-		if (!this.options.enabled) {
-			return [];
-		}
-		return this.cache.value?.object.getAllDecorations(ownerId, filterOutValidation) || [];
-	}
-
-	onDidChangeDecorations(listener: () => void): IDisposable {
-		return this.didChangeDecorationsEmitter.event(listener);
-	}
-
 	/**
 	 * Returns all bracket pairs that intersect the given range.
 	 * The result is sorted by the start position.
 	*/
-	getBracketPairsInRange(range: Range): BracketPair[] {
+	getBracketPairsInRange(range: Range): BracketPairInfo[] {
 		this.bracketsRequested = true;
 		this.updateCache();
 		return this.cache.value?.object.getBracketPairsInRange(range, false) || [];
 	}
 
-	getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentation[] {
+	getBracketPairsInRangeWithMinIndentation(range: Range): BracketPairWithMinIndentationInfo[] {
 		this.bracketsRequested = true;
 		this.updateCache();
 		return this.cache.value?.object.getBracketPairsInRange(range, true) || [];
+	}
+
+	getBracketsInRange(range: Range): BracketInfo[] {
+		this.bracketsRequested = true;
+		this.updateCache();
+		return this.cache.value?.object.getBracketsInRange(range) || [];
 	}
 }
 
@@ -158,9 +114,8 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-class BracketPairColorizerImpl extends Disposable implements DecorationProvider {
-	private readonly didChangeDecorationsEmitter = new Emitter<void>();
-	private readonly colorProvider = new ColorProvider();
+class ActiveBracketPairsImpl extends Disposable {
+	private readonly didChangeEmitter = new Emitter<void>();
 
 	/*
 		There are two trees:
@@ -181,9 +136,9 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		return this.brackets.didLanguageChange(languageId);
 	}
 
-	readonly onDidChangeDecorations = this.didChangeDecorationsEmitter.event;
+	public readonly onDidChange = this.didChangeEmitter.event;
 
-	constructor(
+	public constructor(
 		private readonly textModel: TextModel,
 		private readonly getLanguageConfiguration: (languageId: string) => ResolvedLanguageConfiguration
 	) {
@@ -195,7 +150,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 				// Clear the initial tree as we can use the tree with token information now.
 				this.initialAstWithoutTokens = undefined;
 				if (!wasUndefined) {
-					this.didChangeDecorationsEmitter.fire();
+					this.didChangeEmitter.fire();
 				}
 			}
 		}));
@@ -210,7 +165,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 			);
 			this.astWithTokens = this.parseDocumentFromTextBuffer(edits, this.astWithTokens, false);
 			if (!this.initialAstWithoutTokens) {
-				this.didChangeDecorationsEmitter.fire();
+				this.didChangeEmitter.fire();
 			}
 		}));
 
@@ -231,7 +186,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		}
 	}
 
-	handleContentChanged(change: IModelContentChangedEvent) {
+	public handleContentChanged(change: IModelContentChangedEvent) {
 		const edits = change.changes.map(c => {
 			const range = Range.lift(c.range);
 			return new TextEditInfo(
@@ -259,7 +214,7 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		return result;
 	}
 
-	getBracketsInRange(range: Range): BracketInfo[] {
+	public getBracketsInRange(range: Range): BracketInfo[] {
 		const startOffset = toLength(range.startLineNumber - 1, range.startColumn - 1);
 		const endOffset = toLength(range.endLineNumber - 1, range.endColumn - 1);
 		const result = new Array<BracketInfo>();
@@ -268,25 +223,8 @@ class BracketPairColorizerImpl extends Disposable implements DecorationProvider 
 		return result;
 	}
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		const result = new Array<IModelDecoration>();
-		const bracketsInRange = this.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
-				id: `bracket${bracket.hash()}`,
-				options: { description: 'BracketPairColorization', inlineClassName: this.colorProvider.getInlineClassName(bracket) },
-				ownerId: 0,
-				range: bracket.range
-			});
-		}
-		return result;
-	}
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
-		return this.getDecorationsInRange(new Range(1, 1, this.textModel.getLineCount(), 1), ownerId, filterOutValidation);
-	}
-
-	getBracketPairsInRange(range: Range, includeMinIndentation: boolean): BracketPairWithMinIndentation[] {
-		const result = new Array<BracketPairWithMinIndentation>();
+	public getBracketPairsInRange(range: Range, includeMinIndentation: boolean): BracketPairWithMinIndentationInfo[] {
+		const result = new Array<BracketPairWithMinIndentationInfo>();
 
 		const startLength = positionToLength(range.getStartPosition());
 		const endLength = positionToLength(range.getEndPosition());
@@ -348,7 +286,7 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 
 class CollectBracketPairsContext {
 	constructor(
-		public readonly result: BracketPairWithMinIndentation[],
+		public readonly result: BracketPairWithMinIndentationInfo[],
 		public readonly includeMinIndentation: boolean,
 		public readonly textModel: ITextModel,
 	) {
@@ -363,7 +301,7 @@ function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: L
 			minIndentation = node.computeMinIndentation(nodeOffset, context.textModel);
 		}
 
-		context.result.push(new BracketPairWithMinIndentation(
+		context.result.push(new BracketPairWithMinIndentationInfo(
 			lengthsToRange(nodeOffset, nodeOffsetEnd),
 			lengthsToRange(nodeOffset, openingBracketEnd),
 			node.closingBracket
@@ -386,56 +324,3 @@ function collectBracketPairs(node: AstNode, nodeOffset: Length, nodeOffsetEnd: L
 	}
 }
 
-export class BracketInfo {
-	constructor(
-		public readonly range: Range,
-		/** 0-based level */
-		public readonly level: number,
-		public readonly isInvalid: boolean,
-	) { }
-
-	hash(): string {
-		return `${this.range.toString()}-${this.level}`;
-	}
-}
-
-class ColorProvider {
-	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
-
-	getInlineClassName(bracket: BracketInfo): string {
-		if (bracket.isInvalid) {
-			return this.unexpectedClosingBracketClassName;
-		}
-		return this.getInlineClassNameOfLevel(bracket.level);
-	}
-
-	getInlineClassNameOfLevel(level: number): string {
-		// To support a dynamic amount of colors up to 6 colors,
-		// we use a number that is a lcm of all numbers from 1 to 6.
-		return `bracket-highlighting-${level % 30}`;
-	}
-}
-
-registerThemingParticipant((theme, collector) => {
-	const colors = [
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
-	];
-	const colorProvider = new ColorProvider();
-
-	collector.addRule(`.monaco-editor .${colorProvider.unexpectedClosingBracketClassName} { color: ${theme.getColor(editorBracketHighlightingUnexpectedBracketForeground)}; }`);
-
-	let colorValues = colors
-		.map(c => theme.getColor(c))
-		.filter((c): c is Color => !!c)
-		.filter(c => !c.isTransparent());
-
-	for (let level = 0; level < 30; level++) {
-		const color = colorValues[level % colorValues.length];
-		collector.addRule(`.monaco-editor .${colorProvider.getInlineClassNameOfLevel(level)} { color: ${color}; }`);
-	}
-});

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthAdd, lengthZero, Length, lengthHash, lengthGetLineCount, lengthToObj } from './length';
-import { OpeningBracketId } from 'vs/editor/common/model/bracketPairColorizer/tokenizer';
-import { ITextModel } from 'vs/editor/common/model';
 import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { ITextModel } from 'vs/editor/common/model';
+import { Length, lengthAdd, lengthGetLineCount, lengthHash, lengthToObj, lengthZero } from './length';
+import { SmallImmutableSet } from './smallImmutableSet';
+import { OpeningBracketId } from './tokenizer';
 
 export const enum AstNodeKind {
 	Text = 0,

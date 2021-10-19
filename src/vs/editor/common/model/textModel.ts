@@ -40,7 +40,9 @@ import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
 import { ArrayQueue, findLast } from 'vs/base/common/arrays';
-import { BracketPairColorizer, IBracketPairs } from 'vs/editor/common/model/bracketPairColorizer/bracketPairColorizer';
+import { BracketPairInfo, IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
+import { BracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairsImpl';
+import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairs/colorizedBracketPairsDecorationProvider';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -312,7 +314,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _tokenization: TextModelTokenization;
 	//#endregion
 
-	private readonly _bracketPairColorizer: BracketPairColorizer;
+	private readonly _bracketPairColorizer: BracketPairs;
 	public get bracketPairs(): IBracketPairs { return this._bracketPairColorizer; }
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.Uninitialized;
@@ -414,10 +416,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokens2 = new TokensStore2(this._modeService.languageIdCodec);
 		this._tokenization = new TextModelTokenization(this, this._modeService.languageIdCodec);
 
-		this._bracketPairColorizer = this._register(new BracketPairColorizer(this, this._languageConfigurationService));
-		this._decorationProvider = this._bracketPairColorizer;
+		this._bracketPairColorizer = this._register(new BracketPairs(this, this._languageConfigurationService));
+		this._decorationProvider = this._register(new ColorizedBracketPairsDecorationProvider(this));
 
-		this._register(this._decorationProvider.onDidChangeDecorations(() => {
+		this._register(this._decorationProvider.onDidChange(() => {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
@@ -3129,7 +3131,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			visibleStartColumn: number,
 			end: Position,
 			visibleEndColumn: number,
-			bracketPair: model.BracketPair,
+			bracketPair: BracketPairInfo,
 			renderHorizontalEndLineAtTheBottom: boolean
 		}>();
 		const nextGuides = new Array<model.IndentGuide>();
