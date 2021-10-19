@@ -31,7 +31,7 @@ const parentOrigin = searchParams.get('parentOrigin');
  * @param {() => void} handlers.onBlur
  */
 const trackFocus = ({ onFocus, onBlur }) => {
-	const interval = 50;
+	const interval = 250;
 	let isFocused = document.hasFocus();
 	setInterval(() => {
 		const isCurrentlyFocused = document.hasFocus();
