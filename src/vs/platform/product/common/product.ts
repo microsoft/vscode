@@ -10,6 +10,9 @@ import { IProductConfiguration } from 'vs/base/common/product';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
+/**
+ * @deprecated You MUST use `IProductService` if possible.
+ */
 let product: IProductConfiguration;
 
 // Native sandbox environment
@@ -75,4 +78,7 @@ else {
 	}
 }
 
+/**
+ * @deprecated You MUST use `IProductService` if possible.
+ */
 export default product;
