@@ -47,14 +47,14 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	private registerListeners(): void {
 
-		// Lifecycle
-		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
-
 		// Shared process connections from workbench windows
 		ipcMain.on('vscode:createSharedProcessMessageChannel', (e, nonce: string) => this.onWindowConnection(e, nonce));
 
 		// Shared process worker relay
 		ipcMain.on('vscode:relaySharedProcessWorkerMessageChannel', (e, configuration: ISharedProcessWorkerConfiguration) => this.onWorkerConnection(e, configuration));
+
+		// Lifecycle
+		this._register(this.lifecycleMainService.onWillShutdown(() => this.onWillShutdown()));
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
@@ -100,7 +100,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			this.send('vscode:electron-main->shared-process=disposeWorker', configuration);
 		};
 
-		// ensure the sender is a valid target to send to
+		// Ensure the sender is a valid target to send to
 		const receiverWindow = BrowserWindow.fromId(configuration.reply.windowId);
 		if (!receiverWindow || receiverWindow.isDestroyed() || receiverWindow.webContents.isDestroyed() || !configuration.reply.channel) {
 			disposeWorker('unavailable');
@@ -108,15 +108,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			return;
 		}
 
-		// attach to lifecycle of receiver to manage worker lifecycle
+		// Attach to lifecycle of receiver to manage worker lifecycle
+		disposables.add(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === receiverWindow)(() => disposeWorker('load')));
 		disposables.add(Event.fromNodeEventEmitter(receiverWindow, 'closed')(() => disposeWorker('closed')));
-		for (const webContentsEvent of [
-			'destroyed',			// receiver window closed
-			'render-process-gone',	// receiver window crashed
-			'did-start-loading'		// receiver window loaded: since workers are bound to window contents, treat as disposal
-		]) {
-			disposables.add(Event.fromNodeEventEmitter(receiverWindow.webContents, webContentsEvent)(() => disposeWorker(webContentsEvent)));
-		}
 
 		// The shared process window asks us to relay a `MessagePort`
 		// from a shared process worker to the target window. It needs

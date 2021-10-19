@@ -30,7 +30,12 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		this.logService.trace(`SharedProcess: createWorker (${workerLogId})`);
 
 		// Ensure to dispose any existing process for config
-		this.disposeWorker(configuration);
+		const configurationHash = hash(configuration);
+		if (this.processes.has(configurationHash)) {
+			this.logService.warn(`SharedProcess: createWorker found an existing worker that will be terminated (${workerLogId})`);
+
+			this.disposeWorker(configuration);
+		}
 
 		const cts = new CancellationTokenSource();
 
@@ -39,7 +44,6 @@ export class SharedProcessWorkerService implements ISharedProcessWorkerService {
 		let workerPort: MessagePort | undefined = undefined;
 
 		// Store as process for later disposal
-		const configurationHash = hash(configuration);
 		this.processes.set(configurationHash, toDisposable(() => {
 
 			// Signal to token
