@@ -22,7 +22,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 function isSilentKeyCode(keyCode: KeyCode) {
-	return keyCode < KeyCode.KEY_0;
+	return keyCode < KeyCode.Digit0;
 }
 
 export class Driver implements IDriver, IWindowDriverRegistry {

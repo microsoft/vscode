@@ -74,7 +74,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_SHOW_QUICK_FIX,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.MarkerFocusContextKey,
-	primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyCode.Period,
 	handler: (accessor, args: any) => {
 		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
 		const focusedElement = markersView.getFocusElement();
@@ -127,7 +127,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	openCommandActionDescriptor: {
 		id: 'workbench.actions.view.problems',
 		mnemonicTitle: localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M },
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM },
 		order: 0,
 	}
 }], VIEW_CONTAINER);
@@ -163,7 +163,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 				when: Constants.MarkerFocusContextKey
 			},
 			viewId: Constants.MARKERS_VIEW_ID
@@ -248,7 +248,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			keybinding: {
 				when: FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID),
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});

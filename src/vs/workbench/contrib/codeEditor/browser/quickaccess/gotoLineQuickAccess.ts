@@ -83,8 +83,8 @@ class GotoLineAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG }
 			}
 		});
 	}

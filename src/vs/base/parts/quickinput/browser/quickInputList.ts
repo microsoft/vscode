@@ -294,7 +294,7 @@ export class QuickInputList {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
-				case KeyCode.KEY_A:
+				case KeyCode.KeyA:
 					if (platform.isMacintosh ? e.metaKey : e.ctrlKey) {
 						this.list.setFocus(range(this.list.length));
 					}

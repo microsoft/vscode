@@ -209,17 +209,17 @@ suite('AbstractKeybindingService', () => {
 	test('issue #16498: chord mode is quit for invalid chords', () => {
 
 		let kbService = createTestKeybindingService([
-			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand'),
+			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand'),
 			kbItem(KeyCode.Backspace, 'simpleCommand'),
 		]);
 
 		// send Ctrl/Cmd + K
-		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
-			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -233,10 +233,10 @@ suite('AbstractKeybindingService', () => {
 		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
-			`The key combination (${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}, ${toUsLabel(KeyCode.Backspace)}) is not a command.`
+			`The key combination (${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}, ${toUsLabel(KeyCode.Backspace)}) is not a command.`
 		]);
 		assert.deepStrictEqual(statusMessageCallsDisposed, [
-			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];
@@ -304,8 +304,8 @@ suite('AbstractKeybindingService', () => {
 	test('can trigger command that is sharing keybinding with chord', () => {
 
 		let kbService = createTestKeybindingService([
-			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand'),
-			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, 'simpleCommand', ContextKeyExpr.has('key1')),
+			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand'),
+			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'simpleCommand', ContextKeyExpr.has('key1')),
 		]);
 
 
@@ -313,7 +313,7 @@ suite('AbstractKeybindingService', () => {
 		currentContextValue = createContext({
 			key1: true
 		});
-		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -329,12 +329,12 @@ suite('AbstractKeybindingService', () => {
 
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
-		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, [
-			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
 		]);
 		assert.deepStrictEqual(statusMessageCallsDisposed, []);
 		executeCommandCalls = [];
@@ -344,7 +344,7 @@ suite('AbstractKeybindingService', () => {
 
 		// send Ctrl/Cmd + X
 		currentContextValue = createContext({});
-		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyX);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'chordCommand',
@@ -353,7 +353,7 @@ suite('AbstractKeybindingService', () => {
 		assert.deepStrictEqual(showMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCalls, []);
 		assert.deepStrictEqual(statusMessageCallsDisposed, [
-			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KEY_K)}) was pressed. Waiting for second key of chord...`
+			`(${toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK)}) was pressed. Waiting for second key of chord...`
 		]);
 		executeCommandCalls = [];
 		showMessageCalls = [];
@@ -366,14 +366,14 @@ suite('AbstractKeybindingService', () => {
 	test('cannot trigger chord if command is overwriting', () => {
 
 		let kbService = createTestKeybindingService([
-			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X), 'chordCommand', ContextKeyExpr.has('key1')),
-			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, 'simpleCommand'),
+			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand', ContextKeyExpr.has('key1')),
+			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'simpleCommand'),
 		]);
 
 
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
-		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -391,7 +391,7 @@ suite('AbstractKeybindingService', () => {
 		currentContextValue = createContext({
 			key1: true
 		});
-		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, true);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',
@@ -409,7 +409,7 @@ suite('AbstractKeybindingService', () => {
 		currentContextValue = createContext({
 			key1: true
 		});
-		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_X);
+		shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyX);
 		assert.strictEqual(shouldPreventDefault, false);
 		assert.deepStrictEqual(executeCommandCalls, []);
 		assert.deepStrictEqual(showMessageCalls, []);
@@ -426,12 +426,12 @@ suite('AbstractKeybindingService', () => {
 	test('can have spying command', () => {
 
 		let kbService = createTestKeybindingService([
-			kbItem(KeyMod.CtrlCmd | KeyCode.KEY_K, '^simpleCommand'),
+			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, '^simpleCommand'),
 		]);
 
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
-		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KEY_K);
+		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, false);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',

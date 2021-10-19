@@ -312,8 +312,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		// weak check for certain ranges. this is properly implemented in a subclass
 		// with access to the KeyboardMapperFactory.
-		if ((event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)) {
+		if ((event.keyCode >= KeyCode.KeyA && event.keyCode <= KeyCode.KeyZ)
+			|| (event.keyCode >= KeyCode.Digit0 && event.keyCode <= KeyCode.Digit9)) {
 			return true;
 		}
 		return false;

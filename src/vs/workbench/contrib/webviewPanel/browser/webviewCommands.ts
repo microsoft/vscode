@@ -28,7 +28,7 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 			title: ShowWebViewEditorFindWidgetAction.LABEL,
 			keybinding: {
 				when: ContextKeyExpr.and(webviewActiveContextKeyExpr, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED),
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

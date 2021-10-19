@@ -402,7 +402,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus),
 				},
@@ -424,7 +424,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
@@ -448,7 +448,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
@@ -903,7 +903,7 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 					when: ContextKeyExpr.or(TerminalContextKeys.findFocus, TerminalContextKeys.focus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1268,8 +1268,8 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_R,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
+					primary: KeyMod.Alt | KeyCode.KeyR,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1291,8 +1291,8 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_W,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
+					primary: KeyMod.Alt | KeyCode.KeyW,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1314,8 +1314,8 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_C,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
+					primary: KeyMod.Alt | KeyCode.KeyC,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
@@ -1339,7 +1339,7 @@ export function registerTerminalActions() {
 				keybinding: [
 					{
 						primary: KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
+						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
 						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
@@ -1366,7 +1366,7 @@ export function registerTerminalActions() {
 				keybinding: [
 					{
 						primary: KeyMod.Shift | KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
 						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
@@ -1392,7 +1392,7 @@ export function registerTerminalActions() {
 				category,
 				keybinding: [
 					{
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 						when: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.textSelected),
 						weight: KeybindingWeight.WorkbenchContrib + 50
 					}
@@ -1442,11 +1442,11 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
 					weight: KeybindingWeight.WorkbenchContrib,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
 					},
 					when: TerminalContextKeys.focus
 				},
@@ -1495,10 +1495,10 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
 					},
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: TerminalContextKeys.tabsFocus
@@ -1611,7 +1611,7 @@ export function registerTerminalActions() {
 					// Technically this doesn't need to be here as it will fall back to this
 					// behavior anyway when handed to xterm.js, having this handled by VS Code
 					// makes it easier for users to see how it works though.
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A },
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyA },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: TerminalContextKeys.focus
 				}]
@@ -1631,8 +1631,8 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported,
 				icon: Codicon.plus,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
-					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backquote,
+					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Backquote },
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				description: {
@@ -1735,8 +1735,8 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+					primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
 				}
@@ -1792,7 +1792,7 @@ export function registerTerminalActions() {
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: [{
 					primary: 0,
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K },
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyK },
 					// Weight is higher than work workbench contributions so the keybinding remains
 					// highest priority when chords are registered afterwards
 					weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -1872,7 +1872,7 @@ export function registerTerminalActions() {
 				category,
 				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen, TerminalContextKeys.focus),
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_Z,
+					primary: KeyMod.Alt | KeyCode.KeyZ,
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1907,9 +1907,9 @@ export function registerTerminalActions() {
 					// TODO: Why is copy still showing up when text isn't selected?
 					precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.textSelected),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+						primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
 					}]
@@ -1931,9 +1931,9 @@ export function registerTerminalActions() {
 					category,
 					precondition: TerminalContextKeys.processSupported,
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
+						primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: TerminalContextKeys.focus
 					}],

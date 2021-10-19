@@ -1194,7 +1194,7 @@ registerAction2(
 				id: 'views.moveViewUp',
 				title: nls.localize('viewMoveUp', "Move View Up"),
 				keybinding: {
-					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.UpArrow),
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KeyK, KeyCode.UpArrow),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
@@ -1210,7 +1210,7 @@ registerAction2(
 				id: 'views.moveViewLeft',
 				title: nls.localize('viewMoveLeft', "Move View Left"),
 				keybinding: {
-					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.LeftArrow),
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KeyK, KeyCode.LeftArrow),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
@@ -1226,7 +1226,7 @@ registerAction2(
 				id: 'views.moveViewDown',
 				title: nls.localize('viewMoveDown', "Move View Down"),
 				keybinding: {
-					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.DownArrow),
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KeyK, KeyCode.DownArrow),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
@@ -1242,7 +1242,7 @@ registerAction2(
 				id: 'views.moveViewRight',
 				title: nls.localize('viewMoveRight', "Move View Right"),
 				keybinding: {
-					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.RightArrow),
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KeyK, KeyCode.RightArrow),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}

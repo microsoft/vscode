@@ -37,43 +37,43 @@ export const enum KeyCode {
 	Insert,
 	Delete,
 
-	KEY_0,
-	KEY_1,
-	KEY_2,
-	KEY_3,
-	KEY_4,
-	KEY_5,
-	KEY_6,
-	KEY_7,
-	KEY_8,
-	KEY_9,
+	Digit0,
+	Digit1,
+	Digit2,
+	Digit3,
+	Digit4,
+	Digit5,
+	Digit6,
+	Digit7,
+	Digit8,
+	Digit9,
 
-	KEY_A,
-	KEY_B,
-	KEY_C,
-	KEY_D,
-	KEY_E,
-	KEY_F,
-	KEY_G,
-	KEY_H,
-	KEY_I,
-	KEY_J,
-	KEY_K,
-	KEY_L,
-	KEY_M,
-	KEY_N,
-	KEY_O,
-	KEY_P,
-	KEY_Q,
-	KEY_R,
-	KEY_S,
-	KEY_T,
-	KEY_U,
-	KEY_V,
-	KEY_W,
-	KEY_X,
-	KEY_Y,
-	KEY_Z,
+	KeyA,
+	KeyB,
+	KeyC,
+	KeyD,
+	KeyE,
+	KeyF,
+	KeyG,
+	KeyH,
+	KeyI,
+	KeyJ,
+	KeyK,
+	KeyL,
+	KeyM,
+	KeyN,
+	KeyO,
+	KeyP,
+	KeyQ,
+	KeyR,
+	KeyS,
+	KeyT,
+	KeyU,
+	KeyV,
+	KeyW,
+	KeyX,
+	KeyY,
+	KeyZ,
 
 	Meta,
 	ContextMenu,
@@ -105,57 +105,57 @@ export const enum KeyCode {
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ';:' key
 	 */
-	US_SEMICOLON,
+	Semicolon,
 	/**
 	 * For any country/region, the '+' key
 	 * For the US standard keyboard, the '=+' key
 	 */
-	US_EQUAL,
+	Equal,
 	/**
 	 * For any country/region, the ',' key
 	 * For the US standard keyboard, the ',<' key
 	 */
-	US_COMMA,
+	Comma,
 	/**
 	 * For any country/region, the '-' key
 	 * For the US standard keyboard, the '-_' key
 	 */
-	US_MINUS,
+	Minus,
 	/**
 	 * For any country/region, the '.' key
 	 * For the US standard keyboard, the '.>' key
 	 */
-	US_DOT,
+	Period,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '/?' key
 	 */
-	US_SLASH,
+	Slash,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '`~' key
 	 */
-	US_BACKTICK,
+	Backquote,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '[{' key
 	 */
-	US_OPEN_SQUARE_BRACKET,
+	BracketLeft,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the '\|' key
 	 */
-	US_BACKSLASH,
+	Backslash,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ']}' key
 	 */
-	US_CLOSE_SQUARE_BRACKET,
+	BracketRight,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 * For the US standard keyboard, the ''"' key
 	 */
-	US_QUOTE,
+	Quote,
 	/**
 	 * Used for miscellaneous characters; it can vary by keyboard.
 	 */
@@ -163,25 +163,25 @@ export const enum KeyCode {
 	/**
 	 * Either the angle bracket key or the backslash key on the RT 102-key keyboard.
 	 */
-	OEM_102,
+	IntlBackslash,
 
-	NUMPAD_0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
-	NUMPAD_1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
-	NUMPAD_2, // VK_NUMPAD2, 0x62, Numeric keypad 2 key
-	NUMPAD_3, // VK_NUMPAD3, 0x63, Numeric keypad 3 key
-	NUMPAD_4, // VK_NUMPAD4, 0x64, Numeric keypad 4 key
-	NUMPAD_5, // VK_NUMPAD5, 0x65, Numeric keypad 5 key
-	NUMPAD_6, // VK_NUMPAD6, 0x66, Numeric keypad 6 key
-	NUMPAD_7, // VK_NUMPAD7, 0x67, Numeric keypad 7 key
-	NUMPAD_8, // VK_NUMPAD8, 0x68, Numeric keypad 8 key
-	NUMPAD_9, // VK_NUMPAD9, 0x69, Numeric keypad 9 key
+	Numpad0, // VK_NUMPAD0, 0x60, Numeric keypad 0 key
+	Numpad1, // VK_NUMPAD1, 0x61, Numeric keypad 1 key
+	Numpad2, // VK_NUMPAD2, 0x62, Numeric keypad 2 key
+	Numpad3, // VK_NUMPAD3, 0x63, Numeric keypad 3 key
+	Numpad4, // VK_NUMPAD4, 0x64, Numeric keypad 4 key
+	Numpad5, // VK_NUMPAD5, 0x65, Numeric keypad 5 key
+	Numpad6, // VK_NUMPAD6, 0x66, Numeric keypad 6 key
+	Numpad7, // VK_NUMPAD7, 0x67, Numeric keypad 7 key
+	Numpad8, // VK_NUMPAD8, 0x68, Numeric keypad 8 key
+	Numpad9, // VK_NUMPAD9, 0x69, Numeric keypad 9 key
 
-	NUMPAD_MULTIPLY,	// VK_MULTIPLY, 0x6A, Multiply key
-	NUMPAD_ADD,		// VK_ADD, 0x6B, Add key
+	NumpadMultiply,	// VK_MULTIPLY, 0x6A, Multiply key
+	NumpadAdd,		// VK_ADD, 0x6B, Add key
 	NUMPAD_SEPARATOR,	// VK_SEPARATOR, 0x6C, Separator key
-	NUMPAD_SUBTRACT,	// VK_SUBTRACT, 0x6D, Subtract key
-	NUMPAD_DECIMAL,	// VK_DECIMAL, 0x6E, Decimal key
-	NUMPAD_DIVIDE,	// VK_DIVIDE, 0x6F,
+	NumpadSubtract,	// VK_SUBTRACT, 0x6D, Subtract key
+	NumpadDecimal,	// VK_DECIMAL, 0x6E, Decimal key
+	NumpadDivide,	// VK_DIVIDE, 0x6F,
 
 	/**
 	 * Cover all key codes when IME is processing input.
@@ -476,9 +476,6 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 
 (function () {
 
-	// See https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
-	// If an Input Method Editor is processing key input and the event is keydown, return 229.
-
 	// See https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
 	// See https://github.com/microsoft/node-native-keymap/blob/master/deps/chromium/keyboard_codes_win.h
 
@@ -496,59 +493,59 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.Turbo, 'Turbo', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.Sleep, 'Sleep', KeyCode.Unknown, empty, 0, 'VK_SLEEP', empty, empty],
 		[0, 1, ScanCode.WakeUp, 'WakeUp', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[31, 0, ScanCode.KeyA, 'KeyA', KeyCode.KEY_A, 'A', 65, 'VK_A', empty, empty],
-		[32, 0, ScanCode.KeyB, 'KeyB', KeyCode.KEY_B, 'B', 66, 'VK_B', empty, empty],
-		[33, 0, ScanCode.KeyC, 'KeyC', KeyCode.KEY_C, 'C', 67, 'VK_C', empty, empty],
-		[34, 0, ScanCode.KeyD, 'KeyD', KeyCode.KEY_D, 'D', 68, 'VK_D', empty, empty],
-		[35, 0, ScanCode.KeyE, 'KeyE', KeyCode.KEY_E, 'E', 69, 'VK_E', empty, empty],
-		[36, 0, ScanCode.KeyF, 'KeyF', KeyCode.KEY_F, 'F', 70, 'VK_F', empty, empty],
-		[37, 0, ScanCode.KeyG, 'KeyG', KeyCode.KEY_G, 'G', 71, 'VK_G', empty, empty],
-		[38, 0, ScanCode.KeyH, 'KeyH', KeyCode.KEY_H, 'H', 72, 'VK_H', empty, empty],
-		[39, 0, ScanCode.KeyI, 'KeyI', KeyCode.KEY_I, 'I', 73, 'VK_I', empty, empty],
-		[40, 0, ScanCode.KeyJ, 'KeyJ', KeyCode.KEY_J, 'J', 74, 'VK_J', empty, empty],
-		[41, 0, ScanCode.KeyK, 'KeyK', KeyCode.KEY_K, 'K', 75, 'VK_K', empty, empty],
-		[42, 0, ScanCode.KeyL, 'KeyL', KeyCode.KEY_L, 'L', 76, 'VK_L', empty, empty],
-		[43, 0, ScanCode.KeyM, 'KeyM', KeyCode.KEY_M, 'M', 77, 'VK_M', empty, empty],
-		[44, 0, ScanCode.KeyN, 'KeyN', KeyCode.KEY_N, 'N', 78, 'VK_N', empty, empty],
-		[45, 0, ScanCode.KeyO, 'KeyO', KeyCode.KEY_O, 'O', 79, 'VK_O', empty, empty],
-		[46, 0, ScanCode.KeyP, 'KeyP', KeyCode.KEY_P, 'P', 80, 'VK_P', empty, empty],
-		[47, 0, ScanCode.KeyQ, 'KeyQ', KeyCode.KEY_Q, 'Q', 81, 'VK_Q', empty, empty],
-		[48, 0, ScanCode.KeyR, 'KeyR', KeyCode.KEY_R, 'R', 82, 'VK_R', empty, empty],
-		[49, 0, ScanCode.KeyS, 'KeyS', KeyCode.KEY_S, 'S', 83, 'VK_S', empty, empty],
-		[50, 0, ScanCode.KeyT, 'KeyT', KeyCode.KEY_T, 'T', 84, 'VK_T', empty, empty],
-		[51, 0, ScanCode.KeyU, 'KeyU', KeyCode.KEY_U, 'U', 85, 'VK_U', empty, empty],
-		[52, 0, ScanCode.KeyV, 'KeyV', KeyCode.KEY_V, 'V', 86, 'VK_V', empty, empty],
-		[53, 0, ScanCode.KeyW, 'KeyW', KeyCode.KEY_W, 'W', 87, 'VK_W', empty, empty],
-		[54, 0, ScanCode.KeyX, 'KeyX', KeyCode.KEY_X, 'X', 88, 'VK_X', empty, empty],
-		[55, 0, ScanCode.KeyY, 'KeyY', KeyCode.KEY_Y, 'Y', 89, 'VK_Y', empty, empty],
-		[56, 0, ScanCode.KeyZ, 'KeyZ', KeyCode.KEY_Z, 'Z', 90, 'VK_Z', empty, empty],
-		[22, 0, ScanCode.Digit1, 'Digit1', KeyCode.KEY_1, '1', 49, 'VK_1', empty, empty],
-		[23, 0, ScanCode.Digit2, 'Digit2', KeyCode.KEY_2, '2', 50, 'VK_2', empty, empty],
-		[24, 0, ScanCode.Digit3, 'Digit3', KeyCode.KEY_3, '3', 51, 'VK_3', empty, empty],
-		[25, 0, ScanCode.Digit4, 'Digit4', KeyCode.KEY_4, '4', 52, 'VK_4', empty, empty],
-		[26, 0, ScanCode.Digit5, 'Digit5', KeyCode.KEY_5, '5', 53, 'VK_5', empty, empty],
-		[27, 0, ScanCode.Digit6, 'Digit6', KeyCode.KEY_6, '6', 54, 'VK_6', empty, empty],
-		[28, 0, ScanCode.Digit7, 'Digit7', KeyCode.KEY_7, '7', 55, 'VK_7', empty, empty],
-		[29, 0, ScanCode.Digit8, 'Digit8', KeyCode.KEY_8, '8', 56, 'VK_8', empty, empty],
-		[30, 0, ScanCode.Digit9, 'Digit9', KeyCode.KEY_9, '9', 57, 'VK_9', empty, empty],
-		[21, 0, ScanCode.Digit0, 'Digit0', KeyCode.KEY_0, '0', 48, 'VK_0', empty, empty],
+		[31, 0, ScanCode.KeyA, 'KeyA', KeyCode.KeyA, 'A', 65, 'VK_A', empty, empty],
+		[32, 0, ScanCode.KeyB, 'KeyB', KeyCode.KeyB, 'B', 66, 'VK_B', empty, empty],
+		[33, 0, ScanCode.KeyC, 'KeyC', KeyCode.KeyC, 'C', 67, 'VK_C', empty, empty],
+		[34, 0, ScanCode.KeyD, 'KeyD', KeyCode.KeyD, 'D', 68, 'VK_D', empty, empty],
+		[35, 0, ScanCode.KeyE, 'KeyE', KeyCode.KeyE, 'E', 69, 'VK_E', empty, empty],
+		[36, 0, ScanCode.KeyF, 'KeyF', KeyCode.KeyF, 'F', 70, 'VK_F', empty, empty],
+		[37, 0, ScanCode.KeyG, 'KeyG', KeyCode.KeyG, 'G', 71, 'VK_G', empty, empty],
+		[38, 0, ScanCode.KeyH, 'KeyH', KeyCode.KeyH, 'H', 72, 'VK_H', empty, empty],
+		[39, 0, ScanCode.KeyI, 'KeyI', KeyCode.KeyI, 'I', 73, 'VK_I', empty, empty],
+		[40, 0, ScanCode.KeyJ, 'KeyJ', KeyCode.KeyJ, 'J', 74, 'VK_J', empty, empty],
+		[41, 0, ScanCode.KeyK, 'KeyK', KeyCode.KeyK, 'K', 75, 'VK_K', empty, empty],
+		[42, 0, ScanCode.KeyL, 'KeyL', KeyCode.KeyL, 'L', 76, 'VK_L', empty, empty],
+		[43, 0, ScanCode.KeyM, 'KeyM', KeyCode.KeyM, 'M', 77, 'VK_M', empty, empty],
+		[44, 0, ScanCode.KeyN, 'KeyN', KeyCode.KeyN, 'N', 78, 'VK_N', empty, empty],
+		[45, 0, ScanCode.KeyO, 'KeyO', KeyCode.KeyO, 'O', 79, 'VK_O', empty, empty],
+		[46, 0, ScanCode.KeyP, 'KeyP', KeyCode.KeyP, 'P', 80, 'VK_P', empty, empty],
+		[47, 0, ScanCode.KeyQ, 'KeyQ', KeyCode.KeyQ, 'Q', 81, 'VK_Q', empty, empty],
+		[48, 0, ScanCode.KeyR, 'KeyR', KeyCode.KeyR, 'R', 82, 'VK_R', empty, empty],
+		[49, 0, ScanCode.KeyS, 'KeyS', KeyCode.KeyS, 'S', 83, 'VK_S', empty, empty],
+		[50, 0, ScanCode.KeyT, 'KeyT', KeyCode.KeyT, 'T', 84, 'VK_T', empty, empty],
+		[51, 0, ScanCode.KeyU, 'KeyU', KeyCode.KeyU, 'U', 85, 'VK_U', empty, empty],
+		[52, 0, ScanCode.KeyV, 'KeyV', KeyCode.KeyV, 'V', 86, 'VK_V', empty, empty],
+		[53, 0, ScanCode.KeyW, 'KeyW', KeyCode.KeyW, 'W', 87, 'VK_W', empty, empty],
+		[54, 0, ScanCode.KeyX, 'KeyX', KeyCode.KeyX, 'X', 88, 'VK_X', empty, empty],
+		[55, 0, ScanCode.KeyY, 'KeyY', KeyCode.KeyY, 'Y', 89, 'VK_Y', empty, empty],
+		[56, 0, ScanCode.KeyZ, 'KeyZ', KeyCode.KeyZ, 'Z', 90, 'VK_Z', empty, empty],
+		[22, 0, ScanCode.Digit1, 'Digit1', KeyCode.Digit1, '1', 49, 'VK_1', empty, empty],
+		[23, 0, ScanCode.Digit2, 'Digit2', KeyCode.Digit2, '2', 50, 'VK_2', empty, empty],
+		[24, 0, ScanCode.Digit3, 'Digit3', KeyCode.Digit3, '3', 51, 'VK_3', empty, empty],
+		[25, 0, ScanCode.Digit4, 'Digit4', KeyCode.Digit4, '4', 52, 'VK_4', empty, empty],
+		[26, 0, ScanCode.Digit5, 'Digit5', KeyCode.Digit5, '5', 53, 'VK_5', empty, empty],
+		[27, 0, ScanCode.Digit6, 'Digit6', KeyCode.Digit6, '6', 54, 'VK_6', empty, empty],
+		[28, 0, ScanCode.Digit7, 'Digit7', KeyCode.Digit7, '7', 55, 'VK_7', empty, empty],
+		[29, 0, ScanCode.Digit8, 'Digit8', KeyCode.Digit8, '8', 56, 'VK_8', empty, empty],
+		[30, 0, ScanCode.Digit9, 'Digit9', KeyCode.Digit9, '9', 57, 'VK_9', empty, empty],
+		[21, 0, ScanCode.Digit0, 'Digit0', KeyCode.Digit0, '0', 48, 'VK_0', empty, empty],
 		[3, 1, ScanCode.Enter, 'Enter', KeyCode.Enter, 'Enter', 13, 'VK_RETURN', empty, empty],
 		[9, 1, ScanCode.Escape, 'Escape', KeyCode.Escape, 'Escape', 27, 'VK_ESCAPE', empty, empty],
 		[1, 1, ScanCode.Backspace, 'Backspace', KeyCode.Backspace, 'Backspace', 8, 'VK_BACK', empty, empty],
 		[2, 1, ScanCode.Tab, 'Tab', KeyCode.Tab, 'Tab', 9, 'VK_TAB', empty, empty],
 		[10, 1, ScanCode.Space, 'Space', KeyCode.Space, 'Space', 32, 'VK_SPACE', empty, empty],
-		[83, 0, ScanCode.Minus, 'Minus', KeyCode.US_MINUS, '-', 189, 'VK_OEM_MINUS', '-', 'OEM_MINUS'],
-		[81, 0, ScanCode.Equal, 'Equal', KeyCode.US_EQUAL, '=', 187, 'VK_OEM_PLUS', '=', 'OEM_PLUS'],
-		[87, 0, ScanCode.BracketLeft, 'BracketLeft', KeyCode.US_OPEN_SQUARE_BRACKET, '[', 219, 'VK_OEM_4', '[', 'OEM_4'],
-		[89, 0, ScanCode.BracketRight, 'BracketRight', KeyCode.US_CLOSE_SQUARE_BRACKET, ']', 221, 'VK_OEM_6', ']', 'OEM_6'],
-		[88, 0, ScanCode.Backslash, 'Backslash', KeyCode.US_BACKSLASH, '\\', 220, 'VK_OEM_5', '\\', 'OEM_5'],
-		[0, 0, ScanCode.IntlHash, 'IntlHash', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[80, 0, ScanCode.Semicolon, 'Semicolon', KeyCode.US_SEMICOLON, ';', 186, 'VK_OEM_1', ';', 'OEM_1'],
-		[90, 0, ScanCode.Quote, 'Quote', KeyCode.US_QUOTE, '\'', 222, 'VK_OEM_7', '\'', 'OEM_7'],
-		[86, 0, ScanCode.Backquote, 'Backquote', KeyCode.US_BACKTICK, '`', 192, 'VK_OEM_3', '`', 'OEM_3'],
-		[82, 0, ScanCode.Comma, 'Comma', KeyCode.US_COMMA, ',', 188, 'VK_OEM_COMMA', ',', 'OEM_COMMA'],
-		[84, 0, ScanCode.Period, 'Period', KeyCode.US_DOT, '.', 190, 'VK_OEM_PERIOD', '.', 'OEM_PERIOD'],
-		[85, 0, ScanCode.Slash, 'Slash', KeyCode.US_SLASH, '/', 191, 'VK_OEM_2', '/', 'OEM_2'],
+		[83, 0, ScanCode.Minus, 'Minus', KeyCode.Minus, '-', 189, 'VK_OEM_MINUS', '-', 'OEM_MINUS'],
+		[81, 0, ScanCode.Equal, 'Equal', KeyCode.Equal, '=', 187, 'VK_OEM_PLUS', '=', 'OEM_PLUS'],
+		[87, 0, ScanCode.BracketLeft, 'BracketLeft', KeyCode.BracketLeft, '[', 219, 'VK_OEM_4', '[', 'OEM_4'],
+		[89, 0, ScanCode.BracketRight, 'BracketRight', KeyCode.BracketRight, ']', 221, 'VK_OEM_6', ']', 'OEM_6'],
+		[88, 0, ScanCode.Backslash, 'Backslash', KeyCode.Backslash, '\\', 220, 'VK_OEM_5', '\\', 'OEM_5'],
+		[0, 0, ScanCode.IntlHash, 'IntlHash', KeyCode.Unknown, empty, 0, empty, empty, empty], // has been dropped from the w3c spec
+		[80, 0, ScanCode.Semicolon, 'Semicolon', KeyCode.Semicolon, ';', 186, 'VK_OEM_1', ';', 'OEM_1'],
+		[90, 0, ScanCode.Quote, 'Quote', KeyCode.Quote, '\'', 222, 'VK_OEM_7', '\'', 'OEM_7'],
+		[86, 0, ScanCode.Backquote, 'Backquote', KeyCode.Backquote, '`', 192, 'VK_OEM_3', '`', 'OEM_3'],
+		[82, 0, ScanCode.Comma, 'Comma', KeyCode.Comma, ',', 188, 'VK_OEM_COMMA', ',', 'OEM_COMMA'],
+		[84, 0, ScanCode.Period, 'Period', KeyCode.Period, '.', 190, 'VK_OEM_PERIOD', '.', 'OEM_PERIOD'],
+		[85, 0, ScanCode.Slash, 'Slash', KeyCode.Slash, '/', 191, 'VK_OEM_2', '/', 'OEM_2'],
 		[8, 1, ScanCode.CapsLock, 'CapsLock', KeyCode.CapsLock, 'CapsLock', 20, 'VK_CAPITAL', empty, empty],
 		[59, 1, ScanCode.F1, 'F1', KeyCode.F1, 'F1', 112, 'VK_F1', empty, empty],
 		[60, 1, ScanCode.F2, 'F2', KeyCode.F2, 'F2', 113, 'VK_F2', empty, empty],
@@ -576,23 +573,23 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[18, 1, ScanCode.ArrowDown, 'ArrowDown', KeyCode.DownArrow, 'DownArrow', 40, 'VK_DOWN', 'Down', empty],
 		[16, 1, ScanCode.ArrowUp, 'ArrowUp', KeyCode.UpArrow, 'UpArrow', 38, 'VK_UP', 'Up', empty],
 		[78, 1, ScanCode.NumLock, 'NumLock', KeyCode.NumLock, 'NumLock', 144, 'VK_NUMLOCK', empty, empty],
-		[108, 1, ScanCode.NumpadDivide, 'NumpadDivide', KeyCode.NUMPAD_DIVIDE, 'NumPad_Divide', 111, 'VK_DIVIDE', empty, empty],
-		[103, 1, ScanCode.NumpadMultiply, 'NumpadMultiply', KeyCode.NUMPAD_MULTIPLY, 'NumPad_Multiply', 106, 'VK_MULTIPLY', empty, empty],
-		[106, 1, ScanCode.NumpadSubtract, 'NumpadSubtract', KeyCode.NUMPAD_SUBTRACT, 'NumPad_Subtract', 109, 'VK_SUBTRACT', empty, empty],
-		[104, 1, ScanCode.NumpadAdd, 'NumpadAdd', KeyCode.NUMPAD_ADD, 'NumPad_Add', 107, 'VK_ADD', empty, empty],
+		[108, 1, ScanCode.NumpadDivide, 'NumpadDivide', KeyCode.NumpadDivide, 'NumPad_Divide', 111, 'VK_DIVIDE', empty, empty],
+		[103, 1, ScanCode.NumpadMultiply, 'NumpadMultiply', KeyCode.NumpadMultiply, 'NumPad_Multiply', 106, 'VK_MULTIPLY', empty, empty],
+		[106, 1, ScanCode.NumpadSubtract, 'NumpadSubtract', KeyCode.NumpadSubtract, 'NumPad_Subtract', 109, 'VK_SUBTRACT', empty, empty],
+		[104, 1, ScanCode.NumpadAdd, 'NumpadAdd', KeyCode.NumpadAdd, 'NumPad_Add', 107, 'VK_ADD', empty, empty],
 		[3, 1, ScanCode.NumpadEnter, 'NumpadEnter', KeyCode.Enter, empty, 0, empty, empty, empty],
-		[94, 1, ScanCode.Numpad1, 'Numpad1', KeyCode.NUMPAD_1, 'NumPad1', 97, 'VK_NUMPAD1', empty, empty],
-		[95, 1, ScanCode.Numpad2, 'Numpad2', KeyCode.NUMPAD_2, 'NumPad2', 98, 'VK_NUMPAD2', empty, empty],
-		[96, 1, ScanCode.Numpad3, 'Numpad3', KeyCode.NUMPAD_3, 'NumPad3', 99, 'VK_NUMPAD3', empty, empty],
-		[97, 1, ScanCode.Numpad4, 'Numpad4', KeyCode.NUMPAD_4, 'NumPad4', 100, 'VK_NUMPAD4', empty, empty],
-		[98, 1, ScanCode.Numpad5, 'Numpad5', KeyCode.NUMPAD_5, 'NumPad5', 101, 'VK_NUMPAD5', empty, empty],
-		[99, 1, ScanCode.Numpad6, 'Numpad6', KeyCode.NUMPAD_6, 'NumPad6', 102, 'VK_NUMPAD6', empty, empty],
-		[100, 1, ScanCode.Numpad7, 'Numpad7', KeyCode.NUMPAD_7, 'NumPad7', 103, 'VK_NUMPAD7', empty, empty],
-		[101, 1, ScanCode.Numpad8, 'Numpad8', KeyCode.NUMPAD_8, 'NumPad8', 104, 'VK_NUMPAD8', empty, empty],
-		[102, 1, ScanCode.Numpad9, 'Numpad9', KeyCode.NUMPAD_9, 'NumPad9', 105, 'VK_NUMPAD9', empty, empty],
-		[93, 1, ScanCode.Numpad0, 'Numpad0', KeyCode.NUMPAD_0, 'NumPad0', 96, 'VK_NUMPAD0', empty, empty],
-		[107, 1, ScanCode.NumpadDecimal, 'NumpadDecimal', KeyCode.NUMPAD_DECIMAL, 'NumPad_Decimal', 110, 'VK_DECIMAL', empty, empty],
-		[92, 0, ScanCode.IntlBackslash, 'IntlBackslash', KeyCode.OEM_102, 'OEM_102', 226, 'VK_OEM_102', empty, empty],
+		[94, 1, ScanCode.Numpad1, 'Numpad1', KeyCode.Numpad1, 'NumPad1', 97, 'VK_NUMPAD1', empty, empty],
+		[95, 1, ScanCode.Numpad2, 'Numpad2', KeyCode.Numpad2, 'NumPad2', 98, 'VK_NUMPAD2', empty, empty],
+		[96, 1, ScanCode.Numpad3, 'Numpad3', KeyCode.Numpad3, 'NumPad3', 99, 'VK_NUMPAD3', empty, empty],
+		[97, 1, ScanCode.Numpad4, 'Numpad4', KeyCode.Numpad4, 'NumPad4', 100, 'VK_NUMPAD4', empty, empty],
+		[98, 1, ScanCode.Numpad5, 'Numpad5', KeyCode.Numpad5, 'NumPad5', 101, 'VK_NUMPAD5', empty, empty],
+		[99, 1, ScanCode.Numpad6, 'Numpad6', KeyCode.Numpad6, 'NumPad6', 102, 'VK_NUMPAD6', empty, empty],
+		[100, 1, ScanCode.Numpad7, 'Numpad7', KeyCode.Numpad7, 'NumPad7', 103, 'VK_NUMPAD7', empty, empty],
+		[101, 1, ScanCode.Numpad8, 'Numpad8', KeyCode.Numpad8, 'NumPad8', 104, 'VK_NUMPAD8', empty, empty],
+		[102, 1, ScanCode.Numpad9, 'Numpad9', KeyCode.Numpad9, 'NumPad9', 105, 'VK_NUMPAD9', empty, empty],
+		[93, 1, ScanCode.Numpad0, 'Numpad0', KeyCode.Numpad0, 'NumPad0', 96, 'VK_NUMPAD0', empty, empty],
+		[107, 1, ScanCode.NumpadDecimal, 'NumpadDecimal', KeyCode.NumpadDecimal, 'NumPad_Decimal', 110, 'VK_DECIMAL', empty, empty],
+		[92, 0, ScanCode.IntlBackslash, 'IntlBackslash', KeyCode.IntlBackslash, 'OEM_102', 226, 'VK_OEM_102', empty, empty],
 		[58, 1, ScanCode.ContextMenu, 'ContextMenu', KeyCode.ContextMenu, 'ContextMenu', 93, empty, empty, empty],
 		[0, 1, ScanCode.Power, 'Power', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.NumpadEqual, 'NumpadEqual', KeyCode.Unknown, empty, 0, empty, empty, empty],
@@ -683,6 +680,9 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.MailReply, 'MailReply', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.MailForward, 'MailForward', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.MailSend, 'MailSend', KeyCode.Unknown, empty, 0, empty, empty, empty],
+
+		// See https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
+		// If an Input Method Editor is processing key input and the event is keydown, return 229.
 		[109, 1, ScanCode.None, empty, KeyCode.KEY_IN_COMPOSITION, 'KeyInComposition', 229, empty, empty, empty],
 		[111, 1, ScanCode.None, empty, KeyCode.ABNT_C2, 'ABNT_C2', 194, 'VK_ABNT_C2', empty, empty],
 		[91, 1, ScanCode.None, empty, KeyCode.OEM_8, 'OEM_8', 223, 'VK_OEM_8', empty, empty],
@@ -781,7 +781,7 @@ export namespace KeyCodeUtils {
 	}
 
 	export function toElectronAccelerator(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
+		if (keyCode >= KeyCode.Numpad0 && keyCode <= KeyCode.NumpadDivide) {
 			// [Electron Accelerators] Electron is able to parse numpad keys, but unfortunately it
 			// renders them just as regular keys in menus. For example, num0 is rendered as "0",
 			// numdiv is rendered as "/", numsub is rendered as "-".

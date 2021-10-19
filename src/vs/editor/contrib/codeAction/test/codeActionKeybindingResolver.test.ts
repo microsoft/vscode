@@ -15,17 +15,17 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 
 suite('CodeActionKeybindingResolver', () => {
 	const refactorKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_A,
+		KeyCode.KeyA,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.value });
 
 	const refactorExtractKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_B,
+		KeyCode.KeyB,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.append('extract').value });
 
 	const organizeImportsKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_C,
+		KeyCode.KeyC,
 		organizeImportsCommandId,
 		undefined);
 

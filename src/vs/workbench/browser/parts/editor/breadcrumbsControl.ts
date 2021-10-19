@@ -542,14 +542,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focusAndSelect',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, true)
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.focus',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_SEMICOLON,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Semicolon,
 	when: BreadcrumbsControl.CK_BreadcrumbsPossible,
 	handler: accessor => focusAndSelectHandler(accessor, false)
 });
@@ -559,7 +559,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'breadcrumbs.toggleToOn',
 	weight: KeybindingWeight.WorkbenchContrib,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 	when: ContextKeyExpr.not('config.breadcrumbs.enabled'),
 	handler: async accessor => {
 		const instant = accessor.get(IInstantiationService);

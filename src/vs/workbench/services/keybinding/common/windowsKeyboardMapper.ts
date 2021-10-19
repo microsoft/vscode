@@ -270,32 +270,32 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
 			}
 		};
-		_registerLetterIfMissing(CharCode.A, KeyCode.KEY_A);
-		_registerLetterIfMissing(CharCode.B, KeyCode.KEY_B);
-		_registerLetterIfMissing(CharCode.C, KeyCode.KEY_C);
-		_registerLetterIfMissing(CharCode.D, KeyCode.KEY_D);
-		_registerLetterIfMissing(CharCode.E, KeyCode.KEY_E);
-		_registerLetterIfMissing(CharCode.F, KeyCode.KEY_F);
-		_registerLetterIfMissing(CharCode.G, KeyCode.KEY_G);
-		_registerLetterIfMissing(CharCode.H, KeyCode.KEY_H);
-		_registerLetterIfMissing(CharCode.I, KeyCode.KEY_I);
-		_registerLetterIfMissing(CharCode.J, KeyCode.KEY_J);
-		_registerLetterIfMissing(CharCode.K, KeyCode.KEY_K);
-		_registerLetterIfMissing(CharCode.L, KeyCode.KEY_L);
-		_registerLetterIfMissing(CharCode.M, KeyCode.KEY_M);
-		_registerLetterIfMissing(CharCode.N, KeyCode.KEY_N);
-		_registerLetterIfMissing(CharCode.O, KeyCode.KEY_O);
-		_registerLetterIfMissing(CharCode.P, KeyCode.KEY_P);
-		_registerLetterIfMissing(CharCode.Q, KeyCode.KEY_Q);
-		_registerLetterIfMissing(CharCode.R, KeyCode.KEY_R);
-		_registerLetterIfMissing(CharCode.S, KeyCode.KEY_S);
-		_registerLetterIfMissing(CharCode.T, KeyCode.KEY_T);
-		_registerLetterIfMissing(CharCode.U, KeyCode.KEY_U);
-		_registerLetterIfMissing(CharCode.V, KeyCode.KEY_V);
-		_registerLetterIfMissing(CharCode.W, KeyCode.KEY_W);
-		_registerLetterIfMissing(CharCode.X, KeyCode.KEY_X);
-		_registerLetterIfMissing(CharCode.Y, KeyCode.KEY_Y);
-		_registerLetterIfMissing(CharCode.Z, KeyCode.KEY_Z);
+		_registerLetterIfMissing(CharCode.A, KeyCode.KeyA);
+		_registerLetterIfMissing(CharCode.B, KeyCode.KeyB);
+		_registerLetterIfMissing(CharCode.C, KeyCode.KeyC);
+		_registerLetterIfMissing(CharCode.D, KeyCode.KeyD);
+		_registerLetterIfMissing(CharCode.E, KeyCode.KeyE);
+		_registerLetterIfMissing(CharCode.F, KeyCode.KeyF);
+		_registerLetterIfMissing(CharCode.G, KeyCode.KeyG);
+		_registerLetterIfMissing(CharCode.H, KeyCode.KeyH);
+		_registerLetterIfMissing(CharCode.I, KeyCode.KeyI);
+		_registerLetterIfMissing(CharCode.J, KeyCode.KeyJ);
+		_registerLetterIfMissing(CharCode.K, KeyCode.KeyK);
+		_registerLetterIfMissing(CharCode.L, KeyCode.KeyL);
+		_registerLetterIfMissing(CharCode.M, KeyCode.KeyM);
+		_registerLetterIfMissing(CharCode.N, KeyCode.KeyN);
+		_registerLetterIfMissing(CharCode.O, KeyCode.KeyO);
+		_registerLetterIfMissing(CharCode.P, KeyCode.KeyP);
+		_registerLetterIfMissing(CharCode.Q, KeyCode.KeyQ);
+		_registerLetterIfMissing(CharCode.R, KeyCode.KeyR);
+		_registerLetterIfMissing(CharCode.S, KeyCode.KeyS);
+		_registerLetterIfMissing(CharCode.T, KeyCode.KeyT);
+		_registerLetterIfMissing(CharCode.U, KeyCode.KeyU);
+		_registerLetterIfMissing(CharCode.V, KeyCode.KeyV);
+		_registerLetterIfMissing(CharCode.W, KeyCode.KeyW);
+		_registerLetterIfMissing(CharCode.X, KeyCode.KeyX);
+		_registerLetterIfMissing(CharCode.Y, KeyCode.KeyY);
+		_registerLetterIfMissing(CharCode.Z, KeyCode.KeyZ);
 
 		if (!producesLetters) {
 			// Since this keyboard layout produces no latin letters at all, most of the UI will use the
@@ -308,17 +308,17 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
 				// }
 			};
-			_registerLabel(KeyCode.US_SEMICOLON, CharCode.Semicolon);
-			_registerLabel(KeyCode.US_EQUAL, CharCode.Equals);
-			_registerLabel(KeyCode.US_COMMA, CharCode.Comma);
-			_registerLabel(KeyCode.US_MINUS, CharCode.Dash);
-			_registerLabel(KeyCode.US_DOT, CharCode.Period);
-			_registerLabel(KeyCode.US_SLASH, CharCode.Slash);
-			_registerLabel(KeyCode.US_BACKTICK, CharCode.BackTick);
-			_registerLabel(KeyCode.US_OPEN_SQUARE_BRACKET, CharCode.OpenSquareBracket);
-			_registerLabel(KeyCode.US_BACKSLASH, CharCode.Backslash);
-			_registerLabel(KeyCode.US_CLOSE_SQUARE_BRACKET, CharCode.CloseSquareBracket);
-			_registerLabel(KeyCode.US_QUOTE, CharCode.SingleQuote);
+			_registerLabel(KeyCode.Semicolon, CharCode.Semicolon);
+			_registerLabel(KeyCode.Equal, CharCode.Equals);
+			_registerLabel(KeyCode.Comma, CharCode.Comma);
+			_registerLabel(KeyCode.Minus, CharCode.Dash);
+			_registerLabel(KeyCode.Period, CharCode.Period);
+			_registerLabel(KeyCode.Slash, CharCode.Slash);
+			_registerLabel(KeyCode.Backquote, CharCode.BackTick);
+			_registerLabel(KeyCode.BracketLeft, CharCode.OpenSquareBracket);
+			_registerLabel(KeyCode.Backslash, CharCode.Backslash);
+			_registerLabel(KeyCode.BracketRight, CharCode.CloseSquareBracket);
+			_registerLabel(KeyCode.Quote, CharCode.SingleQuote);
 		}
 	}
 

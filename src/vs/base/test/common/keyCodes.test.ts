@@ -16,20 +16,20 @@ suite('keyCodes', () => {
 
 	test('mapping for Minus', () => {
 		// [147, 83, 0, ScanCode.Minus, 'Minus', KeyCode.US_MINUS, '-', 189, 'VK_OEM_MINUS', '-', 'OEM_MINUS'],
-		assert.strictEqual(EVENT_KEY_CODE_MAP[189], KeyCode.US_MINUS);
-		assert.strictEqual(NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE['VK_OEM_MINUS'], KeyCode.US_MINUS);
+		assert.strictEqual(EVENT_KEY_CODE_MAP[189], KeyCode.Minus);
+		assert.strictEqual(NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE['VK_OEM_MINUS'], KeyCode.Minus);
 		assert.strictEqual(ScanCodeUtils.lowerCaseToEnum('minus'), ScanCode.Minus);
 		assert.strictEqual(ScanCodeUtils.toEnum('Minus'), ScanCode.Minus);
 		assert.strictEqual(ScanCodeUtils.toString(ScanCode.Minus), 'Minus');
 		assert.strictEqual(IMMUTABLE_CODE_TO_KEY_CODE[ScanCode.Minus], KeyCode.DependsOnKbLayout);
-		assert.strictEqual(IMMUTABLE_KEY_CODE_TO_CODE[KeyCode.US_MINUS], ScanCode.DependsOnKbLayout);
-		assert.strictEqual(KeyCodeUtils.toString(KeyCode.US_MINUS), '-');
-		assert.strictEqual(KeyCodeUtils.fromString('-'), KeyCode.US_MINUS);
-		assert.strictEqual(KeyCodeUtils.toUserSettingsUS(KeyCode.US_MINUS), '-');
-		assert.strictEqual(KeyCodeUtils.toUserSettingsGeneral(KeyCode.US_MINUS), 'OEM_MINUS');
-		assert.strictEqual(KeyCodeUtils.fromUserSettings('-'), KeyCode.US_MINUS);
-		assert.strictEqual(KeyCodeUtils.fromUserSettings('OEM_MINUS'), KeyCode.US_MINUS);
-		assert.strictEqual(KeyCodeUtils.fromUserSettings('oem_minus'), KeyCode.US_MINUS);
+		assert.strictEqual(IMMUTABLE_KEY_CODE_TO_CODE[KeyCode.Minus], ScanCode.DependsOnKbLayout);
+		assert.strictEqual(KeyCodeUtils.toString(KeyCode.Minus), '-');
+		assert.strictEqual(KeyCodeUtils.fromString('-'), KeyCode.Minus);
+		assert.strictEqual(KeyCodeUtils.toUserSettingsUS(KeyCode.Minus), '-');
+		assert.strictEqual(KeyCodeUtils.toUserSettingsGeneral(KeyCode.Minus), 'OEM_MINUS');
+		assert.strictEqual(KeyCodeUtils.fromUserSettings('-'), KeyCode.Minus);
+		assert.strictEqual(KeyCodeUtils.fromUserSettings('OEM_MINUS'), KeyCode.Minus);
+		assert.strictEqual(KeyCodeUtils.fromUserSettings('oem_minus'), KeyCode.Minus);
 	});
 
 	test('mapping for Space', () => {
@@ -82,10 +82,10 @@ suite('keyCodes', () => {
 		);
 		test(
 			new ChordKeybinding([
-				new SimpleKeybinding(false, false, false, true, KeyCode.KEY_Y),
-				new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
+				new SimpleKeybinding(false, false, false, true, KeyCode.KeyY),
+				new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
 			]),
-			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)
 		);
 	});
 
@@ -124,10 +124,10 @@ suite('keyCodes', () => {
 			);
 			test(
 				new ChordKeybinding([
-					new SimpleKeybinding(true, false, false, false, KeyCode.KEY_Y),
-					new SimpleKeybinding(false, false, false, false, KeyCode.KEY_Z)
+					new SimpleKeybinding(true, false, false, false, KeyCode.KeyY),
+					new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
 				]),
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)
 			);
 
 		});

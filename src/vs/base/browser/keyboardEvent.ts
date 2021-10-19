@@ -24,11 +24,11 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 		return KeyCode.PauseBreak;
 	} else if (browser.isFirefox) {
 		if (keyCode === 59) {
-			return KeyCode.US_SEMICOLON;
+			return KeyCode.Semicolon;
 		} else if (keyCode === 107) {
-			return KeyCode.US_EQUAL;
+			return KeyCode.Equal;
 		} else if (keyCode === 109) {
-			return KeyCode.US_MINUS;
+			return KeyCode.Minus;
 		} else if (platform.isMacintosh && keyCode === 224) {
 			return KeyCode.Meta;
 		}
