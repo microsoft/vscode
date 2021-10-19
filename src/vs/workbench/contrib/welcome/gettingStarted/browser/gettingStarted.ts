@@ -1079,7 +1079,7 @@ export class GettingStartedPage extends EditorPane {
 			if (category.newEntry) {
 				reset(newBadge, $('.new-category', {}, localize('new', "New")));
 			} else if (category.newItems) {
-				reset(newBadge, $('.new-items', {}, localize('newItems', "New Items")));
+				reset(newBadge, $('.new-items', {}, localize('newItems', "Updated")));
 			}
 
 			const featuredBadge = $('.featured-badge', {});
