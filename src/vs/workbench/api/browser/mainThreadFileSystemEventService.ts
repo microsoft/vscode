@@ -89,7 +89,7 @@ export class MainThreadFileSystemEventService {
 					delay: Math.min(timeout / 2, 3000)
 				}, () => {
 					// race extension host event delivery against timeout AND user-cancel
-					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, token);
+					const onWillEvent = proxy.$onWillRunFileOperation(operation, files, timeout, cts.token);
 					return raceCancellation(onWillEvent, cts.token);
 				}, () => {
 					// user-cancel
