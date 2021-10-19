@@ -9,6 +9,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
+import { nextCharLength } from 'vs/base/common/strings';
 import { isArray, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -2910,13 +2911,20 @@ export enum ExtensionKind {
 
 export class FileDecoration {
 
-	static validate(d: FileDecoration): void {
-		if (d.badge && d.badge.length !== 1 && d.badge.length !== 2) {
-			throw new Error(`The 'badge'-property must be undefined or a short character`);
+	static validate(d: FileDecoration): boolean {
+		if (d.badge) {
+			let len = nextCharLength(d.badge, 0);
+			if (len < d.badge.length) {
+				len += nextCharLength(d.badge, len);
+			}
+			if (d.badge.length > len) {
+				throw new Error(`The 'badge'-property must be undefined or a short character`);
+			}
 		}
 		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
+		return true;
 	}
 
 	badge?: string;
