@@ -191,6 +191,12 @@ export const enum KeyCode {
 	ABNT_C1, // Brazilian (ABNT) Keyboard
 	ABNT_C2, // Brazilian (ABNT) Keyboard
 
+	AudioVolumeMute,
+	AudioVolumeUp,
+	AudioVolumeDown,
+
+	BrowserSearch,
+	BrowserHome,
 	BrowserBack,
 	BrowserForward,
 
@@ -198,6 +204,9 @@ export const enum KeyCode {
 	MediaTrackPrevious,
 	MediaStop,
 	MediaPlayPause,
+	LaunchMediaPlayer,
+	LaunchMail,
+	LaunchApp2,
 
 	/**
 	 * Placed last to cover the length of the enum.
@@ -608,9 +617,9 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.Copy, 'Copy', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.Paste, 'Paste', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.Find, 'Find', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[0, 1, ScanCode.AudioVolumeMute, 'AudioVolumeMute', KeyCode.Unknown, empty, 0, 'VK_VOLUME_MUTE', empty, empty],
-		[0, 1, ScanCode.AudioVolumeUp, 'AudioVolumeUp', KeyCode.Unknown, empty, 0, 'VK_VOLUME_UP', empty, empty],
-		[0, 1, ScanCode.AudioVolumeDown, 'AudioVolumeDown', KeyCode.Unknown, empty, 0, 'VK_VOLUME_DOWN', empty, empty],
+		[0, 1, ScanCode.AudioVolumeMute, 'AudioVolumeMute', KeyCode.AudioVolumeMute, 'AudioVolumeMute', 173, 'VK_VOLUME_MUTE', empty, empty],
+		[0, 1, ScanCode.AudioVolumeUp, 'AudioVolumeUp', KeyCode.AudioVolumeUp, 'AudioVolumeUp', 175, 'VK_VOLUME_UP', empty, empty],
+		[0, 1, ScanCode.AudioVolumeDown, 'AudioVolumeDown', KeyCode.AudioVolumeDown, 'AudioVolumeDown', 174, 'VK_VOLUME_DOWN', empty, empty],
 		[105, 1, ScanCode.NumpadComma, 'NumpadComma', KeyCode.NUMPAD_SEPARATOR, 'NumPad_Separator', 108, 'VK_SEPARATOR', empty, empty],
 		[110, 0, ScanCode.IntlRo, 'IntlRo', KeyCode.ABNT_C1, 'ABNT_C1', 193, 'VK_ABNT_C1', empty, empty],
 		[0, 1, ScanCode.KanaMode, 'KanaMode', KeyCode.Unknown, empty, 0, empty, empty, empty],
@@ -657,14 +666,14 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[116, 1, ScanCode.MediaStop, 'MediaStop', KeyCode.MediaStop, 'MediaStop', 178, 'VK_MEDIA_STOP', empty, empty],
 		[0, 1, ScanCode.Eject, 'Eject', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[117, 1, ScanCode.MediaPlayPause, 'MediaPlayPause', KeyCode.MediaPlayPause, 'MediaPlayPause', 179, 'VK_MEDIA_PLAY_PAUSE', empty, empty],
-		[0, 1, ScanCode.MediaSelect, 'MediaSelect', KeyCode.Unknown, empty, 0, 'VK_MEDIA_LAUNCH_MEDIA_SELECT', empty, empty],
-		[0, 1, ScanCode.LaunchMail, 'LaunchMail', KeyCode.Unknown, empty, 0, 'VK_MEDIA_LAUNCH_MAIL', empty, empty],
-		[0, 1, ScanCode.LaunchApp2, 'LaunchApp2', KeyCode.Unknown, empty, 0, 'VK_MEDIA_LAUNCH_APP2', empty, empty],
+		[0, 1, ScanCode.MediaSelect, 'MediaSelect', KeyCode.LaunchMediaPlayer, 'LaunchMediaPlayer', 181, 'VK_MEDIA_LAUNCH_MEDIA_SELECT', empty, empty],
+		[0, 1, ScanCode.LaunchMail, 'LaunchMail', KeyCode.LaunchMail, 'LaunchMail', 180, 'VK_MEDIA_LAUNCH_MAIL', empty, empty],
+		[0, 1, ScanCode.LaunchApp2, 'LaunchApp2', KeyCode.LaunchApp2, 'LaunchApp2', 183, 'VK_MEDIA_LAUNCH_APP2', empty, empty],
 		[0, 1, ScanCode.LaunchApp1, 'LaunchApp1', KeyCode.Unknown, empty, 0, 'VK_MEDIA_LAUNCH_APP1', empty, empty],
 		[0, 1, ScanCode.SelectTask, 'SelectTask', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.LaunchScreenSaver, 'LaunchScreenSaver', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[0, 1, ScanCode.BrowserSearch, 'BrowserSearch', KeyCode.Unknown, empty, 0, 'VK_BROWSER_SEARCH', empty, empty],
-		[0, 1, ScanCode.BrowserHome, 'BrowserHome', KeyCode.Unknown, empty, 0, 'VK_BROWSER_HOME', empty, empty],
+		[0, 1, ScanCode.BrowserSearch, 'BrowserSearch', KeyCode.BrowserSearch, 'BrowserSearch', 170, 'VK_BROWSER_SEARCH', empty, empty],
+		[0, 1, ScanCode.BrowserHome, 'BrowserHome', KeyCode.BrowserHome, 'BrowserHome', 172, 'VK_BROWSER_HOME', empty, empty],
 		[112, 1, ScanCode.BrowserBack, 'BrowserBack', KeyCode.BrowserBack, 'BrowserBack', 166, 'VK_BROWSER_BACK', empty, empty],
 		[113, 1, ScanCode.BrowserForward, 'BrowserForward', KeyCode.BrowserForward, 'BrowserForward', 167, 'VK_BROWSER_FORWARD', empty, empty],
 		[0, 1, ScanCode.BrowserStop, 'BrowserStop', KeyCode.Unknown, empty, 0, 'VK_BROWSER_STOP', empty, empty],
@@ -734,6 +743,9 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		}
 		if (!seenKeyCode[keyCode]) {
 			seenKeyCode[keyCode] = true;
+			if (!keyCodeStr) {
+				throw new Error(`String representation missing for key code ${keyCode} around scan code ${scanCodeStr}`);
+			}
 			uiMap.define(keyCode, keyCodeStr);
 			userSettingsUSMap.define(keyCode, usUserSettingsLabel || keyCodeStr);
 			userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel || usUserSettingsLabel || keyCodeStr);

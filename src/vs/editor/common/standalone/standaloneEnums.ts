@@ -552,17 +552,25 @@ export enum KeyCode {
 	KEY_IN_COMPOSITION = 109,
 	ABNT_C1 = 110,
 	ABNT_C2 = 111,
-	BrowserBack = 112,
-	BrowserForward = 113,
-	MediaTrackNext = 114,
-	MediaTrackPrevious = 115,
-	MediaStop = 116,
-	MediaPlayPause = 117,
+	AudioVolumeMute = 112,
+	AudioVolumeUp = 113,
+	AudioVolumeDown = 114,
+	BrowserSearch = 115,
+	BrowserHome = 116,
+	BrowserBack = 117,
+	BrowserForward = 118,
+	MediaTrackNext = 119,
+	MediaTrackPrevious = 120,
+	MediaStop = 121,
+	MediaPlayPause = 122,
+	LaunchMediaPlayer = 123,
+	LaunchMail = 124,
+	LaunchApp2 = 125,
 	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 118
+	MAX_VALUE = 126
 }
 
 export enum MarkerSeverity {
