@@ -1222,6 +1222,8 @@ class ViewModel {
 			this.scmProviderHasRootUriContextKey.set(false);
 		}
 
+		const focusedInput = this.inputRenderer.getFocusedInput();
+
 		if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
 			const item = Iterable.first(this.items.values())!;
 			this.tree.setChildren(null, this.render(item, this.treeViewState).children);
@@ -1230,6 +1232,10 @@ class ViewModel {
 		} else {
 			const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
 			this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
+		}
+
+		if (focusedInput) {
+			this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
 		}
 
 		this.updateRepositoryCollapseAllContextKeys();
