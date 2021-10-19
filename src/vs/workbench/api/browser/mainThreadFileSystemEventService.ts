@@ -100,8 +100,8 @@ export class MainThreadFileSystemEventService {
 					clearTimeout(timer);
 				});
 
-				if (!data) {
-					// cancelled or no reply
+				if (!data || data.edit.edits.length === 0) {
+					// cancelled, no reply, or no edits
 					return;
 				}
 
