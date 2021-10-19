@@ -687,6 +687,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._processManager.onProcessReady((processTraits) => {
+			// If links are ready, do not re-create the manager.
+			if (this._areLinksReady) {
+				return;
+			}
+
 			if (this._processManager.os === OperatingSystem.Windows) {
 				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
 				// Force line data to be sent when the cursor is moved, the main purpose for
