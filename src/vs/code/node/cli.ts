@@ -428,18 +428,10 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			// Keep just the _ env var here,
-			// because it's still needed to open Code,
-			// even though the open command doesn't understand it.
-			const truncatedOptions = {
-				detached: options.detached,
-				stdio: options['stdio'],
-				env: {
-					'_': options.env?.['_']
-				}
-			};
-
-			child = spawn('open', spawnArgs, truncatedOptions);
+			// We already passed over the env variables
+			// using the --env flags, so we can leave them out here.
+			// Also, we don't need to pass env._, which is different from argv._
+			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));
