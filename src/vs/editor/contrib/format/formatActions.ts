@@ -92,7 +92,7 @@ class FormatOnType implements IEditorContribution {
 			return;
 		}
 
-		if (this._editor.getSelections().length > 1) {
+		if (this._editor.getSelections().length > 1 || !this._editor.getSelection().isEmpty()) {
 			return;
 		}
 
