@@ -18,6 +18,7 @@ export interface ISelectedNotebooksChangeEvent {
 export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly suggested: INotebookKernel | undefined;
+	readonly preferred: INotebookKernel[];
 	readonly all: INotebookKernel[];
 }
 
@@ -26,6 +27,7 @@ export interface INotebookKernelChangeEvent {
 	label?: true;
 	description?: true;
 	detail?: true;
+	category?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 }
@@ -44,6 +46,7 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
+	category?: string;
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;

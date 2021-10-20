@@ -14,7 +14,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
@@ -128,7 +128,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
-		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
+		const { selected, all, preferred } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
@@ -156,16 +156,19 @@ registerAction2(class extends Action2 {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
 			};
-			const picks: (KernelPick | IQuickPickItem)[] = all.map(kernel => {
+			let selectedKernelPick: KernelPick | undefined;
+			const picks: KernelPick[] = all.map(kernel => {
 				const res = <KernelPick>{
 					kernel,
 					picked: kernel.id === selected?.id,
 					label: kernel.label,
 					description: kernel.description,
 					detail: kernel.detail,
+					category: kernel.category,
 					buttons: [configButton]
 				};
 				if (kernel.id === selected?.id) {
+					selectedKernelPick = res;
 					if (!res.description) {
 						res.description = nls.localize('current1', "Currently Selected");
 					} else {
@@ -174,14 +177,48 @@ registerAction2(class extends Action2 {
 				}
 				{ return res; }
 			});
-			if (!all.length) {
-				picks.push({
+			const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick>[] = [];
+			if (!picks.length) {
+				quickPickItems.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
 				});
+			} else {
+				// Always on top -> Selected & suggested kernels.
+				if (selectedKernelPick) {
+					quickPickItems.push(selectedKernelPick);
+				}
+				quickPickItems.push(...picks.filter(item => preferred.includes(item.kernel)));
+				if (quickPickItems.length) {
+					quickPickItems.splice(0, 0, {
+						type: 'separator',
+						label: nls.localize('suggestedKernels', "Suggested")
+					});
+				}
+
+				// Next display all of the kernels grouped by categories or extensions.
+				const kernelsPerCategory = new Map<string, KernelPick[]>();
+				picks.forEach(item => {
+					const category = item.category || item.kernel.extension.value;
+					if (!quickPickItems.includes(item)) {
+						const list = kernelsPerCategory.get(category) || [];
+						list.push(item);
+						kernelsPerCategory.set(category, list);
+					}
+				});
+				Array.from(kernelsPerCategory.keys())
+					.sort((a, b) => a.toLocaleLowerCase().localeCompare(b.toLocaleLowerCase()))
+					.forEach(category => {
+						const items = kernelsPerCategory.get(category)!;
+						quickPickItems.push({
+							type: 'separator',
+							label: category
+						});
+						quickPickItems.push(...items);
+					});
 			}
 
-			const pick = await quickInputService.pick(picks, {
+			const pick = await quickInputService.pick(quickPickItems, {
 				placeHolder: selected
 					? nls.localize('prompt.placeholder.change', "Change kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true }))
 					: nls.localize('prompt.placeholder.select', "Select kernel for '{0}'", labelService.getUriLabel(notebook.uri, { relative: true })),

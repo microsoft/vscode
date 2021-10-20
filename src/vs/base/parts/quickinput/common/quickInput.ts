@@ -26,6 +26,7 @@ export interface IQuickPickItem {
 	ariaLabel?: string;
 	description?: string;
 	detail?: string;
+	category?: string;
 	/**
 	 * Allows to show a keybinding next to the item to indicate
 	 * how the item can be triggered outside of the picker using
