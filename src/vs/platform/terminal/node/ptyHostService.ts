@@ -48,7 +48,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _restartCount = 0;
 	private _isResponsive = true;
 	private _isDisposed = false;
-
+	private _logIfWslNotInstalled = true;
 	private _heartbeatFirstTimeout?: NodeJS.Timeout;
 	private _heartbeatSecondTimeout?: NodeJS.Timeout;
 
@@ -269,7 +269,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 	async getProfiles(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
 		const shellEnv = await this._shellEnv;
-		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
+		const shouldLog = this._logIfWslNotInstalled;
+		if (shouldLog) {
+			this._logIfWslNotInstalled = false;
+		}
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, shouldLog, this._configurationService, shellEnv, undefined, this._logService, this._resolveVariables.bind(this, workspaceId));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
