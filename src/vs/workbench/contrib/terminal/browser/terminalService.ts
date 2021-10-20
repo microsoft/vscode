@@ -57,6 +57,7 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
+	private _haveRefreshedProfilesAgain: boolean;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
@@ -189,7 +190,7 @@ export class TerminalService implements ITerminalService {
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
-
+		this._haveRefreshedProfilesAgain = false;
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
@@ -265,7 +266,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this._refreshAvailableProfiles();
+				await this._refreshAvailableProfiles();
 			}
 		});
 
@@ -512,6 +513,10 @@ export class TerminalService implements ITerminalService {
 		const result = await this._detectProfiles();
 		const profilesChanged = !equals(result, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		if (result.length === 0 && !this._haveRefreshedProfilesAgain) {
+			this._haveRefreshedProfilesAgain = true;
+			await this._refreshAvailableProfilesNow();
+		}
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = result;
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
