@@ -18,20 +18,22 @@ import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
-class MainProcessDiskFileSystemProvider extends IPCFileSystemProvider {
-
-	constructor(mainProcessService: IMainProcessService) {
-		super(mainProcessService.getChannel('diskFiles'));
-	}
-}
-
+/**
+ * A sandbox ready disk file system provider that delegates almost all calls
+ * to the main process via `IPCFileSystemProvider` except for recursive file
+ * watching that is done via shared process workers due to CPU intensity.
+ */
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
-	private readonly provider = new MainProcessDiskFileSystemProvider(this.mainProcessService);
+	private readonly provider = this._register(new class extends IPCFileSystemProvider {
+		constructor(mainProcessService: IMainProcessService) {
+			super(mainProcessService.getChannel('diskFiles'));
+		}
+	}(this.mainProcessService));
 
 	constructor(
 		private readonly mainProcessService: IMainProcessService,

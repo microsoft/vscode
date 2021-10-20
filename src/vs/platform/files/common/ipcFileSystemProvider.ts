@@ -13,13 +13,12 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
-interface IFileChangeDto {
-	resource: UriComponents;
-	type: FileChangeType;
-}
-
+/**
+ * An implementation of a file system provider that is backed by a `IChannel`
+ * and thus implemented via IPC on a different process.
+ */
 export abstract class IPCFileSystemProvider extends Disposable implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
@@ -71,9 +70,9 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 	//#region File Reading/Writing
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		const buff = <VSBuffer>await this.channel.call('readFile', [resource]);
+		const { buffer } = await this.channel.call('readFile', [resource]) as VSBuffer;
 
-		return buff.buffer;
+		return buffer;
 	}
 
 	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -99,7 +98,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 					// error here to forward it properly.
 					let error = dataOrErrorOrEnd;
 					if (!(error instanceof Error)) {
-						error = new Error(toErrorMessage(error));
+						error = createFileSystemProviderError(toErrorMessage(error), FileSystemProviderErrorCode.Unknown);
 					}
 
 					stream.error(error);
@@ -183,7 +182,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 	private readonly _onDidChange = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChange.event;
 
-	private _onDidErrorOccur = this._register(new Emitter<string>());
+	private readonly _onDidErrorOccur = this._register(new Emitter<string>());
 	readonly onDidErrorOccur = this._onDidErrorOccur.event;
 
 	// The contract for file watching via remote is to identify us
@@ -199,7 +198,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 		// for both events and errors from the watcher. So we need to
 		// unwrap the event from the remote and emit through the proper
 		// emitter.
-		this._register(this.channel.listen<IFileChangeDto[] | string>('filechange', [this.sessionId])(eventsOrError => {
+		this._register(this.channel.listen<{ resource: UriComponents; type: FileChangeType; }[] | string>('filechange', [this.sessionId])(eventsOrError => {
 			if (Array.isArray(eventsOrError)) {
 				const events = eventsOrError;
 				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));

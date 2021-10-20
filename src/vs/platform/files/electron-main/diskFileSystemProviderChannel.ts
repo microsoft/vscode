@@ -9,7 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileDeleteOptions, FileOverwriteOptions, FileType, IStat, FileOpenOptions, FileWriteOptions, FileReadStreamOptions, IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileType, IStat, FileOpenOptions, FileWriteOptions, FileReadStreamOptions, IFileChange, IWatchOptions, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -20,6 +20,10 @@ import { combinedDisposable, Disposable, dispose, IDisposable } from 'vs/base/co
 import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
+/**
+ * A server implementation for a IPC based file system provider (see `IPCFileSystemProvider`)
+ * client.
+ */
 export class DiskFileSystemProviderChannel extends Disposable implements IServerChannel {
 
 	constructor(
@@ -74,9 +78,9 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 	//#region File Reading/Writing
 
 	private async readFile(resource: URI): Promise<VSBuffer> {
-		const buff = await this.provider.readFile(resource);
+		const buffer = await this.provider.readFile(resource);
 
-		return VSBuffer.wrap(buff);
+		return VSBuffer.wrap(buffer);
 	}
 
 	private onReadFileStream(resource: URI, opts: FileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
@@ -150,7 +154,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 		try {
 			await shell.trashItem(filePath);
 		} catch (error) {
-			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
+			throw createFileSystemProviderError(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)), FileSystemProviderErrorCode.Unknown);
 		}
 	}
 
@@ -172,7 +176,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 
 	private watch(sessionId: string, req: number, resource: URI, opts: IWatchOptions): void {
 		if (opts.recursive) {
-			throw new Error('Recursive watcher is not supported from main process');
+			throw createFileSystemProviderError('Recursive watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
 		}
 
 		const watcher = new NodeJSWatcherService(
