@@ -95,3 +95,9 @@ $$
 \text{stuff}
 \text {stuff}
 $$
+
+<!-- Should not highlight inside of raw code block -->
+
+    $$
+    \frac{1}{2}
+    $$
