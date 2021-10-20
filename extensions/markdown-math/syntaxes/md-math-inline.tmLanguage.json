@@ -9,13 +9,13 @@
 	"repository": {
 		"math_inline": {
 			"name": "markup.math.inline.markdown",
-			"contentName": "meta.embedded.math.markdown",
 			"match": "(?<=\\s|^)(\\${1,2})(.+?)(\\${1,2})(?=\\s|$)",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				},
 				"2": {
+					"name": "meta.embedded.math.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"

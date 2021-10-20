@@ -2894,46 +2894,46 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
@@ -3059,46 +3059,46 @@
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
 		"c": "\\",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex punctuation.definition.constant.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "theta",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown constant.character.math.tex",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown constant.character.math.tex",
 		"r": {
 			"dark_plus": "constant.character: #569CD6",
 			"light_plus": "constant.character: #0000FF",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": " ",
-		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown",
+		"t": "text.html.markdown meta.paragraph.markdown markup.math.inline.markdown meta.embedded.math.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "meta.embedded: #D4D4D4",
+			"light_plus": "meta.embedded: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
+			"hc_black": "meta.embedded: #FFFFFF"
 		}
 	},
 	{
