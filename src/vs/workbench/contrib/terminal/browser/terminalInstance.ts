@@ -1376,9 +1376,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				}
 				this._exitCode = exitCodeOrError.code;
-				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d{3,4}).*$/)?.[1];
+				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d{3,4}).*$/);
 				if (conptyError) {
-					const errorCode = parseInt(conptyError);
+					const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
 					switch (errorCode) {
 						case 267:
 							exitCodeOrError.message = `Invalid starting directory ${this.initialCwd}, review your terminal.integrated.cwd setting`;
