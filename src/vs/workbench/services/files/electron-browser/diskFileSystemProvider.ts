@@ -6,42 +6,27 @@
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IWatchOptions } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions as INodeDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
+import { DiskFileSystemProvider as SandboxedDiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
-import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
-import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IDiskFileSystemProviderOptions extends INodeDiskFileSystemProviderOptions {
 	experimentalSandbox: boolean;
-}
-
-class MainProcessDiskFileSystemProvider extends IPCFileSystemProvider {
-
-	constructor(mainProcessService: IMainProcessService) {
-		super(mainProcessService.getChannel('localFiles'));
-	}
 }
 
 export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 
 	private readonly experimentalSandbox: boolean;
 
-	private _sandboxedFs: MainProcessDiskFileSystemProvider | undefined = undefined;
-	get sandboxedFs(): MainProcessDiskFileSystemProvider {
-		if (!this._sandboxedFs) {
-			this._sandboxedFs = new MainProcessDiskFileSystemProvider(this.mainProcessService);
-		}
-
-		return this._sandboxedFs;
-	}
+	private readonly sandboxedFs = new SandboxedDiskFileSystemProvider(this.mainProcessService, this.sharedProcessWorkerWorkbenchService, this.logService);
 
 	constructor(
 		logService: ILogService,
@@ -53,6 +38,14 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 		super(logService, options);
 
 		this.experimentalSandbox = !!options?.experimentalSandbox;
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Forward events from the embedded provider
+		this.sandboxedFs.onDidChangeFile(e => this._onDidChangeFile.fire(e));
+		this.sandboxedFs.onDidErrorOccur(e => this._onDidErrorOccur.fire(e));
 	}
 
 	//#region File Capabilities
@@ -199,23 +192,12 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 
 	//#region File Watching
 
-	protected override createRecursiveWatcher(
-		folders: IWatchRequest[],
-		onChange: (changes: IDiskFileChange[]) => void,
-		onLogMessage: (msg: ILogMessage) => void,
-		verboseLogging: boolean
-	): WatcherService {
-		if (!this.experimentalSandbox) {
-			return super.createRecursiveWatcher(folders, onChange, onLogMessage, verboseLogging);
+	override watch(resource: URI, opts: IWatchOptions): IDisposable {
+		if (this.experimentalSandbox) {
+			return this.sandboxedFs.watch(resource, opts);
 		}
 
-		return new ParcelFileWatcher(
-			folders,
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging,
-			this.sharedProcessWorkerWorkbenchService
-		);
+		return super.watch(resource, opts);
 	}
 
 	//#endregion

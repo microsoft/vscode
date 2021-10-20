@@ -7,20 +7,26 @@ import { shell } from 'electron';
 import { localize } from 'vs/nls';
 import { isWindows } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileDeleteOptions, FileOverwriteOptions, FileType, IStat, FileOpenOptions, FileWriteOptions, FileReadStreamOptions } from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileType, IStat, FileOpenOptions, FileWriteOptions, FileReadStreamOptions, IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { listenStream, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { basename, normalize } from 'vs/base/common/path';
+import { combinedDisposable, Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
-export class DiskFileSystemProviderChannel implements IServerChannel {
+export class DiskFileSystemProviderChannel extends Disposable implements IServerChannel {
 
 	constructor(
-		private readonly provider: DiskFileSystemProvider
+		private readonly provider: DiskFileSystemProvider,
+		private readonly logService: ILogService
 	) {
+		super();
 	}
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
@@ -37,6 +43,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 			case 'copy': return this.copy(URI.revive(arg[0]), URI.revive(arg[1]), arg[2]);
 			case 'mkdir': return this.mkdir(URI.revive(arg[0]));
 			case 'delete': return this.delete(URI.revive(arg[0]), arg[1]);
+			case 'watch': return Promise.resolve(this.watch(arg[0], arg[1], URI.revive(arg[2]), arg[3]));
+			case 'unwatch': return Promise.resolve(this.unwatch(arg[0], arg[1]));
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -44,14 +52,34 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 
 	listen(_: unknown, event: string, arg: any): Event<any> {
 		switch (event) {
-			case 'filechange': return Event.None; // not supported from here, needs to use shared process for file watching
-			case 'readFileStream': return this.onReadFileStream(arg[0], arg[1]);
+			case 'filechange': return this.onDidChangeFileOrError.event;
+			case 'readFileStream': return this.onReadFileStream(URI.revive(arg[0]), arg[1]);
 		}
 
 		throw new Error(`Unknown event ${event}`);
 	}
 
-	private onReadFileStream(resource: UriComponents, opts: FileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
+	//#region File Metadata Resolving
+
+	private stat(resource: URI): Promise<IStat> {
+		return this.provider.stat(resource);
+	}
+
+	private readdir(resource: URI): Promise<[string, FileType][]> {
+		return this.provider.readdir(resource);
+	}
+
+	//#endregion
+
+	//#region File Reading/Writing
+
+	private async readFile(resource: URI): Promise<VSBuffer> {
+		const buff = await this.provider.readFile(resource);
+
+		return VSBuffer.wrap(buff);
+	}
+
+	private onReadFileStream(resource: URI, opts: FileReadStreamOptions): Event<ReadableStreamEventPayload<VSBuffer>> {
 		const cts = new CancellationTokenSource();
 
 		const emitter = new Emitter<ReadableStreamEventPayload<VSBuffer>>({
@@ -63,11 +91,13 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 			}
 		});
 
-		const fileStream = this.provider.readFileStream(URI.revive(resource), opts, cts.token);
+		const fileStream = this.provider.readFileStream(resource, opts, cts.token);
 		listenStream(fileStream, {
 			onData: chunk => emitter.fire(VSBuffer.wrap(chunk)),
 			onError: error => emitter.fire(error),
 			onEnd: () => {
+
+				// Forward event
 				emitter.fire('end');
 
 				// Cleanup
@@ -79,12 +109,8 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 		return emitter.event;
 	}
 
-	private stat(resource: URI): Promise<IStat> {
-		return this.provider.stat(resource);
-	}
-
-	private readdir(resource: URI): Promise<[string, FileType][]> {
-		return this.provider.readdir(resource);
+	private writeFile(resource: URI, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
+		return this.provider.writeFile(resource, content.buffer, opts);
 	}
 
 	private open(resource: URI, opts: FileOpenOptions): Promise<number> {
@@ -103,27 +129,13 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 		return [buffer, bytesRead];
 	}
 
-	private async readFile(resource: URI): Promise<VSBuffer> {
-		const buff = await this.provider.readFile(resource);
-
-		return VSBuffer.wrap(buff);
-	}
-
 	private write(fd: number, pos: number, data: VSBuffer, offset: number, length: number): Promise<number> {
 		return this.provider.write(fd, pos, data.buffer, offset, length);
 	}
 
-	private writeFile(resource: URI, content: VSBuffer, opts: FileWriteOptions): Promise<void> {
-		return this.provider.writeFile(resource, content.buffer, opts);
-	}
+	//#endregion
 
-	private rename(source: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this.provider.rename(source, target, opts);
-	}
-
-	private copy(source: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
-		return this.provider.copy(source, target, opts);
-	}
+	//#region Move/Copy/Delete/Create Folder
 
 	private mkdir(resource: URI): Promise<void> {
 		return this.provider.mkdir(resource);
@@ -140,5 +152,67 @@ export class DiskFileSystemProviderChannel implements IServerChannel {
 		} catch (error) {
 			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
 		}
+	}
+
+	private rename(source: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+		return this.provider.rename(source, target, opts);
+	}
+
+	private copy(source: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+		return this.provider.copy(source, target, opts);
+	}
+
+	//#endregion
+
+	//#region File Watching
+
+	private readonly onDidChangeFileOrError = this._register(new Emitter<readonly IFileChange[] | string>());
+
+	private readonly nonRecursiveFileWatchers = new Map<string /* ID */, IDisposable>();
+
+	private watch(sessionId: string, req: number, resource: URI, opts: IWatchOptions): void {
+		if (opts.recursive) {
+			throw new Error('Recursive watcher is not supported from main process');
+		}
+
+		const watcher = new NodeJSWatcherService(
+			normalize(resource.fsPath),
+			changes => this.onDidChangeFileOrError.fire(toFileChanges(changes)),
+			msg => this.onWatcherLogMessage(msg),
+			this.logService.getLevel() === LogLevel.Trace
+		);
+
+		const logLevelListener = this.logService.onDidChangeLogLevel(() => {
+			watcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+		});
+
+		const id = sessionId + req;
+		this.nonRecursiveFileWatchers.set(id, combinedDisposable(watcher, logLevelListener));
+	}
+
+	private onWatcherLogMessage(msg: ILogMessage): void {
+		if (msg.type === 'error') {
+			this.onDidChangeFileOrError.fire(msg.message);
+		}
+
+		this.logService[msg.type](msg.message);
+	}
+
+	private unwatch(sessionId: string, req: number): void {
+		const id = sessionId + req;
+		const disposable = this.nonRecursiveFileWatchers.get(id);
+		if (disposable) {
+			dispose(disposable);
+			this.nonRecursiveFileWatchers.delete(id);
+		}
+	}
+
+	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		this.nonRecursiveFileWatchers.forEach(disposable => dispose(disposable));
+		this.nonRecursiveFileWatchers.clear();
 	}
 }

@@ -6,31 +6,55 @@
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
 import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IWatchOptions } from 'vs/platform/files/common/files';
+import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { IPCFileSystemProvider } from 'vs/platform/files/common/ipcFileSystemProvider';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
+import { ParcelFileWatcher } from 'vs/workbench/services/files/electron-sandbox/parcelWatcherService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 class MainProcessDiskFileSystemProvider extends IPCFileSystemProvider {
 
 	constructor(mainProcessService: IMainProcessService) {
-		super(mainProcessService.getChannel('localFiles'));
+		super(mainProcessService.getChannel('diskFiles'));
 	}
 }
 
-export class DiskFileSystemProvider implements
+export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
 
+	private readonly provider = new MainProcessDiskFileSystemProvider(this.mainProcessService);
+
+	constructor(
+		private readonly mainProcessService: IMainProcessService,
+		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
+		logService: ILogService
+	) {
+		super(logService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Forward events from the embedded provider
+		this.provider.onDidChangeFile(e => this._onDidChangeFile.fire(e));
+		this.provider.onDidErrorOccur(e => this._onDidErrorOccur.fire(e));
+	}
+
 	//#region File Capabilities
 
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
-	protected _capabilities: FileSystemProviderCapabilities | undefined;
+	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities =
@@ -38,6 +62,7 @@ export class DiskFileSystemProvider implements
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
+				FileSystemProviderCapabilities.Trash |
 				FileSystemProviderCapabilities.FileWriteUnlock;
 
 			if (isLinux) {
@@ -49,13 +74,6 @@ export class DiskFileSystemProvider implements
 	}
 
 	//#endregion
-
-	private readonly provider = new MainProcessDiskFileSystemProvider(this.mainProcessService);
-
-	constructor(
-		private readonly mainProcessService: IMainProcessService
-	) {
-	}
 
 	//#region File Metadata Resolving
 
@@ -123,10 +141,34 @@ export class DiskFileSystemProvider implements
 
 	//#region File Watching
 
-	onDidErrorOccur = Event.None;
-	onDidChangeFile = Event.None;
-	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
+	override watch(resource: URI, opts: IWatchOptions): IDisposable {
+
+		// Recursive: via parcel file watcher from `createRecursiveWatcher`
+		if (opts.recursive) {
+			return super.watch(resource, opts);
+		}
+
+		// Non-recursive: via main process services
+		return this.provider.watch(resource, opts);
+	}
+
+	protected createRecursiveWatcher(
+		folders: IWatchRequest[],
+		onChange: (changes: IDiskFileChange[]) => void,
+		onLogMessage: (msg: ILogMessage) => void,
+		verboseLogging: boolean
+	): WatcherService {
+		return new ParcelFileWatcher(
+			folders,
+			changes => onChange(changes),
+			msg => onLogMessage(msg),
+			verboseLogging,
+			this.sharedProcessWorkerWorkbenchService
+		);
+	}
+
+	protected createNonRecursiveWatcher(): never {
+		throw new Error('Method not implemented in sandbox.');
 	}
 
 	//#endregion
