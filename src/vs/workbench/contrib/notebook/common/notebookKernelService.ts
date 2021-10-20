@@ -18,7 +18,7 @@ export interface ISelectedNotebooksChangeEvent {
 export interface INotebookKernelMatchResult {
 	readonly selected: INotebookKernel | undefined;
 	readonly suggested: INotebookKernel | undefined;
-	readonly preferred: INotebookKernel[];
+	readonly suggestions: INotebookKernel[];
 	readonly all: INotebookKernel[];
 }
 

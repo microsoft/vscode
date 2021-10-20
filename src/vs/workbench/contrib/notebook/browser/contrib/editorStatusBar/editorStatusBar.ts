@@ -128,7 +128,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
-		const { selected, all, preferred } = notebookKernelService.getMatchingKernel(notebook);
+		const { selected, all, suggestions } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
 			// current kernel is wanted kernel -> done
@@ -188,7 +188,7 @@ registerAction2(class extends Action2 {
 				if (selectedKernelPick) {
 					quickPickItems.push(selectedKernelPick);
 				}
-				quickPickItems.push(...picks.filter(item => preferred.includes(item.kernel)));
+				quickPickItems.push(...picks.filter(item => suggestions.includes(item.kernel)));
 				if (quickPickItems.length) {
 					quickPickItems.splice(0, 0, {
 						type: 'separator',
