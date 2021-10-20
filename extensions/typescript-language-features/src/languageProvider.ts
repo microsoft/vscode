@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
+import { basename, extname } from 'path';
 import * as vscode from 'vscode';
 import { CommandManager } from './commands/commandManager';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
@@ -94,11 +94,16 @@ export default class LanguageProvider extends Disposable {
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 	}
 
-	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
-		if (this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
-		}
+	public handlesUri(resource: vscode.Uri): boolean {
+		const ext = extname(resource.path).slice(1).toLowerCase();
+		return this.description.standardFileExtensions.includes(ext) || this.handlesConfigFile(resource);
+	}
 
+	public handlesDocument(doc: vscode.TextDocument): boolean {
+		return this.description.modeIds.includes(doc.languageId) || this.handlesConfigFile(doc.uri);
+	}
+
+	private handlesConfigFile(resource: vscode.Uri) {
 		const base = basename(resource.fsPath);
 		return !!base && (!!this.description.configFilePattern && this.description.configFilePattern.test(base));
 	}
