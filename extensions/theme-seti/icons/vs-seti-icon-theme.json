@@ -1808,10 +1808,15 @@
 		"yarn.clean": "_yarn",
 		"yarn.lock": "_yarn",
 		"webpack.config.js": "_webpack",
+		"webpack.config.cjs": "_webpack",
 		"webpack.config.build.js": "_webpack",
+		"webpack.config.build.cjs": "_webpack",
 		"webpack.common.js": "_webpack",
+		"webpack.common.cjs": "_webpack",
 		"webpack.dev.js": "_webpack",
+		"webpack.dev.cjs": "_webpack",
 		"webpack.prod.js": "_webpack",
+		"webpack.prod.cjs": "_webpack",
 		"license": "_license",
 		"licence": "_license",
 		"license.md": "_license",
@@ -2256,10 +2261,15 @@
 			"yarn.clean": "_yarn_light",
 			"yarn.lock": "_yarn_light",
 			"webpack.config.js": "_webpack_light",
+			"webpack.config.cjs": "_webpack_light",
 			"webpack.config.build.js": "_webpack_light",
+			"webpack.config.build.cjs": "_webpack_light",
 			"webpack.common.js": "_webpack_light",
+			"webpack.common.cjs": "_webpack_light",
 			"webpack.dev.js": "_webpack_light",
+			"webpack.dev.cjs": "_webpack_light",
 			"webpack.prod.js": "_webpack_light",
+			"webpack.prod.cjs": "_webpack_light",
 			"license": "_license_light",
 			"licence": "_license_light",
 			"license.md": "_license_light",
@@ -2274,5 +2284,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/47b47392f02633487c8626566b51c0d9d81b210d"
+	"version": "https://github.com/jesseweed/seti-ui/commit/8eacb11357be8b79868246f972702b6b2460e9ac"
 }
