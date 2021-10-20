@@ -22,12 +22,13 @@ export function detectAvailableProfiles(
 	profiles: unknown,
 	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
+	logIfWslNotInstalled: boolean,
 	configurationService: IConfigurationService,
 	shellEnv: typeof process.env = process.env,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
-	testPwshSourcePaths?: string[],
+	testPwshSourcePaths?: string[]
 ): Promise<ITerminalProfile[]> {
 	fsProvider = fsProvider || {
 		existsFile: pfs.SymlinkSupport.existsFile,
@@ -36,6 +37,7 @@ export function detectAvailableProfiles(
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
+			logIfWslNotInstalled,
 			fsProvider,
 			shellEnv,
 			logService,
@@ -60,6 +62,7 @@ export function detectAvailableProfiles(
 
 async function detectAvailableWindowsProfiles(
 	includeDetectedProfiles: boolean,
+	logIfWslNotInstalled: boolean,
 	fsProvider: IFsProvider,
 	shellEnv: typeof process.env,
 	logService?: ILogService,
@@ -130,7 +133,9 @@ async function detectAvailableWindowsProfiles(
 				}
 			}
 		} catch (e) {
-			logService?.info('WSL is not installed, so could not detect WSL profiles');
+			if (logIfWslNotInstalled) {
+				logService?.info('WSL is not installed, so could not detect WSL profiles');
+			}
 		}
 	}
 
