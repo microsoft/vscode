@@ -422,91 +422,91 @@
       "commandPalette": [
         {
           "command": "editor.emmet.action.wrapWithAbbreviation",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.removeTag",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.updateTag",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.matchTag",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.balanceIn",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.balanceOut",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.prevEditPoint",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.nextEditPoint",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.mergeLines",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.selectPrevItem",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.selectNextItem",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.splitJoinTag",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.toggleComment",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.evaluateMathExpression",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.updateImageSize",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.incrementNumberByOneTenth",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.incrementNumberByOne",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.incrementNumberByTen",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.decrementNumberByOneTenth",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.decrementNumberByOne",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.decrementNumberByTen",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.reflectCSSValue",
-          "when": "resourceScheme == file"
+          "when": "!activeEditorIsReadonly"
         }
       ]
     }
