@@ -4,11 +4,13 @@ $$
 \theta
 $$
 
+**md**
+
 $$
 \theta{ % comment
 $$
 
-**a**
+**md**
 
 $$
 \relax{x}{1} = \int_{-\infty}^\infty
@@ -16,9 +18,13 @@ $$
     \,d\xi % comment
 $$
 
+**md**
+
 $
 x = 1.1 \int_{a}
 $
+
+**md**
 
 $
 \begin{smallmatrix}
@@ -57,13 +63,15 @@ a **a**$ \theta $aa a **a**
 
 a **a**$$ \theta $$aa a **a**
 
+<!-- Should be disabled in comments -->
+
 <!--
 $$
 \theta % comment
 $$
 -->
 
-Should be disabled in fenced code blocks:
+<!-- Should be disabled in fenced code blocks -->
 
 ```txt
 $$
@@ -106,10 +114,40 @@ $$
 
 $$ \vec{a}
 \vec{a}
-= [2, 3] $$
+\vec{a} $$
+
+**md**
+
+$ \vec{a}
+\vec{a}
+\vec{a} $
+
+**md**
 
 \vec{a}
+
+**md**
 
 $ \vec{a}
 \vec{a}
  = [2, 3] $
+
+<!-- Should highlight inline blocks -->
+
+a **b** $$
+    **b**
+
+**md**
+
+a **b** $$
+    \frac{1}{2}
+    $$
+    **b**
+
+**p**
+
+a **b**
+    $$
+    \frac{1}{2}
+    $$
+    **b**

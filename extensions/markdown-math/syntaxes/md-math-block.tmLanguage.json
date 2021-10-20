@@ -13,42 +13,70 @@
 		"double_dollar_math_block": {
 			"name": "markup.math.block.markdown",
 			"contentName": "meta.embedded.math.markdown",
-			"begin": "(?<=^\\s*)(\\${2})",
+			"begin": "(?<=^\\s*)(\\${2})(?![^$]*\\${2})",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
-			"end": "(\\${2})",
+			"end": "(.*)(\\${2})",
 			"endCaptures": {
 				"1": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"2": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
 			},
 			"patterns": [
 				{
-					"include": "text.html.markdown.math#math"
+					"begin": "(^|\\G)",
+					"while": "(^|\\G)(?!.*(\\${2}))",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
 				}
 			]
 		},
 		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
 			"contentName": "meta.embedded.math.markdown",
-			"begin": "(?<=^\\s*)(\\${1})",
+			"begin": "(?<=^\\s*)(\\${1})(?![^$]*\\${1})",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
-			"end": "(\\${1})",
+			"end": "(.*)(\\${1})",
 			"endCaptures": {
 				"1": {
+					"name": "meta.embedded.math.markdown",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"2": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
 			},
 			"patterns": [
 				{
-					"include": "text.html.markdown.math#math"
+					"begin": "(^|\\G)",
+					"while": "(^|\\G)(?!.*(\\${1}))",
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
 				}
 			]
 		}
