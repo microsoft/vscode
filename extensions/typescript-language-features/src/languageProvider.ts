@@ -136,7 +136,7 @@ export default class LanguageProvider extends Disposable {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		const reportDeprecated = config.get<boolean>('showDeprecated', true);
 		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't both reporting diagnostics we know will not be rendered
+			// Don't bother reporting diagnostics we know will not be rendered
 			if (!reportUnnecessary) {
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
