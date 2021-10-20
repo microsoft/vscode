@@ -12,9 +12,10 @@
 	"repository": {
 		"double_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"begin": "(?<=(^|\\G)\\s*)(\\${2})(?=\\s*$)",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=^\\s*)(\\${2})",
 			"beginCaptures": {
-				"2": {
+				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
@@ -26,22 +27,16 @@
 			},
 			"patterns": [
 				{
-					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!.*(\\${2}))",
-					"contentName": "meta.embedded.math.markdown",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
+					"include": "text.html.markdown.math#math"
 				}
 			]
 		},
 		"single_dollar_math_block": {
 			"name": "markup.math.block.markdown",
-			"begin": "(?<=(^|\\G)\\s*)(\\${1})(?=\\s*$)",
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=^\\s*)(\\${1})",
 			"beginCaptures": {
-				"2": {
+				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
 				}
 			},
@@ -53,14 +48,7 @@
 			},
 			"patterns": [
 				{
-					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!.*(\\${1}))",
-					"contentName": "meta.embedded.math.markdown",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
+					"include": "text.html.markdown.math#math"
 				}
 			]
 		}

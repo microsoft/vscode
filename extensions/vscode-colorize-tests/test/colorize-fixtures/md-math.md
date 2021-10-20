@@ -101,3 +101,15 @@ $$
     $$
     \frac{1}{2}
     $$
+
+<!-- Should highlight leading and trailing equations on same line  -->
+
+$$ \vec{a}
+\vec{a}
+= [2, 3] $$
+
+\vec{a}
+
+$ \vec{a}
+\vec{a}
+ = [2, 3] $
