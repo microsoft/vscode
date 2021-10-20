@@ -261,7 +261,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
-					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
+					try {
+						newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
+					} catch (e) {
+						if (e?.message === 'Could not fetch remote environment') {
+							this._logService.trace(`Could not fetch remote environment, silently failing`);
+							return undefined;
+						}
+						throw e;
+					}
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
