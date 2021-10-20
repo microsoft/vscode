@@ -146,7 +146,7 @@ export class GitHubServer implements IGitHubServer {
 					return tokenScopes.includes(splitScopes);
 				});
 			})) {
-				throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+				throw new Error(`The provided token does not match the requested scopes: ${scopes}`);
 			}
 
 			return token;
@@ -384,7 +384,7 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 				return tokenScopes.includes(splitScopes);
 			});
 		})) {
-			throw new Error(`The provided token is does not match the requested scopes: ${scopes}`);
+			throw new Error(`The provided token does not match the requested scopes: ${scopes}`);
 		}
 
 		return token;
