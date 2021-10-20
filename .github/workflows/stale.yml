@@ -1,0 +1,35 @@
+# This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.
+#
+# You can adjust the behavior by modifying this file.
+# For more information, see:
+# https://github.com/actions/stale
+name: Mark stale issues and pull requests
+
+on:
+  pull_request:
+    branches:
+    - main
+    
+jobs:
+  stale:
+
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+    - uses: actions/stale@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-issue-message: 'Stale issue message'
+        stale-pr-message: 'Stale pull request message'
+        stale-issue-label: 'no-issue-activity'
+        stale-pr-label: 'no-pr-activity'
+        
+    - name: Microsoft Teams Webhook Notifications
+      uses: dhollerbach/actions.send-message-to-ms-teams@1.0.10
+      with:
+        webhook: 'https://githubazure.webhook.office.com/webhookb2/1f9a86ce-a213-4ce4-899b-0460767adf85@398a6654-997b-47e9-b12b-9515b896b4de/IncomingWebhook/bc17f8d81a744b1aa3e9e36fa0b4edc6/703ed2ca-36c8-4ae8-aa0d-309805eba023'
+        message: "Comment on issue #${{ github.event.issue.pull_request }}"
+
