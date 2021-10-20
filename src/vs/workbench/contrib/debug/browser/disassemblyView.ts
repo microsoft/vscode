@@ -32,10 +32,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -43,8 +40,6 @@ import { URI } from 'vs/base/common/uri';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { isAbsolute } from 'vs/base/common/path';
 import { Constants } from 'vs/base/common/uint';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -581,12 +576,8 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		private readonly _disassemblyView: DisassemblyView,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITextFileService private readonly nativeTextFileService: ITextFileService,
-		@IModeService private readonly _modeService: IModeService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 		@IUriIdentityService readonly uriService: IUriIdentityService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 
@@ -631,19 +622,12 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 			if (sourceURI) {
 				let textModel: ITextModel | undefined = undefined;
 				const sourceSB = createStringBuilder(10000);
-
-				try {
-					const ref = await this.textModelService.createModelReference(sourceURI);
-					textModel = ref.object.textEditorModel;
-					templateData.cellDisposable.push(ref);
-				} catch {
-					const textFileContent = await this.nativeTextFileService.read(sourceURI);
-					textModel = new TextModel(textFileContent.value, TextModel.DEFAULT_CREATION_OPTIONS, null, null, this.undoRedoService, this._modeService, this._languageConfigurationService);
-					templateData.cellDisposable.push(textModel);
-				}
+				const ref = await this.textModelService.createModelReference(sourceURI);
+				textModel = ref.object.textEditorModel;
+				templateData.cellDisposable.push(ref);
 
 				// templateData could have moved on during async.  Double check if it is still the same source.
-				if (textModel && templateData.currentElement.element !== element) {
+				if (textModel && templateData.currentElement.element === element) {
 					let lineNumber = instruction.line;
 
 					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
