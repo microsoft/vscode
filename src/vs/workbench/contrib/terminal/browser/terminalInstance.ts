@@ -651,8 +651,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermSearch = new addonCtor();
 			xterm.loadAddon(this._xtermSearch);
 		});
+		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
+		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
-			this._xterm.writeln(this._shellLaunchConfig.initialText);
+			this._xterm.writeln(this._shellLaunchConfig.initialText, () => {
+				xterm.onLineFeed(() => this._onLineFeed());
+			});
+		} else {
+			this._xterm.onLineFeed(() => this._onLineFeed());
 		}
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
@@ -668,7 +674,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
 		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
