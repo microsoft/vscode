@@ -5,6 +5,7 @@
 
 import { insert } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
@@ -71,7 +72,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 		// that supports potentially watching more than one folder at once
 		this.recursiveWatchRequestDelayer.trigger(() => {
 			return this.doRefreshRecursiveWatchers();
-		}).catch(error => this.logService.error(error));
+		}).catch(error => onUnexpectedError(error));
 	}
 
 	private doRefreshRecursiveWatchers(): Promise<void> {
