@@ -879,6 +879,7 @@ onDomReady(() => {
 
 			const newFrame = getPendingFrame();
 			if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
+				const wasFocused = document.hasFocus();
 				const oldActiveFrame = getActiveFrame();
 				if (oldActiveFrame) {
 					document.body.removeChild(oldActiveFrame);
@@ -893,7 +894,7 @@ onDomReady(() => {
 				contentWindow.addEventListener('scroll', handleInnerScroll);
 				contentWindow.addEventListener('wheel', handleWheel);
 
-				if (document.hasFocus()) {
+				if (wasFocused) {
 					contentWindow.focus();
 				}
 
