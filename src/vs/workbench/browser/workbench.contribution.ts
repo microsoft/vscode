@@ -214,7 +214,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['vertical', 'horizontal'],
 				'default': 'horizontal',
-				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal.")
+				'markdownDescription': localize('splitInGroupLayout', "Controls the layout for when an editor is split in an editor group to be either vertical or horizontal."),
+				'enumDescriptions': [
+					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
+					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
+				],
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
