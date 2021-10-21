@@ -13,7 +13,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionAffinity, IndentGuide, BracketGuideOptions } from 'vs/editor/common/model';
-import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
+import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -21,7 +21,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InjectedText, ILineBreaksComputer, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration, OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -715,12 +715,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[] {
 		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			const lane = opts ? opts.position : 0;
+			const decorationOptions = <ModelDecorationOptions>decoration.options;
+			const opts = decorationOptions.overviewRuler;
+			if (!opts) {
+				continue;
+			}
+			const lane = <number>opts.position;
 			if (lane === 0) {
 				continue;
 			}
@@ -728,9 +732,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			const viewStartLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
 			const viewEndLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
 
-			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+			result.accept(color, decorationOptions.zIndex, viewStartLineNumber, viewEndLineNumber, lane);
 		}
-		return result.result;
+		return result.asArray;
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
@@ -1111,26 +1115,30 @@ export class ViewModel extends Disposable implements IViewModel {
 
 class OverviewRulerDecorations {
 
-	readonly result: IOverviewRulerDecorations = Object.create(null);
+	private readonly _asMap: { [color: string]: OverviewRulerDecorationsGroup; } = Object.create(null);
+	readonly asArray: OverviewRulerDecorationsGroup[] = [];
 
-	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
-		let prev = this.result[color];
+	public accept(color: string, zIndex: number, startLineNumber: number, endLineNumber: number, lane: number): void {
+		const prevGroup = this._asMap[color];
 
-		if (prev) {
-			const prevLane = prev[prev.length - 3];
-			const prevEndLineNumber = prev[prev.length - 1];
+		if (prevGroup) {
+			const prevData = prevGroup.data;
+			const prevLane = prevData[prevData.length - 3];
+			const prevEndLineNumber = prevData[prevData.length - 1];
 			if (prevLane === lane && prevEndLineNumber + 1 >= startLineNumber) {
 				// merge into prev
 				if (endLineNumber > prevEndLineNumber) {
-					prev[prev.length - 1] = endLineNumber;
+					prevData[prevData.length - 1] = endLineNumber;
 				}
 				return;
 			}
 
 			// push
-			prev.push(lane, startLineNumber, endLineNumber);
+			prevData.push(lane, startLineNumber, endLineNumber);
 		} else {
-			this.result[color] = [lane, startLineNumber, endLineNumber];
+			const group = new OverviewRulerDecorationsGroup(color, zIndex, [lane, startLineNumber, endLineNumber]);
+			this._asMap[color] = group;
+			this.asArray.push(group);
 		}
 	}
 }
