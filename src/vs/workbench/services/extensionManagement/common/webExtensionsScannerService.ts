@@ -205,15 +205,15 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	async scanUserExtensions(donotIgnoreInvalidExtensions?: boolean): Promise<IScannedExtension[]> {
 		const extensions = new Map<string, IScannedExtension>();
 
-		// User Installed extensions
-		const installedExtensions = await this.scanInstalledExtensions(donotIgnoreInvalidExtensions);
-		for (const extension of installedExtensions) {
-			extensions.set(extension.identifier.id.toLowerCase(), extension);
-		}
-
 		// Custom builtin extensions defined through `additionalBuiltinExtensions` API
 		const customBuiltinExtensions = await this.customBuiltinExtensionsPromise;
 		for (const extension of customBuiltinExtensions) {
+			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		}
+
+		// User Installed extensions
+		const installedExtensions = await this.scanInstalledExtensions(donotIgnoreInvalidExtensions);
+		for (const extension of installedExtensions) {
 			extensions.set(extension.identifier.id.toLowerCase(), extension);
 		}
 
