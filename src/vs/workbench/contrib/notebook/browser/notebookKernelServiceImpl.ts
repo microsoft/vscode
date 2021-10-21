@@ -180,15 +180,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			}
 		}
 
-		const sortedKernels = kernels
+		kernels
 			.sort((a, b) => b.instanceAffinity - a.instanceAffinity || b.typeAffinity - a.typeAffinity || a.score - b.score || a.kernel.label.localeCompare(b.kernel.label));
-		const all = sortedKernels.map(obj => obj.kernel);
+		const all = kernels.map(obj => obj.kernel);
 
 		// bound kernel
 		const selectedId = this._notebookBindings.get(NotebookTextModelLikeId.str(notebook));
 		const selected = selectedId ? this._kernels.get(selectedId)?.kernel : undefined;
-		const suggestions = sortedKernels.filter(item => item.instanceAffinity > 1 && item.kernel !== selected).map(item => item.kernel);
-		return { all, selected, suggestions, suggested: all.length === 1 ? all[0] : undefined };
+		const suggestions = kernels.filter(item => item.instanceAffinity > 1 && item.kernel !== selected).map(item => item.kernel);
+		return { all, selected, suggestions };
 	}
 
 	// default kernel for notebookType

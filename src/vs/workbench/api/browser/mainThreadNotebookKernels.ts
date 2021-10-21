@@ -33,7 +33,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	category?: string;
+	kind?: string;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
@@ -55,7 +55,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.label = data.label;
 		this.description = data.description;
 		this.detail = data.detail;
-		this.category = data.category;
+		this.kind = data.kind;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _modeService.getRegisteredModes();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
@@ -78,9 +78,9 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.detail = data.detail;
 			event.detail = true;
 		}
-		if (data.category !== undefined) {
-			this.category = data.category;
-			event.category = true;
+		if (data.kind !== undefined) {
+			this.kind = data.kind;
+			event.kind = true;
 		}
 		if (data.supportedLanguages !== undefined) {
 			this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : this._modeService.getRegisteredModes();

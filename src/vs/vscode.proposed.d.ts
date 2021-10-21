@@ -1567,9 +1567,9 @@ declare module 'vscode' {
 
 	export interface NotebookController {
 		/**
-		 * The human-readable label used to categorise controllers in the quick pick.
+		 * The human-readable label used to categorise controllers.
 		 */
-		category?: string;
+		kind?: string;
 
 		// todo@API allow add, not remove
 		readonly rendererScripts: NotebookRendererScript[];

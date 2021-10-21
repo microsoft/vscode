@@ -166,11 +166,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.description = value;
 				_update();
 			},
-			get category() {
-				return data.category ?? '';
+			get kind() {
+				checkProposedApiEnabled(extension);
+				return data.kind ?? '';
 			},
-			set category(value) {
-				data.category = value;
+			set kind(value) {
+				checkProposedApiEnabled(extension);
+				data.kind = value;
 				_update();
 			},
 			get supportedLanguages() {

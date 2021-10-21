@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { groupBy } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { uppercaseFirstLetter } from 'vs/base/common/strings';
+import { compareIgnoreCase, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -164,7 +165,7 @@ registerAction2(class extends Action2 {
 					label: kernel.label,
 					description: kernel.description,
 					detail: kernel.detail,
-					category: kernel.category,
+					category: kernel.kind,
 					buttons: [configButton]
 				};
 				if (kernel.id === selected?.id) {
@@ -190,32 +191,21 @@ registerAction2(class extends Action2 {
 				}
 				quickPickItems.push(...picks.filter(item => suggestions.includes(item.kernel)));
 				if (quickPickItems.length) {
-					quickPickItems.splice(0, 0, {
+					quickPickItems.unshift({
 						type: 'separator',
-						label: nls.localize('suggestedKernels', "Suggested")
+						label: selectedKernelPick ? nls.localize('currentAndSuggestedKernels', "Current & Suggested") : nls.localize('suggestedKernels', "Suggested")
 					});
 				}
 
 				// Next display all of the kernels grouped by categories or extensions.
-				const kernelsPerCategory = new Map<string, KernelPick[]>();
-				picks.forEach(item => {
-					const category = item.category || item.kernel.extension.value;
-					if (!quickPickItems.includes(item)) {
-						const list = kernelsPerCategory.get(category) || [];
-						list.push(item);
-						kernelsPerCategory.set(category, list);
-					}
-				});
-				Array.from(kernelsPerCategory.keys())
-					.sort((a, b) => a.toLocaleLowerCase().localeCompare(b.toLocaleLowerCase()))
-					.forEach(category => {
-						const items = kernelsPerCategory.get(category)!;
-						quickPickItems.push({
-							type: 'separator',
-							label: category
-						});
-						quickPickItems.push(...items);
+				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || '', b.kernel.kind || ''));
+				kernelsPerCategory.forEach(items => {
+					quickPickItems.push({
+						type: 'separator',
+						label: items[0].kernel.kind || nls.localize('otherKernelKinds', "Other")
 					});
+					quickPickItems.push(...items);
+				});
 			}
 
 			const pick = await quickInputService.pick(quickPickItems, {
@@ -360,7 +350,8 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 		this._kernelInfoElement.clear();
 
-		let { selected, suggested, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		let { selected, suggestions, all } = this._notebookKernelService.getMatchingKernel(notebook);
+		const suggested = suggestions[0];
 		let isSuggested = false;
 
 		if (all.length === 0) {

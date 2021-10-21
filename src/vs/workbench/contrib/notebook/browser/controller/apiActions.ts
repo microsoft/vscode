@@ -69,7 +69,7 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	return kernels.all.map(provider => ({
 		id: provider.id,
 		label: provider.label,
-		category: provider.category,
+		category: provider.kind,
 		description: provider.description,
 		detail: provider.detail,
 		isPreferred: false, // todo@jrieken,@rebornix
