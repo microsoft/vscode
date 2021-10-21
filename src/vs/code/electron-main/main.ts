@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, dialog } from 'electron';
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
+import { unlinkSync } from 'fs';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -70,12 +69,6 @@ import 'vs/platform/update/common/update.config.contribution';
  * are running at the same time.
  */
 class CodeMain {
-
-	constructor() {
-
-		// Enable gracefulFs
-		gracefulify(fs);
-	}
 
 	main(): void {
 		try {
@@ -284,7 +277,7 @@ class CodeMain {
 				// let's delete it, since we can't connect to it and then
 				// retry the whole thing
 				try {
-					fs.unlinkSync(environmentMainService.mainIPCHandle);
+					unlinkSync(environmentMainService.mainIPCHandle);
 				} catch (error) {
 					logService.warn('Could not delete obsolete instance handle', error);
 

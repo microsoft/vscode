@@ -47,8 +47,8 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 			case 'copy': return this.copy(URI.revive(arg[0]), URI.revive(arg[1]), arg[2]);
 			case 'mkdir': return this.mkdir(URI.revive(arg[0]));
 			case 'delete': return this.delete(URI.revive(arg[0]), arg[1]);
-			case 'watch': return Promise.resolve(this.watch(arg[0], arg[1], URI.revive(arg[2]), arg[3]));
-			case 'unwatch': return Promise.resolve(this.unwatch(arg[0], arg[1]));
+			case 'watch': return this.watch(arg[0], arg[1], URI.revive(arg[2]), arg[3]);
+			case 'unwatch': return this.unwatch(arg[0], arg[1]);
 		}
 
 		throw new Error(`IPC Command ${command} not found`);
@@ -56,7 +56,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 
 	listen(_: unknown, event: string, arg: any): Event<any> {
 		switch (event) {
-			case 'filechange': return this.onDidChangeFileOrError.event;
+			case 'fileChange': return this.onDidChangeFileOrError.event;
 			case 'readFileStream': return this.onReadFileStream(URI.revive(arg[0]), arg[1]);
 		}
 
@@ -174,7 +174,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 
 	private readonly nonRecursiveFileWatchers = new Map<string /* ID */, IDisposable>();
 
-	private watch(sessionId: string, req: number, resource: URI, opts: IWatchOptions): void {
+	private async watch(sessionId: string, req: number, resource: URI, opts: IWatchOptions): Promise<void> {
 		if (opts.recursive) {
 			throw createFileSystemProviderError('Recursive watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
 		}
@@ -202,7 +202,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 		this.logService[msg.type](msg.message);
 	}
 
-	private unwatch(sessionId: string, req: number): void {
+	private async unwatch(sessionId: string, req: number): Promise<void> {
 		const id = sessionId + req;
 		const disposable = this.nonRecursiveFileWatchers.get(id);
 		if (disposable) {

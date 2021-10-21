@@ -198,7 +198,7 @@ export abstract class IPCFileSystemProvider extends Disposable implements
 		// for both events and errors from the watcher. So we need to
 		// unwrap the event from the remote and emit through the proper
 		// emitter.
-		this._register(this.channel.listen<{ resource: UriComponents; type: FileChangeType; }[] | string>('filechange', [this.sessionId])(eventsOrError => {
+		this._register(this.channel.listen<{ resource: UriComponents; type: FileChangeType; }[] | string>('fileChange', [this.sessionId])(eventsOrError => {
 			if (Array.isArray(eventsOrError)) {
 				const events = eventsOrError;
 				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type })));

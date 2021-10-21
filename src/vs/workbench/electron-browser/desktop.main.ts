@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
@@ -18,13 +16,6 @@ import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
 
 class DesktopMain extends SharedDesktopMain {
-
-	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration);
-
-		// Enable gracefulFs
-		gracefulify(fs);
-	}
 
 	protected registerFileSystemProviders(
 		mainProcessService: IMainProcessService,

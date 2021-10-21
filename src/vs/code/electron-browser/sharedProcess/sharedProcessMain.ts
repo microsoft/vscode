@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'electron';
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -105,9 +103,6 @@ class SharedProcessMain extends Disposable {
 
 	constructor(private configuration: ISharedProcessConfiguration) {
 		super();
-
-		// Enable gracefulFs
-		gracefulify(fs);
 
 		this.registerListeners();
 	}

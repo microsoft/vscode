@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
-import * as fs from 'fs';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import product from 'vs/platform/product/common/product';
@@ -32,6 +31,7 @@ import { IBuiltInExtension } from 'vs/base/common/product';
 import { IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
 import { IRemoteTelemetryService } from 'vs/server/remoteTelemetryService';
+import { Promises } from 'vs/base/node/pfs';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -356,7 +356,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		const config = await getNLSConfiguration(language, this.environmentService.userDataPath);
 		if (InternalNLSConfiguration.is(config)) {
 			try {
-				const content = await fs.promises.readFile(config._translationsConfigFile, 'utf8');
+				const content = await Promises.readFile(config._translationsConfigFile, 'utf8');
 				return JSON.parse(content);
 			} catch (err) {
 				return Object.create(null);

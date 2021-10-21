@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats } from 'fs';
+import * as fs from 'fs';
+import { gracefulify } from 'graceful-fs';
 import { retry } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,6 +28,19 @@ import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+
+/**
+ * Enable graceful-fs very early from here to have it enabled
+ * in all contexts that leverage the disk file system provider.
+ */
+(() => {
+	try {
+		gracefulify(fs);
+	} catch (error) {
+		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
+	}
+})();
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -34,7 +48,6 @@ export interface IWatcherOptions {
 }
 
 export interface IDiskFileSystemProviderOptions {
-	bufferSize?: number;
 	watcher?: IWatcherOptions;
 	legacyWatcher?: string;
 }
@@ -44,8 +57,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability {
-
-	private readonly BUFFER_SIZE = this.options?.bufferSize || 256 * 1024;
 
 	constructor(
 		logService: ILogService,
@@ -121,7 +132,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	private toType(entry: Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
+	private toType(entry: fs.Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
 
 		// Signal file type by checking for file / directory, except:
 		// - symbolic links pointing to nonexistent files are FileType.Unknown
@@ -164,7 +175,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		readFileIntoStream(this, resource, stream, data => data.buffer, {
 			...opts,
-			bufferSize: this.BUFFER_SIZE
+			bufferSize: 256 * 1024 // read into chunks of 256kb each to reduce IPC overhead
 		}, token);
 
 		return stream;

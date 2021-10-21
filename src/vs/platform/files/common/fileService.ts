@@ -25,7 +25,10 @@ export class FileService extends Disposable implements IFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly BUFFER_SIZE = 64 * 1024;
+	// Choose a buffer size that is a balance between memory needs and
+	// manageable IPC overhead. The larger the buffer size, the less
+	// roundtrips we have to do for reading/writing data.
+	private readonly BUFFER_SIZE = 256 * 1024;
 
 	constructor(@ILogService private readonly logService: ILogService) {
 		super();
