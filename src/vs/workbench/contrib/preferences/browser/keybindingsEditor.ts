@@ -1186,7 +1186,6 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (foregroundColor) {
 		const whenForegroundColor = foregroundColor.transparent(.8).makeOpaque(WORKBENCH_BACKGROUND(theme));
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColor}; }`);
-		// collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row[data-parity=odd] .monaco-table-tr .monaco-table-td .code { color: ${whenForegroundColorForEvenRow}; }`);
 	}
 
 	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
