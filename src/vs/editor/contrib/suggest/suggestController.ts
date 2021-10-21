@@ -168,7 +168,6 @@ export class SuggestController implements IEditorContribution {
 				if (
 					this.editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this.model.state === State.Auto
-					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
 					&& !(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)
 					&& endColumn - startColumn === item.completion.insertText.length
