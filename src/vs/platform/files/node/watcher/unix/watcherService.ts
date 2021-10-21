@@ -21,8 +21,9 @@ export class FileWatcher extends WatcherService {
 	private isDisposed = false;
 	private restartCounter = 0;
 
+	private requests: IWatchRequest[] | undefined = undefined;
+
 	constructor(
-		private requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
@@ -51,10 +52,11 @@ export class FileWatcher extends WatcherService {
 			// our watcher app should never be completed because it keeps on watching. being in here indicates
 			// that the watcher process died and we want to restart it here. we only do it a max number of times
 			if (!this.isDisposed) {
-				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
+				if (this.restartCounter <= FileWatcher.MAX_RESTARTS && this.requests) {
 					this.error('terminated unexpectedly and is restarted again...');
 					this.restartCounter++;
 					this.startWatching();
+					this.service?.watch(this.requests);
 				} else {
 					this.error('failed to start after retrying for some time, giving up. Please report this as a bug report!');
 				}
@@ -68,9 +70,6 @@ export class FileWatcher extends WatcherService {
 		// Wire in event handlers
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
 		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
-
-		// Start watching
-		this.watch(this.requests);
 	}
 
 	async setVerboseLogging(verboseLogging: boolean): Promise<void> {

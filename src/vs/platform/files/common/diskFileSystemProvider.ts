@@ -69,22 +69,17 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 		// Buffer requests for recursive watching to decide on right watcher
 		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestDelayer.trigger(async () => {
-			this.doRefreshRecursiveWatchers();
-		});
+		this.recursiveWatchRequestDelayer.trigger(() => {
+			return this.doRefreshRecursiveWatchers();
+		}).catch(error => this.logService.error(error));
 	}
 
-	private doRefreshRecursiveWatchers(): void {
+	private doRefreshRecursiveWatchers(): Promise<void> {
 
-		// Reuse existing
-		if (this.recursiveWatcher) {
-			this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
-		}
-
-		// Otherwise, create new if we have folders to watch
-		else if (this.recursiveFoldersToWatch.length > 0) {
+		// Create watcher if this is the first time
+		if (!this.recursiveWatcher) {
 			this.recursiveWatcher = this._register(this.createRecursiveWatcher(
-				this.recursiveFoldersToWatch,
+				this.recursiveFoldersToWatch.length,
 				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
@@ -95,10 +90,13 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 				this.recursiveWatcher?.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
 			}));
 		}
+
+		// Ask to watch the provided folders
+		return this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
 	}
 
 	protected abstract createRecursiveWatcher(
-		folders: IWatchRequest[],
+		folders: number,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean

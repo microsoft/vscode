@@ -12,7 +12,6 @@ export class ParcelFileWatcher extends WatcherService {
 	private readonly service: IWatcherService;
 
 	constructor(
-		requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean,
@@ -20,25 +19,19 @@ export class ParcelFileWatcher extends WatcherService {
 	) {
 		super();
 
-		// Start watching
-		{
-			// Acquire parcel watcher via shared process worker
-			const watcherChannel = this.sharedProcessWorkerWorkbenchService.createWorkerChannel({
-				moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
-				type: 'watcherServiceParcelSharedProcess'
-			}, 'watcher').channel;
+		// Acquire parcel watcher via shared process worker
+		const watcherChannel = this.sharedProcessWorkerWorkbenchService.createWorkerChannel({
+			moduleId: 'vs/platform/files/node/watcher/parcel/watcherApp',
+			type: 'watcherServiceParcelSharedProcess'
+		}, 'watcher').channel;
 
-			// Initialize watcher
-			this.service = ProxyChannel.toService<IWatcherService>(watcherChannel);
-			this.service.setVerboseLogging(verboseLogging);
+		// Initialize watcher
+		this.service = ProxyChannel.toService<IWatcherService>(watcherChannel);
+		this.service.setVerboseLogging(verboseLogging);
 
-			// Wire in event handlers
-			this._register(this.service.onDidChangeFile(e => this.onDidFilesChange(e)));
-			this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
-
-			// Start watching
-			this.watch(requests);
-		}
+		// Wire in event handlers
+		this._register(this.service.onDidChangeFile(e => this.onDidFilesChange(e)));
+		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 	}
 
 	setVerboseLogging(verboseLogging: boolean): Promise<void> {

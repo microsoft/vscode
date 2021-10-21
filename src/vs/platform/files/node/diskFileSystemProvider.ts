@@ -24,7 +24,7 @@ import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watc
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
@@ -538,14 +538,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createRecursiveWatcher(
-		folders: IWatchRequest[],
+		folders: number,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): WatcherService {
 		let watcherImpl: {
 			new(
-				folders: IWatchRequest[],
 				onChange: (changes: IDiskFileChange[]) => void,
 				onLogMessage: (msg: ILogMessage) => void,
 				verboseLogging: boolean,
@@ -570,7 +569,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				if (product.quality === 'stable') {
 					// in stable use legacy for single folder workspaces
 					// TODO@bpasero remove me eventually
-					enableLegacyWatcher = folders.length === 1;
+					enableLegacyWatcher = folders === 1;
 				}
 			}
 
@@ -585,9 +584,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 		}
 
-		// Create and start watching
 		return new watcherImpl(
-			folders,
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging,
