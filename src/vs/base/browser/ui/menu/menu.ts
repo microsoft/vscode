@@ -679,14 +679,14 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			return;
 		}
 
-		if (this.getAction().checked) {
-			this.item.classList.add('checked');
+		const checked = this.getAction().checked;
+		this.item.classList.toggle('checked', !!checked);
+		if (checked !== undefined) {
 			this.item.setAttribute('role', 'menuitemcheckbox');
-			this.item.setAttribute('aria-checked', 'true');
+			this.item.setAttribute('aria-checked', checked ? 'true' : 'false');
 		} else {
-			this.item.classList.remove('checked');
 			this.item.setAttribute('role', 'menuitem');
-			this.item.setAttribute('aria-checked', 'false');
+			this.item.setAttribute('aria-checked', '');
 		}
 	}
 
