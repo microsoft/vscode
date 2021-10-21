@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITextModel } from 'vs/editor/common/model';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -104,7 +104,13 @@ export class InlineDiffMargin extends Disposable {
 				true,
 				async () => {
 					const lineContent = diff.originalModel.getLineContent(diff.originalStartLineNumber + currentLineNumberOffset);
-					await this._clipboardService.writeText(lineContent);
+					if (lineContent === '') {
+						// empty line
+						const eof = diff.originalModel.getEndOfLineSequence();
+						await this._clipboardService.writeText(eof === EndOfLineSequence.LF ? '\n' : '\r\n');
+					} else {
+						await this._clipboardService.writeText(lineContent);
+					}
 				}
 			);
 
