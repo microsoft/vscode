@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -20,8 +20,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
@@ -39,7 +37,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
-		title: ''
+		title: '',
+		shellType: WindowsShellType.PowerShell
 	};
 
 	private _capabilities: ProcessCapability[] = [];
@@ -153,9 +152,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleReady(e: IProcessReadyEvent) {
 		this._capabilities = e.capabilities;
 		this._onProcessReady.fire(e);
-	}
-	handleShellTypeChanged(e: TerminalShellType | undefined) {
-		this._onProcessShellTypeChanged.fire(e);
 	}
 	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
 		this._onProcessOverrideDimensions.fire(e);

@@ -239,7 +239,7 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	}
 
 	refreshProperty(property: ProcessPropertyType) {
-		return Promise.resolve('');
+		return Promise.resolve('' as any);
 	}
 	//#endregion
 }

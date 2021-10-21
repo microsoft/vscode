@@ -80,7 +80,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
-		title: ''
+		title: '',
+		shellType: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -115,8 +116,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
@@ -177,7 +176,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// WindowsShellHelper is used to fetch the process title and shell type
 			this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
-				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
+				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
 		}
@@ -401,21 +400,26 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		if (type === ProcessPropertyType.Cwd) {
-			const newCwd = await this.getCwd();
-			if (newCwd !== this._properties.cwd) {
-				this._properties.cwd = newCwd;
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
-			}
-			return newCwd;
-		} else {
-			return this.getInitialCwd();
+		switch (type) {
+			case ProcessPropertyType.Cwd:
+				const newCwd = await this.getCwd();
+				if (newCwd !== this._properties.cwd) {
+					this._properties.cwd = newCwd;
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+				}
+				return newCwd as any;
+			case ProcessPropertyType.InitialCwd:
+				return this.getInitialCwd() as any;
+			case ProcessPropertyType.Title:
+				return this.currentTitle as any;
+			default:
+				return this.shellType as any;
 		}
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
 		//TODO: why is the type check necessary?
-		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string') {
+		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string' && value) {
 			this._properties.fixedDimensions = value;
 		}
 	}

@@ -150,7 +150,6 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$onProcessExitEvent': return this._ptyService.onProcessExit;
 			case '$onProcessReadyEvent': return this._ptyService.onProcessReady;
 			case '$onProcessReplayEvent': return this._ptyService.onProcessReplay;
-			case '$onProcessShellTypeChangedEvent': return this._ptyService.onProcessShellTypeChanged;
 			case '$onProcessOverrideDimensionsEvent': return this._ptyService.onProcessOverrideDimensions;
 			case '$onProcessResolvedShellLaunchConfigEvent': return this._ptyService.onProcessResolvedShellLaunchConfig;
 			case '$onProcessOrphanQuestion': return this._ptyService.onProcessOrphanQuestion;

@@ -1266,7 +1266,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 				this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
 				this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-				this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
 				this._processManager.onPtyDisconnect(() => {
 					this._safeSetOption('disableStdin', true);
 					this.statusList.add({
