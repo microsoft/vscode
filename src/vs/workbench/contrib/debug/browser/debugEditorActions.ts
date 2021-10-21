@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction, IActionOptions, EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
@@ -20,9 +20,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Action } from 'vs/base/common/actions';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { registerAction2, MenuId, Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
@@ -169,6 +170,32 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 		if (editor.hasModel()) {
 			const editorService = accessor.get(IEditorService);
 			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true });
+		}
+	}
+}
+
+class ToggleDisassemblyViewSourceCodeAction extends Action2 {
+
+	public static readonly ID = 'debug.action.toggleDisassemblyViewSourceCode';
+	public static readonly configID: string = 'debug.disassemblyView.showSourceCode';
+
+	constructor() {
+		super({
+			id: ToggleDisassemblyViewSourceCodeAction.ID,
+			title: {
+				value: nls.localize('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
+				original: 'Toggle Source Code in Disassembly View',
+				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource")
+			},
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		if (configService) {
+			const value = configService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
+			configService.updateValue(ToggleDisassemblyViewSourceCodeAction.configID, !value);
 		}
 	}
 }
@@ -439,6 +466,7 @@ registerAction2(ToggleBreakpointAction);
 registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
 registerAction2(OpenDisassemblyViewAction);
+registerAction2(ToggleDisassemblyViewSourceCodeAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);

@@ -537,6 +537,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('debug.confirmOnExit.always', "Always confirm if there are debug sessions."),
 			],
 			default: 'never'
-		}
+		},
+		'debug.disassemblyView.showSourceCode': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('debug.disassemblyView.showSourceCode', "Show Source Code in Disassembly View.")
+		},
 	}
 });
