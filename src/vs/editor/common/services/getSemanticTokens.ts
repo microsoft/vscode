@@ -43,6 +43,7 @@ export function getDocumentSemanticTokens(model: ITextModel, lastResultId: strin
 
 class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	private didChangeEmitter = new Emitter<void>();
+	private lastUsedProvider: DocumentSemanticTokensProvider | undefined = undefined;
 	constructor(model: ITextModel, private readonly providerGroup: DocumentSemanticTokensProvider[]) {
 		// Lifetime of this provider is tied to the text model
 		model.onWillDispose(() => this.didChangeEmitter.dispose());
@@ -66,15 +67,19 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 			return undefined;
 		}));
 
-		return list.find(l => l);
+		const hasTokensIndex = list.findIndex(l => l);
+
+		// Save last used provider. Use it for the legend if called
+		this.lastUsedProvider = this.providerGroup[hasTokensIndex];
+		return list[hasTokensIndex];
 	}
 	public get onDidChange(): Event<void> {
 		return this.didChangeEmitter.event;
 	}
-	getLegend(): SemanticTokensLegend {
-		return this.providerGroup[0].getLegend();
+	public getLegend(): SemanticTokensLegend {
+		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
 	}
-	releaseDocumentSemanticTokens(resultId: string | undefined): void {
+	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
 		this.providerGroup.forEach(p => p.releaseDocumentSemanticTokens(resultId));
 	}
 }
