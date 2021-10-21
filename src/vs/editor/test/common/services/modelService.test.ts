@@ -490,6 +490,7 @@ suite('ModelSemanticColoring', () => {
 
 	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
 
+		let calledBoth = false;
 		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
 		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
 			getLegend(): SemanticTokensLegend {
@@ -509,6 +510,7 @@ suite('ModelSemanticColoring', () => {
 				return { tokenTypes: ['class'], tokenModifiers: [] };
 			}
 			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				calledBoth = true;
 				return null;
 			}
 			releaseDocumentSemanticTokens(resultId: string | undefined): void {
@@ -523,6 +525,7 @@ suite('ModelSemanticColoring', () => {
 			// We should have tokens
 			assert.ok(tokens, `Tokens not found from multiple providers`);
 			assert.deepStrictEqual([...(tokens as any).data], [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data not returned for multiple providers`);
+			assert.ok(calledBoth, `Did not actually call both token providers`);
 		} finally {
 			disposables.clear();
 
