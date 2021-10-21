@@ -153,7 +153,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 		const packageJsonStream = gulp.src(['remote/web/package.json'], { base: 'remote/web' })
 			.pipe(json({ name, version }));
 
-		const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
+		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
 		const productionDependencies = getProductionDependencies(WEB_FOLDER);
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));

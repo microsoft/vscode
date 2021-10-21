@@ -263,7 +263,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json({ commit, date }));
 
-		const license = gulp.src(['remote/LICENSE'], { base: 'remote' });
+		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
