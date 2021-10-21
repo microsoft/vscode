@@ -57,7 +57,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: yarn --immutable --network-timeout 180000
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
@@ -127,7 +127,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: yarn --immutable --network-timeout 180000
 
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
@@ -183,7 +183,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: yarn --immutable --network-timeout 180000
 
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
@@ -244,7 +244,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: yarn --immutable --network-timeout 180000
 
       - name: Run Hygiene Checks
         run: yarn gulp hygiene

@@ -5,7 +5,6 @@
   "author": "Microsoft ",
   "private": true,
   "license": "MIT",
-  "devDependencies": {},
   "dependencies": {
     "vscode-gulp-watch": "^5.0.3"
   }

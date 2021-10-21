@@ -15,3 +15,9 @@ yarn-error.log
 vscode.lsif
 vscode.db
 /.profile-oss
+.pnp.*
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/sdks
+!**/.yarn/versions

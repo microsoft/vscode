@@ -70,6 +70,5 @@
     "compile": "tsc -p tsconfig.build.json",
     "watch": "tsc -p tsconfig.build.json --watch",
     "npmCheckJs": "tsc --noEmit"
-  },
-  "dependencies": {}
+  }
 }

@@ -58,11 +58,11 @@ function asYarnDependency(prefix: string, tree: Tree): Dependency | null {
 }
 
 function getYarnProductionDependencies(cwd: string): Dependency[] {
-	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
+	const raw = cp.execSync('yarn info', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, 'inherit'] });
 	const match = /^{"type":"tree".*$/m.exec(raw);
 
 	if (!match || match.length !== 1) {
-		throw new Error('Could not parse result of `yarn list --json`');
+		throw new Error('Could not parse result of `yarn info`');
 	}
 
 	const trees = JSON.parse(match[0]).data.trees as Tree[];
