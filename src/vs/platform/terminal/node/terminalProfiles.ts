@@ -17,12 +17,12 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
+let logIfWslNotInstalled: boolean = true;
 
 export function detectAvailableProfiles(
 	profiles: unknown,
 	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
-	logIfWslNotInstalled: boolean,
 	configurationService: IConfigurationService,
 	shellEnv: typeof process.env = process.env,
 	fsProvider?: IFsProvider,
@@ -37,7 +37,6 @@ export function detectAvailableProfiles(
 	if (isWindows) {
 		return detectAvailableWindowsProfiles(
 			includeDetectedProfiles,
-			logIfWslNotInstalled,
 			fsProvider,
 			shellEnv,
 			logService,
@@ -62,7 +61,6 @@ export function detectAvailableProfiles(
 
 async function detectAvailableWindowsProfiles(
 	includeDetectedProfiles: boolean,
-	logIfWslNotInstalled: boolean,
 	fsProvider: IFsProvider,
 	shellEnv: typeof process.env,
 	logService?: ILogService,
@@ -135,6 +133,7 @@ async function detectAvailableWindowsProfiles(
 		} catch (e) {
 			if (logIfWslNotInstalled) {
 				logService?.info('WSL is not installed, so could not detect WSL profiles');
+				logIfWslNotInstalled = false;
 			}
 		}
 	}
