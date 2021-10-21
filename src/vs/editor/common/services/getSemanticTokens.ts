@@ -85,6 +85,7 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 }
 
 class CompositeDocumentRangeSemanticTokensProvider implements DocumentRangeSemanticTokensProvider {
+	private lastUsedProvider: DocumentRangeSemanticTokensProvider | undefined = undefined;
 	constructor(private readonly providerGroup: DocumentRangeSemanticTokensProvider[]) { }
 	public async provideDocumentRangeSemanticTokens(model: ITextModel, range: Range, token: CancellationToken): Promise<SemanticTokens | null | undefined> {
 		// Get tokens from the group all at the same time. Return the first
@@ -98,10 +99,14 @@ class CompositeDocumentRangeSemanticTokensProvider implements DocumentRangeSeman
 			return undefined;
 		}));
 
-		return list.find(l => l);
+		const hasTokensIndex = list.findIndex(l => l);
+
+		// Save last used provider. Use it for the legend if called
+		this.lastUsedProvider = this.providerGroup[hasTokensIndex];
+		return list[hasTokensIndex];
 	}
 	getLegend(): SemanticTokensLegend {
-		return this.providerGroup[0].getLegend();
+		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
 	}
 }
 
