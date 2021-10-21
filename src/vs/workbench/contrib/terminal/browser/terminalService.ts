@@ -57,6 +57,7 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
+	private _ifNoProfilesTryAgain: boolean = true;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
@@ -189,7 +190,6 @@ export class TerminalService implements ITerminalService {
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
-
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
@@ -265,7 +265,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this._refreshAvailableProfiles();
+				await this._refreshAvailableProfiles();
 			}
 		});
 
@@ -509,16 +509,25 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _refreshAvailableProfilesNow(): Promise<void> {
-		const result = await this._detectProfiles();
-		const profilesChanged = !equals(result, this._availableProfiles);
+		const profiles = await this._detectProfiles();
+		const profilesChanged = !equals(profiles, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
+			// available profiles get updated when a terminal is created
+			// or relevant config changes.
+			// if there are no profiles, we want to refresh them again
+			// since terminal creation can't happen in this case and users
+			// might not think to try changing the config
+			this._ifNoProfilesTryAgain = false;
+			await this._refreshAvailableProfilesNow();
+		}
 		if (profilesChanged || contributedProfilesChanged) {
-			this._availableProfiles = result;
+			this._availableProfiles = profiles;
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
-			await this._refreshPlatformConfig(result);
+			await this._refreshPlatformConfig(profiles);
 		}
 	}
 
