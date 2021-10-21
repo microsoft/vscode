@@ -907,7 +907,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	async replaceAll(matches: CellFindMatch[], text: string): Promise<void> {
+	async replaceAll(matches: CellFindMatch[], texts: string[]): Promise<void> {
 		if (!matches.length) {
 			return;
 		}
@@ -916,9 +916,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._lastNotebookEditResource.push(matches[0].cell.uri);
 
 		matches.forEach(match => {
-			match.matches.forEach(singleMatch => {
+			match.matches.forEach((singleMatch, index) => {
 				textEdits.push({
-					edit: { range: singleMatch.range, text: text },
+					edit: { range: singleMatch.range, text: texts[index] },
 					resource: match.cell.uri
 				});
 			});
