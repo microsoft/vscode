@@ -1381,10 +1381,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				}
 				this._exitCode = exitCodeOrError.code;
-				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d{3,4}).*$/);
+				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d+).*$/);
 				if (conptyError) {
 					const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
 					switch (errorCode) {
+						case 5:
+							exitCodeOrError.message = `Access was denied to the path containing your executable ${this.shellLaunchConfig.executable}. Manage and change your permissions to get this to work.`;
+							break;
 						case 267:
 							exitCodeOrError.message = `Invalid starting directory ${this.initialCwd}, review your terminal.integrated.cwd setting`;
 							break;
