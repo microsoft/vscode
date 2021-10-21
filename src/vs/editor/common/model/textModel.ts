@@ -3090,14 +3090,17 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		options: model.BracketGuideOptions
 	): model.IndentGuide[][] {
 		const result: model.IndentGuide[][] = [];
-		const bracketPairs = this._bracketPairColorizer.getBracketPairsInRangeWithMinIndentation(
-			new Range(
-				startLineNumber,
-				1,
-				endLineNumber,
-				this.getLineMaxColumn(endLineNumber)
+		const bracketPairs =
+			this._bracketPairColorizer.getBracketPairsInRangeWithMinIndentation(
+				new Range(
+					startLineNumber,
+					1,
+					endLineNumber,
+					this.getLineMaxColumn(endLineNumber)
+				)
 			)
-		);
+				// Exclude bracket pairs that are not balanced.
+				.filter(b => b.closingBracketRange !== undefined);
 
 		let activeBracketPairRange: Range | undefined = undefined;
 		if (activePosition && bracketPairs.length > 0) {
