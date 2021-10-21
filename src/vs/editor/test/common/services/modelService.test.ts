@@ -32,6 +32,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { getDocumentSemanticTokens } from 'vs/editor/common/services/getSemanticTokens';
 
 const GENERATE_TESTS = false;
 
@@ -485,6 +486,52 @@ suite('ModelSemanticColoring', () => {
 
 		// assert that it got called twice
 		assert.strictEqual(callCount, 2);
+	});
+
+	test('DocumentSemanticTokens should be pick the token provider with actual items', async () => {
+
+		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
+		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			getLegend(): SemanticTokensLegend {
+				return { tokenTypes: ['class'], tokenModifiers: [] };
+			}
+			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				// This one will actually end up second in the list.
+				return {
+					data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+				};
+			}
+			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			}
+		}));
+		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
+			getLegend(): SemanticTokensLegend {
+				return { tokenTypes: ['class'], tokenModifiers: [] };
+			}
+			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
+				return null;
+			}
+			releaseDocumentSemanticTokens(resultId: string | undefined): void {
+			}
+		}));
+
+		const textModel = modelService.createModel('Hello world 2', modeService.create('testMode2'));
+		try {
+			const request = getDocumentSemanticTokens(textModel, null, CancellationToken.None);
+			const tokens = await request?.request;
+
+			// We should have tokens
+			assert.ok(tokens, `Tokens not found from multiple providers`);
+			assert.deepStrictEqual([...(tokens as any).data], [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data not returned for multiple providers`);
+		} finally {
+			disposables.clear();
+
+			// Wait for scheduler to finish
+			await timeout(0);
+
+			// Now dispose the text model
+			textModel.dispose();
+		}
 	});
 });
 
