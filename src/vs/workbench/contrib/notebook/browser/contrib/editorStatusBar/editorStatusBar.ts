@@ -165,7 +165,6 @@ registerAction2(class extends Action2 {
 					label: kernel.label,
 					description: kernel.description,
 					detail: kernel.detail,
-					category: kernel.kind,
 					buttons: [configButton]
 				};
 				if (kernel.id === selected?.id) {
@@ -185,20 +184,18 @@ registerAction2(class extends Action2 {
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
 				});
 			} else {
-				// Always on top -> Selected & suggested kernels.
-				if (selectedKernelPick) {
-					quickPickItems.push(selectedKernelPick);
-				}
+				// Always display suggested kernels on the top.
 				quickPickItems.push(...picks.filter(item => suggestions.includes(item.kernel)));
 				if (quickPickItems.length) {
 					quickPickItems.unshift({
 						type: 'separator',
-						label: selectedKernelPick ? nls.localize('currentAndSuggestedKernels', "Current & Suggested") : nls.localize('suggestedKernels', "Suggested")
+						label: nls.localize('suggestedKernels', "Suggested")
 					});
 				}
 
 				// Next display all of the kernels grouped by categories or extensions.
-				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || '', b.kernel.kind || ''));
+				// If we don't have a kind, always display those at the bottom.
+				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 				kernelsPerCategory.forEach(items => {
 					quickPickItems.push({
 						type: 'separator',
