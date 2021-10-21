@@ -19,7 +19,7 @@ import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { listenStream, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-export class RemoteAgentFileSystemChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
+export class RemoteAgentFileSystemProviderChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
 
 	private readonly uriTransformerCache = new Map<string, IURITransformer>();
 	private readonly fsProvider = this._register(new DiskFileSystemProvider(this.logService));
