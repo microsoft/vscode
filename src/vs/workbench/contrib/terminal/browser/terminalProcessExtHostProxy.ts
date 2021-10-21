@@ -20,8 +20,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
@@ -70,7 +68,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	emitTitle(title: string): void {
-		this._onProcessTitleChanged.fire(title);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
 	}
 
 	emitReady(pid: number, cwd: string): void {

@@ -221,7 +221,6 @@ export interface IPtyService {
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
-	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
 	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;

@@ -70,8 +70,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<{ id: number, event: TerminalShellType }>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
@@ -186,7 +184,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
 		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
-		this._register(proxy.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(proxy.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		this._register(proxy.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
 		this._register(proxy.onProcessResolvedShellLaunchConfig(e => this._onProcessResolvedShellLaunchConfig.fire(e)));

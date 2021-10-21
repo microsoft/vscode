@@ -31,8 +31,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());

@@ -47,8 +47,6 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<{ id: number, event: string }>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<{ id: number, event: TerminalShellType }>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<{ id: number, event: ITerminalDimensionsOverride | undefined }>());
@@ -211,7 +209,6 @@ export class PtyService extends Disposable implements IPtyService {
 		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
-		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
 		persistentProcess.onProcessShellTypeChanged(event => this._onProcessShellTypeChanged.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
@@ -421,8 +418,6 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
@@ -571,7 +566,7 @@ export class PersistentTerminalProcess extends Disposable {
 			}
 		} else {
 			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, capabilities: this._terminalProcess.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
-			this._onProcessTitleChanged.fire(this._terminalProcess.currentTitle);
+			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
 			this._onProcessShellTypeChanged.fire(this._terminalProcess.shellType);
 			this.triggerReplay();
 		}

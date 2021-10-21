@@ -100,9 +100,6 @@ export class RemoteTerminalChannelClient {
 	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
 		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
 	}
-	get onProcessTitleChanged(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessTitleChangedEvent');
-	}
 	get onProcessShellTypeChanged(): Event<{ id: number, event: TerminalShellType | undefined }> {
 		return this._channel.listen<{ id: number, event: TerminalShellType | undefined }>('$onProcessShellTypeChangedEvent');
 	}

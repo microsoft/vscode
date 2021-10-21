@@ -20,8 +20,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
 	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
