@@ -115,9 +115,14 @@ function _getDocumentSemanticTokensProviderHighestGroup(model: ITextModel): Docu
 	return (result.length > 0 ? result[0] : null);
 }
 
-export function getDocumentRangeSemanticTokensProviderHighestGroup(model: ITextModel): DocumentRangeSemanticTokensProvider[] | null {
+function _getDocumentRangeSemanticTokensProviderHighestGroup(model: ITextModel): DocumentRangeSemanticTokensProvider[] | null {
 	const result = DocumentRangeSemanticTokensProviderRegistry.orderedGroups(model);
 	return (result.length > 0 ? result[0] : null);
+}
+
+export function getDocumentRangeSemanticTokensProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
+	const highestGroup = _getDocumentRangeSemanticTokensProviderHighestGroup(model);
+	return highestGroup ? new CompositeDocumentRangeSemanticTokensProvider(highestGroup) : null;
 }
 
 CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
@@ -187,12 +192,12 @@ CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokensLegend', as
 		return undefined;
 	}
 
-	const providers = getDocumentRangeSemanticTokensProviderHighestGroup(model);
-	if (!providers) {
+	const provider = getDocumentRangeSemanticTokensProvider(model);
+	if (!provider) {
 		return undefined;
 	}
 
-	return providers[0].getLegend();
+	return provider.getLegend();
 });
 
 CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokens', async (accessor, ...args): Promise<VSBuffer | undefined> => {
@@ -205,16 +210,15 @@ CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokens', async (a
 		return undefined;
 	}
 
-	const providers = getDocumentRangeSemanticTokensProviderHighestGroup(model);
-	if (!providers) {
+	const provider = getDocumentRangeSemanticTokensProvider(model);
+	if (!provider) {
 		// there is no provider
 		return undefined;
 	}
 
 	let result: SemanticTokens | null | undefined;
-	const composite = new CompositeDocumentRangeSemanticTokensProvider(providers);
 	try {
-		result = await composite.provideDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
+		result = await provider.provideDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
 	} catch (err) {
 		onUnexpectedExternalError(err);
 		return undefined;
