@@ -716,7 +716,21 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
-		return this._lines.getAllOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options), theme);
+		const decorations = this.model.getOverviewRulerDecorations(this._editorId, filterValidationDecorations(this._configuration.options));
+		const result = new OverviewRulerDecorations();
+		for (const decoration of decorations) {
+			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			const lane = opts ? opts.position : 0;
+			if (lane === 0) {
+				continue;
+			}
+			const color = opts.getColor(theme);
+			const viewStartLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.startLineNumber, decoration.range.startColumn);
+			const viewEndLineNumber = this.coordinatesConverter.getViewLineNumberOfModelPosition(decoration.range.endLineNumber, decoration.range.endColumn);
+
+			result.accept(color, viewStartLineNumber, viewEndLineNumber, lane);
+		}
+		return result.result;
 	}
 
 	public invalidateOverviewRulerColorCache(): void {
@@ -1094,3 +1108,30 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getLineIndentColumn(lineNumber);
 	}
 }
+
+class OverviewRulerDecorations {
+
+	readonly result: IOverviewRulerDecorations = Object.create(null);
+
+	public accept(color: string, startLineNumber: number, endLineNumber: number, lane: number): void {
+		let prev = this.result[color];
+
+		if (prev) {
+			const prevLane = prev[prev.length - 3];
+			const prevEndLineNumber = prev[prev.length - 1];
+			if (prevLane === lane && prevEndLineNumber + 1 >= startLineNumber) {
+				// merge into prev
+				if (endLineNumber > prevEndLineNumber) {
+					prev[prev.length - 1] = endLineNumber;
+				}
+				return;
+			}
+
+			// push
+			prev.push(lane, startLineNumber, endLineNumber);
+		} else {
+			this.result[color] = [lane, startLineNumber, endLineNumber];
+		}
+	}
+}
+

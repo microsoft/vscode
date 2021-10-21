@@ -89,6 +89,7 @@ export interface ICoordinatesConverter {
 	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
 	modelPositionIsVisible(modelPosition: Position): boolean;
 	getModelLineViewLineCount(modelLineNumber: number): number;
+	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
 }
 
 export class OutputPosition {
