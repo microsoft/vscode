@@ -157,7 +157,6 @@ registerAction2(class extends Action2 {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
 			};
-			let selectedKernelPick: KernelPick | undefined;
 			const picks: KernelPick[] = all.map(kernel => {
 				const res = <KernelPick>{
 					kernel,
@@ -168,7 +167,6 @@ registerAction2(class extends Action2 {
 					buttons: [configButton]
 				};
 				if (kernel.id === selected?.id) {
-					selectedKernelPick = res;
 					if (!res.description) {
 						res.description = nls.localize('current1', "Currently Selected");
 					} else {
