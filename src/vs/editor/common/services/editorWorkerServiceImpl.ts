@@ -64,7 +64,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
-		this._register(modes.LinkProviderRegistry.register('*', {
+		this._register(modes.LinkProviderRegistry.register({ language: '*', hasAccessToAllModels: true }, {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return Promise.resolve({ links: [] }); // File too large
