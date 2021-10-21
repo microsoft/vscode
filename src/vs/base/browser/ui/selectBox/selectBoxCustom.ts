@@ -175,6 +175,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Inline stylesheet for themes
 		this.styleElement = dom.createStyleSheet(this.selectDropDownContainer);
+
+		// Prevent dragging of dropdown #114329
+		this.selectDropDownContainer.setAttribute('draggable', 'true');
+		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.DRAG_START, (e) => {
+			dom.EventHelper.stop(e, true);
+		}));
 	}
 
 	private registerListeners() {
