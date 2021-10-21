@@ -229,6 +229,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const logService = getOrCreateSpdLogService(this._environmentService);
 		logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 		logService.trace('process arguments:', this._environmentService.args);
+		const serverGreeting = product.serverGreeting.join('\n');
+		if (serverGreeting) {
+			logService.info(`\n\n${serverGreeting}\n\n`);
+		}
 
 		this._logService = new MultiplexLogService([new ServerLogService(getLogLevel(this._environmentService)), logService]);
 		this._socketServer = new SocketServer<RemoteAgentConnectionContext>();

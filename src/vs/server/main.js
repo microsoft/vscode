@@ -7,6 +7,7 @@
 
 const perf = require('../base/common/performance');
 const performance = require('perf_hooks').performance;
+const product = require('../../../product.json');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -89,7 +90,8 @@ function start() {
 			: { host: parsedArgs['host'], port: parsePort(parsedArgs['port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
-		let output = ``;
+		const serverGreeting = product.serverGreeting.join('\n');
+		let output = serverGreeting ? `\n\n${serverGreeting}\n\n` : ``;
 
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();

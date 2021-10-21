@@ -118,6 +118,8 @@ export interface IProductConfiguration {
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
+	readonly serverGreeting: string[];
+
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
