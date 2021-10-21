@@ -94,8 +94,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onBeforeProcessData = this._onBeforeProcessData.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessTitle = this._register(new Emitter<string>());
-	readonly onProcessTitle = this._onProcessTitle.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
@@ -324,7 +322,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
-			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
 			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
 			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
 			newProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire(property))

@@ -1238,6 +1238,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._initialCwd = e.value;
 					this._cwd = this._initialCwd;
 					this.refreshTabLabels(this.title, TitleEventSource.Api);
+				} else if (e.type === ProcessPropertyType.Title) {
+					// TODO: is message title disposable needed here?
+					// before was:
+					// this._messageTitleDisposable = this._processManager.onDidChangeProperty(property => {
+					this.refreshTabLabels(e.value ? e.value : '', TitleEventSource.Process);
 				}
 			});
 			if (this._shellLaunchConfig.name) {
@@ -1251,31 +1256,31 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					});
 				});
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
-				this._messageTitleDisposable = this._processManager.onProcessTitle(title => this.refreshTabLabels(title ? title : '', TitleEventSource.Process));
+
+				this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
+				this._processManager.onProcessData(ev => {
+					this._initialDataEvents?.push(ev.data);
+					this._onData.fire(ev.data);
+				});
+				this._processManager.onProcessOverrideDimensions(e => this.setOverrideDimensions(e, true));
+				this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
+				this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
+				this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
+				this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
+				this._processManager.onPtyDisconnect(() => {
+					this._safeSetOption('disableStdin', true);
+					this.statusList.add({
+						id: TerminalStatus.Disconnected,
+						severity: Severity.Error,
+						icon: Codicon.debugDisconnect,
+						tooltip: nls.localize('disconnectStatus', "Lost connection to process")
+					});
+				});
+				this._processManager.onPtyReconnect(() => {
+					this._safeSetOption('disableStdin', false);
+					this.statusList.remove(TerminalStatus.Disconnected);
+				});
 			}
-		});
-		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onProcessData(ev => {
-			this._initialDataEvents?.push(ev.data);
-			this._onData.fire(ev.data);
-		});
-		this._processManager.onProcessOverrideDimensions(e => this.setOverrideDimensions(e, true));
-		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
-		this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
-		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			this.statusList.add({
-				id: TerminalStatus.Disconnected,
-				severity: Severity.Error,
-				icon: Codicon.debugDisconnect,
-				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
-			});
-		});
-		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
-			this.statusList.remove(TerminalStatus.Disconnected);
 		});
 	}
 

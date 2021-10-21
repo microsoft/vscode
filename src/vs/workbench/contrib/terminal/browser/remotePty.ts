@@ -40,7 +40,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
-		fixedDimensions: { cols: undefined, rows: undefined }
+		fixedDimensions: { cols: undefined, rows: undefined },
+		title: ''
 	};
 
 	private _capabilities: ProcessCapability[] = [];
@@ -154,9 +155,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleReady(e: IProcessReadyEvent) {
 		this._capabilities = e.capabilities;
 		this._onProcessReady.fire(e);
-	}
-	handleTitleChanged(e: string) {
-		this._onProcessTitleChanged.fire(e);
 	}
 	handleShellTypeChanged(e: TerminalShellType | undefined) {
 		this._onProcessShellTypeChanged.fire(e);

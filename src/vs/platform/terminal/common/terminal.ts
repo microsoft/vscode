@@ -180,7 +180,8 @@ export const IPtyService = createDecorator<IPtyService>('ptyService');
 export const enum ProcessPropertyType {
 	Cwd = 'cwd',
 	InitialCwd = 'initialCwd',
-	FixedDimensions = 'fixedDimensions'
+	FixedDimensions = 'fixedDimensions',
+	Title = 'title'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -191,7 +192,8 @@ export interface IProcessProperty<T extends ProcessPropertyType> {
 export interface IProcessPropertyMap {
 	[ProcessPropertyType.Cwd]: string,
 	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
+	[ProcessPropertyType.Title]: string
 }
 
 export interface IFixedTerminalDimensions {
@@ -526,7 +528,6 @@ export interface ITerminalChildProcess {
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessTitleChanged: Event<string>;
 	onProcessShellTypeChanged: Event<TerminalShellType>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;

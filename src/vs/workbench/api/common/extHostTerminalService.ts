@@ -591,7 +591,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		const disposables = new DisposableStore();
 
 		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
-		disposables.add(p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title)));
+		disposables.add(p.onDidChangeProperty(property => {
+			if (property.type === ProcessPropertyType.Title) {
+				this._proxy.$sendProcessTitle(id, property.value);
+			}
+		}));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._bufferer.startBuffering(id, p.onProcessData);

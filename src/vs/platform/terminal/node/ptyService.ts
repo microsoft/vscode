@@ -510,7 +510,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this._cwd = e.cwd;
 			this._onProcessReady.fire(e);
 		}));
-		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
 		this._register(this._terminalProcess.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
 
