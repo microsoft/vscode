@@ -19,77 +19,6 @@ import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { listenStream, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
-class SessionFileWatcher extends Disposable {
-
-	private readonly watcherRequests = new Map<number, IDisposable>();
-	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: this.getWatcherOptions() }));
-
-	constructor(
-		private readonly logService: ILogService,
-		private readonly environmentService: IServerEnvironmentService,
-		private readonly uriTransformer: IURITransformer,
-		emitter: Emitter<IFileChange[] | string>
-	) {
-		super();
-
-		this.registerListeners(emitter);
-	}
-
-	private registerListeners(emitter: Emitter<IFileChange[] | string>): void {
-		const localChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
-
-		this._register(localChangeEmitter.event((events) => {
-			emitter.fire(
-				events.map(e => ({
-					resource: this.uriTransformer.transformOutgoingURI(e.resource),
-					type: e.type
-				}))
-			);
-		}));
-
-		this._register(this.fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
-		this._register(this.fileWatcher.onDidErrorOccur(error => emitter.fire(error)));
-	}
-
-	private getWatcherOptions(): IWatcherOptions | undefined {
-		const fileWatcherPolling = this.environmentService.args['fileWatcherPolling'];
-		if (fileWatcherPolling) {
-			const segments = fileWatcherPolling.split(delimiter);
-			const pollingInterval = Number(segments[0]);
-			if (pollingInterval > 0) {
-				const usePolling = segments.length > 1 ? segments.slice(1) : true;
-				return { usePolling, pollingInterval };
-			}
-		}
-
-		return undefined;
-	}
-
-	watch(req: number, _resource: UriComponents, opts: IWatchOptions): IDisposable {
-		const resource = URI.revive(this.uriTransformer.transformIncoming(_resource));
-
-		if (this.environmentService.extensionsPath) {
-			// when opening the $HOME folder, we end up watching the extension folder
-			// so simply exclude watching the extensions folder
-			opts.excludes = [...(opts.excludes || []), posix.join(this.environmentService.extensionsPath, '**')];
-		}
-
-		this.watcherRequests.set(req, this.fileWatcher.watch(resource, opts));
-
-		return toDisposable(() => {
-			dispose(this.watcherRequests.get(req));
-			this.watcherRequests.delete(req);
-		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.watcherRequests.forEach(disposable => dispose(disposable));
-		this.watcherRequests.clear();
-	}
-}
-
 export class RemoteAgentFileSystemChannel extends Disposable implements IServerChannel<RemoteAgentConnectionContext> {
 
 	private readonly uriTransformerCache = new Map<string, IURITransformer>();
@@ -292,11 +221,10 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 	}
 
 	private async watch(session: string, req: number, _resource: UriComponents, opts: IWatchOptions): Promise<void> {
-		const id = session + req;
 		const watcher = this.fileWatchers.get(session);
 		if (watcher) {
 			const disposable = watcher.watch(req, _resource, opts);
-			this.watchRequests.set(id, disposable);
+			this.watchRequests.set(session + req, disposable);
 		}
 	}
 
@@ -319,5 +247,76 @@ export class RemoteAgentFileSystemChannel extends Disposable implements IServerC
 
 		this.fileWatchers.forEach(disposable => dispose(disposable));
 		this.fileWatchers.clear();
+	}
+}
+
+class SessionFileWatcher extends Disposable {
+
+	private readonly watcherRequests = new Map<number, IDisposable>();
+	private readonly fileWatcher = this._register(new DiskFileSystemProvider(this.logService, { watcher: this.getWatcherOptions() }));
+
+	constructor(
+		private readonly logService: ILogService,
+		private readonly environmentService: IServerEnvironmentService,
+		private readonly uriTransformer: IURITransformer,
+		sessionEmitter: Emitter<IFileChange[] | string>
+	) {
+		super();
+
+		this.registerListeners(sessionEmitter);
+	}
+
+	private registerListeners(sessionEmitter: Emitter<IFileChange[] | string>): void {
+		const localChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
+
+		this._register(localChangeEmitter.event((events) => {
+			sessionEmitter.fire(
+				events.map(e => ({
+					resource: this.uriTransformer.transformOutgoingURI(e.resource),
+					type: e.type
+				}))
+			);
+		}));
+
+		this._register(this.fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
+		this._register(this.fileWatcher.onDidErrorOccur(error => sessionEmitter.fire(error)));
+	}
+
+	private getWatcherOptions(): IWatcherOptions | undefined {
+		const fileWatcherPolling = this.environmentService.args['fileWatcherPolling'];
+		if (fileWatcherPolling) {
+			const segments = fileWatcherPolling.split(delimiter);
+			const pollingInterval = Number(segments[0]);
+			if (pollingInterval > 0) {
+				const usePolling = segments.length > 1 ? segments.slice(1) : true;
+				return { usePolling, pollingInterval };
+			}
+		}
+
+		return undefined;
+	}
+
+	watch(req: number, _resource: UriComponents, opts: IWatchOptions): IDisposable {
+		const resource = URI.revive(this.uriTransformer.transformIncoming(_resource));
+
+		if (this.environmentService.extensionsPath) {
+			// when opening the $HOME folder, we end up watching the extension folder
+			// so simply exclude watching the extensions folder
+			opts.excludes = [...(opts.excludes || []), posix.join(this.environmentService.extensionsPath, '**')];
+		}
+
+		this.watcherRequests.set(req, this.fileWatcher.watch(resource, opts));
+
+		return toDisposable(() => {
+			dispose(this.watcherRequests.get(req));
+			this.watcherRequests.delete(req);
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.watcherRequests.forEach(disposable => dispose(disposable));
+		this.watcherRequests.clear();
 	}
 }

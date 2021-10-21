@@ -27,11 +27,11 @@ class DesktopMain extends SharedDesktopMain {
 	): void {
 
 		// Local Files
-		const diskFileSystemProvider = new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService);
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
+		fileService.registerProvider(Schemas.userData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService)));
 	}
 }
 

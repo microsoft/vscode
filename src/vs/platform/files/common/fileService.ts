@@ -1078,21 +1078,19 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward watch request to provider and
 		// wire in disposables.
-		{
-			let watchDisposed = false;
-			let disposeWatch = () => { watchDisposed = true; };
-			disposables.add(toDisposable(() => disposeWatch()));
+		let watchDisposed = false;
+		let disposeWatch = () => { watchDisposed = true; };
+		disposables.add(toDisposable(() => disposeWatch()));
 
-			// Watch and wire in disposable which is async but
-			// check if we got disposed meanwhile and forward
-			this.doWatch(resource, options).then(disposable => {
-				if (watchDisposed) {
-					dispose(disposable);
-				} else {
-					disposeWatch = () => dispose(disposable);
-				}
-			}, error => this.logService.error(error));
-		}
+		// Watch and wire in disposable which is async but
+		// check if we got disposed meanwhile and forward
+		this.doWatch(resource, options).then(disposable => {
+			if (watchDisposed) {
+				dispose(disposable);
+			} else {
+				disposeWatch = () => dispose(disposable);
+			}
+		}, error => this.logService.error(error));
 
 		// Remember as watched resource and unregister
 		// properly on disposal.
@@ -1128,8 +1126,10 @@ export class FileService extends Disposable implements IFileService {
 		const key = this.toWatchKey(provider, resource, options);
 
 		// Only start watching if we are the first for the given key
-		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
-		if (!this.activeWatchers.has(key)) {
+		let watcher = this.activeWatchers.get(key);
+		if (!watcher) {
+			watcher = { count: 0, disposable: provider.watch(resource, options) };
+
 			this.activeWatchers.set(key, watcher);
 		}
 
@@ -1137,14 +1137,16 @@ export class FileService extends Disposable implements IFileService {
 		watcher.count += 1;
 
 		return toDisposable(() => {
+			if (watcher) {
 
-			// Unref
-			watcher.count--;
+				// Unref
+				watcher.count--;
 
-			// Dispose only when last user is reached
-			if (watcher.count === 0) {
-				dispose(watcher.disposable);
-				this.activeWatchers.delete(key);
+				// Dispose only when last user is reached
+				if (watcher.count === 0) {
+					dispose(watcher.disposable);
+					this.activeWatchers.delete(key);
+				}
 			}
 		});
 	}

@@ -31,7 +31,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private readonly provider = this._register(new class extends IPCFileSystemProvider {
 		constructor(mainProcessService: IMainProcessService) {
-			super(mainProcessService.getChannel('diskFiles'));
+			super(mainProcessService.getChannel('localFilesystem'));
 		}
 	}(this.mainProcessService));
 

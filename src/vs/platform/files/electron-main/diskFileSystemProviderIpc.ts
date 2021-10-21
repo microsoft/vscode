@@ -16,7 +16,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { listenStream, ReadableStreamEventPayload } from 'vs/base/common/stream';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { basename, normalize } from 'vs/base/common/path';
-import { combinedDisposable, Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogMessage, toFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
@@ -56,7 +56,7 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 
 	listen(_: unknown, event: string, arg: any): Event<any> {
 		switch (event) {
-			case 'fileChange': return this.onDidChangeFileOrError.event;
+			case 'fileChange': return this.onFileChange(arg[0]);
 			case 'readFileStream': return this.onReadFileStream(URI.revive(arg[0]), arg[1]);
 		}
 
@@ -170,44 +170,45 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 
 	//#region File Watching
 
-	private readonly onDidChangeFileOrError = this._register(new Emitter<readonly IFileChange[] | string>());
+	private readonly sessionToWatcher = new Map<string /* session ID */, SessionFileWatcher>();
+	private readonly watchRequests = new Map<string /* session ID + request ID */, IDisposable>();
 
-	private readonly nonRecursiveFileWatchers = new Map<string /* ID */, IDisposable>();
+	private onFileChange(sessionId: string): Event<IFileChange[] | string> {
+
+		// We want a specific emitter for the given session so that events
+		// from the one session do not end up on the other session. As such
+		// we create a `SessionFileWatcher` and a `Emitter` for that session.
+		const emitter = new Emitter<IFileChange[] | string>({
+			onFirstListenerAdd: () => {
+				this.sessionToWatcher.set(sessionId, new SessionFileWatcher(emitter, this.logService));
+			},
+			onLastListenerRemove: () => {
+				dispose(this.sessionToWatcher.get(sessionId));
+				this.sessionToWatcher.delete(sessionId);
+			}
+		});
+
+		return emitter.event;
+	}
 
 	private async watch(sessionId: string, req: number, resource: URI, opts: IWatchOptions): Promise<void> {
 		if (opts.recursive) {
 			throw createFileSystemProviderError('Recursive watcher is not supported from main process', FileSystemProviderErrorCode.Unavailable);
 		}
 
-		const watcher = new NodeJSWatcherService(
-			normalize(resource.fsPath),
-			changes => this.onDidChangeFileOrError.fire(toFileChanges(changes)),
-			msg => this.onWatcherLogMessage(msg),
-			this.logService.getLevel() === LogLevel.Trace
-		);
-
-		const logLevelListener = this.logService.onDidChangeLogLevel(() => {
-			watcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
-		});
-
-		const id = sessionId + req;
-		this.nonRecursiveFileWatchers.set(id, combinedDisposable(watcher, logLevelListener));
-	}
-
-	private onWatcherLogMessage(msg: ILogMessage): void {
-		if (msg.type === 'error') {
-			this.onDidChangeFileOrError.fire(msg.message);
+		const watcher = this.sessionToWatcher.get(sessionId);
+		if (watcher) {
+			const disposable = watcher.watch(req, resource);
+			this.watchRequests.set(sessionId + req, disposable);
 		}
-
-		this.logService[msg.type](msg.message);
 	}
 
 	private async unwatch(sessionId: string, req: number): Promise<void> {
 		const id = sessionId + req;
-		const disposable = this.nonRecursiveFileWatchers.get(id);
+		const disposable = this.watchRequests.get(id);
 		if (disposable) {
 			dispose(disposable);
-			this.nonRecursiveFileWatchers.delete(id);
+			this.watchRequests.delete(id);
 		}
 	}
 
@@ -216,7 +217,57 @@ export class DiskFileSystemProviderChannel extends Disposable implements IServer
 	override dispose(): void {
 		super.dispose();
 
-		this.nonRecursiveFileWatchers.forEach(disposable => dispose(disposable));
-		this.nonRecursiveFileWatchers.clear();
+		this.watchRequests.forEach(disposable => dispose(disposable));
+		this.watchRequests.clear();
+
+		this.sessionToWatcher.forEach(disposable => dispose(disposable));
+		this.sessionToWatcher.clear();
+	}
+}
+
+class SessionFileWatcher extends Disposable {
+
+	private readonly watcherRequests = new Map<number /* request ID */, IDisposable>();
+
+	constructor(
+		private readonly sessionEmitter: Emitter<IFileChange[] | string>,
+		private readonly logService: ILogService
+	) {
+		super();
+	}
+
+	watch(req: number, resource: URI): IDisposable {
+		const disposable = new DisposableStore();
+
+		this.watcherRequests.set(req, disposable);
+		disposable.add(toDisposable(() => this.watcherRequests.delete(req)));
+
+		const watcher = disposable.add(new NodeJSWatcherService(
+			normalize(resource.fsPath),
+			changes => this.sessionEmitter.fire(toFileChanges(changes)),
+			msg => this.onWatcherLogMessage(msg),
+			this.logService.getLevel() === LogLevel.Trace
+		));
+
+		disposable.add(this.logService.onDidChangeLogLevel(() => {
+			watcher.setVerboseLogging(this.logService.getLevel() === LogLevel.Trace);
+		}));
+
+		return disposable;
+	}
+
+	private onWatcherLogMessage(msg: ILogMessage): void {
+		if (msg.type === 'error') {
+			this.sessionEmitter.fire(msg.message);
+		}
+
+		this.logService[msg.type](msg.message);
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.watcherRequests.forEach(disposable => dispose(disposable));
+		this.watcherRequests.clear();
 	}
 }
