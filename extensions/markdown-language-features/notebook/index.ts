@@ -8,6 +8,8 @@ import * as DOMPurify from 'dompurify';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
+import '../media/markdown.css';
+
 const sanitizerOptions: DOMPurify.Config = {
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 };
@@ -144,8 +146,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			white-space: pre-wrap;
 		}
 	`;
+	//Create a style element using "markdown.css"
+	const mdCss = document.createElement('link');
+	mdCss.rel = 'stylesheet';
+	mdCss.href = '../media/markdown.css';
+	mdCss.type = 'text/css';
+
 	const template = document.createElement('template');
 	template.classList.add('markdown-style');
+	template.content.appendChild(mdCss);
 	template.content.appendChild(style);
 	document.head.appendChild(template);
 
