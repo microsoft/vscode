@@ -766,8 +766,9 @@ declare module 'vscode' {
 		preserveFocus?: boolean;
 
 		/**
-		 * An optional flag that controls if an {@link TextEditor editor}-tab will be replaced
-		 * with the next editor or if it will be kept.
+		 * An optional flag that controls if an {@link TextEditor editor}-tab shows as preview. Preview tabs will
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * on the `workbench.editor.enablePreview`-setting.
 		 */
 		preview?: boolean;
 
