@@ -494,11 +494,17 @@ suite('ModelSemanticColoring', () => {
 		disposables.add(ModesRegistry.registerLanguage({ id: 'testMode2' }));
 		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
 			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class'], tokenModifiers: [] };
+				return { tokenTypes: ['class1'], tokenModifiers: [] };
 			}
 			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
-				// This one will actually end up second in the list.
+				// For a secondary request return a different value
+				if (lastResultId) {
+					return {
+						data: new Uint32Array([2, 1, 1, 1, 1, 0, 2, 1, 1, 1])
+					};
+				}
 				return {
+					resultId: '1',
 					data: new Uint32Array([0, 1, 1, 1, 1, 0, 2, 1, 1, 1])
 				};
 			}
@@ -507,7 +513,7 @@ suite('ModelSemanticColoring', () => {
 		}));
 		disposables.add(DocumentSemanticTokensProviderRegistry.register('testMode2', new class implements DocumentSemanticTokensProvider {
 			getLegend(): SemanticTokensLegend {
-				return { tokenTypes: ['class'], tokenModifiers: [] };
+				return { tokenTypes: ['class2'], tokenModifiers: [] };
 			}
 			async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null> {
 				calledBoth = true;
@@ -519,13 +525,22 @@ suite('ModelSemanticColoring', () => {
 
 		const textModel = modelService.createModel('Hello world 2', modeService.create('testMode2'));
 		try {
-			const request = getDocumentSemanticTokens(textModel, null, CancellationToken.None);
-			const tokens = await request?.request;
+			let request = getDocumentSemanticTokens(textModel, null, CancellationToken.None);
+			assert.deepStrictEqual(request?.provider.getLegend(), { tokenTypes: ['class2'], tokenModifiers: [] }, `Legend does not match prior to request`);
+			let tokens = await request?.request;
 
 			// We should have tokens
 			assert.ok(tokens, `Tokens not found from multiple providers`);
+			assert.ok(tokens.resultId, `Token result id not found from multiple providers`);
 			assert.deepStrictEqual([...(tokens as any).data], [0, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data not returned for multiple providers`);
 			assert.ok(calledBoth, `Did not actually call both token providers`);
+			assert.deepStrictEqual(request?.provider.getLegend(), { tokenTypes: ['class1'], tokenModifiers: [] }, `Legend did not update after match`);
+
+			// Make a second request. Make sure we get the secondary value
+			request = getDocumentSemanticTokens(textModel, tokens!.resultId!, CancellationToken.None);
+			tokens = await request?.request;
+			assert.deepStrictEqual([...(tokens as any).data], [2, 1, 1, 1, 1, 0, 2, 1, 1, 1], `Token data not returned for second request for multiple providers`);
+
 		} finally {
 			disposables.clear();
 

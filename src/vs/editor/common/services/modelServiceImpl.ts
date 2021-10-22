@@ -840,10 +840,9 @@ export class ModelSemanticColoring extends Disposable {
 			pendingChanges.push(e);
 		});
 
-		const styling = this._semanticStyling.get(provider);
-
 		request.then((res) => {
 			this._currentDocumentRequestCancellationTokenSource = null;
+			const styling = this._semanticStyling.get(provider); // Do this after the provider gets results to ensure legend matches
 			contentChangeListener.dispose();
 			this._setDocumentSemanticTokens(provider, res || null, styling, pendingChanges);
 		}, (err) => {

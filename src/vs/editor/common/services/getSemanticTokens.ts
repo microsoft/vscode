@@ -15,6 +15,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
 	return v && !!((<SemanticTokens>v).data);
@@ -42,16 +43,18 @@ export function getDocumentSemanticTokens(model: ITextModel, lastResultId: strin
 }
 
 class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
+	private disposables = new DisposableStore();
 	private didChangeEmitter = new Emitter<void>();
 	private lastUsedProvider: DocumentSemanticTokensProvider | undefined = undefined;
+	private static providerToLastResult = new WeakMap<DocumentSemanticTokensProvider, string>();
 	constructor(model: ITextModel, private readonly providerGroup: DocumentSemanticTokensProvider[]) {
 		// Lifetime of this provider is tied to the text model
-		model.onWillDispose(() => this.didChangeEmitter.dispose());
+		model.onWillDispose(() => this.disposables.clear());
 
 		// Mirror did change events
 		providerGroup.forEach(p => {
 			if (p.onDidChange) {
-				p.onDidChange(() => this.didChangeEmitter.fire(), this, undefined);
+				p.onDidChange(() => this.didChangeEmitter.fire(), this, this.disposables);
 			}
 		});
 	}
@@ -60,7 +63,18 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 		// that actually returned tokens
 		const list = await Promise.all(this.providerGroup.map(async provider => {
 			try {
-				return await provider.provideDocumentSemanticTokens(model, lastResultId, token);
+				// If result id is passed in, make sure it's for this provider
+				const localLastResultId = lastResultId && CompositeDocumentSemanticTokensProvider.providerToLastResult.get(provider) === lastResultId ? lastResultId : null;
+
+				// Get the result for this provider
+				const result = await provider.provideDocumentSemanticTokens(model, localLastResultId, token);
+
+				// Save result id for this provider
+				if (result?.resultId) {
+					CompositeDocumentSemanticTokensProvider.providerToLastResult.set(provider, result.resultId);
+				}
+
+				return result;
 			} catch (err) {
 				onUnexpectedExternalError(err);
 			}
@@ -80,7 +94,18 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
 	}
 	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
-		this.providerGroup.forEach(p => p.releaseDocumentSemanticTokens(resultId));
+		this.providerGroup.forEach(p => {
+			// If this result is for this provider, release it
+			if (resultId) {
+				if (CompositeDocumentSemanticTokensProvider.providerToLastResult.get(p) === resultId) {
+					p.releaseDocumentSemanticTokens(resultId);
+					CompositeDocumentSemanticTokensProvider.providerToLastResult.delete(p);
+				}
+				// Else if the result is empty, release for all providers that aren't waiting for a result id
+			} else if (CompositeDocumentSemanticTokensProvider.providerToLastResult.get(p) === undefined) {
+				p.releaseDocumentSemanticTokens(undefined);
+			}
+		});
 	}
 }
 
