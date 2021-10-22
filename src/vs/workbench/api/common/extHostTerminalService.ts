@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -262,17 +262,14 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
-
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
-	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
 	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		return Promise.resolve('' as IProcessPropertyMap[T]);
+		throw new Error(`refreshProperty is not suppported in extension owned terminals. property: ${property}`);
 	}
 
 	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		return Promise.resolve();
+		throw new Error(`updateProperty is not suppported in extension owned terminals. property: ${property}, value: ${value}`);
 	}
 
 	async start(): Promise<undefined> {
