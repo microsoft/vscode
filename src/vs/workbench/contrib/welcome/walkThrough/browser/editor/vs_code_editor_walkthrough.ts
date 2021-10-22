@@ -140,7 +140,7 @@ Errors and warnings are highlighted as you edit your code with squiggles.  In th
 Console.log(add(1, 1.5));
 
 
-function Add(a : Number, b : Number) : Int {
+function Add(a, b)
 	return a + b;
 }
 |||
