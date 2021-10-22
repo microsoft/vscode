@@ -187,6 +187,7 @@ registerAction2(class extends Action2 {
 		const contextService = accessor.get(IContextKeyService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const gettingStartedService = accessor.get(IWalkthroughsService);
+		await gettingStartedService.installedExtensionsRegistered;
 		const categories = gettingStartedService.getWalkthroughs();
 		const selection = await quickInputService.pick(categories
 			.filter(c => contextService.contextMatchesRules(c.when))
