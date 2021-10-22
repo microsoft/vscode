@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, IShellLaunchConfig, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -262,14 +262,17 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
+
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
+	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
+	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
 	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		throw new Error(`refreshProperty is not suppported in extension owned terminals. property: ${property}`);
+		return Promise.resolve('');
 	}
 
-	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		throw new Error(`updateProperty is not suppported in extension owned terminals. property: ${property}, value: ${value}`);
+	async updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+		Promise.resolve('');
 	}
 
 	async start(): Promise<undefined> {
@@ -586,17 +589,17 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
 		const disposables = new DisposableStore();
+
 		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
-		disposables.add(p.onDidChangeProperty(property => {
-			if (property.type === ProcessPropertyType.Exit) {
-				this._onProcessExit(id, property.value);
-			}
-			this._proxy.$sendProcessProperty(id, property);
-		}));
+		disposables.add(p.onProcessTitleChanged(title => this._proxy.$sendProcessTitle(id, title)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._bufferer.startBuffering(id, p.onProcessData);
+		disposables.add(p.onProcessExit(exitCode => this._onProcessExit(id, exitCode)));
 
+		if (p.onProcessOverrideDimensions) {
+			disposables.add(p.onProcessOverrideDimensions(e => this._proxy.$sendOverrideDimensions(id, e)));
+		}
 		this._terminalProcesses.set(id, p);
 
 		const awaitingStart = this._extensionTerminalAwaitingStart[id];
@@ -639,11 +642,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public $acceptProcessRequestInitialCwd(id: number): void {
-		this._terminalProcesses.get(id)?.getInitialCwd().then(initialCwd => this._proxy.$sendProcessProperty(id, { type: ProcessPropertyType.InitialCwd, value: initialCwd }));
+		this._terminalProcesses.get(id)?.getInitialCwd().then(initialCwd => this._proxy.$sendProcessInitialCwd(id, initialCwd));
 	}
 
 	public $acceptProcessRequestCwd(id: number): void {
-		this._terminalProcesses.get(id)?.getCwd().then(cwd => this._proxy.$sendProcessProperty(id, { type: ProcessPropertyType.Cwd, value: cwd }));
+		this._terminalProcesses.get(id)?.getCwd().then(cwd => this._proxy.$sendProcessCwd(id, cwd));
 	}
 
 	public $acceptProcessRequestLatency(id: number): number {
@@ -774,6 +777,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			processDiposable.dispose();
 			delete this._terminalProcessDisposables[id];
 		}
+
+		// Send exit event to main side
+		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal | null {

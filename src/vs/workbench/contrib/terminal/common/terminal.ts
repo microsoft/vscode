@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TerminalShellType, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -293,7 +293,12 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
+	readonly onProcessTitle: Event<string>;
+	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
 	readonly onProcessExit: Event<number | undefined>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
+	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
+	readonly onProcessDidChangeHasChildProcesses: Event<boolean>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
 
@@ -339,9 +344,13 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly instanceId: number;
 
 	emitData(data: string): void;
-	emitProcessProperty(property: IProcessProperty<any>): void;
+	emitTitle(title: string): void;
 	emitReady(pid: number, cwd: string): void;
 	emitExit(exitCode: number | undefined): void;
+	emitOverrideDimensions(dimensions: ITerminalDimensions | undefined): void;
+	emitResolvedShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig): void;
+	emitInitialCwd(initialCwd: string): void;
+	emitCwd(cwd: string): void;
 	emitLatency(latency: number): void;
 
 	onInput: Event<string>;

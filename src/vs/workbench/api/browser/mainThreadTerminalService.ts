@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessProperty, IShellLaunchConfig, IShellLaunchConfigDto, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TerminalLocation, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
@@ -323,12 +323,24 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
 	}
 
-	public $sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void {
-		this._terminalProcessProxies.get(terminalId)?.emitProcessProperty(property);
-	}
-
 	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
 		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
+	}
+
+	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
+		this._terminalProcessProxies.get(terminalId)?.emitOverrideDimensions(dimensions);
+	}
+
+	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
+		this._terminalProcessProxies.get(terminalId)?.emitInitialCwd(initialCwd);
+	}
+
+	public $sendProcessCwd(terminalId: number, cwd: string): void {
+		this._terminalProcessProxies.get(terminalId)?.emitCwd(cwd);
+	}
+
+	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
+		this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
 	}
 
 	private async _onRequestLatency(terminalId: number): Promise<void> {
