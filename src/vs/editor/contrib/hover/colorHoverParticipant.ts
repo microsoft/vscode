@@ -60,11 +60,16 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		}
 		const colorDetector = ColorDetector.get(this._editor);
 		for (const d of lineDecorations) {
+			if (d.options.description !== 'color-detector-color') {
+				continue;
+			}
+
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
 				const colorHover = await this._createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
 				return [colorHover];
 			}
+
 		}
 		return [];
 	}
