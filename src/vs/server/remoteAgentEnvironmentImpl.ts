@@ -12,7 +12,6 @@ import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensio
 import * as nls from 'vs/nls';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
-import product from 'vs/platform/product/common/product';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -32,6 +31,7 @@ import { IExtensionManagementCLIService } from 'vs/platform/extensionManagement/
 import { cwd } from 'vs/base/common/process';
 import { IRemoteTelemetryService } from 'vs/server/remoteTelemetryService';
 import { Promises } from 'vs/base/node/pfs';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -61,7 +61,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		extensionManagementCLIService: IExtensionManagementCLIService,
 		private readonly logService: ILogService,
 		private readonly telemetryService: IRemoteTelemetryService,
-		private readonly telemetryAppender: ITelemetryAppender | null
+		private readonly telemetryAppender: ITelemetryAppender | null,
+		private readonly productService: IProductService
 	) {
 		this._logger = new class implements ILog {
 			public error(source: string, message: string): void {
@@ -414,9 +415,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			const extDescsP = extensionDevelopmentPaths.map(extDevPath => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
 					new ExtensionScannerInput(
-						product.version,
-						product.date,
-						product.commit,
+						this.productService.version,
+						this.productService.date,
+						this.productService.commit,
 						language,
 						true, // dev mode
 						extDevPath,
@@ -439,9 +440,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	}
 
 	private _scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
-		const version = product.version;
-		const commit = product.commit;
-		const date = product.date;
+		const version = this.productService.version;
+		const commit = this.productService.commit;
+		const date = this.productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
 
 		const input = new ExtensionScannerInput(version, date, commit, language, devMode, getSystemExtensionsRoot(), true, false, translations);
@@ -459,7 +460,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				}
 			}
 
-			const builtInExtensions = Promise.resolve(product.builtInExtensions || []);
+			const builtInExtensions = Promise.resolve(this.productService.builtInExtensions || []);
 
 			const input = new ExtensionScannerInput(version, date, commit, language, devMode, getExtraDevSystemExtensionsRoot(), true, false, {});
 			const extraBuiltinExtensions = builtInExtensions
@@ -475,9 +476,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private _scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
 		const devMode = !!process.env['VSCODE_DEV'];
 		const input = new ExtensionScannerInput(
-			product.version,
-			product.date,
-			product.commit,
+			this.productService.version,
+			this.productService.date,
+			this.productService.commit,
 			language,
 			devMode,
 			this.environmentService.extensionsPath!,
@@ -492,9 +493,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 	private _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
 		const devMode = !!process.env['VSCODE_DEV'];
 		const input = new ExtensionScannerInput(
-			product.version,
-			product.date,
-			product.commit,
+			this.productService.version,
+			this.productService.date,
+			this.productService.commit,
 			language,
 			devMode,
 			extensionPath,

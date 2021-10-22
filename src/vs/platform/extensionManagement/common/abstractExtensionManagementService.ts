@@ -19,7 +19,7 @@ import {
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const INSTALL_ERROR_VALIDATING = 'validating';
@@ -71,6 +71,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		@IExtensionGalleryService protected readonly galleryService: IExtensionGalleryService,
 		@ITelemetryService protected readonly telemetryService: ITelemetryService,
 		@ILogService protected readonly logService: ILogService,
+		@IProductService protected readonly productService: IProductService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -93,7 +94,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		if (!await this.canInstall(extension)) {
 			const targetPlatform = await this.getTargetPlatform();
-			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, product.nameLong, TargetPlatformToString(targetPlatform)), INSTALL_ERROR_VALIDATING);
+			const error = new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), INSTALL_ERROR_VALIDATING);
 			this.logService.error(`Cannot install extension.`, extension.identifier.id, error.message);
 			reportTelemetry(this.telemetryService, 'extensionGallery:install', getGalleryExtensionTelemetryData(extension), undefined, error);
 			throw error;
@@ -389,7 +390,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const compatibleExtension = await this.getCompatibleVersion(extension, fetchCompatibleVersion);
 		if (!compatibleExtension) {
-			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, product.version), INSTALL_ERROR_INCOMPATIBLE);
+			throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of VS Code (version {1}).", extension.identifier.id, this.productService.version), INSTALL_ERROR_INCOMPATIBLE);
 		}
 
 		return compatibleExtension;

@@ -229,7 +229,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const logService = getOrCreateSpdLogService(this._environmentService);
 		logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 		logService.trace('process arguments:', this._environmentService.args);
-		const serverGreeting = product.serverGreeting.join('\n');
+		const serverGreeting = _productService.serverGreeting.join('\n');
 		if (serverGreeting) {
 			logService.info(`\n\n${serverGreeting}\n\n`);
 		}
@@ -242,7 +242,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		this._allReconnectionTokens = new Set<string>();
 
 		if (hasWebClient) {
-			this._webClientServer = new WebClientServer(this._connectionToken, this._environmentService, this._logService);
+			this._webClientServer = new WebClientServer(this._connectionToken, this._environmentService, this._logService, this._productService);
 		} else {
 			this._webClientServer = null;
 		}
@@ -281,16 +281,16 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
 		let appInsightsAppender: ITelemetryAppender = NullAppender;
-		if (!this._environmentService.args['disable-telemetry'] && product.enableTelemetry) {
-			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey);
+		if (!this._environmentService.args['disable-telemetry'] && this._productService.enableTelemetry) {
+			if (this._productService.aiConfig && this._productService.aiConfig.asimovKey) {
+				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, this._productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 			}
 
 			const machineId = await getMachineId();
 			const config: ITelemetryServiceConfig = {
 				appenders: [appInsightsAppender],
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, product.commit, product.version + '-remote', machineId, product.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
+				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, this._productService.commit, this._productService.version + '-remote', machineId, this._productService.msftInternalDomains, this._environmentService.installSourcePath, 'remoteAgent'),
 				piiPaths: [this._environmentService.appRoot]
 			};
 
@@ -323,10 +323,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		services.set(IPtyService, ptyService);
 
 		return instantiationService.invokeFunction(accessor => {
-			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, accessor.get(IRemoteTelemetryService), appInsightsAppender);
+			const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(this._connectionToken, this._environmentService, extensionManagementCLIService, this._logService, accessor.get(IRemoteTelemetryService), appInsightsAppender, this._productService);
 			this._socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-			this._socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(this._environmentService, this._logService, ptyService));
+			this._socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(this._environmentService, this._logService, ptyService, this._productService));
 
 			const remoteFileSystemChannel = new RemoteAgentFileSystemProviderChannel(this._logService, this._environmentService);
 			this._socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
@@ -375,7 +375,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		// Version
 		if (pathname === '/version') {
 			res.writeHead(200, { 'Content-Type': 'text/plain' });
-			return res.end(product.commit || '');
+			return res.end(this._productService.commit || '');
 		}
 
 		// Delay shutdown
@@ -628,7 +628,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				}
 
 				const rendererCommit = msg2.commit;
-				const myCommit = product.commit;
+				const myCommit = this._productService.commit;
 				if (rendererCommit && myCommit) {
 					// Running in the built version where commits are defined
 					if (rendererCommit !== myCommit) {
