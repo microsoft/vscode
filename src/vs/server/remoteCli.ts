@@ -379,9 +379,11 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 
 		if (stat.isFile()) {
 			fileURIS.push(mappedUri);
-		} else {
+		} else if (stat.isDirectory()) {
 			folderURIS.push(mappedUri);
 		}
+		// handle paths like /dev/null that external tools (e.g. git difftool) pass to us
+		fileURIS.push(mappedUri);
 	} catch (e) {
 		if (e.code === 'ENOENT') {
 			fileURIS.push(mappedUri);
