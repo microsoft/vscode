@@ -29,7 +29,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Link } from 'vs/platform/opener/browser/link';
-import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isVirtualResource, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -55,6 +54,7 @@ import { getExtensionDependencies } from 'vs/platform/extensionManagement/common
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { posix } from 'vs/base/common/path';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -666,7 +666,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IProductService private readonly productService: IProductService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -825,7 +826,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const headerDescriptionText = append(this.headerDescription, $('div'));
 		headerDescriptionText.innerText = isWorkspaceTrusted ?
 			localize('trustedDescription', "All features are enabled because trust has been granted to the workspace.") :
-			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", product.nameShort);
+			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", this.productService.nameShort);
 
 		const headerDescriptionActions = append(this.headerDescription, $('div'));
 		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);

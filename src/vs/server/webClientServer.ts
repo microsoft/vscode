@@ -15,12 +15,12 @@ import { isLinux } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
 import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { cwd } from 'vs/base/common/process';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -80,7 +80,8 @@ export class WebClientServer {
 	constructor(
 		private readonly _connectionToken: string,
 		private readonly _environmentService: IServerEnvironmentService,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _productService: IProductService
 	) { }
 
 	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
@@ -211,7 +212,7 @@ export class WebClientServer {
 			'media-src \'none\';',
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-cb2sg39EJV8ABaSNFfWu/ou8o1xVXYK7jp90oZ9vpcg=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html
 			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-webview.net ${product.webEndpointUrl || ''} data:;`,
+			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
 			'worker-src \'self\' data:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
@@ -327,7 +328,7 @@ export class WebClientServer {
 		});
 
 		// add to map of known callbacks
-		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || product.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
+		this._mapCallbackUriToRequestId.set(requestId, URI.from({ scheme: vscodeScheme || this._productService.urlProtocol, authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }).toJSON());
 
 		return serveFile(this._logService, req, res, FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath, { 'Content-Type': 'text/html' });
 	}

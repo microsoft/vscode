@@ -14,7 +14,6 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IPtyService, IShellLaunchConfig, ITerminalProfile, ITerminalsLayoutInfo } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -29,6 +28,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { buildUserEnvironment } from 'vs/server/extensionHostConnection';
 import { IServerEnvironmentService } from 'vs/server/serverEnvironmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -88,7 +88,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 	constructor(
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
-		private readonly _ptyService: IPtyService
+		private readonly _ptyService: IPtyService,
+		private readonly _productService: IProductService
 	) {
 		super();
 	}
@@ -216,7 +217,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			shellLaunchConfig,
 			envFromConfig,
 			variableResolver,
-			product.version,
+			this._productService.version,
 			args.configuration['terminal.integrated.detectLocale'],
 			baseEnv
 		);
