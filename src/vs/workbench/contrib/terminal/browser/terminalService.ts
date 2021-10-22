@@ -290,6 +290,8 @@ export class TerminalService implements ITerminalService {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
 			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+		} else {
+			this._connectionState = TerminalConnectionState.Connected;
 		}
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
