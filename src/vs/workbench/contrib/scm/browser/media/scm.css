@@ -182,7 +182,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	padding-left: 8px;
+	padding-left: 11px;
 }
 
 .scm-view .scm-editor {
@@ -192,6 +192,23 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+}
+
+.scm-view .button-container {
+	margin-left: 8px;
+	height: 100%;
+	display: flex;
+	align-items: center;
+}
+
+.scm-view .button-container .codicon {
+	margin: 0 0.4em;
+}
+
+.scm-view .button-container .codicon.codicon-arrow-up,
+.scm-view .button-container .codicon.codicon-arrow-down {
+	font-size: small !important;
+	margin: 0 0.2em 0 0;
 }
 
 .scm-view .scm-editor.hidden {

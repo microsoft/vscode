@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { posix } from 'path';
 import * as vscode from 'vscode';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, createRandomFile } from '../utils';
 
 suite('vscode API - workspace-fs', () => {
 
@@ -179,6 +179,39 @@ suite('vscode API - workspace-fs', () => {
 		} finally {
 			await vscode.workspace.fs.delete(folder, { recursive: true, useTrash: false });
 			await vscode.workspace.fs.delete(someFolder, { recursive: true, useTrash: false });
+		}
+	});
+
+	test('vscode.workspace.fs error reporting is weird #132981', async function () {
+
+
+		const uri = await createRandomFile();
+
+		const source = vscode.Uri.joinPath(uri, `./${Math.random().toString(16).slice(2, 8)}`);
+		const target = vscode.Uri.joinPath(uri, `../${Math.random().toString(16).slice(2, 8)}`);
+
+		// make sure that target and source don't accidentially exists
+		try {
+			await vscode.workspace.fs.stat(target);
+			this.skip();
+		} catch (err) {
+			assert.strictEqual(err.code, vscode.FileSystemError.FileNotFound().code);
+		}
+
+		try {
+			await vscode.workspace.fs.stat(source);
+			this.skip();
+		} catch (err) {
+			assert.strictEqual(err.code, vscode.FileSystemError.FileNotFound().code);
+		}
+
+		try {
+			await vscode.workspace.fs.rename(source, target);
+			assert.fail('error expected');
+		} catch (err) {
+			assert.ok(err instanceof vscode.FileSystemError);
+			assert.strictEqual(err.code, vscode.FileSystemError.FileNotFound().code);
+			assert.strictEqual(err.code, 'FileNotFound');
 		}
 	});
 });

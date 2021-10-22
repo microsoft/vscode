@@ -135,7 +135,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _error!: HTMLElement;
 	private _contextKeyService: IContextKeyService;
 	private _threadIsEmpty: IContextKey<boolean>;
-	private _commentThreadContextValue: IContextKey<string>;
+	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _commentFormActions!: CommentFormActions;
 	private _scopedInstatiationService: IInstantiationService;
 	private _focusedComment: number | undefined = undefined;
@@ -177,7 +177,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
-		this._commentThreadContextValue = this._contextKeyService.createKey('commentThread', _commentThread.contextValue);
+		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue.set(_commentThread.contextValue);
 
 		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
 		const controller = this.commentService.getCommentController(this._owner);
@@ -769,6 +770,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (!this._commentReplyComponent?.form.classList.contains('expand')) {
 			this._commentReplyComponent?.form.classList.add('expand');
 			this._commentReplyComponent?.editor.focus();
+			this._commentReplyComponent?.editor.layout();
 		}
 	}
 
@@ -979,7 +981,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._isExpanded) {
 			this._isExpanded = false;
 			// Focus the container so that the comment editor will be blurred before it is hidden
-			this.editor.focus();
+			if (this.editor.hasWidgetFocus()) {
+				this.editor.focus();
+			}
 		}
 		super.hide();
 	}

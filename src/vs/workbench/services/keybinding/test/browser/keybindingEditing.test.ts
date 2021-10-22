@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import * as json from 'vs/base/common/json';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
@@ -33,7 +34,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestPathService, TestTextFileService, TestDecorationsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -57,6 +58,9 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -89,6 +93,7 @@ suite('KeybindingsEditing', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
 		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationService.stub(IDecorationsService, TestDecorationsService);
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IPathService, new TestPathService());
 		instantiationService.stub(IConfigurationService, configService);
@@ -107,6 +112,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(ITextResourcePropertiesService, new TestTextResourcePropertiesService(instantiationService.get(IConfigurationService)));
 		instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelServiceImpl)));
 		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
 		instantiationService.stub(IFileService, fileService);
@@ -214,29 +220,29 @@ suite('KeybindingsEditing', () => {
 
 	test('remove a default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
 	test('remove a default keybinding should not ad duplicate entries', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
 	test('remove a user keybinding', async () => {
 		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
-		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } }, isDefault: false }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
 		assert.deepStrictEqual(await getUserKeybindings(), []);
 	});
 
 	test('reset an edited keybinding', async () => {
 		await writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
-		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } }, isDefault: false }));
+		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } }, isDefault: false }));
 		assert.deepStrictEqual(await getUserKeybindings(), []);
 	});
 

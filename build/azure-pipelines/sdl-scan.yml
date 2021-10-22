@@ -58,7 +58,7 @@ stages:
         inputs:
           azureSubscription: "vscode-builds-subscription"
           KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+          SecretsFilter: "github-distro-mixin-password"
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -94,7 +94,6 @@ stages:
           addProjectDirToScanningExclusionList: true
         env:
           npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: CodeQL
@@ -106,7 +105,6 @@ stages:
           retry { exec { yarn --frozen-lockfile } }
         env:
           npm_config_arch: "$(NPM_ARCH)"
-          npm_config_build_from_source: true
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
           CHILD_CONCURRENCY: 1
@@ -155,7 +153,7 @@ stages:
         inputs:
           azureSubscription: "vscode-builds-subscription"
           KeyVaultName: vscode
-          SecretsFilter: "github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite"
+          SecretsFilter: "github-distro-mixin-password"
 
       - script: |
           set -e
@@ -190,7 +188,6 @@ stages:
       - script: |
           set -e
           export npm_config_arch=$(NPM_ARCH)
-          export npm_config_build_from_source=true
 
           if [ -z "$CC" ] || [ -z "$CXX" ]; then
             # Download clang based on chromium revision used by vscode

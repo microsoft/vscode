@@ -60,7 +60,7 @@ class ToggleWordWrapAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.Alt | KeyCode.KEY_Z,
+				primary: KeyMod.Alt | KeyCode.KeyZ,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

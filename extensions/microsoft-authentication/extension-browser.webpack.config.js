@@ -12,7 +12,11 @@ const withBrowserDefaults = require('../shared.webpack.config').browser;
 
 module.exports = withBrowserDefaults({
 	context: __dirname,
-	node: false,
+	node: {
+		global: true,
+		__filename: false,
+		__dirname: false,
+	},
 	entry: {
 		extension: './src/extension.ts',
 	},
@@ -23,11 +27,6 @@ module.exports = withBrowserDefaults({
 		alias: {
 			'./env/node': path.resolve(__dirname, 'src/env/browser'),
 			'./authServer': path.resolve(__dirname, 'src/env/browser/authServer'),
-			'buffer': path.resolve(__dirname, 'node_modules/buffer/index.js'),
-			'node-fetch': path.resolve(__dirname, 'node_modules/node-fetch/browser.js'),
-			'randombytes': path.resolve(__dirname, 'node_modules/randombytes/browser.js'),
-			'stream': path.resolve(__dirname, 'node_modules/stream/index.js'),
-			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js')
 		}
 	}
 });

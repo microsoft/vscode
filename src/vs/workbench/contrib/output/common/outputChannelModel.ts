@@ -8,7 +8,7 @@ import * as resources from 'vs/base/common/resources';
 import { ITextModel } from 'vs/editor/common/model';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,7 +26,6 @@ export interface IOutputChannelModel extends IDisposable {
 	update(): void;
 	loadModel(): Promise<ITextModel>;
 	clear(till?: number): void;
-	setActive(active: boolean): void;
 }
 
 export const IOutputChannelModelService = createDecorator<IOutputChannelModelService>('outputChannelModelService');
@@ -72,7 +71,6 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 
 	protected modelUpdater: RunOnceScheduler;
 	protected model: ITextModel | null = null;
-	protected isActive: boolean = false;
 
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
@@ -88,10 +86,6 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 		super();
 		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
 		this._register(toDisposable(() => this.modelUpdater.cancel()));
-	}
-
-	setActive(active: boolean): void {
-		this.isActive = active;
 	}
 
 	clear(till?: number): void {
@@ -158,7 +152,7 @@ class OutputFileListener extends Disposable {
 	constructor(
 		private readonly file: URI,
 		private readonly fileService: IFileService,
-		private readonly logService: ILogService,
+		private readonly logService: ILogService
 	) {
 		super();
 		this.syncDelayer = new ThrottledDelayer<void>(500);
@@ -166,9 +160,9 @@ class OutputFileListener extends Disposable {
 
 	watch(eTag: string | undefined): void {
 		if (!this.watching) {
-			this.logService.trace('Started polling', this.file.toString());
 			this.etag = eTag;
 			this.poll();
+			this.logService.trace('Started polling', this.file.toString());
 			this.watching = true;
 		}
 	}
@@ -188,9 +182,9 @@ class OutputFileListener extends Disposable {
 
 	unwatch(): void {
 		if (this.watching) {
-			this.logService.trace('Stopped polling', this.file.toString());
 			this.syncDelayer.cancel();
 			this.watching = false;
+			this.logService.trace('Stopped polling', this.file.toString());
 		}
 	}
 
@@ -218,7 +212,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@ILogService logService: ILogService,
+		@ILogService logService: ILogService
 	) {
 		super(modelUri, mimeType, file, fileService, modelService, modeService);
 
@@ -227,17 +221,8 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
 
-	override setActive(active: boolean): void {
-		super.setActive(active);
-		if (this.isActive) {
-			this.fileHandler.watch(this.etag);
-		} else {
-			this.fileHandler.unwatch();
-		}
-	}
-
 	loadModel(): Promise<ITextModel> {
-		this.loadModelPromise = new Promise<ITextModel>(async (c, e) => {
+		this.loadModelPromise = Promises.withAsyncBody<ITextModel>(async (c, e) => {
 			try {
 				let content = '';
 				if (await this.fileService.exists(this.file)) {
@@ -286,9 +271,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 	}
 
 	protected override onModelCreated(model: ITextModel): void {
-		if (this.isActive) {
-			this.fileHandler.watch(this.etag);
-		}
+		this.fileHandler.watch(this.etag);
 	}
 
 	protected override onModelWillDispose(model: ITextModel | null): void {
@@ -478,10 +461,6 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 	clear(till?: number): void {
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.clear(till));
-	}
-
-	setActive(active: boolean) {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.setActive(active));
 	}
 
 }

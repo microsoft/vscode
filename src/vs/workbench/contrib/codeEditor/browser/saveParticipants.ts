@@ -46,7 +46,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimTrailingWhitespace(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -112,7 +112,7 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.insertFinalNewline', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doInsertFinalNewLine(model.textEditorModel);
 		}
 	}
@@ -150,7 +150,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageIdentifier().language, resource: model.resource })) {
+		if (this.configurationService.getValue('files.trimFinalNewlines', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
 			this.doTrimFinalNewLines(model.textEditorModel, env.reason === SaveReason.AUTO);
 		}
 	}
@@ -228,7 +228,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		}
 
 		const textEditorModel = model.textEditorModel;
-		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
+		const overrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
 		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
@@ -249,23 +249,19 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
 		const mode = this.configurationService.getValue<'file' | 'modifications' | 'modificationsIfAvailable'>('editor.formatOnSaveMode', overrides);
 
-		// keeping things DRY :)
-		const formatWholeFile = async () => {
+		if (mode === 'file') {
 			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
-		};
 
-		if (mode === 'modifications' || mode === 'modificationsIfAvailable') {
-			// try formatting modifications
-			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
-			if (ranges) {
-				// version control reports changes
-				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
-			} else if (ranges === null) {
-				// version control not found
-				await formatWholeFile();
-			}
 		} else {
-			await formatWholeFile();
+			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
+			if (ranges === null && mode === 'modificationsIfAvailable') {
+				// no SCM, fallback to formatting the whole file iff wanted
+				await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+
+			} else if (ranges) {
+				// formatted modified ranges
+				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+			}
 		}
 	}
 }
@@ -289,7 +285,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
 		const textEditorModel = model.textEditorModel;
 
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: model.resource };
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
 		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;

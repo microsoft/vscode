@@ -32,6 +32,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 	constructor(
 		modeId: string,
+		languageIds: readonly string[],
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
@@ -39,6 +40,14 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		this._register(vscode.workspace.onDidChangeConfiguration(e => {
 			if (inlayHintSettingNames.some(settingName => e.affectsConfiguration(modeId + '.' + settingName))) {
+				this._onDidChangeInlayHints.fire();
+			}
+		}));
+
+		// When a JS/TS file changes, change inlay hints for all visible editors
+		// since changes in one file can effect the hints the others.
+		this._register(vscode.workspace.onDidChangeTextDocument(e => {
+			if (languageIds.includes(e.document.languageId)) {
 				this._onDidChangeInlayHints.fire();
 			}
 		}));
@@ -106,6 +115,7 @@ export function requireInlayHintsConfiguration(
 export function register(
 	selector: DocumentSelector,
 	modeId: string,
+	languageIds: readonly string[],
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager
 ) {
@@ -114,7 +124,7 @@ export function register(
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		const provider = new TypeScriptInlayHintsProvider(modeId, client, fileConfigurationManager);
+		const provider = new TypeScriptInlayHintsProvider(modeId, languageIds, client, fileConfigurationManager);
 		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
 	});
 }

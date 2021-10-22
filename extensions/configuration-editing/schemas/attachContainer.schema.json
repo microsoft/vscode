@@ -14,9 +14,19 @@
 				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer"
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {

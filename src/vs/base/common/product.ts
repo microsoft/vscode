@@ -82,6 +82,7 @@ export interface IProductConfiguration {
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
@@ -91,6 +92,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly enableTelemetry?: boolean;
+	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
 	};
@@ -114,7 +116,9 @@ export interface IProductConfiguration {
 	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
 	readonly privacyStatementUrl?: string;
-	readonly telemetryOptOutUrl?: string;
+	readonly showTelemetryOptOut?: boolean;
+
+	readonly serverGreeting: string[];
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;
@@ -156,6 +160,7 @@ export interface IAppCenterConfiguration {
 export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
+	configScheme?: string;
 	recommendations: IStringDictionary<{ name: string, remotes?: string[], important?: boolean, isExtensionPack?: boolean }>;
 }
 

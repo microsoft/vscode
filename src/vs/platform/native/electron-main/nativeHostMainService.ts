@@ -72,10 +72,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire({
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
-				dark: nativeTheme.shouldUseDarkColors
-			});
+			this._onDidChangeColorScheme.fire(this.osColorScheme);
 		});
 	}
 
@@ -595,6 +592,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async getOSVirtualMachineHint(): Promise<number> {
 		return virtualMachineHint.value();
 	}
+
+	private get osColorScheme(): IColorScheme {
+		return {
+			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
+			dark: nativeTheme.shouldUseDarkColors
+		};
+	}
+
+	public async getOSColorScheme(): Promise<IColorScheme> {
+		return this.osColorScheme;
+	}
+
 
 	//#endregion
 

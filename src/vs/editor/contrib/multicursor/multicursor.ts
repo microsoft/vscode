@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
@@ -27,7 +27,7 @@ import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
@@ -149,7 +149,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -693,7 +693,7 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_D,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyD,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -738,7 +738,7 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyD),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -771,7 +771,7 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menuOpts: {
@@ -1050,6 +1050,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		description: 'selection-highlight-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
+		minimap: {
+			color: themeColorFromId(minimapSelectionOccurrenceHighlight),
+			position: MinimapPosition.Inline
+		},
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
 			position: OverviewRulerLane.Center

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
@@ -58,16 +59,16 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		Object.assign(options, config.workbench.editor);
 
 		// Special handle array types and convert to Set
-		if (isObject(config.workbench.editor.experimentalAutoLockGroups)) {
-			options.experimentalAutoLockGroups = new Set();
+		if (isObject(config.workbench.editor.autoLockGroups)) {
+			options.autoLockGroups = new Set();
 
-			for (const [editorId, enablement] of Object.entries(config.workbench.editor.experimentalAutoLockGroups)) {
+			for (const [editorId, enablement] of Object.entries(config.workbench.editor.autoLockGroups)) {
 				if (enablement === true) {
-					options.experimentalAutoLockGroups.add(editorId);
+					options.autoLockGroups.add(editorId);
 				}
 			}
 		} else {
-			options.experimentalAutoLockGroups = undefined;
+			options.autoLockGroups = undefined;
 		}
 	}
 
@@ -121,7 +122,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidFocus: Event<void>;
 
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
+	readonly onDidOpenEditorFail: Event<EditorInput>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
@@ -145,7 +146,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
-export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): IEditorOptions {
+export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {
 	if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
 		const options: IEditorOptions = {
 			...presetOptions,
@@ -184,7 +185,17 @@ export interface IInternalEditorTitleControlOptions {
 	skipTitleUpdate?: boolean;
 }
 
-export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions { }
+export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
+
+	/**
+	 * Whether to consider a side by side editor as matching
+	 * when figuring out if the editor to open is already
+	 * opened or not. By default, side by side editors will
+	 * not be considered as matching, even if the editor is
+	 * opened in one of the sides.
+	 */
+	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+}
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
 
@@ -193,6 +204,11 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * used to optimize how error toasts are appearing if any.
 	 */
 	fromError?: boolean;
+
+	/**
+	 * Additional context as to why an editor is closed.
+	 */
+	context?: EditorCloseContext;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorTitleControlOptions {

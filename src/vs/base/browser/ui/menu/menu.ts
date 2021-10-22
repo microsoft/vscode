@@ -19,7 +19,8 @@ import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -917,8 +918,9 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			const viewBox = this.submenuContainer.getBoundingClientRect();
 
 			const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
-			this.submenuContainer.style.left = `${left}px`;
-			this.submenuContainer.style.top = `${top}px`;
+			// subtract offsets caused by transform parent
+			this.submenuContainer.style.left = `${left - viewBox.left}px`;
+			this.submenuContainer.style.top = `${top - viewBox.top}px`;
 
 			this.submenuDisposables.add(addDisposableListener(this.submenuContainer, EventType.KEY_UP, e => {
 				let event = new StandardKeyboardEvent(e);

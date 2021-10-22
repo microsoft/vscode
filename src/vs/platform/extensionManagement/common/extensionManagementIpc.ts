@@ -9,7 +9,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from 'vs/base/common/uriIpc';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { DidUninstallExtensionEvent, IExtensionIdentifier, IExtensionManagementService, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOptions, InstallVSIXOptions, IReportedExtension, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DidUninstallExtensionEvent, IExtensionIdentifier, IExtensionManagementService, IExtensionTipsService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOptions, InstallVSIXOptions, IReportedExtension, isTargetPlatformCompatible, TargetPlatform, UninstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI {
@@ -64,6 +64,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer), args[1]);
 			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
+			case 'getTargetPlatform': return this.service.getTargetPlatform();
 			case 'canInstall': return this.service.canInstall(args[0]);
 			case 'installFromGallery': return this.service.installFromGallery(args[0], args[1]);
 			case 'uninstall': return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), args[1]);
@@ -112,6 +113,19 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 			typeof (<any>thing).scheme === 'string';
 	}
 
+	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
+	getTargetPlatform(): Promise<TargetPlatform> {
+		if (!this._targetPlatformPromise) {
+			this._targetPlatformPromise = this.channel.call<TargetPlatform>('getTargetPlatform');
+		}
+		return this._targetPlatformPromise;
+	}
+
+	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+		const currentTargetPlatform = await this.getTargetPlatform();
+		return extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, currentTargetPlatform));
+	}
+
 	zip(extension: ILocalExtension): Promise<URI> {
 		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
 	}
@@ -126,10 +140,6 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
 		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
-	}
-
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
-		return true;
 	}
 
 	installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {

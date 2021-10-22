@@ -124,6 +124,11 @@
 	padding-right: 8px;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
+	/* Add an extra pixel due to it not getting the outline */
+	padding-bottom: 8px;
+}
+
 .settings-editor > .settings-body {
 	position: relative;
 	margin-top: 14px;
@@ -288,6 +293,9 @@
 	padding-right: 24px;
 	overflow: visible;
 }
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
+	max-width: min(100%, 1000px); /* Cut off title if too long for window */
+}
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
@@ -301,7 +309,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title {
-	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	display: inline-block; /* size to contents for hover to show context button */
@@ -374,7 +381,11 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message {
-	display: block;
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
+	margin-right: 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description {
@@ -559,15 +570,17 @@
 	padding-left: 15px;
 	width: 100%;
 	position: relative;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
-	font-size: 24px;
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-1 {
+	font-size: 26px;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
-	padding-top: 32px;
-	font-size: 20px;
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-2 {
+	font-size: 22px;
+}
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-3 {
+	font-size: 18px;
 }
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {

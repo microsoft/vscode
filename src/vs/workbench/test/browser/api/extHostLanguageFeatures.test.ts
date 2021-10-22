@@ -50,29 +50,29 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.a'));
-
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let disposables: vscode.Disposable[] = [];
-let rpcProtocol: TestRPCProtocol;
-let originalErrorHandler: (e: any) => any;
-
-
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('ExtHostLanguageFeatures', function () {
 
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let disposables: vscode.Disposable[] = [];
+	let rpcProtocol: TestRPCProtocol;
+	let originalErrorHandler: (e: any) => any;
+
 	suiteSetup(() => {
+
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.a'));
 
 		rpcProtocol = new TestRPCProtocol();
 
@@ -92,7 +92,7 @@ suite('ExtHostLanguageFeatures', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				modeId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -108,7 +108,7 @@ suite('ExtHostLanguageFeatures', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));

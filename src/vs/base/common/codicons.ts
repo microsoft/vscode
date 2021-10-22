@@ -124,9 +124,9 @@ export namespace Codicon {
 
 	// built-in icons, with image name
 	export const add = new Codicon('add', { fontCharacter: '\\ea60' });
-	export const plus = new Codicon('plus', { fontCharacter: '\\ea60' });
-	export const gistNew = new Codicon('gist-new', { fontCharacter: '\\ea60' });
-	export const repoCreate = new Codicon('repo-create', { fontCharacter: '\\ea60' });
+	export const plus = new Codicon('plus', Codicon.add.definition);
+	export const gistNew = new Codicon('gist-new', Codicon.add.definition);
+	export const repoCreate = new Codicon('repo-create', Codicon.add.definition);
 	export const lightbulb = new Codicon('lightbulb', { fontCharacter: '\\ea61' });
 	export const lightBulb = new Codicon('light-bulb', { fontCharacter: '\\ea61' });
 	export const repo = new Codicon('repo', { fontCharacter: '\\ea62' });
@@ -284,6 +284,7 @@ export namespace Codicon {
 	export const check = new Codicon('check', { fontCharacter: '\\eab2' });
 	export const checklist = new Codicon('checklist', { fontCharacter: '\\eab3' });
 	export const chevronDown = new Codicon('chevron-down', { fontCharacter: '\\eab4' });
+	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 	export const chevronLeft = new Codicon('chevron-left', { fontCharacter: '\\eab5' });
 	export const chevronRight = new Codicon('chevron-right', { fontCharacter: '\\eab6' });
 	export const chevronUp = new Codicon('chevron-up', { fontCharacter: '\\eab7' });
@@ -588,7 +589,17 @@ export namespace Codicon {
 	export const debugCoverage = new Codicon('debug-coverage', { fontCharacter: '\\ebdd' });
 	export const runErrors = new Codicon('run-errors', { fontCharacter: '\\ebde' });
 	export const folderLibrary = new Codicon('folder-library', { fontCharacter: '\\ebdf' });
+	export const debugContinueSmall = new Codicon('debug-continue-small', { fontCharacter: '\\ebe0' });
+	export const beakerStop = new Codicon('beaker-stop', { fontCharacter: '\\ebe1' });
+	export const graphLine = new Codicon('graph-line', { fontCharacter: '\\ebe2' });
+	export const graphScatter = new Codicon('graph-scatter', { fontCharacter: '\\ebe3' });
+	export const pieChart = new Codicon('pie-chart', { fontCharacter: '\\ebe4' });
+	export const bracket = new Codicon('bracket', Codicon.json.definition);
+	export const bracketDot = new Codicon('bracket-dot', { fontCharacter: '\\ebe5' });
+	export const bracketError = new Codicon('bracket-error', { fontCharacter: '\\ebe6' });
+	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe7' });
+	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
 
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
+
 }
 

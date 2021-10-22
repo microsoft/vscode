@@ -13,6 +13,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
@@ -32,6 +33,11 @@ interface IKernelData {
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
+type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
+export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
+type ControllerInfo = { id: string, extension: string };
+
+
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
@@ -44,9 +50,35 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		mainContext: IMainContext,
 		private readonly _initData: IExtHostInitDataService,
 		private readonly _extHostNotebook: ExtHostNotebookController,
+		private _commands: ExtHostCommands,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
+
+		// todo@rebornix @joyceerhl: move to APICommands once stablized.
+		const selectKernelApiCommand = new ApiCommand(
+			'notebook.selectKernel',
+			'_notebook.selectKernel',
+			'Trigger kernel picker for specified notebook editor widget',
+			[
+				new ApiCommandArgument<ExtHostSelectKernelArgs, SelectKernelReturnArgs>('options', 'Select kernel options', v => true, (v: ExtHostSelectKernelArgs) => {
+					if (v && 'notebookEditor' in v && 'id' in v) {
+						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
+						return {
+							id: v.id, extension: v.extension, notebookEditorId
+						};
+					} else if (v && 'notebookEditor' in v) {
+						const notebookEditorId = this._extHostNotebook.getIdByEditor(v.notebookEditor);
+						if (notebookEditorId === undefined) {
+							throw new Error(`Cannot invoke 'notebook.selectKernel' for unrecognized notebook editor ${v.notebookEditor.document.uri.toString()}`);
+						}
+						return { notebookEditorId };
+					}
+					return v;
+				})
+			],
+			ApiCommandResult.Void);
+		this._commands.registerApiCommand(selectKernelApiCommand);
 	}
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {

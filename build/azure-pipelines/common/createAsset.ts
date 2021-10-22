@@ -45,20 +45,29 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'user-setup':
 							return `${asset}-user`;
 						default:
-							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 				case 'server':
 					if (arch === 'arm64') {
-						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
-						throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
+			}
+		case 'alpine':
+			switch (product) {
+				case 'server':
+					return `server-alpine-${arch}`;
+				case 'web':
+					return `server-alpine-${arch}-web`;
+				default:
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		case 'linux':
 			switch (type) {
@@ -73,14 +82,14 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'web':
 							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
 						default:
-							throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 				case 'deb-package':
 					return `linux-deb-${arch}`;
 				case 'rpm-package':
 					return `linux-rpm-${arch}`;
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		case 'darwin':
 			switch (product) {
@@ -93,14 +102,14 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					return 'server-darwin';
 				case 'web':
 					if (arch !== 'x64') {
-						throw `What should the platform be?: ${product} ${os} ${arch} ${type}`;
+						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
 					}
 					return 'server-darwin-web';
 				default:
-					throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
 		default:
-			throw `Unrecognized: ${product} ${os} ${arch} ${type}`;
+			throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 	}
 }
 

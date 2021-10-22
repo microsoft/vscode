@@ -21,7 +21,7 @@ suite('EditorResolverService', () => {
 
 	teardown(() => disposables.clear());
 
-	async function createEditorResolverService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorResolverService, TestServiceAccessor]> {
+	async function createEditorResolverService(instantiationService: ITestInstantiationService = workbenchInstantiationService(undefined, disposables)): Promise<[EditorPart, EditorResolverService, TestServiceAccessor]> {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -337,4 +337,35 @@ suite('EditorResolverService', () => {
 		defaultRegisteredEditor.dispose();
 	});
 
+	test('Registry & Events', async () => {
+		const [, service] = await createEditorResolverService();
+
+		let eventCounter = 0;
+		service.onDidChangeEditorRegistrations(() => {
+			eventCounter++;
+		});
+
+		const editors = service.getEditors();
+
+		const registeredEditor = service.registerEditor('*.test',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: false },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+		);
+
+		assert.strictEqual(eventCounter, 1);
+		assert.strictEqual(service.getEditors().length, editors.length + 1);
+		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), true);
+
+		registeredEditor.dispose();
+
+		assert.strictEqual(eventCounter, 2);
+		assert.strictEqual(service.getEditors().length, editors.length);
+		assert.strictEqual(service.getEditors().some(editor => editor.id === 'TEST_EDITOR'), false);
+	});
 });

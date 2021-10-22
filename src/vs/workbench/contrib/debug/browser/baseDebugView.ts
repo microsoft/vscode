@@ -103,7 +103,8 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 			text += ':';
 		}
 		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
-		data.name.classList.toggle('virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
+		data.name.classList.toggle('virtual', variable.presentationHint?.kind === 'virtual');
+		data.name.classList.toggle('internal', variable.presentationHint?.visibility === 'internal');
 	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
 		data.label.set(':');
 	}

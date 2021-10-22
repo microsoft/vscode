@@ -7,16 +7,16 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IViewlet } from 'vs/workbench/common/viewlet';
-import { IPanel } from 'vs/workbench/common/panel';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IComposite } from 'vs/workbench/common/composite';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -25,9 +25,8 @@ abstract class BaseNavigationAction extends Action {
 		label: string,
 		protected direction: Direction,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IPanelService protected panelService: IPanelService,
+		@IPaneCompositePartService protected paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
-		@IViewletService protected viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -56,7 +55,9 @@ abstract class BaseNavigationAction extends Action {
 		}
 
 		if (neighborPart === Parts.EDITOR_PART) {
-			this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction))) {
+				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST);
+			}
 		} else if (neighborPart === Parts.SIDEBAR_PART) {
 			this.navigateToSidebar();
 		} else if (neighborPart === Parts.PANEL_PART) {
@@ -64,19 +65,19 @@ abstract class BaseNavigationAction extends Action {
 		}
 	}
 
-	private async navigateToPanel(): Promise<IPanel | boolean> {
+	private async navigateToPanel(): Promise<IComposite | boolean> {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return false;
 		}
 
-		const activePanel = this.panelService.getActivePanel();
+		const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (!activePanel) {
 			return false;
 		}
 
 		const activePanelId = activePanel.getId();
 
-		const res = await this.panelService.openPanel(activePanelId, true);
+		const res = await this.paneCompositeService.openPaneComposite(activePanelId, ViewContainerLocation.Panel, true);
 		if (!res) {
 			return false;
 		}
@@ -84,18 +85,18 @@ abstract class BaseNavigationAction extends Action {
 		return res;
 	}
 
-	private async navigateToSidebar(): Promise<IViewlet | boolean> {
+	private async navigateToSidebar(): Promise<IPaneComposite | boolean> {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			return false;
 		}
 
-		const activeViewlet = this.viewletService.getActiveViewlet();
+		const activeViewlet = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		if (!activeViewlet) {
 			return false;
 		}
 		const activeViewletId = activeViewlet.getId();
 
-		const viewlet = await this.viewletService.openViewlet(activeViewletId, true);
+		const viewlet = await this.paneCompositeService.openPaneComposite(activeViewletId, ViewContainerLocation.Sidebar, true);
 		return !!viewlet;
 	}
 
@@ -107,12 +108,39 @@ abstract class BaseNavigationAction extends Action {
 		return this.doNavigateToEditorGroup({ location });
 	}
 
+	private navigateBackToEditorGroup(direction: GroupDirection): boolean {
+		if (!this.editorGroupService.activeGroup) {
+			return false;
+		}
+
+		const oppositeDirection = this.toOppositeDirection(direction);
+
+		// Check to see if there is a group in between the last active group and the direction of movement
+		const groupInBetween = this.editorGroupService.findGroup({ direction: oppositeDirection }, this.editorGroupService.activeGroup);
+		if (!groupInBetween) {
+			// No group in between means we can return focus to the last active editor group
+			this.editorGroupService.activeGroup.focus();
+			return true;
+		}
+
+		return false;
+	}
+
 	private toGroupDirection(direction: Direction): GroupDirection {
 		switch (direction) {
 			case Direction.Down: return GroupDirection.DOWN;
 			case Direction.Left: return GroupDirection.LEFT;
 			case Direction.Right: return GroupDirection.RIGHT;
 			case Direction.Up: return GroupDirection.UP;
+		}
+	}
+
+	private toOppositeDirection(direction: GroupDirection): GroupDirection {
+		switch (direction) {
+			case GroupDirection.UP: return GroupDirection.DOWN;
+			case GroupDirection.RIGHT: return GroupDirection.LEFT;
+			case GroupDirection.LEFT: return GroupDirection.RIGHT;
+			case GroupDirection.DOWN: return GroupDirection.UP;
 		}
 	}
 
@@ -137,11 +165,10 @@ class NavigateLeftAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, Direction.Left, editorGroupService, panelService, layoutService, viewletService);
+		super(id, label, Direction.Left, editorGroupService, paneCompositeService, layoutService);
 	}
 }
 
@@ -154,11 +181,10 @@ class NavigateRightAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, Direction.Right, editorGroupService, panelService, layoutService, viewletService);
+		super(id, label, Direction.Right, editorGroupService, paneCompositeService, layoutService);
 	}
 }
 
@@ -171,11 +197,10 @@ class NavigateUpAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, Direction.Up, editorGroupService, panelService, layoutService, viewletService);
+		super(id, label, Direction.Up, editorGroupService, paneCompositeService, layoutService);
 	}
 }
 
@@ -188,11 +213,10 @@ class NavigateDownAction extends BaseNavigationAction {
 		id: string,
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IPanelService panelService: IPanelService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, Direction.Down, editorGroupService, panelService, layoutService, viewletService);
+		super(id, label, Direction.Down, editorGroupService, paneCompositeService, layoutService);
 	}
 }
 

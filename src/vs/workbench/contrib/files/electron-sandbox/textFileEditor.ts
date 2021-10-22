@@ -10,7 +10,6 @@ import { FileOperationError, FileOperationResult, IFileService, MIN_MAX_MEMORY_S
 import { createErrorWithActions } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,6 +24,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 /**
  * An implementation of editor for file system resources.
@@ -34,7 +34,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService fileService: IFileService,
-		@IViewletService viewletService: IViewletService,
+		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
@@ -49,7 +49,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IProductService private readonly productService: IProductService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
+		super(telemetryService, fileService, paneCompositeService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
 	}
 
 	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {

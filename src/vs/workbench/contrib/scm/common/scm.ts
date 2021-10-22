@@ -65,6 +65,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
 	readonly acceptInputCommand?: Command;
+	readonly actionButton?: Command;
 	readonly statusBarCommands?: Command[];
 	readonly onDidChange: Event<void>;
 
@@ -94,6 +95,12 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
+}
+
+export interface ISCMActionButton {
+	readonly type: 'actionButton';
+	readonly repository: ISCMRepository;
+	readonly button?: Command;
 }
 
 export interface ISCMInput {

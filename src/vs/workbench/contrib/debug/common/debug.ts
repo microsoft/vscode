@@ -549,6 +549,9 @@ export interface IDebugConfiguration {
 	showBreakpointsInOverviewRuler: boolean;
 	showInlineBreakpointCandidates: boolean;
 	confirmOnExit: 'always' | 'never';
+	disassemblyView: {
+		showSourceCode: boolean;
+	}
 }
 
 export interface IGlobalConfig {
@@ -680,6 +683,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	initialConfigurations?: any[];
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
+	when?: string;
 }
 
 export interface IDebugConfigurationProvider {
@@ -742,7 +746,7 @@ export interface IAdapterManager {
 
 	onDidRegisterDebugger: Event<void>;
 
-	hasDebuggers(): boolean;
+	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
 	isDebuggerInterestedInLanguage(language: string): boolean;

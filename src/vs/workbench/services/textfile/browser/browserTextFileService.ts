@@ -23,6 +23,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 
 export class BrowserTextFileService extends AbstractTextFileService {
 
@@ -44,9 +45,10 @@ export class BrowserTextFileService extends AbstractTextFileService {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
 		@IElevatedFileService elevatedFileService: IElevatedFileService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IDecorationsService decorationsService: IDecorationsService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService, elevatedFileService, decorationsService);
 
 		this.registerListeners();
 	}

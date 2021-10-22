@@ -22,7 +22,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 	when: TerminalContextKeys.notFocus,
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: async (accessor) => {

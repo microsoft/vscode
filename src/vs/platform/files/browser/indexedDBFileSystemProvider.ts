@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
 import { Throttler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -28,6 +26,12 @@ const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty'
 
 // Arbitrary Internal Errors (should never be thrown in production)
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
+
+class MissingStoresError extends Error {
+	constructor(readonly db: IDBDatabase) {
+		super('Missing stores');
+	}
+}
 
 export class IndexedDB {
 
@@ -50,16 +54,38 @@ export class IndexedDB {
 		return fsp;
 	}
 
-	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
+	private async openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
+		try {
+			return await this.createIndexedDB(name, version, stores);
+		} catch (err) {
+			if (err instanceof MissingStoresError) {
+				console.info(`Attempting to recreate the indexedDB once.`, name);
+
+				try {
+					// Try to delete the db
+					await this.deleteIndexedDB(err.db);
+				} catch (error) {
+					console.error(`Error while deleting the indexedDB`, getErrorMessage(error));
+					throw error;
+				}
+
+				return await this.createIndexedDB(name, version, stores);
+			}
+
+			throw err;
+		}
+	}
+
+	private createIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
 			const request = window.indexedDB.open(name, version);
-			request.onerror = (err) => e(request.error);
+			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
 				for (const store of stores) {
 					if (!db.objectStoreNames.contains(store)) {
-						console.error(`Error while creating indexedDB. Could not create ${store} object store`);
-						c(null);
+						console.error(`Error while opening indexedDB. Could not find ${store} object store`);
+						e(new MissingStoresError(db));
 						return;
 					}
 				}
@@ -73,6 +99,18 @@ export class IndexedDB {
 					}
 				}
 			};
+		});
+	}
+
+	private deleteIndexedDB(indexedDB: IDBDatabase): Promise<void> {
+		return new Promise((c, e) => {
+			// Close any opened connections
+			indexedDB.close();
+
+			// Delete the db
+			const deleteRequest = window.indexedDB.deleteDatabase(indexedDB.name);
+			deleteRequest.onerror = (err) => e(deleteRequest.error);
+			deleteRequest.onsuccess = () => c();
 		});
 	}
 }
@@ -224,13 +262,8 @@ class IndexedDBChangesBroadcastChannel extends Disposable {
 	constructor(private readonly changesKey: string) {
 		super();
 
-		// BroadcastChannel is not supported. Use storage.
-		if (isSafari || isIOS) {
-			this.createStorageBroadcastChannel(changesKey);
-		}
-
 		// Use BroadcastChannel
-		else {
+		if ('BroadcastChannel' in window) {
 			try {
 				this.broadcastChannel = new BroadcastChannel(changesKey);
 				const listener = (event: MessageEvent) => {
@@ -249,6 +282,11 @@ class IndexedDBChangesBroadcastChannel extends Disposable {
 				console.warn('Error while creating broadcast channel. Falling back to localStorage.', getErrorMessage(error));
 				this.createStorageBroadcastChannel(changesKey);
 			}
+		}
+
+		// BroadcastChannel is not supported. Use storage.
+		else {
+			this.createStorageBroadcastChannel(changesKey);
 		}
 	}
 
@@ -505,7 +543,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	private deleteKeys(keys: string[]): Promise<void> {
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			if (keys.length === 0) {
 				return c();
 			}
@@ -521,7 +559,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	}
 
 	reset(): Promise<void> {
-		return new Promise(async (c, e) => {
+		return new Promise((c, e) => {
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			transaction.oncomplete = () => c();
 			transaction.onerror = () => e(transaction.error);

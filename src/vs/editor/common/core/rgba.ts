@@ -45,7 +45,7 @@ export class RGBA8 {
 		);
 	}
 
-	private static _clamp(c: number): number {
+	public static _clamp(c: number): number {
 		if (c < 0) {
 			return 0;
 		}

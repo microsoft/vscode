@@ -28,7 +28,7 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 		supportThemeIcons: true
 	};
 
-	const element = renderMarkdown(md, {
+	const rendered = disposables.add(renderMarkdown(md, {
 		actionHandler: {
 			callback: (content) => {
 				if (content === 'command:workbench.action.openLargeOutput') {
@@ -39,10 +39,10 @@ function generateViewMoreElement(notebookUri: URI, cellViewModel: IGenericCellVi
 			},
 			disposables: disposables
 		}
-	});
+	}));
 
-	element.classList.add('output-show-more');
-	return element;
+	rendered.element.classList.add('output-show-more');
+	return rendered.element;
 }
 
 export function truncatedArrayOfString(notebookUri: URI, cellViewModel: IGenericCellViewModel, linesLimit: number, container: HTMLElement, outputs: string[], disposables: DisposableStore, linkDetector: LinkDetector, openerService: IOpenerService, themeService: IThemeService) {

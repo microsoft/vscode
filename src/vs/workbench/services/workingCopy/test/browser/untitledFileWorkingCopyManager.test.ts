@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,13 +17,15 @@ import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantia
 
 suite('UntitledFileWorkingCopyManager', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	let manager: IFileWorkingCopyManager<TestStoredFileWorkingCopyModel, TestUntitledFileWorkingCopyModel>;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		accessor.fileService.registerProvider(Schemas.file, new TestInMemoryFileSystemProvider());
@@ -36,12 +39,13 @@ suite('UntitledFileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService
 		);
 	});
 
 	teardown(() => {
 		manager.dispose();
+		disposables.dispose();
 	});
 
 	test('basics', async () => {
@@ -277,7 +281,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const untitled1OriginalType = await manager.untitled.resolve();
@@ -299,7 +303,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 				accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-				accessor.environmentService, accessor.dialogService
+				accessor.environmentService, accessor.dialogService, accessor.decorationsService
 			);
 
 			const result = await manager.untitled.resolve();

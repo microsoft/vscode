@@ -255,7 +255,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			return false; // we need a workspace file
 		}
 
-		if (!this.fileService.canHandleResource(model.uri)) {
+		if (!this.fileService.hasProvider(model.uri)) {
 			return false; // needs to be backed by a file service
 		}
 

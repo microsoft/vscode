@@ -23,7 +23,7 @@ import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
 import { splitName } from 'vs/base/common/labels';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -234,8 +234,8 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR }
 			},
 			menu: {
 				id: MenuId.MenubarRecentMenu,
@@ -282,7 +282,7 @@ class ToggleFullScreenAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.F11,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyF
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
@@ -315,7 +315,7 @@ export class ReloadWindowAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: IsDevelopmentContext,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_R
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR
 			}
 		});
 	}
@@ -368,7 +368,8 @@ class NewWindowAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N
+				primary: isWeb ? (KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
+				secondary: isWeb ? [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN] : undefined
 			},
 			menu: {
 				id: MenuId.MenubarFileMenu,
@@ -423,8 +424,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickPickNavigateNextInRecentFilesPickerId, true),
 	when: recentFilesPickerContext,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_R,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R }
+	primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR }
 });
 
 const quickPickNavigatePreviousInRecentFilesPicker = 'workbench.action.quickOpenNavigatePreviousInRecentFilesPicker';
@@ -433,8 +434,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 50,
 	handler: getQuickNavigateHandler(quickPickNavigatePreviousInRecentFilesPicker, false),
 	when: recentFilesPickerContext,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R }
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR }
 });
 
 CommandsRegistry.registerCommand('workbench.action.toggleConfirmBeforeClose', accessor => {

@@ -59,7 +59,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// File or remote file: go through text file service
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			return this.textFileService.files.resolve(resource, { reason: TextFileResolveReason.REFERENCE });
 		}
 
@@ -89,7 +89,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// Track as being disposed before waiting for model to load
-		// to handle the case that the reference is aquired again
+		// to handle the case that the reference is acquired again
 		this.modelsToDispose.add(key);
 
 		(async () => {
@@ -97,7 +97,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				const model = await modelPromise;
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -108,7 +108,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				}
 
 				if (!this.modelsToDispose.has(key)) {
-					// return if model has been aquired again meanwhile
+					// return if model has been acquired again meanwhile
 					return;
 				}
 
@@ -204,7 +204,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	}
 
 	canHandleResource(resource: URI): boolean {
-		if (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
 			return true; // we handle file://, untitled:// and inMemory:// automatically
 		}
 

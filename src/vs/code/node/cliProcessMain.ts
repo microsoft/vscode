@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -45,7 +43,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { combinedAppender, getTelemetryLevel, NullTelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 
@@ -55,9 +53,6 @@ class CliMain extends Disposable {
 		private argv: NativeParsedArgs
 	) {
 		super();
-
-		// Enable gracefulFs
-		gracefulify(fs);
 
 		this.registerListeners();
 	}
@@ -89,7 +84,10 @@ class CliMain extends Disposable {
 			await this.doRun(environmentService, extensionManagementCLIService, fileService);
 
 			// Flush the remaining data in AI adapter (with 1s timeout)
-			return raceTimeout(combinedAppender(...appenders).flush(), 1000);
+			await Promise.all(appenders.map(a => {
+				raceTimeout(a.flush(), 1000);
+			}));
+			return;
 		});
 	}
 
@@ -148,7 +146,7 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (getTelemetryLevel(productService, environmentService) >= TelemetryLevel.USER) {
+		if (supportsTelemetry(productService, environmentService)) {
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
@@ -156,7 +154,7 @@ class CliMain extends Disposable {
 			const { appRoot, extensionsPath, installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(...appenders),
+				appenders,
 				sendErrorTelemetry: false,
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;

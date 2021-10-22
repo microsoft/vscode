@@ -5,16 +5,27 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookTextModel', () => {
-	const instantiationService = setupInstantiationService();
-	const modeService = instantiationService.get(IModeService);
-	instantiationService.spy(IUndoRedoService, 'pushElement');
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let modeService: IModeService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		modeService = instantiationService.get(IModeService);
+		instantiationService.spy(IUndoRedoService, 'pushElement');
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('insert', async function () {
 		await withTestNotebook(

@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { ITextModel } from 'vs/editor/common/model';
-import { ColorId, FontStyle, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, ILanguageIdCodec, ITokenizationSupport, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
@@ -49,6 +49,7 @@ export class Colorizer {
 	}
 
 	public static colorize(modeService: IModeService, text: string, mimeType: string, options: IColorizerOptions | null | undefined): Promise<string> {
+		const languageIdCodec = modeService.languageIdCodec;
 		let tabSize = 4;
 		if (options && typeof options.tabSize === 'number') {
 			tabSize = options.tabSize;
@@ -60,7 +61,7 @@ export class Colorizer {
 		let lines = strings.splitLines(text);
 		let language = modeService.getModeId(mimeType);
 		if (!language) {
-			return Promise.resolve(_fakeColorize(lines, tabSize));
+			return Promise.resolve(_fakeColorize(lines, tabSize, languageIdCodec));
 		}
 
 		// Send out the event to create the mode
@@ -68,7 +69,7 @@ export class Colorizer {
 
 		const tokenizationSupport = TokenizationRegistry.get(language);
 		if (tokenizationSupport) {
-			return _colorize(lines, tabSize, tokenizationSupport);
+			return _colorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 		}
 
 		const tokenizationSupportPromise = TokenizationRegistry.getPromise(language);
@@ -76,7 +77,7 @@ export class Colorizer {
 			// A tokenizer will be registered soon
 			return new Promise<string>((resolve, reject) => {
 				tokenizationSupportPromise.then(tokenizationSupport => {
-					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
 				}, reject);
 			});
 		}
@@ -96,10 +97,10 @@ export class Colorizer {
 				}
 				const tokenizationSupport = TokenizationRegistry.get(language!);
 				if (tokenizationSupport) {
-					_colorize(lines, tabSize, tokenizationSupport).then(resolve, reject);
+					_colorize(lines, tabSize, tokenizationSupport, languageIdCodec).then(resolve, reject);
 					return;
 				}
-				resolve(_fakeColorize(lines, tabSize));
+				resolve(_fakeColorize(lines, tabSize, languageIdCodec));
 			};
 
 			// wait 500ms for mode to load, then give up
@@ -149,10 +150,10 @@ export class Colorizer {
 	}
 }
 
-function _colorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): Promise<string> {
+function _colorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport, languageIdCodec: ILanguageIdCodec): Promise<string> {
 	return new Promise<string>((c, e) => {
 		const execute = () => {
-			const result = _actualColorize(lines, tabSize, tokenizationSupport);
+			const result = _actualColorize(lines, tabSize, tokenizationSupport, languageIdCodec);
 			if (tokenizationSupport instanceof MonarchTokenizer) {
 				const status = tokenizationSupport.getLoadStatus();
 				if (status.loaded === false) {
@@ -166,7 +167,7 @@ function _colorize(lines: string[], tabSize: number, tokenizationSupport: IToken
 	});
 }
 
-function _fakeColorize(lines: string[], tabSize: number): string {
+function _fakeColorize(lines: string[], tabSize: number, languageIdCodec: ILanguageIdCodec): string {
 	let html: string[] = [];
 
 	const defaultMetadata = (
@@ -183,7 +184,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		let line = lines[i];
 
 		tokens[0] = line.length;
-		const lineTokens = new LineTokens(tokens, line);
+		const lineTokens = new LineTokens(tokens, line, languageIdCodec);
 
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
@@ -216,7 +217,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 	return html.join('');
 }
 
-function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport): string {
+function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: ITokenizationSupport, languageIdCodec: ILanguageIdCodec): string {
 	let html: string[] = [];
 	let state = tokenizationSupport.getInitialState();
 
@@ -224,7 +225,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let line = lines[i];
 		let tokenizeResult = tokenizationSupport.tokenize2(line, true, state, 0);
 		LineTokens.convertToEndOffset(tokenizeResult.tokens, line.length);
-		let lineTokens = new LineTokens(tokenizeResult.tokens, line);
+		let lineTokens = new LineTokens(tokenizeResult.tokens, line, languageIdCodec);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(line, /* check for basic ASCII */true);
 		const containsRTL = ViewLineRenderingData.containsRTL(line, isBasicASCII, /* check for RTL */true);
 		let renderResult = renderViewLine(new RenderLineInput(

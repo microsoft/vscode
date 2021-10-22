@@ -60,11 +60,14 @@ class LanguageStatusServiceImpl implements ILanguageStatusService {
 
 	getLanguageStatus(model: ITextModel): ILanguageStatus[] {
 		return this._provider.ordered(model).sort((a, b) => {
-			if (a.severity !== b.severity) {
-				return b.severity - a.severity;
-			} else {
-				return compare(a.id, b.id);
+			let res = b.severity - a.severity;
+			if (res === 0) {
+				res = compare(a.source, b.source);
 			}
+			if (res === 0) {
+				res = compare(a.id, b.id);
+			}
+			return res;
 		});
 	}
 }

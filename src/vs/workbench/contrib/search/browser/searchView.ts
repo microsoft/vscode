@@ -319,8 +319,8 @@ export class SearchView extends ViewPane {
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
 		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
-			ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
-			placeholder: nls.localize('placeholder.includes', "(e.g. *.ts, src/**/include)"),
+			ariaLabel: filesToIncludeTitle,
+			placeholder: nls.localize('placeholder.includes', "e.g. *.ts, src/**/include"),
 			showPlaceholderOnFocus: true,
 			history: patternIncludesHistory,
 		}));
@@ -338,8 +338,8 @@ export class SearchView extends ViewPane {
 		const excludesTitle = nls.localize('searchScope.excludes', "files to exclude");
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
-			ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
-			placeholder: nls.localize('placeholder.excludes', "(e.g. *.ts, src/**/exclude)"),
+			ariaLabel: excludesTitle,
+			placeholder: nls.localize('placeholder.excludes', "e.g. *.ts, src/**/exclude"),
 			showPlaceholderOnFocus: true,
 			history: patternExclusionsHistory,
 		}));
@@ -505,7 +505,7 @@ export class SearchView extends ViewPane {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
-		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
+		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors);
 		return this.refreshTree(event);
 	}
 
@@ -1567,6 +1567,7 @@ export class SearchView extends ViewPane {
 
 		this.searchWidget.setReplaceAllActionState(false);
 
+		this.tree.setSelection([]);
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}
@@ -1600,7 +1601,12 @@ export class SearchView extends ViewPane {
 		this.searchExcludePattern.setUseExcludesAndIgnoreFiles(true);
 	}
 
-	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean): void {
+	private onDisableSearchInOpenEditors(): void {
+		this.toggleQueryDetails(false, true);
+		this.inputPatternIncludes.setOnlySearchInOpenEditors(false);
+	}
+
+	private updateSearchResultCount(disregardExcludesAndIgnores?: boolean, onlyOpenEditors?: boolean): void {
 		const fileCount = this.viewModel.searchResult.fileCount();
 		this.hasSearchResultsKey.set(fileCount > 0);
 
@@ -1616,6 +1622,12 @@ export class SearchView extends ViewPane {
 				const excludesDisabledMessage = ' - ' + nls.localize('useIgnoresAndExcludesDisabled', "exclude settings and ignore files are disabled") + ' ';
 				const enableExcludesButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('excludes.enable', "enable"), this.onEnableExcludes.bind(this), nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files")));
 				dom.append(messageEl, $('span', undefined, excludesDisabledMessage, '(', enableExcludesButton.element, ')'));
+			}
+
+			if (onlyOpenEditors) {
+				const searchingInOpenMessage = ' - ' + nls.localize('onlyOpenEditors', "searching only in open files") + ' ';
+				const disableOpenEditorsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openEditors.disable', "disable"), this.onDisableSearchInOpenEditors.bind(this), nls.localize('disableOpenEditors', "Search in entire workspace")));
+				dom.append(messageEl, $('span', undefined, searchingInOpenMessage, '(', disableOpenEditorsButton.element, ')'));
 			}
 
 			dom.append(messageEl, ' - ');

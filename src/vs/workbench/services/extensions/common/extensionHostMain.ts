@@ -70,7 +70,11 @@ export class ExtensionHostMain {
 		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 
 		performance.mark(`code/extHost/didCreateServices`);
-		this._logService.info('extension host started');
+		if (this._hostUtils.pid) {
+			this._logService.info(`Extension host with pid ${this._hostUtils.pid} started`);
+		} else {
+			this._logService.info(`Extension host started`);
+		}
 		this._logService.trace('initData', initData);
 
 		// ugly self - inject
@@ -91,7 +95,7 @@ export class ExtensionHostMain {
 					stackTraceMessage += `\n\tat ${call.toString()}`;
 					fileName = call.getFileName();
 					if (!extension && fileName) {
-						extension = map.findSubstr(fileName);
+						extension = map.findSubstr(URI.file(fileName));
 					}
 
 				}
@@ -136,7 +140,11 @@ export class ExtensionHostMain {
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
 			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				this._logService.info(`exiting with code 0`);
+				if (this._hostUtils.pid) {
+					this._logService.info(`Extension host with pid ${this._hostUtils.pid} exiting with code 0`);
+				} else {
+					this._logService.info(`Extension host exiting with code 0`);
+				}
 				this._logService.flush();
 				this._logService.dispose();
 				this._hostUtils.exit(0);

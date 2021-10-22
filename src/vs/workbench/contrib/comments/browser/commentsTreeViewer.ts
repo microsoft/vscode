@@ -132,8 +132,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 				disposables: disposables
 			}
 		});
+		templateData.disposables.push(renderedComment);
 
-		const images = renderedComment.getElementsByTagName('img');
+		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];
 			const textDescription = dom.$('');
@@ -141,8 +142,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			image.parentNode!.replaceChild(textDescription, image);
 		}
 
-		templateData.commentText.appendChild(renderedComment);
-		templateData.commentText.title = renderedComment.textContent ?? '';
+		templateData.commentText.appendChild(renderedComment.element);
+		templateData.commentText.title = renderedComment.element.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

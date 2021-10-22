@@ -16,17 +16,24 @@ import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statu
 import { State } from 'vs/workbench/contrib/debug/common/debug';
 import { isWindows } from 'vs/base/common/platform';
 import { MockSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
+	let disposables: DisposableStore;
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('render view tree', () => {

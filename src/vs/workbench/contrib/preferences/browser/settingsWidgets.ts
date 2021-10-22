@@ -1368,11 +1368,12 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 			changedItem.value.data = newValue;
 			this.handleItemChange(item, changedItem, idx);
 		};
-		const { element, widget: checkbox } = this.renderEditWidget((changedItem.value as IObjectBoolData).data, onValueChange);
+		const checkboxDescription = item.keyDescription ? `${item.keyDescription} (${item.key.data})` : item.key.data;
+		const { element, widget: checkbox } = this.renderEditWidget((changedItem.value as IObjectBoolData).data, checkboxDescription, onValueChange);
 		rowElement.appendChild(element);
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
-		valueElement.textContent = changedItem.key.data;
+		valueElement.textContent = checkboxDescription;
 
 		// We add the tooltips here, because the method is not called by default
 		// for widgets in edit mode
@@ -1393,13 +1394,14 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 
 	private renderEditWidget(
 		value: boolean,
+		checkboxDescription: string,
 		onValueChange: (newValue: boolean) => void
 	) {
 		const checkbox = new Checkbox({
 			icon: Codicon.check,
 			actionClassName: 'setting-value-checkbox',
 			isChecked: value,
-			title: ''
+			title: checkboxDescription
 		});
 
 		this.listDisposables.add(checkbox);

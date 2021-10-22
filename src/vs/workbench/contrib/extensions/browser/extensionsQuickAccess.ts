@@ -7,19 +7,20 @@ import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
 	static PREFIX = 'ext install ';
 
 	constructor(
-		@IViewletService private readonly viewletService: IViewletService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionsService: IExtensionManagementService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -80,7 +81,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 
 	private async installExtension(extension: IGalleryExtension, name: string): Promise<void> {
 		try {
-			await openExtensionsViewlet(this.viewletService, `@id:${name}`);
+			await openExtensionsViewlet(this.paneCompositeService, `@id:${name}`);
 			await this.extensionsService.installFromGallery(extension);
 		} catch (error) {
 			this.notificationService.error(error);
@@ -88,7 +89,7 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 	}
 
 	private async searchExtension(name: string): Promise<void> {
-		openExtensionsViewlet(this.viewletService, name);
+		openExtensionsViewlet(this.paneCompositeService, name);
 	}
 }
 
@@ -96,20 +97,20 @@ export class ManageExtensionsQuickAccessProvider extends PickerQuickAccessProvid
 
 	static PREFIX = 'ext ';
 
-	constructor(@IViewletService private readonly viewletService: IViewletService) {
+	constructor(@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService) {
 		super(ManageExtensionsQuickAccessProvider.PREFIX);
 	}
 
 	protected _getPicks(): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
 		return [{
 			label: localize('manage', "Press Enter to manage your extensions."),
-			accept: () => openExtensionsViewlet(this.viewletService)
+			accept: () => openExtensionsViewlet(this.paneCompositeService)
 		}];
 	}
 }
 
-async function openExtensionsViewlet(viewletService: IViewletService, search = ''): Promise<void> {
-	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
+async function openExtensionsViewlet(paneCompositeService: IPaneCompositePartService, search = ''): Promise<void> {
+	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 	const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 	view?.search(search);
 	view?.focus();

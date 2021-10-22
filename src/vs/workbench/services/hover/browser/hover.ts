@@ -30,12 +30,16 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
+	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible.
 	 */
 	hideHover(): void;
+}
+
+export interface IHoverWidget extends IDisposable {
+	readonly isDisposed: boolean;
 }
 
 export interface IHoverOptions {

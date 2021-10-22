@@ -10,7 +10,7 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
 import { EventMultiplexer } from 'vs/base/common/event';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./toolbar';

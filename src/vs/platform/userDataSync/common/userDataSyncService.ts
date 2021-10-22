@@ -14,6 +14,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders } from 'vs/base/parts/request/common/request';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -22,7 +23,7 @@ import { GlobalStateSynchroniser } from 'vs/platform/userDataSync/common/globalS
 import { KeybindingsSynchroniser } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
-import { Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
 	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -77,6 +78,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -153,7 +155,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			throw userDataSyncError;
 		}
 
-		return new ManualSyncTask(executionId, manifest, syncHeaders, this.synchronisers, this.logService);
+		return new ManualSyncTask(executionId, manifest, syncHeaders, this.synchronisers, this.configurationService, this.logService);
 	}
 
 	private recoveredSettings: boolean = false;
@@ -445,6 +447,7 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 		readonly manifest: IUserDataManifest | null,
 		private readonly syncHeaders: IHeaders,
 		private readonly synchronisers: IUserDataSynchroniser[],
+		private readonly configurationService: IConfigurationService,
 		private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
@@ -707,16 +710,23 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 
 	private async getPreviews(token: CancellationToken): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const result: [SyncResource, ISyncResourcePreview][] = [];
+		const remoteUserDataSyncConfiguration: IUserDataSyncConfiguration = await this.getUserDataSyncConfiguration();
 		for (const synchroniser of this.synchronisers) {
 			if (token.isCancellationRequested) {
 				return [];
 			}
-			const preview = await synchroniser.preview(this.manifest, this.syncHeaders);
+			const preview = await synchroniser.preview(this.manifest, remoteUserDataSyncConfiguration, this.syncHeaders);
 			if (preview) {
 				result.push(this.toSyncResourcePreview(synchroniser.resource, preview));
 			}
 		}
 		return result;
+	}
+
+	private async getUserDataSyncConfiguration(): Promise<IUserDataSyncConfiguration> {
+		const local = this.configurationService.getValue<IUserDataSyncConfiguration>(USER_DATA_SYNC_CONFIGURATION_SCOPE);
+		const remote = await (<SettingsSynchroniser>this.synchronisers.find(synchronizer => synchronizer instanceof SettingsSynchroniser)).getRemoteUserDataSyncConfiguration(this.manifest);
+		return { ...local, ...remote };
 	}
 
 	private toSyncResourcePreview(syncResource: SyncResource, preview: ISyncResourcePreview): [SyncResource, ISyncResourcePreview] {

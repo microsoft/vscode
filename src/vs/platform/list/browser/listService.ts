@@ -1286,12 +1286,12 @@ configurationRegistry.registerConfiguration({
 		[mouseWheelScrollSensitivityKey]: {
 			type: 'number',
 			default: 1,
-			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the deltaX and deltaY of mouse wheel scroll events.")
+			description: localize('Mouse Wheel Scroll Sensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events.")
 		},
 		[fastScrollSensitivityKey]: {
 			type: 'number',
 			default: 5,
-			description: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing Alt.")
+			description: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		[keyboardNavigationSettingKey]: {
 			type: 'string',

@@ -26,7 +26,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
-import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
+import { WorkspaceWatcher } from 'vs/workbench/contrib/files/browser/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
@@ -34,6 +34,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import product from 'vs/platform/product/common/product';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -244,8 +245,33 @@ configurationRegistry.registerConfiguration({
 		'files.watcherExclude': {
 			'type': 'object',
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
-			'markdownDescription': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths, i.e. prefix with `**/` or the full path to match properly and suffix with `/**` to match files within a path (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
+			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths that are relative (for example `build/output`) will be resolved to an absolute path using the currently opened workspace. Glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.watcherInclude': {
+			'type': 'array',
+			'items': {
+				'type': 'string'
+			},
+			'default': [],
+			'description': nls.localize('watcherInclude', "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved to an absolute path using the currently opened workspace."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.legacyWatcher': {
+			'type': 'string',
+			'enum': [
+				'on',
+				'off',
+				'default',
+			],
+			'markdownEnumDescriptions': [
+				nls.localize('files.legacyWatcher.on', "Enable the legacy file watcher in case you see issues with the new file watcher."),
+				nls.localize('files.legacyWatcher.off', "Disable the legacy file watcher and enable the new file watcher to benefit from its capabilities."),
+				nls.localize('files.legacyWatcher.default', "The new file watcher will be enabled if you are using insiders version or whenever you open multi-root workspaces."),
+			],
+			'default': 'default',
+			'description': nls.localize('legacyWatcher', "Controls the mechanism used for file watching. Only change this when you see issues related to file watching."),
+			'scope': ConfigurationScope.APPLICATION
 		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
@@ -281,7 +307,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
-		}
+		},
+		'files.experimentalSandboxedFileService': {
+			'type': 'boolean',
+			'description': nls.localize('files.experimentalSandboxedFileService', "Experimental: changes the file service to be sandboxed. Do not change this unless instructed!"),
+			'default': product.quality !== 'stable',
+			'scope': ConfigurationScope.APPLICATION
+		},
 	}
 });
 

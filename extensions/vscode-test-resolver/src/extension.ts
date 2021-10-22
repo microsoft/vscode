@@ -24,6 +24,7 @@ let outputChannel: vscode.OutputChannel;
 export function activate(context: vscode.ExtensionContext) {
 
 	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
+		// eslint-disable-next-line no-async-promise-executor
 		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
 			outputChannel = vscode.window.createOutputChannel('TestResolver');
@@ -129,7 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		});
 		return serverPromise.then(serverAddr => {
-			return new Promise<vscode.ResolvedAuthority>(async (res, _rej) => {
+			return new Promise<vscode.ResolvedAuthority>((res, _rej) => {
 				const proxyServer = net.createServer(proxySocket => {
 					outputChannel.appendLine(`Proxy connection accepted`);
 					let remoteReady = true, localReady = true;
@@ -230,7 +231,27 @@ export function activate(context: vscode.ExtensionContext) {
 			}, (progress) => doResolve(_authority, progress));
 		},
 		tunnelFactory,
-		tunnelFeatures: { elevation: true, public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') },
+		tunnelFeatures: {
+			elevation: true,
+			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts'),
+			privacyOptions: vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') ? [
+				{
+					id: 'public',
+					label: 'Public',
+					themeIcon: 'eye'
+				},
+				{
+					id: 'other',
+					label: 'Other',
+					themeIcon: 'circuit-board'
+				},
+				{
+					id: 'private',
+					label: 'Private',
+					themeIcon: 'eye-closed'
+				}
+			] : []
+		},
 		showCandidatePort
 	});
 	context.subscriptions.push(authorityResolverDisposable);
@@ -389,6 +410,7 @@ async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreation
 			localAddress,
 			remoteAddress: tunnelOptions.remoteAddress,
 			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
+			privacy: tunnelOptions.privacy,
 			protocol: tunnelOptions.protocol,
 			onDidDispose: onDidDispose.event,
 			dispose: () => {

@@ -16,7 +16,6 @@ import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/worksp
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
@@ -24,6 +23,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ResourceMap } from 'vs/base/common/map';
+import { joinPath } from 'vs/base/common/resources';
 
 export class UserConfiguration extends Disposable {
 
@@ -534,6 +534,10 @@ export class WorkspaceConfiguration extends Disposable {
 		return Promise.resolve();
 	}
 
+	isTransient(): boolean {
+		return this._workspaceConfiguration.isTransient();
+	}
+
 	getConfiguration(): ConfigurationModel {
 		return this._workspaceConfiguration.getWorkspaceSettings();
 	}
@@ -648,6 +652,10 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
+	}
+
 	getWorkspaceSettings(): ConfigurationModel {
 		return this.workspaceSettings;
 	}
@@ -719,6 +727,10 @@ class CachedWorkspaceConfiguration {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	isTransient(): boolean {
+		return this.workspaceConfigurationModelParser.transient;
+	}
+
 	getWorkspaceSettings(): ConfigurationModel {
 		return this.workspaceSettings;
 	}
@@ -773,7 +785,7 @@ class CachedFolderConfiguration {
 		configurationParseOptions: ConfigurationParseOptions,
 		private readonly configurationCache: IConfigurationCache,
 	) {
-		this.key = { type: 'folder', key: hash(join(folder.path, configFolderRelativePath)).toString(16) };
+		this.key = { type: 'folder', key: hash(joinPath(folder, configFolderRelativePath).toString()).toString(16) };
 		this._folderSettingsModelParser = new ConfigurationModelParser('CachedFolderConfiguration');
 		this._folderSettingsParseOptions = configurationParseOptions;
 		this._standAloneConfigurations = [];
@@ -849,6 +861,7 @@ export class FolderConfiguration extends Disposable {
 	private cachedFolderConfiguration: CachedFolderConfiguration;
 
 	constructor(
+		useCache: boolean,
 		readonly workspaceFolder: IWorkspaceFolder,
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
@@ -863,7 +876,7 @@ export class FolderConfiguration extends Disposable {
 		this.scopes = WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES;
 		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
 		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, skipRestricted: this.isUntrusted() }, configurationCache);
-		if (this.configurationCache.needsCaching(workspaceFolder.uri)) {
+		if (useCache && this.configurationCache.needsCaching(workspaceFolder.uri)) {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {

@@ -31,7 +31,7 @@ const parentOrigin = searchParams.get('parentOrigin');
  * @param {() => void} handlers.onBlur
  */
 const trackFocus = ({ onFocus, onBlur }) => {
-	const interval = 50;
+	const interval = 250;
 	let isFocused = document.hasFocus();
 	setInterval(() => {
 		const isCurrentlyFocused = document.hasFocus();
@@ -198,7 +198,7 @@ function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
 }
 
 /** @type {Promise<void>} */
-const workerReady = new Promise(async (resolve, reject) => {
+const workerReady = new Promise((resolve, reject) => {
 	if (!areServiceWorkersEnabled()) {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
@@ -451,19 +451,18 @@ const handleInnerClick = (event) => {
 		return;
 	}
 
-	const baseElement = event.view.document.getElementsByTagName('base')[0];
+	const baseElement = event.view.document.querySelector('base');
 
 	for (const pathElement of event.composedPath()) {
 		/** @type {any} */
 		const node = pathElement;
-		if (node.tagName === 'A' && node.href) {
+		if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
-				if (scrollTarget) {
-					scrollTarget.scrollIntoView();
-				}
+				const fragment = node.hash.substr(1, node.hash.length - 1);
+				const scrollTarget = event.view.document.getElementById(decodeURIComponent(fragment));
+				scrollTarget?.scrollIntoView();
 			} else {
 				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
 			}
@@ -487,7 +486,7 @@ const handleAuxClick =
 			for (const pathElement of event.composedPath()) {
 				/** @type {any} */
 				const node = pathElement;
-				if (node.tagName === 'A' && node.href) {
+				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 					event.preventDefault();
 					return;
 				}
@@ -752,7 +751,6 @@ onDomReady(() => {
 	let updateId = 0;
 	hostMessaging.onMessage('content', async (_event, /** @type {ContentUpdateData} */ data) => {
 		const currentUpdateId = ++updateId;
-
 		try {
 			await workerReady;
 		} catch (e) {
@@ -881,6 +879,7 @@ onDomReady(() => {
 
 			const newFrame = getPendingFrame();
 			if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
+				const wasFocused = document.hasFocus();
 				const oldActiveFrame = getActiveFrame();
 				if (oldActiveFrame) {
 					document.body.removeChild(oldActiveFrame);
@@ -895,7 +894,7 @@ onDomReady(() => {
 				contentWindow.addEventListener('scroll', handleInnerScroll);
 				contentWindow.addEventListener('wheel', handleWheel);
 
-				if (document.hasFocus()) {
+				if (wasFocused) {
 					contentWindow.focus();
 				}
 

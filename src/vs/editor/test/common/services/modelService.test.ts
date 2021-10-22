@@ -31,23 +31,34 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 const GENERATE_TESTS = false;
 
 suite('ModelService', () => {
+	let disposables: DisposableStore;
 	let modelService: ModelServiceImpl;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 		configService.setUserConfiguration('files', { 'eol': '\r\n' }, URI.file(platform.isWindows ? 'c:\\myroot' : '/myroot'));
 
 		const dialogService = new TestDialogService();
-		modelService = new ModelServiceImpl(configService, new TestTextResourcePropertiesService(configService), new TestThemeService(), new NullLogService(), new UndoRedoService(dialogService, new TestNotificationService()));
+		modelService = disposables.add(new ModelServiceImpl(
+			configService,
+			new TestTextResourcePropertiesService(configService),
+			new TestThemeService(),
+			new NullLogService(),
+			new UndoRedoService(dialogService, new TestNotificationService()),
+			disposables.add(new ModeServiceImpl()),
+			new TestLanguageConfigurationService()
+		));
 	});
 
 	teardown(() => {
-		modelService.dispose();
+		disposables.dispose();
 	});
 
 	test('EOL setting respected depending on root', () => {
@@ -62,14 +73,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits no change', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -88,14 +99,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits first line changed', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -116,14 +127,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL changed', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -142,14 +153,14 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 1', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'This is line one', //16
 				'and this is line number two', //27
 				'it is followed by #3', //20
 				'and finished with the fourth.', //29
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -178,13 +189,13 @@ suite('ModelService', () => {
 
 	test('_computeEdits EOL and other change 2', function () {
 
-		const model = createTextModel(
+		const model = disposables.add(createTextModel(
 			[
 				'package main',	// 1
 				'func foo() {',	// 2
 				'}'				// 3
 			].join('\n')
-		);
+		));
 
 		const textBuffer = createTextBuffer(
 			[
@@ -334,6 +345,8 @@ suite('ModelService', () => {
 		// undo
 		model2.undo();
 		assert.strictEqual(model2.getValue(), 'text');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('maintains version id and alternative version id for same resource and same content', () => {
@@ -353,6 +366,8 @@ suite('ModelService', () => {
 		const model2 = modelService.createModel('text1', null, resource);
 		assert.strictEqual(model2.getVersionId(), versionId);
 		assert.strictEqual(model2.getAlternativeVersionId(), alternativeVersionId);
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('does not maintain undo for same resource and different content', () => {
@@ -371,6 +386,8 @@ suite('ModelService', () => {
 		// undo
 		model2.undo();
 		assert.strictEqual(model2.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 
 	test('setValue should clear undo stack', () => {
@@ -383,6 +400,8 @@ suite('ModelService', () => {
 		model.setValue('text2');
 		model.undo();
 		assert.strictEqual(model.getValue(), 'text2');
+		// dispose it
+		modelService.destroyModel(resource);
 	});
 });
 
@@ -404,7 +423,9 @@ suite('ModelSemanticColoring', () => {
 			new TestTextResourcePropertiesService(configService),
 			themeService,
 			new NullLogService(),
-			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
+			disposables.add(new ModeServiceImpl()),
+			new TestLanguageConfigurationService()
 		));
 		modeService = disposables.add(new ModeServiceImpl(false));
 	});
@@ -480,6 +501,7 @@ function assertComputeEdits(lines1: string[], lines2: string[]): void {
 	model.pushEditOperations([], edits, null);
 
 	assert.strictEqual(model.getValue(), lines2.join('\n'));
+	model.dispose();
 }
 
 function getRandomInt(min: number, max: number): number {

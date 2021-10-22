@@ -64,7 +64,7 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
-		this._register(modes.LinkProviderRegistry.register('*', {
+		this._register(modes.LinkProviderRegistry.register({ language: '*', hasAccessToAllModels: true }, {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return Promise.resolve({ links: [] }); // File too large
@@ -79,10 +79,6 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 
 	public override dispose(): void {
 		super.dispose();
-	}
-
-	public canComputeDiff(original: URI, modified: URI): boolean {
-		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
@@ -172,7 +168,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 				if (candidate === model) {
 					models.unshift(candidate.uri);
 
-				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageIdentifier().id === model.getLanguageIdentifier().id) {
+				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageId() === model.getLanguageId()) {
 					models.push(candidate.uri);
 				}
 			}
@@ -182,7 +178,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 			return undefined; // File too large, no other files
 		}
 
-		const wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		const wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 		const word = model.getWordAtPosition(position);
 		const replace = !word ? Range.fromPositions(position) : new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 		const insert = replace.setEndPosition(position.lineNumber, position.column);
@@ -301,12 +297,12 @@ class EditorModelManager extends Disposable {
 		super.dispose();
 	}
 
-	public ensureSyncedResources(resources: URI[]): void {
+	public ensureSyncedResources(resources: URI[], forceLargeModels: boolean): void {
 		for (const resource of resources) {
 			let resourceStr = resource.toString();
 
 			if (!this._syncedModels[resourceStr]) {
-				this._beginModelSync(resource);
+				this._beginModelSync(resource, forceLargeModels);
 			}
 			if (this._syncedModels[resourceStr]) {
 				this._syncedModelsLastUsedTime[resourceStr] = (new Date()).getTime();
@@ -330,12 +326,12 @@ class EditorModelManager extends Disposable {
 		}
 	}
 
-	private _beginModelSync(resource: URI): void {
+	private _beginModelSync(resource: URI, forceLargeModels: boolean): void {
 		let model = this._modelService.getModel(resource);
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForSyncing()) {
+		if (!forceLargeModels && model.isTooLargeForSyncing()) {
 			return;
 		}
 
@@ -460,18 +456,18 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		return this._modelManager;
 	}
 
-	protected _withSyncedResources(resources: URI[]): Promise<EditorSimpleWorker> {
+	protected async _withSyncedResources(resources: URI[], forceLargeModels: boolean = false): Promise<EditorSimpleWorker> {
 		if (this._disposed) {
 			return Promise.reject(canceled());
 		}
 		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
+			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources, forceLargeModels);
 			return proxy;
 		});
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {
-		return this._withSyncedResources([original, modified]).then(proxy => {
+		return this._withSyncedResources([original, modified], /* forceLargeModels */true).then(proxy => {
 			return proxy.computeDiff(original.toString(), modified.toString(), ignoreTrimWhitespace, maxComputationTime);
 		});
 	}
@@ -507,7 +503,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			if (!model) {
 				return Promise.resolve(null);
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
@@ -520,7 +516,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			if (!model) {
 				return null;
 			}
-			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+			let wordDefRegExp = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageId());
 			let wordDef = wordDefRegExp.source;
 			let wordDefFlags = regExpFlags(wordDefRegExp);
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);

@@ -29,7 +29,7 @@ class OrganizeImportsCommand implements Command {
 		private readonly telemetryReporter: TelemetryReporter,
 	) { }
 
-	public async execute(file: string, sortOnly = false): Promise<boolean> {
+	public async execute(file: string, sortOnly = false): Promise<any> {
 		/* __GDPR__
 			"organizeImports.execute" : {
 				"${include}": [
@@ -50,11 +50,13 @@ class OrganizeImportsCommand implements Command {
 		};
 		const response = await this.client.interruptGetErr(() => this.client.execute('organizeImports', args, nulToken));
 		if (response.type !== 'response' || !response.body) {
-			return false;
+			return;
 		}
 
-		const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
-		return vscode.workspace.applyEdit(edits);
+		if (response.body.length) {
+			const edits = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
+			return vscode.workspace.applyEdit(edits);
+		}
 	}
 }
 

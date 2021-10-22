@@ -9,7 +9,8 @@ import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { SimpleKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -36,7 +37,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest';
+import { CompletionItem, Context as SuggestContext, ISuggestItemPreselector, suggestWidgetStatusbarMenu } from './suggest';
 import { SuggestAlternatives } from './suggestAlternatives';
 import { CommitCharacterController } from './suggestCommitCharacters';
 import { State, SuggestModel } from './suggestModel';
@@ -112,6 +113,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
+	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	constructor(
 		editor: ICodeEditor,
@@ -166,7 +168,6 @@ export class SuggestController implements IEditorContribution {
 				if (
 					this.editor.getOption(EditorOption.acceptSuggestionOnEnter) === 'smart'
 					&& this.model.state === State.Auto
-					&& !item.completion.command
 					&& !item.completion.additionalTextEdits
 					&& !(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)
 					&& endColumn - startColumn === item.completion.insertText.length
@@ -191,8 +192,8 @@ export class SuggestController implements IEditorContribution {
 			this._toDispose.add(widget.onDetailsKeyDown(e => {
 				// cmd + c on macOS, ctrl + c on Win / Linux
 				if (
-					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KEY_C)) ||
-					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KEY_C)))
+					e.toKeybinding().equals(new SimpleKeybinding(true, false, false, false, KeyCode.KeyC)) ||
+					(platform.isMacintosh && e.toKeybinding().equals(new SimpleKeybinding(false, false, false, true, KeyCode.KeyC)))
 				) {
 					e.stopPropagation();
 					return;
@@ -223,7 +224,16 @@ export class SuggestController implements IEditorContribution {
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
 			if (!e.shy) {
-				let index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				let index = -1;
+				for (const selector of this._selectors.itemsOrderedByPriorityDesc) {
+					index = selector.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+					if (index !== -1) {
+						break;
+					}
+				}
+				if (index === -1) {
+					index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
+				}
 				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
@@ -450,7 +460,7 @@ export class SuggestController implements IEditorContribution {
 	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
 		if (this.editor.hasModel()) {
 			this.model.trigger({ auto: false, shy: false }, false, onlyFrom);
-			this.editor.revealLine(this.editor.getPosition().lineNumber, ScrollType.Smooth);
+			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
 	}
@@ -519,7 +529,7 @@ export class SuggestController implements IEditorContribution {
 		});
 
 		this.model.trigger({ auto: false, shy: true });
-		this.editor.revealLine(positionNow.lineNumber, ScrollType.Smooth);
+		this.editor.revealPosition(positionNow, ScrollType.Smooth);
 		this.editor.focus();
 	}
 
@@ -599,6 +609,37 @@ export class SuggestController implements IEditorContribution {
 		}
 		this.widget.value.stopForceRenderingAbove();
 	}
+
+	registerSelector(selector: ISuggestItemPreselector): IDisposable {
+		return this._selectors.register(selector);
+	}
+}
+
+class PriorityRegistry<T> {
+	private readonly _items = new Array<T>();
+
+	constructor(private readonly prioritySelector: (item: T) => number) { }
+
+	register(value: T): IDisposable {
+		if (this._items.indexOf(value) !== -1) {
+			throw new Error('Value is already registered');
+		}
+		this._items.push(value);
+		this._items.sort((s1, s2) => this.prioritySelector(s2) - this.prioritySelector(s1));
+
+		return {
+			dispose: () => {
+				const idx = this._items.indexOf(value);
+				if (idx >= 0) {
+					this._items.splice(idx, 1);
+				}
+			}
+		};
+	}
+
+	get itemsOrderedByPriorityDesc(): readonly T[] {
+		return this._items;
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
@@ -614,8 +655,8 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KEY_I] },
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KeyI] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -735,7 +776,7 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
 	}
 }));
 
@@ -766,7 +807,7 @@ registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] }
 	}
 }));
 
@@ -796,8 +837,8 @@ registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
-		secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
-		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
+		mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.CtrlCmd | KeyCode.KeyI] }
 	},
 	menuOpts: [{
 		menuId: suggestWidgetStatusbarMenu,
@@ -820,7 +861,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.toggleExplainMode(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib,
-		primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
+		primary: KeyMod.CtrlCmd | KeyCode.Slash,
 	}
 }));
 

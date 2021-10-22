@@ -170,10 +170,13 @@ export interface IOutputRequestDto {
 	readonly outputId: string;
 }
 
+export type ICreationContent =
+	| { type: RenderOutputType.Html; htmlContent: string; }
+	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+
 export interface ICreationRequestMessage {
 	readonly type: 'html';
-	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
-	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
+	readonly content: ICreationContent;
 	readonly cellId: string;
 	readonly outputId: string;
 	cellTop: number;

@@ -9,6 +9,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TroubleshootController extends Disposable implements INotebookEditorContribution {
@@ -41,7 +42,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private _log(cell: ICellViewModel, e: any) {
 		if (this._logging) {
-			const oldHeight = this._notebookEditor.getViewHeight(cell);
+			const oldHeight = (this._notebookEditor as NotebookEditorWidget).getViewHeight(cell);
 			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
 		}
 	}

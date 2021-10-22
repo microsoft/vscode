@@ -833,10 +833,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (typeof node === 'string') {
 				append(headerDescriptionActions, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node, {});
-				link.el.tabIndex = -1;
-				append(headerDescriptionActions, link.el);
-				this.rerenderDisposables.add(link);
+				this.rerenderDisposables.add(this.instantiationService.createInstance(Link, headerDescriptionActions, { ...node, tabIndex: -1 }, {}));
 			}
 		}
 
@@ -1090,10 +1087,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (typeof node === 'string') {
 					append(text, document.createTextNode(node));
 				} else {
-					const link = this.instantiationService.createInstance(Link, node, {});
-					link.el.tabIndex = -1;
-					append(text, link.el);
-					this.rerenderDisposables.add(link);
+					this.rerenderDisposables.add(this.instantiationService.createInstance(Link, text, { ...node, tabIndex: -1 }, {}));
 				}
 			}
 		}

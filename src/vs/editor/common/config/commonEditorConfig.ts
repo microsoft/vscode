@@ -271,6 +271,21 @@ function migrateOptions(options: IEditorOptions): void {
 	} else if (<any>matchBrackets === false) {
 		options.matchBrackets = 'never';
 	}
+
+	const { renderIndentGuides, highlightActiveIndentGuide } = options as any as {
+		renderIndentGuides: boolean;
+		highlightActiveIndentGuide: boolean;
+	};
+	if (!options.guides) {
+		options.guides = {};
+	}
+
+	if (renderIndentGuides !== undefined) {
+		options.guides.indentation = !!renderIndentGuides;
+	}
+	if (highlightActiveIndentGuide !== undefined) {
+		options.guides.highlightActiveIndentation = !!highlightActiveIndentGuide;
+	}
 }
 
 function deepCloneAndMigrateOptions(_options: Readonly<IEditorOptions>): IEditorOptions {
@@ -532,10 +547,51 @@ const editorConfiguration: IConfigurationNode = {
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
 		},
+		'editor.language.brackets': {
+			type: 'array',
+			default: false, // We want to distinguish the empty array from not configured.
+			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
+			items: {
+				type: 'array',
+				items: [
+					{
+						type: 'string',
+						description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+					},
+					{
+						type: 'string',
+						description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+					}
+				]
+			}
+		},
+		'editor.language.colorizedBracketPairs': {
+			type: 'array',
+			default: false, // We want to distinguish the empty array from not configured.
+			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
+			items: {
+				type: 'array',
+				items: [
+					{
+						type: 'string',
+						description: nls.localize('schema.openBracket', 'The opening bracket character or string sequence.')
+					},
+					{
+						type: 'string',
+						description: nls.localize('schema.closeBracket', 'The closing bracket character or string sequence.')
+					}
+				]
+			}
+		},
 		'diffEditor.maxComputationTime': {
 			type: 'number',
 			default: 5000,
 			description: nls.localize('maxComputationTime', "Timeout in milliseconds after which diff computation is cancelled. Use 0 for no timeout.")
+		},
+		'diffEditor.maxFileSize': {
+			type: 'number',
+			default: 50,
+			description: nls.localize('maxFileSize', "Maximum file size in MB for which to compute diffs. Use 0 for no limit.")
 		},
 		'diffEditor.renderSideBySide': {
 			type: 'boolean',

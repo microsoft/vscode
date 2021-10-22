@@ -6,18 +6,17 @@
 import * as cp from 'child_process';
 import minimist = require('minimist');
 import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { afterSuite, beforeSuite, retry } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
 	// https://github.com/microsoft/vscode/issues/115244
-	// https://github.com/microsoft/vscode/issues/132218
-	(process.platform === 'win32' ? describe.skip : describe)('Search', () => {
+	describe('Search', () => {
 		beforeSuite(opts);
 
 		after(function () {
 			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+			retry(async () => cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
+			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 		});
 
 		afterSuite(opts);

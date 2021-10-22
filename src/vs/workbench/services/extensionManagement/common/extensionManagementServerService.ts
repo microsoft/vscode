@@ -14,13 +14,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getTargetPlatformFromOS, IExtensionGalleryService, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getErrorMessage } from 'vs/base/common/errors';
+import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -33,27 +27,15 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@ILogService logService: ILogService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new WebRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), galleryService, configurationService, productService, extensionManifestPropertiesService);
-			let remoteTargetPlatform = TargetPlatform.UNKNOWN;
-			remoteAgentService.getEnvironment().then(remoteEnvironment => {
-				if (remoteEnvironment) {
-					remoteTargetPlatform = getTargetPlatformFromOS(remoteEnvironment.os, remoteEnvironment.arch);
-				}
-			}, error => logService.error('Error while resolving remote target platform', getErrorMessage(error)));
+			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); },
-				get targetPlatform() { return remoteTargetPlatform; }
 			};
 		}
 		if (isWeb) {
@@ -62,7 +44,6 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 				id: 'web',
 				extensionManagementService,
 				label: localize('browser', "Browser"),
-				targetPlatform: TargetPlatform.WEB,
 			};
 		}
 	}

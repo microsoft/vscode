@@ -25,6 +25,10 @@ export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion 
 	return a.range.equalsRange(b.range) && a.text === b.text && a.command === b.command;
 }
 
+/**
+ * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
+ * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
+*/
 export function inlineCompletionToGhostText(
 	inlineCompletion: NormalizedInlineCompletion,
 	textModel: ITextModel,
@@ -37,13 +41,51 @@ export function inlineCompletionToGhostText(
 		return undefined;
 	}
 
-	const modifiedLength = inlineCompletion.text.length;
-	const previewStartInModified = modifiedLength - previewSuffixLength;
+	const sourceLine = textModel.getLineContent(inlineCompletion.range.startLineNumber);
+	const sourceIndentationLength = strings.getLeadingWhitespace(sourceLine).length;
+
+	const suggestionTouchesIndentation = inlineCompletion.range.startColumn - 1 <= sourceIndentationLength;
+	if (suggestionTouchesIndentation) {
+		// source:      ··········[······abc]
+		//                         ^^^^^^^^^ inlineCompletion.range
+		//              ^^^^^^^^^^ ^^^^^^ sourceIndentationLength
+		//                         ^^^^^^ replacedIndentation.length
+		//                               ^^^ rangeThatDoesNotReplaceIndentation
+
+		// inlineCompletion.text: '··foo'
+		//                         ^^ suggestionAddedIndentationLength
+
+		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(inlineCompletion.text).length;
+
+		const replacedIndentation = sourceLine.substring(inlineCompletion.range.startColumn - 1, sourceIndentationLength);
+		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(
+			inlineCompletion.range.getStartPosition().delta(0, replacedIndentation.length),
+			inlineCompletion.range.getEndPosition()
+		);
+
+		const suggestionWithoutIndentationChange =
+			inlineCompletion.text.startsWith(replacedIndentation)
+				// Adds more indentation without changing existing indentation: We can add ghost text for this
+				? inlineCompletion.text.substring(replacedIndentation.length)
+				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
+				: inlineCompletion.text.substring(suggestionAddedIndentationLength);
+
+		inlineCompletion = {
+			range: rangeThatDoesNotReplaceIndentation,
+			text: suggestionWithoutIndentationChange,
+			command: inlineCompletion.command
+		};
+	}
 
 	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
 
 	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
+
+	if (!changes) {
+		// No ghost text in case the diff would be too slow to compute
+		return undefined;
+	}
 
 	const lineNumber = inlineCompletion.range.startLineNumber;
 
@@ -57,6 +99,8 @@ export function inlineCompletionToGhostText(
 		}
 	}
 
+	const previewStartInCompletionText = inlineCompletion.text.length - previewSuffixLength;
+
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
 
@@ -66,11 +110,7 @@ export function inlineCompletionToGhostText(
 		}
 
 		if (c.originalLength > 0) {
-			const originalText = valueToBeReplaced.substr(c.originalStart, c.originalLength);
-			const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(lineNumber);
-			if (!(/^(\t| )*$/.test(originalText) && (firstNonWsCol === 0 || insertColumn <= firstNonWsCol))) {
-				return undefined;
-			}
+			return undefined;
 		}
 
 		if (c.modifiedLength === 0) {
@@ -78,7 +118,7 @@ export function inlineCompletionToGhostText(
 		}
 
 		const modifiedEnd = c.modifiedStart + c.modifiedLength;
-		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInModified));
+		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
 		const nonPreviewText = inlineCompletion.text.substring(c.modifiedStart, nonPreviewTextEnd);
 		const italicText = inlineCompletion.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
@@ -95,8 +135,8 @@ export function inlineCompletionToGhostText(
 	return new GhostText(lineNumber, parts, 0);
 }
 
-let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[]; } | undefined = undefined;
-function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined; } | undefined = undefined;
+function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] | undefined {
 	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
 		return lastRequest?.changes;
 	} else {
@@ -118,7 +158,12 @@ function cachingDiff(originalValue: string, newValue: string): readonly IDiffCha
  *
  * The parenthesis are preprocessed to ensure that they match correctly.
  */
-function smartDiff(originalValue: string, newValue: string): readonly IDiffChange[] {
+function smartDiff(originalValue: string, newValue: string): (readonly IDiffChange[]) | undefined {
+	if (originalValue.length > 5000 || newValue.length > 5000) {
+		// We don't want to work on strings that are too big
+		return undefined;
+	}
+
 	function getMaxCharCode(val: string): number {
 		let maxCharCode = 0;
 		for (let i = 0, len = val.length; i < len; i++) {

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { VIEW_ID } from 'vs/workbench/contrib/files/common/files';
@@ -378,9 +378,9 @@ export class BrowserFileUpload {
 
 //#endregion
 
-//#region Native File Import (drag and drop)
+//#region External File Import (drag and drop)
 
-export class NativeFileImport {
+export class ExternalFileImport {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -390,7 +390,8 @@ export class NativeFileImport {
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 	}
 
@@ -417,8 +418,12 @@ export class NativeFileImport {
 
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
+		// Activate all providers for the resources dropped
+		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
+
 		// Check for dropped external files to be folders
-		const files = coalesce(extractEditorsDropData(source, true).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const files = coalesce(candidateFiles.filter(resource => this.fileService.hasProvider(resource)));
 		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
@@ -491,7 +496,15 @@ export class NativeFileImport {
 				});
 			}
 
+
+			let inaccessibleFileCount = 0;
 			const resourcesFiltered = coalesce((await Promises.settled(resources.map(async resource => {
+				const fileDoesNotExist = !(await this.fileService.exists(resource));
+				if (fileDoesNotExist) {
+					inaccessibleFileCount++;
+					return undefined;
+				}
+
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
@@ -501,6 +514,10 @@ export class NativeFileImport {
 
 				return resource;
 			}))));
+
+			if (inaccessibleFileCount > 0) {
+				this.notificationService.error(inaccessibleFileCount > 1 ? localize('filesInaccessible', "Some or all of the dropped files could not be accessed for import.") : localize('fileInaccessible', "The dropped file could not be accessed for import."));
+			}
 
 			// Copy resources through bulk edit API
 			const resourceFileEdits = resourcesFiltered.map(resource => {

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens, LanguageIdentifier } from 'vs/editor/common/modes';
+import { SemanticTokensLegend, TokenMetadata, FontStyle, MetadataConsts, SemanticTokens } from 'vs/editor/common/modes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { MultilineTokens2, SparseEncodedTokens } from 'vs/editor/common/model/tokensStore';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const enum SemanticTokensProviderStylingConstants {
 	NO_STYLING = 0b01111111111111111111111111111111
@@ -20,14 +21,16 @@ export class SemanticTokensProviderStyling {
 	constructor(
 		private readonly _legend: SemanticTokensLegend,
 		private readonly _themeService: IThemeService,
+		private readonly _modeService: IModeService,
 		private readonly _logService: ILogService
 	) {
 		this._hashTable = new HashTable();
 		this._hasWarnedOverlappingTokens = false;
 	}
 
-	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: LanguageIdentifier): number {
-		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, languageId.id);
+	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
+		const encodedLanguageId = this._modeService.languageIdCodec.encodeLanguageId(languageId);
+		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, encodedLanguageId);
 		let metadata: number;
 		if (entry) {
 			metadata = entry.metadata;
@@ -50,7 +53,7 @@ export class SemanticTokensProviderStyling {
 					tokenModifiers.push('not-in-legend');
 				}
 
-				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId.language);
+				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId);
 				if (typeof tokenStyle === 'undefined') {
 					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				} else {
@@ -83,7 +86,7 @@ export class SemanticTokensProviderStyling {
 				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
 				tokenType = 'not-in-legend';
 			}
-			this._hashTable.add(tokenTypeIndex, tokenModifierSet, languageId.id, metadata);
+			this._hashTable.add(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata);
 
 			if (this._logService.getLevel() === LogLevel.Trace) {
 				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
@@ -116,7 +119,7 @@ const enum SemanticColoringConstants {
 	DesiredMaxAreas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: LanguageIdentifier): MultilineTokens2[] {
+export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): MultilineTokens2[] {
 	const srcData = tokens.data;
 	const tokenCount = (tokens.data.length / 5) | 0;
 	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);

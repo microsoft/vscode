@@ -14,7 +14,7 @@ import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, CURRENT_TARGET_PLATFORM } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, ExtensionManagementError, INSTALL_ERROR_INCOMPATIBLE } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -125,7 +125,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData?.skippedExtensions || [];
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData?.syncData ? await parseAndMigrateExtensions(lastSyncUserData.syncData, this.extensionManagementService) : null;
 
-		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installedExtensions = await this.extensionManagementService.getInstalled(undefined, true);
 		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const ignoredExtensions = this.ignoredExtensionsManagementService.getIgnoredExtensions(installedExtensions);
 
@@ -375,7 +375,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				}
 
 				// User Extension Sync: Install/Update, Enablement & State
-				const extension = await this.extensionGalleryService.getCompatibleExtension(e.identifier, CURRENT_TARGET_PLATFORM);
+				const extension = (await this.extensionGalleryService.getExtensions([e.identifier], CancellationToken.None))[0];
 
 				/* Update extension state only if
 				 *	extension is installed and version is same as synced version or
@@ -416,12 +416,16 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 						}
 					} catch (error) {
 						addToSkipped.push(e);
-						this.logService.error(error);
-						this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
+						if (error instanceof ExtensionManagementError && error.code === INSTALL_ERROR_INCOMPATIBLE) {
+							this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, extension.displayName || extension.identifier.id);
+						} else {
+							this.logService.error(error);
+							this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension`, extension.displayName || extension.identifier.id);
+						}
 					}
 				} else {
-					this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the compatible extension is not found.`, e.identifier.id);
 					addToSkipped.push(e);
+					this.logService.info(`${this.syncResourceLogLabel}: Skipped synchronizing extension because the extension is not found.`, e.identifier.id);
 				}
 			}));
 		}

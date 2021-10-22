@@ -30,6 +30,7 @@ export interface IReplaceInputOptions extends IReplaceInputStyles {
 
 	readonly appendPreserveCaseLabel?: string;
 	readonly history?: string[];
+	readonly showHistoryHint?: () => boolean;
 }
 
 export interface IReplaceInputStyles extends IInputBoxStyles {
@@ -157,6 +158,7 @@ export class ReplaceInput extends Widget {
 			inputValidationErrorForeground: this.inputValidationErrorForeground,
 			inputValidationErrorBorder: this.inputValidationErrorBorder,
 			history,
+			showHistoryHint: options.showHistoryHint,
 			flexibleHeight,
 			flexibleWidth,
 			flexibleMaxHeight

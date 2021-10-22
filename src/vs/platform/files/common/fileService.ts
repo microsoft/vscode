@@ -25,7 +25,10 @@ export class FileService extends Disposable implements IFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly BUFFER_SIZE = 64 * 1024;
+	// Choose a buffer size that is a balance between memory needs and
+	// manageable IPC overhead. The larger the buffer size, the less
+	// roundtrips we have to do for reading/writing data.
+	private readonly BUFFER_SIZE = 256 * 1024;
 
 	constructor(@ILogService private readonly logService: ILogService) {
 		super();
@@ -96,7 +99,15 @@ export class FileService extends Disposable implements IFileService {
 		await Promises.settled(joiners);
 	}
 
-	canHandleResource(resource: URI): boolean {
+	async canHandleResource(resource: URI): Promise<boolean> {
+
+		// Await activation of potentially extension contributed providers
+		await this.activateProvider(resource.scheme);
+
+		return this.hasProvider(resource);
+	}
+
+	hasProvider(resource: URI): boolean {
 		return this.provider.has(resource.scheme);
 	}
 
@@ -172,7 +183,7 @@ export class FileService extends Disposable implements IFileService {
 
 			// Specially handle file not found case as file operation result
 			if (toFileSystemProviderErrorCode(error) === FileSystemProviderErrorCode.FileNotFound) {
-				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+				throw new FileOperationError(localize('fileNotFoundError', "Unable to resolve nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 			}
 
 			// Bubble up any other error as is
@@ -201,9 +212,7 @@ export class FileService extends Disposable implements IFileService {
 				trie = TernarySearchTree.forUris<true>(() => !isPathCaseSensitive);
 				trie.set(resource, true);
 				if (resolveTo) {
-					for (const uri of resolveTo) {
-						trie.set(uri, true);
-					}
+					trie.fill(true, resolveTo);
 				}
 			}
 
@@ -935,7 +944,7 @@ export class FileService extends Disposable implements IFileService {
 		if (stat) {
 			this.throwIfFileIsReadonly(resource, stat);
 		} else {
-			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete non-existing file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
+			throw new FileOperationError(localize('deleteFailedNotFound', "Unable to delete nonexistent file '{0}'", this.resourceForError(resource)), FileOperationResult.FILE_NOT_FOUND);
 		}
 
 		// Validate recursive
@@ -1069,21 +1078,19 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward watch request to provider and
 		// wire in disposables.
-		{
-			let watchDisposed = false;
-			let disposeWatch = () => { watchDisposed = true; };
-			disposables.add(toDisposable(() => disposeWatch()));
+		let watchDisposed = false;
+		let disposeWatch = () => { watchDisposed = true; };
+		disposables.add(toDisposable(() => disposeWatch()));
 
-			// Watch and wire in disposable which is async but
-			// check if we got disposed meanwhile and forward
-			this.doWatch(resource, options).then(disposable => {
-				if (watchDisposed) {
-					dispose(disposable);
-				} else {
-					disposeWatch = () => dispose(disposable);
-				}
-			}, error => this.logService.error(error));
-		}
+		// Watch and wire in disposable which is async but
+		// check if we got disposed meanwhile and forward
+		this.doWatch(resource, options).then(disposable => {
+			if (watchDisposed) {
+				dispose(disposable);
+			} else {
+				disposeWatch = () => dispose(disposable);
+			}
+		}, error => this.logService.error(error));
 
 		// Remember as watched resource and unregister
 		// properly on disposal.
@@ -1119,8 +1126,10 @@ export class FileService extends Disposable implements IFileService {
 		const key = this.toWatchKey(provider, resource, options);
 
 		// Only start watching if we are the first for the given key
-		const watcher = this.activeWatchers.get(key) || { count: 0, disposable: provider.watch(resource, options) };
-		if (!this.activeWatchers.has(key)) {
+		let watcher = this.activeWatchers.get(key);
+		if (!watcher) {
+			watcher = { count: 0, disposable: provider.watch(resource, options) };
+
 			this.activeWatchers.set(key, watcher);
 		}
 
@@ -1128,14 +1137,16 @@ export class FileService extends Disposable implements IFileService {
 		watcher.count += 1;
 
 		return toDisposable(() => {
+			if (watcher) {
 
-			// Unref
-			watcher.count--;
+				// Unref
+				watcher.count--;
 
-			// Dispose only when last user is reached
-			if (watcher.count === 0) {
-				dispose(watcher.disposable);
-				this.activeWatchers.delete(key);
+				// Dispose only when last user is reached
+				if (watcher.count === 0) {
+					dispose(watcher.disposable);
+					this.activeWatchers.delete(key);
+				}
 			}
 		});
 	}
@@ -1216,8 +1227,7 @@ export class FileService extends Disposable implements IFileService {
 			stream = streamOrBufferedStream;
 		}
 
-		return new Promise(async (resolve, reject) => {
-
+		return new Promise((resolve, reject) => {
 			listenStream(stream, {
 				onData: async chunk => {
 

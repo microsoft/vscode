@@ -30,40 +30,6 @@ export const enum LanguageId {
 }
 
 /**
- * @internal
- */
-export class LanguageIdentifier {
-
-	/**
-	 * A string identifier. Unique across languages. e.g. 'javascript'.
-	 */
-	public readonly language: string;
-
-	/**
-	 * A numeric identifier. Unique across languages. e.g. 5
-	 * Will vary at runtime based on registration order, etc.
-	 */
-	public readonly id: LanguageId;
-
-	constructor(language: string, id: LanguageId) {
-		this.language = language;
-		this.id = id;
-	}
-}
-
-/**
- * A mode. Will soon be obsolete.
- * @internal
- */
-export interface IMode {
-
-	getId(): string;
-
-	getLanguageIdentifier(): LanguageIdentifier;
-
-}
-
-/**
  * A font style. Values are 2^x such that a bit mask can be used.
  * @internal
  */
@@ -201,6 +167,14 @@ export class TokenMetadata {
 		}
 		return result;
 	}
+}
+
+/**
+ * @internal
+ */
+export interface ILanguageIdCodec {
+	encodeLanguageId(languageId: string): LanguageId;
+	decodeLanguageId(languageId: LanguageId): string;
 }
 
 /**
@@ -1767,7 +1741,7 @@ export interface InlayHint {
 }
 
 export interface InlayHintsProvider {
-	onDidChangeInlayHints?: Event<void> | undefined;
+	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHint[]>;
 }
 

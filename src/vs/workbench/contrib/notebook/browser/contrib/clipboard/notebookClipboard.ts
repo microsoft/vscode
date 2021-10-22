@@ -282,6 +282,38 @@ export class NotebookClipboardContribution extends Disposable {
 		};
 	}
 
+	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
+		const windowSelection = window.getSelection();
+
+		if (windowSelection?.rangeCount !== 1) {
+			return false;
+		}
+
+		const activeSelection = windowSelection.getRangeAt(0);
+		if (activeSelection.startContainer === activeSelection.endContainer && activeSelection.endOffset - activeSelection.startOffset === 0) {
+			return false;
+		}
+
+		let container: any = activeSelection.commonAncestorContainer;
+		const body = editor.getDomNode();
+
+		if (!body.contains(container)) {
+			return false;
+		}
+
+		while (container
+			&&
+			container !== body) {
+			if ((container as HTMLElement).classList && (container as HTMLElement).classList.contains('monaco-editor')) {
+				return true;
+			}
+
+			container = container.parentNode;
+		}
+
+		return false;
+	}
+
 	runCopyAction(accessor: ServicesAccessor) {
 		const activeElement = <HTMLElement>document.activeElement;
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
@@ -290,6 +322,10 @@ export class NotebookClipboardContribution extends Disposable {
 
 		const { editor } = this._getContext();
 		if (!editor) {
+			return false;
+		}
+
+		if (this._focusInsideEmebedMonaco(editor)) {
 			return false;
 		}
 
@@ -352,8 +388,8 @@ registerAction2(class extends NotebookCellAction {
 					group: CellOverflowToolbarGroups.Copy,
 				},
 				keybinding: platform.isNative ? undefined : {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
+					primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] },
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
@@ -378,8 +414,8 @@ registerAction2(class extends NotebookCellAction {
 				},
 				keybinding: platform.isNative ? undefined : {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] },
+					primary: KeyMod.CtrlCmd | KeyCode.KeyX,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KeyX, secondary: [KeyMod.Shift | KeyCode.Delete] },
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -403,9 +439,9 @@ registerAction2(class extends NotebookAction {
 				},
 				keybinding: platform.isNative ? undefined : {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
-					linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+					primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.Shift | KeyCode.Insert] },
+					linux: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.Shift | KeyCode.Insert] },
 					weight: KeybindingWeight.EditorContrib
 				}
 			});
@@ -435,7 +471,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.pasteAbove', "Paste Cell Above"),
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
 					weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 				},
 			});

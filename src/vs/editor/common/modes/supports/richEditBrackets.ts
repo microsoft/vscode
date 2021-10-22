@@ -6,7 +6,6 @@
 import * as strings from 'vs/base/common/strings';
 import * as stringBuilder from 'vs/editor/common/core/stringBuilder';
 import { Range } from 'vs/editor/common/core/range';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
 
 interface InternalBracket {
@@ -14,20 +13,72 @@ interface InternalBracket {
 	close: string[];
 }
 
+/**
+ * Represents a grouping of colliding bracket pairs.
+ *
+ * Most of the times this contains a single bracket pair,
+ * but sometimes this contains multiple bracket pairs in cases
+ * where the same string appears as a closing bracket for multiple
+ * bracket pairs, or the same string appears an opening bracket for
+ * multiple bracket pairs.
+ *
+ * e.g. of a group containing a single pair:
+ *   open: ['{'], close: ['}']
+ *
+ * e.g. of a group containing multiple pairs:
+ *   open: ['if', 'for'], close: ['end', 'end']
+ */
 export class RichEditBracket {
 	_richEditBracketBrand: void = undefined;
 
-	readonly languageIdentifier: LanguageIdentifier;
+	readonly languageId: string;
+	/**
+	 * A 0-based consecutive unique identifier for this bracket pair.
+	 * If a language has 5 bracket pairs, out of which 2 are grouped together,
+	 * it is expected that the `index` goes from 0 to 4.
+	 */
 	readonly index: number;
+	/**
+	 * The open sequence for each bracket pair contained in this group.
+	 *
+	 * The open sequence at a specific index corresponds to the
+	 * closing sequence at the same index.
+	 *
+	 * [ open[i], closed[i] ] represent a bracket pair.
+	 */
 	readonly open: string[];
+	/**
+	 * The close sequence for each bracket pair contained in this group.
+	 *
+	 * The close sequence at a specific index corresponds to the
+	 * opening sequence at the same index.
+	 *
+	 * [ open[i], closed[i] ] represent a bracket pair.
+	 */
 	readonly close: string[];
+	/**
+	 * A regular expression that is useful to search for this bracket pair group in a string.
+	 *
+	 * This regular expression is built in a way that it is aware of the other bracket
+	 * pairs defined for the language, so it might match brackets from other groups.
+	 *
+	 * See the fine details in `getRegexForBracketPair`.
+	 */
 	readonly forwardRegex: RegExp;
+	/**
+	 * A regular expression that is useful to search for this bracket pair group in a string backwards.
+	 *
+	 * This regular expression is built in a way that it is aware of the other bracket
+	 * pairs defined for the language, so it might match brackets from other groups.
+	 *
+	 * See the fine defails in `getReversedRegexForBracketPair`.
+	 */
 	readonly reversedRegex: RegExp;
 	private readonly _openSet: Set<string>;
 	private readonly _closeSet: Set<string>;
 
-	constructor(languageIdentifier: LanguageIdentifier, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
-		this.languageIdentifier = languageIdentifier;
+	constructor(languageId: string, index: number, open: string[], close: string[], forwardRegex: RegExp, reversedRegex: RegExp) {
+		this.languageId = languageId;
 		this.index = index;
 		this.open = open;
 		this.close = close;
@@ -37,10 +88,16 @@ export class RichEditBracket {
 		this._closeSet = RichEditBracket._toSet(this.close);
 	}
 
+	/**
+	 * Check if the provided `text` is an open bracket in this group.
+	 */
 	public isOpen(text: string) {
 		return this._openSet.has(text);
 	}
 
+	/**
+	 * Check if the provided `text` is a close bracket in this group.
+	 */
 	public isClose(text: string) {
 		return this._closeSet.has(text);
 	}
@@ -54,7 +111,20 @@ export class RichEditBracket {
 	}
 }
 
-function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
+/**
+ * Groups together brackets that have equal open or close sequences.
+ *
+ * For example, if the following brackets are defined:
+ *   ['IF','END']
+ *   ['for','end']
+ *   ['{','}']
+ *
+ * Then the grouped brackets would be:
+ *   { open: ['if', 'for'], close: ['end', 'end'] }
+ *   { open: ['{'], close: ['}'] }
+ *
+ */
+function groupFuzzyBrackets(brackets: readonly CharacterPair[]): InternalBracket[] {
 	const N = brackets.length;
 
 	brackets = brackets.map(b => [b[0].toLowerCase(), b[1].toLowerCase()]);
@@ -115,19 +185,41 @@ function groupFuzzyBrackets(brackets: CharacterPair[]): InternalBracket[] {
 export class RichEditBrackets {
 	_richEditBracketsBrand: void = undefined;
 
+	/**
+	 * All groups of brackets defined for this language.
+	 */
 	public readonly brackets: RichEditBracket[];
+	/**
+	 * A regular expression that is useful to search for all bracket pairs in a string.
+	 *
+	 * See the fine details in `getRegexForBrackets`.
+	 */
 	public readonly forwardRegex: RegExp;
+	/**
+	 * A regular expression that is useful to search for all bracket pairs in a string backwards.
+	 *
+	 * See the fine details in `getReversedRegexForBrackets`.
+	 */
 	public readonly reversedRegex: RegExp;
+	/**
+	 * The length (i.e. str.length) for the longest bracket pair.
+	 */
 	public readonly maxBracketLength: number;
+	/**
+	 * A map useful for decoding a regex match and finding which bracket group was matched.
+	 */
 	public readonly textIsBracket: { [text: string]: RichEditBracket; };
+	/**
+	 * A set useful for decoding if a regex match is the open bracket of a bracket pair.
+	 */
 	public readonly textIsOpenBracket: { [text: string]: boolean; };
 
-	constructor(languageIdentifier: LanguageIdentifier, _brackets: CharacterPair[]) {
+	constructor(languageId: string, _brackets: readonly CharacterPair[]) {
 		const brackets = groupFuzzyBrackets(_brackets);
 
 		this.brackets = brackets.map((b, index) => {
 			return new RichEditBracket(
-				languageIdentifier,
+				languageId,
 				index,
 				b.open,
 				b.close,
@@ -197,6 +289,29 @@ function unique(arr: string[]): string[] {
 	return result;
 }
 
+/**
+ * Create a regular expression that can be used to search forward in a piece of text
+ * for a group of bracket pairs. But this regex must be built in a way in which
+ * it is aware of the other bracket pairs defined for the language.
+ *
+ * For example, if a language contains the following bracket pairs:
+ *   ['begin', 'end']
+ *   ['if', 'end if']
+ * The two bracket pairs do not collide because no open or close brackets are equal.
+ * So the function getRegexForBracketPair is called twice, once with
+ * the ['begin'], ['end'] group consisting of one bracket pair, and once with
+ * the ['if'], ['end if'] group consiting of the other bracket pair.
+ *
+ * But there could be a situation where an occurrence of 'end if' is mistaken
+ * for an occurrence of 'end'.
+ *
+ * Therefore, for the bracket pair ['begin', 'end'], the regex will also
+ * target 'end if'. The regex will be something like:
+ *   /(\bend if\b)|(\bend\b)|(\bif\b)/
+ *
+ * The regex also searches for "superstrings" (other brackets that might be mistaken with the current bracket).
+ *
+ */
 function getRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
 	// search in all brackets for other brackets that are a superstring of these brackets
 	let pieces: string[] = [];
@@ -211,6 +326,16 @@ function getRegexForBracketPair(open: string[], close: string[], brackets: Inter
 	return createBracketOrRegExp(pieces);
 }
 
+/**
+ * Matching a regular expression in JS can only be done "forwards". So JS offers natively only
+ * methods to find the first match of a regex in a string. But sometimes, it is useful to
+ * find the last match of a regex in a string. For such a situation, a nice solution is to
+ * simply reverse the string and then search for a reversed regex.
+ *
+ * This function also has the fine details of `getRegexForBracketPair`. For the same example
+ * given above, the regex produced here would look like:
+ *   /(\bfi dne\b)|(\bdne\b)|(\bfi\b)/
+ */
 function getReversedRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
 	// search in all brackets for other brackets that are a superstring of these brackets
 	let pieces: string[] = [];
@@ -225,6 +350,16 @@ function getReversedRegexForBracketPair(open: string[], close: string[], bracket
 	return createBracketOrRegExp(pieces.map(toReversedString));
 }
 
+/**
+ * Creates a regular expression that targets all bracket pairs.
+ *
+ * e.g. for the bracket pairs:
+ *  ['{','}']
+ *  ['begin,'end']
+ *  ['for','end']
+ * the regex would look like:
+ *  /(\{)|(\})|(\bbegin\b)|(\bend\b)|(\bfor\b)/
+ */
 function getRegexForBrackets(brackets: RichEditBracket[]): RegExp {
 	let pieces: string[] = [];
 	for (const bracket of brackets) {
@@ -239,6 +374,19 @@ function getRegexForBrackets(brackets: RichEditBracket[]): RegExp {
 	return createBracketOrRegExp(pieces);
 }
 
+/**
+ * Matching a regular expression in JS can only be done "forwards". So JS offers natively only
+ * methods to find the first match of a regex in a string. But sometimes, it is useful to
+ * find the last match of a regex in a string. For such a situation, a nice solution is to
+ * simply reverse the string and then search for a reversed regex.
+ *
+ * e.g. for the bracket pairs:
+ *  ['{','}']
+ *  ['begin,'end']
+ *  ['for','end']
+ * the regex would look like:
+ *  /(\{)|(\})|(\bnigeb\b)|(\bdne\b)|(\brof\b)/
+ */
 function getReversedRegexForBrackets(brackets: RichEditBracket[]): RegExp {
 	let pieces: string[] = [];
 	for (const bracket of brackets) {

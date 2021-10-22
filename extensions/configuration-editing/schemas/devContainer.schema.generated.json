@@ -124,13 +124,26 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -263,7 +276,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -514,13 +527,26 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -653,7 +679,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -870,13 +896,26 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -1009,7 +1048,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1200,13 +1239,26 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -1339,7 +1391,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",
@@ -1495,13 +1547,26 @@
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 				},
+				"features": {
+					"type": "object",
+					"description": "Features to add to the dev container.",
+					"additionalProperties": true
+				},
 				"forwardPorts": {
 					"type": "array",
-					"description": "Ports that are forwarded from the container to the local machine.",
+					"description": "Ports that are forwarded from the container to the local machine. Can be an integer port number, or a string of the format \"host:port_number\".",
 					"items": {
-						"type": "integer",
-						"maximum": 65535,
-						"minimum": 0
+						"oneOf": [
+							{
+								"type": "integer",
+								"maximum": 65535,
+								"minimum": 0
+							},
+							{
+								"type": "string",
+								"pattern": "^([a-z0-9\\-]+):(\\d{1,5})$"
+							}
+						]
 					}
 				},
 				"portsAttributes": {
@@ -1634,7 +1699,7 @@
 				},
 				"updateRemoteUserUID": {
 					"type": "boolean",
-					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default when opening from a local folder."
 				},
 				"remoteEnv": {
 					"type": "object",

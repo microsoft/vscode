@@ -23,8 +23,8 @@ export class ToggleTabFocusModeAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M },
+				primary: KeyMod.CtrlCmd | KeyCode.KeyM,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyM },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

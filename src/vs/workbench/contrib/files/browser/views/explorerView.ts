@@ -21,7 +21,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -47,15 +47,15 @@ import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -502,7 +502,7 @@ export class ExplorerView extends ViewPane {
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
-			const overrides = resource ? this.editorResolverService.getEditorIds(resource) : [];
+			const overrides = resource ? this.editorResolverService.getEditors(resource).map(editor => editor.id) : [];
 			this.availableEditorIdsContext.set(overrides.join(','));
 		} else {
 			this.availableEditorIdsContext.reset();
@@ -641,8 +641,8 @@ export class ExplorerView extends ViewPane {
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem) {
-					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
+				if (!viewState || previousInput instanceof ExplorerItem || !previousInput) {
+					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder/empty workspace.
 					await Promise.all(input.map(async item => {
 						try {
 							await this.tree.expand(item);
@@ -902,9 +902,9 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewletService = accessor.get(IViewletService);
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const explorerService = accessor.get(IExplorerService);
-		await viewletService.openViewlet(VIEWLET_ID);
+		await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 		await explorerService.refresh();
 	}
 });

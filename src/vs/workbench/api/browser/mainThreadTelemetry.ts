@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadTelemetryShape, MainContext, IExtHostContext, ExtHostTelemetryShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -11,13 +11,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getTelemetryLevel, TelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
 	private readonly _proxy: ExtHostTelemetryShape;
 
 	private static readonly _name = 'pluginHostTelemetry';
+
+	private _oldTelemetryEnabledValue: boolean | undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -30,10 +32,16 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTelemetry);
 
-		if (getTelemetryLevel(this._productService, this._environmenService) >= TelemetryLevel.LOG) {
+		if (supportsTelemetry(this._productService, this._environmenService)) {
 			this._register(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectedKeys.includes('telemetry.enableTelemetry')) {
-					this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
+				if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)) {
+					const telemetryEnabled = this.telemetryEnabled;
+					// Since changing telemetryLevel from "off" => "error" doesn't change the isEnabled state
+					// We shouldn't fire a change event
+					if (telemetryEnabled !== this._oldTelemetryEnabledValue) {
+						this._oldTelemetryEnabledValue = telemetryEnabled;
+						this._proxy.$onDidChangeTelemetryEnabled(this.telemetryEnabled);
+					}
 				}
 			}));
 		}
@@ -42,11 +50,11 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 	}
 
 	private get telemetryEnabled(): boolean {
-		if (getTelemetryLevel(this._productService, this._environmenService) < TelemetryLevel.USER) {
+		if (!supportsTelemetry(this._productService, this._environmenService)) {
 			return false;
 		}
 
-		return !!this._configurationService.getValue('telemetry.enableTelemetry');
+		return getTelemetryLevel(this._configurationService) === TelemetryLevel.USAGE;
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {

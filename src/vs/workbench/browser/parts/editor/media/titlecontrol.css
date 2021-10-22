@@ -13,7 +13,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
-	text-decoration: none;
 	font-size: 13px;
 }
 

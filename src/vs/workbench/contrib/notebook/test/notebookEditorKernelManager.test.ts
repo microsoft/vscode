@@ -21,18 +21,19 @@ import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
+import { insertCellAtIndex } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 
 suite('NotebookEditorKernelManager', () => {
 
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
-	const dispoables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(function () {
 
-		dispoables.clear();
+		disposables = new DisposableStore();
 
-		instantiationService = setupInstantiationService();
+		instantiationService = setupInstantiationService(disposables);
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = Event.None;
@@ -43,6 +44,10 @@ suite('NotebookEditorKernelManager', () => {
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
 
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
@@ -62,7 +67,7 @@ suite('NotebookEditorKernelManager', () => {
 			async (viewModel) => {
 				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
 			});
 	});
@@ -74,7 +79,7 @@ suite('NotebookEditorKernelManager', () => {
 
 				kernelService.registerKernel(new TestNotebookKernel({ languages: ['testlang'] }));
 				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
-				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
 
 			});
@@ -90,7 +95,7 @@ suite('NotebookEditorKernelManager', () => {
 				const executeSpy = sinon.spy();
 				kernel.executeNotebookCellsRequest = executeSpy;
 
-				const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+				const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
 				assert.strictEqual(executeSpy.calledOnce, true);
 			});
@@ -121,7 +126,7 @@ suite('NotebookEditorKernelManager', () => {
 			let event: ISelectedNotebooksChangeEvent | undefined;
 			kernelService.onDidChangeSelectedNotebooks(e => event = e);
 
-			const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
+			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 			await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
 
 			assert.strictEqual(didExecute, true);

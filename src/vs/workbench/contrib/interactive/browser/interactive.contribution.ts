@@ -21,7 +21,8 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, EditorsOrder, IEditorInput, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
@@ -184,7 +185,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
-				id: InteractiveEditor.ID,
+				id: InteractiveEditorInput.ID,
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -201,7 +202,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		editorResolverService.registerEditor(
 			`*.interactive`,
 			{
-				id: InteractiveEditor.ID,
+				id: InteractiveEditorInput.ID,
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -225,7 +226,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 		return true;
 	}
 
-	serialize(input: IEditorInput): string {
+	serialize(input: EditorInput): string {
 		assertType(input instanceof InteractiveEditorInput);
 		return JSON.stringify({
 			resource: input.primary.resource,
@@ -249,7 +250,7 @@ export class InteractiveEditorSerializer implements IEditorSerializer {
 	}
 }
 
-// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+// Registry.as<EditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
 // 	InteractiveEditorInput.ID,
 // 	InteractiveEditorSerializer
 // );
@@ -545,6 +546,65 @@ registerAction2(class extends Action2 {
 	}
 });
 
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToTop',
+			title: localize('interactiveScrollToTop', 'Scroll to Top'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.Home,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			editorControl.notebookEditor.revealCellRangeInView({ start: 0, end: 1 });
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.scrollToBottom',
+			title: localize('interactiveScrollToBottom', 'Scroll to Bottom'),
+			keybinding: {
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+				primary: KeyMod.CtrlCmd | KeyCode.End,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: 'Interactive',
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			if (editorControl.notebookEditor.getLength() === 0) {
+				return;
+			}
+
+			const len = editorControl.notebookEditor.getLength();
+			editorControl.notebookEditor.revealCellRangeInView({ start: len - 1, end: len });
+		}
+	}
+});
 
 registerThemingParticipant((theme) => {
 	registerColor('interactive.activeCodeBorder', {

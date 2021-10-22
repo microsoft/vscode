@@ -22,6 +22,7 @@ import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackgr
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -267,6 +268,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	protected get replaceValue() {
 		return this._replaceInput.getValue();
+	}
+
+	protected get replacePattern() {
+		if (this._state.isRegex) {
+			return parseReplaceString(this.replaceValue);
+		}
+		return ReplacePattern.fromStaticValue(this.replaceValue);
 	}
 
 	public get focusTracker(): dom.IFocusTracker {

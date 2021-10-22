@@ -6,6 +6,7 @@ schedules:
     branches:
       include:
         - main
+        - joao/web
 
 parameters:
   - name: VSCODE_QUALITY
@@ -45,7 +46,11 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_LINUX_ALPINE
-    displayName: "🎯 Alpine Linux"
+    displayName: "🎯 Alpine Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ALPINE_ARM64
+    displayName: "🎯 Alpine Linux arm64"
     type: boolean
     default: true
   - name: VSCODE_BUILD_MACOS
@@ -91,7 +96,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true), eq(parameters.VSCODE_BUILD_WEB, true)) }}
   - name: VSCODE_BUILD_STAGE_MACOS
     value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
   - name: VSCODE_CIBUILD
@@ -248,6 +253,15 @@ stages:
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE, true)) }}:
           - job: LinuxAlpine
+            variables:
+              VSCODE_ARCH: x64
+            steps:
+              - template: linux/product-build-alpine.yml
+
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ALPINE_ARM64, true)) }}:
+          - job: LinuxAlpineArm64
+            variables:
+              VSCODE_ARCH: arm64
             steps:
               - template: linux/product-build-alpine.yml
 

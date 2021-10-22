@@ -24,7 +24,8 @@
           ".gyp",
           ".gypi",
           ".pyi",
-          ".ipy"
+          ".ipy",
+          ".pyt"
         ],
         "aliases": [
           "Python",

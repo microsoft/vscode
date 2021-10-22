@@ -1842,7 +1842,7 @@ export class Repository {
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
-				if (parser.status.length > limit) {
+				if (limit !== 0 && parser.status.length > limit) {
 					child.removeListener('exit', onExit);
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();

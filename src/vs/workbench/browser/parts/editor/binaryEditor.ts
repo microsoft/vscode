@@ -14,7 +14,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Dimension, size, clearNode, append } from 'vs/base/browser/dom';
+import { Dimension, size, clearNode } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -101,7 +101,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		label.textContent = localize('nativeBinaryError', "The file is not displayed in the editor because it is either binary or uses an unsupported text encoding.");
 		binaryContainer.appendChild(label);
 
-		const link = this._register(this.instantiationService.createInstance(Link, {
+		this._register(this.instantiationService.createInstance(Link, label, {
 			label: localize('openAsText', "Do you want to open it anyway?"),
 			href: ''
 		}, {
@@ -114,8 +114,6 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 				this._onDidOpenInPlace.fire();
 			}
 		}));
-
-		append(label, link.el);
 
 		scrollbar.scanDomNode();
 

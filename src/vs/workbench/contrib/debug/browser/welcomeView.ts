@@ -64,7 +64,7 @@ export class WelcomeView extends ViewPane {
 			const editorControl = this.editorService.activeTextEditorControl;
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
-				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const language = model ? model.getLanguageId() : undefined;
 				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);

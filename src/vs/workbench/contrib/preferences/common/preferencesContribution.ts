@@ -19,7 +19,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
@@ -69,7 +69,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 				{
 					canHandleDiff: false,
 				},
-				({ resource, options }): IEditorInputWithOptions => {
+				({ resource, options }): EditorInputWithOptions => {
 					// Global User Settings File
 					if (isEqual(resource, this.environmentService.settingsResource)) {
 						return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };

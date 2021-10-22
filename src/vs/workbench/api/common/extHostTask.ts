@@ -318,7 +318,7 @@ export namespace TaskDTO {
 		}
 		if (value.group !== undefined) {
 			result.group = types.TaskGroup.from(value.group._id);
-			if (result.group) {
+			if (result.group && value.group.isDefault) {
 				result.group = new types.TaskGroup(result.group.id, result.group.label);
 				if (value.group.isDefault) {
 					result.group.isDefault = value.group.isDefault;
@@ -642,6 +642,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		if (result) {
 			return result;
 		}
+		// eslint-disable-next-line no-async-promise-executor
 		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
 			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider, this._providedCustomExecutions2);
 			if (!taskToCreate) {

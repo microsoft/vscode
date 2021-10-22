@@ -31,7 +31,7 @@ export class BaseDropdown extends ActionRunner {
 	private contents?: HTMLElement;
 
 	private visible: boolean | undefined;
-	private _onDidChangeVisibility = new Emitter<boolean>();
+	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {

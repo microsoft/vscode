@@ -79,7 +79,6 @@ steps:
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
-      $env:npm_config_build_from_source="true"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
     env:
@@ -108,6 +107,14 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" }
+    displayName: Download Electron
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
       exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
       echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
     displayName: Build
@@ -116,7 +123,6 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-code-helper" }
       exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
     displayName: Prepare Package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
@@ -135,8 +141,8 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
-    displayName: Download Electron and Playwright
+      exec { yarn npm-run-all -lp "playwright-install" }
+    displayName: Download Playwright
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -249,7 +255,7 @@ steps:
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 3.x
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: EsrpClientTool@1

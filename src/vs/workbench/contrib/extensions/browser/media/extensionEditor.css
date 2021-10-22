@@ -658,6 +658,13 @@
 	text-decoration: underline;
 }
 
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon {
+	opacity: 0.5;
+}
+
 .extension-editor > .body > .content .runtime-status .no-status-message,
 .extension-editor > .body > .content .runtime-status .activation-message {
 	font-size: medium;

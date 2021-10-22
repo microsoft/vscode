@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { KeyCode, KeyCodeUtils, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, KeybindingModifier, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCode, ScanCodeBinding, ScanCodeUtils } from 'vs/base/common/scanCode';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
@@ -68,7 +68,7 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
 	}
 
-	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): string | null {
+	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): KeybindingModifier | null {
 		if ((keybinding.scanCode === ScanCode.ControlLeft || keybinding.scanCode === ScanCode.ControlRight) && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
 			return 'ctrl';
 		}
@@ -224,8 +224,8 @@ class ScanCodeKeyCodeMapper {
 		const scanCodeComboEncoded = this._encodeScanCodeCombo(scanCodeCombo);
 		const keyCodeComboEncoded = this._encodeKeyCodeCombo(keyCodeCombo);
 
-		const keyCodeIsDigit = (keyCodeCombo.keyCode >= KeyCode.KEY_0 && keyCodeCombo.keyCode <= KeyCode.KEY_9);
-		const keyCodeIsLetter = (keyCodeCombo.keyCode >= KeyCode.KEY_A && keyCodeCombo.keyCode <= KeyCode.KEY_Z);
+		const keyCodeIsDigit = (keyCodeCombo.keyCode >= KeyCode.Digit0 && keyCodeCombo.keyCode <= KeyCode.Digit9);
+		const keyCodeIsLetter = (keyCodeCombo.keyCode >= KeyCode.KeyA && keyCodeCombo.keyCode <= KeyCode.KeyZ);
 
 		const existingKeyCodeCombos = this._scanCodeToKeyCode[scanCodeComboEncoded];
 
@@ -300,16 +300,16 @@ class ScanCodeKeyCodeMapper {
 		if (scanCode >= ScanCode.Digit1 && scanCode <= ScanCode.Digit0) {
 			// digits are ok
 			switch (scanCode) {
-				case ScanCode.Digit1: return KeyCode.KEY_1;
-				case ScanCode.Digit2: return KeyCode.KEY_2;
-				case ScanCode.Digit3: return KeyCode.KEY_3;
-				case ScanCode.Digit4: return KeyCode.KEY_4;
-				case ScanCode.Digit5: return KeyCode.KEY_5;
-				case ScanCode.Digit6: return KeyCode.KEY_6;
-				case ScanCode.Digit7: return KeyCode.KEY_7;
-				case ScanCode.Digit8: return KeyCode.KEY_8;
-				case ScanCode.Digit9: return KeyCode.KEY_9;
-				case ScanCode.Digit0: return KeyCode.KEY_0;
+				case ScanCode.Digit1: return KeyCode.Digit1;
+				case ScanCode.Digit2: return KeyCode.Digit2;
+				case ScanCode.Digit3: return KeyCode.Digit3;
+				case ScanCode.Digit4: return KeyCode.Digit4;
+				case ScanCode.Digit5: return KeyCode.Digit5;
+				case ScanCode.Digit6: return KeyCode.Digit6;
+				case ScanCode.Digit7: return KeyCode.Digit7;
+				case ScanCode.Digit8: return KeyCode.Digit8;
+				case ScanCode.Digit9: return KeyCode.Digit9;
+				case ScanCode.Digit0: return KeyCode.Digit0;
 			}
 		}
 
@@ -652,16 +652,16 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 		// Handle all left-over available digits
-		_registerAllCombos(0, 0, 0, ScanCode.Digit1, KeyCode.KEY_1);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit2, KeyCode.KEY_2);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit3, KeyCode.KEY_3);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit4, KeyCode.KEY_4);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit5, KeyCode.KEY_5);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit6, KeyCode.KEY_6);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit7, KeyCode.KEY_7);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit8, KeyCode.KEY_8);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit9, KeyCode.KEY_9);
-		_registerAllCombos(0, 0, 0, ScanCode.Digit0, KeyCode.KEY_0);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit1, KeyCode.Digit1);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit2, KeyCode.Digit2);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit3, KeyCode.Digit3);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit4, KeyCode.Digit4);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit5, KeyCode.Digit5);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit6, KeyCode.Digit6);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit7, KeyCode.Digit7);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit8, KeyCode.Digit8);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit9, KeyCode.Digit9);
+		_registerAllCombos(0, 0, 0, ScanCode.Digit0, KeyCode.Digit0);
 
 		this._scanCodeKeyCodeMapper.registrationComplete();
 	}
@@ -872,56 +872,35 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._scanCodeToDispatch[binding.scanCode];
 	}
 
-	private _getElectronLabelForKeyCode(keyCode: KeyCode): string | null {
-		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
-			// Electron cannot handle numpad keys
-			return null;
-		}
-
-		switch (keyCode) {
-			case KeyCode.UpArrow:
-				return 'Up';
-			case KeyCode.DownArrow:
-				return 'Down';
-			case KeyCode.LeftArrow:
-				return 'Left';
-			case KeyCode.RightArrow:
-				return 'Right';
-		}
-
-		// electron menus always do the correct rendering on Windows
-		return KeyCodeUtils.toString(keyCode);
-	}
-
 	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding | null): string | null {
 		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
 			return null;
 		}
 
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(immutableKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(immutableKeyCode);
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
 		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 
-		if (!this._isUSStandard) {
-			// Electron cannot handle these key codes on anything else than standard US
+		if (this._OS === OperatingSystem.Linux && !this._isUSStandard) {
+			// [Electron Accelerators] On Linux, Electron does not handle correctly OEM keys.
+			// when using a different keyboard layout than US Standard.
+			// See https://github.com/microsoft/vscode/issues/23706
+			// See https://github.com/microsoft/vscode/pull/134890#issuecomment-941671791
 			const isOEMKey = (
-				constantKeyCode === KeyCode.US_SEMICOLON
-				|| constantKeyCode === KeyCode.US_EQUAL
-				|| constantKeyCode === KeyCode.US_COMMA
-				|| constantKeyCode === KeyCode.US_MINUS
-				|| constantKeyCode === KeyCode.US_DOT
-				|| constantKeyCode === KeyCode.US_SLASH
-				|| constantKeyCode === KeyCode.US_BACKTICK
-				|| constantKeyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-				|| constantKeyCode === KeyCode.US_BACKSLASH
-				|| constantKeyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+				constantKeyCode === KeyCode.Semicolon
+				|| constantKeyCode === KeyCode.Equal
+				|| constantKeyCode === KeyCode.Comma
+				|| constantKeyCode === KeyCode.Minus
+				|| constantKeyCode === KeyCode.Period
+				|| constantKeyCode === KeyCode.Slash
+				|| constantKeyCode === KeyCode.Backquote
+				|| constantKeyCode === KeyCode.BracketLeft
+				|| constantKeyCode === KeyCode.Backslash
+				|| constantKeyCode === KeyCode.BracketRight
 			);
 
 			if (isOEMKey) {
@@ -929,14 +908,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
-		// See https://github.com/microsoft/vscode/issues/108880
-		if (this._OS === OperatingSystem.Macintosh && binding.ctrlKey && !binding.metaKey && !binding.altKey && constantKeyCode === KeyCode.US_MINUS) {
-			// ctrl+- and ctrl+shift+- render very similarly in native macOS menus, leading to confusion
-			return null;
-		}
-
 		if (constantKeyCode !== KeyCode.DependsOnKbLayout) {
-			return this._getElectronLabelForKeyCode(constantKeyCode);
+			return KeyCodeUtils.toElectronAccelerator(constantKeyCode);
 		}
 
 		return null;
@@ -1046,7 +1019,21 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return this._toResolvedKeybinding(parts);
 	}
 
+	private static _redirectCharCode(charCode: number): number {
+		switch (charCode) {
+			case CharCode.U_IDEOGRAPHIC_FULL_STOP: return CharCode.Period; // CJK 。 => .
+			case CharCode.U_LEFT_CORNER_BRACKET: return CharCode.OpenSquareBracket; // CJK 「 => [
+			case CharCode.U_RIGHT_CORNER_BRACKET: return CharCode.CloseSquareBracket; // CJK 」 => ]
+			case CharCode.U_LEFT_BLACK_LENTICULAR_BRACKET: return CharCode.OpenSquareBracket; // CJK 【 => [
+			case CharCode.U_RIGHT_BLACK_LENTICULAR_BRACKET: return CharCode.CloseSquareBracket; // CJK 】 => ]
+			case CharCode.U_FULLWIDTH_SEMICOLON: return CharCode.Semicolon; // CJK ； => ;
+			case CharCode.U_FULLWIDTH_COMMA: return CharCode.Comma; // CJK ， => ,
+		}
+		return charCode;
+	}
+
 	private static _charCodeToKb(charCode: number): { keyCode: KeyCode; shiftKey: boolean } | null {
+		charCode = this._redirectCharCode(charCode);
 		if (charCode < CHAR_CODE_TO_KEY_CODE.length) {
 			return CHAR_CODE_TO_KEY_CODE[charCode];
 		}
@@ -1056,7 +1043,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * Attempt to map a combining character to a regular one that renders the same way.
 	 *
-	 * To the brave person following me: Good Luck!
 	 * https://www.compart.com/en/unicode/bidiclass/NSM
 	 */
 	public static getCharCode(char: string): number {
@@ -1090,43 +1076,43 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	for (let chCode = CharCode.A; chCode <= CharCode.Z; chCode++) {
-		define(chCode, KeyCode.KEY_A + (chCode - CharCode.A), true);
+		define(chCode, KeyCode.KeyA + (chCode - CharCode.A), true);
 	}
 
 	for (let chCode = CharCode.a; chCode <= CharCode.z; chCode++) {
-		define(chCode, KeyCode.KEY_A + (chCode - CharCode.a), false);
+		define(chCode, KeyCode.KeyA + (chCode - CharCode.a), false);
 	}
 
-	define(CharCode.Semicolon, KeyCode.US_SEMICOLON, false);
-	define(CharCode.Colon, KeyCode.US_SEMICOLON, true);
+	define(CharCode.Semicolon, KeyCode.Semicolon, false);
+	define(CharCode.Colon, KeyCode.Semicolon, true);
 
-	define(CharCode.Equals, KeyCode.US_EQUAL, false);
-	define(CharCode.Plus, KeyCode.US_EQUAL, true);
+	define(CharCode.Equals, KeyCode.Equal, false);
+	define(CharCode.Plus, KeyCode.Equal, true);
 
-	define(CharCode.Comma, KeyCode.US_COMMA, false);
-	define(CharCode.LessThan, KeyCode.US_COMMA, true);
+	define(CharCode.Comma, KeyCode.Comma, false);
+	define(CharCode.LessThan, KeyCode.Comma, true);
 
-	define(CharCode.Dash, KeyCode.US_MINUS, false);
-	define(CharCode.Underline, KeyCode.US_MINUS, true);
+	define(CharCode.Dash, KeyCode.Minus, false);
+	define(CharCode.Underline, KeyCode.Minus, true);
 
-	define(CharCode.Period, KeyCode.US_DOT, false);
-	define(CharCode.GreaterThan, KeyCode.US_DOT, true);
+	define(CharCode.Period, KeyCode.Period, false);
+	define(CharCode.GreaterThan, KeyCode.Period, true);
 
-	define(CharCode.Slash, KeyCode.US_SLASH, false);
-	define(CharCode.QuestionMark, KeyCode.US_SLASH, true);
+	define(CharCode.Slash, KeyCode.Slash, false);
+	define(CharCode.QuestionMark, KeyCode.Slash, true);
 
-	define(CharCode.BackTick, KeyCode.US_BACKTICK, false);
-	define(CharCode.Tilde, KeyCode.US_BACKTICK, true);
+	define(CharCode.BackTick, KeyCode.Backquote, false);
+	define(CharCode.Tilde, KeyCode.Backquote, true);
 
-	define(CharCode.OpenSquareBracket, KeyCode.US_OPEN_SQUARE_BRACKET, false);
-	define(CharCode.OpenCurlyBrace, KeyCode.US_OPEN_SQUARE_BRACKET, true);
+	define(CharCode.OpenSquareBracket, KeyCode.BracketLeft, false);
+	define(CharCode.OpenCurlyBrace, KeyCode.BracketLeft, true);
 
-	define(CharCode.Backslash, KeyCode.US_BACKSLASH, false);
-	define(CharCode.Pipe, KeyCode.US_BACKSLASH, true);
+	define(CharCode.Backslash, KeyCode.Backslash, false);
+	define(CharCode.Pipe, KeyCode.Backslash, true);
 
-	define(CharCode.CloseSquareBracket, KeyCode.US_CLOSE_SQUARE_BRACKET, false);
-	define(CharCode.CloseCurlyBrace, KeyCode.US_CLOSE_SQUARE_BRACKET, true);
+	define(CharCode.CloseSquareBracket, KeyCode.BracketRight, false);
+	define(CharCode.CloseCurlyBrace, KeyCode.BracketRight, true);
 
-	define(CharCode.SingleQuote, KeyCode.US_QUOTE, false);
-	define(CharCode.DoubleQuote, KeyCode.US_QUOTE, true);
+	define(CharCode.SingleQuote, KeyCode.Quote, false);
+	define(CharCode.DoubleQuote, KeyCode.Quote, true);
 })();

@@ -51,24 +51,7 @@ import 'vs/editor/contrib/suggest/suggest';
 import 'vs/editor/contrib/rename/rename';
 import 'vs/editor/contrib/inlayHints/inlayHintsController';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-
-const defaultSelector = { scheme: 'far' };
-const model: ITextModel = createTextModel(
-	[
-		'This is the first line',
-		'This is the second line',
-		'This is the third line',
-	].join('\n'),
-	undefined,
-	undefined,
-	URI.parse('far://testing/file.b'));
-
-let rpcProtocol: TestRPCProtocol;
-let extHost: ExtHostLanguageFeatures;
-let mainThread: MainThreadLanguageFeatures;
-let commands: ExtHostCommands;
-let disposables: vscode.Disposable[] = [];
-let originalErrorHandler: (e: any) => any;
+import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -80,9 +63,26 @@ function isLocation(value: vscode.Location | vscode.LocationLink): value is vsco
 }
 
 suite('ExtHostLanguageFeatureCommands', function () {
+	const defaultSelector = { scheme: 'far' };
+	let model: ITextModel;
+
+	let rpcProtocol: TestRPCProtocol;
+	let extHost: ExtHostLanguageFeatures;
+	let mainThread: MainThreadLanguageFeatures;
+	let commands: ExtHostCommands;
+	let disposables: vscode.Disposable[] = [];
+	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
-
+		model = createTextModel(
+			[
+				'This is the first line',
+				'This is the second line',
+				'This is the third line',
+			].join('\n'),
+			undefined,
+			undefined,
+			URI.parse('far://testing/file.b'));
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
@@ -131,7 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			addedDocuments: [{
 				isDirty: false,
 				versionId: model.getVersionId(),
-				modeId: model.getLanguageIdentifier().language,
+				modeId: model.getLanguageId(),
 				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
@@ -148,7 +148,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol, new NullLogService(), new class extends mock<IExtHostFileSystemInfo>() { });
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, new URITransformerService(null), extHostDocuments, commands, diagnostics, new NullLogService(), NullApiDeprecationService);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, insta.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -244,6 +244,36 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 
 	// --- rename
+	test('vscode.prepareRename', async function () {
+		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
+
+			prepareRename(document: vscode.TextDocument, position: vscode.Position) {
+				return {
+					range: new types.Range(0, 12, 0, 24),
+					placeholder: 'foooPlaceholder'
+				};
+			}
+
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
+				const edit = new types.WorkspaceEdit();
+				edit.insert(document.uri, <types.Position>position, newName);
+				return edit;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const data = await commands.executeCommand<{ range: vscode.Range, placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
+
+		assert.ok(data);
+		assert.strictEqual(data.placeholder, 'foooPlaceholder');
+		assert.strictEqual(data.range.start.line, 0);
+		assert.strictEqual(data.range.start.character, 12);
+		assert.strictEqual(data.range.end.line, 0);
+		assert.strictEqual(data.range.end.character, 24);
+
+	});
+
 	test('vscode.executeDocumentRenameProvider', async function () {
 		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
 			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {

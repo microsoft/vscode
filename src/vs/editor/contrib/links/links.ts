@@ -57,7 +57,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 				nativeLabel = ` "${nativeLabelText}"`;
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true)}${nativeLabel}) (${kb})`);
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);

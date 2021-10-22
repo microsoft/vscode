@@ -205,6 +205,10 @@ export class Checkbox extends Widget {
 		this.domNode.setAttribute('aria-disabled', String(true));
 	}
 
+	setTitle(newTitle: string): void {
+		this.domNode.title = newTitle;
+		this.domNode.setAttribute('aria-label', newTitle);
+	}
 }
 
 export class SimpleCheckbox extends Widget {

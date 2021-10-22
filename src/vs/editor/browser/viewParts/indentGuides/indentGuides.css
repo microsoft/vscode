@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
-	Keeping name short for faster parsing.
-	cigr = core ident guides rendering (div)
-*/
-.monaco-editor .lines-content .cigr {
+.monaco-editor .lines-content .core-guide {
 	position: absolute;
-}
-.monaco-editor .lines-content .cigra {
-	position: absolute;
+	box-sizing: border-box;
 }

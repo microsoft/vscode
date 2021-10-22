@@ -7,7 +7,7 @@ import 'vs/css!./media/hover';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground, widgetShadow, textLinkActiveForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService, IHoverOptions, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
@@ -28,7 +28,7 @@ export class HoverService implements IHoverService {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined {
+	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined {
 		if (this._currentHoverOptions === options) {
 			return undefined;
 		}

@@ -23,7 +23,7 @@ const NOTEBOOK_FOCUS_PREVIOUS_EDITOR = 'notebook.focusPreviousEditor';
 const NOTEBOOK_FOCUS_NEXT_EDITOR = 'notebook.focusNextEditor';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
-const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
+export const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 
 registerAction2(class extends NotebookCellAction {
@@ -220,9 +220,9 @@ registerAction2(class CenterActiveCellAction extends NotebookCellAction {
 			title: localize('notebookActions.centerActiveCell', "Center Active Cell"),
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_L,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyCode.KEY_L,
+					primary: KeyMod.WinCtrl | KeyCode.KeyL,
 				},
 				weight: KeybindingWeight.WorkbenchContrib
 			},

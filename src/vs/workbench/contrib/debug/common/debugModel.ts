@@ -1124,8 +1124,8 @@ export class DebugModel implements IDebugModel {
 					}
 
 					this.schedulers.get(thread.getId())!.schedule();
+					this._onDidChangeCallStack.fire();
 				});
-				this._onDidChangeCallStack.fire();
 			});
 
 			return { topCallStack, wholeCallStack };
