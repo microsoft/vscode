@@ -258,8 +258,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	canSetBreakpointsIn(model: ITextModel): boolean {
-		const modeId = model.getLanguageId();
-		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
+		const languageId = model.getLanguageId();
+		if (!languageId || languageId === 'jsonc' || languageId === 'log') {
 			// do not allow breakpoints in our settings files and output
 			return false;
 		}
@@ -267,7 +267,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointModeIdsSet.has(modeId);
+		return this.breakpointModeIdsSet.has(languageId);
 	}
 
 	isDebuggerEnabled(dbg: Debugger): boolean {

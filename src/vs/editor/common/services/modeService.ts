@@ -40,13 +40,13 @@ export interface IModeService {
 	getRegisteredLanguageNames(): string[];
 	getExtensions(alias: string): string[];
 	getFilenames(alias: string): string[];
-	getMimeForMode(modeId: string): string | null;
-	getLanguageName(modeId: string): string | null;
+	getMimeForMode(languageId: string): string | null;
+	getLanguageName(languageId: string): string | null;
 	getModeIdForLanguageName(alias: string): string | null;
 	getModeIdByFilepathOrFirstLine(resource: URI, firstLine?: string): string | null;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string | null;
-	validateLanguageId(modeId: string): string | null;
-	getConfigurationFiles(modeId: string): URI[];
+	validateLanguageId(languageId: string): string | null;
+	getConfigurationFiles(languageId: string): URI[];
 
 	// --- instantiation
 	create(commaSeparatedMimetypesOrCommaSeparatedIds: string | undefined): ILanguageSelection;

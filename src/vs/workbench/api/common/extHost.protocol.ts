@@ -1213,7 +1213,7 @@ export interface IModelAddedData {
 	versionId: number;
 	lines: string[];
 	EOL: string;
-	modeId: string;
+	languageId: string;
 	isDirty: boolean;
 }
 export interface ExtHostDocumentsShape {
@@ -2082,7 +2082,7 @@ export interface ExtHostNotebookKernelsShape {
 }
 
 export interface ExtHostInteractiveShape {
-	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, languageId: string, notebookUri: UriComponents): void;
 	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
 }
 

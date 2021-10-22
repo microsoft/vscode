@@ -38,12 +38,12 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 		this._commands.registerApiCommand(openApiCommand);
 	}
 
-	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, languageId: string, notebookUri: UriComponents) {
 		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				EOL: eol,
 				lines: [''],
-				modeId: modeId,
+				languageId: languageId,
 				uri: uri,
 				isDirty: false,
 				versionId: 1,

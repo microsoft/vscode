@@ -72,17 +72,17 @@ export class MarkdownRenderer {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
 				// it is possible no alias is given in which case we fall back to the current editor lang
-				let modeId: string | undefined | null;
+				let languageId: string | undefined | null;
 				if (languageAlias) {
-					modeId = this._modeService.getModeIdForLanguageName(languageAlias);
+					languageId = this._modeService.getModeIdForLanguageName(languageAlias);
 				} else if (this._options.editor) {
-					modeId = this._options.editor.getModel()?.getLanguageId();
+					languageId = this._options.editor.getModel()?.getLanguageId();
 				}
-				if (!modeId) {
-					modeId = 'plaintext';
+				if (!languageId) {
+					languageId = 'plaintext';
 				}
-				this._modeService.triggerMode(modeId);
-				const tokenization = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				this._modeService.triggerMode(languageId);
+				const tokenization = await TokenizationRegistry.getPromise(languageId) ?? undefined;
 
 				const element = document.createElement('span');
 
