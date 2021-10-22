@@ -175,7 +175,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
 			menu: {
-				id: MenuId.NotebookCellExecute,
+				id: MenuId.NotebookCellExecutePrimary,
 				when: executeThisCellCondition,
 				group: 'inline'
 			},
@@ -334,7 +334,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 			title: localize('notebookActions.cancel', "Stop Cell Execution"),
 			icon: icons.stopIcon,
 			menu: {
-				id: MenuId.NotebookCellExecute,
+				id: MenuId.NotebookCellExecutePrimary,
 				when: cellCancelCondition,
 				group: 'inline'
 			},

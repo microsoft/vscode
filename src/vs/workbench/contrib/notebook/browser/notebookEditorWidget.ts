@@ -216,7 +216,8 @@ export function getDefaultNotebookCreationOptions() {
 			cellTitleToolbar: MenuId.NotebookCellTitle,
 			cellInsertToolbar: MenuId.NotebookCellBetween,
 			cellTopInsertToolbar: MenuId.NotebookCellListTop,
-			cellExecuteToolbar: MenuId.NotebookCellExecute
+			cellExecuteToolbar: MenuId.NotebookCellExecute,
+			cellExecutePrimary: MenuId.NotebookCellExecutePrimary,
 		}
 	};
 }
