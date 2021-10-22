@@ -590,13 +590,16 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
 		const disposables = new DisposableStore();
-
 		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
-		disposables.add(p.onDidChangeProperty(property => this._proxy.$sendProcessProperty(id, property)));
+		disposables.add(p.onDidChangeProperty(property => {
+			if (property.type === ProcessPropertyType.Exit) {
+				this._onProcessExit(id, property.value);
+			}
+			this._proxy.$sendProcessProperty(id, property);
+		}));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._bufferer.startBuffering(id, p.onProcessData);
-		disposables.add(p.onProcessExit(exitCode => this._onProcessExit(id, exitCode)));
 
 		this._terminalProcesses.set(id, p);
 

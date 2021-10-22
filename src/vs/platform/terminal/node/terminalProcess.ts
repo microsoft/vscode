@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -84,7 +84,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined
+		overrideDimensions: undefined,
+		exit: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -115,8 +116,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number>());
-	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
@@ -330,7 +329,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
-		this._onProcessExit.fire(this._exitCode || 0);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: this._exitCode || 0 });
 		this.dispose();
 	}
 

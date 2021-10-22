@@ -185,7 +185,8 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions'
+	OverrideDimensions = 'overrideDimensions',
+	Exit = 'exit'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -201,7 +202,8 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
 	[ProcessPropertyType.HasChildProcesses]: boolean,
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined,
+	[ProcessPropertyType.Exit]: number | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -227,8 +229,7 @@ export interface IPtyService {
 	readonly onPtyHostRequestResolveVariables?: Event<IRequestResolveVariablesEvent>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
-	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
+	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
@@ -529,7 +530,6 @@ export interface ITerminalChildProcess {
 	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
-	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 

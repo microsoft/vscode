@@ -314,12 +314,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
-			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
-			newProcess.onDidChangeProperty(property => {
-				if (property.type === ProcessPropertyType.HasChildProcesses) {
-					this._hasChildProcesses = property.value;
+			newProcess.onDidChangeProperty(({ type, value }) => {
+				switch (type) {
+					case ProcessPropertyType.HasChildProcesses:
+						this._hasChildProcesses = value;
+					case ProcessPropertyType.Exit:
+						this._onExit(value);
 				}
-				this._onDidChangeProperty.fire(property);
+				this._onDidChangeProperty.fire({ type, value });
 			})
 		];
 

@@ -1230,14 +1230,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._onTitleChanged.fire(this);
 				});
 			}
-			this._processManager.onDidChangeProperty(e => {
-				switch (e.type) {
+			this._processManager.onDidChangeProperty(({ type, value }) => {
+				switch (type) {
 					case ProcessPropertyType.Cwd:
-						this._cwd = e.value;
+						this._cwd = value;
 						this._labelComputer?.refreshLabel();
 						break;
 					case ProcessPropertyType.InitialCwd:
-						this._initialCwd = e.value;
+						this._initialCwd = value;
 						this._cwd = this._initialCwd;
 						this.refreshTabLabels(this.title, TitleEventSource.Api);
 						break;
@@ -1245,16 +1245,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						// TODO: is message title disposable needed here?
 						// before was:
 						// this._messageTitleDisposable = this._processManager.onDidChangeProperty(property => {
-						this.refreshTabLabels(e.value ? e.value : '', TitleEventSource.Process);
+						this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
 						break;
 					case ProcessPropertyType.OverrideDimensions:
-						this.setOverrideDimensions(e.value, true);
+						this.setOverrideDimensions(value, true);
 						break;
 					case ProcessPropertyType.ResolvedShellLaunchConfig:
-						this._setResolvedShellLaunchConfig(e.value);
+						this._setResolvedShellLaunchConfig(value);
 						break;
 					case ProcessPropertyType.HasChildProcesses:
-						this._onDidChangeHasChildProcesses.fire(e.value);
+						this._onDidChangeHasChildProcesses.fire(value);
+						break;
+					case ProcessPropertyType.Exit:
+						this._onProcessExit(value);
 						break;
 				}
 			});
@@ -1271,7 +1274,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
 
-				this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 				this._processManager.onProcessData(ev => {
 					this._initialDataEvents?.push(ev.data);
 					this._onData.fire(ev.data);

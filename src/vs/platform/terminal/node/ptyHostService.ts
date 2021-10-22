@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
@@ -64,8 +64,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
-	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
@@ -174,7 +172,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
 		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
 		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
 		this._register(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
 		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));

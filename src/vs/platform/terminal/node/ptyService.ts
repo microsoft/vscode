@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, ProcessCapability, IProcessPropertyMap, IFixedTerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -43,8 +43,6 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
-	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
-	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
@@ -178,18 +176,19 @@ export class PtyService extends Disposable implements IPtyService {
 		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, windowsEnableConpty, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
-		process.onProcessExit(event => this._onProcessExit.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchOptions = {
 			env,
 			executableEnv,
 			windowsEnableConpty
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedDimensions);
-		process.onProcessExit(() => {
-			persistentProcess.dispose();
-			this._ptys.delete(id);
+		process.onDidChangeProperty(property => {
+			if (property.type === ProcessPropertyType.Exit) {
+				persistentProcess.dispose();
+				this._ptys.delete(id);
+			}
+			this._onDidChangeProperty.fire({ id, property });
 		});
-		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
@@ -479,18 +478,23 @@ export class PersistentTerminalProcess extends Disposable {
 			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.shortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
 		}, reconnectConstants.shortGraceTime));
-
+		this._register(this._terminalProcess.onDidChangeProperty(e => {
+			switch (e.type) {
+				case ProcessPropertyType.Exit:
+					this._bufferer.stopBuffering(this._persistentProcessId);
+					break;
+			}
+			this._onDidChangeProperty.fire(e);
+		}));
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
 			this._onProcessReady.fire(e);
 		}));
-		this._register(this._terminalProcess.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
 
 		// Data buffering to reduce the amount of messages going to the renderer
 		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire(data));
 		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
-		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
 
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._serializer.handleData(e)));
