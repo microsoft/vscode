@@ -3550,7 +3550,7 @@ declare module 'vscode' {
 		 *
 		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
 		 */
-		readonly resultId?: string;
+		readonly resultId: string | undefined;
 		/**
 		 * The actual tokens data.
 		 * @see {@link DocumentSemanticTokensProvider.provideDocumentSemanticTokens provideDocumentSemanticTokens} for an explanation of the format.
@@ -3570,7 +3570,7 @@ declare module 'vscode' {
 		 *
 		 * This is the id that will be passed to `DocumentSemanticTokensProvider.provideDocumentSemanticTokensEdits` (if implemented).
 		 */
-		readonly resultId?: string;
+		readonly resultId: string | undefined;
 		/**
 		 * The edits to the tokens data.
 		 * All edits refer to the initial data state.
@@ -3596,7 +3596,7 @@ declare module 'vscode' {
 		/**
 		 * The elements to insert.
 		 */
-		readonly data?: Uint32Array;
+		readonly data: Uint32Array | undefined;
 
 		constructor(start: number, deleteCount: number, data?: Uint32Array);
 	}
