@@ -111,21 +111,21 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
-				await this.setIgnoreProcessNames(this.ignoreProcessNames);
+				await this._refreshIgnoreProcessNames();
 			}
 		}));
 	}
 
 	async initialize(): Promise<void> {
-		await this.setIgnoreProcessNames(this.ignoreProcessNames);
+		await this._refreshIgnoreProcessNames();
 	}
 
-	private get ignoreProcessNames(): string[] {
+	private get _ignoreProcessNames(): string[] {
 		return this._configurationService.getValue<string[]>(TerminalSettingId.IgnoreProcessNames);
 	}
 
-	setIgnoreProcessNames(names: string[]): Promise<void> {
-		return this._proxy.setIgnoreProcessNames(names);
+	private _refreshIgnoreProcessNames(): Promise<void> {
+		return this._proxy.setIgnoreProcessNames(this._ignoreProcessNames);
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {
