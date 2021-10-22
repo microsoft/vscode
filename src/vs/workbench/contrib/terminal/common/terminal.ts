@@ -293,7 +293,6 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
-	readonly onProcessExit: Event<number | undefined>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
 

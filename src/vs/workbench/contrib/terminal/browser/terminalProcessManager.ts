@@ -96,8 +96,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessData = this._onProcessData.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
-	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
 
@@ -577,7 +575,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(exitCode);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: exitCode });
 	}
 
 	private _setProcessState(state: ProcessState) {

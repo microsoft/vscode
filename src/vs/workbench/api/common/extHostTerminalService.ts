@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, TerminalShellType, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, ProcessCapability, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -249,16 +249,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = new Emitter<string>();
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = new Emitter<number | undefined>();
-	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onProcessTitleChanged = new Emitter<string>();
-	public readonly onProcessTitleChanged: Event<string> = this._onProcessTitleChanged.event;
-	private readonly _onProcessOverrideDimensions = new Emitter<ITerminalDimensionsOverride | undefined>();
-	public get onProcessOverrideDimensions(): Event<ITerminalDimensionsOverride | undefined> { return this._onProcessOverrideDimensions.event; }
-	private readonly _onProcessShellTypeChanged = new Emitter<TerminalShellType>();
-	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
 	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
@@ -322,14 +314,20 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
 			this._pty.onDidClose((e: number | void = undefined) => {
-				this._onProcessExit.fire(e === void 0 ? undefined : e);
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: e === void 0 ? undefined : e });
 			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
-			this._pty.onDidOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e ? { cols: e.columns, rows: e.rows } : e));
+			this._pty.onDidOverrideDimensions(e => {
+				if (e) {
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: e.columns, rows: e.rows } });
+				}
+			});
 		}
 		if (this._pty.onDidChangeName) {
-			this._pty.onDidChangeName(title => this._onProcessTitleChanged.fire(title));
+			this._pty.onDidChangeName(title => {
+				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
+			});
 		}
 
 		this._pty.open(initialDimensions ? initialDimensions : undefined);

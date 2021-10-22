@@ -179,8 +179,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	}
 
 	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: any): Promise<void> {
-		if (type === ProcessPropertyType.FixedDimensions) {
-
+		if (type === ProcessPropertyType.FixedDimensions && type === ProcessPropertyType.FixedDimensions && typeof value !== 'string' && value && ('cols' in value || 'rows' in value)) {
 		}
 	}
 }
