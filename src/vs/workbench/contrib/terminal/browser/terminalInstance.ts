@@ -1275,26 +1275,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					});
 				});
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
-			}
-		});
 
-		this._processManager.onProcessData(ev => {
-			this._initialDataEvents?.push(ev.data);
-			this._onData.fire(ev.data);
-		});
-		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			this.statusList.add({
-				id: TerminalStatus.Disconnected,
-				severity: Severity.Error,
-				icon: Codicon.debugDisconnect,
-				tooltip: nls.localize('disconnectStatus', "Lost connection to process")
-			});
-		});
-		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
-			this.statusList.remove(TerminalStatus.Disconnected);
+				this._processManager.onProcessData(ev => {
+					this._initialDataEvents?.push(ev.data);
+					this._onData.fire(ev.data);
+				});
+				this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
+				this._processManager.onPtyDisconnect(() => {
+					this._safeSetOption('disableStdin', true);
+					this.statusList.add({
+						id: TerminalStatus.Disconnected,
+						severity: Severity.Error,
+						icon: Codicon.debugDisconnect,
+						tooltip: nls.localize('disconnectStatus', "Lost connection to process")
+					});
+				});
+				this._processManager.onPtyReconnect(() => {
+					this._safeSetOption('disableStdin', false);
+					this.statusList.remove(TerminalStatus.Disconnected);
+				});
+			}
 		});
 	}
 
