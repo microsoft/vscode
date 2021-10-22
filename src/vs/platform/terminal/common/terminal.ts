@@ -291,7 +291,7 @@ export interface IPtyService {
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
 
-	setIgnoreProcessNames(names: string[]): Promise<void>;
+	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {

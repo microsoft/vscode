@@ -83,11 +83,9 @@ export class PtyService extends Disposable implements IPtyService {
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
 	}
 
-	setIgnoreProcessNames(names: string[]): Promise<void> {
-		return new Promise((_resolve, _reject) => {
-			ignoreProcessNames.length = 0;
-			ignoreProcessNames.push(...names);
-		});
+	async refreshIgnoreProcessNames(names: string[]): Promise<void> {
+		ignoreProcessNames.length = 0;
+		ignoreProcessNames.push(...names);
 	}
 
 	onPtyHostExit?: Event<number> | undefined;
