@@ -81,11 +81,11 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.messaging = descriptor.requiresMessaging ?? RendererMessagingSpec.Never;
 	}
 
-	get dependencies(): string[] {
+	public get dependencies(): string[] {
 		return this.hardDependencies.values();
 	}
 
-	matchesWithoutKernel(mimeType: string) {
+	public matchesWithoutKernel(mimeType: string) {
 		if (!this.matchesMimeTypeOnly(mimeType)) {
 			return NotebookRendererMatch.Never;
 		}
@@ -101,7 +101,7 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		return NotebookRendererMatch.Pure;
 	}
 
-	matches(mimeType: string, kernelProvides: ReadonlyArray<string>) {
+	public matches(mimeType: string, kernelProvides: ReadonlyArray<string>) {
 		if (!this.matchesMimeTypeOnly(mimeType)) {
 			return NotebookRendererMatch.Never;
 		}

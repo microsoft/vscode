@@ -11,6 +11,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -264,12 +265,16 @@ export class NotebookProviderInfoStore extends Disposable {
 }
 
 export class NotebookOutputRendererInfoStore {
-	private readonly contributedRenderers = new Map<string, NotebookOutputRendererInfo>();
+	private readonly contributedRenderers = new Map</* rendererId */ string, NotebookOutputRendererInfo>();
 	private readonly preferredMimetypeMemento: Memento;
-	private readonly preferredMimetype = new Lazy(() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
+	private readonly preferredMimetype = new Lazy<{ [notebookType: string]: { [mimeType: string]: /* rendererId */ string } }>(
+		() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
 
-	constructor(@IStorageService storageService: IStorageService) {
-		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer', storageService);
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	) {
+		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer2', storageService);
 	}
 
 	clear() {
@@ -292,25 +297,65 @@ export class NotebookOutputRendererInfoStore {
 	}
 
 	/** Update and remember the preferred renderer for the given mimetype in this workspace */
-	setPreferred(mimeType: string, rendererId: string) {
-		this.preferredMimetype.getValue()[mimeType] = rendererId;
+	setPreferred(notebookProviderInfo: NotebookProviderInfo, mimeType: string, rendererId: string) {
+		const mementoObj = this.preferredMimetype.getValue();
+		const forNotebook = mementoObj[notebookProviderInfo.id];
+		if (forNotebook) {
+			forNotebook[mimeType] = rendererId;
+		} else {
+			mementoObj[notebookProviderInfo.id] = { [mimeType]: rendererId };
+		}
+
 		this.preferredMimetypeMemento.saveMemento();
 	}
 
-	getContributedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): NotebookOutputRendererInfo[] {
-		const preferred = this.preferredMimetype.getValue()[mimeType];
-		const possible = Array.from(this.contributedRenderers.values())
-			.map(renderer => ({
-				renderer,
-				score: kernelProvides === undefined
-					? renderer.matchesWithoutKernel(mimeType)
-					: renderer.matches(mimeType, kernelProvides),
-			}))
-			.sort((a, b) => a.score - b.score)
-			.filter(r => r.score !== NotebookRendererMatch.Never)
-			.map(r => r.renderer);
+	findBestRenderers(notebookProviderInfo: NotebookProviderInfo | undefined, mimeType: string, kernelProvides: readonly string[] | undefined): IOrderedMimeType[] {
 
-		return preferred ? possible.sort((a, b) => (a.id === preferred ? -1 : 0) + (b.id === preferred ? 1 : 0)) : possible;
+		const enum ReuseOrder {
+			PreviouslySelected = 1 << 8,
+			SameExtensionAsNotebook = 2 << 8,
+			BuiltIn = 3 << 8,
+			OtherRenderer = 4 << 8
+		}
+
+		const preferred = notebookProviderInfo && this.preferredMimetype.getValue()[notebookProviderInfo.id]?.[mimeType];
+		const renderers: { ordered: IOrderedMimeType, score: number }[] = Array.from(this.contributedRenderers.values())
+			.map(renderer => {
+				const ownScore = kernelProvides === undefined
+					? renderer.matchesWithoutKernel(mimeType)
+					: renderer.matches(mimeType, kernelProvides);
+
+				if (ownScore === NotebookRendererMatch.Never) {
+					return undefined;
+				}
+
+				const reuseScore = preferred === renderer.id
+					? ReuseOrder.PreviouslySelected
+					: renderer.extensionId.value === notebookProviderInfo?.extension?.value
+						? ReuseOrder.SameExtensionAsNotebook
+						: ReuseOrder.BuiltIn;
+				return {
+					ordered: { mimeType, rendererId: renderer.id, isTrusted: true },
+					score: reuseScore | ownScore,
+				};
+			}).filter(isDefined);
+
+		if (mimeTypeSupportedByCore(mimeType)) {
+			renderers.push({
+				score: ReuseOrder.BuiltIn << 8,
+				ordered: {
+					mimeType,
+					rendererId: BUILTIN_RENDERER_ID,
+					isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
+				}
+			});
+		}
+
+		if (renderers.length === 0) {
+			return [{ mimeType, rendererId: RENDERER_NOT_AVAILABLE, isTrusted: true }];
+		}
+
+		return renderers.sort((a, b) => a.score - b.score).map(r => r.ordered);
 	}
 }
 
@@ -376,7 +421,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -569,8 +613,11 @@ export class NotebookService extends Disposable implements INotebookService {
 		return this._notebookRenderersInfoStore.get(rendererId);
 	}
 
-	updateMimePreferredRenderer(mimeType: string, rendererId: string): void {
-		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
+	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string): void {
+		const info = this.notebookProviderInfoStore.get(viewType);
+		if (info) {
+			this._notebookRenderersInfoStore.setPreferred(info, mimeType, rendererId);
+		}
 	}
 
 	getRenderers(): INotebookRendererInfo[] {
@@ -620,58 +667,9 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		const coreDisplayOrder = this._displayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder ?? [], coreDisplayOrder?.defaultOrder ?? []);
+		const notebookProviderInfo = this.notebookProviderInfoStore.get(textModel.viewType);
 
-		const orderMimeTypes: IOrderedMimeType[] = [];
-
-		sorted.forEach(mimeType => {
-			const handlers = this._findBestMatchedRenderer(mimeType, kernelProvides);
-
-			if (handlers.length) {
-				const handler = handlers[0];
-
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					rendererId: handler.id,
-					isTrusted: true
-				});
-
-				for (let i = 1; i < handlers.length; i++) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						rendererId: handlers[i].id,
-						isTrusted: true
-					});
-				}
-
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
-					});
-				}
-			} else {
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						rendererId: BUILTIN_RENDERER_ID,
-						isTrusted: mimeTypeIsAlwaysSecure(mimeType) || this.workspaceTrustManagementService.isWorkspaceTrusted()
-					});
-				} else {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						rendererId: RENDERER_NOT_AVAILABLE,
-						isTrusted: true
-					});
-				}
-			}
-		});
-
-		return orderMimeTypes;
-	}
-
-	private _findBestMatchedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): readonly NotebookOutputRendererInfo[] {
-		return this._notebookRenderersInfoStore.getContributedRenderer(mimeType, kernelProvides);
+		return sorted.flatMap(mimeType => this._notebookRenderersInfoStore.findBestRenderers(notebookProviderInfo, mimeType, kernelProvides));
 	}
 
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[] {

@@ -109,8 +109,6 @@ export interface TransientOptions {
 	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
-
-
 /** Note: enum values are used for sorting */
 export const enum NotebookRendererMatch {
 	/** Renderer has a hard dependency on an available kernel */
