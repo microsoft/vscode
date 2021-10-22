@@ -157,7 +157,7 @@ registerAction2(class extends Action2 {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
 				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
 			};
-			const picks: KernelPick[] = all.map(kernel => {
+			function toQuickPick(kernel: INotebookKernel) {
 				const res = <KernelPick>{
 					kernel,
 					picked: kernel.id === selected?.id,
@@ -173,26 +173,27 @@ registerAction2(class extends Action2 {
 						res.description = nls.localize('current2', "{0} - Currently Selected", res.description);
 					}
 				}
-				{ return res; }
-			});
+				return res;
+			}
 			const quickPickItems: QuickPickInput<IQuickPickItem | KernelPick>[] = [];
-			if (!picks.length) {
+			if (!all.length) {
 				quickPickItems.push({
 					id: 'install',
 					label: nls.localize('installKernels', "Install kernels from the marketplace"),
 				});
 			} else {
 				// Always display suggested kernels on the top.
-				quickPickItems.push(...picks.filter(item => suggestions.includes(item.kernel)));
-				if (quickPickItems.length) {
-					quickPickItems.unshift({
+				if (suggestions.length) {
+					quickPickItems.push({
 						type: 'separator',
 						label: nls.localize('suggestedKernels', "Suggested")
 					});
+					quickPickItems.push(...suggestions.map(toQuickPick));
 				}
 
 				// Next display all of the kernels grouped by categories or extensions.
 				// If we don't have a kind, always display those at the bottom.
+				const picks = all.filter(item => item !== selected && !suggestions.includes(item)).map(toQuickPick);
 				const kernelsPerCategory = groupBy(picks, (a, b) => compareIgnoreCase(a.kernel.kind || 'z', b.kernel.kind || 'z'));
 				kernelsPerCategory.forEach(items => {
 					quickPickItems.push({
