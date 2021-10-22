@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable @typescript-eslint/naming-convention */
+
 import { IBufferCell } from 'xterm';
 
 export type XTermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XTermAttributes };
 
 export interface XTermCore {
-	_onScroll: IEventEmitter<number>;
+	viewport: {
+		_innerRefresh(): void;
+	};
 	_onKey: IEventEmitter<{ key: string }>;
 
 	_charSizeService: {

@@ -1171,13 +1171,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// using cached dimensions of a split terminal).
 			this._resize();
 
-			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// Trigger a forced refresh of the viewport to sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
+			this._xtermCore.viewport._innerRefresh();
 		}
 	}
 
