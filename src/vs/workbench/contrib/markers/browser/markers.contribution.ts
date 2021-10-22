@@ -10,7 +10,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { Marker, RelatedInformation } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -153,27 +153,41 @@ registerAction2(class extends Action2 {
 
 registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
+		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Constants.MARKERS_VIEW_ID), Constants.MarkersTreeVisibilityContextKey, Constants.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Constants.MARKER_COPY_ACTION_ID,
 			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
 			menu: {
 				id: MenuId.ProblemsPanelContext,
-				when: Constants.MarkerFocusContextKey,
+				when,
 				group: 'navigation'
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyC,
-				when: Constants.MarkerFocusContextKey
+				when
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});
 	}
 	async runInView(serviceAccessor: ServicesAccessor, markersView: IMarkersView): Promise<void> {
 		const clipboardService = serviceAccessor.get(IClipboardService);
-		const element = markersView.getFocusElement();
-		if (element instanceof Marker) {
-			await clipboardService.writeText(`${element}`);
+		const selection = markersView.getFocusedSelectedElements() || markersView.getAllResourceMarkers();
+		const markers: Marker[] = [];
+		const addMarker = (marker: Marker) => {
+			if (!markers.includes(marker)) {
+				markers.push(marker);
+			}
+		};
+		for (const selected of selection) {
+			if (selected instanceof ResourceMarkers) {
+				selected.markers.forEach(addMarker);
+			} else if (selected instanceof Marker) {
+				addMarker(selected);
+			}
+		}
+		if (markers.length) {
+			await clipboardService.writeText(`[${markers}]`);
 		}
 	}
 });

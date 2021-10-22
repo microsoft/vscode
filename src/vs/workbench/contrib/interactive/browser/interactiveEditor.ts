@@ -246,7 +246,8 @@ export class InteractiveEditor extends EditorPane {
 				cellTitleToolbar: MenuId.InteractiveCellTitle,
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
-				cellExecuteToolbar: MenuId.InteractiveCellExecute
+				cellExecuteToolbar: MenuId.InteractiveCellExecute,
+				cellExecutePrimary: undefined
 			},
 			cellEditorContributions: [],
 			options: this.#notebookOptions

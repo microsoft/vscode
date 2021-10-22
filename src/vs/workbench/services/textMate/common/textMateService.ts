@@ -13,7 +13,7 @@ export interface ITextMateService {
 
 	onDidEncounterLanguage: Event<string>;
 
-	createGrammar(modeId: string): Promise<IGrammar | null>;
+	createGrammar(languageId: string): Promise<IGrammar | null>;
 
 	startDebugMode(printFn: (str: string) => void, onStop: () => void): void;
 }

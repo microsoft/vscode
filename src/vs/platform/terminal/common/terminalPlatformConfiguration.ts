@@ -371,6 +371,22 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.showLinkHover', "Whether to show hovers for links in the terminal output."),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.IgnoreProcessNames]: {
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+			type: 'array',
+			items: {
+				type: 'string',
+				uniqueItems: true
+			},
+			default: [
+				// Popular prompt programs, these should not count as child processes
+				'starship',
+				'oh-my-posh',
+				// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
+				'bash',
+				'zsh',
+			]
 		}
 	}
 };

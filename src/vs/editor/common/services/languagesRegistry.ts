@@ -274,11 +274,11 @@ export class LanguagesRegistry extends Disposable {
 		return Object.keys(this._nameMap);
 	}
 
-	public getLanguageName(modeId: string): string | null {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+	public getLanguageName(languageId: string): string | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
-		return this._languages[modeId].name;
+		return this._languages[languageId].name;
 	}
 
 	public getModeIdForLanguageNameLowercase(languageNameLower: string): string | null {
@@ -288,18 +288,18 @@ export class LanguagesRegistry extends Disposable {
 		return this._lowercaseNameMap[languageNameLower];
 	}
 
-	public getConfigurationFiles(modeId: string): URI[] {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+	public getConfigurationFiles(languageId: string): URI[] {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return [];
 		}
-		return this._languages[modeId].configurationFiles || [];
+		return this._languages[languageId].configurationFiles || [];
 	}
 
-	public getMimeForMode(modeId: string): string | null {
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+	public getMimeForMode(languageId: string): string | null {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
-		const language = this._languages[modeId];
+		const language = this._languages[languageId];
 		return (language.mimetypes[0] || null);
 	}
 
@@ -318,22 +318,22 @@ export class LanguagesRegistry extends Disposable {
 					}
 					return mimeTypeOrId;
 				}).
-				filter((modeId) => {
-					return hasOwnProperty.call(this._languages, modeId);
+				filter((languageId) => {
+					return hasOwnProperty.call(this._languages, languageId);
 				})
 		);
 	}
 
-	public validateLanguageId(modeId: string | null): string | null {
-		if (!modeId || modeId === NULL_MODE_ID) {
+	public validateLanguageId(languageId: string | null): string | null {
+		if (!languageId || languageId === NULL_MODE_ID) {
 			return NULL_MODE_ID;
 		}
 
-		if (!hasOwnProperty.call(this._languages, modeId)) {
+		if (!hasOwnProperty.call(this._languages, languageId)) {
 			return null;
 		}
 
-		return modeId;
+		return languageId;
 	}
 
 	public getModeIdFromLanguageName(languageName: string): string | null {

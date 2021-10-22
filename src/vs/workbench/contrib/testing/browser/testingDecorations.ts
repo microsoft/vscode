@@ -653,7 +653,7 @@ abstract class RunTestDecoration {
 	protected defaultDebug() {
 		return this.testService.runTests({
 			tests: this.tests.map(({ test }) => test),
-			group: TestRunProfileBitset.Run,
+			group: TestRunProfileBitset.Debug,
 		});
 	}
 

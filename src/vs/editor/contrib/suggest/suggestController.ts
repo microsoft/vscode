@@ -460,7 +460,7 @@ export class SuggestController implements IEditorContribution {
 	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>): void {
 		if (this.editor.hasModel()) {
 			this.model.trigger({ auto: false, shy: false }, false, onlyFrom);
-			this.editor.revealLine(this.editor.getPosition().lineNumber, ScrollType.Smooth);
+			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
 	}
@@ -529,7 +529,7 @@ export class SuggestController implements IEditorContribution {
 		});
 
 		this.model.trigger({ auto: false, shy: true });
-		this.editor.revealLine(positionNow.lineNumber, ScrollType.Smooth);
+		this.editor.revealPosition(positionNow, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

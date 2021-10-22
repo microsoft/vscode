@@ -14,6 +14,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import product from 'vs/platform/product/common/product';
 
 class DesktopMain extends SharedDesktopMain {
 
@@ -27,7 +28,8 @@ class DesktopMain extends SharedDesktopMain {
 
 		// Local Files
 		let diskFileSystemProvider: ElectronFileSystemProvider | SandboxedDiskFileSystemProvider;
-		if (this.configuration.experimentalSandboxedFileService) {
+		if (this.configuration.experimentalSandboxedFileService ?? product.quality !== 'stable') {
+			logService.info('[FileService]: Using sandbox ready file system provider');
 			diskFileSystemProvider = this._register(new SandboxedDiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
 		} else {
 			diskFileSystemProvider = this._register(new ElectronFileSystemProvider(logService, nativeHostService, { legacyWatcher: this.configuration.legacyWatcher }));
