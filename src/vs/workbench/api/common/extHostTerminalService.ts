@@ -268,12 +268,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
 
 	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		// TODO: fix
-		return Promise.resolve('' as any);
+		return Promise.resolve('' as IProcessPropertyMap[T]);
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		Promise.resolve('');
+	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
+		return Promise.resolve();
 	}
 
 	async start(): Promise<undefined> {

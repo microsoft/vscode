@@ -404,13 +404,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					this._properties.cwd = newCwd;
 					this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
 				}
-				return newCwd as any;
+				return newCwd as IProcessPropertyMap[T];
 			case ProcessPropertyType.InitialCwd:
-				return this.getInitialCwd() as any;
+				const initialCwd = await this.getInitialCwd();
+				if (initialCwd !== this._properties.initialCwd) {
+					this._properties.initialCwd = initialCwd;
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._properties.initialCwd });
+				}
+				return initialCwd as IProcessPropertyMap[T];
 			case ProcessPropertyType.Title:
-				return this.currentTitle as any;
+				return this.currentTitle as IProcessPropertyMap[T];
 			default:
-				return this.shellType as any;
+				return this.shellType as IProcessPropertyMap[T];
 		}
 	}
 

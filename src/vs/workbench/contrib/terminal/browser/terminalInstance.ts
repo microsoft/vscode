@@ -1242,9 +1242,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						this.refreshTabLabels(this.title, TitleEventSource.Api);
 						break;
 					case ProcessPropertyType.Title:
-						// TODO: is message title disposable needed here?
-						// before was:
-						// this._messageTitleDisposable = this._processManager.onDidChangeProperty(property => {
 						this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
 						break;
 					case ProcessPropertyType.OverrideDimensions:

@@ -10,7 +10,7 @@ import { listenStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessPropertyMap, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ProcessCapability, ProcessPropertyType, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -157,9 +157,6 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 }
 
 class TestOutputProcess extends Disposable implements ITerminalChildProcess {
-	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
 	onDidChangeHasChildProcesses?: Event<boolean> | undefined;
@@ -238,8 +235,14 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 		return Promise.resolve(0);
 	}
 
-	refreshProperty(property: ProcessPropertyType) {
-		return Promise.resolve('' as any);
+	public refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
+		// no-op
+		return Promise.resolve('' as IProcessPropertyMap[T]);
+	}
+
+	public updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+		// no-op
+		return Promise.resolve();
 	}
 	//#endregion
 }
