@@ -182,6 +182,7 @@ function sanitize(documentContent: string): string {
 				'width', 'height', 'align', 'x-dispatch',
 				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
 			],
+			ALLOW_UNKNOWN_PROTOCOLS: true,
 		});
 	} finally {
 		dompurify.removeHook('afterSanitizeAttributes');
