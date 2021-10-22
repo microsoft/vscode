@@ -68,8 +68,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onProcessReady.fire({ pid, cwd, capabilities: this.capabilities });
 	}
 
-	emitProcessProperty(property: IProcessProperty<any>): void {
-		const { type, value } = property;
+	emitProcessProperty({ type, value }: IProcessProperty<any>): void {
 		switch (type) {
 			case ProcessPropertyType.Cwd:
 				this.emitCwd(value);

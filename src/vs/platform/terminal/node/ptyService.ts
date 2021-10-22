@@ -479,10 +479,8 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, reconnectConstants.shortGraceTime));
 		this._register(this._terminalProcess.onDidChangeProperty(e => {
-			switch (e.type) {
-				case ProcessPropertyType.Exit:
-					this._bufferer.stopBuffering(this._persistentProcessId);
-					break;
+			if (e.type === ProcessPropertyType.Exit) {
+				this._bufferer.stopBuffering(this._persistentProcessId);
 			}
 			this._onDidChangeProperty.fire(e);
 		}));
