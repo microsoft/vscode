@@ -16,6 +16,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData: Event<string> = this._onProcessData.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 
@@ -83,14 +85,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 			case ProcessPropertyType.ResolvedShellLaunchConfig:
 				this.emitResolvedShellLaunchConfig(value);
 				break;
-			case ProcessPropertyType.Exit:
-				this.emitExit(value);
-				break;
 		}
 	}
 
 	emitExit(exitCode: number | undefined): void {
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: exitCode });
+		this._onProcessExit.fire(exitCode);
 		this.dispose();
 	}
 
