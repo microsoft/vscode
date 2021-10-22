@@ -59,7 +59,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		} catch (error) {
 			switch (error.name) {
 				case ExtensionManagementErrorCode.Download:
-				case ExtensionManagementErrorCode.Unknown:
+				case ExtensionManagementErrorCode.Internal:
 					try {
 						this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
 						return await this.downloadAndInstall(extension, installOptions || {});

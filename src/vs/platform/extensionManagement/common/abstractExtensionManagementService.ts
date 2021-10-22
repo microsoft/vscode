@@ -85,7 +85,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	async installFromGallery(extension: IGalleryExtension, options: InstallOptions = {}): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
-			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Unknown);
+			throw new ExtensionManagementError(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled"), ExtensionManagementErrorCode.Internal);
 		}
 
 		if (!await this.canInstall(extension)) {
@@ -291,7 +291,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			this._onDidInstallExtensions.fire(allInstallExtensionTasks.map(({ task }) => ({ identifier: task.identifier, operation: InstallOperation.Install, source: task.source })));
 
 			if (error instanceof Error) {
-				error.name = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ExtensionManagementErrorCode.Unknown;
+				error.name = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : ExtensionManagementErrorCode.Internal;
 			}
 			throw error;
 		} finally {
@@ -475,7 +475,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 					postUninstallExtension(task.extension);
 				} catch (e) {
-					const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Unknown);
+					const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
 					postUninstallExtension(task.extension, error);
 					throw error;
 				} finally {
@@ -484,7 +484,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			}));
 
 		} catch (e) {
-			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Unknown);
+			const error = e instanceof ExtensionManagementError ? e : new ExtensionManagementError(getErrorMessage(e), ExtensionManagementErrorCode.Internal);
 			for (const task of allTasks) {
 				// cancel the tasks
 				try { task.cancel(); } catch (error) { /* ignore */ }
@@ -620,7 +620,7 @@ export function joinErrors(errorOrErrors: (Error | string) | (Array<Error | stri
 }
 
 export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, extensionData: any, duration?: number, error?: Error): void {
-	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Unknown : undefined;
+	const errorcode = error ? error instanceof ExtensionManagementError ? error.code : ExtensionManagementErrorCode.Internal : undefined;
 	/* __GDPR__
 		"extensionGallery:install" : {
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },

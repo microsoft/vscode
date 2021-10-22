@@ -361,7 +361,12 @@ export enum ExtensionManagementErrorCode {
 	Incompatible = 'Incompatible',
 	Invalid = 'Invalid',
 	Download = 'Download',
-	Unknown = 'Unknown'
+	Extract = 'Extract',
+	Delete = 'Delete',
+	Rename = 'Rename',
+	CorruptZip = 'CorruptZip',
+	IncompleteZip = 'IncompleteZip',
+	Internal = 'Internal',
 }
 
 export class ExtensionManagementError extends Error {
