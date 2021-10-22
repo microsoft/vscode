@@ -300,22 +300,20 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncResourceEnablementService, new SyncDescriptor(UserDataSyncResourceEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
-		// Terminal
-		services.set(
-			ILocalPtyService,
-			this._register(
-				new PtyHostService({
-					graceTime: LocalReconnectConstants.GraceTime,
-					shortGraceTime: LocalReconnectConstants.ShortGraceTime,
-					scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-				},
-					configurationService,
-					environmentService,
-					logService,
-					telemetryService
-				)
-			)
+		const ptyHostService = new PtyHostService({
+			graceTime: LocalReconnectConstants.GraceTime,
+			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		},
+			configurationService,
+			environmentService,
+			logService,
+			telemetryService
 		);
+		await ptyHostService.initialize();
+
+		// Terminal
+		services.set(ILocalPtyService, this._register(ptyHostService));
 
 		// Extension Host
 		services.set(IExtensionHostStarter, this._register(new ExtensionHostStarter(logService)));
