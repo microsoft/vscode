@@ -236,13 +236,11 @@ class TestOutputProcess extends Disposable implements ITerminalChildProcess {
 	}
 
 	public refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		// no-op
-		return Promise.resolve('' as IProcessPropertyMap[T]);
+		throw new Error(`refreshProperty is not suppported in TestOutputProcesses. property: ${property}`);
 	}
 
 	public updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
-		// no-op
-		return Promise.resolve();
+		throw new Error(`updateProperty is not suppported in TestOutputProcesses. property: ${property}, value: ${value}`);
 	}
 	//#endregion
 }
