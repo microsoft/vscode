@@ -1004,6 +1004,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// over to us)
 			else if (pathStat.isDirectory()) {
 				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+			} else if (path === '/dev/null') {
+				return { fileUri: URI.file(path), exists: false };
 			}
 		} catch (error) {
 			const fileUri = URI.file(path);
