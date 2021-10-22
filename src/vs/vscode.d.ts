@@ -5746,7 +5746,7 @@ declare module 'vscode' {
 		 * The priority of this item. Higher value means the item should
 		 * be shown more to the left.
 		 */
-		readonly priority?: number;
+		readonly priority: number | undefined;
 
 		/**
 		 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc.
@@ -5802,7 +5802,7 @@ declare module 'vscode' {
 		/**
 		 * Accessibility information used when a screen reader interacts with this StatusBar item
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		accessibilityInformation: AccessibilityInformation | undefined;
 
 		/**
 		 * Shows the entry in the status bar.
