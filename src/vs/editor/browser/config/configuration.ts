@@ -238,29 +238,13 @@ class CSSBasedConfiguration extends Disposable {
 		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
 
 		// monospace test: some characters
-		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('/', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('-', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Regular, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Regular, all, monospace);
+		const monospaceTestChars = '|/-_ilm%';
+		for (let i = 0, len = monospaceTestChars.length; i < len; i++) {
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Regular, all, monospace);
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Italic, all, monospace);
+			this.createRequest(monospaceTestChars.charAt(i), CharWidthRequestType.Bold, all, monospace);
 
-		// monospace italic test
-		this.createRequest('|', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Italic, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Italic, all, monospace);
-
-		// monospace bold test
-		this.createRequest('|', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('_', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('i', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('l', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('m', CharWidthRequestType.Bold, all, monospace);
-		this.createRequest('n', CharWidthRequestType.Bold, all, monospace);
+		}
 
 		readCharWidths(bareFontInfo, all);
 
