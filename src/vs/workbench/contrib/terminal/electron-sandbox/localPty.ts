@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
@@ -20,7 +20,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
 		title: '',
-		shellType: WindowsShellType.PowerShell
+		shellType: undefined,
+		hasChildProcesses: true,
+		resolvedShellLaunchConfig: {},
+		overrideDimensions: undefined
 	};
 	private _capabilities: ProcessCapability[] = [];
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
@@ -32,12 +35,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessOverrideDimensions = this._register(new Emitter<ITerminalDimensionsOverride | undefined>());
-	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
-	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<IShellLaunchConfig>());
-	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 
@@ -112,15 +109,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		this._capabilities = e.capabilities;
 		this._onProcessReady.fire(e);
 	}
-	handleOverrideDimensions(e: ITerminalDimensionsOverride | undefined) {
-		this._onProcessOverrideDimensions.fire(e);
-	}
-	handleResolvedShellLaunchConfig(e: IShellLaunchConfig) {
-		this._onProcessResolvedShellLaunchConfig.fire(e);
-	}
-	handleDidChangeHasChildProcesses(e: boolean) {
-		this._onDidChangeHasChildProcesses.fire(e);
-	}
 	handleDidChangeProperty(e: IProcessProperty<any>) {
 		if (e.type === ProcessPropertyType.Cwd) {
 			this._properties.cwd = e.value;
@@ -136,7 +124,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			for (const innerEvent of e.events) {
 				if (innerEvent.cols !== 0 || innerEvent.rows !== 0) {
 					// never override with 0x0 as that is a marker for an unknown initial size
-					this._onProcessOverrideDimensions.fire({ cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true });
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: { cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true } });
 				}
 				const e: IProcessDataEvent = { data: innerEvent.data, trackCommit: true };
 				this._onProcessData.fire(e);
@@ -147,7 +135,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		}
 
 		// remove size override
-		this._onProcessOverrideDimensions.fire(undefined);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: undefined });
 	}
 
 	handleOrphanQuestion() {

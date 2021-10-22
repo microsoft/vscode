@@ -182,7 +182,10 @@ export const enum ProcessPropertyType {
 	InitialCwd = 'initialCwd',
 	FixedDimensions = 'fixedDimensions',
 	Title = 'title',
-	ShellType = 'shellType'
+	ShellType = 'shellType',
+	HasChildProcesses = 'hasChildProcesses',
+	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -195,7 +198,10 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.InitialCwd]: string,
 	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
 	[ProcessPropertyType.Title]: string
-	[ProcessPropertyType.ShellType]: TerminalShellType
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
+	[ProcessPropertyType.HasChildProcesses]: boolean,
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -223,12 +229,9 @@ export interface IPtyService {
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>;
-	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
-	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onProcessDidChangeHasChildProcesses: Event<{ id: number, event: boolean }>;
 	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
 
 	restartPtyHost?(): Promise<void>;
@@ -528,9 +531,6 @@ export interface ITerminalChildProcess {
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
 	onProcessReady: Event<IProcessReadyEvent>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-	onDidChangeHasChildProcesses?: Event<boolean>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 
 	/**

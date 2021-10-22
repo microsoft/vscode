@@ -1231,20 +1231,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 			this._processManager.onDidChangeProperty(e => {
-				if (e.type === ProcessPropertyType.Cwd) {
-					this._cwd = e.value;
-					this._labelComputer?.refreshLabel();
-				} else if (e.type === ProcessPropertyType.InitialCwd) {
-					this._initialCwd = e.value;
-					this._cwd = this._initialCwd;
-					this.refreshTabLabels(this.title, TitleEventSource.Api);
-				} else if (e.type === ProcessPropertyType.Title) {
-					// TODO: is message title disposable needed here?
-					// before was:
-					// this._messageTitleDisposable = this._processManager.onDidChangeProperty(property => {
-					this.refreshTabLabels(e.value ? e.value : '', TitleEventSource.Process);
+				switch (e.type) {
+					case ProcessPropertyType.Cwd:
+						this._cwd = e.value;
+						this._labelComputer?.refreshLabel();
+						break;
+					case ProcessPropertyType.InitialCwd:
+						this._initialCwd = e.value;
+						this._cwd = this._initialCwd;
+						this.refreshTabLabels(this.title, TitleEventSource.Api);
+						break;
+					case ProcessPropertyType.Title:
+						// TODO: is message title disposable needed here?
+						// before was:
+						// this._messageTitleDisposable = this._processManager.onDidChangeProperty(property => {
+						this.refreshTabLabels(e.value ? e.value : '', TitleEventSource.Process);
+						break;
+					case ProcessPropertyType.OverrideDimensions:
+						this.setOverrideDimensions(e.value, true);
+						break;
+					case ProcessPropertyType.ResolvedShellLaunchConfig:
+						this._setResolvedShellLaunchConfig(e.value);
+						break;
+					case ProcessPropertyType.HasChildProcesses:
+						this._onDidChangeHasChildProcesses.fire(e.value);
+						break;
 				}
 			});
+
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
@@ -1262,9 +1276,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._initialDataEvents?.push(ev.data);
 					this._onData.fire(ev.data);
 				});
-				this._processManager.onProcessOverrideDimensions(e => this.setOverrideDimensions(e, true));
-				this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
-				this._processManager.onProcessDidChangeHasChildProcesses(e => this._onDidChangeHasChildProcesses.fire(e));
 				this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 				this._processManager.onPtyDisconnect(() => {
 					this._safeSetOption('disableStdin', true);
