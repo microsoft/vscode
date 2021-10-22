@@ -6,6 +6,7 @@
 import { Barrier } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
@@ -153,6 +154,10 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			case ProcessPropertyType.InitialCwd:
 				this._properties.initialCwd = value;
 				break;
+			case ProcessPropertyType.ResolvedShellLaunchConfig:
+				if (value.cwd && typeof value.cwd !== 'string') {
+					value.cwd = URI.revive(value.cwd);
+				}
 		}
 		this._onDidChangeProperty.fire({ type, value });
 	}

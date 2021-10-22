@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, ProcessCapability, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Responsible for establishing and maintaining a connection with an existing terminal process
@@ -113,6 +114,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			case ProcessPropertyType.InitialCwd:
 				this._properties.initialCwd = value;
 				break;
+			case ProcessPropertyType.ResolvedShellLaunchConfig:
+				if (value.cwd && typeof value.cwd !== 'string') {
+					value.cwd = URI.revive(value.cwd);
+				}
 		}
 		this._onDidChangeProperty.fire({ type, value });
 	}

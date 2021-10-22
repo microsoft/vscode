@@ -778,9 +778,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			processDiposable.dispose();
 			delete this._terminalProcessDisposables[id];
 		}
-
-		// Send exit event to main side
-		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal | null {
