@@ -1752,6 +1752,9 @@
 			"end": "(?<=\\})",
 			"patterns": [
 				{
+					"include": "#comment"
+				},
+				{
 					"begin": "\\(",
 					"beginCaptures": {
 						"0": {
