@@ -25,7 +25,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SIDE_BY_SIDE_EDITOR_BORDER } from 'vs/workbench/common/theme';
+import { SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER, SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER } from 'vs/workbench/common/theme';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -433,13 +433,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			if (this.orientation === Orientation.HORIZONTAL) {
 				this.primaryEditorContainer.style.borderLeftWidth = '1px';
 				this.primaryEditorContainer.style.borderLeftStyle = 'solid';
-				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderLeftColor = this.getColor(SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER)?.toString() ?? '';
 
 				this.primaryEditorContainer.style.borderTopWidth = '0';
 			} else {
 				this.primaryEditorContainer.style.borderTopWidth = '1px';
 				this.primaryEditorContainer.style.borderTopStyle = 'solid';
-				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_BORDER)?.toString() ?? '';
+				this.primaryEditorContainer.style.borderTopColor = this.getColor(SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER)?.toString() ?? '';
 
 				this.primaryEditorContainer.style.borderLeftWidth = '0';
 			}

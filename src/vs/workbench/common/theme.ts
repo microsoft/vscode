@@ -243,11 +243,17 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, localize('editorDragAndDropBackground', "Background color when dragging editors around. The color should have transparency so that the editor contents can still shine through."));
 
-export const SIDE_BY_SIDE_EDITOR_BORDER = registerColor('sideBySideEditor.border', {
+export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEditor.horizontalBorder', {
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,
 	hc: EDITOR_GROUP_BORDER
-}, localize('sideBySideEditor.border', "Color to separate two editors from each other when shown side by side in an editor group."));
+}, localize('sideBySideEditor.horizontalBorder', "Color to separate two editors from each other when shown side by side in an editor group from top to bottom."));
+
+export const SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER = registerColor('sideBySideEditor.verticalBorder', {
+	dark: EDITOR_GROUP_BORDER,
+	light: EDITOR_GROUP_BORDER,
+	hc: EDITOR_GROUP_BORDER
+}, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group from left to right."));
 
 // < --- Panels --- >
 
