@@ -54,23 +54,24 @@ export interface IButtonWithDescription extends IButton {
 	description: string;
 }
 
-export class Button extends Disposable implements IButton {
+export class GenericButton extends Disposable {
 
 	protected _element: HTMLElement;
 	protected options: IButtonOptions;
+	protected buttonForeground: Color | undefined;
+	protected buttonBackground: Color | undefined;
+	protected buttonHoverBackground: Color | undefined;
 
-	private buttonBackground: Color | undefined;
-	private buttonHoverBackground: Color | undefined;
-	private buttonForeground: Color | undefined;
-	private buttonSecondaryBackground: Color | undefined;
-	private buttonSecondaryHoverBackground: Color | undefined;
-	private buttonSecondaryForeground: Color | undefined;
-	private buttonBorder: Color | undefined;
+	protected buttonSecondaryBackground: Color | undefined;
+	protected buttonSecondaryHoverBackground: Color | undefined;
+	protected buttonSecondaryForeground: Color | undefined;
+
+	protected buttonBorder: Color | undefined;
+
+	private focusTracker: IFocusTracker;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
-
-	private focusTracker: IFocusTracker;
 
 	constructor(container: HTMLElement, options?: IButtonOptions) {
 		super();
@@ -89,9 +90,6 @@ export class Button extends Disposable implements IButton {
 		this.buttonBorder = this.options.buttonBorder;
 
 		this._element = document.createElement('a');
-		this._element.classList.add('monaco-button');
-		this._element.tabIndex = 0;
-		this._element.setAttribute('role', 'button');
 
 		container.appendChild(this._element);
 
@@ -142,7 +140,7 @@ export class Button extends Disposable implements IButton {
 		this.applyStyles();
 	}
 
-	private setHoverBackground(): void {
+	protected setHoverBackground(): void {
 		let hoverBackground;
 		if (this.options.secondary) {
 			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
@@ -166,7 +164,7 @@ export class Button extends Disposable implements IButton {
 		this.applyStyles();
 	}
 
-	private applyStyles(): void {
+	protected applyStyles(): void {
 		if (this._element) {
 			let background, foreground;
 			if (this.options.secondary) {
@@ -190,20 +188,6 @@ export class Button extends Disposable implements IButton {
 
 	get element(): HTMLElement {
 		return this._element;
-	}
-
-	set label(value: string) {
-		this._element.classList.add('monaco-text-button');
-		if (this.options.supportIcons) {
-			reset(this._element, ...renderLabelWithIcons(value));
-		} else {
-			this._element.textContent = value;
-		}
-		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
-		} else if (this.options.title) {
-			this._element.title = value;
-		}
 	}
 
 	set icon(icon: CSSIcon) {
@@ -231,6 +215,31 @@ export class Button extends Disposable implements IButton {
 
 	hasFocus(): boolean {
 		return this._element === document.activeElement;
+	}
+}
+
+export class Button extends GenericButton implements IButton {
+
+	constructor(container: HTMLElement, options?: IButtonOptions) {
+		super(container, options);
+
+		this.element.classList.add('monaco-button');
+		this.element.tabIndex = 0;
+		this.element.setAttribute('role', 'button');
+	}
+
+	set label(value: string) {
+		this.element.classList.add('monaco-text-button');
+		if (this.options.supportIcons) {
+			reset(this.element, ...renderLabelWithIcons(value));
+		} else {
+			this.element.textContent = value;
+		}
+		if (typeof this.options.title === 'string') {
+			this.element.title = this.options.title;
+		} else if (this.options.title) {
+			this.element.title = value;
+		}
 	}
 }
 
@@ -307,7 +316,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	}
 }
 
-export class ButtonWithDescription extends Button implements IButtonWithDescription {
+export class ButtonWithDescription extends GenericButton implements IButtonWithDescription {
 
 	private _labelElement: HTMLElement;
 	private _descriptionElement: HTMLElement;
@@ -315,20 +324,23 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 	constructor(container: HTMLElement, options?: IButtonOptions) {
 		super(container, options);
 
-		this._element.classList.add('monaco-description-button');
+		this.element.classList.add('monaco-button');
+		this.element.classList.add('monaco-description-button');
+		this.element.tabIndex = 0;
+		this.element.setAttribute('role', 'button');
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
 		this._labelElement.tabIndex = -1;
-		this._element.appendChild(this._labelElement);
+		this.element.appendChild(this._labelElement);
 
 		this._descriptionElement = document.createElement('div');
 		this._descriptionElement.classList.add('monaco-button-description');
 		this._descriptionElement.tabIndex = -1;
-		this._element.appendChild(this._descriptionElement);
+		this.element.appendChild(this._descriptionElement);
 	}
 
-	override set label(value: string) {
+	set label(value: string) {
 		this._element.classList.add('monaco-text-button');
 		if (this.options.supportIcons) {
 			reset(this._labelElement, ...renderLabelWithIcons(value));
@@ -336,9 +348,9 @@ export class ButtonWithDescription extends Button implements IButtonWithDescript
 			this._labelElement.textContent = value;
 		}
 		if (typeof this.options.title === 'string') {
-			this._element.title = this.options.title;
+			this.element.title = this.options.title;
 		} else if (this.options.title) {
-			this._element.title = value;
+			this.element.title = value;
 		}
 	}
 
