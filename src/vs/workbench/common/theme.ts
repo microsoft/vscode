@@ -247,13 +247,13 @@ export const SIDE_BY_SIDE_EDITOR_HORIZONTAL_BORDER = registerColor('sideBySideEd
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,
 	hc: EDITOR_GROUP_BORDER
-}, localize('sideBySideEditor.horizontalBorder', "Color to separate two editors from each other when shown side by side in an editor group horizontally."));
+}, localize('sideBySideEditor.horizontalBorder', "Color to separate two editors from each other when shown side by side in an editor group from top to bottom."));
 
 export const SIDE_BY_SIDE_EDITOR_VERTICAL_BORDER = registerColor('sideBySideEditor.verticalBorder', {
 	dark: EDITOR_GROUP_BORDER,
 	light: EDITOR_GROUP_BORDER,
 	hc: EDITOR_GROUP_BORDER
-}, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group vertically."));
+}, localize('sideBySideEditor.verticalBorder', "Color to separate two editors from each other when shown side by side in an editor group from left to right."));
 
 // < --- Panels --- >
 
