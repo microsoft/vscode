@@ -36,7 +36,7 @@ flakySuite('Recursive Watcher (parcel)', () => {
 
 		async whenReady(): Promise<void> {
 			for (const [, watcher] of this.watchers) {
-				await watcher.instance;
+				await watcher.ready;
 			}
 		}
 
@@ -224,6 +224,26 @@ flakySuite('Recursive Watcher (parcel)', () => {
 		// Delete folder
 		changeFuture = awaitEvent(service, copiedFolderpath, FileChangeType.DELETED);
 		await Promises.rmdir(copiedFolderpath);
+		await changeFuture;
+	});
+
+	(!isLinux /* polling is only used in linux environments (WSL) */ ? test.skip : test)('basics (polling)', async function () {
+		await service.watch([{ path: testDir, excludes: [], pollingInterval: 100 }]);
+
+		// New file
+		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		let changeFuture: Promise<unknown> = awaitEvent(service, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+		await changeFuture;
+
+		// Change file
+		changeFuture = awaitEvent(service, newFilePath, FileChangeType.UPDATED);
+		await Promises.writeFile(newFilePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(service, newFilePath, FileChangeType.DELETED);
+		await Promises.unlink(newFilePath);
 		await changeFuture;
 	});
 

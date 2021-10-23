@@ -14,11 +14,6 @@ import { IFileChange, IWatchOptions } from 'vs/platform/files/common/files';
 import { IDiskFileChange, ILogMessage, IWatchRequest, toFileChanges, WatcherService } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
-export interface IWatcherOptions {
-	pollingInterval?: number;
-	usePolling: boolean | string[];
-}
-
 export abstract class AbstractDiskFileSystemProvider extends Disposable {
 
 	constructor(
@@ -93,7 +88,11 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable {
 		}
 
 		// Ask to watch the provided folders
-		return this.recursiveWatcher.watch(this.recursiveFoldersToWatch);
+		return this.doWatch(this.recursiveWatcher, this.recursiveFoldersToWatch);
+	}
+
+	protected doWatch(watcher: WatcherService, requests: IWatchRequest[]): Promise<void> {
+		return watcher.watch(requests);
 	}
 
 	protected abstract createRecursiveWatcher(

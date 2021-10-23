@@ -68,6 +68,12 @@ export interface IWatchRequest {
 	 * A set of glob patterns or paths to exclude from watching.
 	 */
 	excludes: string[];
+
+	/**
+	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
+	 * support ends.
+	 */
+	pollingInterval?: number;
 }
 
 export interface IDiskFileChange {

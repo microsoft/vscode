@@ -24,7 +24,7 @@ import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watc
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as ParcelWatcherService } from 'vs/platform/files/node/watcher/parcel/watcherService';
 import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watcher/unix/watcherService';
-import { IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/common/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
@@ -43,8 +43,24 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 })();
 
 export interface IWatcherOptions {
-	pollingInterval?: number;
+
+	/**
+	 * If `true`, will enable polling for all watchers, otherwise
+	 * will enable it for paths included in the string array.
+	 *
+	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
+	 * support ends.
+	 */
 	usePolling: boolean | string[];
+
+	/**
+	 * If polling is enabled (via `usePolling`), defines the duration
+	 * in which the watcher will poll for changes.
+	 *
+	 * @deprecated TODO@bpasero TODO@aeschli remove me once WSL1
+	 * support ends.
+	 */
+	pollingInterval?: number;
 }
 
 export interface IDiskFileSystemProviderOptions {
@@ -552,17 +568,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			): WatcherService
 		};
 
-		let watcherOptions: IWatcherOptions | undefined = undefined;
-
-		// requires a polling watcher
+		let enableLegacyWatcher = false;
 		if (this.options?.watcher?.usePolling) {
-			watcherImpl = UnixWatcherService;
-			watcherOptions = this.options?.watcher;
-		}
-
-		// can use efficient watcher
-		else {
-			let enableLegacyWatcher = false;
+			enableLegacyWatcher = false; // can use Parcel watcher for when polling is required
+		} else {
 			if (this.options?.legacyWatcher === 'on' || this.options?.legacyWatcher === 'off') {
 				enableLegacyWatcher = this.options.legacyWatcher === 'on'; // setting always wins
 			} else {
@@ -572,24 +581,41 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					enableLegacyWatcher = folders === 1;
 				}
 			}
+		}
 
-			if (enableLegacyWatcher) {
-				if (isLinux) {
-					watcherImpl = UnixWatcherService;
-				} else {
-					watcherImpl = NsfwWatcherService;
-				}
+		if (enableLegacyWatcher) {
+			if (isLinux) {
+				watcherImpl = UnixWatcherService;
 			} else {
-				watcherImpl = ParcelWatcherService;
+				watcherImpl = NsfwWatcherService;
 			}
+		} else {
+			watcherImpl = ParcelWatcherService;
 		}
 
 		return new watcherImpl(
 			changes => onChange(changes),
 			msg => onLogMessage(msg),
 			verboseLogging,
-			watcherOptions
+			this.options?.watcher
 		);
+	}
+
+	protected override doWatch(watcher: WatcherService, requests: IWatchRequest[]): Promise<void> {
+		const usePolling = this.options?.watcher?.usePolling;
+		if (usePolling === true) {
+			for (const request of requests) {
+				request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+			}
+		} else if (Array.isArray(usePolling)) {
+			for (const request of requests) {
+				if (usePolling.includes(request.path)) {
+					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
+				}
+			}
+		}
+
+		return super.doWatch(watcher, requests);
 	}
 
 	protected createNonRecursiveWatcher(
