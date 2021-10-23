@@ -1235,35 +1235,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._onTitleChanged.fire(this);
 				});
 			}
-			this._processManager.onDidChangeProperty(({ type, value }) => {
-				switch (type) {
-					case ProcessPropertyType.Cwd:
-						this._cwd = value;
-						this._labelComputer?.refreshLabel();
-						break;
-					case ProcessPropertyType.InitialCwd:
-						this._initialCwd = value;
-						this._cwd = this._initialCwd;
-						this.refreshTabLabels(this.title, TitleEventSource.Api);
-						break;
-					case ProcessPropertyType.Title:
-						this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
-						break;
-					case ProcessPropertyType.OverrideDimensions:
-						this.setOverrideDimensions(value, true);
-						break;
-					case ProcessPropertyType.ResolvedShellLaunchConfig:
-						this._setResolvedShellLaunchConfig(value);
-						break;
-					case ProcessPropertyType.HasChildProcesses:
-						this._onDidChangeHasChildProcesses.fire(value);
-						break;
-					case ProcessPropertyType.Exit:
-						this._onProcessExit(value);
-						break;
-				}
-			});
-
 			if (this._shellLaunchConfig.name) {
 				this.refreshTabLabels(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
@@ -1275,6 +1246,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					});
 				});
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
+			}
+		});
+		this._processManager.onDidChangeProperty(({ type, value }) => {
+			switch (type) {
+				case ProcessPropertyType.Cwd:
+					this._cwd = value;
+					this._labelComputer?.refreshLabel();
+					break;
+				case ProcessPropertyType.InitialCwd:
+					this._initialCwd = value;
+					this._cwd = this._initialCwd;
+					this.refreshTabLabels(this.title, TitleEventSource.Api);
+					break;
+				case ProcessPropertyType.Title:
+					this.refreshTabLabels(value ? value : '', TitleEventSource.Process);
+					break;
+				case ProcessPropertyType.OverrideDimensions:
+					this.setOverrideDimensions(value, true);
+					break;
+				case ProcessPropertyType.ResolvedShellLaunchConfig:
+					this._setResolvedShellLaunchConfig(value);
+					break;
+				case ProcessPropertyType.HasChildProcesses:
+					this._onDidChangeHasChildProcesses.fire(value);
+					break;
+				case ProcessPropertyType.Exit:
+					this._onProcessExit(value);
+					break;
 			}
 		});
 
