@@ -17,7 +17,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename, join, normalize, posix } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
@@ -974,6 +974,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		try {
 			const pathStat = statSync(path);
+
+			// File
 			if (pathStat.isFile()) {
 
 				// Workspace (unless disabled via flag)
@@ -991,7 +993,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					}
 				}
 
-				// File
 				return {
 					fileUri: URI.file(path),
 					selection: lineNumber ? { startLineNumber: lineNumber, startColumn: columnNumber || 1 } : undefined,
@@ -999,11 +1000,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				};
 			}
 
-			// Folder (we check for isDirectory() because e.g. paths like /dev/null
-			// are neither file nor folder but some external tools might pass them
-			// over to us)
+			// Folder
 			else if (pathStat.isDirectory()) {
-				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+				return {
+					workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat),
+					exists: true
+				};
+			}
+
+			// Special device: in POSIX environments, we may get /dev/null passed
+			// in (for example git uses it to signal one side of a diff does not
+			// exist). In that special case, treat it like a file to support this
+			// scenario ()
+			else if (!isWindows && path === '/dev/null') {
+				return {
+					fileUri: URI.file(path),
+					exists: true
+				};
 			}
 		} catch (error) {
 			const fileUri = URI.file(path);
@@ -1013,7 +1026,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// assume this is a file that does not yet exist
 			if (options.ignoreFileNotFound) {
-				return { fileUri, exists: false };
+				return {
+					fileUri,
+					exists: false
+				};
 			}
 		}
 
