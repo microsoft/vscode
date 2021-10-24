@@ -136,6 +136,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		code,
 		.code {
+			font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace);
 			font-size: 1em;
 			line-height: 1.357em;
 		}
