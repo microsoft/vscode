@@ -1550,7 +1550,7 @@ declare module 'vscode' {
 		 * Notify all subscribers of the {@link EventEmitter.event event}. Failure
 		 * of one or more listener will not fail this function call.
 		 *
-		 * @param data The event object.
+		 * @param data A value passed to event listeners.
 		 */
 		fire(data: T): void;
 
