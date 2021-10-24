@@ -115,7 +115,16 @@
 }
 
 .extension-editor > .header > .details > .subtitle .publisher {
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher-name {
 	font-size: 18px;
+}
+
+.extension-editor > .header > .details > .subtitle .publisher-name:not(:first-child) {
+	padding-left: 1px;
 }
 
 .extension-editor > .header > .details > .subtitle,

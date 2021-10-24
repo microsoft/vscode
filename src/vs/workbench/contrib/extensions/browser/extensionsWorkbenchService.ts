@@ -112,6 +112,10 @@ class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
+	get publisherDomain(): { link: string, verified: boolean } | undefined {
+		return this.gallery?.publisherDomain;
+	}
+
 	get version(): string {
 		return this.local ? this.local.manifest.version : this.latestVersion;
 	}

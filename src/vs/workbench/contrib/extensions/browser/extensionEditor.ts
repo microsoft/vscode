@@ -69,7 +69,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -142,6 +142,8 @@ interface IExtensionEditorTemplate {
 	builtin: HTMLElement;
 	version: HTMLElement;
 	publisher: HTMLElement;
+	publisherDisplayName: HTMLElement;
+	verifiedPublisherIcon: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
 	description: HTMLElement;
@@ -228,8 +230,10 @@ export class ExtensionEditor extends EditorPane {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
 		publisher.setAttribute('role', 'button');
+		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
+		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 		rating.setAttribute('role', 'link'); // #132645
@@ -278,6 +282,8 @@ export class ExtensionEditor extends EditorPane {
 			navbar,
 			preview,
 			publisher,
+			publisherDisplayName,
+			verifiedPublisherIcon,
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
@@ -366,8 +372,10 @@ export class ExtensionEditor extends EditorPane {
 		template.name.classList.toggle('clickable', !!extension.url);
 
 		// subtitle
-		template.publisher.textContent = extension.publisherDisplayName;
 		template.publisher.classList.toggle('clickable', !!extension.url);
+		template.publisherDisplayName.textContent = extension.publisherDisplayName;
+		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		template.publisher.title = extension.publisherDomain?.link ?? '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 
@@ -837,12 +845,15 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url && extension.licenseUrl) {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
+		if (extension.publisherDomain?.verified) {
+			resources.push([extension.publisherDisplayName, URI.parse(extension.publisherDomain.link)]);
+		}
 		if (resources.length) {
 			const resourcesContainer = append(container, $('.resources-container'));
 			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(resourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
-				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
+				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', { title: uri.toString() }, label)), () => this.openerService.open(uri)));
 			}
 		}
 	}

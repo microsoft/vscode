@@ -243,6 +243,7 @@ export interface IGalleryExtension {
 	publisherId: string;
 	publisher: string;
 	publisherDisplayName: string;
+	publisherDomain?: { link: string, verified: boolean };
 	description: string;
 	installCount: number;
 	rating: number;
