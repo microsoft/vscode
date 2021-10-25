@@ -13,6 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
@@ -136,93 +137,97 @@ flakySuite('BackupMainService', () => {
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
+		runWithFakedTimers({}, async () => {
 
-		// 1) backup workspace path does not exist
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
+			// 1) backup workspace path does not exist
+			service.registerFolderBackupSync(fooFile);
+			service.registerFolderBackupSync(barFile);
+			await service.initialize();
+			assertEqualUris(service.getFolderBackupPaths(), []);
 
-		// 2) backup workspace path exists with empty contents within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+			// 2) backup workspace path exists with empty contents within
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			service.registerFolderBackupSync(fooFile);
+			service.registerFolderBackupSync(barFile);
+			await service.initialize();
+			assertEqualUris(service.getFolderBackupPaths(), []);
+			assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
+			assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
-		// 3) backup workspace path exists with empty folders within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
-		fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
-		service.registerFolderBackupSync(fooFile);
-		service.registerFolderBackupSync(barFile);
-		await service.initialize();
-		assertEqualUris(service.getFolderBackupPaths(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+			// 3) backup workspace path exists with empty folders within
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
+			fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
+			service.registerFolderBackupSync(fooFile);
+			service.registerFolderBackupSync(barFile);
+			await service.initialize();
+			assertEqualUris(service.getFolderBackupPaths(), []);
+			assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
+			assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
-		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
-		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(fileBackups);
-		service.registerFolderBackupSync(fooFile);
-		assert.strictEqual(service.getFolderBackupPaths().length, 1);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
-		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
-		await service.initialize();
-		assert.strictEqual(service.getFolderBackupPaths().length, 0);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+			// 4) backup workspace path points to a workspace that no longer exists
+			// so it should convert the backup worspace to an empty workspace backup
+			const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			fs.mkdirSync(fileBackups);
+			service.registerFolderBackupSync(fooFile);
+			assert.strictEqual(service.getFolderBackupPaths().length, 1);
+			assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
+			fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
+			await service.initialize();
+			assert.strictEqual(service.getFolderBackupPaths().length, 0);
+			assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+		});
 	});
 
 	test('service validates backup workspaces on startup and cleans up (root workspaces)', async function () {
+		runWithFakedTimers({}, async () => {
 
-		// 1) backup workspace path does not exist
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+			// 1) backup workspace path does not exist
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
+			await service.initialize();
+			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
 
-		// 2) backup workspace path exists with empty contents within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+			// 2) backup workspace path exists with empty contents within
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
+			await service.initialize();
+			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+			assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
+			assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
-		// 3) backup workspace path exists with empty folders within
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
-		fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
-		await service.initialize();
-		assert.deepStrictEqual(service.getWorkspaceBackups(), []);
-		assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
-		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
+			// 3) backup workspace path exists with empty folders within
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			fs.mkdirSync(path.join(service.toBackupPath(fooFile), Schemas.file));
+			fs.mkdirSync(path.join(service.toBackupPath(barFile), Schemas.untitled));
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(barFile.fsPath));
+			await service.initialize();
+			assert.deepStrictEqual(service.getWorkspaceBackups(), []);
+			assert.ok(!fs.existsSync(service.toBackupPath(fooFile)));
+			assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
-		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
-		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
-		fs.mkdirSync(service.toBackupPath(fooFile));
-		fs.mkdirSync(service.toBackupPath(barFile));
-		fs.mkdirSync(fileBackups);
-		service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
-		assert.strictEqual(service.getWorkspaceBackups().length, 1);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
-		fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
-		await service.initialize();
-		assert.strictEqual(service.getWorkspaceBackups().length, 0);
-		assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+			// 4) backup workspace path points to a workspace that no longer exists
+			// so it should convert the backup worspace to an empty workspace backup
+			const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
+			fs.mkdirSync(service.toBackupPath(fooFile));
+			fs.mkdirSync(service.toBackupPath(barFile));
+			fs.mkdirSync(fileBackups);
+			service.registerWorkspaceBackupSync(toWorkspaceBackupInfo(fooFile.fsPath));
+			assert.strictEqual(service.getWorkspaceBackups().length, 1);
+			assert.strictEqual(service.getEmptyWindowBackupPaths().length, 0);
+			fs.writeFileSync(path.join(fileBackups, 'backup.txt'), '');
+			await service.initialize();
+			assert.strictEqual(service.getWorkspaceBackups().length, 0);
+			assert.strictEqual(service.getEmptyWindowBackupPaths().length, 1);
+		});
 	});
 
 	test('service supports to migrate backup data from another location', () => {
