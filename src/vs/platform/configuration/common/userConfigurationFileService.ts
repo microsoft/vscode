@@ -66,7 +66,7 @@ export class UserConfigurationFileService implements IUserConfigurationFileServi
 		if (edit) {
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 			try {
-				await this.write(VSBuffer.fromString(content), { etag, mtime });
+				await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(content), { etag, mtime });
 			} catch (error) {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					throw new Error(UserConfigurationErrorCode.ERROR_FILE_MODIFIED_SINCE);
@@ -76,7 +76,10 @@ export class UserConfigurationFileService implements IUserConfigurationFileServi
 	}
 
 	async write(content: VSBuffer, options?: IWriteFileOptions): Promise<void> {
-		await this.fileService.writeFile(this.environmentService.settingsResource, content, options);
+		// queue up writes to prevent race conditions
+		return this.queue.queue(async () => {
+			await this.fileService.writeFile(this.environmentService.settingsResource, content, options);
+		});
 	}
 
 	private getEdits({ value, path }: IJSONValue, modelContent: string, formattingOptions: FormattingOptions): Edit[] {
