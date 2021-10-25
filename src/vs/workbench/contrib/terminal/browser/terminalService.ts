@@ -580,7 +580,7 @@ export class TerminalService implements ITerminalService {
 		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 		if (shouldReviveProcesses) {
-			await this._localTerminalService?.persistTerminalState();
+			await this._primaryOffProcessTerminalService?.persistTerminalState();
 		}
 
 		// Persist terminal _processes_
@@ -648,7 +648,7 @@ export class TerminalService implements ITerminalService {
 
 		// Clear terminal layout info only when not persisting
 		if (!this._shouldReviveProcesses(e.reason)) {
-			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+			this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(undefined);
 		}
 	}
 
