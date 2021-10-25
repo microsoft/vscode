@@ -1363,6 +1363,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
+		if (this._connectionState === TerminalConnectionState.Connecting && this.activeInstance) {
+			const group = this._terminalGroupService.getGroupForInstance(this.activeInstance);
+			return group?.terminalInstances[group.terminalInstances.length - 1];
+		}
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
 		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
