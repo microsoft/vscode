@@ -702,7 +702,7 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			if (document?.uri !== uri) {
+			if (document?.uri.toString() !== uri.toString()) {
 				continue;
 			}
 
