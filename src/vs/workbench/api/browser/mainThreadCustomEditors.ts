@@ -646,7 +646,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			backupId: '',
 			extension: primaryEditor.extension ? {
 				id: primaryEditor.extension.id.value,
-				location: primaryEditor.extension.location,
+				location: primaryEditor.extension.location!,
 			} : undefined,
 			webview: {
 				id: primaryEditor.id,

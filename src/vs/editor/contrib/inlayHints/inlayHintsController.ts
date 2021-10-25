@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -230,7 +230,7 @@ export class InlayHintsController implements IEditorContribution {
 				contentText: fixSpace(text),
 				fontSize: `${fontSize}px`,
 				margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
-				fontFamily: `var(${fontFamilyVar})`,
+				fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 				padding: `1px ${Math.max(1, fontSize / 4) | 0}px`,
 				borderRadius: `${(fontSize / 4) | 0}px`,
 				verticalAlign: 'middle',

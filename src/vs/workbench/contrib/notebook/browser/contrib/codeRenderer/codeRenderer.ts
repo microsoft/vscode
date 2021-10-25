@@ -36,7 +36,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 
 	abstract render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput;
 
-	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
+	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, languageId: string): IRenderOutput {
 		const disposable = new DisposableStore();
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true, contributions: this.notebookEditor.creationOptions.cellEditorContributions });
 
@@ -60,7 +60,7 @@ abstract class CodeRendererContrib extends Disposable implements IOutputTransfor
 			container.style.height = `${editorHeight + 8}px`;
 		}));
 
-		const mode = this.modeService.create(modeId);
+		const mode = this.modeService.create(languageId);
 		const textModel = this.modelService.createModel(value, mode, undefined, false);
 		editor.setModel(textModel);
 
@@ -108,8 +108,8 @@ export class NotebookCodeRendererContribution extends Disposable {
 			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
-		this._register(_modeService.onDidEncounterLanguage((languageIdentifier) => {
-			registerCodeRendererContrib(`text/x-${languageIdentifier.language}`, languageIdentifier.language);
+		this._register(_modeService.onDidEncounterLanguage((languageId) => {
+			registerCodeRendererContrib(`text/x-${languageId}`, languageId);
 		}));
 
 		registerCodeRendererContrib('application/json', 'json');

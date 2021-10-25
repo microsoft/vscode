@@ -1,3 +1,6 @@
+pool:
+  vmImage: "ubuntu-latest"
+
 trigger:
   branches:
     include: ["main", "release/*"]

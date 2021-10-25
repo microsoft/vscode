@@ -6,9 +6,12 @@
 import * as assert from 'assert';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Token } from 'vs/editor/common/core/token';
-import { IState, LanguageId, LanguageIdentifier, MetadataConsts } from 'vs/editor/common/modes';
+import { IState, LanguageId, MetadataConsts } from 'vs/editor/common/modes';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
@@ -17,8 +20,8 @@ import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/comm
 
 suite('TokenizationSupport2Adapter', () => {
 
-	const languageIdentifier = new LanguageIdentifier('tttt', LanguageId.PlainText);
-	const tokenMetadata = (languageIdentifier.id << MetadataConsts.LANGUAGEID_OFFSET);
+	const languageId = 'tttt';
+	// const tokenMetadata = (LanguageId.PlainText << MetadataConsts.LANGUAGEID_OFFSET);
 
 	class MockTokenTheme extends TokenTheme {
 		private counter = 0;
@@ -109,7 +112,15 @@ suite('TokenizationSupport2Adapter', () => {
 			}
 		}
 
-		const adapter = new TokenizationSupport2Adapter(new MockThemeService(), languageIdentifier, new BadTokensProvider());
+		const disposables = new DisposableStore();
+		const modeService = disposables.add(new ModeServiceImpl());
+		disposables.add(ModesRegistry.registerLanguage({ id: languageId }));
+		const adapter = new TokenizationSupport2Adapter(
+			languageId,
+			new BadTokensProvider(),
+			modeService,
+			new MockThemeService()
+		);
 
 		const actualClassicTokens = adapter.tokenize('whatever', true, MockState.INSTANCE, offsetDelta);
 		assert.deepStrictEqual(actualClassicTokens.tokens, expectedClassicTokens);
@@ -119,10 +130,19 @@ suite('TokenizationSupport2Adapter', () => {
 		for (let i = 0; i < actualModernTokens.tokens.length; i++) {
 			modernTokens[i] = actualModernTokens.tokens[i];
 		}
+
+		// Add the encoded language id to the expected tokens
+		const encodedLanguageId = modeService.languageIdCodec.encodeLanguageId(languageId);
+		const tokenLanguageMetadata = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET);
+		for (let i = 1; i < expectedModernTokens.length; i += 2) {
+			expectedModernTokens[i] |= tokenLanguageMetadata;
+		}
 		assert.deepStrictEqual(modernTokens, expectedModernTokens);
+
+		disposables.dispose();
 	}
 
-	test('tokens always start at index 0 (no offset delta)', () => {
+	test('	 (no offset delta)', () => {
 		testBadTokensProvider(
 			[
 				{ startIndex: 7, scopes: 'foo' },
@@ -130,12 +150,12 @@ suite('TokenizationSupport2Adapter', () => {
 			],
 			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(0, 'bar', languageIdentifier.language),
+				new Token(0, 'foo', languageId),
+				new Token(0, 'bar', languageId),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				0, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				0, (1 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});
@@ -149,14 +169,14 @@ suite('TokenizationSupport2Adapter', () => {
 			],
 			0,
 			[
-				new Token(0, 'foo', languageIdentifier.language),
-				new Token(5, 'bar', languageIdentifier.language),
-				new Token(5, 'foo', languageIdentifier.language),
+				new Token(0, 'foo', languageId),
+				new Token(5, 'bar', languageId),
+				new Token(5, 'foo', languageId),
 			],
 			[
-				0, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				5, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
+				0, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				5, (1 << MetadataConsts.FOREGROUND_OFFSET),
+				5, (2 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});
@@ -169,12 +189,12 @@ suite('TokenizationSupport2Adapter', () => {
 			],
 			7,
 			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(7, 'bar', languageIdentifier.language),
+				new Token(7, 'foo', languageId),
+				new Token(7, 'bar', languageId),
 			],
 			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				7, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET)
+				7, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				7, (1 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});
@@ -188,14 +208,14 @@ suite('TokenizationSupport2Adapter', () => {
 			],
 			7,
 			[
-				new Token(7, 'foo', languageIdentifier.language),
-				new Token(12, 'bar', languageIdentifier.language),
-				new Token(12, 'foo', languageIdentifier.language),
+				new Token(7, 'foo', languageId),
+				new Token(12, 'bar', languageId),
+				new Token(12, 'foo', languageId),
 			],
 			[
-				7, tokenMetadata | (0 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (1 << MetadataConsts.FOREGROUND_OFFSET),
-				12, tokenMetadata | (2 << MetadataConsts.FOREGROUND_OFFSET)
+				7, (0 << MetadataConsts.FOREGROUND_OFFSET),
+				12, (1 << MetadataConsts.FOREGROUND_OFFSET),
+				12, (2 << MetadataConsts.FOREGROUND_OFFSET)
 			]
 		);
 	});

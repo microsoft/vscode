@@ -140,6 +140,7 @@ class PropertyHeader extends Disposable {
 			this.propertyHeaderContainer.classList.add('modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
+			this.propertyHeaderContainer.classList.remove('modified');
 		}
 
 		const cellToolbarContainer = DOM.append(this.propertyHeaderContainer, DOM.$('div.property-toolbar'));
@@ -230,6 +231,7 @@ class PropertyHeader extends Disposable {
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 			this._statusSpan.style.fontWeight = 'normal';
+			this.propertyHeaderContainer.classList.remove('modified');
 			this._toolbar.setActions([]);
 		}
 	}
@@ -1334,6 +1336,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		if (this.cell.checkIfOutputsModified()) {
 			this._outputInfoContainer.classList.add('modified');
+		} else {
+			this._outputInfoContainer.classList.remove('modified');
 		}
 
 		this._outputHeader = this.instantiationService.createInstance(

@@ -74,9 +74,9 @@ viewsRegistry.registerViews([{
 		mnemonicTitle: localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM"),
 		keybindings: {
 			primary: 0,
-			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
-			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
 		},
 		order: 2,
 	}

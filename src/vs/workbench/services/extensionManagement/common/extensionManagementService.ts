@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED, InstallVSIXOptions, InstallExtensionResult, TargetPlatform, ExtensionManagementError
+	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallVSIXOptions, InstallExtensionResult, TargetPlatform, ExtensionManagementError, ExtensionManagementErrorCode
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
@@ -309,7 +309,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		}
 
 		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
-		error.name = INSTALL_ERROR_NOT_SUPPORTED;
+		error.name = ExtensionManagementErrorCode.Unsupported;
 		return Promise.reject(error);
 	}
 
@@ -414,7 +414,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 				}
 			}
 			if (nonWebExtensions.length && nonWebExtensions.length === extensions.length) {
-				throw new ExtensionManagementError('Not supported in Web', INSTALL_ERROR_NOT_SUPPORTED);
+				throw new ExtensionManagementError('Not supported in Web', ExtensionManagementErrorCode.Unsupported);
 			}
 		}
 

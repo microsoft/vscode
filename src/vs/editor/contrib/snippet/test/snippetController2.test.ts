@@ -463,4 +463,32 @@ suite('SnippetController2', function () {
 		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
 		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
 	});
+
+	test.skip('Snippet transformation does not work after inserting variable using intellisense, #112362', function () {
+
+		{
+			// HAPPY - no nested snippet
+			const ctrl = new SnippetController2(editor, logService, contextKeys);
+			model.setValue('');
+			model.updateOptions({ insertSpaces: true, tabSize: 4 });
+			ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+			assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+			editor.trigger('test', 'type', { text: 'foo: number;' });
+			ctrl.next();
+			assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		}
+
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+		editor.trigger('test', 'type', { text: 'foo: ' });
+		ctrl.insert('number;');
+		ctrl.next();
+		assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		// editor.trigger('test', 'type', { text: ';' });
+	});
 });

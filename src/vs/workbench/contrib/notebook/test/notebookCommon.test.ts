@@ -4,16 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind, CellUri, diff, NotebookWorkingCopyTypeIdentifier, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCommon', () => {
-	const instantiationService = setupInstantiationService();
-	const modeService = instantiationService.get(IModeService);
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let modeService: IModeService;
+
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		modeService = instantiationService.get(IModeService);
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('sortMimeTypes default orders', function () {
 		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;

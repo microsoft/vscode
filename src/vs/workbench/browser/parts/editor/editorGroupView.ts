@@ -1175,7 +1175,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditors()
 
-	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | null> {
+	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid editors. Disposed editors
 		// should never open because they emit no events
@@ -1185,7 +1185,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Use the first editor as active editor
 		const firstEditor = firstOrDefault(editorsToOpen);
 		if (!firstEditor) {
-			return null;
+			return;
 		}
 
 		const openEditorsOptions: IInternalEditorOpenOptions = {
@@ -1220,7 +1220,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply
 		// return the active editor pane after this operation.
-		return this.editorPane.activeEditorPane;
+		return withNullAsUndefined(this.editorPane.activeEditorPane);
 	}
 
 	//#endregion

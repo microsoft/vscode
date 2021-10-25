@@ -149,11 +149,11 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				ariaLabel: (() => {
 					if (mapGroupIdToGroupAriaLabel.size > 1) {
 						return isDirty ?
-							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId)) :
+							localize('entryAriaLabelWithGroupDirty', "{0}, unsaved changes, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId)) :
 							localize('entryAriaLabelWithGroup', "{0}, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId));
 					}
 
-					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", nameAndDescription) : nameAndDescription;
+					return isDirty ? localize('entryAriaLabelDirty', "{0}, unsaved changes", nameAndDescription) : nameAndDescription;
 				})(),
 				description,
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(editor.getLabelExtraClasses()),

@@ -569,7 +569,15 @@ export function fixRegexNewline(pattern: string): string {
 				if (parent.negate) {
 					// negative bracket expr, [^a-z\n] -> (?![a-z]|\r?\n)
 					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
-					replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
+					if (parent.parent?.type === 'Quantifier') {
+						// If quantified, we can't use a negative lookahead in a quantifier.
+						// But `.` already doesn't match new lines, so we can just use that
+						// (with any other negations) instead.
+						const quant = parent.parent;
+						replace(quant.start, quant.end, (otherContent ? `[^${otherContent}]` : '.') + (quant.greedy ? '+' : '*'));
+					} else {
+						replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
+					}
 				} else {
 					// positive bracket expr, [a-z\n] -> (?:[a-z]|\r?\n)
 					const otherContent = pattern.slice(parent.start + 1, char.start) + pattern.slice(char.end, parent.end - 1);

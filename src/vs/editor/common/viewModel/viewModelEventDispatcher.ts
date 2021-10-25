@@ -176,6 +176,7 @@ export const enum OutgoingViewModelEventKind {
 	FocusChanged,
 	ScrollChanged,
 	ViewZonesChanged,
+	HiddenAreasChanged,
 	ReadOnlyEditAttempt,
 	CursorStateChanged,
 }
@@ -308,6 +309,22 @@ export class ViewZonesChangedEvent {
 	}
 }
 
+export class HiddenAreasChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.HiddenAreasChanged;
+
+	constructor() {
+	}
+
+	public isNoOp(): boolean {
+		return false;
+	}
+
+	public merge(other: OutgoingViewModelEvent): HiddenAreasChangedEvent {
+		return this;
+	}
+}
+
 export class CursorStateChangedEvent {
 
 	public readonly kind = OutgoingViewModelEventKind.CursorStateChanged;
@@ -388,6 +405,7 @@ export type OutgoingViewModelEvent = (
 	| FocusChangedEvent
 	| ScrollChangedEvent
 	| ViewZonesChangedEvent
+	| HiddenAreasChangedEvent
 	| ReadOnlyEditAttemptEvent
 	| CursorStateChangedEvent
 );

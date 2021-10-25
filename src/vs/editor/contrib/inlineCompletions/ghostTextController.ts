@@ -227,7 +227,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				primary: KeyMod.Alt | KeyCode.BracketRight,
 			},
 		});
 	}
@@ -251,7 +251,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
+				primary: KeyMod.Alt | KeyCode.BracketLeft,
 			},
 		});
 	}

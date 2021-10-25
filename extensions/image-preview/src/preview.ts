@@ -206,7 +206,6 @@ class Preview extends Disposable {
 	private async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
-			isMac: isMac(),
 			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
@@ -260,15 +259,6 @@ class Preview extends Disposable {
 			path: this.extensionRoot.path + path
 		}));
 	}
-}
-
-declare const process: undefined | { readonly platform: string };
-
-function isMac(): boolean {
-	if (typeof process === 'undefined') {
-		return false;
-	}
-	return process.platform === 'darwin';
 }
 
 function escapeAttribute(value: string | vscode.Uri): string {

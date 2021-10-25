@@ -7,7 +7,7 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
+import { Keybinding, ResolvedKeybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keybindings';
 import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -94,7 +94,7 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	}
 
 	public getMode(): string | undefined {
-		return this.model.getModeId();
+		return this.model.getLanguageId();
 	}
 }
 
@@ -341,7 +341,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 		if (keybinding) {
 			this._dynamicKeybindings.push({
-				keybinding: keybinding,
+				keybinding: keybinding.parts,
 				command: commandId,
 				when: when,
 				weight1: 1000,
@@ -397,7 +397,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
 			} else {
-				const resolvedKeybindings = this.resolveKeybinding(keybinding);
+				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveUserBinding(keybinding, OS);
 				for (const resolvedKeybinding of resolvedKeybindings) {
 					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
 				}

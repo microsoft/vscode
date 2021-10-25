@@ -91,6 +91,8 @@ suite('Hidden Range Model', () => {
 		assert.strictEqual(hiddenRangeModel.isHidden(9), false);
 		assert.strictEqual(hiddenRangeModel.isHidden(10), false);
 
+		textModel.dispose();
+
 	});
 
 

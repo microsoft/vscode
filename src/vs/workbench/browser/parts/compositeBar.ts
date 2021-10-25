@@ -115,7 +115,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 			// ... to the same composite location
 			if (currentLocation === this.targetContainerLocation) {
-				return true;
+				return dragData.id !== targetCompositeId;
 			}
 
 			// ... to another composite location
@@ -244,7 +244,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				// don't add feedback if this is over the composite bar actions or there are no actions
 				const visibleItems = this.getVisibleComposites();
 				if (!visibleItems.length || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
-					insertDropBefore = this.updateFromDragging(parent, false, false);
+					insertDropBefore = this.updateFromDragging(parent, false, false, true);
 					return;
 				}
 
@@ -252,14 +252,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const target = insertAtFront ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 				const validDropTarget = this.options.dndHandler.onDragOver(e.dragAndDropData, target.id, e.eventData);
 				toggleDropEffect(e.eventData.dataTransfer, 'move', validDropTarget);
-				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront);
+				insertDropBefore = this.updateFromDragging(parent, validDropTarget, insertAtFront, true);
 			},
 
 			onDragLeave: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			},
 			onDragEnd: (e: IDraggedCompositeData) => {
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const visibleItems = this.getVisibleComposites();
@@ -267,7 +267,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					const target = this.insertAtFront(actionBarDiv, e.eventData) ? visibleItems[0] : visibleItems[visibleItems.length - 1];
 					this.options.dndHandler.drop(e.dragAndDropData, target.id, e.eventData, insertDropBefore);
 				}
-				insertDropBefore = this.updateFromDragging(parent, false, false);
+				insertDropBefore = this.updateFromDragging(parent, false, false, false);
 			}
 		}));
 
@@ -287,7 +287,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean): Before2D | undefined {
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean, isDragging: boolean): Before2D | undefined {
+		element.classList.toggle('dragged-over', isDragging);
 		element.classList.toggle('dragged-over-head', showFeedback && front);
 		element.classList.toggle('dragged-over-tail', showFeedback && !front);
 

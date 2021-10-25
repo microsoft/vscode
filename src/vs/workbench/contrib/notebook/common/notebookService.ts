@@ -76,7 +76,7 @@ export interface INotebookService {
 	getRenderers(): INotebookRendererInfo[];
 
 	/** Updates the preferred renderer for the given mimetype in the workspace. */
-	updateMimePreferredRenderer(mimeType: string, rendererId: string): void;
+	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string): void;
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;

@@ -90,7 +90,7 @@ class BrowserMain extends Disposable {
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
 		// Create Workbench
-		const workbench = new Workbench(this.domElement, services.serviceCollection, services.logService);
+		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService, services.logService);

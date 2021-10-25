@@ -14,7 +14,8 @@ suite('vscode - automatic language detection', () => {
 		await closeAllEditors();
 	});
 
-	test('test automatic language detection works', async () => {
+	// TODO@TylerLeonhardt https://github.com/microsoft/vscode/issues/135157
+	test.skip('test automatic language detection works', async () => {
 		const receivedEvent = asPromise(vscode.workspace.onDidOpenTextDocument, 5000);
 		const doc = await vscode.workspace.openTextDocument();
 		const editor = await vscode.window.showTextDocument(doc);

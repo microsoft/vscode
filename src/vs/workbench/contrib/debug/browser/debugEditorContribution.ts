@@ -326,7 +326,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const model = this.editor.getModel();
 			let overrides = {
 				resource: model.uri,
-				overrideIdentifier: model.getLanguageIdentifier().language
+				overrideIdentifier: model.getLanguageId()
 			};
 			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
 			this.editor.updateOptions({

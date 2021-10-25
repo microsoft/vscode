@@ -37,6 +37,7 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidChangeActiveCommentThread: Event<CommentThread | null>;
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }>
 	readonly onDidChangeActiveCommentingRange: Event<{ range: Range, commentingRangesInfo: CommentingRanges }>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
@@ -52,6 +53,7 @@ export interface ICommentService {
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	updateCommentingRanges(ownerId: string): void;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	hasReactionHandler(owner: string): boolean;
 	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
@@ -75,6 +77,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidUpdateCommentThreads: Emitter<ICommentThreadChangedEvent> = this._register(new Emitter<ICommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
+
+	private readonly _onDidUpdateCommentingRanges: Emitter<{ owner: string; }> = this._register(new Emitter<{ owner: string; }>());
+	readonly onDidUpdateCommentingRanges: Event<{ owner: string; }> = this._onDidUpdateCommentingRanges.event;
 
 	private readonly _onDidChangeActiveCommentThread = this._register(new Emitter<CommentThread | null>());
 	readonly onDidChangeActiveCommentThread = this._onDidChangeActiveCommentThread.event;
@@ -169,6 +174,10 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateCommentThreads.fire(evt);
 	}
 
+	updateCommentingRanges(ownerId: string) {
+		this._onDidUpdateCommentingRanges.fire({ owner: ownerId });
+	}
+
 	async toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void> {
 		const commentController = this._commentControls.get(owner);
 
@@ -194,8 +203,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
-				.catch(e => {
-					console.log(e);
+				.catch(_ => {
 					return null;
 				}));
 		});

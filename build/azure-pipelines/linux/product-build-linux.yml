@@ -76,7 +76,6 @@ steps:
   - script: |
       set -e
       export npm_config_arch=$(NPM_ARCH)
-      export npm_config_build_from_source=true
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode

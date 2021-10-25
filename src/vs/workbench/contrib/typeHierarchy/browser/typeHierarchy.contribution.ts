@@ -206,7 +206,7 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(_ctxTypeHierarchyVisible, _ctxTypeHierarchyDirection.isEqualTo(TypeHierarchyDirection.Subtypes)),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KeyH,
 			},
 			menu: {
 				id: TypeHierarchyTreePeekWidget.TitleMenu,
@@ -231,7 +231,7 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(_ctxTypeHierarchyVisible, _ctxTypeHierarchyDirection.isEqualTo(TypeHierarchyDirection.Supertypes)),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KeyH,
 			},
 			menu: {
 				id: TypeHierarchyTreePeekWidget.TitleMenu,

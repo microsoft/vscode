@@ -57,6 +57,7 @@ export class TerminalService implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
+	private _ifNoProfilesTryAgain: boolean = true;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
@@ -64,6 +65,8 @@ export class TerminalService implements ITerminalService {
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
+	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
+	private _terminalHasBeenCreated: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
 	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _defaultProfileName?: string;
@@ -187,7 +190,6 @@ export class TerminalService implements ITerminalService {
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
-
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
@@ -233,6 +235,11 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
+
+		// in web, we don't want to show the dropdown unless there's a web extension
+		// that contributes a profile
+		this._extensionService.onDidChangeExtensions(() => this._refreshAvailableProfiles());
+
 		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -247,6 +254,8 @@ export class TerminalService implements ITerminalService {
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = TerminalContextKeys.processSupported.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
+		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
+		this._terminalHasBeenCreated = TerminalContextKeys.terminalHasBeenCreated.bindTo(this._contextKeyService);
 
 		lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
@@ -256,7 +265,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this._refreshAvailableProfiles();
+				await this._refreshAvailableProfiles();
 			}
 		});
 
@@ -281,6 +290,8 @@ export class TerminalService implements ITerminalService {
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
 			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+		} else {
+			this._connectionState = TerminalConnectionState.Connected;
 		}
 		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : (this._localTerminalService || this._remoteTerminalService);
 		this._primaryOffProcessTerminalService.onDidRequestDetach(async (e) => {
@@ -500,18 +511,31 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _refreshAvailableProfilesNow(): Promise<void> {
-		const result = await this._detectProfiles();
-		const profilesChanged = !equals(result, this._availableProfiles);
+		const profiles = await this._detectProfiles();
+		const profilesChanged = !equals(profiles, this._availableProfiles);
 		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
+			// available profiles get updated when a terminal is created
+			// or relevant config changes.
+			// if there are no profiles, we want to refresh them again
+			// since terminal creation can't happen in this case and users
+			// might not think to try changing the config
+			this._ifNoProfilesTryAgain = false;
+			await this._refreshAvailableProfilesNow();
+		}
 		if (profilesChanged || contributedProfilesChanged) {
-			this._availableProfiles = result;
+			this._availableProfiles = profiles;
 			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
-			await this._refreshPlatformConfig(result);
+			this._updateWebContextKey();
+			await this._refreshPlatformConfig(profiles);
 		}
 	}
 
+	private _updateWebContextKey(): void {
+		this._webExtensionContributedProfileContextKey.set(isWeb && this._terminalContributionService.terminalProfiles.length > 0);
+	}
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
@@ -556,7 +580,7 @@ export class TerminalService implements ITerminalService {
 		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 		if (shouldReviveProcesses) {
-			await this._localTerminalService?.persistTerminalState();
+			await this._primaryOffProcessTerminalService?.persistTerminalState();
 		}
 
 		// Persist terminal _processes_
@@ -624,7 +648,7 @@ export class TerminalService implements ITerminalService {
 
 		// Clear terminal layout info only when not persisting
 		if (!this._shouldReviveProcesses(e.reason)) {
-			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+			this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(undefined);
 		}
 	}
 
@@ -1253,6 +1277,7 @@ export class TerminalService implements ITerminalService {
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
 			await instance.focusWhenReady();
+			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
 
@@ -1269,12 +1294,14 @@ export class TerminalService implements ITerminalService {
 			this._backgroundedTerminalDisposables.set(instance.instanceId, [
 				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 			]);
+			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
 
 		this._evaluateLocalCwd(shellLaunchConfig);
 		const location = this.resolveLocation(options?.location) || this.defaultLocation;
 		const parent = this._getSplitParent(options?.location);
+		this._terminalHasBeenCreated.set(true);
 		if (parent) {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}

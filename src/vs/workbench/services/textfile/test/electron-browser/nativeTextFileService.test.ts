@@ -28,7 +28,7 @@ suite('Files - NativeTextFileService', function () {
 	let instantiationService: IInstantiationService;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationService = workbenchInstantiationService(disposables);
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);

@@ -206,12 +206,12 @@ export async function renderMarkdownDocument(
 		}
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			let support: ITokenizationSupport | undefined;
-			const modeId = modeService.getModeIdForLanguageName(lang);
-			if (modeId) {
-				modeService.triggerMode(modeId);
-				support = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+			const languageId = modeService.getModeIdForLanguageName(lang);
+			if (languageId) {
+				modeService.triggerMode(languageId);
+				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;
 			}
-			callback(null, `<code>${tokenizeToString(code, support)}</code>`);
+			callback(null, `<code>${tokenizeToString(code, modeService.languageIdCodec, support)}</code>`);
 		});
 		return '';
 	};

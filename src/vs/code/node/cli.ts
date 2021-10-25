@@ -373,7 +373,15 @@ export async function main(argv: string[]): Promise<any> {
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
 
-			const spawnArgs = ['-n'];				// -n: launches even when opened already
+			// The following args are for the open command itself, rather than for VS Code:
+			// -n creates a new instance.
+			//    Without -n, the open command re-opens the existing instance as-is.
+			// -g starts the new instance in the background.
+			//    Later, Electron brings the instance to the foreground.
+			//    This way, Mac does not automatically try to foreground the new instance, which causes
+			//    focusing issues when the new instance only sends data to a previous instance and then closes.
+			const spawnArgs = ['-n', '-g'];
+			// -a opens the given application.
 			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
 
 			if (verbose) {
@@ -428,18 +436,10 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			}
 
-			// Keep just the _ env var here,
-			// because it's still needed to open Code,
-			// even though the open command doesn't understand it.
-			const truncatedOptions = {
-				detached: options.detached,
-				stdio: options['stdio'],
-				env: {
-					'_': options.env?.['_']
-				}
-			};
-
-			child = spawn('open', spawnArgs, truncatedOptions);
+			// We already passed over the env variables
+			// using the --env flags, so we can leave them out here.
+			// Also, we don't need to pass env._, which is different from argv._
+			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
 		return Promise.all(processCallbacks.map(callback => callback(child)));

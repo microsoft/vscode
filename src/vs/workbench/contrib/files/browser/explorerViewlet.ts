@@ -117,7 +117,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
-				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_E) }
+				keybindings: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyE) }
 			}
 		};
 	}
@@ -275,7 +275,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 		id: VIEWLET_ID,
 		title: localize('explore', "Explorer"),
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0
 	},
 }, ViewContainerLocation.Sidebar, { isDefault: true });

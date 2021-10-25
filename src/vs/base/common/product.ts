@@ -92,6 +92,7 @@ export interface IProductConfiguration {
 	};
 
 	readonly enableTelemetry?: boolean;
+	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {
 		readonly asimovKey: string;
 	};
@@ -116,6 +117,8 @@ export interface IProductConfiguration {
 	readonly licenseUrl?: string;
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
+
+	readonly serverGreeting: string[];
 
 	readonly npsSurveyUrl?: string;
 	readonly cesSurveyUrl?: string;

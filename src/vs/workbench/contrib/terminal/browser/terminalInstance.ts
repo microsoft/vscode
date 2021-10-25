@@ -93,7 +93,8 @@ const enum Constants {
 
 	DefaultCols = 80,
 	DefaultRows = 30,
-	MaxSupportedCols = 5000
+	MaxSupportedCols = 5000,
+	MaxCanvasWidth = 8000
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
@@ -585,7 +586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._wrapperElement) {
 			return undefined;
 		}
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(width, height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -650,8 +651,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermSearch = new addonCtor();
 			xterm.loadAddon(this._xtermSearch);
 		});
+		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
+		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
-			this._xterm.writeln(this._shellLaunchConfig.initialText);
+			this._xterm.writeln(this._shellLaunchConfig.initialText, () => {
+				xterm.onLineFeed(() => this._onLineFeed());
+			});
+		} else {
+			this._xterm.onLineFeed(() => this._onLineFeed());
 		}
 		// Delay the creation of the bell listener to avoid showing the bell when the terminal
 		// starts up or reconnects
@@ -667,7 +674,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}, 1000);
-		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
 		this._xterm.buffer.onBufferChange(() => this._refreshAltBufferContextKey());
@@ -686,6 +692,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Init winpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._processManager.onProcessReady((processTraits) => {
+			// If links are ready, do not re-create the manager.
+			if (this._areLinksReady) {
+				return;
+			}
+
 			if (this._processManager.os === OperatingSystem.Windows) {
 				xterm.setOption('windowsMode', processTraits.requiresWindowsMode || false);
 				// Force line data to be sent when the cursor is moved, the main purpose for
@@ -1089,7 +1100,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async detachFromProcess(): Promise<void> {
 		await this._processManager.detachFromProcess();
-		this.dispose();
 	}
 
 	forceRedraw(): void {
@@ -1160,13 +1170,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// using cached dimensions of a split terminal).
 			this._resize();
 
-			// Trigger a manual scroll event which will sync the viewport and scroll bar. This is
+			// Trigger a forced refresh of the viewport to sync the viewport and scroll bar. This is
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
+			this._xtermCore.viewport._innerRefresh();
 		}
 	}
 
@@ -1370,6 +1380,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				}
 				this._exitCode = exitCodeOrError.code;
+				const conptyError = exitCodeOrError.message.match(/.*error code:\s*(\d+).*$/);
+				if (conptyError) {
+					const errorCode = conptyError.length > 1 ? parseInt(conptyError[1]) : undefined;
+					switch (errorCode) {
+						case 5:
+							exitCodeOrError.message = `Access was denied to the path containing your executable ${this.shellLaunchConfig.executable}. Manage and change your permissions to get this to work.`;
+							break;
+						case 267:
+							exitCodeOrError.message = `Invalid starting directory ${this.initialCwd}, review your terminal.integrated.cwd setting`;
+							break;
+						case 1260:
+							exitCodeOrError.message = `Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator`;
+							break;
+					}
+				}
 				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", exitCodeOrError.message);
 				break;
 		}

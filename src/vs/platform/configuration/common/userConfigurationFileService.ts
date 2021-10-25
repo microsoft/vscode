@@ -8,9 +8,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { JSONPath, parse, ParseError } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -31,6 +30,7 @@ export interface IUserConfigurationFileService {
 	readonly _serviceBrand: undefined;
 
 	updateSettings(value: IJSONValue, formattingOptions: FormattingOptions): Promise<void>;
+	write(value: VSBuffer, options?: IWriteFileOptions): Promise<void>;
 }
 
 export class UserConfigurationFileService implements IUserConfigurationFileService {
@@ -48,12 +48,12 @@ export class UserConfigurationFileService implements IUserConfigurationFileServi
 	}
 
 	async updateSettings(value: IJSONValue, formattingOptions: FormattingOptions): Promise<void> {
-		return this.queue.queue(() => this.doWrite(this.environmentService.settingsResource, value, formattingOptions)); // queue up writes to prevent race conditions
+		return this.queue.queue(() => this.doWrite(value, formattingOptions)); // queue up writes to prevent race conditions
 	}
 
-	private async doWrite(resource: URI, jsonValue: IJSONValue, formattingOptions: FormattingOptions): Promise<void> {
-		this.logService.trace(`${UserConfigurationFileServiceId}#write`, resource.toString(), jsonValue);
-		const { value, mtime, etag } = await this.fileService.readFile(resource, { atomic: true });
+	private async doWrite(jsonValue: IJSONValue, formattingOptions: FormattingOptions): Promise<void> {
+		this.logService.trace(`${UserConfigurationFileServiceId}#write`, this.environmentService.settingsResource.toString(), jsonValue);
+		const { value, mtime, etag } = await this.fileService.readFile(this.environmentService.settingsResource, { atomic: true });
 		let content = value.toString();
 
 		const parseErrors: ParseError[] = [];
@@ -66,13 +66,20 @@ export class UserConfigurationFileService implements IUserConfigurationFileServi
 		if (edit) {
 			content = content.substring(0, edit.offset) + edit.content + content.substring(edit.offset + edit.length);
 			try {
-				await this.fileService.writeFile(resource, VSBuffer.fromString(content), { etag, mtime });
+				await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(content), { etag, mtime });
 			} catch (error) {
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 					throw new Error(UserConfigurationErrorCode.ERROR_FILE_MODIFIED_SINCE);
 				}
 			}
 		}
+	}
+
+	async write(content: VSBuffer, options?: IWriteFileOptions): Promise<void> {
+		// queue up writes to prevent race conditions
+		return this.queue.queue(async () => {
+			await this.fileService.writeFile(this.environmentService.settingsResource, content, options);
+		});
 	}
 
 	private getEdits({ value, path }: IJSONValue, modelContent: string, formattingOptions: FormattingOptions): Edit[] {

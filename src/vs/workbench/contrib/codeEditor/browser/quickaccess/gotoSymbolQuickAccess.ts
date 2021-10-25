@@ -264,7 +264,7 @@ registerAction2(class GotoSymbolAction extends Action2 {
 			keybinding: {
 				when: undefined,
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO
 			},
 			menu: {
 				id: MenuId.MenubarGoMenu,

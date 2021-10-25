@@ -110,6 +110,10 @@
 	opacity: 0.5;
 }
 
+.monaco-workbench .monaco-list-row .expression .name.internal {
+	opacity: 0.5;
+}
+
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
 }

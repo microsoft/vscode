@@ -102,7 +102,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		initialActivationEvents: string[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._cachedActivationEvents = new Map<string, Promise<void>>();
@@ -135,8 +136,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
-				console.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
-				console.error(err);
+				this._logService.error(`Error received from starting extension host (kind: ${extensionHostKindToString(this.kind)})`);
+				this._logService.error(err);
 
 				// Track errors during extension host startup
 				const failureTelemetryEvent: ExtensionHostStartupEvent = {

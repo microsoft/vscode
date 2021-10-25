@@ -72,7 +72,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.DownArrow,
 	mac: {
 		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_N]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyN]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -89,7 +89,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	mac: {
 		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.WinCtrl | KeyCode.KEY_P]
+		secondary: [KeyMod.WinCtrl | KeyCode.KeyP]
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
@@ -458,7 +458,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.selectAll',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+	primary: KeyMod.CtrlCmd | KeyCode.KeyA,
 	handler: (accessor) => {
 		const focused = accessor.get(IListService).lastFocusedList;
 

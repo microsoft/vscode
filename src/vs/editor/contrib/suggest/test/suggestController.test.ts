@@ -70,11 +70,11 @@ suite('SuggestController', function () {
 			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
 		);
 
-		model = createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' }));
-		editor = createTestCodeEditor({
+		model = disposables.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'test-ctrl', path: '/path.tst' })));
+		editor = disposables.add(createTestCodeEditor({
 			model,
 			serviceCollection,
-		});
+		}));
 
 		editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 		controller = editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);

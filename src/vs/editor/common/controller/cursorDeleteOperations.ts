@@ -212,6 +212,8 @@ export class DeleteOperations {
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): EditOperationResult {
 		let commands: Array<ICommand | null> = [];
+		let lastCutRange: Range | null = null;
+		selections.sort((a, b) => Position.compare(a.getStartPosition(), b.getEndPosition()));
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -232,8 +234,8 @@ export class DeleteOperations {
 						startColumn = 1;
 						endLineNumber = position.lineNumber + 1;
 						endColumn = 1;
-					} else if (position.lineNumber > 1) {
-						// Cutting the last line & there are more than 1 lines in the model
+					} else if (position.lineNumber > 1 && lastCutRange?.endLineNumber !== position.lineNumber) {
+						// Cutting the last line & there are more than 1 lines in the model & a previous cut operation does not touch the current cut operation
 						startLineNumber = position.lineNumber - 1;
 						startColumn = model.getLineMaxColumn(position.lineNumber - 1);
 						endLineNumber = position.lineNumber;
@@ -252,6 +254,7 @@ export class DeleteOperations {
 						endLineNumber,
 						endColumn
 					);
+					lastCutRange = deleteSelection;
 
 					if (!deleteSelection.isEmpty()) {
 						commands[i] = new ReplaceCommand(deleteSelection, '');

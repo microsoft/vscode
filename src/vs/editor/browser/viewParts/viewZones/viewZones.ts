@@ -18,12 +18,14 @@ import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/v
 export interface IMyViewZone {
 	whitespaceId: string;
 	delegate: IViewZone;
+	isInHiddenArea: boolean;
 	isVisible: boolean;
 	domNode: FastDomNode<HTMLElement>;
 	marginDomNode: FastDomNode<HTMLElement> | null;
 }
 
 interface IComputedViewZoneProps {
+	isInHiddenArea: boolean;
 	afterViewLineNumber: number;
 	heightInPx: number;
 	minWidthInPx: number;
@@ -86,6 +88,7 @@ export class ViewZones extends ViewPart {
 				const id = keys[i];
 				const zone = this._zones[id];
 				const props = this._computeWhitespaceProps(zone.delegate);
+				zone.isInHiddenArea = props.isInHiddenArea;
 				const oldWhitespace = oldWhitespaces.get(id);
 				if (oldWhitespace && (oldWhitespace.afterLineNumber !== props.afterViewLineNumber || oldWhitespace.height !== props.heightInPx)) {
 					whitespaceAccessor.changeOneWhitespace(id, props.afterViewLineNumber, props.heightInPx);
@@ -146,6 +149,7 @@ export class ViewZones extends ViewPart {
 	private _computeWhitespaceProps(zone: IViewZone): IComputedViewZoneProps {
 		if (zone.afterLineNumber === 0) {
 			return {
+				isInHiddenArea: false,
 				afterViewLineNumber: 0,
 				heightInPx: this._heightInPixels(zone),
 				minWidthInPx: this._minWidthInPixels(zone)
@@ -186,6 +190,7 @@ export class ViewZones extends ViewPart {
 		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition);
 		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
+			isInHiddenArea: !isVisible,
 			afterViewLineNumber: viewPosition.lineNumber,
 			heightInPx: (isVisible ? this._heightInPixels(zone) : 0),
 			minWidthInPx: this._minWidthInPixels(zone)
@@ -234,6 +239,7 @@ export class ViewZones extends ViewPart {
 		const myZone: IMyViewZone = {
 			whitespaceId: whitespaceId,
 			delegate: zone,
+			isInHiddenArea: props.isInHiddenArea,
 			isVisible: false,
 			domNode: createFastDomNode(zone.domNode),
 			marginDomNode: zone.marginDomNode ? createFastDomNode(zone.marginDomNode) : null
@@ -290,6 +296,7 @@ export class ViewZones extends ViewPart {
 		if (this._zones.hasOwnProperty(id)) {
 			const zone = this._zones[id];
 			const props = this._computeWhitespaceProps(zone.delegate);
+			zone.isInHiddenArea = props.isInHiddenArea;
 			// const newOrdinal = this._getZoneOrdinal(zone.delegate);
 			whitespaceAccessor.changeOneWhitespace(zone.whitespaceId, props.afterViewLineNumber, props.heightInPx);
 			// TODO@Alex: change `newOrdinal` too
@@ -356,8 +363,11 @@ export class ViewZones extends ViewPart {
 		const visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
 
 		let hasVisibleZone = false;
-		for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {
-			visibleZones[visibleWhitespaces[i].id] = visibleWhitespaces[i];
+		for (const visibleWhitespace of visibleWhitespaces) {
+			if (this._zones[visibleWhitespace.id].isInHiddenArea) {
+				continue;
+			}
+			visibleZones[visibleWhitespace.id] = visibleWhitespace;
 			hasVisibleZone = true;
 		}
 

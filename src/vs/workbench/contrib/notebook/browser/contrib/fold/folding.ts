@@ -186,9 +186,9 @@ registerAction2(class extends Action2 {
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.BracketLeft,
 					secondary: [KeyCode.LeftArrow],
 				},
 				secondary: [KeyCode.LeftArrow],
@@ -256,9 +256,9 @@ registerAction2(class extends Action2 {
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.BracketRight,
 					secondary: [KeyCode.RightArrow],
 				},
 				secondary: [KeyCode.RightArrow],

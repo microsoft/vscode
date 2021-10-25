@@ -53,9 +53,9 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 		await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language") })
 			.then(pick => {
 				if (pick) {
-					const modeId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
-					if (typeof modeId === 'string') {
-						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${modeId}]`, edit: true } });
+					const languageId = this.modeService.getModeIdForLanguageName(pick.label.toLowerCase());
+					if (typeof languageId === 'string') {
+						return this.preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: `[${languageId}]`, edit: true } });
 					}
 				}
 				return undefined;

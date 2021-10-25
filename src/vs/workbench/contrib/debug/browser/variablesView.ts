@@ -201,7 +201,7 @@ export class VariablesView extends ViewPane {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly')) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}

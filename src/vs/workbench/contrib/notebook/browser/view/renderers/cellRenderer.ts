@@ -841,21 +841,22 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
-				const actions = this.getCellToolbarActions(menu);
-				const primary = actions.primary[0];
+				const primaryMenu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
+				const primary = this.getCellToolbarActions(primaryMenu).primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
 				}
 
-				if (!actions.secondary.length) {
+				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+				const secondary = this.getCellToolbarActions(menu).secondary;
+				if (!secondary.length) {
 					return undefined;
 				}
 
 				const item = this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem,
 					primary,
 					dropdownAction,
-					actions.secondary,
+					secondary,
 					'notebook-cell-run-toolbar',
 					this.contextMenuService,
 					{
@@ -874,11 +875,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
 		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
-			runToolbar.setActions(actions.primary);
+			const primary = actions.primary[0]; // Only allow one primary action
+			runToolbar.setActions(primary ? [primary] : []);
 		};
 		updateActions();
 		disposables.add(menu.onDidChange(updateActions));

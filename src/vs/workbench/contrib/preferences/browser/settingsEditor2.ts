@@ -667,7 +667,7 @@ export class SettingsEditor2 extends EditorPane {
 	private addCtrlAInterceptor(container: HTMLElement): void {
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
 			if (
-				e.keyCode === KeyCode.KEY_A &&
+				e.keyCode === KeyCode.KeyA &&
 				(platform.isMacintosh ? e.metaKey : e.ctrlKey) &&
 				e.target.tagName !== 'TEXTAREA' &&
 				e.target.tagName !== 'INPUT'
@@ -1372,9 +1372,9 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTree.expandAll();
 			}
 
+			this.settingsTree.scrollTop = 0;
 			this.refreshTOCTree();
 			this.renderTree(undefined, true);
-			this.settingsTree.scrollTop = 0;
 			return result;
 		});
 	}

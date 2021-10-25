@@ -130,8 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		});
 		return serverPromise.then(serverAddr => {
-			// eslint-disable-next-line no-async-promise-executor
-			return new Promise<vscode.ResolvedAuthority>(async (res, _rej) => {
+			return new Promise<vscode.ResolvedAuthority>((res, _rej) => {
 				const proxyServer = net.createServer(proxySocket => {
 					outputChannel.appendLine(`Proxy connection accepted`);
 					let remoteReady = true, localReady = true;
