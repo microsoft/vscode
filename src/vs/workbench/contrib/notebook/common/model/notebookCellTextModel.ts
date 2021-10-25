@@ -206,6 +206,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._internalMetadata = internalMetadata ?? {};
 	}
 
+	resetTextBuffer(textBuffer: model.ITextBuffer) {
+		this._textBuffer = textBuffer;
+	}
+
 	getValue(): string {
 		const fullRange = this.getFullModelRange();
 		const eol = this.textBuffer.getEOL();
