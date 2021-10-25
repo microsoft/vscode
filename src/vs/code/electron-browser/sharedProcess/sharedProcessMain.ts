@@ -94,6 +94,7 @@ import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from '
 import { SharedProcessTunnelService } from 'vs/platform/remote/node/sharedProcessTunnelService';
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
+import { IUserConfigurationFileService, UserConfigurationFileServiceId } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 class SharedProcessMain extends Disposable {
 
@@ -217,6 +218,9 @@ class SharedProcessMain extends Disposable {
 			configurationService.initialize(),
 			storageService.initialize()
 		]);
+
+		// User Configuration File
+		services.set(IUserConfigurationFileService, ProxyChannel.toService<IUserConfigurationFileService>(mainProcessService.getChannel(UserConfigurationFileServiceId)));
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));

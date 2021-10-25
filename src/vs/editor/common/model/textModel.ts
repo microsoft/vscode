@@ -3098,9 +3098,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					endLineNumber,
 					this.getLineMaxColumn(endLineNumber)
 				)
-			)
-				// Exclude bracket pairs that are not balanced.
-				.filter(b => b.closingBracketRange !== undefined);
+			);
 
 		let activeBracketPairRange: Range | undefined = undefined;
 		if (activePosition && bracketPairs.length > 0) {
@@ -3136,7 +3134,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			visibleEndColumn: number,
 			bracketPair: BracketPairInfo,
 			renderHorizontalEndLineAtTheBottom: boolean
-		}>();
+		} | null>();
 		const nextGuides = new Array<model.IndentGuide>();
 		const colorProvider = new BracketPairGuidesClassNames();
 
@@ -3169,19 +3167,30 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				// TODO: Consider indentation when computing guideVisibleColumn
 				const start = pair.openingBracketRange.getStartPosition();
 				const end = (pair.closingBracketRange?.getStartPosition() ?? pair.range.getEndPosition());
-				activeGuides[pair.nestingLevel] = {
-					nestingLevel: pair.nestingLevel,
-					guideVisibleColumn,
-					start,
-					visibleStartColumn: this.getVisibleColumnFromPosition(start),
-					end,
-					visibleEndColumn: this.getVisibleColumnFromPosition(end),
-					bracketPair: pair,
-					renderHorizontalEndLineAtTheBottom
-				};
+
+
+				if (pair.closingBracketRange === undefined) {
+					// Don't show guides for bracket pairs that are not balanced.
+					// See #135125.
+					activeGuides[pair.nestingLevel] = null;
+				} else {
+					activeGuides[pair.nestingLevel] = {
+						nestingLevel: pair.nestingLevel,
+						guideVisibleColumn,
+						start,
+						visibleStartColumn: this.getVisibleColumnFromPosition(start),
+						end,
+						visibleEndColumn: this.getVisibleColumnFromPosition(end),
+						bracketPair: pair,
+						renderHorizontalEndLineAtTheBottom
+					};
+				}
 			}
 
 			for (const line of activeGuides) {
+				if (!line) {
+					continue;
+				}
 				const isActive = activeBracketPairRange && line.bracketPair.range.equalsRange(activeBracketPairRange);
 
 				const className =
@@ -3214,7 +3223,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			// Going backwards, so the last guide potentially replaces others
 			for (let i = activeGuides.length - 1; i >= 0; i--) {
 				const line = activeGuides[i];
-
+				if (!line) {
+					continue;
+				}
 				const isActive = options.highlightActive && activeBracketPairRange &&
 					line.bracketPair.range.equalsRange(activeBracketPairRange);
 
@@ -3233,7 +3244,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					continue;
 				}
 
-				if (line.guideVisibleColumn > lastVisibleColumnCount) {
+				if (line.guideVisibleColumn >= lastVisibleColumnCount && !isActive) {
+					// Don't render a guide on top of an existing guide, unless it is active.
 					continue;
 				}
 				lastVisibleColumnCount = line.guideVisibleColumn;
