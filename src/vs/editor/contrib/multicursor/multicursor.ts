@@ -70,7 +70,10 @@ export class InsertCursorAbove extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
@@ -120,7 +123,10 @@ export class InsertCursorBelow extends EditorAction {
 			return;
 		}
 
-		const useLogicalLine = (args && args.logicalLine === true);
+		let useLogicalLine = true;
+		if (args && args.logicalLine === false) {
+			useLogicalLine = false;
+		}
 		const viewModel = editor._getViewModel();
 
 		if (viewModel.cursorConfig.readOnly) {
