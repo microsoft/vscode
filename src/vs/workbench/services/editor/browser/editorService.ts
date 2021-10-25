@@ -601,7 +601,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Open in target groups
-		const result: Promise<IEditorPane | null>[] = [];
+		const result: Promise<IEditorPane | undefined>[] = [];
 		for (const [group, editors] of mapGroupToTypedEditors) {
 			result.push(group.openEditors(editors));
 		}

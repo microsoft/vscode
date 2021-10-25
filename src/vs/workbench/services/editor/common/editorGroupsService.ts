@@ -599,7 +599,7 @@ export interface IEditorGroup {
 	 * a group can only ever have one active editor, even if many editors are
 	 * opened, the result will only be one editor.
 	 */
-	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | null>;
+	openEditors(editors: EditorInputWithOptions[]): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Find out if the provided editor is pinned in the group.
