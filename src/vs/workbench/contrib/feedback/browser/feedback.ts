@@ -399,7 +399,9 @@ export class FeedbackWidget extends Disposable {
 
 			onDOMEvent: (e, activeElement) => {
 				this.onEvent(e, activeElement);
-			}
+			},
+
+			onHide: () => this._onDidChangeVisibility.fire(false)
 		});
 
 		this._onDidChangeVisibility.fire(true);
@@ -422,8 +424,6 @@ export class FeedbackWidget extends Disposable {
 
 		this.visible = false;
 		this.contextViewService.hideContextView();
-
-		this._onDidChangeVisibility.fire(false);
 	}
 
 	isVisible(): boolean {
