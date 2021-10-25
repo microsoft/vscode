@@ -7,11 +7,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OpenGettingStarted } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
@@ -177,4 +180,38 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	group: 'notebookLayout',
 	order: 2
+});
+
+registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.saveMimeTypeOrder',
+			title: localize('notebook.saveMimeTypeOrder', 'Save Mimetype Display Order'),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const service = accessor.get(INotebookService);
+		const qp = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { target: ConfigurationTarget }>();
+		qp.placeholder = localize('notebook.placeholder', 'Settings file to save in');
+		qp.items = [
+			{ target: ConfigurationTarget.WORKSPACE, label: localize('saveTarget.machine', 'User Settings') },
+			{ target: ConfigurationTarget.WORKSPACE, label: localize('saveTarget.workspace', 'Workspace Settings') },
+		];
+
+		qp.onDidAccept(() => {
+			const target = qp.selectedItems[0]?.target;
+			if (target !== undefined) {
+				service.saveMimeDisplayOrder(target);
+			}
+			qp.dispose();
+		});
+
+		qp.onDidHide(() => qp.dispose());
+
+		qp.show();
+	}
 });

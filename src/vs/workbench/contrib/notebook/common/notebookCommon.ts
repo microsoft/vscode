@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { Iterable } from 'vs/base/common/iterator';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
@@ -32,7 +33,7 @@ export enum CellKind {
 	Code = 2
 }
 
-export const NOTEBOOK_DISPLAY_ORDER = [
+export const NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	'application/json',
 	'application/javascript',
 	'text/html',
@@ -44,7 +45,7 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	Mimes.text
 ];
 
-export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
+export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER: readonly string[] = [
 	Mimes.latex,
 	Mimes.markdown,
 	'application/json',
@@ -591,38 +592,91 @@ export function mimeTypeIsMergeable(mimeType: string): boolean {
 	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
-function matchGlobUniversal(pattern: string, path: string) {
-	if (isWindows) {
-		pattern = pattern.replace(/\//g, '\\');
-		path = path.replace(/\//g, '\\');
-	}
+const normalizeSlashes = (str: string) => isWindows ? str.replace(/\//g, '\\') : str;
 
-	return glob.match(pattern, path);
+interface IMimeTypeWithMatcher {
+	pattern: string;
+	matches: glob.ParsedPattern;
 }
 
+export class MimeTypeDisplayOrder {
+	private readonly order: IMimeTypeWithMatcher[];
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], defaultOrder: string[]) {
-	let order = 0;
-	for (let i = 0; i < userDisplayOrder.length; i++) {
-		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
-			return order;
-		}
-		order++;
+	constructor(
+		initialValue: readonly string[] = [],
+		private readonly defaultOrder = NOTEBOOK_DISPLAY_ORDER,
+	) {
+		this.order = initialValue.map(pattern => ({
+			pattern,
+			matches: glob.parse(normalizeSlashes(pattern))
+		}));
 	}
 
-	for (let i = 0; i < defaultOrder.length; i++) {
-		if (matchGlobUniversal(defaultOrder[i], mimeType)) {
-			return order;
+	/**
+	 * Returns a sorted array of the input mimetypes.
+	 */
+	public sort(mimetypes: Iterable<string>): string[] {
+		const remaining = new Map(Iterable.map(mimetypes, m => [m, normalizeSlashes(m)]));
+		let sorted: string[] = [];
+
+		for (const { matches } of this.order) {
+			for (const [original, normalized] of remaining) {
+				if (matches(normalized)) {
+					sorted.push(original);
+					remaining.delete(original);
+					break;
+				}
+			}
 		}
 
-		order++;
+		if (remaining.size) {
+			sorted = sorted.concat([...remaining.keys()].sort(
+				(a, b) => this.defaultOrder.indexOf(a) - this.defaultOrder.indexOf(b),
+			));
+		}
+
+		return sorted;
 	}
 
-	return order;
-}
+	/**
+	 * Records that the user selected the given mimetype over the other
+	 * possible mimetypes, prioritizing it for future reference.
+	 */
+	public prioritize(chosenMimetype: string, otherMimetypes: readonly string[]) {
+		const chosenIndex = this.findIndex(chosenMimetype);
+		if (chosenIndex === -1) {
+			// always first, nothing more to do
+			this.order.unshift({ pattern: chosenMimetype, matches: glob.parse(normalizeSlashes(chosenMimetype)) });
+			return;
+		}
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], defaultOrder: string[]) {
-	return mimeTypes.sort((a, b) => getMimeTypeOrder(a, userDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, defaultOrder));
+		// Get the other mimetypes that are before the chosenMimetype. Then, move
+		// them after it, retaining order.
+		const otherIndices = otherMimetypes.map(m => this.findIndex(m, chosenIndex)).filter(i => i !== -1);
+		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
+
+		for (const i of otherIndices.sort()) {
+			this.order.splice(i, 1);
+		}
+	}
+
+	/**
+	 * Gets an array of in-order mimetype preferences.
+	 */
+	public toArray() {
+		return this.order.map(o => o.pattern);
+	}
+
+	private findIndex(mimeType: string, maxIndex = this.order.length) {
+		const normalized = normalizeSlashes(mimeType);
+		for (let i = 0; i < maxIndex; i++) {
+			if (this.order[i].matches(normalized)) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
