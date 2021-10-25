@@ -375,7 +375,7 @@ export class ExtensionEditor extends EditorPane {
 		template.publisher.classList.toggle('clickable', !!extension.url);
 		template.publisherDisplayName.textContent = extension.publisherDisplayName;
 		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
-		template.publisher.title = extension.publisherDomain?.link ?? '';
+		template.publisher.title = extension.publisherDomain?.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 
@@ -846,7 +846,8 @@ export class ExtensionEditor extends EditorPane {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
 		if (extension.publisherDomain?.verified) {
-			resources.push([extension.publisherDisplayName, URI.parse(extension.publisherDomain.link)]);
+			const publisherDomainUri = URI.parse(extension.publisherDomain.link);
+			resources.push([publisherDomainUri.authority, publisherDomainUri]);
 		}
 		if (resources.length) {
 			const resourcesContainer = append(container, $('.resources-container'));
