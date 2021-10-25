@@ -24,8 +24,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		exit: undefined,
+		overrideDimensions: undefined
 	};
 	private _capabilities: ProcessCapability[] = [];
 	get capabilities(): ProcessCapability[] { return this._capabilities; }
@@ -37,6 +36,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly id: number,
@@ -101,6 +102,9 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);
+	}
+	handleExit(e: number | undefined) {
+		this._onProcessExit.fire(e);
 	}
 	handleReady(e: IProcessReadyEvent) {
 		this._capabilities = e.capabilities;

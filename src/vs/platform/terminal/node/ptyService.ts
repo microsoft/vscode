@@ -46,6 +46,8 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ id: number, event: { pid: number, cwd: string, capabilities: ProcessCapability[] } }>());
 	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
+	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number, workspaceId: string, instanceId: number }>());
@@ -189,12 +191,11 @@ export class PtyService extends Disposable implements IPtyService {
 			windowsEnableConpty
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving ? shellLaunchConfig.initialText : undefined, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.fixedDimensions);
-		process.onDidChangeProperty(property => {
-			if (property.type === ProcessPropertyType.Exit) {
-				persistentProcess.dispose();
-				this._ptys.delete(id);
-			}
-			this._onDidChangeProperty.fire({ id, property });
+		process.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
+		process.onProcessExit(event => {
+			persistentProcess.dispose();
+			this._ptys.delete(id);
+			this._onProcessExit.fire({ id, event });
 		});
 		persistentProcess.onProcessReplay(event => this._onProcessReplay.fire({ id, event }));
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
@@ -483,12 +484,7 @@ export class PersistentTerminalProcess extends Disposable {
 			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.shortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
 		}, reconnectConstants.shortGraceTime));
-		this._register(this._terminalProcess.onDidChangeProperty(e => {
-			if (e.type === ProcessPropertyType.Exit) {
-				this._bufferer.stopBuffering(this._persistentProcessId);
-			}
-			this._onDidChangeProperty.fire(e);
-		}));
+		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;

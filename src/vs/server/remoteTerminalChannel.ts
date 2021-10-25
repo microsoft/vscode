@@ -15,7 +15,7 @@ import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createRandomIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { IPtyService, IShellLaunchConfig, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IShellLaunchConfig, ITerminalProfile, ITerminalsLayoutInfo } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createRemoteURITransformer } from 'vs/server/remoteUriTransformer';
@@ -149,6 +149,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$onPtyHostRequestResolveVariablesEvent': return this._ptyService.onPtyHostRequestResolveVariables || Event.None;
 			case '$onProcessDataEvent': return this._ptyService.onProcessData;
 			case '$onProcessReadyEvent': return this._ptyService.onProcessReady;
+			case '$onProcessExitEvent': return this._ptyService.onProcessExit;
 			case '$onProcessReplayEvent': return this._ptyService.onProcessReplay;
 			case '$onProcessOrphanQuestion': return this._ptyService.onProcessOrphanQuestion;
 			case '$onExecuteCommand': return this.onExecuteCommand;
@@ -239,11 +240,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
 
 		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, false, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
-		this._ptyService.onDidChangeProperty(e => {
-			if (e.property.type === ProcessPropertyType.Exit && e.id === id) {
-				cliServer.dispose();
-			}
-		});
+		this._ptyService.onProcessExit(e => e.id === id && cliServer.dispose());
 
 		return {
 			persistentTerminalId: id,

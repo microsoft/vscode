@@ -98,6 +98,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return this._process ? this._process.shouldPersist : false; }
@@ -312,18 +314,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
+			newProcess.onProcessExit(exitCode => this._onExit(exitCode)),
+			newProcess.onDidChangeProperty(({ type, value }) => {
+				switch (type) {
+					case ProcessPropertyType.HasChildProcesses:
+						this._hasChildProcesses = value;
+						break;
+				}
+				this._onDidChangeProperty.fire({ type, value });
+			})
 		];
-		this._processListeners.push(newProcess.onDidChangeProperty(({ type, value }) => {
-			switch (type) {
-				case ProcessPropertyType.HasChildProcesses:
-					this._hasChildProcesses = value;
-					break;
-				case ProcessPropertyType.Exit:
-					this._onExit(value);
-					break;
-			}
-			this._onDidChangeProperty.fire({ type, value });
-		}));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
@@ -576,7 +576,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: exitCode });
+		this._onProcessExit.fire(exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {

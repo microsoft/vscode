@@ -186,8 +186,7 @@ export const enum ProcessPropertyType {
 	ShellType = 'shellType',
 	HasChildProcesses = 'hasChildProcesses',
 	ResolvedShellLaunchConfig = 'resolvedShellLaunchConfig',
-	OverrideDimensions = 'overrideDimensions',
-	Exit = 'exit'
+	OverrideDimensions = 'overrideDimensions'
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
@@ -203,8 +202,7 @@ export interface IProcessPropertyMap {
 	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
 	[ProcessPropertyType.HasChildProcesses]: boolean,
 	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined,
-	[ProcessPropertyType.Exit]: number | undefined
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
 }
 
 export interface IFixedTerminalDimensions {
@@ -235,6 +233,7 @@ export interface IPtyService {
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
 	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
+	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -535,6 +534,7 @@ export interface ITerminalChildProcess {
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
+	onProcessExit: Event<number | undefined>;
 
 	/**
 	 * Starts the process.

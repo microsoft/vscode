@@ -84,8 +84,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		shellType: undefined,
 		hasChildProcesses: true,
 		resolvedShellLaunchConfig: {},
-		overrideDimensions: undefined,
-		exit: undefined
+		overrideDimensions: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -120,6 +119,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = this._register(new Emitter<number>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly shellLaunchConfig: IShellLaunchConfig,
@@ -329,7 +330,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
-		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: this._exitCode || 0 });
+		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
 	}
 

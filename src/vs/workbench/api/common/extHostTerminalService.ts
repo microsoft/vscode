@@ -253,6 +253,8 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onProcessExit = new Emitter<number | undefined>();
+	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
 
@@ -314,7 +316,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.onDidWrite(e => this._onProcessData.fire(e));
 		if (this._pty.onDidClose) {
 			this._pty.onDidClose((e: number | void = undefined) => {
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Exit, value: e === void 0 ? undefined : e });
+				this._onProcessExit.fire(e === void 0 ? undefined : e);
 			});
 		}
 		if (this._pty.onDidOverrideDimensions) {
@@ -585,16 +587,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _setupExtHostProcessListeners(id: number, p: ITerminalChildProcess): IDisposable {
 		const disposables = new DisposableStore();
 		disposables.add(p.onProcessReady((e: { pid: number, cwd: string }) => this._proxy.$sendProcessReady(id, e.pid, e.cwd)));
-		disposables.add(p.onDidChangeProperty(property => {
-			if (property.type === ProcessPropertyType.Exit) {
-				this._onProcessExit(id, property.value);
-			}
-			this._proxy.$sendProcessProperty(id, property);
-		}));
+		disposables.add(p.onDidChangeProperty(property => this._proxy.$sendProcessProperty(id, property)));
 
 		// Buffer data events to reduce the amount of messages going to the renderer
 		this._bufferer.startBuffering(id, p.onProcessData);
-
+		disposables.add(p.onProcessExit(exitCode => this._onProcessExit(id, exitCode)));
 		this._terminalProcesses.set(id, p);
 
 		const awaitingStart = this._extensionTerminalAwaitingStart[id];

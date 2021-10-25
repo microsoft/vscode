@@ -57,14 +57,13 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 		// Attach process listeners
 		this._localPtyService.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-		this._localPtyService.onDidChangeProperty(e => {
-			if (e.property.type === ProcessPropertyType.Exit) {
-				const pty = this._ptys.get(e.id);
-				if (pty) {
-					this._ptys.delete(e.id);
-				}
+		this._localPtyService.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
+		this._localPtyService.onProcessExit(e => {
+			const pty = this._ptys.get(e.id);
+			if (pty) {
+				pty.handleExit(e.event);
+				this._ptys.delete(e.id);
 			}
-			this._ptys.get(e.id)?.handleDidChangeProperty(e.property);
 		});
 		this._localPtyService.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
 		this._localPtyService.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));

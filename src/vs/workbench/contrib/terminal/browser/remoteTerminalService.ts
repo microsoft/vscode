@@ -70,14 +70,13 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 			channel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
 			channel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-			channel.onDidChangeProperty(e => {
-				if (e.property.type === ProcessPropertyType.Exit) {
-					const pty = this._ptys.get(e.id);
-					if (pty) {
-						this._ptys.delete(e.id);
-					}
+			channel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
+			channel.onProcessExit(e => {
+				const pty = this._ptys.get(e.id);
+				if (pty) {
+					pty.handleExit(e.event);
+					this._ptys.delete(e.id);
 				}
-				this._ptys.get(e.id)?.handleDidChangeProperty(e.property);
 			});
 
 			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];

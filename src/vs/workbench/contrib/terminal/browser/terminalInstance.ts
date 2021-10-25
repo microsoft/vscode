@@ -1248,6 +1248,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.refreshTabLabels(this._shellLaunchConfig.executable, TitleEventSource.Process);
 			}
 		});
+		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onDidChangeProperty(({ type, value }) => {
 			switch (type) {
 				case ProcessPropertyType.Cwd:
@@ -1270,9 +1271,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					break;
 				case ProcessPropertyType.HasChildProcesses:
 					this._onDidChangeHasChildProcesses.fire(value);
-					break;
-				case ProcessPropertyType.Exit:
-					this._onProcessExit(value);
 					break;
 			}
 		});
