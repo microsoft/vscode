@@ -7,8 +7,6 @@ import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
-
 export async function activate(context: vscode.ExtensionContext) {
 	const { name, version, aiKey } = context.extension.packageJSON as { name: string, version: string, aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);

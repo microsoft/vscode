@@ -425,7 +425,8 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		if (this.extension.publisherDomain?.verified) {
 			const bgColor = this.themeService.getColorTheme().getColor(extensionVerifiedPublisherIconColor);
-			markdown.appendMarkdown(`<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;[${this.extension.publisherDomain.link.length > 50 ? `${this.extension.publisherDomain.link.substring(0, 50)}...` : this.extension.publisherDomain.link}](${this.extension.publisherDomain.link})`);
+			const publisherVerifiedTooltip = localize('publisher verified tooltip', "This publisher has verified ownership of {0}", `[${URI.parse(this.extension.publisherDomain.link).authority}](${this.extension.publisherDomain.link})`);
+			markdown.appendMarkdown(`<span style="color:${bgColor ? Color.Format.CSS.formatHex(bgColor) : '#ffffff'};">$(${verifiedPublisherIcon.id})</span>&nbsp;${publisherVerifiedTooltip}`);
 			markdown.appendText(`\n`);
 		}
 

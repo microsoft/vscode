@@ -483,7 +483,7 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		const info = this.#notebookKernelService.getMatchingKernel(notebook);
-		const selectedOrSuggested = info.selected ?? info.suggested;
+		const selectedOrSuggested = info.selected ?? info.suggestions[0];
 
 		if (selectedOrSuggested) {
 			const language = selectedOrSuggested.supportedLanguages[0];

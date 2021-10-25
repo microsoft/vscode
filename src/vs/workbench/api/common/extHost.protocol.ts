@@ -908,6 +908,7 @@ export interface INotebookKernelDto2 {
 	label: string;
 	detail?: string;
 	description?: string;
+	kind?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;

@@ -580,7 +580,7 @@ export class TerminalService implements ITerminalService {
 		this._shutdownWindowCount = await this._nativeDelegate?.getWindowCount();
 		const shouldReviveProcesses = this._shouldReviveProcesses(reason);
 		if (shouldReviveProcesses) {
-			await this._localTerminalService?.persistTerminalState();
+			await this._primaryOffProcessTerminalService?.persistTerminalState();
 		}
 
 		// Persist terminal _processes_
@@ -648,7 +648,7 @@ export class TerminalService implements ITerminalService {
 
 		// Clear terminal layout info only when not persisting
 		if (!this._shouldReviveProcesses(e.reason)) {
-			this._localTerminalService?.setTerminalLayoutInfo(undefined);
+			this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(undefined);
 		}
 	}
 
@@ -1363,6 +1363,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _getSplitParent(location?: ITerminalLocationOptions): ITerminalInstance | undefined {
+		if (this._connectionState === TerminalConnectionState.Connecting && this.activeInstance) {
+			const group = this._terminalGroupService.getGroupForInstance(this.activeInstance);
+			return group?.terminalInstances[group.terminalInstances.length - 1];
+		}
 		if (location && typeof location === 'object' && 'parentTerminal' in location) {
 			return location.parentTerminal;
 		} else if (location && typeof location === 'object' && 'splitActiveTerminal' in location) {
