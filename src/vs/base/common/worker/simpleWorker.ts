@@ -534,7 +534,15 @@ export class SimpleWorkerServer<H extends object> {
 
 		return new Promise<string[]>((resolve, reject) => {
 			// Use the global require to be sure to get the global config
-			(globals.require || require)([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
+
+			// ESM-comment-begin
+			const req = (globals.require || require);
+			// ESM-comment-end
+			// ESM-uncomment-begin
+			// const req = globals.require;
+			// ESM-uncomment-end
+
+			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
 				this._requestHandler = module.create(hostProxy);
 
 				if (!this._requestHandler) {
