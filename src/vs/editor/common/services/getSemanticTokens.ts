@@ -14,7 +14,7 @@ import { assertType } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { Range } from 'vs/editor/common/core/range';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
@@ -43,10 +43,16 @@ export function getDocumentSemanticTokens(model: ITextModel, lastResultId: strin
 }
 
 class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
-	private disposables = new DisposableStore();
-	private didChangeEmitter = new Emitter<void>();
+
+	private readonly disposables = new DisposableStore();
+
+	private readonly didChangeEmitter = this.disposables.add(new Emitter<void>());
+	public readonly onDidChange = this.didChangeEmitter.event;
+
 	private lastUsedProvider: DocumentSemanticTokensProvider | undefined = undefined;
+
 	private static providerToLastResult = new WeakMap<DocumentSemanticTokensProvider, string>();
+
 	constructor(model: ITextModel, private readonly providerGroup: DocumentSemanticTokensProvider[]) {
 		// Lifetime of this provider is tied to the text model
 		model.onWillDispose(() => this.disposables.clear());
@@ -58,6 +64,7 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 			}
 		});
 	}
+
 	public async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null | undefined> {
 		// Get tokens from the group all at the same time. Return the first
 		// that actually returned tokens
@@ -87,12 +94,11 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 		this.lastUsedProvider = this.providerGroup[hasTokensIndex];
 		return list[hasTokensIndex];
 	}
-	public get onDidChange(): Event<void> {
-		return this.didChangeEmitter.event;
-	}
+
 	public getLegend(): SemanticTokensLegend {
 		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
 	}
+
 	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
 		this.providerGroup.forEach(p => {
 			// If this result is for this provider, release it
@@ -110,8 +116,13 @@ class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensP
 }
 
 class CompositeDocumentRangeSemanticTokensProvider implements DocumentRangeSemanticTokensProvider {
+
 	private lastUsedProvider: DocumentRangeSemanticTokensProvider | undefined = undefined;
-	constructor(private readonly providerGroup: DocumentRangeSemanticTokensProvider[]) { }
+
+	constructor(
+		private readonly providerGroup: DocumentRangeSemanticTokensProvider[]
+	) { }
+
 	public async provideDocumentRangeSemanticTokens(model: ITextModel, range: Range, token: CancellationToken): Promise<SemanticTokens | null | undefined> {
 		// Get tokens from the group all at the same time. Return the first
 		// that actually returned tokens
@@ -130,6 +141,7 @@ class CompositeDocumentRangeSemanticTokensProvider implements DocumentRangeSeman
 		this.lastUsedProvider = this.providerGroup[hasTokensIndex];
 		return list[hasTokensIndex];
 	}
+
 	getLegend(): SemanticTokensLegend {
 		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
 	}
