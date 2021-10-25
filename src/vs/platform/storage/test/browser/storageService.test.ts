@@ -67,8 +67,8 @@ flakySuite('StorageService (browser specific)', () => {
 		disposables.clear();
 	});
 
-	test('clear', async () => {
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('clear', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
 			storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
 			storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
