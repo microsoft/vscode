@@ -3244,7 +3244,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					continue;
 				}
 
-				if (line.guideVisibleColumn > lastVisibleColumnCount) {
+				if (line.guideVisibleColumn >= lastVisibleColumnCount && !isActive) {
+					// Don't render a guide on top of an existing guide, unless it is active.
 					continue;
 				}
 				lastVisibleColumnCount = line.guideVisibleColumn;
