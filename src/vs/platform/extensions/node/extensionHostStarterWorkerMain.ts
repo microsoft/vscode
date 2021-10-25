@@ -44,7 +44,7 @@
 		loader([moduleId], function (ws: any) {
 			setTimeout(() => {
 
-				const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+				const messageHandler = ws.create((msg: any, transfer?: ArrayBuffer[]) => {
 					parentPort.postMessage(msg, transfer);
 				}, null);
 				parentPort.off('message', initialMessageHandler);
