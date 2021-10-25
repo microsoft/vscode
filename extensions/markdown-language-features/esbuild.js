@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 const path = require('path');
+const fse = require('fs-extra');
 const esbuild = require('esbuild');
 
 const args = process.argv.slice(2);
@@ -30,3 +31,7 @@ esbuild.build({
 	target: ['es2020'],
 	incremental: isWatch,
 }).catch(() => process.exit(1));
+
+fse.copySync(
+	path.join(__dirname, 'media/markdown.css'),
+	path.join(outDir, 'markdown.css'));
