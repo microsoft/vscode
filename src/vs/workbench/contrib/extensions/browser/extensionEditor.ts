@@ -1107,11 +1107,18 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => $('tr', undefined,
-					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } }))),
-					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
-				))
+				...contrib.map(key => {
+					let description: (Node | string) = properties[key].description;
+					if (properties[key].markdownDescription) {
+						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+						description = element;
+						this.contentDisposables.add(toDisposable(dispose));
+					}
+					return $('tr', undefined,
+						$('td', undefined, $('code', undefined, key)),
+						$('td', undefined, description),
+						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
+				})
 			)
 		);
 
