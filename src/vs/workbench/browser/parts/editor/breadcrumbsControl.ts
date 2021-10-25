@@ -62,7 +62,7 @@ class OutlineItem extends BreadcrumbsItem {
 		if (!(other instanceof OutlineItem)) {
 			return false;
 		}
-		return this.element === other.element &&
+		return this.element.element === other.element.element &&
 			this.options.showFileIcons === other.options.showFileIcons &&
 			this.options.showSymbolIcons === other.options.showSymbolIcons;
 	}
