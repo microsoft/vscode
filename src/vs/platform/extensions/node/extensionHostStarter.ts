@@ -15,6 +15,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { mixin } from 'vs/base/common/objects';
 import { cwd } from 'vs/base/common/process';
+import { StopWatch } from 'vs/base/common/stopwatch';
+
+export interface IPartialLogService {
+	readonly _serviceBrand: undefined;
+	info(message: string): void;
+}
 
 class ExtensionHostProcess extends Disposable {
 
@@ -37,7 +43,7 @@ class ExtensionHostProcess extends Disposable {
 
 	constructor(
 		public readonly id: string,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: IPartialLogService
 	) {
 		super();
 	}
@@ -47,14 +53,16 @@ class ExtensionHostProcess extends Disposable {
 	}
 
 	start(opts: IExtensionHostProcessOptions): { pid: number; } {
+		const sw = StopWatch.create(false);
 		this._process = fork(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
 			['--type=extensionHost', '--skipWorkspaceStorageLock'],
 			mixin({ cwd: cwd() }, opts),
 		);
+		const forkTime = sw.elapsed();
 		const pid = this._process.pid;
 
-		this._logService.info(`Starting extension host with pid ${pid}.`);
+		this._logService.info(`Starting extension host with pid ${pid} (fork() took ${forkTime} ms).`);
 
 		const stdoutDecoder = new StringDecoder('utf-8');
 		this._process.stdout?.on('data', (chunk) => {
@@ -125,7 +133,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 	private readonly _extHosts: Map<string, ExtensionHostProcess>;
 
 	constructor(
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: IPartialLogService
 	) {
 		this._extHosts = new Map<string, ExtensionHostProcess>();
 	}
