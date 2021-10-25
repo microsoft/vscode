@@ -152,14 +152,18 @@ function _getDocumentSemanticTokensProviderHighestGroup(model: ITextModel): Docu
 	return (result.length > 0 ? result[0] : null);
 }
 
-function _getDocumentRangeSemanticTokensProviderHighestGroup(model: ITextModel): DocumentRangeSemanticTokensProvider[] | null {
-	const result = DocumentRangeSemanticTokensProviderRegistry.orderedGroups(model);
-	return (result.length > 0 ? result[0] : null);
-}
-
 export function getDocumentRangeSemanticTokensProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
-	const highestGroup = _getDocumentRangeSemanticTokensProviderHighestGroup(model);
-	return highestGroup ? new CompositeDocumentRangeSemanticTokensProvider(highestGroup) : null;
+	const groups = DocumentRangeSemanticTokensProviderRegistry.orderedGroups(model);
+	const highestGroup = (groups.length > 0 ? groups[0] : []);
+	if (highestGroup.length === 0) {
+		// there are no providers
+		return null;
+	}
+	if (highestGroup.length === 1) {
+		// there is a single provider
+		return highestGroup[0];
+	}
+	return new CompositeDocumentRangeSemanticTokensProvider(highestGroup);
 }
 
 CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
