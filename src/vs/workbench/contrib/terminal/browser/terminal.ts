@@ -109,6 +109,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
+	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly allProfiles: ITerminalProfileType[] | undefined;
 	readonly profilesReady: Promise<void>;
 	readonly defaultLocation: TerminalLocation;
