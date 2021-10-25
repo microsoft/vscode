@@ -567,8 +567,10 @@ export class CodeApplication extends Disposable {
 		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService);
 		mainProcessElectronServer.registerChannel('localFilesystem', fileSystemProviderChannel);
 
-		// Configuration
-		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService)));
+		// User Configuration File
+		const userConfigurationFileService = new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService);
+		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService));
+		sharedProcessClient.then(client => client.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(userConfigurationFileService)));
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
