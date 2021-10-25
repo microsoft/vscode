@@ -152,7 +152,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		return testObject.editKeybinding(aResolvedKeybindingItem({ firstPart: { keyCode: KeyCode.Escape } }), 'alt+c', undefined)
 			.then(() => assert.fail('Should fail with dirty error'),
-				error => assert.strictEqual(error.message, 'Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.'));
+				error => assert.strictEqual(error.message, 'Unable to write because the keybindings configuration file has unsaved changes. Please save it first and then try again.'));
 	});
 
 	test('errors cases - did not find an array', async () => {
