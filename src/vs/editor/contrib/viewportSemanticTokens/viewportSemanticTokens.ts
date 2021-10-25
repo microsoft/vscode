@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider, SemanticTokens } from 'vs/editor/common/modes';
+import { DocumentRangeSemanticTokensProvider, DocumentRangeSemanticTokensProviderRegistry, SemanticTokens } from 'vs/editor/common/modes';
+import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { toMultilineTokens2, SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
@@ -66,11 +67,6 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		}));
 	}
 
-	private static _getSemanticColoringProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
-		const result = DocumentRangeSemanticTokensProviderRegistry.ordered(model);
-		return (result.length > 0 ? result[0] : null);
-	}
-
 	private _cancelAll(): void {
 		for (const request of this._outstandingRequests) {
 			request.cancel();
@@ -92,14 +88,20 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			return;
 		}
 		const model = this._editor.getModel();
-		if (model.hasSemanticTokens()) {
+		if (model.hasCompleteSemanticTokens()) {
 			return;
 		}
 		if (!isSemanticColoringEnabled(model, this._themeService, this._configurationService)) {
+			if (model.hasSomeSemanticTokens()) {
+				model.setSemanticTokens(null, false);
+			}
 			return;
 		}
-		const provider = ViewportSemanticTokensContribution._getSemanticColoringProvider(model);
+		const provider = getDocumentRangeSemanticTokensProvider(model);
 		if (!provider) {
+			if (model.hasSomeSemanticTokens()) {
+				model.setSemanticTokens(null, false);
+			}
 			return;
 		}
 		const styling = this._modelService.getSemanticTokensProviderStyling(provider);
@@ -115,7 +117,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			if (!r || model.isDisposed() || model.getVersionId() !== requestVersionId) {
 				return;
 			}
-			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageIdentifier()));
+			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageId()));
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;
 	}

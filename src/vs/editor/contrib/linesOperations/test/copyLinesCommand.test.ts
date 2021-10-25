@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
@@ -207,8 +207,8 @@ suite('Editor Contrib - Duplicate Selection', () => {
 		withTestCodeEditor(lines.join('\n'), {}, (editor) => {
 			editor.setSelections(selections);
 			duplicateSelectionAction.run(null!, editor, {});
-			assert.deepEqual(editor.getValue(), expectedLines.join('\n'));
-			assert.deepEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+			assert.deepStrictEqual(editor.getValue(), expectedLines.join('\n'));
+			assert.deepStrictEqual(editor.getSelections()!.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 		});
 	}
 

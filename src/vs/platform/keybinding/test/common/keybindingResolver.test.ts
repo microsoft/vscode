@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { KeyChord, KeyCode, KeyMod, SimpleKeybinding, createKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { createKeybinding, createSimpleKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpr, IContext, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -27,7 +28,9 @@ suite('KeybindingResolver', () => {
 			command,
 			commandArgs,
 			when,
-			isDefault
+			isDefault,
+			null,
+			false
 		);
 	}
 
@@ -36,171 +39,182 @@ suite('KeybindingResolver', () => {
 	}
 
 	test('resolve key', function () {
-		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ;
 		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
 
-		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
-		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
+		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
+		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
 
-		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
-		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
+		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
+		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
+		assert.strictEqual(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
 	});
 
 	test('resolve key with arguments', function () {
 		let commandArgs = { text: 'no' };
-		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z;
+		let keybinding = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ;
 		let runtimeKeybinding = createSimpleKeybinding(keybinding, OS);
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
-		let resolver = new KeybindingResolver([keybindingItem], []);
-		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
+		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
+		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.combine simple 1', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false)
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), false),
 		]);
 	});
 
 	test('KeybindingResolver.combine simple 2', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false)
+			kbItem(KeyCode.KeyC, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
-			kbItem(KeyCode.KEY_C, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true),
+			kbItem(KeyCode.KeyC, 'yes3', null, ContextKeyExpr.equals('3', 'c'), false),
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with not matching when', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, ContextKeyExpr.equals('1', 'b'), false)
+			kbItem(KeyCode.KeyA, '-yes1', null, ContextKeyExpr.equals('1', 'b'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with not matching keybinding', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_B, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
+			kbItem(KeyCode.KeyB, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with matching keybinding and when', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
+			kbItem(KeyCode.KeyA, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified keybinding', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
 			kbItem(0, '-yes1', null, ContextKeyExpr.equals('1', 'a'), false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified when', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, null!, false)
+			kbItem(KeyCode.KeyA, '-yes1', null, null!, false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('KeybindingResolver.combine removal with unspecified when and unspecified keybinding', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, 'yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
 			kbItem(0, '-yes1', null, null!, false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('issue #612#issuecomment-222109084 cannot remove keybindings for commands with ^', function () {
 		let defaults = [
-			kbItem(KeyCode.KEY_A, '^yes1', null, ContextKeyExpr.equals('1', 'a'), true),
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+			kbItem(KeyCode.KeyA, '^yes1', null, ContextKeyExpr.equals('1', 'a'), true),
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		let overrides = [
-			kbItem(KeyCode.KEY_A, '-yes1', null, null!, false)
+			kbItem(KeyCode.KeyA, '-yes1', null, null!, false)
 		];
 		let actual = KeybindingResolver.combine(defaults, overrides);
-		assert.deepEqual(actual, [
-			kbItem(KeyCode.KEY_B, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		]);
 	});
 
 	test('contextIsEntirelyIncluded', () => {
-		const assertIsIncluded = (a: string | null, b: string | null) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(ContextKeyExpr.deserialize(a), ContextKeyExpr.deserialize(b)), true);
+		const toContextKeyExpression = (expr: ContextKeyExpression | string | null) => {
+			if (typeof expr === 'string' || !expr) {
+				return ContextKeyExpr.deserialize(expr);
+			}
+			return expr;
 		};
-		const assertIsNotIncluded = (a: string | null, b: string | null) => {
-			assert.equal(KeybindingResolver.whenIsEntirelyIncluded(ContextKeyExpr.deserialize(a), ContextKeyExpr.deserialize(b)), false);
+		const assertIsIncluded = (a: ContextKeyExpression | string | null, b: ContextKeyExpression | string | null) => {
+			assert.strictEqual(KeybindingResolver.whenIsEntirelyIncluded(toContextKeyExpression(a), toContextKeyExpression(b)), true);
+		};
+		const assertIsNotIncluded = (a: ContextKeyExpression | string | null, b: ContextKeyExpression | string | null) => {
+			assert.strictEqual(KeybindingResolver.whenIsEntirelyIncluded(toContextKeyExpression(a), toContextKeyExpression(b)), false);
 		};
 
+		assertIsIncluded(null, null);
+		assertIsIncluded(null, ContextKeyExpr.true());
+		assertIsIncluded(ContextKeyExpr.true(), null);
+		assertIsIncluded(ContextKeyExpr.true(), ContextKeyExpr.true());
 		assertIsIncluded('key1', null);
 		assertIsIncluded('key1', '');
 		assertIsIncluded('key1', 'key1');
+		assertIsIncluded('key1', ContextKeyExpr.true());
 		assertIsIncluded('!key1', '');
 		assertIsIncluded('!key1', '!key1');
 		assertIsIncluded('key2', '');
@@ -232,7 +246,7 @@ suite('KeybindingResolver', () => {
 		let items = [
 			// This one will never match because its "when" is always overwritten by another one
 			_kbItem(
-				KeyCode.KEY_X,
+				KeyCode.KeyX,
 				'first',
 				ContextKeyExpr.and(
 					ContextKeyExpr.equals('key1', true),
@@ -241,31 +255,31 @@ suite('KeybindingResolver', () => {
 			),
 			// This one always overwrites first
 			_kbItem(
-				KeyCode.KEY_X,
+				KeyCode.KeyX,
 				'second',
 				ContextKeyExpr.equals('key2', true)
 			),
 			// This one is a secondary mapping for `second`
 			_kbItem(
-				KeyCode.KEY_Z,
+				KeyCode.KeyZ,
 				'second',
 				null!
 			),
 			// This one sometimes overwrites first
 			_kbItem(
-				KeyCode.KEY_X,
+				KeyCode.KeyX,
 				'third',
 				ContextKeyExpr.equals('key3', true)
 			),
 			// This one is always overwritten by another one
 			_kbItem(
-				KeyMod.CtrlCmd | KeyCode.KEY_Y,
+				KeyMod.CtrlCmd | KeyCode.KeyY,
 				'fourth',
 				ContextKeyExpr.equals('key4', true)
 			),
 			// This one overwrites with a chord the previous one
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ),
 				'fifth',
 				null!
 			),
@@ -276,47 +290,47 @@ suite('KeybindingResolver', () => {
 				null!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				'seventh',
 				null!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK),
 				'seventh',
 				null!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				'uncomment lines',
 				null!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				'comment lines',
 				null!
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_G, KeyMod.CtrlCmd | KeyCode.KEY_C),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyG, KeyMod.CtrlCmd | KeyCode.KeyC),
 				'unreachablechord',
 				null!
 			),
 			_kbItem(
-				KeyMod.CtrlCmd | KeyCode.KEY_G,
+				KeyMod.CtrlCmd | KeyCode.KeyG,
 				'eleven',
 				null!
 			)
 		];
 
-		let resolver = new KeybindingResolver(items, []);
+		let resolver = new KeybindingResolver(items, [], () => { });
 
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup
 			let lookupResult = resolver.lookupKeybindings(commandId);
-			assert.equal(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId + '; GOT: ' + JSON.stringify(lookupResult, null, '\t'));
+			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
 			for (let i = 0, len = lookupResult.length; i < len; i++) {
 				const expected = new USLayoutResolvedKeybinding(createKeybinding(expectedKeys[i], OS)!, OS);
 
-				assert.equal(lookupResult[i].resolvedKeybinding!.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
+				assert.strictEqual(lookupResult[i].resolvedKeybinding!.getUserSettingsLabel(), expected.getUserSettingsLabel(), 'value mismatch @ commandId ' + commandId);
 			}
 		};
 
@@ -331,14 +345,14 @@ suite('KeybindingResolver', () => {
 					// if it's the final part, then we should find a valid command,
 					// and there should not be a chord.
 					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result!.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result!.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
+					assert.strictEqual(result!.commandId, commandId, `Enters chord for ${commandId} at part ${i}`);
+					assert.strictEqual(result!.enterChord, false, `Enters chord for ${commandId} at part ${i}`);
 				} else {
 					// if it's not the final part, then we should not find a valid command,
 					// and there should be a chord.
 					assert.ok(result !== null, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result!.commandId, null, `Enters chord for ${commandId} at part ${i}`);
-					assert.equal(result!.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
+					assert.strictEqual(result!.commandId, null, `Enters chord for ${commandId} at part ${i}`);
+					assert.strictEqual(result!.enterChord, true, `Enters chord for ${commandId} at part ${i}`);
 				}
 				previousPart = part;
 			}
@@ -346,31 +360,31 @@ suite('KeybindingResolver', () => {
 
 		testKey('first', []);
 
-		testKey('second', [KeyCode.KEY_Z, KeyCode.KEY_X]);
-		testResolve(createContext({ key2: true }), KeyCode.KEY_X, 'second');
-		testResolve(createContext({}), KeyCode.KEY_Z, 'second');
+		testKey('second', [KeyCode.KeyZ, KeyCode.KeyX]);
+		testResolve(createContext({ key2: true }), KeyCode.KeyX, 'second');
+		testResolve(createContext({}), KeyCode.KeyZ, 'second');
 
-		testKey('third', [KeyCode.KEY_X]);
-		testResolve(createContext({ key3: true }), KeyCode.KEY_X, 'third');
+		testKey('third', [KeyCode.KeyX]);
+		testResolve(createContext({ key3: true }), KeyCode.KeyX, 'third');
 
 		testKey('fourth', []);
 
-		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_Y, KeyCode.KEY_Z), 'fifth');
+		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)]);
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ), 'fifth');
 
-		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K), 'seventh');
+		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK)]);
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK), 'seventh');
 
-		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U), 'uncomment lines');
+		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU)]);
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU), 'uncomment lines');
 
-		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C), 'comment lines');
+		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC)]);
+		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), 'comment lines');
 
 		testKey('unreachablechord', []);
 
-		testKey('eleven', [KeyMod.CtrlCmd | KeyCode.KEY_G]);
-		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KEY_G, 'eleven');
+		testKey('eleven', [KeyMod.CtrlCmd | KeyCode.KeyG]);
+		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KeyG, 'eleven');
 
 		testKey('sixth', []);
 	});

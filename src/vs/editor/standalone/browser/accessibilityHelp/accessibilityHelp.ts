@@ -141,7 +141,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				return;
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_E)) {
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyE)) {
 				alert(AccessibilityHelpNLS.emergencyConfOn);
 
 				this._editor.updateOptions({
@@ -156,7 +156,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				e.stopPropagation();
 			}
 
-			if (e.equals(KeyMod.CtrlCmd | KeyCode.KEY_H)) {
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.KeyH)) {
 				alert(AccessibilityHelpNLS.openingDocs);
 
 				let url = (<IStandaloneEditorConstructionOptions>this._editor.getRawOptions()).accessibilityHelpUrl;
@@ -177,7 +177,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._editor.addOverlayWidget(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
@@ -328,7 +328,6 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: undefined,
 			kbOpts: {
-				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1,
 				weight: KeybindingWeight.EditorContrib,
 				linux: {

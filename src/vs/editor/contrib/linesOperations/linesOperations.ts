@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,9 +21,9 @@ import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/mod
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/copyLinesCommand';
 import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
+import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 // copy lines
 
@@ -63,10 +63,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 
 		const commands: ICommand[] = [];
 		for (const selection of selections) {
-			if (selection.ignore) {
-				continue;
-			}
-			commands.push(new CopyLinesCommand(selection.selection, this.down));
+			commands.push(new CopyLinesCommand(selection.selection, this.down, selection.ignore));
 		}
 
 		editor.pushUndoStop();
@@ -297,7 +294,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -345,7 +342,7 @@ export class DeleteLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -447,7 +444,7 @@ export class IndentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketRight,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -473,7 +470,7 @@ class OutdentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketLeft,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -665,7 +662,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -732,7 +729,7 @@ export class JoinLinesAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyJ },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -942,43 +939,39 @@ export class TransposeAction extends EditorAction {
 
 export abstract class AbstractCaseAction extends EditorAction {
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
+		const selections = editor.getSelections();
 		if (selections === null) {
 			return;
 		}
 
-		let model = editor.getModel();
+		const model = editor.getModel();
 		if (model === null) {
 			return;
 		}
 
-		let wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const wordSeparators = editor.getOption(EditorOption.wordSeparators);
+		const textEdits: IIdentifiedSingleEditOperation[] = [];
 
-		let commands: ICommand[] = [];
-
-		for (let i = 0, len = selections.length; i < len; i++) {
-			let selection = selections[i];
+		for (const selection of selections) {
 			if (selection.isEmpty()) {
-				let cursor = selection.getStartPosition();
+				const cursor = selection.getStartPosition();
 				const word = editor.getConfiguredWordAtPosition(cursor);
 
 				if (!word) {
 					continue;
 				}
 
-				let wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
-				let text = model.getValueInRange(wordRange);
-				commands.push(new ReplaceCommandThatPreservesSelection(wordRange, this._modifyText(text, wordSeparators),
-					new Selection(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column)));
-
+				const wordRange = new Range(cursor.lineNumber, word.startColumn, cursor.lineNumber, word.endColumn);
+				const text = model.getValueInRange(wordRange);
+				textEdits.push(EditOperation.replace(wordRange, this._modifyText(text, wordSeparators)));
 			} else {
-				let text = model.getValueInRange(selection);
-				commands.push(new ReplaceCommandThatPreservesSelection(selection, this._modifyText(text, wordSeparators), selection));
+				const text = model.getValueInRange(selection);
+				textEdits.push(EditOperation.replace(selection, this._modifyText(text, wordSeparators)));
 			}
 		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
+		editor.executeEdits(this.id, textEdits);
 		editor.pushUndoStop();
 	}
 
@@ -1052,6 +1045,65 @@ export class TitleCaseAction extends AbstractCaseAction {
 	}
 }
 
+class BackwardsCompatibleRegExp {
+
+	private _actual: RegExp | null;
+	private _evaluated: boolean;
+
+	constructor(
+		private readonly _pattern: string,
+		private readonly _flags: string
+	) {
+		this._actual = null;
+		this._evaluated = false;
+	}
+
+	public get(): RegExp | null {
+		if (!this._evaluated) {
+			this._evaluated = true;
+			try {
+				this._actual = new RegExp(this._pattern, this._flags);
+			} catch (err) {
+				// this browser does not support this regular expression
+			}
+		}
+		return this._actual;
+	}
+
+	public isSupported(): boolean {
+		return (this.get() !== null);
+	}
+}
+
+export class SnakeCaseAction extends AbstractCaseAction {
+
+	public static regExp1 = new BackwardsCompatibleRegExp('(\\p{Ll})(\\p{Lu})', 'gmu');
+	public static regExp2 = new BackwardsCompatibleRegExp('(\\p{Lu}|\\p{N})(\\p{Lu})(\\p{Ll})', 'gmu');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToSnakecase',
+			label: nls.localize('editor.transformToSnakecase', "Transform to Snake Case"),
+			alias: 'Transform to Snake Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const regExp1 = SnakeCaseAction.regExp1.get();
+		const regExp2 = SnakeCaseAction.regExp2.get();
+		if (!regExp1 || !regExp2) {
+			// cannot support this
+			return text;
+		}
+		return (text
+			.replace(regExp1, '$1_$2')
+			.replace(regExp2, '$1_$2$3')
+			.toLocaleLowerCase()
+		);
+	}
+}
+
 registerEditorAction(CopyLinesUpAction);
 registerEditorAction(CopyLinesDownAction);
 registerEditorAction(DuplicateSelectionAction);
@@ -1072,3 +1124,7 @@ registerEditorAction(TransposeAction);
 registerEditorAction(UpperCaseAction);
 registerEditorAction(LowerCaseAction);
 registerEditorAction(TitleCaseAction);
+
+if (SnakeCaseAction.regExp1.isSupported() && SnakeCaseAction.regExp2.isSupported()) {
+	registerEditorAction(SnakeCaseAction);
+}

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { endsWith, rtrim } from 'vs/base/common/strings';
+import { rtrim } from 'vs/base/common/strings';
 
 export function normalizeGitHubUrl(url: string): string {
 	// If the url has a .git suffix, remove it
-	if (endsWith(url, '.git')) {
+	if (url.endsWith('.git')) {
 		url = url.substr(0, url.length - 4);
 	}
 
 	// Remove trailing slash
 	url = rtrim(url, '/');
 
-	if (endsWith(url, '/new')) {
+	if (url.endsWith('/new')) {
 		url = rtrim(url, '/new');
 	}
 
-	if (endsWith(url, '/issues')) {
+	if (url.endsWith('/issues')) {
 		url = rtrim(url, '/issues');
 	}
 

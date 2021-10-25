@@ -7,7 +7,7 @@
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
- * Please make sure to make edits in the .ts file at https://github.com/Microsoft/vscode-loader/
+ * Please make sure to make edits in the .ts file at https://github.com/microsoft/vscode-loader/
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
  *---------------------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ var NLSBuildLoaderPlugin;
                                     return 'NLS error: unknown key ' + moduleKey;
                                 var mk = keyMap[moduleKey].keys;
                                 if (index >= mk.length)
-                                    return 'NLS error unknow index ' + index;
+                                    return 'NLS error unknown index ' + index;
                                 var subKey = mk[index];
                                 var args = [];
                                 args[0] = moduleKey + '_' + subKey;

@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -17,6 +17,9 @@ import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/bro
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 class OpenUrlAction extends Action2 {
 
@@ -24,7 +27,7 @@ class OpenUrlAction extends Action2 {
 		super({
 			id: 'workbench.action.url.openUrl',
 			title: { value: localize('openUrl', "Open URL"), original: 'Open URL' },
-			category: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -36,7 +39,7 @@ class OpenUrlAction extends Action2 {
 		return quickInputService.input({ prompt: localize('urlToOpen', "URL to open") }).then(input => {
 			if (input) {
 				const uri = URI.parse(input);
-				urlService.open(uri, { trusted: true });
+				urlService.open(uri, { originalUrl: input });
 			}
 		});
 	}
@@ -71,3 +74,17 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	ExternalUriResolverContribution,
 	LifecyclePhase.Ready
 );
+
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.trustedDomains.promptInTrustedWorkspace': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			description: localize('workbench.trustedDomains.promptInTrustedWorkspace', "When enabled, trusted domain prompts will appear when opening links in trusted workspaces.")
+		}
+	}
+});

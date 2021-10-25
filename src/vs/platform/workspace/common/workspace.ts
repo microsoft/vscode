@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import * as resources from 'vs/base/common/resources';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TernarySearchTree } from 'vs/base/common/map';
 import { Event } from 'vs/base/common/event';
-import { IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
+import { TernarySearchTree } from 'vs/base/common/map';
+import { basenameOrAuthority, joinPath } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ISingleFolderWorkspaceIdentifier, IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
+
 	readonly _serviceBrand: undefined;
 
 	/**
@@ -25,6 +26,11 @@ export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 	 * An event which fires on workspace name changes.
 	 */
 	readonly onDidChangeWorkspaceName: Event<void>;
+
+	/**
+	 * An event which fires before workspace folders change.
+	 */
+	readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent>;
 
 	/**
 	 * An event which fires on workspace folders change.
@@ -58,9 +64,9 @@ export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null;
 
 	/**
-	 * Return `true` if the current workspace has the given identifier otherwise `false`.
+	 * Return `true` if the current workspace has the given identifier or root URI otherwise `false`.
 	 */
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean;
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean;
 
 	/**
 	 * Returns if the provided resource is inside the workspace or not.
@@ -74,18 +80,16 @@ export const enum WorkbenchState {
 	WORKSPACE
 }
 
+export interface IWorkspaceFoldersWillChangeEvent {
+	join(promise: Promise<void>): void;
+	readonly changes: IWorkspaceFoldersChangeEvent;
+	readonly fromCache: boolean;
+}
+
 export interface IWorkspaceFoldersChangeEvent {
 	added: IWorkspaceFolder[];
 	removed: IWorkspaceFolder[];
 	changed: IWorkspaceFolder[];
-}
-
-export namespace IWorkspace {
-	export function isIWorkspace(thing: unknown): thing is IWorkspace {
-		return thing && typeof thing === 'object'
-			&& typeof (thing as IWorkspace).id === 'string'
-			&& Array.isArray((thing as IWorkspace).folders);
-	}
 }
 
 export interface IWorkspace {
@@ -101,9 +105,24 @@ export interface IWorkspace {
 	readonly folders: IWorkspaceFolder[];
 
 	/**
+	 * Transient workspaces are meant to go away after being used
+	 * once, e.g. a window reload of a transient workspace will
+	 * open an empty window.
+	 */
+	readonly transient?: boolean;
+
+	/**
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
+}
+
+export function isWorkspace(thing: unknown): thing is IWorkspace {
+	const candidate = thing as IWorkspace | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& typeof candidate.id === 'string'
+		&& Array.isArray(candidate.folders));
 }
 
 export interface IWorkspaceFolderData {
@@ -125,15 +144,6 @@ export interface IWorkspaceFolderData {
 	readonly index: number;
 }
 
-export namespace IWorkspaceFolder {
-	export function isIWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
-		return thing && typeof thing === 'object'
-			&& URI.isUri((thing as IWorkspaceFolder).uri)
-			&& typeof (thing as IWorkspaceFolder).name === 'string'
-			&& typeof (thing as IWorkspaceFolder).toResource === 'function';
-	}
-}
-
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 	/**
@@ -142,15 +152,26 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 	toResource: (relativePath: string) => URI;
 }
 
+export function isWorkspaceFolder(thing: unknown): thing is IWorkspaceFolder {
+	const candidate = thing as IWorkspaceFolder;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& URI.isUri(candidate.uri)
+		&& typeof candidate.name === 'string'
+		&& typeof candidate.toResource === 'function');
+}
+
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<URI, WorkspaceFolder> = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing);
 	private _folders!: WorkspaceFolder[];
 
 	constructor(
 		private _id: string,
-		folders: WorkspaceFolder[] = [],
-		private _configuration: URI | null = null
+		folders: WorkspaceFolder[],
+		private _transient: boolean,
+		private _configuration: URI | null,
+		private _ignorePathCasing: (key: URI) => boolean,
 	) {
 		this.folders = folders;
 	}
@@ -158,6 +179,8 @@ export class Workspace implements IWorkspace {
 	update(workspace: Workspace) {
 		this._id = workspace.id;
 		this._configuration = workspace.configuration;
+		this._transient = workspace.transient;
+		this._ignorePathCasing = workspace._ignorePathCasing;
 		this.folders = workspace.folders;
 	}
 
@@ -172,6 +195,10 @@ export class Workspace implements IWorkspace {
 
 	get id(): string {
 		return this._id;
+	}
+
+	get transient(): boolean {
+		return this._transient;
 	}
 
 	get configuration(): URI | null {
@@ -195,14 +222,14 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this._ignorePathCasing);
 		for (const folder of this.folders) {
 			this._foldersMap.set(folder.uri, folder);
 		}
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, configuration: this.configuration };
+		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
 	}
 }
 
@@ -220,7 +247,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toResource(relativePath: string): URI {
-		return resources.joinPath(this.uri, relativePath);
+		return joinPath(this.uri, relativePath);
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -229,43 +256,5 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 }
 
 export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
-	return new WorkspaceFolder({ uri: resource, index: 0, name: resources.basenameOrAuthority(resource) }, { uri: resource.toString() });
-}
-
-export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], workspaceConfigFile: URI): WorkspaceFolder[] {
-	let result: WorkspaceFolder[] = [];
-	let seen: Set<string> = new Set();
-
-	const relativeTo = resources.dirname(workspaceConfigFile);
-	for (let configuredFolder of configuredFolders) {
-		let uri: URI | null = null;
-		if (isRawFileWorkspaceFolder(configuredFolder)) {
-			if (configuredFolder.path) {
-				uri = resources.resolvePath(relativeTo, configuredFolder.path);
-			}
-		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
-			try {
-				uri = URI.parse(configuredFolder.uri);
-				// this makes sure all workspace folder are absolute
-				if (uri.path[0] !== '/') {
-					uri = uri.with({ path: '/' + uri.path });
-				}
-			} catch (e) {
-				console.warn(e);
-				// ignore
-			}
-		}
-		if (uri) {
-			// remove duplicates
-			let comparisonKey = resources.getComparisonKey(uri);
-			if (!seen.has(comparisonKey)) {
-				seen.add(comparisonKey);
-
-				const name = configuredFolder.name || resources.basenameOrAuthority(uri);
-				result.push(new WorkspaceFolder({ uri, name, index: result.length }, configuredFolder));
-			}
-		}
-	}
-
-	return result;
+	return new WorkspaceFolder({ uri: resource, index: 0, name: basenameOrAuthority(resource) }, { uri: resource.toString() });
 }

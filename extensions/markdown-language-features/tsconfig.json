@@ -1,13 +1,7 @@
 {
-	"extends": "../shared.tsconfig.json",
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./out",
-		"experimentalDecorators": true,
-		"lib": [
-			"es6",
-			"es2015.promise",
-			"dom"
-		]
+		"outDir": "./out"
 	},
 	"include": [
 		"src/**/*"

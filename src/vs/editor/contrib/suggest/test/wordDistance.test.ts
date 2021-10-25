@@ -4,35 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
-import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { mock } from 'vs/base/test/common/mock';
+import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import { Event } from 'vs/base/common/event';
-import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
-import { IPosition } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
+import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { CompletionItem } from 'vs/editor/contrib/suggest/suggest';
+import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('suggest, word distance', function () {
 
 	class BracketMode extends MockMode {
 
-		private static readonly _id = new modes.LanguageIdentifier('bracketMode', 3);
+		private static readonly _id = 'bracketMode';
 
 		constructor() {
 			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			this._register(LanguageConfigurationRegistry.register(this.languageId, {
 				brackets: [
 					['{', '}'],
 					['[', ']'],
@@ -48,14 +48,14 @@ suite('suggest, word distance', function () {
 
 		disposables.clear();
 		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
+		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.languageId, URI.parse('test:///some.path'));
 		let editor = createTestCodeEditor({ model: model });
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });
 
 		let modelService = new class extends mock<IModelService>() {
-			onModelRemoved = Event.None;
-			getModel(uri: URI) {
+			override onModelRemoved = Event.None;
+			override getModel(uri: URI) {
 				return uri.toString() === model.uri.toString() ? model : null;
 			}
 		};
@@ -74,16 +74,21 @@ suite('suggest, word distance', function () {
 				});
 				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
 			}
-			computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
+			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);
 			}
 		};
 
 		distance = await WordDistance.create(service, editor);
 
+		disposables.add(service);
 		disposables.add(mode);
 		disposables.add(model);
 		disposables.add(editor);
+	});
+
+	teardown(function () {
+		disposables.clear();
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {

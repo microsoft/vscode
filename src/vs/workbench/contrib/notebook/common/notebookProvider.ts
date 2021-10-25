@@ -6,66 +6,136 @@
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
-import { INotebookKernelInfoDto, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-export interface NotebookSelector {
-	readonly filenamePattern?: string;
-	readonly excludeFileNamePattern?: string;
-}
+type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
+	readonly extension?: ExtensionIdentifier,
 	readonly id: string;
 	readonly displayName: string;
-	readonly selector: readonly NotebookSelector[];
-	readonly priority: NotebookEditorPriority;
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
+	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	kernel?: INotebookKernelInfoDto;
+	readonly exclusive: boolean;
 }
 
-export class NotebookProviderInfo implements NotebookEditorDescriptor {
+export class NotebookProviderInfo {
 
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-	readonly selector: readonly NotebookSelector[];
-	readonly priority: NotebookEditorPriority;
-	// it's optional as the memento might not have it
-	readonly providerExtensionId?: string;
-	readonly providerDescription?: string;
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
-	readonly providerExtensionLocation: URI;
-	kernel?: INotebookKernelInfoDto;
+	readonly exclusive: boolean;
+
+	private _selectors: NotebookSelector[];
+	get selectors() {
+		return this._selectors;
+	}
+	private _options: TransientOptions;
+	get options() {
+		return this._options;
+	}
 
 	constructor(descriptor: NotebookEditorDescriptor) {
+		this.extension = descriptor.extension;
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
-		this.selector = descriptor.selector;
+		this._selectors = descriptor.selectors?.map(selector => ({
+			include: selector.filenamePattern,
+			exclude: selector.excludeFileNamePattern || ''
+		})) || [];
 		this.priority = descriptor.priority;
-		this.providerExtensionId = descriptor.providerExtensionId;
-		this.providerDescription = descriptor.providerDescription;
 		this.providerDisplayName = descriptor.providerDisplayName;
-		this.providerExtensionLocation = descriptor.providerExtensionLocation;
+		this.exclusive = descriptor.exclusive;
+		this._options = {
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
+			transientOutputs: false
+		};
+	}
+
+	update(args: { selectors?: NotebookSelector[]; options?: TransientOptions }) {
+		if (args.selectors) {
+			this._selectors = args.selectors;
+		}
+
+		if (args.options) {
+			this._options = args.options;
+		}
 	}
 
 	matches(resource: URI): boolean {
-		return this.selector.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
+		return this.selectors?.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
-		if (selector.filenamePattern) {
-			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
-				if (selector.excludeFileNamePattern) {
-					if (glob.match(selector.excludeFileNamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
-						// should exclude
-
-						return false;
-					}
-				}
+		if (typeof selector === 'string') {
+			// filenamePattern
+			if (glob.match(selector.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
 				return true;
 			}
 		}
+
+		if (glob.isRelativePattern(selector)) {
+			if (glob.match(selector, basename(resource.fsPath).toLowerCase())) {
+				return true;
+			}
+		}
+
+		if (!isDocumentExcludePattern(selector)) {
+			return false;
+		}
+
+		let filenamePattern = selector.include;
+		let excludeFilenamePattern = selector.exclude;
+
+		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (excludeFilenamePattern) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		return false;
+	}
+
+	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
+		for (let selector of selectors) {
+			const ending = NotebookProviderInfo._possibleFileEnding(selector);
+			if (ending) {
+				return ending;
+			}
+		}
+		return undefined;
+	}
+
+	private static _possibleFileEnding(selector: NotebookSelector): string | undefined {
+
+		const pattern = /^.*(\.[a-zA-Z0-9_-]+)$/;
+
+		let candidate: string | undefined;
+
+		if (typeof selector === 'string') {
+			candidate = selector;
+		} else if (glob.isRelativePattern(selector)) {
+			candidate = selector.pattern;
+		} else if (selector.include) {
+			return NotebookProviderInfo._possibleFileEnding(selector.include);
+		}
+
+		if (candidate) {
+			const match = pattern.exec(candidate);
+			if (match) {
+				return match[1];
+			}
+		}
+
+		return undefined;
 	}
 }

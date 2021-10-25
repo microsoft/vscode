@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as DomUtils from 'vs/base/browser/dom';
+import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 export namespace EventType {
 	export const Tap = '-monaco-gesturetap';
@@ -130,13 +130,13 @@ export class Gesture extends Disposable {
 	}
 
 	@memoize
-	private static isTouchDevice(): boolean {
+	static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || (window as Window).navigator.msMaxTouchPoints > 0;
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this.handle) {
 			this.handle.dispose();
 			this.handle = null;

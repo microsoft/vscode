@@ -138,6 +138,12 @@ suite('markdown.DocumentLinkProvider', () => {
 			assertRangeEqual(link4.range, new vscode.Range(0, 50, 0, 59));
 		}
 	});
+
+	// #107471
+	test('Should not consider link references starting with ^ character valid', () => {
+		const links = getLinksForFile('[^reference]: https://example.com');
+		assert.strictEqual(links.length, 0);
+	});
 });
 
 

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/common/product';
 import { app, Event as ElectronEvent } from 'electron';
-import { URI } from 'vs/base/common/uri';
-import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isWindows } from 'vs/base/common/platform';
 import { disposableTimeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IURLService } from 'vs/platform/url/common/url';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 function uriFromRawUrl(url: string): URI | null {
 	try {
@@ -34,16 +34,17 @@ function uriFromRawUrl(url: string): URI | null {
  */
 export class ElectronURLListener {
 
-	private uris: URI[] = [];
+	private uris: { uri: URI, url: string }[] = [];
 	private retryCount = 0;
 	private flushDisposable: IDisposable = Disposable.None;
 	private disposables = new DisposableStore();
 
 	constructor(
-		initialUrisToHandle: URI[],
+		initialUrisToHandle: { uri: URI, url: string }[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
-		environmentService: INativeEnvironmentService
+		environmentMainService: IEnvironmentMainService,
+		productService: IProductService
 	) {
 
 		// the initial set of URIs we need to handle once the window is ready
@@ -51,9 +52,9 @@ export class ElectronURLListener {
 
 		// Windows: install as protocol handler
 		if (isWindows) {
-			const windowsParameters = environmentService.isBuilt ? [] : [`"${environmentService.appRoot}"`];
+			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
-			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, windowsParameters);
+			app.setAsDefaultProtocolClient(productService.urlProtocol, process.execPath, windowsParameters);
 		}
 
 		// macOS: listen to `open-url` events from here on to handle
@@ -64,8 +65,15 @@ export class ElectronURLListener {
 				return url;
 			});
 
-		const onOpenUrl = Event.filter<URI | null, URI>(Event.map(onOpenElectronUrl, uriFromRawUrl), (uri): uri is URI => !!uri);
-		onOpenUrl(this.urlService.open, this.urlService, this.disposables);
+		this.disposables.add(onOpenElectronUrl(url => {
+			const uri = uriFromRawUrl(url);
+
+			if (!uri) {
+				return;
+			}
+
+			this.urlService.open(uri, { originalUrl: url });
+		}));
 
 		// Send initial links to the window once it has loaded
 		const isWindowReady = windowsMainService.getWindows()
@@ -75,7 +83,7 @@ export class ElectronURLListener {
 		if (isWindowReady) {
 			this.flush();
 		} else {
-			Event.once(windowsMainService.onWindowReady)(this.flush, this, this.disposables);
+			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
 		}
 	}
 
@@ -84,13 +92,13 @@ export class ElectronURLListener {
 			return;
 		}
 
-		const uris: URI[] = [];
+		const uris: { uri: URI, url: string }[] = [];
 
-		for (const uri of this.uris) {
-			const handled = await this.urlService.open(uri);
+		for (const obj of this.uris) {
+			const handled = await this.urlService.open(obj.uri, { originalUrl: obj.url });
 
 			if (!handled) {
-				uris.push(uri);
+				uris.push(obj);
 			}
 		}
 

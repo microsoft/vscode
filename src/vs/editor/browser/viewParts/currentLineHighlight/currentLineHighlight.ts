@@ -23,7 +23,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected _contentLeft: number;
 	protected _contentWidth: number;
 	protected _selectionIsEmpty: boolean;
-	protected _renderLineHightlightOnlyWhenFocus: boolean;
+	protected _renderLineHighlightOnlyWhenFocus: boolean;
 	protected _focused: boolean;
 	private _cursorLineNumbers: number[];
 	private _selections: Selection[];
@@ -37,19 +37,19 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
-		this._renderLineHightlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._selectionIsEmpty = true;
 		this._focused = false;
-		this._cursorLineNumbers = [];
-		this._selections = [];
+		this._cursorLineNumbers = [1];
+		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderData = null;
 
 		this._context.addEventHandler(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._context.removeEventHandler(this);
 		super.dispose();
 	}
@@ -77,40 +77,40 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	// --- begin event handlers
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return this._readFromSelections();
 	}
-	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
-		this._renderLineHightlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		return true;
 	}
-	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
 		return this._readFromSelections();
 	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+	public override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
 		return true;
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+	public override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollWidthChanged || e.scrollTopChanged;
 	}
-	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		if (!this._renderLineHightlightOnlyWhenFocus) {
+	public override onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		if (!this._renderLineHighlightOnlyWhenFocus) {
 			return false;
 		}
 
@@ -170,33 +170,36 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 		return (
 			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
 			&& this._selectionIsEmpty
-			&& (!this._renderLineHightlightOnlyWhenFocus || this._focused)
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
 		);
 	}
 	protected _shouldRenderOther(): boolean {
 		return (
 			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& (!this._renderLineHightlightOnlyWhenFocus || this._focused)
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
 		);
 	}
 }
 
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext): string {
-		const className = 'current-line current-line-margin' + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
+		const className = 'current-line' + (this._shouldRenderMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
 		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
 	}
-	protected _shouldRenderThis(): boolean {
+	protected _shouldRenderMargin(): boolean {
 		return (
 			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& (!this._renderLineHightlightOnlyWhenFocus || this._focused)
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
 		);
+	}
+	protected _shouldRenderThis(): boolean {
+		return true;
 	}
 	protected _shouldRenderOther(): boolean {
 		return (
 			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
 			&& this._selectionIsEmpty
-			&& (!this._renderLineHightlightOnlyWhenFocus || this._focused)
+			&& (!this._renderLineHighlightOnlyWhenFocus || this._focused)
 		);
 	}
 }

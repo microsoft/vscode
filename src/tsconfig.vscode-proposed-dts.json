@@ -1,0 +1,7 @@
+{
+	"extends": "./tsconfig.vscode-dts.json",
+	"include": [
+		"vs/vscode.d.ts",
+		"vs/vscode.proposed.d.ts",
+	]
+}

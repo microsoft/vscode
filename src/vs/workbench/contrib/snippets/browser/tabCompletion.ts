@@ -8,7 +8,7 @@ import { RawContextKey, IContextKeyService, ContextKeyExpr, IContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISnippetsService } from './snippets.contribution';
 import { getNonWhitespacePrefix } from './snippetsService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -53,8 +53,8 @@ export class TabCompletionController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		dispose(this._configListener);
-		dispose(this._selectionListener);
+		this._configListener.dispose();
+		this._selectionListener?.dispose();
 	}
 
 	private _update(): void {
@@ -62,7 +62,7 @@ export class TabCompletionController implements IEditorContribution {
 		if (this._enabled !== enabled) {
 			this._enabled = enabled;
 			if (!this._enabled) {
-				dispose(this._selectionListener);
+				this._selectionListener?.dispose();
 			} else {
 				this._selectionListener = this._editor.onDidChangeCursorSelection(e => this._updateSnippets());
 				if (this._editor.getModel()) {

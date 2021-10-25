@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from 'vs/editor/common/model';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
@@ -16,11 +16,8 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDeco
 import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
-import { Delayer } from 'vs/base/common/async';
+import { ResourceMap } from 'vs/base/common/map';
 
-function MODEL_ID(resource: URI): string {
-	return resource.toString();
-}
 
 class MarkerDecorations extends Disposable {
 
@@ -34,10 +31,6 @@ class MarkerDecorations extends Disposable {
 			this.model.deltaDecorations([...this._markersData.keys()], []);
 			this._markersData.clear();
 		}));
-	}
-
-	register<T extends IDisposable>(t: T): T {
-		return super._register(t);
 	}
 
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): boolean {
@@ -73,7 +66,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
-	private readonly _markerDecorations = new Map<string, MarkerDecorations>();
+	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
 
 	constructor(
 		@IModelService modelService: IModelService,
@@ -86,25 +79,25 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		this._register(this._markerService.onMarkerChanged(this._handleMarkerChange, this));
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._markerDecorations.forEach(value => value.dispose());
 		this._markerDecorations.clear();
 	}
 
-	getMarker(model: ITextModel, decoration: IModelDecoration): IMarker | null {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null {
+		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? (markerDecorations.getMarker(decoration) || null) : null;
 	}
 
-	getLiveMarkers(model: ITextModel): [Range, IMarker][] {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+	getLiveMarkers(uri: URI): [Range, IMarker][] {
+		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
 	private _handleMarkerChange(changedResources: readonly URI[]): void {
 		changedResources.forEach((resource) => {
-			const markerDecorations = this._markerDecorations.get(MODEL_ID(resource));
+			const markerDecorations = this._markerDecorations.get(resource);
 			if (markerDecorations) {
 				this._updateDecorations(markerDecorations);
 			}
@@ -113,17 +106,15 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
-		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
-		const delayer = markerDecorations.register(new Delayer(100));
-		markerDecorations.register(model.onDidChangeContent(() => delayer.trigger(() => this._updateDecorations(markerDecorations))));
+		this._markerDecorations.set(model.uri, markerDecorations);
 		this._updateDecorations(markerDecorations);
 	}
 
 	private _onModelRemoved(model: ITextModel): void {
-		const markerDecorations = this._markerDecorations.get(MODEL_ID(model.uri));
+		const markerDecorations = this._markerDecorations.get(model.uri);
 		if (markerDecorations) {
 			markerDecorations.dispose();
-			this._markerDecorations.delete(MODEL_ID(model.uri));
+			this._markerDecorations.delete(model.uri);
 		}
 
 		// clean up markers for internal, transient models
@@ -160,35 +151,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
-		ret = model.validateRange(ret);
-
-		if (ret.isEmpty()) {
-			let word = model.getWordAtPosition(ret.getStartPosition());
-			if (word) {
-				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
-			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
-					model.getLineMaxColumn(ret.startLineNumber);
-
-				if (maxColumn === 1) {
-					// empty line
-					// console.warn('marker on empty line:', marker);
-				} else if (ret.endColumn >= maxColumn) {
-					// behind eol
-					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
-				} else {
-					// extend marker to width = 1
-					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
-				}
-			}
-		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
-			if (minColumn < ret.endColumn) {
-				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
-				rawMarker.startColumn = minColumn;
-			}
-		}
-		return ret;
+		return model.validateRange(ret);
 	}
 
 	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {
@@ -246,6 +209,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		}
 
 		return {
+			description: 'marker-decoration',
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			showIfCollapsed: true,

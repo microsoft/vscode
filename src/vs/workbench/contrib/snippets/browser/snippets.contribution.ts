@@ -8,10 +8,14 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as nls from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { LanguageId } from 'vs/editor/common/modes';
 import { SnippetFile, Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
+
+export interface ISnippetGetOptions {
+	includeDisabledSnippets?: boolean;
+	includeNoPrefixSnippets?: boolean;
+}
 
 export interface ISnippetsService {
 
@@ -19,9 +23,13 @@ export interface ISnippetsService {
 
 	getSnippetFiles(): Promise<Iterable<SnippetFile>>;
 
-	getSnippets(languageId: LanguageId): Promise<Snippet[]>;
+	isEnabled(snippet: Snippet): boolean;
 
-	getSnippetsSync(languageId: LanguageId): Snippet[];
+	updateEnablement(snippet: Snippet, enabled: boolean): void;
+
+	getSnippets(languageId: string, opt?: ISnippetGetOptions): Promise<Snippet[]>;
+
+	getSnippetsSync(languageId: string, opt?: ISnippetGetOptions): Snippet[];
 }
 
 const languageScopeSchemaId = 'vscode://schemas/snippets';
@@ -56,7 +64,7 @@ const languageScopeSchema: IJSONSchema = {
 	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
 	additionalProperties: {
 		type: 'object',
-		required: ['prefix', 'body'],
+		required: ['body'],
 		properties: snippetSchemaProperties,
 		additionalProperties: false
 	}
@@ -76,7 +84,7 @@ const globalSchema: IJSONSchema = {
 	description: nls.localize('snippetSchema.json', 'User snippet configuration'),
 	additionalProperties: {
 		type: 'object',
-		required: ['prefix', 'body'],
+		required: ['body'],
 		properties: {
 			...snippetSchemaProperties,
 			scope: {

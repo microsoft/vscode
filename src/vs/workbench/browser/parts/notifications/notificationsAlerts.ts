@@ -13,11 +13,13 @@ import { Event } from 'vs/base/common/event';
 
 export class NotificationsAlerts extends Disposable {
 
-	constructor(private model: INotificationsModel) {
+	constructor(private readonly model: INotificationsModel) {
 		super();
 
 		// Alert initial notifications if any
-		model.notifications.forEach(n => this.triggerAriaAlert(n));
+		for (const notification of model.notifications) {
+			this.triggerAriaAlert(notification);
+		}
 
 		this.registerListeners();
 	}

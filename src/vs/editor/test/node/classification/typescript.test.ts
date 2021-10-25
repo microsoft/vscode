@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import * as fs from 'fs';
-// import { getPathFromAmdModule } from 'vs/base/common/amd';
+// import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 // import { parse } from 'vs/editor/common/modes/tokenization/typescript';
 import { toStandardTokenType } from 'vs/editor/common/modes/supports/tokenization';
 
@@ -126,7 +126,7 @@ function executeTest(fileName: string, parseFunc: IParseFunc): void {
 			actual[3 * actualIndex] + actual[3 * actualIndex + 1] >= assertion.startOffset + assertion.length,
 			`Line ${assertion.testLineNumber} : length : ${actual[3 * actualIndex]} + ${actual[3 * actualIndex + 1]} >= ${assertion.startOffset} + ${assertion.length}.`
 		);
-		assert.equal(
+		assert.strictEqual(
 			actual[3 * actualIndex + 2],
 			assertion.tokenType,
 			`Line ${assertion.testLineNumber} : tokenType`);

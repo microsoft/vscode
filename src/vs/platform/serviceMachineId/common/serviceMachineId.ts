@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService } from 'vs/platform/files/common/files';
-import { StorageScope } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isUUID, generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { generateUuid, isUUID } from 'vs/base/common/uuid';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export async function getServiceMachineId(environmentService: IEnvironmentService, fileService: IFileService, storageService: {
 	get: (key: string, scope: StorageScope, fallbackValue?: string | undefined) => string | undefined,
-	store: (key: string, value: string, scope: StorageScope) => void
+	store: (key: string, value: string, scope: StorageScope, target: StorageTarget) => void
 } | undefined): Promise<string> {
 	let uuid: string | null = storageService ? storageService.get('storage.serviceMachineId', StorageScope.GLOBAL) || null : null;
 	if (uuid) {
@@ -34,7 +34,7 @@ export async function getServiceMachineId(environmentService: IEnvironmentServic
 		}
 	}
 	if (storageService) {
-		storageService.store('storage.serviceMachineId', uuid, StorageScope.GLOBAL);
+		storageService.store('storage.serviceMachineId', uuid, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 	return uuid;
 }

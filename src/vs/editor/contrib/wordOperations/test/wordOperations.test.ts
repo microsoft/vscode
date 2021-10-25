@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
-import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
+import { CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect, CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteInsideWord, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight } from 'vs/editor/contrib/wordOperations/wordOperations';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
 suite('WordOperations', () => {
 
@@ -38,6 +41,7 @@ suite('WordOperations', () => {
 	const _deleteWordRight = new DeleteWordRight();
 	const _deleteWordStartRight = new DeleteWordStartRight();
 	const _deleteWordEndRight = new DeleteWordEndRight();
+	const _deleteInsideWord = new DeleteInsideWord();
 
 	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
@@ -84,6 +88,9 @@ suite('WordOperations', () => {
 	function deleteWordEndRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndRight);
 	}
+	function deleteInsideWord(editor: ICodeEditor): void {
+		_deleteInsideWord.run(null!, editor, null);
+	}
 
 	test('cursorWordLeft - simple', () => {
 		const EXPECTED = [
@@ -102,7 +109,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordLeft - with selection', () => {
@@ -115,7 +122,7 @@ suite('WordOperations', () => {
 		], {}, (editor) => {
 			editor.setPosition(new Position(5, 2));
 			cursorWordLeft(editor, true);
-			assert.deepEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
+			assert.deepStrictEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
 		});
 	});
 
@@ -130,7 +137,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordLeft - issue #48046: Word selection doesn\'t work as usual', () => {
@@ -146,7 +153,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordLeftSelect - issue #74369: cursorWordLeft and cursorWordLeftSelect do not behave consistently', () => {
@@ -162,7 +169,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordStartLeft', () => {
@@ -177,7 +184,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordStartLeft - issue #51119: regression makes VS compatibility impossible', () => {
@@ -192,7 +199,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('issue #51275 - cursorWordStartLeft does not push undo/redo stack element', () => {
@@ -204,16 +211,16 @@ suite('WordOperations', () => {
 
 		withTestCodeEditor('', {}, (editor, viewModel) => {
 			type(viewModel, 'foo bar baz');
-			assert.equal(editor.getValue(), 'foo bar baz');
+			assert.strictEqual(editor.getValue(), 'foo bar baz');
 
 			cursorWordStartLeft(editor);
 			cursorWordStartLeft(editor);
 			type(viewModel, 'q');
 
-			assert.equal(editor.getValue(), 'foo qbar baz');
+			assert.strictEqual(editor.getValue(), 'foo qbar baz');
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assert.equal(editor.getValue(), 'foo bar baz');
+			assert.strictEqual(editor.getValue(), 'foo bar baz');
 		});
 	});
 
@@ -228,7 +235,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordRight - simple', () => {
@@ -248,7 +255,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(5, 2))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordRight - selection', () => {
@@ -261,7 +268,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			editor.setPosition(new Position(1, 1));
 			cursorWordRight(editor, true);
-			assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 8));
+			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 1, 1, 8));
 		});
 	});
 
@@ -278,7 +285,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordRight - issue #41199', () => {
@@ -294,7 +301,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 17))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('moveWordEndRight', () => {
@@ -310,7 +317,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('moveWordStartRight', () => {
@@ -327,7 +334,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('issue #51119: cursorWordStartRight regression makes VS compatibility impossible', () => {
@@ -342,7 +349,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 15))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('issue #64810: cursorWordStartRight skips first word after newline', () => {
@@ -357,7 +364,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(2, 12))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordAccessibilityLeft', () => {
@@ -371,7 +378,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 1))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('cursorWordAccessibilityRight', () => {
@@ -385,7 +392,7 @@ suite('WordOperations', () => {
 			ed => ed.getPosition()!.equals(new Position(1, 50))
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordLeft for non-empty selection', () => {
@@ -399,8 +406,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setSelection(new Selection(3, 7, 3, 9));
 			deleteWordLeft(editor);
-			assert.equal(model.getLineContent(3), '    Thd Line🐶');
-			assert.deepEqual(editor.getPosition(), new Position(3, 7));
+			assert.strictEqual(model.getLineContent(3), '    Thd Line🐶');
+			assert.deepStrictEqual(editor.getPosition(), new Position(3, 7));
 		});
 	});
 
@@ -415,8 +422,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 1));
 			deleteWordLeft(editor);
-			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
-			assert.deepEqual(editor.getPosition(), new Position(1, 1));
+			assert.strictEqual(model.getLineContent(1), '    \tMy First Line\t ');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 1));
 		});
 	});
 
@@ -431,8 +438,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(3, 11));
 			deleteWordLeft(editor);
-			assert.equal(model.getLineContent(3), '    Line🐶');
-			assert.deepEqual(editor.getPosition(), new Position(3, 5));
+			assert.strictEqual(model.getLineContent(3), '    Line🐶');
+			assert.deepStrictEqual(editor.getPosition(), new Position(3, 5));
 		});
 	});
 
@@ -447,8 +454,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 11));
 			deleteWordLeft(editor);
-			assert.equal(model.getLineContent(2), '\tMy  Line');
-			assert.deepEqual(editor.getPosition(), new Position(2, 5));
+			assert.strictEqual(model.getLineContent(2), '\tMy  Line');
+			assert.deepStrictEqual(editor.getPosition(), new Position(2, 5));
 		});
 	});
 
@@ -463,8 +470,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 12));
 			deleteWordLeft(editor);
-			assert.equal(model.getLineContent(1), '    \tMy st Line\t ');
-			assert.deepEqual(editor.getPosition(), new Position(1, 9));
+			assert.strictEqual(model.getLineContent(1), '    \tMy st Line\t ');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 9));
 		});
 	});
 
@@ -479,8 +486,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setSelection(new Selection(3, 7, 3, 9));
 			deleteWordRight(editor);
-			assert.equal(model.getLineContent(3), '    Thd Line🐶');
-			assert.deepEqual(editor.getPosition(), new Position(3, 7));
+			assert.strictEqual(model.getLineContent(3), '    Thd Line🐶');
+			assert.deepStrictEqual(editor.getPosition(), new Position(3, 7));
 		});
 	});
 
@@ -495,8 +502,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(5, 3));
 			deleteWordRight(editor);
-			assert.equal(model.getLineContent(5), '1');
-			assert.deepEqual(editor.getPosition(), new Position(5, 2));
+			assert.strictEqual(model.getLineContent(5), '1');
+			assert.deepStrictEqual(editor.getPosition(), new Position(5, 2));
 		});
 	});
 
@@ -511,8 +518,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(3, 1));
 			deleteWordRight(editor);
-			assert.equal(model.getLineContent(3), 'Third Line🐶');
-			assert.deepEqual(editor.getPosition(), new Position(3, 1));
+			assert.strictEqual(model.getLineContent(3), 'Third Line🐶');
+			assert.deepStrictEqual(editor.getPosition(), new Position(3, 1));
 		});
 	});
 
@@ -527,8 +534,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 5));
 			deleteWordRight(editor);
-			assert.equal(model.getLineContent(2), '\tMy  Line');
-			assert.deepEqual(editor.getPosition(), new Position(2, 5));
+			assert.strictEqual(model.getLineContent(2), '\tMy  Line');
+			assert.deepStrictEqual(editor.getPosition(), new Position(2, 5));
 		});
 	});
 
@@ -543,8 +550,8 @@ suite('WordOperations', () => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 11));
 			deleteWordRight(editor);
-			assert.equal(model.getLineContent(1), '    \tMy Fi Line\t ');
-			assert.deepEqual(editor.getPosition(), new Position(1, 11));
+			assert.strictEqual(model.getLineContent(1), '    \tMy Fi Line\t ');
+			assert.deepStrictEqual(editor.getPosition(), new Position(1, 11));
 		});
 	});
 
@@ -561,7 +568,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordStartLeft', () => {
@@ -577,7 +584,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordEndLeft', () => {
@@ -593,7 +600,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordLeft - issue #24947', () => {
@@ -603,7 +610,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
-			deleteWordLeft(editor); assert.equal(model.getLineContent(1), '{}');
+			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
 		});
 
 		withTestCodeEditor([
@@ -612,7 +619,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
-			deleteWordStartLeft(editor); assert.equal(model.getLineContent(1), '{}');
+			deleteWordStartLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
 		});
 
 		withTestCodeEditor([
@@ -621,7 +628,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
-			deleteWordEndLeft(editor); assert.equal(model.getLineContent(1), '{}');
+			deleteWordEndLeft(editor); assert.strictEqual(model.getLineContent(1), '{}');
 		});
 	});
 
@@ -636,7 +643,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordRight - issue #3882', () => {
@@ -646,7 +653,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
-			deleteWordRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+			deleteWordRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
 	});
 
@@ -657,7 +664,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
-			deleteWordStartRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+			deleteWordStartRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
 	});
 
@@ -668,7 +675,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 24));
-			deleteWordEndRight(editor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
+			deleteWordEndRight(editor); assert.strictEqual(model.getLineContent(1), 'public void Add( int x,int y )', '001');
 		});
 	});
 
@@ -683,7 +690,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordEndRight', () => {
@@ -697,7 +704,7 @@ suite('WordOperations', () => {
 			ed => ed.getValue().length === 0
 		);
 		const actual = serializePipePositions(text, actualStops);
-		assert.deepEqual(actual, EXPECTED);
+		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
 	test('deleteWordRight - issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
@@ -707,7 +714,7 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(1, 18));
-			deleteWordRight(editor); assert.equal(model.getLineContent(1), 'A line with text.And another one', '001');
+			deleteWordRight(editor); assert.strictEqual(model.getLineContent(1), 'A line with text.And another one', '001');
 		});
 	});
 
@@ -718,7 +725,150 @@ suite('WordOperations', () => {
 		], {}, (editor, _) => {
 			const model = editor.getModel()!;
 			editor.setPosition(new Position(2, 1));
-			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
+			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'A line with text.   And another one', '001');
+		});
+	});
+
+	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
+		const languageId = 'myTestMode';
+		class TestMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.languageId, {
+					autoClosingPairs: [
+						{ open: '\"', close: '\"' }
+					]
+				}));
+			}
+		}
+
+		const mode = new TestMode();
+		const model = createTextModel('a ""', undefined, languageId);
+
+		withTestCodeEditor(null, {
+			model,
+			autoClosingDelete: 'always'
+		}, (editor, _) => {
+			editor.setPosition(new Position(1, 4));
+			deleteWordLeft(editor); assert.strictEqual(model.getLineContent(1), 'a ');
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
+	test('deleteInsideWord - empty line', () => {
+		withTestCodeEditor([
+			'Line1',
+			'',
+			'Line2'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(2, 1));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'Line1\nLine2');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 1', () => {
+		withTestCodeEditor([
+			'Just  some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'Justsome text.');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 2', () => {
+		withTestCodeEditor([
+			'Just     some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'Justsome text.');
+		});
+	});
+
+	test('deleteInsideWord - in whitespace 3', () => {
+		withTestCodeEditor([
+			'Just     "some text.'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 6));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'Just"some text.');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '"some text.');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'some text.');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'text.');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '.');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in non-words', () => {
+		withTestCodeEditor([
+			'x=3+4+5+6'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'x=3+45+6');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'x=3++6');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'x=36');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'x=');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'x');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in words 1', () => {
+		withTestCodeEditor([
+			'This is interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'This interesting');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'This');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - in words 2', () => {
+		withTestCodeEditor([
+			'This  is  interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'This  interesting');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), 'This');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
+			deleteInsideWord(editor);
+			assert.strictEqual(model.getValue(), '');
 		});
 	});
 });

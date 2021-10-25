@@ -7,7 +7,7 @@ import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/bro
 
 
 KeyboardLayoutContribution.INSTANCE.registerKeyboardLayout({
-	layout: { model: 'pc105', layout: 'es', variant: '', options: '', rules: 'evdev' },
+	layout: { model: 'pc105', group: 0, layout: 'es', variant: '', options: '', rules: 'evdev' },
 	secondaryLayouts: [],
 	mapping: {
 		Sleep: [],

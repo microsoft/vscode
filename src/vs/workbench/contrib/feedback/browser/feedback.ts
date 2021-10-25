@@ -12,12 +12,12 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -38,7 +38,6 @@ export interface IFeedbackDelegate {
 
 export interface IFeedbackWidgetOptions {
 	feedbackService: IFeedbackDelegate;
-	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
 export class FeedbackWidget extends Disposable {
@@ -50,24 +49,23 @@ export class FeedbackWidget extends Disposable {
 
 	private feedback: string = '';
 	private sentiment: number = 1;
-	private autoHideTimeout?: number;
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null = null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
-	private smileyInput: HTMLElement | null = null;
-	private frownyInput: HTMLElement | null = null;
-	private sendButton: Button | null = null;
-	private hideButton: HTMLInputElement | null = null;
-	private remainingCharacterCount: HTMLElement | null = null;
+	private feedbackForm: HTMLFormElement | undefined = undefined;
+	private feedbackDescriptionInput: HTMLTextAreaElement | undefined = undefined;
+	private smileyInput: HTMLElement | undefined = undefined;
+	private frownyInput: HTMLElement | undefined = undefined;
+	private sendButton: Button | undefined = undefined;
+	private hideButton: HTMLInputElement | undefined = undefined;
+	private remainingCharacterCount: HTMLElement | undefined = undefined;
 
 	private requestFeatureLink: string | undefined;
 
 	private isPure: boolean = true;
 
 	constructor(
-		private options: IFeedbackWidgetOptions,
+		options: IFeedbackWidgetOptions,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -92,6 +90,13 @@ export class FeedbackWidget extends Disposable {
 				this.isPure = false;
 			}
 		});
+
+		// Hide feedback widget whenever notifications appear
+		this._register(this.layoutService.onDidChangeNotificationsVisibility(visible => {
+			if (visible) {
+				this.hide();
+			}
+		}));
 	}
 
 	private getAnchor(): HTMLElement | IAnchor {
@@ -106,7 +111,7 @@ export class FeedbackWidget extends Disposable {
 	private renderContents(container: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 
-		dom.addClass(container, 'monaco-menu-container');
+		container.classList.add('monaco-menu-container');
 
 		// Form
 		this.feedbackForm = dom.append<HTMLFormElement>(container, dom.$('form.feedback-form'));
@@ -142,7 +147,7 @@ export class FeedbackWidget extends Disposable {
 			if (darkenFactor) {
 				const backgroundBaseColor = theme.getColor(editorWidgetBackground);
 				if (backgroundBaseColor) {
-					const backgroundColor = darken(backgroundBaseColor, darkenFactor)(theme);
+					const backgroundColor = backgroundBaseColor.darken(darkenFactor);
 					if (backgroundColor) {
 						closeBtn.style.backgroundColor = backgroundColor.toString();
 					}
@@ -175,7 +180,7 @@ export class FeedbackWidget extends Disposable {
 
 		// Sentiment: Smiley
 		this.smileyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		dom.addClass(this.smileyInput, 'smile');
+		this.smileyInput.classList.add('smile');
 		this.smileyInput.setAttribute('aria-checked', 'false');
 		this.smileyInput.setAttribute('aria-label', nls.localize('smileCaption', "Happy Feedback Sentiment"));
 		this.smileyInput.setAttribute('role', 'checkbox');
@@ -186,7 +191,7 @@ export class FeedbackWidget extends Disposable {
 
 		// Sentiment: Frowny
 		this.frownyInput = dom.append(feedbackSentiment, dom.$('div.sentiment'));
-		dom.addClass(this.frownyInput, 'frown');
+		this.frownyInput.classList.add('frown');
 		this.frownyInput.setAttribute('aria-checked', 'false');
 		this.frownyInput.setAttribute('aria-label', nls.localize('frownCaption', "Sad Feedback Sentiment"));
 		this.frownyInput.setAttribute('role', 'checkbox');
@@ -196,10 +201,10 @@ export class FeedbackWidget extends Disposable {
 		this.invoke(this.frownyInput, disposables, () => this.setSentiment(false));
 
 		if (this.sentiment === 1) {
-			dom.addClass(this.smileyInput, 'checked');
+			this.smileyInput.classList.add('checked');
 			this.smileyInput.setAttribute('aria-checked', 'true');
 		} else {
-			dom.addClass(this.frownyInput, 'checked');
+			this.frownyInput.classList.add('checked');
 			this.frownyInput.setAttribute('aria-checked', 'true');
 		}
 
@@ -277,8 +282,8 @@ export class FeedbackWidget extends Disposable {
 		this.sendButton = new Button(buttonsContainer);
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.prepend(this.sendButton.element, dom.$('span.codicon.codicon-twitter'));
-		dom.addClasses(this.sendButton.element, 'send');
+		dom.prepend(this.sendButton.element, dom.$('span' + Codicon.twitter.cssSelector));
+		this.sendButton.element.classList.add('send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
@@ -288,7 +293,7 @@ export class FeedbackWidget extends Disposable {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
 				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
-				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
+				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px 2px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
@@ -302,10 +307,10 @@ export class FeedbackWidget extends Disposable {
 
 		return {
 			dispose: () => {
-				this.feedbackForm = null;
-				this.feedbackDescriptionInput = null;
-				this.smileyInput = null;
-				this.frownyInput = null;
+				this.feedbackForm = undefined;
+				this.feedbackDescriptionInput = undefined;
+				this.smileyInput = undefined;
+				this.frownyInput = undefined;
 
 				disposables.dispose();
 			}
@@ -337,20 +342,20 @@ export class FeedbackWidget extends Disposable {
 	private setSentiment(smile: boolean): void {
 		if (smile) {
 			if (this.smileyInput) {
-				dom.addClass(this.smileyInput, 'checked');
+				this.smileyInput.classList.add('checked');
 				this.smileyInput.setAttribute('aria-checked', 'true');
 			}
 			if (this.frownyInput) {
-				dom.removeClass(this.frownyInput, 'checked');
+				this.frownyInput.classList.remove('checked');
 				this.frownyInput.setAttribute('aria-checked', 'false');
 			}
 		} else {
 			if (this.frownyInput) {
-				dom.addClass(this.frownyInput, 'checked');
+				this.frownyInput.classList.add('checked');
 				this.frownyInput.setAttribute('aria-checked', 'true');
 			}
 			if (this.smileyInput) {
-				dom.removeClass(this.smileyInput, 'checked');
+				this.smileyInput.classList.remove('checked');
 				this.smileyInput.setAttribute('aria-checked', 'false');
 			}
 		}
@@ -385,8 +390,6 @@ export class FeedbackWidget extends Disposable {
 		}
 
 		this.visible = true;
-		this._onDidChangeVisibility.fire(true);
-
 		this.contextViewService.showContextView({
 			getAnchor: () => this.getAnchor(),
 
@@ -396,22 +399,12 @@ export class FeedbackWidget extends Disposable {
 
 			onDOMEvent: (e, activeElement) => {
 				this.onEvent(e, activeElement);
-			},
-
-			onHide: () => this.onHide()
+			}
 		});
 
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(true);
-		}
+		this._onDidChangeVisibility.fire(true);
 
 		this.updateCharCountText();
-	}
-
-	private onHide(): void {
-		if (this.options.onFeedbackVisibilityChange) {
-			this.options.onFeedbackVisibilityChange(false);
-		}
 	}
 
 	hide(): void {
@@ -423,19 +416,14 @@ export class FeedbackWidget extends Disposable {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
 
-		if (this.autoHideTimeout) {
-			clearTimeout(this.autoHideTimeout);
-			this.autoHideTimeout = undefined;
-		}
-
 		if (this.hideButton && !this.hideButton.checked) {
 			this.statusbarService.updateEntryVisibility('status.feedback', false);
 		}
 
 		this.visible = false;
-		this._onDidChangeVisibility.fire(false);
-
 		this.contextViewService.hideContextView();
+
+		this._onDidChangeVisibility.fire(false);
 	}
 
 	isVisible(): boolean {

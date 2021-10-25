@@ -13,8 +13,11 @@
 		"allowJs": true,
 		"checkJs": true,
 		"strict": true,
+		"exactOptionalPropertyTypes": false,
+		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true
+		"noUnusedParameters": true,
+		"newLine": "lf"
 	},
 	"include": [
 		"**/*.ts"

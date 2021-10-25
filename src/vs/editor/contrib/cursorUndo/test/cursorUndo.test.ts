@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Selection } from 'vs/editor/common/core/selection';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/cursorUndo';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUndo/cursorUndo';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('FindController', () => {
 
@@ -29,16 +29,16 @@ suite('FindController', () => {
 
 			// press Delete
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, {});
-			assert.deepEqual(editor.getValue(), 'hell');
-			assert.deepEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
+			assert.deepStrictEqual(editor.getValue(), 'hell');
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
 
 			// press left
 			CoreNavigationCommands.CursorLeft.runEditorCommand(null, editor, {});
-			assert.deepEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 4, 1, 4)]);
 
 			// press Ctrl+U
 			cursorUndoAction.run(null!, editor, {});
-			assert.deepEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5)]);
 		});
 	});
 
@@ -52,12 +52,12 @@ suite('FindController', () => {
 			// type hello
 			editor.trigger('test', Handler.Type, { text: 'hell' });
 			editor.trigger('test', Handler.Type, { text: 'o' });
-			assert.deepEqual(editor.getValue(), 'hello');
-			assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+			assert.deepStrictEqual(editor.getValue(), 'hello');
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
 
 			// press Ctrl+U
 			cursorUndoAction.run(null!, editor, {});
-			assert.deepEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
+			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 6, 1, 6)]);
 		});
 	});
 });

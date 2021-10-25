@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedAuthority, IRemoteAuthorityResolverService, ResolverResult, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteAuthorities } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { RemoteAuthorities } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
 
@@ -17,11 +17,13 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	public readonly onDidChangeConnectionData = this._onDidChangeConnectionData.event;
 
 	private readonly _cache: Map<string, ResolverResult>;
+	private readonly _connectionToken: string | undefined;
 	private readonly _connectionTokens: Map<string, string>;
 
-	constructor(resourceUriProvider: ((uri: URI) => URI) | undefined) {
+	constructor(connectionToken: string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
 		super();
 		this._cache = new Map<string, ResolverResult>();
+		this._connectionToken = connectionToken;
 		this._connectionTokens = new Map<string, string>();
 		if (resourceUriProvider) {
 			RemoteAuthorities.setDelegate(resourceUriProvider);
@@ -38,12 +40,16 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		return this._cache.get(authority)!;
 	}
 
+	async getCanonicalURI(uri: URI): Promise<URI> {
+		return uri;
+	}
+
 	getConnectionData(authority: string): IRemoteConnectionData | null {
 		if (!this._cache.has(authority)) {
 			return null;
 		}
 		const resolverResult = this._cache.get(authority)!;
-		const connectionToken = this._connectionTokens.get(authority);
+		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
 		return {
 			host: resolverResult.authority.host,
 			port: resolverResult.authority.port,
@@ -52,11 +58,12 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	}
 
 	private _doResolveAuthority(authority: string): ResolverResult {
+		const connectionToken = this._connectionTokens.get(authority) || this._connectionToken;
 		if (authority.indexOf(':') >= 0) {
 			const pieces = authority.split(':');
-			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10) } };
+			return { authority: { authority, host: pieces[0], port: parseInt(pieces[1], 10), connectionToken } };
 		}
-		return { authority: { authority, host: authority, port: 80 } };
+		return { authority: { authority, host: authority, port: 80, connectionToken } };
 	}
 
 	_clearResolvedAuthority(authority: string): void {
@@ -72,5 +79,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		this._connectionTokens.set(authority, connectionToken);
 		RemoteAuthorities.setConnectionToken(authority, connectionToken);
 		this._onDidChangeConnectionData.fire();
+	}
+
+	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void {
 	}
 }

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { illegalState } from 'vs/base/common/errors';
-import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentSaveParticipantShape, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/common/extHostTypes';
 import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -26,7 +26,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	constructor(
 		private readonly _logService: ILogService,
 		private readonly _documents: ExtHostDocuments,
-		private readonly _mainThreadEditors: MainThreadTextEditorsShape,
+		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
 	) {
 		//
@@ -146,6 +146,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						dto.edits.push({
+							_type: WorkspaceEditType.Text,
 							resource: document.uri,
 							edit: {
 								range: range && Range.from(range),
@@ -164,7 +165,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			if (version === document.version) {
-				return this._mainThreadEditors.$tryApplyWorkspaceEdit(dto);
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

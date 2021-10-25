@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
-export const IPathService = createDecorator<IPathService>('path');
+export const IPathService = createDecorator<IPathService>('pathService');
 
 /**
  * Provides access to path related properties that will match the
@@ -27,6 +31,14 @@ export interface IPathService {
 	 * the local file system's path library depending on the OS.
 	 */
 	readonly path: Promise<IPath>;
+
+	/**
+	 * Determines the best default URI scheme for the current workspace.
+	 * It uses information about whether we're running remote, in browser,
+	 * or native combined with information about the current workspace to
+	 * find the best default scheme.
+	 */
+	readonly defaultUriScheme: string;
 
 	/**
 	 * Converts the given path to a file URI to use for the target
@@ -62,7 +74,9 @@ export abstract class AbstractPathService implements IPathService {
 
 	constructor(
 		private localUserHome: URI,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 
 		// OS
@@ -80,6 +94,33 @@ export abstract class AbstractPathService implements IPathService {
 
 			return userHome;
 		})();
+	}
+
+	get defaultUriScheme(): string {
+		return AbstractPathService.findDefaultUriScheme(this.environmentService, this.contextService);
+	}
+
+	protected static findDefaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
+		if (environmentService.remoteAuthority) {
+			return Schemas.vscodeRemote;
+		}
+
+		const virtualWorkspace = getVirtualWorkspaceScheme(contextService.getWorkspace());
+		if (virtualWorkspace) {
+			return virtualWorkspace;
+		}
+
+		const firstFolder = contextService.getWorkspace().folders[0];
+		if (firstFolder) {
+			return firstFolder.uri.scheme;
+		}
+
+		const configuration = contextService.getWorkspace().configuration;
+		if (configuration) {
+			return configuration.scheme;
+		}
+
+		return Schemas.file;
 	}
 
 	async userHome(options?: { preferLocal: boolean }): Promise<URI> {
@@ -122,9 +163,8 @@ export abstract class AbstractPathService implements IPathService {
 			}
 		}
 
-		// return new _URI('file', authority, path, '', '');
 		return URI.from({
-			scheme: 'file',
+			scheme: Schemas.file,
 			authority,
 			path: _path,
 			query: '',

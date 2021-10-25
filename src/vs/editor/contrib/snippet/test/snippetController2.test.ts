@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { mock } from 'vs/base/test/common/mock';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 suite('SnippetController2', function () {
 
@@ -21,13 +25,13 @@ suite('SnippetController2', function () {
 			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
-		assert.equal(s.length, 0);
+		assert.strictEqual(s.length, 0);
 	}
 
 	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
-		assert.equal(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
+		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
+		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
 	}
 
 	let editor: ICodeEditor;
@@ -38,9 +42,13 @@ suite('SnippetController2', function () {
 	setup(function () {
 		contextKeys = new MockContextKeyService();
 		model = createTextModel('if\n    $state\nfi');
-		editor = createTestCodeEditor({ model: model });
+		const serviceCollection = new ServiceCollection(
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+		);
+		editor = createTestCodeEditor({ model, serviceCollection });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
-		assert.equal(model.getEOL(), '\n');
+		assert.strictEqual(model.getEOL(), '\n');
 	});
 
 	teardown(function () {
@@ -78,9 +86,9 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 
 		editor.trigger('test', 'type', { text: '\t' });
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
+		assert.strictEqual(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
 	});
 
 	test('insert, insert -> cursor moves out (left/right)', function () {
@@ -111,7 +119,7 @@ suite('SnippetController2', function () {
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		assert.strictEqual(SnippetController2.InSnippetMode.getValue(contextKeys), true);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
 		// bad selection change
@@ -441,11 +449,46 @@ suite('SnippetController2', function () {
 	});
 
 	test('leading TAB by snippets won\'t replace by spaces #101870', function () {
-		this.skip();
 		const ctrl = new SnippetController2(editor, logService, contextKeys);
 		model.setValue('');
 		model.updateOptions({ insertSpaces: true, tabSize: 4 });
 		ctrl.insert('\tHello World\n\tNew Line');
 		assert.strictEqual(model.getValue(), '    Hello World\n    New Line');
+	});
+
+	test('leading TAB by snippets won\'t replace by spaces #101870 (part 2)', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		ctrl.insert('\tHello World\n\tNew Line\n${1:\tmore}');
+		assert.strictEqual(model.getValue(), '    Hello World\n    New Line\n    more');
+	});
+
+	test.skip('Snippet transformation does not work after inserting variable using intellisense, #112362', function () {
+
+		{
+			// HAPPY - no nested snippet
+			const ctrl = new SnippetController2(editor, logService, contextKeys);
+			model.setValue('');
+			model.updateOptions({ insertSpaces: true, tabSize: 4 });
+			ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+			assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+			editor.trigger('test', 'type', { text: 'foo: number;' });
+			ctrl.next();
+			assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		}
+
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		model.updateOptions({ insertSpaces: true, tabSize: 4 });
+		ctrl.insert('$1\n\n${1/([A-Za-z0-9]+): ([A-Za-z]+).*/$1: \'$2\',/gm}');
+
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(3, 1, 3, 1));
+		editor.trigger('test', 'type', { text: 'foo: ' });
+		ctrl.insert('number;');
+		ctrl.next();
+		assert.strictEqual(model.getValue(), `foo: number;\n\nfoo: 'number',`);
+		// editor.trigger('test', 'type', { text: ';' });
 	});
 });

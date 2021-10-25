@@ -85,11 +85,34 @@
 	height: 100%;
 	position: relative;
 	z-index: 3000;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .part.titlebar > .window-appicon:not(.codicon) {
 	background-image: url('../../../media/code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: 16px;
-	flex-shrink: 0;
+}
+
+.monaco-workbench .part.titlebar .window-appicon > .home-bar-icon-badge {
+	position: absolute;
+	right: 9px;
+	bottom: 6px;
+	width: 8px;
+	height: 8px;
+	z-index: 1; /* on top of home indicator */
+	background-image: url('../../../media/code-icon.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: 8px;
+	pointer-events: none;
+	border-top: 1px solid transparent;
+	border-left: 1px solid transparent;
+}
+
+.monaco-workbench .part.titlebar > .window-appicon.codicon {
+	line-height: 30px;
 }
 
 .monaco-workbench.fullscreen .part.titlebar > .window-appicon {

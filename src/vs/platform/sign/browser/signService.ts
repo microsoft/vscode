@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISignService } from 'vs/platform/sign/common/sign';
+import { IMessage, ISignService } from 'vs/platform/sign/common/sign';
 
 export class SignService implements ISignService {
 
@@ -15,7 +15,13 @@ export class SignService implements ISignService {
 		this._tkn = token || null;
 	}
 
+	async createNewMessage(value: string): Promise<IMessage> {
+		return { id: '', data: value };
+	}
+	async validate(message: IMessage, value: string): Promise<boolean> {
+		return true;
+	}
 	async sign(value: string): Promise<string> {
-		return Promise.resolve(this._tkn || '');
+		return this._tkn || '';
 	}
 }

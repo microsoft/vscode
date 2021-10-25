@@ -7,12 +7,16 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                      (copied from Electron 7.x)                 ###
+// ###                    (copied from Electron 11.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
 
 export interface MessageBoxOptions {
+	/**
+	 * Content of the message box.
+	 */
+	message: string;
 	/**
 	 * Can be `"none"`, `"info"`, `"error"`, `"question"` or `"warning"`. On Windows,
 	 * `"question"` displays the same icon as `"info"`, unless you set an icon using
@@ -34,10 +38,6 @@ export interface MessageBoxOptions {
 	 * Title of the message box, some platforms will not show it.
 	 */
 	title?: string;
-	/**
-	 * Content of the message box.
-	 */
-	message: string;
 	/**
 	 * Extra information of the message.
 	 */
@@ -132,6 +132,7 @@ export interface SaveDialogOptions {
 	 * @platform darwin
 	 */
 	showsTagField?: boolean;
+	properties?: Array<'showHiddenFiles' | 'createDirectory' | 'treatPackageAsDirectory' | 'showOverwriteConfirmation' | 'dontAddToRecent'>;
 	/**
 	 * Create a security scoped bookmark when packaged for the Mac App Store. If this
 	 * option is enabled and the file doesn't already exist a blank file will be
@@ -155,7 +156,7 @@ export interface OpenDialogOptions {
 	 * Contains which features the dialog should use. The following values are
 	 * supported:
 	 */
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>;
 	/**
 	 * Message to display above input boxes.
 	 *
@@ -209,40 +210,9 @@ export interface SaveDialogReturnValue {
 	bookmark?: string;
 }
 
-export interface CrashReporterStartOptions {
-	companyName: string;
-	/**
-	 * URL that crash reports will be sent to as POST.
-	 */
-	submitURL: string;
-	/**
-	 * Defaults to `app.name`.
-	 */
-	productName?: string;
-	/**
-	 * Whether crash reports should be sent to the server. Default is `true`.
-	 */
-	uploadToServer?: boolean;
-	/**
-	 * Default is `false`.
-	 */
-	ignoreSystemCrashHandler?: boolean;
-	/**
-	 * An object you can define that will be sent along with the report. Only string
-	 * properties are sent correctly. Nested objects are not supported. When using
-	 * Windows, the property names and values must be fewer than 64 characters.
-	 */
-	extra?: Record<string, string>;
-	/**
-	 * Directory to store the crash reports temporarily (only used when the crash
-	 * reporter is started via `process.crashReporter.start`).
-	 */
-	crashesDirectory?: string;
-}
-
 export interface FileFilter {
 
-	// Docs: http://electronjs.org/docs/api/structures/file-filter
+	// Docs: https://electronjs.org/docs/api/structures/file-filter
 
 	extensions: string[];
 	name: string;
@@ -250,19 +220,19 @@ export interface FileFilter {
 
 export interface InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/input-event
+	// Docs: https://electronjs.org/docs/api/structures/input-event
 
 	/**
-	 * An array of modifiers of the event, can be `shift`, `control`, `alt`, `meta`,
-	 * `isKeypad`, `isAutoRepeat`, `leftButtonDown`, `middleButtonDown`,
-	 * `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 * An array of modifiers of the event, can be `shift`, `control`, `ctrl`, `alt`,
+	 * `meta`, `command`, `cmd`, `isKeypad`, `isAutoRepeat`, `leftButtonDown`,
+	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
 	 */
-	modifiers: Array<'shift' | 'control' | 'alt' | 'meta' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
 }
 
 export interface MouseInputEvent extends InputEvent {
 
-	// Docs: http://electronjs.org/docs/api/structures/mouse-input-event
+	// Docs: https://electronjs.org/docs/api/structures/mouse-input-event
 
 	/**
 	 * The button pressed, can be `left`, `middle`, `right`.

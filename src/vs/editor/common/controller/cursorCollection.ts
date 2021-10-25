@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CursorContext, CursorState, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
-import { OneCursor } from 'vs/editor/common/controller/oneCursor';
+import { Cursor } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
@@ -12,15 +12,15 @@ export class CursorCollection {
 
 	private context: CursorContext;
 
-	private primaryCursor: OneCursor;
-	private secondaryCursors: OneCursor[];
+	private primaryCursor: Cursor;
+	private secondaryCursors: Cursor[];
 
 	// An index which identifies the last cursor that was added / moved (think Ctrl+drag)
 	private lastAddedCursorIndex: number;
 
 	constructor(context: CursorContext) {
 		this.context = context;
-		this.primaryCursor = new OneCursor(context);
+		this.primaryCursor = new Cursor(context);
 		this.secondaryCursors = [];
 		this.lastAddedCursorIndex = 0;
 	}
@@ -167,7 +167,7 @@ export class CursorCollection {
 	}
 
 	private _addSecondaryCursor(): void {
-		this.secondaryCursors.push(new OneCursor(this.context));
+		this.secondaryCursors.push(new Cursor(this.context));
 		this.lastAddedCursorIndex = this.secondaryCursors.length;
 	}
 
@@ -186,8 +186,8 @@ export class CursorCollection {
 		this.secondaryCursors.splice(removeIndex, 1);
 	}
 
-	private _getAll(): OneCursor[] {
-		let result: OneCursor[] = [];
+	private _getAll(): Cursor[] {
+		let result: Cursor[] = [];
 		result[0] = this.primaryCursor;
 		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result[i + 1] = this.secondaryCursors[i];

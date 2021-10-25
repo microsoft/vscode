@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IViewportRange, IBufferLine } from 'xterm';
+import type { Terminal, IViewportRange, IBufferLine } from 'xterm';
 import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,12 +36,12 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			this._xterm.buffer.active.getLine(startLine)!
 		];
 
-		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
@@ -65,7 +65,7 @@ export class TerminalExternalLinkProviderAdapter extends TerminalBaseLinkProvide
 			}, startLine);
 			const matchingText = lineContent.substr(link.startIndex, link.length) || '';
 			const activateLink = this._wrapLinkHandler((_, text) => link.activate(text));
-			return this._instantiationService.createInstance(TerminalLink, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
+			return this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, matchingText, this._xterm.buffer.active.viewportY, activateLink, this._tooltipCallback, true, link.label);
 		});
 	}
 }

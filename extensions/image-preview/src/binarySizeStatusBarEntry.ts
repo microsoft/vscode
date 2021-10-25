@@ -39,12 +39,7 @@ class BinarySize {
 export class BinarySizeStatusBarEntry extends PreviewStatusBarEntry {
 
 	constructor() {
-		super({
-			id: 'imagePreview.binarySize',
-			name: localize('sizeStatusBar.name', "Image Binary Size"),
-			alignment: vscode.StatusBarAlignment.Right,
-			priority: 100,
-		});
+		super('status.imagePreview.binarySize', localize('sizeStatusBar.name', "Image Binary Size"), vscode.StatusBarAlignment.Right, 100);
 	}
 
 	public show(owner: string, size: number | undefined) {

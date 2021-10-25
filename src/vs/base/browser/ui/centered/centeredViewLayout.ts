@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { ISplitViewStyles, IView as ISplitViewView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { Color } from 'vs/base/common/color';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export interface CenteredViewState {
 	leftMarginRatio: number;
@@ -165,6 +165,7 @@ export class CenteredViewLayout implements IDisposable {
 			this.splitView = undefined;
 			this.emptyViews = undefined;
 			this.container.appendChild(this.view.element);
+			this.view.layout(this.width, this.height, 0, 0);
 		}
 	}
 

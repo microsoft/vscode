@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = new class implements ITelemetryService {
+export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 	readonly sendErrorTelemetry = false;
 
@@ -29,51 +30,38 @@ export const NullTelemetryService = new class implements ITelemetryService {
 	}
 
 	setExperimentProperty() { }
-	setEnabled() { }
-	isOptedIn = true;
+	telemetryLevel = TelemetryLevel.NONE;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
-};
+}
+
+export const NullTelemetryService = new NullTelemetryServiceShape();
+
+export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
+	_serviceBrand: undefined;
+
+	async publicLog(_endpoint: ITelemetryEndpoint, _eventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+
+	async publicLogError(_endpoint: ITelemetryEndpoint, _errorEventName: string, _data?: ITelemetryData): Promise<void> {
+		// noop
+	}
+}
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
 }
 
-export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return {
-		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promise.all(appenders.map(a => a.flush()))
-	};
-}
-
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
 
-
-export class LogAppender implements ITelemetryAppender {
-
-	private commonPropertiesRegex = /^sessionID$|^version$|^timestamp$|^commitHash$|^common\./;
-	constructor(@ILogService private readonly _logService: ILogService) { }
-
-	flush(): Promise<any> {
-		return Promise.resolve(undefined);
-	}
-
-	log(eventName: string, data: any): void {
-		const strippedData: { [key: string]: any } = {};
-		Object.keys(data).forEach(key => {
-			if (!this.commonPropertiesRegex.test(key)) {
-				strippedData[key] = data[key];
-			}
-		});
-		this._logService.trace(`telemetry/${eventName}`, strippedData);
-	}
-}
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
@@ -107,6 +95,49 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			});
 		}
 	});
+}
+
+/**
+ * Determines how telemetry is handled based on the current running configuration.
+ * To log telemetry locally, the client must not disable telemetry via the CLI
+ * If client is a built product and telemetry is enabled via the product.json, telemetry is supported
+ * This function is only used to determine if telemetry contructs should occur, but is not impacted by user configuration
+ *
+ * @param productService
+ * @param environmentService
+ * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
+ */
+export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+}
+
+/**
+ * Determines how telemetry is handled based on the user's configuration.
+ *
+ * @param configurationService
+ * @returns OFF, ERROR, ON
+ */
+export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
+	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
+	const crashReporterConfig = configurationService.getValue<boolean | undefined>('telemetry.enableCrashReporter');
+	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
+
+	// If `telemetry.enableCrashReporter` is false or `telemetry.enableTelemetry' is false, disable telemetry
+	if (oldConfig === false || crashReporterConfig === false) {
+		return TelemetryLevel.NONE;
+	}
+
+	// Maps new telemetry setting to a telemetry level
+	switch (newConfig ?? TelemetryConfiguration.ON) {
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.CRASH:
+			return TelemetryLevel.CRASH;
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+	}
 }
 
 export interface Properties {

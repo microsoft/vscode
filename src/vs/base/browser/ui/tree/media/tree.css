@@ -47,13 +47,16 @@
 	display: flex !important;
 	align-items: center;
 	justify-content: center;
-	color: inherit !important;
 	transform: translateX(3px);
 }
 
 .monaco-tl-contents {
 	flex: 1;
 	overflow: hidden;
+}
+
+.monaco-tl-twistie::before {
+	border-radius: 20px;
 }
 
 .monaco-tl-twistie.collapsed::before {

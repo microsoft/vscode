@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./list';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
-import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent } from './list';
-import { List, IListStyles, IListOptions, IListAccessibilityProvider, IListOptionsUpdate } from './listWidget';
-import { IPagedModel } from 'vs/base/common/paging';
-import { Event } from 'vs/base/common/event';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { IPagedModel } from 'vs/base/common/paging';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemable } from 'vs/base/common/styler';
+import 'vs/css!./list';
+import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
+import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List } from './listWidget';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -226,6 +226,14 @@ export class PagedList<T> implements IThemable, IDisposable {
 		this.list.scrollLeft = scrollLeft;
 	}
 
+	setAnchor(index: number | undefined): void {
+		this.list.setAnchor(index);
+	}
+
+	getAnchor(): number | undefined {
+		return this.list.getAnchor();
+	}
+
 	setFocus(indexes: number[]): void {
 		this.list.setFocus(indexes);
 	}
@@ -238,12 +246,20 @@ export class PagedList<T> implements IThemable, IDisposable {
 		this.list.focusPrevious(n, loop);
 	}
 
-	focusNextPage(): void {
-		this.list.focusNextPage();
+	focusNextPage(): Promise<void> {
+		return this.list.focusNextPage();
 	}
 
-	focusPreviousPage(): void {
-		this.list.focusPreviousPage();
+	focusPreviousPage(): Promise<void> {
+		return this.list.focusPreviousPage();
+	}
+
+	focusLast(): void {
+		this.list.focusLast();
+	}
+
+	focusFirst(): void {
+		this.list.focusFirst();
 	}
 
 	getFocus(): number[] {
@@ -256,6 +272,10 @@ export class PagedList<T> implements IThemable, IDisposable {
 
 	getSelection(): number[] {
 		return this.list.getSelection();
+	}
+
+	getSelectedElements(): T[] {
+		return this.getSelection().map(i => this.model.get(i));
 	}
 
 	layout(height?: number, width?: number): void {

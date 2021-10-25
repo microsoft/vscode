@@ -3,121 +3,171 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest, IScannedExtension } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Event, Emitter } from 'vs/base/common/event';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IGalleryMetadata, InstallOperation, IExtensionGalleryService, InstallOptions, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { IRequestService, isSuccess, asText } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
-export class WebExtensionManagementService extends Disposable implements IExtensionManagementService {
+type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
+
+export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onInstallExtension = this._register(new Emitter<InstallExtensionEvent>());
-	readonly onInstallExtension: Event<InstallExtensionEvent> = this._onInstallExtension.event;
-
-	private readonly _onDidInstallExtension = this._register(new Emitter<DidInstallExtensionEvent>());
-	readonly onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
-
-	private readonly _onUninstallExtension = this._register(new Emitter<IExtensionIdentifier>());
-	readonly onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
-
-	private _onDidUninstallExtension = this._register(new Emitter<DidUninstallExtensionEvent>());
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
-
 	constructor(
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
 		@IWebExtensionsScannerService private readonly webExtensionsScannerService: IWebExtensionsScannerService,
-		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IProductService productService: IProductService
 	) {
-		super();
+		super(extensionGalleryService, telemetryService, logService, productService);
 	}
 
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const extensions = await this.webExtensionsScannerService.scanExtensions(type);
-		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
+	async getTargetPlatform(): Promise<TargetPlatform> {
+		return TargetPlatform.WEB;
 	}
 
-	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
-		this.logService.info('Installing extension:', gallery.identifier.id);
-		this._onInstallExtension.fire({ identifier: gallery.identifier, gallery });
-		try {
-			const existingExtension = await this.getUserExtension(gallery.identifier);
-			if (existingExtension && existingExtension.manifest.version !== gallery.version) {
-				await this.webExtensionsScannerService.removeExtension(existingExtension.identifier, existingExtension.manifest.version);
-			}
-			const scannedExtension = await this.webExtensionsScannerService.addExtension(gallery);
-			const local = await this.toLocalExtension(scannedExtension);
-			this._onDidInstallExtension.fire({ local, identifier: gallery.identifier, operation: InstallOperation.Install, gallery });
-			return local;
-		} catch (error) {
-			this._onDidInstallExtension.fire({ error, identifier: gallery.identifier, operation: InstallOperation.Install, gallery });
-			throw error;
+	override async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+		if (await super.canInstall(gallery)) {
+			return true;
 		}
+		if (this.isConfiguredToExecuteOnWeb(gallery)) {
+			return true;
+		}
+		return false;
 	}
 
-	async uninstall(extension: ILocalExtension): Promise<void> {
-		this._onUninstallExtension.fire(extension.identifier);
-		try {
-			await this.webExtensionsScannerService.removeExtension(extension.identifier);
-			this._onDidUninstallExtension.fire({ identifier: extension.identifier });
-		} catch (error) {
-			this.logService.error(error);
-			this._onDidUninstallExtension.fire({ error, identifier: extension.identifier });
-			throw error;
+	async getInstalled(type?: ExtensionType, donotIgnoreInvalidExtensions?: boolean): Promise<ILocalExtension[]> {
+		const extensions = [];
+		if (type === undefined || type === ExtensionType.System) {
+			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
+			extensions.push(...systemExtensions);
 		}
+		if (type === undefined || type === ExtensionType.User) {
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions(donotIgnoreInvalidExtensions);
+			extensions.push(...userExtensions);
+		}
+		return Promise.all(extensions.map(e => toLocalExtension(e)));
+	}
+
+	async install(location: URI, options: InstallOptions = {}): Promise<ILocalExtension> {
+		this.logService.trace('ExtensionManagementService#install', location.toString());
+		const manifest = await this.webExtensionsScannerService.scanExtensionManifest(location);
+		if (!manifest) {
+			throw new Error(`Cannot find packageJSON from the location ${location.toString()}`);
+		}
+		return this.installExtension(manifest, location, options);
+	}
+
+	protected override async getCompatibleVersion(extension: IGalleryExtension, fetchCompatibleVersion: boolean): Promise<IGalleryExtension | null> {
+		const compatibleExtension = await super.getCompatibleVersion(extension, fetchCompatibleVersion);
+		if (compatibleExtension) {
+			return compatibleExtension;
+		}
+		if (this.isConfiguredToExecuteOnWeb(extension)) {
+			return extension;
+		}
+		return null;
+	}
+
+	private isConfiguredToExecuteOnWeb(gallery: IGalleryExtension): boolean {
+		const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(gallery.identifier);
+		return !!configuredExtensionKind && configuredExtensionKind.includes('web');
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		return local;
 	}
 
-	private async getUserExtension(identifier: IExtensionIdentifier): Promise<ILocalExtension | undefined> {
-		const userExtensions = await this.getInstalled(ExtensionType.User);
-		return userExtensions.find(e => areSameExtensions(e.identifier, identifier));
+	protected createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions): IInstallExtensionTask {
+		return new InstallExtensionTask(manifest, extension, options, this.webExtensionsScannerService);
 	}
 
-	private async toLocalExtension(scannedExtension: IScannedExtension): Promise<ILocalExtension> {
-		let manifest = scannedExtension.packageJSON;
-		if (scannedExtension.packageNLS) {
-			// package.nls.json is inlined
-			try {
-				manifest = localizeManifest(manifest, scannedExtension.packageNLS);
-			} catch (error) { /* ignore */ }
-		} else if (scannedExtension.packageNLSUrl) {
-			// package.nls.json needs to be fetched
-			try {
-				const context = await this.requestService.request({ type: 'GET', url: scannedExtension.packageNLSUrl.toString() }, CancellationToken.None);
-				if (isSuccess(context)) {
-					const content = await asText(context);
-					if (content) {
-						manifest = localizeManifest(manifest, JSON.parse(content));
-					}
-				}
-			} catch (error) { /* ignore */ }
-		}
-		return <ILocalExtension>{
-			type: scannedExtension.type,
-			identifier: scannedExtension.identifier,
-			manifest,
-			location: scannedExtension.location,
-			isMachineScoped: false,
-			publisherId: null,
-			publisherDisplayName: null
-		};
+	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
+		return new UninstallExtensionTask(extension, options, this.webExtensionsScannerService);
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('unsupported'); }
-	reinstallFromGallery(extension: ILocalExtension): Promise<void> { throw new Error('unsupported'); }
-	getExtensionsReport(): Promise<IReportedExtension[]> { throw new Error('unsupported'); }
+	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
+}
 
+function toLocalExtension(extension: IScannedExtension): ILocalExtension {
+	const metadata = getMetadata(undefined, extension);
+	return {
+		...extension,
+		identifier: { id: extension.identifier.id, uuid: metadata.id },
+		isMachineScoped: !!metadata.isMachineScoped,
+		publisherId: metadata.publisherId || null,
+		publisherDisplayName: metadata.publisherDisplayName || null,
+	};
+}
+
+function getMetadata(options?: InstallOptions, existingExtension?: IScannedExtension): Metadata {
+	const metadata: Metadata = { ...(existingExtension?.metadata || {}) };
+	metadata.isMachineScoped = options?.isMachineScoped || metadata.isMachineScoped;
+	return metadata;
+}
+
+class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
+
+	readonly identifier: IExtensionIdentifier;
+	readonly source: URI | IGalleryExtension;
+	private _operation = InstallOperation.Install;
+	get operation() { return this._operation; }
+
+	constructor(
+		manifest: IExtensionManifest,
+		private readonly extension: URI | IGalleryExtension,
+		private readonly options: InstallOptions,
+		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+	) {
+		super();
+		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
+		this.source = extension;
+	}
+
+	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
+		const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
+		const existingExtension = userExtensions.find(e => areSameExtensions(e.identifier, this.identifier));
+		if (existingExtension) {
+			this._operation = InstallOperation.Update;
+		}
+
+		const metadata = getMetadata(this.options, existingExtension);
+		if (!URI.isUri(this.extension)) {
+			metadata.id = this.extension.identifier.uuid;
+			metadata.publisherDisplayName = this.extension.publisherDisplayName;
+			metadata.publisherId = this.extension.publisherId;
+		}
+
+		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)
+			: await this.webExtensionsScannerService.addExtensionFromGallery(this.extension, metadata);
+		return toLocalExtension(scannedExtension);
+	}
+}
+
+class UninstallExtensionTask extends AbstractExtensionTask<void> implements IUninstallExtensionTask {
+
+	constructor(
+		readonly extension: ILocalExtension,
+		options: UninstallExtensionTaskOptions,
+		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
+	) {
+		super();
+	}
+
+	protected doRun(token: CancellationToken): Promise<void> {
+		return this.webExtensionsScannerService.removeExtension(this.extension.identifier);
+	}
 }

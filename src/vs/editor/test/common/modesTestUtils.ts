@@ -6,6 +6,7 @@
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { MetadataConsts, StandardTokenType } from 'vs/editor/common/modes';
 import { ScopedLineTokens, createScopedLineTokens } from 'vs/editor/common/modes/supports';
+import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
 
 export interface TokenText {
 	text: string;
@@ -30,5 +31,5 @@ export function createFakeScopedLineTokens(rawTokens: TokenText[]): ScopedLineTo
 	}
 
 	LineTokens.convertToEndOffset(tokens, line.length);
-	return createScopedLineTokens(new LineTokens(tokens, line), 0);
+	return createScopedLineTokens(new LineTokens(tokens, line, new LanguageIdCodec()), 0);
 }

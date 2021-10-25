@@ -1,14 +1,5 @@
 {
 	"version": "0.2.0",
-	"compounds": [
-		{
-			"name": "Debug Extension and Language Server",
-			"configurations": [
-				"Launch Extension",
-				"Attach Language Server"
-			]
-		}
-	],
 	"configurations": [
 		{
 			"name": "Launch Extension",
@@ -41,19 +32,6 @@
 			]
 		},
 		{
-			"name": "Attach Language Server",
-			"type": "node",
-			"request": "attach",
-			"protocol": "inspector",
-			"port": 6044,
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceFolder}/server/out/**/*.js"
-			],
-			"smartStep": true,
-			"restart": true
-    },
-    {
 			"name": "Server Unit Tests",
 			"type": "node",
 			"request": "launch",

@@ -11,6 +11,7 @@ import { Command } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
@@ -28,7 +29,7 @@ export interface TimelineItem {
 	accessibilityInformation?: IAccessibilityInformation;
 	icon?: URI,
 	iconDark?: URI,
-	themeIcon?: { id: string },
+	themeIcon?: ThemeIcon,
 	description?: string;
 	detail?: string;
 	command?: Command;

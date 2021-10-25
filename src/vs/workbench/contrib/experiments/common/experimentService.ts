@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { distinct } from 'vs/base/common/arrays';
+import { RunOnceWorker } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { match } from 'vs/base/common/glob';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { equals } from 'vs/base/common/objects';
+import { language, OperatingSystem, OS } from 'vs/base/common/platform';
+import { isDefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { language, OperatingSystem, OS } from 'vs/base/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { match } from 'vs/base/common/glob';
-import { IRequestService, asJson } from 'vs/platform/request/common/request';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { distinct } from 'vs/base/common/arrays';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { asJson, IRequestService } from 'vs/platform/request/common/request';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { RunOnceWorker } from 'vs/base/common/async';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { equals } from 'vs/base/common/objects';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export const enum ExperimentState {
 	Evaluating,
@@ -93,7 +94,7 @@ interface IExperimentStorageState {
  * be incremented when adding a condition, otherwise experiments might activate
  * on older versions of VS Code where not intended.
  */
-export const currentSchemaVersion = 4;
+export const currentSchemaVersion = 5;
 
 interface IRawExperiment {
 	id: string;
@@ -107,7 +108,7 @@ interface IRawExperiment {
 		userSetting?: { [key: string]: unknown; };
 		// Start the experiment if the number of activation events have happened over the last week:
 		activationEvent?: {
-			event: string;
+			event: string | string[];
 			uniqueDays?: number;
 			minEvents: number;
 		};
@@ -222,7 +223,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		const storageKey = 'experiments.' + experimentId;
 		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
 		experimentState.state = ExperimentState.Complete;
-		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
+		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	protected async getExperiments(): Promise<IRawExperiment[] | null> {
@@ -280,12 +281,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				});
 			}
 			if (enabledExperiments.length) {
-				this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+				this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL, StorageTarget.MACHINE);
 			} else {
 				this.storageService.remove('allExperiments', StorageScope.GLOBAL);
 			}
 
-			const activationEvents = new Set(rawExperiments.map(exp => exp.condition?.activationEvent?.event).filter(evt => !!evt));
+			const activationEvents = new Set(rawExperiments.map(exp => exp.condition?.activationEvent?.event)
+				.filter(isDefined).flatMap(evt => typeof evt === 'string' ? [evt] : []));
 			if (activationEvents.size) {
 				this._register(this.extensionService.onWillActivateByEvent(evt => {
 					if (activationEvents.has(evt.event)) {
@@ -350,7 +352,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 		return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 			experimentState.state = processedExperiment.state = state;
-			this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
+			this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			if (state === ExperimentState.Run) {
 				this.fireRunExperiment(processedExperiment);
@@ -370,7 +372,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		// Ensure we dont store duplicates
 		const distinctExperiments = distinct(runExperimentIdsFromStorage);
 		if (runExperimentIdsFromStorage.length !== distinctExperiments.length) {
-			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(distinctExperiments), StorageScope.GLOBAL);
+			this.storageService.store('currentOrPreviouslyRunExperiments', JSON.stringify(distinctExperiments), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -399,10 +401,17 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		const key = experimentEventStorageKey(event);
 		const record = getCurrentActivationRecord(safeParse(this.storageService.get(key, StorageScope.GLOBAL), undefined));
 		record.count[0]++;
-		this.storageService.store(key, JSON.stringify(record), StorageScope.GLOBAL);
+		this.storageService.store(key, JSON.stringify(record), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 		this._experiments
-			.filter(e => e.state === ExperimentState.Evaluating && e.raw?.condition?.activationEvent?.event === event)
+			.filter(e => {
+				const lookingFor = e.raw?.condition?.activationEvent?.event;
+				if (e.state !== ExperimentState.Evaluating || !lookingFor) {
+					return false;
+				}
+
+				return typeof lookingFor === 'string' ? lookingFor === event : lookingFor?.includes(event);
+			})
 			.forEach(e => this.evaluateExperiment(e.raw!));
 	}
 
@@ -412,14 +421,18 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			return true;
 		}
 
-		const { count } = getCurrentActivationRecord(safeParse(this.storageService.get(experimentEventStorageKey(setting.event), StorageScope.GLOBAL), undefined));
-
 		let total = 0;
 		let uniqueDays = 0;
-		for (const entry of count) {
-			if (entry > 0) {
-				uniqueDays++;
-				total += entry;
+
+		const events = typeof setting.event === 'string' ? [setting.event] : setting.event;
+		for (const event of events) {
+			const { count } = getCurrentActivationRecord(safeParse(this.storageService.get(experimentEventStorageKey(event), StorageScope.GLOBAL), undefined));
+
+			for (const entry of count) {
+				if (entry > 0) {
+					uniqueDays++;
+					total += entry;
+				}
 			}
 		}
 
@@ -558,12 +571,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					if (filePathCheck && workspaceCheck) {
 						latestExperimentState.editCount = (latestExperimentState.editCount || 0) + 1;
 						latestExperimentState.lastEditedDate = date;
-						this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
+						this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					}
 				});
 				if (typeof latestExperimentState.editCount === 'number' && latestExperimentState.editCount >= fileEdits.minEditCount) {
 					processedExperiment.state = latestExperimentState.state = (typeof condition.userProbability === 'number' && Math.random() < condition.userProbability && this.checkExperimentDependencies(experiment)) ? ExperimentState.Run : ExperimentState.NoRun;
-					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
+					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL, StorageTarget.MACHINE);
 					if (latestExperimentState.state === ExperimentState.Run && processedExperiment.action && ExperimentActionType[processedExperiment.action.type] === ExperimentActionType.Prompt) {
 						this.fireRunExperiment(processedExperiment);
 					}

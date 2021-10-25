@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IExtensionIdentifierWithVersion, IGalleryExtension, ILocalExtension, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -17,22 +17,33 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion {
+export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithVersion {
+
+	readonly id: string;
+	readonly uuid?: string;
+
 	constructor(
-		readonly identifier: IExtensionIdentifier,
+		identifier: IExtensionIdentifier,
 		readonly version: string
-	) { }
+	) {
+		this.id = identifier.id;
+		this.uuid = identifier.uuid;
+	}
 
 	key(): string {
-		return `${this.identifier.id}-${this.version}`;
+		return `${this.id}-${this.version}`;
 	}
 
 	equals(o: any): boolean {
 		if (!(o instanceof ExtensionIdentifierWithVersion)) {
 			return false;
 		}
-		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+		return areSameExtensions(this, o) && this.version === o.version;
 	}
+}
+
+export function getExtensionId(publisher: string, name: string): string {
+	return `${publisher}.${name}`;
 }
 
 export function adoptToGalleryExtensionId(id: string): string {
@@ -40,7 +51,7 @@ export function adoptToGalleryExtensionId(id: string): string {
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
+	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
@@ -116,4 +127,23 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
+}
+
+export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
+	const dependencies: IExtension[] = [];
+	const extensions = extension.manifest.extensionDependencies?.slice(0) ?? [];
+
+	while (extensions.length) {
+		const id = extensions.shift();
+
+		if (id && dependencies.every(e => !areSameExtensions(e.identifier, { id }))) {
+			const ext = installedExtensions.filter(e => areSameExtensions(e.identifier, { id }));
+			if (ext.length === 1) {
+				dependencies.push(ext[0]);
+				extensions.push(...ext[0].manifest.extensionDependencies?.slice(0) ?? []);
+			}
+		}
+	}
+
+	return dependencies;
 }

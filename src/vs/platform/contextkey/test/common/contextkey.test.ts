@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ContextKeyExpr, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
 	return {
@@ -67,7 +67,7 @@ suite('ContextKeyExpr', () => {
 		function testExpression(expr: string, expected: boolean): void {
 			// console.log(expr + ' ' + expected);
 			let rules = ContextKeyExpr.deserialize(expr);
-			assert.equal(rules!.evaluate(context), expected, expr);
+			assert.strictEqual(rules!.evaluate(context), expected, expr);
 		}
 		function testBatch(expr: string, value: any): void {
 			/* eslint-disable eqeqeq */
@@ -146,8 +146,165 @@ suite('ContextKeyExpr', () => {
 		}
 		t('a', 'b', 'a && b');
 		t('a || b', 'c', 'a && c || b && c');
-		t('a || b', 'c || d', 'a && c || b && c || a && d || b && d');
+		t('a || b', 'c || d', 'a && c || a && d || b && c || b && d');
 		t('a || b', 'c && d', 'a && c && d || b && c && d');
 		t('a || b', 'c && d || e', 'a && e || b && e || a && c && d || b && c && d');
+	});
+
+	test('ContextKeyInExpr', () => {
+		const ainb = ContextKeyExpr.deserialize('a in b')!;
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 3, 'b': [3, 2, 1] })), true);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2, 3] })), true);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2] })), false);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 3 })), false);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 3, 'b': null })), false);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': ['x'] })), true);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': ['y'] })), false);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': {} })), false);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
+		assert.strictEqual(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+	});
+
+	test('issue #106524: distributing AND should normalize', () => {
+		const actual = ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('b')
+			),
+			ContextKeyExpr.has('c')
+		);
+		const expected = ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('c')
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('b'),
+				ContextKeyExpr.has('c')
+			)
+		);
+		assert.strictEqual(actual!.equals(expected!), true);
+	});
+
+	test('issue #129625: Removes duplicated terms in OR expressions', () => {
+		const expr = ContextKeyExpr.or(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A || B');
+	});
+
+	test('issue #129625: Removes duplicated terms in AND expressions', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.has('B'),
+			ContextKeyExpr.has('A')
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B');
+	});
+
+	test('issue #129625: Remove duplicated terms when negating', () => {
+		const expr = ContextKeyExpr.and(
+			ContextKeyExpr.has('A'),
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('B1'),
+				ContextKeyExpr.has('B2'),
+			)
+		)!;
+		assert.strictEqual(expr.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.serialize(), '!A || !B1 && !B2');
+		assert.strictEqual(expr.negate()!.negate()!.serialize(), 'A && B1 || A && B2');
+		assert.strictEqual(expr.negate()!.negate()!.negate()!.serialize(), '!A || !B1 && !B2');
+	});
+
+	test('issue #129625: remove redundant terms in OR expressions', () => {
+		function strImplies(p0: string, q0: string): boolean {
+			const p = ContextKeyExpr.deserialize(p0)!;
+			const q = ContextKeyExpr.deserialize(q0)!;
+			return implies(p, q);
+		}
+		assert.strictEqual(strImplies('a', 'a && b'), true);
+	});
+
+	test('Greater, GreaterEquals, Smaller, SmallerEquals evaluate', () => {
+		function checkEvaluate(expr: string, ctx: any, expected: any): void {
+			const _expr = ContextKeyExpr.deserialize(expr)!;
+			assert.strictEqual(_expr.evaluate(createContext(ctx)), expected);
+		}
+
+		checkEvaluate('a>1', {}, false);
+		checkEvaluate('a>1', { a: 0 }, false);
+		checkEvaluate('a>1', { a: 1 }, false);
+		checkEvaluate('a>1', { a: 2 }, true);
+		checkEvaluate('a>1', { a: '0' }, false);
+		checkEvaluate('a>1', { a: '1' }, false);
+		checkEvaluate('a>1', { a: '2' }, true);
+		checkEvaluate('a>1', { a: 'a' }, false);
+
+		checkEvaluate('a>10', { a: 2 }, false);
+		checkEvaluate('a>10', { a: 11 }, true);
+		checkEvaluate('a>10', { a: '11' }, true);
+		checkEvaluate('a>10', { a: '2' }, false);
+		checkEvaluate('a>10', { a: '11' }, true);
+
+		checkEvaluate('a>1.1', { a: 1 }, false);
+		checkEvaluate('a>1.1', { a: 2 }, true);
+		checkEvaluate('a>1.1', { a: 11 }, true);
+		checkEvaluate('a>1.1', { a: '1.1' }, false);
+		checkEvaluate('a>1.1', { a: '2' }, true);
+		checkEvaluate('a>1.1', { a: '11' }, true);
+
+		checkEvaluate('a>b', { a: 'b' }, false);
+		checkEvaluate('a>b', { a: 'c' }, false);
+		checkEvaluate('a>b', { a: 1000 }, false);
+
+		checkEvaluate('a >= 2', { a: '1' }, false);
+		checkEvaluate('a >= 2', { a: '2' }, true);
+		checkEvaluate('a >= 2', { a: '3' }, true);
+
+		checkEvaluate('a < 2', { a: '1' }, true);
+		checkEvaluate('a < 2', { a: '2' }, false);
+		checkEvaluate('a < 2', { a: '3' }, false);
+
+		checkEvaluate('a <= 2', { a: '1' }, true);
+		checkEvaluate('a <= 2', { a: '2' }, true);
+		checkEvaluate('a <= 2', { a: '3' }, false);
+	});
+
+	test('Greater, GreaterEquals, Smaller, SmallerEquals negate', () => {
+		function checkNegate(expr: string, expected: string): void {
+			const a = ContextKeyExpr.deserialize(expr)!;
+			const b = a.negate();
+			assert.strictEqual(b.serialize(), expected);
+		}
+
+		checkNegate('a>1', 'a <= 1');
+		checkNegate('a>1.1', 'a <= 1.1');
+		checkNegate('a>b', 'a <= b');
+
+		checkNegate('a>=1', 'a < 1');
+		checkNegate('a>=1.1', 'a < 1.1');
+		checkNegate('a>=b', 'a < b');
+
+		checkNegate('a<1', 'a >= 1');
+		checkNegate('a<1.1', 'a >= 1.1');
+		checkNegate('a<b', 'a >= b');
+
+		checkNegate('a<=1', 'a > 1');
+		checkNegate('a<=1.1', 'a > 1.1');
+		checkNegate('a<=b', 'a > b');
+	});
+
+	test('issue #111899: context keys can use `<` or `>` ', () => {
+		const actual = ContextKeyExpr.deserialize('editorTextFocus && vim.active && vim.use<C-r>')!;
+		assert.ok(actual.equals(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('editorTextFocus'),
+				ContextKeyExpr.has('vim.active'),
+				ContextKeyExpr.has('vim.use<C-r>'),
+			)!
+		));
 	});
 });

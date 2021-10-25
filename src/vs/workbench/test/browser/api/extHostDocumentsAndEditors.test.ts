@@ -23,7 +23,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 			addedDocuments: [{
 				EOL: '\n',
 				isDirty: true,
-				modeId: 'fooLang',
+				languageId: 'fooLang',
 				uri: URI.parse('foo:bar'),
 				versionId: 1,
 				lines: [
@@ -39,7 +39,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 				try {
 
 					for (const data of e) {
-						assert.equal(data.document.isClosed, true);
+						assert.strictEqual(data.document.isClosed, true);
 					}
 					resolve(undefined);
 				} catch (e) {

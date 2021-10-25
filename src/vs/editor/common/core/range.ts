@@ -134,7 +134,7 @@ export class Range {
 	}
 
 	/**
-	 * Test if `otherRange` is strinctly in `range` (must start after, and end before). If the ranges are equal, will return false.
+	 * Test if `otherRange` is strictly in `range` (must start after, and end before). If the ranges are equal, will return false.
 	 */
 	public static strictContainsRange(range: IRange, otherRange: IRange): boolean {
 		if (otherRange.startLineNumber < range.startLineNumber || otherRange.endLineNumber < range.startLineNumber) {

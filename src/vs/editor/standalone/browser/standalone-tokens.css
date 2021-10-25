@@ -23,6 +23,19 @@
 	margin: 0;
 }
 
+/* See https://github.com/microsoft/monaco-editor/issues/2168#issuecomment-780078600 */
+.monaco-aria-container {
+	position: absolute !important;
+	top: 0; /* avoid being placed underneath a sibling element */
+	height: 1px;
+	width: 1px;
+	margin: -1px;
+	overflow: hidden;
+	padding: 0;
+	clip: rect(1px, 1px, 1px, 1px);
+	clip-path: inset(50%);
+}
+
 /* The hc-black theme is already high contrast optimized */
 .monaco-editor.hc-black {
 	-ms-high-contrast-adjust: none;

@@ -38,51 +38,34 @@
 	width: 22px;
 }
 
-.monaco-pane-view .pane > .pane-header > .twisties {
-	width: 20px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transform-origin: center;
-	color: inherit;
-	flex-shrink: 0;
+.monaco-pane-view .pane > .pane-header > .codicon:first-of-type {
+	margin: 0 2px;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .twisties {
-	margin-top: 2px;
-	margin-bottom: 2px;
-}
-
-.monaco-pane-view .pane > .pane-header.expanded > .twisties::before {
-	transform: rotate(90deg);
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .codicon:first-of-type {
+	margin: 2px;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
 .monaco-pane-view .pane > .pane-header > .actions {
 	display: none;
-	flex: 1;
+	margin-left: auto;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions .action-item {
+	margin-right: 4px;
+}
+
+.monaco-pane-view .pane > .pane-header > .actions .action-label {
+	padding: 2px;
 }
 
 /* TODO: actions should be part of the pane, but they aren't yet */
 .monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
+.monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,
 .monaco-pane-view .pane > .pane-header.actions-always-visible.expanded > .actions,
 .monaco-pane-view .pane > .pane-header.focused.expanded > .actions {
 	display: initial;
-}
-
-/* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane > .pane-header > .actions .action-label.icon,
-.monaco-pane-view .pane > .pane-header > .actions .action-label.codicon {
-	width: 28px;
-	height: 22px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
 }
 
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
@@ -135,7 +118,7 @@
 	transition-property: width;
 }
 
-#monaco-workbench-pane-drop-overlay {
+#monaco-pane-drop-overlay {
 	position: absolute;
 	z-index: 10000;
 	width: 100%;
@@ -144,7 +127,7 @@
 	box-sizing: border-box;
 }
 
-#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator {
+#monaco-pane-drop-overlay > .pane-overlay-indicator {
 	position: absolute;
 	width: 100%;
 	height: 100%;
@@ -155,6 +138,6 @@
 	transition: opacity 150ms ease-out;
 }
 
-#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
+#monaco-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
 	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

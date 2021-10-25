@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -26,14 +25,14 @@ suite('ExtHostDecorations', function () {
 		providers.clear();
 
 		mainThreadShape = new class extends mock<MainThreadDecorationsShape>() {
-			$registerDecorationProvider(handle: number) {
+			override $registerDecorationProvider(handle: number) {
 				providers.add(handle);
 			}
 		};
 
 		extHostDecorations = new ExtHostDecorations(
 			new class extends mock<IExtHostRpcService>() {
-				getProxy(): any {
+				override getProxy(): any {
 					return mainThreadShape;
 				}
 			},
@@ -47,20 +46,20 @@ suite('ExtHostDecorations', function () {
 		let calledB = false;
 
 		// never returns
-		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+		extHostDecorations.registerFileDecorationProvider({
+
+			provideFileDecoration() {
 				calledA = true;
 				return new Promise(() => { });
 			}
 		}, nullExtensionDescription.identifier);
 
 		// always returns
-		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+		extHostDecorations.registerFileDecorationProvider({
+
+			provideFileDecoration() {
 				calledB = true;
-				return new Promise(resolve => resolve({ letter: 'H', title: 'Hello' }));
+				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
 			}
 		}, nullExtensionDescription.identifier);
 
@@ -69,17 +68,17 @@ suite('ExtHostDecorations', function () {
 			return extHostDecorations.$provideDecorations(handle, [{ id: idx, uri: URI.parse('test:///file') }], CancellationToken.None);
 		});
 
-		assert.equal(calledA, true);
-		assert.equal(calledB, true);
+		assert.strictEqual(calledA, true);
+		assert.strictEqual(calledB, true);
 
-		assert.equal(requests.length, 2);
+		assert.strictEqual(requests.length, 2);
 		const [first, second] = requests;
 
 		const firstResult = await Promise.race([first, timeout(30).then(() => false)]);
-		assert.equal(typeof firstResult, 'boolean'); // never finishes...
+		assert.strictEqual(typeof firstResult, 'boolean'); // never finishes...
 
 		const secondResult = await Promise.race([second, timeout(30).then(() => false)]);
-		assert.equal(typeof secondResult, 'object');
+		assert.strictEqual(typeof secondResult, 'object');
 	});
 
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IViewportRange } from 'xterm';
+import type { Terminal, IViewportRange, IBufferLine, IBufferRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -16,6 +16,11 @@ import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
+import { normalize } from 'vs/base/common/path';
+import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { isWindows } from 'vs/base/common/platform';
+
+const MAX_LENGTH = 2000;
 
 export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -35,63 +40,143 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	protected _provideLinks(y: number): TerminalLink[] {
-		// TODO: Support wrapping
 		// Dispose of all old links if new links are provides, links are only cached for the current line
-		const result: TerminalLink[] = [];
+		const links: TerminalLink[] = [];
 		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link));
 
-		const line = this._xterm.buffer.active.getLine(y - 1)!;
-		let text = '';
-		let startX = -1;
-		const cellData = line.getCell(0)!;
-		for (let x = 0; x < line.length; x++) {
-			line.getCell(x, cellData);
-			const chars = cellData.getChars();
-			const width = cellData.getWidth();
+		let startLine = y - 1;
+		let endLine = startLine;
 
-			// Add a link if this is a separator
-			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
-				if (startX !== -1) {
-					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
-					text = '';
-					startX = -1;
-				}
+		const lines: IBufferLine[] = [
+			this._xterm.buffer.active.getLine(startLine)!
+		];
+
+		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
+			startLine--;
+		}
+
+		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
+			endLine++;
+		}
+
+		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
+		if (text === '' || text.length > MAX_LENGTH) {
+			return [];
+		}
+
+		const words: Word[] = this._parseWords(text, wordSeparators);
+
+		for (const word of words) {
+			if (word.text === '') {
 				continue;
 			}
+			const bufferRange = convertLinkRangeToBuffer
+				(
+					lines,
+					this._xterm.cols,
+					{
+						startColumn: word.startIndex + 1,
+						startLineNumber: 1,
+						endColumn: word.endIndex + 1,
+						endLineNumber: 1
+					},
+					startLine
+				);
+			links.push(this._createTerminalLink(word.text, activateCallback, bufferRange));
+		}
+		return links;
+	}
 
-			// Mark the start of a link if it hasn't started yet
-			if (startX === -1) {
-				startX = x;
+	private _parseWords(text: string, separators: string): Word[] {
+		const words: Word[] = [];
+
+		const wordSeparators: string[] = separators.split('');
+		const characters = text.split('');
+
+		let startIndex = 0;
+		for (let i = 0; i < text.length; i++) {
+			if (wordSeparators.includes(characters[i])) {
+				words.push({ startIndex, endIndex: i, text: text.substring(startIndex, i) });
+				startIndex = i + 1;
 			}
-
-			text += chars;
+		}
+		if (startIndex < text.length) {
+			words.push({ startIndex, endIndex: text.length, text: text.substring(startIndex) });
 		}
 
-		// Add the final link if there is one
-		if (startX !== -1) {
-			result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: line.length, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
-		}
+		return words;
+	}
 
-		return result;
+	private _createTerminalLink(text: string, activateCallback: XtermLinkMatcherHandler, bufferRange: IBufferRange): TerminalLink {
+		// Remove trailing colon if there is one so the link is more useful
+		if (text.length > 0 && text.charAt(text.length - 1) === ':') {
+			text = text.slice(0, -1);
+			bufferRange.end.x--;
+		}
+		return this._instantiationService.createInstance(TerminalLink,
+			this._xterm,
+			bufferRange,
+			text,
+			this._xterm.buffer.active.viewportY,
+			activateCallback,
+			this._tooltipCallback,
+			false,
+			localize('searchWorkspace', 'Search workspace')
+		);
 	}
 
 	private async _activate(link: string) {
+		// Normalize the link and remove any leading ./ or ../ since quick access doesn't understand
+		// that format
+		link = normalize(link).replace(/^(\.+[\\/])+/, '');
+
+		// If any of the names of the folders in the workspace matches
+		// a prefix of the link, remove that prefix and continue
+		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
+			if (link.substr(0, folder.name.length + 1) === folder.name + (isWindows ? '\\' : '/')) {
+				link = link.substring(folder.name.length + 1);
+				return;
+			}
+		});
+
+		const sanitizedLink = link.replace(/:\d+(:\d+)?$/, '');
 		const results = await this._searchService.fileSearch(
 			this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-				filePattern: link,
+				// Remove optional :row:col from the link as openEditor supports it
+				filePattern: sanitizedLink,
 				maxResults: 2
 			})
 		);
 
 		// If there was exactly one match, open it
 		if (results.results.length === 1) {
-			const match = results.results[0];
-			await this._editorService.openEditor({ resource: match.resource, options: { pinned: true } });
+			const match = link.match(/:(\d+)?(:(\d+))?$/);
+			const startLineNumber = match?.[1];
+			const startColumn = match?.[3];
+			await this._editorService.openEditor({
+				resource: results.results[0].resource,
+				options: {
+					pinned: true,
+					revealIfOpened: true,
+					selection: startLineNumber ? {
+						startLineNumber: parseInt(startLineNumber),
+						startColumn: startColumn ? parseInt(startColumn) : 0
+					} : undefined
+				}
+			});
 			return;
 		}
 
 		// Fallback to searching quick access
 		this._quickInputService.quickAccess.show(link);
 	}
+}
+
+interface Word {
+	startIndex: number;
+	endIndex: number;
+	text: string;
 }

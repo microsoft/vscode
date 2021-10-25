@@ -45,7 +45,7 @@ export function newSemanticTokenProvider(languageModes: LanguageModes): Semantic
 					}
 				}
 			}
-			return encodeTokens(allTokens, ranges);
+			return encodeTokens(allTokens, ranges, document);
 		}
 	};
 }
@@ -94,15 +94,13 @@ function applyModifiersMapping(tokens: SemanticTokenData[], modifiersMapping: nu
 	}
 }
 
-const fullRange = [Range.create(Position.create(0, 0), Position.create(Number.MAX_VALUE, 0))];
-
-function encodeTokens(tokens: SemanticTokenData[], ranges?: Range[]): number[] {
+function encodeTokens(tokens: SemanticTokenData[], ranges: Range[] | undefined, document: TextDocument): number[] {
 
 	const resultTokens = tokens.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
 	if (ranges) {
 		ranges = ranges.sort((d1, d2) => d1.start.line - d2.start.line || d1.start.character - d2.start.character);
 	} else {
-		ranges = fullRange;
+		ranges = [Range.create(Position.create(0, 0), Position.create(document.lineCount, 0))];
 	}
 
 	let rangeIndex = 0;

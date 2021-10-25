@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .suggest-input-container {
-	padding: 4px;
+	padding: 2px 4px;
 }
 
 .suggest-input-container .monaco-editor-background,
@@ -20,8 +20,7 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	pointer-events: none;
-	margin-top: 2px;
-	margin-left: 1px;
+	margin-top: 1px;
 }
 
 .suggest-input-container .monaco-editor,

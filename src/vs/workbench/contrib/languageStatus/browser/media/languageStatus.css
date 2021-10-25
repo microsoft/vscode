@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .statusbar DIV#status\.languageStatus .codicon-circle-large-filled::before {
+	font-size: 12px;
+	line-height: 18px;
+}
+
+.monaco-workbench .hover-language-status {
+	display: flex;
+	padding: 4px 8px;
+}
+
+.monaco-workbench .hover-language-status:not(:last-child) {
+	border-bottom: 1px solid var(--code-notifications-border);
+}
+
+.monaco-workbench .hover-language-status > .severity {
+	padding-right: 8px;
+	flex: 1;
+	margin: auto;
+	display: none;
+}
+
+.monaco-workbench .hover-language-status > .severity.sev3 {
+	color: var(--code-language-status-color3)
+}
+
+.monaco-workbench .hover-language-status > .severity.sev2 {
+	color: var(--code-language-status-color2)
+}
+
+.monaco-workbench .hover-language-status > .severity.show {
+	display: inherit;
+}
+
+.monaco-workbench .hover-language-status > .element {
+	display: flex;
+	justify-content: space-between;
+	vertical-align: middle;
+	flex-grow: 100;
+}
+
+.monaco-workbench .hover-language-status > .element > .left > .detail:not(:empty)::before {
+	content: '–';
+	padding: 0 4px;
+	opacity: 0.6;
+}
+
+.monaco-workbench .hover-language-status > .element > .left > .label:empty {
+	display: none;
+}
+
+.monaco-workbench .hover-language-status > .element .left {
+	margin: auto 0;
+}
+
+.monaco-workbench .hover-language-status > .element .right {
+	margin: auto 0;
+	display: flex;
+}
+
+.monaco-workbench .hover-language-status > .element .right:not(:empty) {
+	padding-left: 16px;
+}
+
+.monaco-workbench .hover-language-status > .element .right .monaco-link {
+	margin: auto 0;
+	white-space: nowrap;
+}
+
+.monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {
+	padding-left: 8px;
+}

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { LRUCache } from 'vs/base/common/map';
-import { CharCode } from 'vs/base/common/charCode';
 import { isThenable } from 'vs/base/common/async';
+import { CharCode } from 'vs/base/common/charCode';
+import * as extpath from 'vs/base/common/extpath';
+import { LRUCache } from 'vs/base/common/map';
+import * as paths from 'vs/base/common/path';
+import * as strings from 'vs/base/common/strings';
 
 export interface IExpression {
 	[pattern: string]: boolean | SiblingClause;
@@ -230,7 +229,7 @@ function parseRegExp(pattern: string): string {
 	return regEx;
 }
 
-// regexes to check for trival glob patterns that just check for String#endsWith
+// regexes to check for trivial glob patterns that just check for String#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   			// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   			// **/something
 const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 	// {**/*.something,**/*.else} or {**/package.json,**/project.json}
@@ -297,7 +296,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
-	// Check for Trivias
+	// Check for Trivials
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) { // common pattern: **/*.txt just need endsWith check
 		const base = pattern.substr(4); // '**/*'.length === 4
@@ -382,7 +381,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 		}
 		return null;
 	};
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}
@@ -394,15 +393,24 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 }
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
-function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
-	const nativePath = paths.sep !== paths.posix.sep ? path.replace(ALL_FORWARD_SLASHES, paths.sep) : path;
+function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
+	const usingPosixSep = paths.sep === paths.posix.sep;
+	const nativePath = usingPosixSep ? targetPath : targetPath.replace(ALL_FORWARD_SLASHES, paths.sep);
 	const nativePathEnd = paths.sep + nativePath;
-	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
-		return typeof path === 'string' && (path === nativePath || path.endsWith(nativePathEnd)) ? pattern : null;
-	} : function (path, basename) {
-		return typeof path === 'string' && path === nativePath ? pattern : null;
+	const targetPathEnd = paths.posix.sep + targetPath;
+
+	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (testPath, basename) {
+		return typeof testPath === 'string' &&
+			((testPath === nativePath || testPath.endsWith(nativePathEnd))
+				|| !usingPosixSep && (testPath === targetPath || testPath.endsWith(targetPathEnd)))
+			? pattern : null;
+	} : function (testPath, basename) {
+		return typeof testPath === 'string' &&
+			(testPath === nativePath
+				|| (!usingPosixSep && testPath === targetPath))
+			? pattern : null;
 	};
-	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + path];
+	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + targetPath];
 	return parsedPattern;
 }
 
@@ -552,7 +560,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			return null;
 		};
 
-		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 		if (withBasenames) {
 			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 		}
@@ -588,7 +596,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		return null;
 	};
 
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}

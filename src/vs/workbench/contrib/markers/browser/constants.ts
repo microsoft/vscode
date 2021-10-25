@@ -17,12 +17,14 @@ export default {
 	MARKERS_VIEW_CLEAR_FILTER_TEXT: 'problems.action.clearFilterText',
 	MARKERS_VIEW_SHOW_MULTILINE_MESSAGE: 'problems.action.showMultilineMessage',
 	MARKERS_VIEW_SHOW_SINGLELINE_MESSAGE: 'problems.action.showSinglelineMessage',
+	MARKER_OPEN_ACTION_ID: 'problems.action.open',
 	MARKER_OPEN_SIDE_ACTION_ID: 'problems.action.openToSide',
 	MARKER_SHOW_PANEL_ID: 'workbench.action.showErrorsWarnings',
 	MARKER_SHOW_QUICK_FIX: 'problems.action.showQuickFixes',
 	TOGGLE_MARKERS_VIEW_ACTION_ID: 'workbench.actions.view.toggleProblems',
 
 	MarkersViewSmallLayoutContextKey: new RawContextKey<boolean>(`problemsView.smallLayout`, false),
+	MarkersTreeVisibilityContextKey: new RawContextKey<boolean>('problemsVisibility', false),
 	MarkerFocusContextKey: new RawContextKey<boolean>('problemFocus', false),
 	MarkerViewFilterFocusContextKey: new RawContextKey<boolean>('problemsFilterFocus', false),
 	RelatedInformationFocusContextKey: new RawContextKey<boolean>('relatedInformationFocus', false)

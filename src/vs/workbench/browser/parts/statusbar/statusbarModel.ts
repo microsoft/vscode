@@ -1,0 +1,437 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from 'vs/base/common/lifecycle';
+import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { hide, show, isAncestor } from 'vs/base/browser/dom';
+import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Emitter } from 'vs/base/common/event';
+
+export interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance:
+	 * either a number or a reference to
+	 * another status bar entry to position
+	 * relative to.
+	 *
+	 * May not be unique across all entries.
+	 */
+	readonly primary: number | IStatusbarEntryLocation;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	readonly secondary: number;
+}
+
+export interface IStatusbarEntryLocation {
+
+	/**
+	 * The identifier of another status bar entry to
+	 * position relative to.
+	 */
+	id: string;
+
+	/**
+	 * The alignment of the status bar entry relative
+	 * to the referenced entry.
+	 */
+	alignment: StatusbarAlignment;
+
+	/**
+	 * Whether to move the entry close to the location
+	 * so that it appears as if both this entry and
+	 * the location belong to each other.
+	 */
+	compact?: boolean;
+}
+
+export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
+	const candidate = thing as IStatusbarEntryLocation | undefined;
+
+	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
+}
+
+export interface IStatusbarViewModelEntry {
+	readonly id: string;
+	readonly name: string;
+	readonly hasCommand: boolean;
+	readonly alignment: StatusbarAlignment;
+	readonly priority: IStatusbarEntryPriority;
+	readonly container: HTMLElement;
+	readonly labelContainer: HTMLElement;
+}
+
+export class StatusbarViewModel extends Disposable {
+
+	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
+
+	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
+	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
+
+	private _entries: IStatusbarViewModelEntry[] = []; // Intentionally not using a map here since multiple entries can have the same ID
+	get entries(): IStatusbarViewModelEntry[] { return this._entries.slice(0); }
+
+	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
+	get lastFocusedEntry(): IStatusbarViewModelEntry | undefined {
+		return this._lastFocusedEntry && !this.isHidden(this._lastFocusedEntry.id) ? this._lastFocusedEntry : undefined;
+	}
+
+	private hidden = new Set<string>();
+
+	constructor(private readonly storageService: IStorageService) {
+		super();
+
+		this.restoreState();
+		this.registerListeners();
+	}
+
+	private restoreState(): void {
+		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+		if (hiddenRaw) {
+			try {
+				const hiddenArray: string[] = JSON.parse(hiddenRaw);
+				this.hidden = new Set(hiddenArray);
+			} catch (error) {
+				// ignore parsing errors
+			}
+		}
+	}
+
+	private registerListeners(): void {
+		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
+	}
+
+	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
+		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
+
+			// Keep current hidden entries
+			const currentlyHidden = new Set(this.hidden);
+
+			// Load latest state of hidden entries
+			this.hidden.clear();
+			this.restoreState();
+
+			const changed = new Set<string>();
+
+			// Check for each entry that is now visible
+			for (const id of currentlyHidden) {
+				if (!this.hidden.has(id)) {
+					changed.add(id);
+				}
+			}
+
+			// Check for each entry that is now hidden
+			for (const id of this.hidden) {
+				if (!currentlyHidden.has(id)) {
+					changed.add(id);
+				}
+			}
+
+			// Update visibility for entries have changed
+			if (changed.size > 0) {
+				for (const entry of this._entries) {
+					if (changed.has(entry.id)) {
+						this.updateVisibility(entry.id, true);
+
+						changed.delete(entry.id);
+					}
+				}
+			}
+		}
+	}
+
+	add(entry: IStatusbarViewModelEntry): void {
+
+		// Add to set of entries
+		this._entries.push(entry);
+
+		// Update visibility directly
+		this.updateVisibility(entry, false);
+
+		// Sort according to priority
+		this.sort();
+
+		// Mark first/last visible entry
+		this.markFirstLastVisibleEntry();
+	}
+
+	remove(entry: IStatusbarViewModelEntry): void {
+		const index = this._entries.indexOf(entry);
+		if (index >= 0) {
+
+			// Remove from entries
+			this._entries.splice(index, 1);
+
+			// Re-sort entries if this one was used
+			// as reference from other entries
+			if (this._entries.some(otherEntry => isStatusbarEntryLocation(otherEntry.priority.primary) && otherEntry.priority.primary.id === entry.id)) {
+				this.sort();
+			}
+
+			// Mark first/last visible entry
+			this.markFirstLastVisibleEntry();
+		}
+	}
+
+	isHidden(id: string): boolean {
+		return this.hidden.has(id);
+	}
+
+	hide(id: string): void {
+		if (!this.hidden.has(id)) {
+			this.hidden.add(id);
+
+			this.updateVisibility(id, true);
+
+			this.saveState();
+		}
+	}
+
+	show(id: string): void {
+		if (this.hidden.has(id)) {
+			this.hidden.delete(id);
+
+			this.updateVisibility(id, true);
+
+			this.saveState();
+		}
+	}
+
+	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
+		return this._entries.find(entry => entry.container === container);
+	}
+
+	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
+		return this._entries.filter(entry => entry.alignment === alignment);
+	}
+
+	focusNextEntry(): void {
+		this.focusEntry(+1, 0);
+	}
+
+	focusPreviousEntry(): void {
+		this.focusEntry(-1, this.entries.length - 1);
+	}
+
+	isEntryFocused(): boolean {
+		return !!this.getFocusedEntry();
+	}
+
+	private getFocusedEntry(): IStatusbarViewModelEntry | undefined {
+		return this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+	}
+
+	private focusEntry(delta: number, restartPosition: number): void {
+
+		const getVisibleEntry = (start: number) => {
+			let indexToFocus = start;
+			let entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
+			while (entry && this.isHidden(entry.id)) {
+				indexToFocus += delta;
+				entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
+			}
+
+			return entry;
+		};
+
+		const focused = this.getFocusedEntry();
+		if (focused) {
+			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
+			if (entry) {
+				this._lastFocusedEntry = entry;
+
+				entry.labelContainer.focus();
+
+				return;
+			}
+		}
+
+		const entry = getVisibleEntry(restartPosition);
+		if (entry) {
+			this._lastFocusedEntry = entry;
+			entry.labelContainer.focus();
+		}
+	}
+
+	private updateVisibility(id: string, trigger: boolean): void;
+	private updateVisibility(entry: IStatusbarViewModelEntry, trigger: boolean): void;
+	private updateVisibility(arg1: string | IStatusbarViewModelEntry, trigger: boolean): void {
+
+		// By identifier
+		if (typeof arg1 === 'string') {
+			const id = arg1;
+
+			for (const entry of this._entries) {
+				if (entry.id === id) {
+					this.updateVisibility(entry, trigger);
+				}
+			}
+		}
+
+		// By entry
+		else {
+			const entry = arg1;
+			const isHidden = this.isHidden(entry.id);
+
+			// Use CSS to show/hide item container
+			if (isHidden) {
+				hide(entry.container);
+			} else {
+				show(entry.container);
+			}
+
+			if (trigger) {
+				this._onDidChangeEntryVisibility.fire({ id: entry.id, visible: !isHidden });
+			}
+
+			// Mark first/last visible entry
+			this.markFirstLastVisibleEntry();
+		}
+	}
+
+	private saveState(): void {
+		if (this.hidden.size > 0) {
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
+		} else {
+			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+		}
+	}
+
+	private sort(): void {
+
+		// Split up entries into 2 buckets:
+		// - those with `priority: number` that can be compared
+		// - those with `priority: string` that must be sorted
+		//   relative to another entry if possible
+		const mapEntryWithNumberedPriorityToIndex = new Map<IStatusbarViewModelEntry, number /* index of entry */>();
+		const mapEntryWithRelativePriority = new Map<string /* priority of entry */, IStatusbarViewModelEntry[]>();
+		for (let i = 0; i < this._entries.length; i++) {
+			const entry = this._entries[i];
+			if (typeof entry.priority.primary === 'number') {
+				mapEntryWithNumberedPriorityToIndex.set(entry, i);
+			} else {
+				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.id);
+				if (!entries) {
+					entries = [];
+					mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+				}
+				entries.push(entry);
+			}
+		}
+
+		// Sort the entries with `priority: number` according to that
+		const sortedEntriesWithNumberedPriority = Array.from(mapEntryWithNumberedPriorityToIndex.keys());
+		sortedEntriesWithNumberedPriority.sort((entryA, entryB) => {
+			if (entryA.alignment === entryB.alignment) {
+
+				// Sort by primary/secondary priority: higher values move towards the left
+
+				if (entryA.priority.primary !== entryB.priority.primary) {
+					return Number(entryB.priority.primary) - Number(entryA.priority.primary);
+				}
+
+				if (entryA.priority.secondary !== entryB.priority.secondary) {
+					return entryB.priority.secondary - entryA.priority.secondary;
+				}
+
+				// otherwise maintain stable order (both values known to be in map)
+				return mapEntryWithNumberedPriorityToIndex.get(entryA)! - mapEntryWithNumberedPriorityToIndex.get(entryB)!;
+			}
+
+			if (entryA.alignment === StatusbarAlignment.LEFT) {
+				return -1;
+			}
+
+			if (entryB.alignment === StatusbarAlignment.LEFT) {
+				return 1;
+			}
+
+			return 0;
+		});
+
+		let sortedEntries: IStatusbarViewModelEntry[];
+
+		// Entries with location: sort in accordingly
+		if (mapEntryWithRelativePriority.size > 0) {
+			sortedEntries = [];
+
+			for (const entry of sortedEntriesWithNumberedPriority) {
+				const relativeEntries = mapEntryWithRelativePriority.get(entry.id);
+
+				// Fill relative entries to LEFT
+				if (relativeEntries) {
+					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT));
+				}
+
+				// Fill referenced entry
+				sortedEntries.push(entry);
+
+				// Fill relative entries to RIGHT
+				if (relativeEntries) {
+					sortedEntries.push(...relativeEntries.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT));
+				}
+
+				// Delete from map to mark as handled
+				mapEntryWithRelativePriority.delete(entry.id);
+			}
+
+			// Finally, just append all entries that reference another entry
+			// that does not exist to the end of the list
+			for (const [, entries] of mapEntryWithRelativePriority) {
+				sortedEntries.push(...entries);
+			}
+		}
+
+		// No entries with relative priority: take sorted entries as is
+		else {
+			sortedEntries = sortedEntriesWithNumberedPriority;
+		}
+
+		// Take over as new truth of entries
+		this._entries = sortedEntries;
+	}
+
+	private markFirstLastVisibleEntry(): void {
+		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.LEFT));
+		this.doMarkFirstLastVisibleStatusbarItem(this.getEntries(StatusbarAlignment.RIGHT));
+	}
+
+	private doMarkFirstLastVisibleStatusbarItem(entries: IStatusbarViewModelEntry[]): void {
+		let firstVisibleItem: IStatusbarViewModelEntry | undefined;
+		let lastVisibleItem: IStatusbarViewModelEntry | undefined;
+
+		for (const entry of entries) {
+
+			// Clear previous first
+			entry.container.classList.remove('first-visible-item', 'last-visible-item');
+
+			const isVisible = !this.isHidden(entry.id);
+			if (isVisible) {
+				if (!firstVisibleItem) {
+					firstVisibleItem = entry;
+				}
+
+				lastVisibleItem = entry;
+			}
+		}
+
+		// Mark: first visible item
+		if (firstVisibleItem) {
+			firstVisibleItem.container.classList.add('first-visible-item');
+		}
+
+		// Mark: last visible item
+		if (lastVisibleItem) {
+			lastVisibleItem.container.classList.add('last-visible-item');
+		}
+	}
+}

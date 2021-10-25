@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-
-export interface IWatcherRequest {
-	path: string;
-	excludes: string[];
-}
+import { IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling?: boolean;
+	usePolling?: boolean | string[]; // boolean or a set of glob patterns matching folders that need polling
+	verboseLogging?: boolean;
 }
 
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IDiskFileChange[]>;
-	setRoots(roots: IWatcherRequest[]): Promise<void>;
+
+	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidLogMessage: Event<ILogMessage>;
+
+	init(options: IWatcherOptions): Promise<void>;
+
+	watch(paths: IWatchRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
-	onLogMessage: Event<ILogMessage>;
+
 	stop(): Promise<void>;
 }

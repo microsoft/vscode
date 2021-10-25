@@ -53,8 +53,8 @@ export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, ca
  * Groups the collection into a dictionary based on the provided
  * group function.
  */
-export function groupBy<T>(data: T[], groupFn: (element: T) => string): IStringDictionary<T[]> {
-	const result: IStringDictionary<T[]> = Object.create(null);
+export function groupBy<K extends string | number | symbol, V>(data: V[], groupFn: (element: V) => K): Record<K, V[]> {
+	const result: Record<K, V[]> = Object.create(null);
 	for (const element of data) {
 		const key = groupFn(element);
 		let target = result[key];
@@ -76,7 +76,37 @@ export function fromMap<T>(original: Map<string, T>): IStringDictionary<T> {
 	return result;
 }
 
+export function diffSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
+	const removed: T[] = [];
+	const added: T[] = [];
+	for (let element of before) {
+		if (!after.has(element)) {
+			removed.push(element);
+		}
+	}
+	for (let element of after) {
+		if (!before.has(element)) {
+			added.push(element);
+		}
+	}
+	return { removed, added };
+}
 
+export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
+	const removed: V[] = [];
+	const added: V[] = [];
+	for (let [index, value] of before) {
+		if (!after.has(index)) {
+			removed.push(value);
+		}
+	}
+	for (let [index, value] of after) {
+		if (!before.has(index)) {
+			added.push(value);
+		}
+	}
+	return { removed, added };
+}
 export class SetMap<K, V> {
 
 	private map = new Map<K, Set<V>>();

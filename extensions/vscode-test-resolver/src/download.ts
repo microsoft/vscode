@@ -23,14 +23,14 @@ function getDownloadUrl(updateUrl: string, commit: string, platform: string, qua
 	return `${updateUrl}/commit:${commit}/server-${platform}/${quality}`;
 }
 
-async function downloadVSCodeServerArchive(updateUrl: string, commit: string, quality: string, destDir: string): Promise<string> {
+async function downloadVSCodeServerArchive(updateUrl: string, commit: string, quality: string, destDir: string, log: (messsage: string) => void): Promise<string> {
 	ensureFolderExists(destDir);
 
 	const platform = process.platform === 'win32' ? 'win32-x64' : process.platform === 'darwin' ? 'darwin' : 'linux-x64';
 	const downloadUrl = getDownloadUrl(updateUrl, commit, platform, quality);
 
 	return new Promise((resolve, reject) => {
-		console.log(`Downloading VS Code Server from: ${downloadUrl}`);
+		log(`Downloading VS Code Server from: ${downloadUrl}`);
 		const requestOptions: https.RequestOptions = parseUrl(downloadUrl);
 
 		https.get(requestOptions, res => {
@@ -70,9 +70,10 @@ async function downloadVSCodeServerArchive(updateUrl: string, commit: string, qu
 /**
  * Unzip a .zip or .tar.gz VS Code archive
  */
-function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string) {
+function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string, destDir: string, log: (messsage: string) => void) {
+	log(`Extracting ${vscodeArchivePath}`);
 	if (vscodeArchivePath.endsWith('.zip')) {
-		const tempDir = fs.mkdtempSync('vscode-server');
+		const tempDir = fs.mkdtempSync(path.join(destDir, 'vscode-server-extract'));
 		if (process.platform === 'win32') {
 			cp.spawnSync('powershell.exe', [
 				'-NoProfile',
@@ -95,17 +96,17 @@ function unzipVSCodeServer(vscodeArchivePath: string, extractDir: string) {
 	}
 }
 
-export async function downloadAndUnzipVSCodeServer(updateUrl: string, commit: string, quality: string = 'stable', destDir: string): Promise<string> {
+export async function downloadAndUnzipVSCodeServer(updateUrl: string, commit: string, quality: string = 'stable', destDir: string, log: (messsage: string) => void): Promise<string> {
 
 	const extractDir = path.join(destDir, commit);
 	if (fs.existsSync(extractDir)) {
-		console.log(`Found ${extractDir}. Skipping download.`);
+		log(`Found ${extractDir}. Skipping download.`);
 	} else {
-		console.log(`Downloading VS Code Server ${quality} - ${commit} into ${extractDir}.`);
+		log(`Downloading VS Code Server ${quality} - ${commit} into ${extractDir}.`);
 		try {
-			const vscodeArchivePath = await downloadVSCodeServerArchive(updateUrl, commit, quality, destDir);
+			const vscodeArchivePath = await downloadVSCodeServerArchive(updateUrl, commit, quality, destDir, log);
 			if (fs.existsSync(vscodeArchivePath)) {
-				unzipVSCodeServer(vscodeArchivePath, extractDir);
+				unzipVSCodeServer(vscodeArchivePath, extractDir, destDir, log);
 				// Remove archive
 				fs.unlinkSync(vscodeArchivePath);
 			}

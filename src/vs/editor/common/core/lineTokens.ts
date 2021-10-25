@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, LanguageId, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, ILanguageIdCodec, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
@@ -16,16 +16,34 @@ export interface IViewLineTokens {
 }
 
 export class LineTokens implements IViewLineTokens {
-	_lineTokensBrand: void;
+	_lineTokensBrand: void = undefined;
 
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 
-	constructor(tokens: Uint32Array, text: string) {
+	public static defaultTokenMetadata = (
+		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
+	public static createEmpty(lineContent: string, decoder: ILanguageIdCodec): LineTokens {
+		const defaultMetadata = LineTokens.defaultTokenMetadata;
+
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		return new LineTokens(tokens, lineContent, decoder);
+	}
+
+	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
+		this._languageIdCodec = decoder;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -72,9 +90,10 @@ export class LineTokens implements IViewLineTokens {
 		return metadata;
 	}
 
-	public getLanguageId(tokenIndex: number): LanguageId {
+	public getLanguageId(tokenIndex: number): string {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
-		return TokenMetadata.getLanguageId(metadata);
+		const languageId = TokenMetadata.getLanguageId(metadata);
+		return this._languageIdCodec.decodeLanguageId(languageId);
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
@@ -150,6 +169,53 @@ export class LineTokens implements IViewLineTokens {
 		}
 
 		return low;
+	}
+
+	/**
+	 * @pure
+	 * @param insertTokens Must be sorted by offset.
+	*/
+	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
+		if (insertTokens.length === 0) {
+			return this;
+		}
+
+		let nextOriginalTokenIdx = 0;
+		let nextInsertTokenIdx = 0;
+		let text = '';
+		const newTokens = new Array<number>();
+
+		let originalEndOffset = 0;
+		while (true) {
+			let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : -1;
+			let nextInsertToken = nextInsertTokenIdx < insertTokens.length ? insertTokens[nextInsertTokenIdx] : null;
+
+			if (nextOriginalTokenEndOffset !== -1 && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
+				// original token ends before next insert token
+				text += this._text.substring(originalEndOffset, nextOriginalTokenEndOffset);
+				const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+				newTokens.push(text.length, metadata);
+				nextOriginalTokenIdx++;
+				originalEndOffset = nextOriginalTokenEndOffset;
+
+			} else if (nextInsertToken) {
+				if (nextInsertToken.offset > originalEndOffset) {
+					// insert token is in the middle of the next token.
+					text += this._text.substring(originalEndOffset, nextInsertToken.offset);
+					const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+					newTokens.push(text.length, metadata);
+					originalEndOffset = nextInsertToken.offset;
+				}
+
+				text += nextInsertToken.text;
+				newTokens.push(text.length, nextInsertToken.tokenMetadata);
+				nextInsertTokenIdx++;
+			} else {
+				break;
+			}
+		}
+
+		return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
 	}
 }
 

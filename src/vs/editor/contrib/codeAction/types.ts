@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { startsWith } from 'vs/base/common/strings';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -27,7 +26,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.equals(other) || this.value === '' || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.equals(other) || this.value === '' || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 
 	public intersects(other: CodeActionKind): boolean {

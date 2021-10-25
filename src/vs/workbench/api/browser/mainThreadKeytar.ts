@@ -5,7 +5,7 @@
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainContext, MainThreadKeytarShape, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 
 @extHostNamedCustomer(MainContext.MainThreadKeytar)
 export class MainThreadKeytar implements MainThreadKeytarShape {

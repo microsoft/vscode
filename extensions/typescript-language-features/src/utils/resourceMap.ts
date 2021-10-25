@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as fileSchemes from '../utils/fileSchemes';
 
 /**
  * Maps of file resources
@@ -12,12 +13,20 @@ import * as vscode from 'vscode';
  * file systems.
  */
 export class ResourceMap<T> {
-	private readonly _map = new Map<string, { resource: vscode.Uri, value: T }>();
+
+	private static readonly defaultPathNormalizer = (resource: vscode.Uri): string => {
+		if (resource.scheme === fileSchemes.file) {
+			return resource.fsPath;
+		}
+		return resource.toString(true);
+	};
+
+	private readonly _map = new Map<string, { readonly resource: vscode.Uri, value: T }>();
 
 	constructor(
-		private readonly _normalizePath: (resource: vscode.Uri) => string | undefined = (resource) => resource.fsPath,
+		protected readonly _normalizePath: (resource: vscode.Uri) => string | undefined = ResourceMap.defaultPathNormalizer,
 		protected readonly config: {
-			readonly onCaseInsenitiveFileSystem: boolean,
+			readonly onCaseInsensitiveFileSystem: boolean,
 		},
 	) { }
 
@@ -64,7 +73,7 @@ export class ResourceMap<T> {
 	}
 
 	public get values(): Iterable<T> {
-		return Array.from(this._map.values()).map(x => x.value);
+		return Array.from(this._map.values(), x => x.value);
 	}
 
 	public get entries(): Iterable<{ resource: vscode.Uri, value: T }> {
@@ -83,7 +92,7 @@ export class ResourceMap<T> {
 		if (isWindowsPath(path)) {
 			return true;
 		}
-		return path[0] === '/' && this.config.onCaseInsenitiveFileSystem;
+		return path[0] === '/' && this.config.onCaseInsensitiveFileSystem;
 	}
 }
 

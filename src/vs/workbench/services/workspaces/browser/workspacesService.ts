@@ -7,7 +7,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkspacesService, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IEnterWorkspaceResult, IRecentlyOpened, restoreRecentlyOpened, IRecent, isRecentFile, isRecentFolder, toStoreData, IStoredWorkspaceFolder, getStoredWorkspaceFolder, WORKSPACE_EXTENSION, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,8 @@ import { IFileService, FileOperationError, FileOperationResult } from 'vs/platfo
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { isWindows } from 'vs/base/common/platform';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class BrowserWorkspacesService extends Disposable implements IWorkspacesService {
 
@@ -25,7 +26,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onRecentlyOpenedChange = this._register(new Emitter<void>());
-	readonly onRecentlyOpenedChange = this._onRecentlyOpenedChange.event;
+	readonly onDidChangeRecentlyOpened = this._onRecentlyOpenedChange.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -33,12 +34,9 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-
-		// opt-in to syncing
-		storageKeysSyncRegistryService.registerStorageKey({ key: BrowserWorkspacesService.RECENTLY_OPENED_KEY, version: 1 });
 
 		// Opening a workspace should push it as most
 		// recently used to the workspaces history
@@ -48,7 +46,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(event => {
+		this._register(this.storageService.onDidChangeValue(event => {
 			if (event.key === BrowserWorkspacesService.RECENTLY_OPENED_KEY && event.scope === StorageScope.GLOBAL) {
 				this._onRecentlyOpenedChange.fire();
 			}
@@ -116,7 +114,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 	}
 
 	private async saveRecentlyOpened(data: IRecentlyOpened): Promise<void> {
-		return this.storageService.store(BrowserWorkspacesService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL);
+		return this.storageService.store(BrowserWorkspacesService.RECENTLY_OPENED_KEY, JSON.stringify(toStoreData(data)), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 	async clearRecentlyOpened(): Promise<void> {
@@ -127,7 +125,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 
 	//#region Workspace Management
 
-	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
+	async enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined> {
 		return { workspace: await this.getWorkspaceIdentifier(path) };
 	}
 
@@ -139,7 +137,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const storedWorkspaceFolder: IStoredWorkspaceFolder[] = [];
 		if (folders) {
 			for (const folder of folders) {
-				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome));
+				storedWorkspaceFolder.push(getStoredWorkspaceFolder(folder.uri, true, folder.name, this.environmentService.untitledWorkspacesHome, !isWindows, this.uriIdentityService.extUri));
 			}
 		}
 

@@ -5,6 +5,60 @@
 
 /*eslint-env mocha*/
 
+(function () {
+	const fs = require('fs');
+	const originals = {};
+	let logging = false;
+	let withStacks = false;
+
+	self.beginLoggingFS = (_withStacks) => {
+		logging = true;
+		withStacks = _withStacks || false;
+	};
+	self.endLoggingFS = () => {
+		logging = false;
+		withStacks = false;
+	};
+
+	function createSpy(element, cnt) {
+		return function (...args) {
+			if (logging) {
+				console.log(`calling ${element}: ` + args.slice(0, cnt).join(',') + (withStacks ? (`\n` + new Error().stack.split('\n').slice(2).join('\n')) : ''));
+			}
+			return originals[element].call(this, ...args);
+		};
+	}
+
+	function intercept(element, cnt) {
+		originals[element] = fs[element];
+		fs[element] = createSpy(element, cnt);
+	}
+
+	[
+		['realpathSync', 1],
+		['readFileSync', 1],
+		['openSync', 3],
+		['readSync', 1],
+		['closeSync', 1],
+		['readFile', 2],
+		['mkdir', 1],
+		['lstat', 1],
+		['stat', 1],
+		['watch', 1],
+		['readdir', 1],
+		['access', 2],
+		['open', 2],
+		['write', 1],
+		['fdatasync', 1],
+		['close', 1],
+		['read', 1],
+		['unlink', 1],
+		['rmdir', 1],
+	].forEach((element) => {
+		intercept(element[0], element[1]);
+	})
+})();
+
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const path = require('path');
@@ -32,7 +86,7 @@ function initLoader(opts) {
 		nodeRequire: require,
 		nodeMain: __filename,
 		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src')),
+		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
 		paths: {
 			'vs': `../${outdir}/vs`,
 			'lib': `../${outdir}/lib`,
@@ -53,6 +107,12 @@ function createCoverageReport(opts) {
 		return coverage.createReport(opts.run || opts.runGlob);
 	}
 	return Promise.resolve(undefined);
+}
+
+function loadWorkbenchTestingModule() {
+	return new Promise((resolve, reject) => {
+		loader.require(['vs/workbench/test/electron-browser/testing'], resolve, reject);
+	})
 }
 
 function loadTestModules(opts) {
@@ -112,20 +172,34 @@ function loadTests(opts) {
 		});
 	});
 
-	return loadTestModules(opts).then(() => {
-		suite('Unexpected Errors & Loader Errors', function () {
-			test('should not have unexpected errors', function () {
-				const errors = _unexpectedErrors.concat(_loaderErrors);
-				if (errors.length) {
-					errors.forEach(function (stack) {
-						console.error('');
-						console.error(stack);
-					});
-					assert.ok(false, errors);
-				}
+	return loadWorkbenchTestingModule().then((workbenchTestingModule) => {
+		const assertCleanState = workbenchTestingModule.assertCleanState;
+
+		suite('Tests are using suiteSetup and setup correctly', () => {
+			test('assertCleanState - check that registries are clean at the start of test running', () => {
+				assertCleanState();
 			});
 		});
-	});
+
+		return loadTestModules(opts).then(() => {
+			suite('Unexpected Errors & Loader Errors', function () {
+				test('should not have unexpected errors', function () {
+					const errors = _unexpectedErrors.concat(_loaderErrors);
+					if (errors.length) {
+						errors.forEach(function (stack) {
+							console.error('');
+							console.error(stack);
+						});
+						assert.ok(false, errors);
+					}
+				});
+
+				test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
+					assertCleanState();
+				});
+			});
+		});
+	})
 }
 
 function serializeSuite(suite) {
@@ -135,9 +209,9 @@ function serializeSuite(suite) {
 		tests: suite.tests.map(serializeRunnable),
 		title: suite.title,
 		fullTitle: suite.fullTitle(),
+		titlePath: suite.titlePath(),
 		timeout: suite.timeout(),
 		retries: suite.retries(),
-		enableTimeouts: suite.enableTimeouts(),
 		slow: suite.slow(),
 		bail: suite.bail()
 	};
@@ -147,6 +221,7 @@ function serializeRunnable(runnable) {
 	return {
 		title: runnable.title,
 		fullTitle: runnable.fullTitle(),
+		titlePath: runnable.titlePath(),
 		async: runnable.async,
 		slow: runnable.slow(),
 		speed: runnable.speed,
@@ -158,12 +233,41 @@ function serializeError(err) {
 	return {
 		message: err.message,
 		stack: err.stack,
-		actual: err.actual,
-		expected: err.expected,
+		actual: safeStringify({ value: err.actual }),
+		expected: safeStringify({ value: err.expected }),
 		uncaught: err.uncaught,
 		showDiff: err.showDiff,
 		inspect: typeof err.inspect === 'function' ? err.inspect() : ''
 	};
+}
+
+function safeStringify(obj) {
+	const seen = new Set();
+	return JSON.stringify(obj, (key, value) => {
+		if (value === undefined) {
+			return '[undefined]';
+		}
+
+		if (isObject(value) || Array.isArray(value)) {
+			if (seen.has(value)) {
+				return '[Circular]';
+			} else {
+				seen.add(value);
+			}
+		}
+		return value;
+	});
+}
+
+function isObject(obj) {
+	// The method can't do a type cast since there are type (like strings) which
+	// are subclasses of any put not positvely matched by the function. Hence type
+	// narrowing results in wrong results.
+	return typeof obj === 'object'
+		&& obj !== null
+		&& !Array.isArray(obj)
+		&& !(obj instanceof RegExp)
+		&& !(obj instanceof Date);
 }
 
 class IPCReporter {
@@ -184,6 +288,10 @@ class IPCReporter {
 }
 
 function runTests(opts) {
+	// this *must* come before loadTests, or it doesn't work.
+	if (opts.timeout !== undefined) {
+		mocha.timeout(opts.timeout);
+	}
 
 	return loadTests(opts).then(() => {
 

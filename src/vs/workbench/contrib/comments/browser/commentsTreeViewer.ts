@@ -120,20 +120,21 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerHTML = '';
+		templateData.commentText.innerText = '';
 		const disposables = new DisposableStore();
 		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(node.element.comment.body, {
 			inline: true,
 			actionHandler: {
 				callback: (content) => {
-					this.openerService.open(content).catch(onUnexpectedError);
+					this.openerService.open(content, { allowCommands: node.element.comment.body.isTrusted }).catch(onUnexpectedError);
 				},
-				disposeables: disposables
+				disposables: disposables
 			}
 		});
+		templateData.disposables.push(renderedComment);
 
-		const images = renderedComment.getElementsByTagName('img');
+		const images = renderedComment.element.getElementsByTagName('img');
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];
 			const textDescription = dom.$('');
@@ -141,7 +142,8 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			image.parentNode!.replaceChild(textDescription, image);
 		}
 
-		templateData.commentText.appendChild(renderedComment);
+		templateData.commentText.appendChild(renderedComment.element);
+		templateData.commentText.title = renderedComment.element.textContent ?? '';
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
@@ -182,7 +184,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
-				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {

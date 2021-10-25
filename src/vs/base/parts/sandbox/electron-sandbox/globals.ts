@@ -3,108 +3,125 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
-export const ipcRenderer = (window as any).vscode.ipcRenderer as {
-
-	/**
-	 * Listens to `channel`, when a new message arrives `listener` would be called with
-	 * `listener(event, args...)`.
-	 */
-	on(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
-
-	/**
-	 * Adds a one time `listener` function for the event. This `listener` is invoked
-	 * only the next time a message is sent to `channel`, after which it is removed.
-	 */
-	once(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
-
-	/**
-	 * Removes the specified `listener` from the listener array for the specified
-	 * `channel`.
-	 */
-	removeListener(channel: string, listener: (event: unknown, ...args: any[]) => void): void;
-
-	/**
-	 * Send an asynchronous message to the main process via `channel`, along with
-	 * arguments. Arguments will be serialized with the Structured Clone Algorithm,
-	 * just like `postMessage`, so prototype chains will not be included. Sending
-	 * Functions, Promises, Symbols, WeakMaps, or WeakSets will throw an exception.
-	 *
-	 * > **NOTE**: Sending non-standard JavaScript types such as DOM objects or special
-	 * Electron objects is deprecated, and will begin throwing an exception starting
-	 * with Electron 9.
-	 *
-	 * The main process handles it by listening for `channel` with the `ipcMain`
-	 * module.
-	 */
-	send(channel: string, ...args: any[]): void;
-};
-
-export const webFrame = (window as any).vscode.webFrame as {
-
-	/**
-	 * Changes the zoom level to the specified level. The original size is 0 and each
-	 * increment above or below represents zooming 20% larger or smaller to default
-	 * limits of 300% and 50% of original size, respectively.
-	 */
-	setZoomLevel(level: number): void;
-};
-
-export const crashReporter = (window as any).vscode.crashReporter as {
-
-	/**
-	 * You are required to call this method before using any other `crashReporter` APIs
-	 * and in each process (main/renderer) from which you want to collect crash
-	 * reports. You can pass different options to `crashReporter.start` when calling
-	 * from different processes.
-	 *
-	 * **Note** Child processes created via the `child_process` module will not have
-	 * access to the Electron modules. Therefore, to collect crash reports from them,
-	 * use `process.crashReporter.start` instead. Pass the same options as above along
-	 * with an additional one called `crashesDirectory` that should point to a
-	 * directory to store the crash reports temporarily. You can test this out by
-	 * calling `process.crash()` to crash the child process.
-	 *
-	 * **Note:** If you need send additional/updated `extra` parameters after your
-	 * first call `start` you can call `addExtraParameter` on macOS or call `start`
-	 * again with the new/updated `extra` parameters on Linux and Windows.
-	 *
-	 * **Note:** On macOS and windows, Electron uses a new `crashpad` client for crash
-	 * collection and reporting. If you want to enable crash reporting, initializing
-	 * `crashpad` from the main process using `crashReporter.start` is required
-	 * regardless of which process you want to collect crashes from. Once initialized
-	 * this way, the crashpad handler collects crashes from all processes. You still
-	 * have to call `crashReporter.start` from the renderer or child process, otherwise
-	 * crashes from them will get reported without `companyName`, `productName` or any
-	 * of the `extra` information.
-	 */
-	start(options: CrashReporterStartOptions): void;
-};
-
-export const process = (window as any).vscode.process as {
+/**
+ * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ */
+export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */
-	platform: 'win32' | 'linux' | 'darwin';
+	readonly platform: string;
 
 	/**
-	 * The process.env property returns an object containing the user environment. See environ(7).
+	 * The process.arch property returns a string identifying the CPU architecture
+	 * on which the Node.js process is running.
 	 */
-	env: { [key: string]: string | undefined };
+	readonly arch: string;
+
+	/**
+	 * The type will always be `renderer`.
+	 */
+	readonly type: string;
+
+	/**
+	 * Whether the process is sandboxed or not.
+	 */
+	readonly sandboxed: boolean;
+
+	/**
+	 * A list of versions for the current node.js/electron configuration.
+	 */
+	readonly versions: { [key: string]: string | undefined };
+
+	/**
+	 * The process.env property returns an object containing the user environment.
+	 */
+	readonly env: IProcessEnvironment;
+
+	/**
+	 * The `execPath` will be the location of the executable of this application.
+	 */
+	readonly execPath: string;
 
 	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;
-};
-
-export const context = (window as any).vscode.context as {
 
 	/**
-	 * Wether the renderer runs with `sandbox` enabled or not.
+	 * The current working directory of the process.
 	 */
-	sandbox: boolean;
-};
+	cwd: () => string;
+
+	/**
+	 * Resolves with a ProcessMemoryInfo
+	 *
+	 * Returns an object giving memory usage statistics about the current process. Note
+	 * that all statistics are reported in Kilobytes. This api should be called after
+	 * app ready.
+	 *
+	 * Chromium does not provide `residentSet` value for macOS. This is because macOS
+	 * performs in-memory compression of pages that haven't been recently used. As a
+	 * result the resident set size value is not what one would expect. `private`
+	 * memory is more representative of the actual pre-compression memory usage of the
+	 * process on macOS.
+	 */
+	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
+
+	/**
+	 * Returns a process environment that includes all shell environment variables even if
+	 * the application was not started from a shell / terminal / console.
+	 *
+	 * There are different layers of environment that will apply:
+	 * - `process.env`: this is the actual environment of the process before this method
+	 * - `shellEnv`   : if the program was not started from a terminal, we resolve all shell
+	 *                  variables to get the same experience as if the program was started from
+	 *                  a terminal (Linux, macOS)
+	 * - `userEnv`    : this is instance specific environment, e.g. if the user started the program
+	 *                  from a terminal and changed certain variables
+	 *
+	 * The order of overwrites is `process.env` < `shellEnv` < `userEnv`.
+	 */
+	shellEnv(): Promise<IProcessEnvironment>;
+}
+
+export interface IpcMessagePort {
+
+	/**
+	 * Acquire a `MessagePort`. The main process will transfer the port over to
+	 * the `responseChannel` with a payload of `requestNonce` so that the source can
+	 * correlate the response.
+	 *
+	 * The source should install a `window.on('message')` listener, ensuring `e.data`
+	 * matches `nonce`, `e.source` matches `window` and then receiving the `MessagePort`
+	 * via `e.ports[0]`.
+	 */
+	acquire(responseChannel: string, nonce: string): void;
+}
+
+export interface ISandboxContext {
+
+	/**
+	 * A configuration object made accessible from the main side
+	 * to configure the sandbox browser window. Will be `undefined`
+	 * for as long as `resolveConfiguration` is not awaited.
+	 */
+	configuration(): ISandboxConfiguration | undefined;
+
+	/**
+	 * Allows to await the resolution of the configuration object.
+	 */
+	resolveConfiguration(): Promise<ISandboxConfiguration>;
+}
+
+export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
+export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
+export const webFrame: WebFrame = globals.vscode.webFrame;
+export const process: ISandboxNodeProcess = globals.vscode.process;
+export const context: ISandboxContext = globals.vscode.context;

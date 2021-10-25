@@ -3,7 +3,6 @@
 	// for the documentation about the extensions.json format
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig",
-		"msjsdiag.debugger-for-chrome"
+		"EditorConfig.EditorConfig"
 	]
 }

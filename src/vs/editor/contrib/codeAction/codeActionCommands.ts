@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
@@ -11,12 +12,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CodeAction, CodeActionTriggerType } from 'vs/editor/common/modes';
-import { codeActionCommandId, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
+import { CodeActionTriggerType } from 'vs/editor/common/modes';
+import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as nls from 'vs/nls';
@@ -123,21 +124,21 @@ export class QuickFixController extends Disposable implements IEditorContributio
 
 		MessageController.get(this._editor).closeMessage();
 		const triggerPosition = this._editor.getPosition();
-		this._trigger({ type: CodeActionTriggerType.Manual, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
+		this._trigger({ type: CodeActionTriggerType.Invoke, filter, autoApply, context: { notAvailableMessage, position: triggerPosition } });
 	}
 
 	private _trigger(trigger: CodeActionTrigger) {
 		return this._model.trigger(trigger);
 	}
 
-	private _applyCodeAction(action: CodeAction): Promise<void> {
+	private _applyCodeAction(action: CodeActionItem): Promise<void> {
 		return this._instantiationService.invokeFunction(applyCodeAction, action, this._editor);
 	}
 }
 
 export async function applyCodeAction(
 	accessor: ServicesAccessor,
-	action: CodeAction,
+	item: CodeActionItem,
 	editor?: ICodeEditor,
 ): Promise<void> {
 	const bulkEditService = accessor.get(IBulkEditService);
@@ -157,18 +158,20 @@ export async function applyCodeAction(
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
-		codeActionTitle: action.title,
-		codeActionKind: action.kind,
-		codeActionIsPreferred: !!action.isPreferred,
+		codeActionTitle: item.action.title,
+		codeActionKind: item.action.kind,
+		codeActionIsPreferred: !!item.action.isPreferred,
 	});
 
-	if (action.edit) {
-		await bulkEditService.apply(action.edit, { editor, label: action.title });
+	await item.resolve(CancellationToken.None);
+
+	if (item.action.edit) {
+		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title });
 	}
 
-	if (action.command) {
+	if (item.action.command) {
 		try {
-			await commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+			await commandService.executeCommand(item.action.command.id, ...(item.action.command.arguments || []));
 		} catch (err) {
 			const message = asMessage(err);
 			notificationService.error(
@@ -215,7 +218,7 @@ export class QuickFixAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_DOT,
+				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -272,9 +275,9 @@ export class RefactorAction extends EditorAction {
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				mac: {
-					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_R
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -369,7 +372,7 @@ export class OrganizeImportsAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_O,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
 		});
@@ -418,9 +421,9 @@ export class AutoFixAction extends EditorAction {
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.US_DOT,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Period,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_DOT
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period
 				},
 				weight: KeybindingWeight.EditorContrib
 			}

@@ -5,7 +5,7 @@
 
 import * as net from 'net';
 import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { ISocketFactory, IConnectCallback } from 'vs/platform/remote/common/remoteAgentConnection';
+import { IConnectCallback, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const nodeSocketFactory = new class implements ISocketFactory {
 	connect(host: string, port: number, query: string, callback: IConnectCallback): void {
@@ -22,7 +22,7 @@ export const nodeSocketFactory = new class implements ISocketFactory {
 			const nonce = buffer.toString('base64');
 
 			let headers = [
-				`GET ws://${host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
+				`GET ws://${/:/.test(host) ? `[${host}]` : host}:${port}/?${query}&skipWebSocketFrames=true HTTP/1.1`,
 				`Connection: Upgrade`,
 				`Upgrade: websocket`,
 				`Sec-WebSocket-Key: ${nonce}`

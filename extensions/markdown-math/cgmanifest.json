@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "James-Yu/LaTeX-Workshop",
+					"repositoryUrl": "https://github.com/James-Yu/LaTeX-Workshop",
+					"commitHash": "e4cd86f1731546c2cdde0cc93717ca3fec2da0ba"
+				}
+			},
+			"license": "MIT",
+			"version": "8.19.1"
+		}
+	],
+	"version": 1
+}

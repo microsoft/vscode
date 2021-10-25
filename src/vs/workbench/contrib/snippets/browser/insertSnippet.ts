@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { LanguageId } from 'vs/editor/common/modes';
+import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
@@ -15,10 +15,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Codicon } from 'vs/base/common/codicons';
+import { Event } from 'vs/base/common/event';
 
-interface ISnippetPick extends IQuickPickItem {
-	snippet: Snippet;
-}
 
 class Args {
 
@@ -91,7 +90,7 @@ class InsertSnippetAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const snippet = await new Promise<Snippet>(async (resolve, reject) => {
+		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
 			let { snippet, name, langId } = Args.fromUser(arg);
@@ -108,11 +107,11 @@ class InsertSnippetAction extends EditorAction {
 				));
 			}
 
-			let languageId = LanguageId.Null;
+			let languageId = NULL_MODE_ID;
 			if (langId) {
-				const otherLangId = modeService.getLanguageIdentifier(langId);
+				const otherLangId = modeService.validateLanguageId(langId);
 				if (otherLangId) {
-					languageId = otherLangId.id;
+					languageId = otherLangId;
 				}
 			} else {
 				editor.getModel().tokenizeIfCheap(lineNumber);
@@ -121,52 +120,20 @@ class InsertSnippetAction extends EditorAction {
 				// validate the `languageId` to ensure this is a user
 				// facing language with a name and the chance to have
 				// snippets, else fall back to the outer language
-				const otherLangId = modeService.getLanguageIdentifier(languageId);
-				if (otherLangId && !modeService.getLanguageName(otherLangId.language)) {
-					languageId = editor.getModel().getLanguageIdentifier().id;
+				if (!modeService.getLanguageName(languageId)) {
+					languageId = editor.getModel().getLanguageId();
 				}
 			}
 
 			if (name) {
 				// take selected snippet
-				(await snippetService.getSnippets(languageId)).every(snippet => {
-					if (snippet.name !== name) {
-						return true;
-					}
-					resolve(snippet);
-					return false;
-				});
+				snippetService.getSnippets(languageId, { includeNoPrefixSnippets: true })
+					.then(snippets => snippets.find(snippet => snippet.name === name))
+					.then(resolve, reject);
+
 			} else {
 				// let user pick a snippet
-				const snippets = (await snippetService.getSnippets(languageId)).sort(Snippet.compare);
-				const picks: QuickPickInput<ISnippetPick>[] = [];
-				let prevSnippet: Snippet | undefined;
-				for (const snippet of snippets) {
-					const pick: ISnippetPick = {
-						label: snippet.prefix,
-						detail: snippet.description,
-						snippet
-					};
-					if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
-						let label = '';
-						switch (snippet.snippetSource) {
-							case SnippetSource.User:
-								label = nls.localize('sep.userSnippet', "User Snippets");
-								break;
-							case SnippetSource.Extension:
-								label = nls.localize('sep.extSnippet', "Extension Snippets");
-								break;
-							case SnippetSource.Workspace:
-								label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
-								break;
-						}
-						picks.push({ type: 'separator', label });
-
-					}
-					picks.push(pick);
-					prevSnippet = snippet;
-				}
-				return quickInputService.pick(picks, { matchOnDetail: true }).then(pick => resolve(pick && pick.snippet), reject);
+				resolve(this._pickSnippet(snippetService, quickInputService, languageId));
 			}
 		});
 
@@ -178,6 +145,81 @@ class InsertSnippetAction extends EditorAction {
 			clipboardText = await clipboardService.readText();
 		}
 		SnippetController2.get(editor).insert(snippet.codeSnippet, { clipboardText });
+	}
+
+	private async _pickSnippet(snippetService: ISnippetsService, quickInputService: IQuickInputService, languageId: string): Promise<Snippet | undefined> {
+
+		interface ISnippetPick extends IQuickPickItem {
+			snippet: Snippet;
+		}
+
+		const snippets = (await snippetService.getSnippets(languageId, { includeDisabledSnippets: true, includeNoPrefixSnippets: true })).sort(Snippet.compare);
+
+		const makeSnippetPicks = () => {
+			const result: QuickPickInput<ISnippetPick>[] = [];
+			let prevSnippet: Snippet | undefined;
+			for (const snippet of snippets) {
+				const pick: ISnippetPick = {
+					label: snippet.prefix || snippet.name,
+					detail: snippet.description,
+					snippet
+				};
+				if (!prevSnippet || prevSnippet.snippetSource !== snippet.snippetSource) {
+					let label = '';
+					switch (snippet.snippetSource) {
+						case SnippetSource.User:
+							label = nls.localize('sep.userSnippet', "User Snippets");
+							break;
+						case SnippetSource.Extension:
+							label = nls.localize('sep.extSnippet', "Extension Snippets");
+							break;
+						case SnippetSource.Workspace:
+							label = nls.localize('sep.workspaceSnippet', "Workspace Snippets");
+							break;
+					}
+					result.push({ type: 'separator', label });
+				}
+
+				if (snippet.snippetSource === SnippetSource.Extension) {
+					const isEnabled = snippetService.isEnabled(snippet);
+					if (isEnabled) {
+						pick.buttons = [{
+							iconClass: Codicon.eyeClosed.classNames,
+							tooltip: nls.localize('disableSnippet', 'Hide from IntelliSense')
+						}];
+					} else {
+						pick.description = nls.localize('isDisabled', "(hidden from IntelliSense)");
+						pick.buttons = [{
+							iconClass: Codicon.eye.classNames,
+							tooltip: nls.localize('enable.snippet', 'Show in IntelliSense')
+						}];
+					}
+				}
+
+				result.push(pick);
+				prevSnippet = snippet;
+			}
+			return result;
+		};
+
+		const picker = quickInputService.createQuickPick<ISnippetPick>();
+		picker.placeholder = nls.localize('pick.placeholder', "Select a snippet");
+		picker.matchOnDetail = true;
+		picker.ignoreFocusOut = false;
+		picker.keepScrollPosition = true;
+		picker.onDidTriggerItemButton(ctx => {
+			const isEnabled = snippetService.isEnabled(ctx.item.snippet);
+			snippetService.updateEnablement(ctx.item.snippet, !isEnabled);
+			picker.items = makeSnippetPicks();
+		});
+		picker.items = makeSnippetPicks();
+		picker.show();
+
+		// wait for an item to be picked or the picker to become hidden
+		await Promise.race([Event.toPromise(picker.onDidAccept), Event.toPromise(picker.onDidHide)]);
+		const result = picker.selectedItems[0]?.snippet;
+		picker.dispose();
+		return result;
 	}
 }
 

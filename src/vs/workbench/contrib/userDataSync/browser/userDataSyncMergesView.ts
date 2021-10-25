@@ -10,7 +10,7 @@ import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IUserDataSyncService, Change, MergeState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -18,7 +18,7 @@ import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, SYNC_MERGES_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { isEqual, basename } from 'vs/base/common/resources';
-import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsProvider, IDecorationData, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { listWarningForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
 import * as DOM from 'vs/base/browser/dom';
@@ -34,10 +34,11 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
+import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { EditorResolution } from 'vs/platform/editor/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -71,13 +72,13 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeConflictEditors()));
+		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeDiffEditors()));
 		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
 
 		this.registerActions();
 	}
 
-	protected renderTreeView(container: HTMLElement): void {
+	protected override renderTreeView(container: HTMLElement): void {
 		super.renderTreeView(DOM.append(container, DOM.$('')));
 		this.createButtons(container);
 
@@ -101,7 +102,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this._register(this.cancelButton.onDidClick(() => this.cancel()));
 	}
 
-	protected layoutTreeView(height: number, width: number): void {
+	protected override layoutTreeView(height: number, width: number): void {
 		const buttonContainerHeight = 78;
 		this.buttonsContainer.style.height = `${buttonContainerHeight}px`;
 		this.buttonsContainer.style.width = `${width}px`;
@@ -163,7 +164,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					icon: Codicon.cloudDownload,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 1,
 					},
@@ -183,7 +184,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					icon: Codicon.cloudUpload,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 2,
 					},
@@ -203,7 +204,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					icon: Codicon.merge,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.equals('viewItem', 'sync-resource-preview')),
 						group: 'inline',
 						order: 3,
 					},
@@ -223,7 +224,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 					icon: Codicon.discard,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-accepted'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
+						when: ContextKeyExpr.and(ContextKeyExpr.equals('view', SYNC_MERGES_VIEW_ID), ContextKeyExpr.or(ContextKeyExpr.equals('viewItem', 'sync-resource-accepted'), ContextKeyExpr.equals('viewItem', 'sync-resource-conflict'))),
 						group: 'inline',
 						order: 3,
 					},
@@ -267,7 +268,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		previewResource = this.userDataSyncPreview.resources.find(({ local }) => isEqual(local, previewResource.local))!;
 		await this.reopen(previewResource);
 		if (previewResource.mergeState === MergeState.Conflict) {
-			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), [], {
+			await this.dialogService.show(Severity.Warning, localize('conflicts detected', "Conflicts Detected"), undefined, {
 				detail: localize('resolve', "Unable to merge due to conflicts. Please resolve them to continue.")
 			});
 		}
@@ -302,7 +303,11 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		if (previewResource.mergeState === MergeState.Accepted) {
 			if (previewResource.localChange !== Change.Deleted && previewResource.remoteChange !== Change.Deleted) {
 				// Do not open deleted preview
-				await this.editorService.openEditor({ resource: previewResource.accepted, label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)) });
+				await this.editorService.openEditor({
+					resource: previewResource.accepted,
+					label: localize('preview', "{0} (Preview)", basename(previewResource.accepted)),
+					options: { pinned: true }
+				});
 			}
 		} else {
 			const leftResource = previewResource.remote;
@@ -311,12 +316,15 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
 				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
-				leftResource,
-				rightResource,
+				original: { resource: leftResource },
+				modified: { resource: rightResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
+				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
+					pinned: true,
+					override: EditorResolution.DISABLED
 				},
 			});
 		}
@@ -349,12 +357,13 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private closeConflictEditors() {
+	private closeDiffEditors() {
 		for (const previewResource of this.userDataSyncPreview.resources) {
-			if (previewResource.mergeState !== MergeState.Conflict) {
+			if (previewResource.mergeState === MergeState.Accepted) {
 				for (const input of this.editorService.editors) {
 					if (input instanceof DiffEditorInput) {
-						if (isEqual(previewResource.remote, input.secondary.resource) && isEqual(previewResource.merged, input.primary.resource)) {
+						if (isEqual(previewResource.remote, input.secondary.resource) &&
+							(isEqual(previewResource.merged, input.primary.resource) || isEqual(previewResource.local, input.primary.resource))) {
 							input.dispose();
 						}
 					}
@@ -412,7 +421,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton';
+	public static readonly ID = 'editor.contrib.acceptChangesButton2';
 
 	private acceptChangesButton: FloatingClickWidget | undefined;
 
@@ -456,6 +465,10 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 			return false;
 		}
 
+		if (!this.configurationService.getValue('diffEditor.renderSideBySide')) {
+			return isEqual(userDataSyncResource.merged, model.uri);
+		}
+
 		return true;
 	}
 
@@ -492,7 +505,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		this.acceptChangesButton = undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeAcceptChangesWidgetRenderer();
 		super.dispose();
 	}

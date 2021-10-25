@@ -20,8 +20,8 @@ export function setup() {
 
 		afterEach(async function () {
 			if (app) {
-				if (this.currentTest.state === 'failed') {
-					const name = this.currentTest.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
+				if (this.currentTest!.state === 'failed') {
+					const name = this.currentTest!.fullTitle().replace(/[^a-z0-9\-]/ig, '_');
 					await app.captureScreenshot(name);
 				}
 			}

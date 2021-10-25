@@ -25,3 +25,8 @@
 	left: -6px;
 	width: 6px;
 }
+.monaco-editor.no-minimap-shadow .minimap-shadow-visible {
+	position: absolute;
+	left: -1px;
+	width: 1px;
+}

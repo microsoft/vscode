@@ -12,6 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
 	readonly id = 'env-var-info';
@@ -34,16 +35,15 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	attach(container: HTMLElement): void {
 		this._container = container;
 		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-env-var-info', 'codicon', `codicon-${this._info.getIcon()}`);
+		this._domNode.classList.add('terminal-env-var-info', ...ThemeIcon.asClassNameArray(this._info.getIcon()));
 		if (this.requiresAction) {
 			this._domNode.classList.add('requires-action');
 		}
 		container.appendChild(this._domNode);
 
-		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
-		const scheduler: RunOnceScheduler = new RunOnceScheduler(() => this._showHover(), timeout);
+		const scheduler: RunOnceScheduler = new RunOnceScheduler(() => this._showHover(), this._configurationService.getValue<number>('workbench.hover.delay'));
 		this._register(scheduler);
-		let origin = { x: 0, y: 0 };
+		const origin = { x: 0, y: 0 };
 
 		this.onmouseover(this._domNode, e => {
 			origin.x = e.browserEvent.pageX;
@@ -65,7 +65,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._domNode?.parentElement?.removeChild(this._domNode);
 		this._mouseMoveListener?.dispose();
@@ -83,7 +83,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 			const actions = this._info.getActions ? this._info.getActions() : undefined;
 			this._hoverOptions = {
 				target: this._domNode,
-				text: new MarkdownString(this._info.getInfo()),
+				content: new MarkdownString(this._info.getInfo()),
 				actions
 			};
 		}

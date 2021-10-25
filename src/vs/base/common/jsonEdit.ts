@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ParseError, Node, JSONPath, Segment, parseTree, findNodeAtLocation } from './json';
-import { Edit, format, isEOL, FormattingOptions } from './jsonFormatter';
-import { mergeSort } from 'vs/base/common/arrays';
+import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json';
+import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter';
 
 
 export function removeProperty(text: string, path: JSONPath, formattingOptions: FormattingOptions): Edit[] {
@@ -156,7 +155,7 @@ export function applyEdit(text: string, edit: Edit): string {
 }
 
 export function applyEdits(text: string, edits: Edit[]): string {
-	let sortedEdits = mergeSort(edits, (a, b) => {
+	let sortedEdits = edits.slice(0).sort((a, b) => {
 		const diff = a.offset - b.offset;
 		if (diff === 0) {
 			return a.length - b.length;

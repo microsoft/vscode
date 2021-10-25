@@ -40,7 +40,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 		this._progress.clear();
 	}
 
-	$startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): void {
+	async $startProgress(handle: number, options: IProgressOptions, extension?: IExtensionDescription): Promise<void> {
 		const task = this._createTask(handle);
 
 		if (options.location === ProgressLocation.Notification && extension && !extension.isUnderDevelopment) {
@@ -73,7 +73,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _createTask(handle: number) {
 		return (progress: IProgress<IProgressStep>) => {
-			return new Promise<any>(resolve => {
+			return new Promise<void>(resolve => {
 				this._progress.set(handle, { resolve, progress });
 			});
 		};

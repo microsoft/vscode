@@ -1,17 +1,17 @@
 {
   "name": "code-oss-dev-integration-test",
   "version": "0.1.0",
+  "license": "MIT",
   "main": "./index.js",
   "scripts": {
-    "postinstall": "npm run compile",
-    "compile": "yarn tsc"
+    "compile": "tsc"
   },
   "devDependencies": {
-    "@types/mkdirp": "0.5.1",
-    "@types/node": "^12.11.7",
+    "@types/mkdirp": "^1.0.1",
+    "@types/node": "14.x",
     "@types/optimist": "0.0.29",
-    "@types/rimraf": "2.0.2",
-    "@types/tmp": "^0.1.0",
+    "@types/rimraf": "^2.0.4",
+    "@types/tmp": "0.1.0",
     "rimraf": "^2.6.1",
     "tmp": "0.0.33",
     "tree-kill": "1.2.2",

@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import * as paths from 'vs/base/common/path';
+import { isWindows } from 'vs/base/common/platform';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -108,7 +109,7 @@ export class URI implements UriComponents {
 			&& typeof (<URI>thing).path === 'string'
 			&& typeof (<URI>thing).query === 'string'
 			&& typeof (<URI>thing).scheme === 'string'
-			&& typeof (<URI>thing).fsPath === 'function'
+			&& typeof (<URI>thing).fsPath === 'string'
 			&& typeof (<URI>thing).with === 'function'
 			&& typeof (<URI>thing).toString === 'function';
 	}
@@ -327,13 +328,15 @@ export class URI implements UriComponents {
 	}
 
 	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new Uri(
+		const result = new Uri(
 			components.scheme,
 			components.authority,
 			components.path,
 			components.query,
 			components.fragment,
 		);
+		_validateUri(result, true);
+		return result;
 	}
 
 	/**
@@ -345,7 +348,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {
@@ -404,7 +407,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: number;
+	$mid: MarshalledId.Uri;
 	external: string;
 	fsPath: string;
 	_sep: 1 | undefined;
@@ -412,20 +415,20 @@ interface UriState extends UriComponents {
 
 const _pathSepMarker = isWindows ? 1 : undefined;
 
-// This class exists so that URI is compatibile with vscode.Uri (API).
+// This class exists so that URI is compatible with vscode.Uri (API).
 class Uri extends URI {
 
 	_formatted: string | null = null;
 	_fsPath: string | null = null;
 
-	get fsPath(): string {
+	override get fsPath(): string {
 		if (!this._fsPath) {
 			this._fsPath = uriToFsPath(this, false);
 		}
 		return this._fsPath;
 	}
 
-	toString(skipEncoding: boolean = false): string {
+	override toString(skipEncoding: boolean = false): string {
 		if (!skipEncoding) {
 			if (!this._formatted) {
 				this._formatted = _asFormatted(this, false);
@@ -437,9 +440,9 @@ class Uri extends URI {
 		}
 	}
 
-	toJSON(): UriComponents {
+	override toJSON(): UriComponents {
 		const res = <UriState>{
-			$mid: 1
+			$mid: MarshalledId.Uri
 		};
 		// cached state
 		if (this._fsPath) {

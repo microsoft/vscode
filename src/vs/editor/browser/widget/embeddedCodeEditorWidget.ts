@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -37,7 +37,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
-		super(domElement, parentEditor.getRawOptions(), {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
+		super(domElement, { ...parentEditor.getRawOptions(), overflowWidgetsDomNode: parentEditor.getOverflowWidgetsDomNode() }, {}, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -57,7 +57,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget {
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	updateOptions(newOptions: IEditorOptions): void {
+	override updateOptions(newOptions: IEditorOptions): void {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}
@@ -70,7 +70,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorOptions,
+		options: Readonly<IDiffEditorConstructionOptions>,
 		parentEditor: ICodeEditor,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -82,7 +82,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 	) {
-		super(domElement, parentEditor.getRawOptions(), clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(domElement, parentEditor.getRawOptions(), {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -102,7 +102,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	updateOptions(newOptions: IEditorOptions): void {
+	override updateOptions(newOptions: IEditorOptions): void {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}

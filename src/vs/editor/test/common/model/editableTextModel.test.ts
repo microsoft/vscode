@@ -22,10 +22,10 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
-		assert.equal(model.mightContainRTL(), before);
+		assert.strictEqual(model.mightContainRTL(), before);
 
 		model.applyEdits(edits);
-		assert.equal(model.mightContainRTL(), after);
+		assert.strictEqual(model.mightContainRTL(), after);
 		model.dispose();
 	}
 
@@ -68,10 +68,10 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
-		assert.equal(model.mightContainNonBasicASCII(), before);
+		assert.strictEqual(model.mightContainNonBasicASCII(), before);
 
 		model.applyEdits(edits);
-		assert.equal(model.mightContainNonBasicASCII(), after);
+		assert.strictEqual(model.mightContainNonBasicASCII(), after);
 		model.dispose();
 	}
 
@@ -1043,7 +1043,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
 		let model = createEditableTextModelFromString('Hello\nWorld!');
-		assert.equal(model.getEOL(), '\n');
+		assert.strictEqual(model.getEOL(), '\n');
 
 		let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
@@ -1058,8 +1058,8 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		});
 
 		let assertMirrorModels = () => {
-			assert.equal(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
-			assert.equal(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
+			assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
+			assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
 		};
 
 		model.setEOL(EndOfLineSequence.CRLF);
@@ -1077,16 +1077,16 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 			{ range: new Range(1, 2, 1, 2), text: '"' },
 		]);
 
-		assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
+		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '"\'"👁\'');
 
-		assert.deepEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
+		assert.deepStrictEqual(model.validateRange(new Range(1, 3, 1, 4)), new Range(1, 3, 1, 4));
 
 		model.applyEdits([
 			{ range: new Range(1, 1, 1, 2), text: null },
 			{ range: new Range(1, 3, 1, 4), text: null },
 		]);
 
-		assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'');
+		assert.strictEqual(model.getValue(EndOfLinePreference.LF), '\'👁\'');
 
 		model.dispose();
 	});
@@ -1108,7 +1108,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		model.applyEdits(undoEdits);
 
-		assert.deepEqual(model.getValue(), 'line1\nline2\nline3\n');
+		assert.deepStrictEqual(model.getValue(), 'line1\nline2\nline3\n');
 
 		model.dispose();
 	});
