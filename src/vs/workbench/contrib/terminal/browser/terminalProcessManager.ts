@@ -312,16 +312,18 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._preLaunchInputQueue.length = 0;
 				}
 			}),
-			newProcess.onDidChangeProperty(({ type, value }) => {
-				switch (type) {
-					case ProcessPropertyType.HasChildProcesses:
-						this._hasChildProcesses = value;
-					case ProcessPropertyType.Exit:
-						this._onExit(value);
-				}
-				this._onDidChangeProperty.fire({ type, value });
-			})
 		];
+		this._processListeners.push(newProcess.onDidChangeProperty(({ type, value }) => {
+			switch (type) {
+				case ProcessPropertyType.HasChildProcesses:
+					this._hasChildProcesses = value;
+					break;
+				case ProcessPropertyType.Exit:
+					this._onExit(value);
+					break;
+			}
+			this._onDidChangeProperty.fire({ type, value });
+		}));
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
@@ -561,7 +563,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	private _onExit(exitCode: number | undefined): void {
 		this._process = null;
-
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
 		// shell and args.
