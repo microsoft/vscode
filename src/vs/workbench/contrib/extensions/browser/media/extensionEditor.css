@@ -119,8 +119,8 @@
 	align-items: center;
 }
 
-.extension-editor > .header > .details > .subtitle .publisher-name {
-	font-size: 18px;
+.extension-editor > .header > .details > .subtitle .publisher .codicon {
+	margin-right: 2px;
 }
 
 .extension-editor > .header > .details > .subtitle .publisher-name:not(:first-child) {
