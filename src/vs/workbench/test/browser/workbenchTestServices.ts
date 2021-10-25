@@ -1635,7 +1635,7 @@ export class TestEditorPart extends EditorPart {
 export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
 	const part = disposables.add(instantiationService.createInstance(TestEditorPart));
 	part.create(document.createElement('div'));
-	part.layout(1080, 800);
+	part.layout(1080, 800, 0, 0);
 
 	await part.whenReady;
 

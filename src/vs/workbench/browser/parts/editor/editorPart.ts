@@ -71,9 +71,9 @@ class GridWidgetView<T extends IView> implements IView {
 		this._gridWidget = grid;
 	}
 
-	layout(width: number, height: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		if (this.gridWidget) {
-			this.gridWidget.layout(width, height);
+			this.gridWidget.layout(width, height, top, left);
 		}
 	}
 
@@ -443,7 +443,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
-		this.doLayout(this._contentDimension);
+		this.doLayout(this._contentDimension, 0, 0);
 
 		// Update container
 		this.updateContainer();
@@ -1117,20 +1117,20 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
-	override layout(width: number, height: number): void {
+	override layout(width: number, height: number, top: number, left: number): void {
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
 		// Layout editor container
-		this.doLayout(Dimension.lift(contentAreaSize));
+		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
 
-	private doLayout(dimension: Dimension): void {
+	private doLayout(dimension: Dimension, top: number, left: number): void {
 		this._contentDimension = dimension;
 
 		// Layout Grid
-		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height);
+		this.centeredLayoutWidget.layout(this._contentDimension.width, this._contentDimension.height, top, left);
 
 		// Event
 		this._onDidLayout.fire(dimension);
