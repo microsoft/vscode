@@ -342,6 +342,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitProcessProperty(property: IProcessProperty<any>): void;
 	emitReady(pid: number, cwd: string): void;
 	emitLatency(latency: number): void;
+	emitExit(exitCode: number | undefined): void;
 
 	onInput: Event<string>;
 	onBinary: Event<string>;

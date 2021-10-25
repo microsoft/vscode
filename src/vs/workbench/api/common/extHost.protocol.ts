@@ -507,6 +507,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessData(terminalId: number, data: string): void;
 	$sendProcessReady(terminalId: number, pid: number, cwd: string): void;
 	$sendProcessProperty(terminalId: number, property: IProcessProperty<any>): void;
+	$sendProcessExit(terminalId: number, exitCode: number | undefined): void;
 }
 
 export interface TransferQuickPickItems extends quickInput.IQuickPickItem {

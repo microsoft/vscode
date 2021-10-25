@@ -191,6 +191,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		await instance?.sendText(text, addNewLine);
 	}
 
+	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
+		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
+	}
+
 	public $startSendingDataEvents(): void {
 		if (!this._dataEventTracker) {
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
