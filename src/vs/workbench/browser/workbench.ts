@@ -40,6 +40,14 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
+export interface IWorkbenchOptions {
+
+	/**
+	 * Extra classes to be added to the workbench container.
+	 */
+	extraClasses?: string[];
+}
+
 export class Workbench extends Layout {
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
@@ -53,6 +61,7 @@ export class Workbench extends Layout {
 
 	constructor(
 		parent: HTMLElement,
+		private readonly options: IWorkbenchOptions | undefined,
 		private readonly serviceCollection: ServiceCollection,
 		logService: ILogService
 	) {
@@ -307,7 +316,8 @@ export class Workbench extends Layout {
 			platformClass,
 			isWeb ? 'web' : undefined,
 			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
-			...this.getLayoutClasses()
+			...this.getLayoutClasses(),
+			...(this.options?.extraClasses ? this.options.extraClasses : [])
 		]);
 
 		this.container.classList.add(...workbenchClasses);

@@ -128,13 +128,17 @@ export interface IWindowSettings {
 	readonly clickThroughInactive: boolean;
 }
 
+interface IWindowBorderColors {
+	readonly 'window.activeBorder'?: string;
+	readonly 'window.inactiveBorder'?: string;
+}
+
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
 	if (isWeb) {
 		return 'custom';
 	}
 
 	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
-
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
@@ -144,6 +148,11 @@ export function getTitleBarStyle(configurationService: IConfigurationService): '
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
 			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
+		}
+
+		const colorCustomizations = configurationService.getValue<IWindowBorderColors | undefined>('workbench.colorCustomizations');
+		if (colorCustomizations?.['window.activeBorder'] || colorCustomizations?.['window.inactiveBorder']) {
+			return 'custom'; // window border colors do not work with native title style
 		}
 
 		const style = configuration.titleBarStyle;

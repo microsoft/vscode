@@ -50,6 +50,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { safeStringify } from 'vs/base/common/objects';
 import { ISharedProcessWorkerWorkbenchService, SharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -105,7 +106,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
 		// Create Workbench
-		const workbench = new Workbench(document.body, services.serviceCollection, services.logService);
+		const workbench = new Workbench(document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
@@ -123,6 +124,16 @@ export abstract class SharedDesktopMain extends Disposable {
 		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
+	}
+
+	private getExtraClasses(): string[] {
+		if (isMacintosh) {
+			if (this.configuration.os.release > '20.0.0') {
+				return ['macos-bigsur-or-newer'];
+			}
+		}
+
+		return [];
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
