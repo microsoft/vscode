@@ -1040,8 +1040,8 @@ class BackwardsCompatibleRegExp {
 
 export class TitleCaseAction extends AbstractCaseAction {
 
-	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}])[\\p{L}\\p{N}]', 'gmu');
-	public static apostrophe = new BackwardsCompatibleRegExp('[\\p{L}\\p{N}]\'[\\p{L}\\p{N}]', 'gmu');
+	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}])\\p{L}', 'gmu');
+	public static apostrophe = new BackwardsCompatibleRegExp('\\p{L}\'\\p{L}', 'gmu');
 
 	constructor() {
 		super({
