@@ -14,8 +14,6 @@ import { assertType } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { Range } from 'vs/editor/common/core/range';
-import { Emitter } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export function isSemanticTokens(v: SemanticTokens | SemanticTokensEdits): v is SemanticTokens {
 	return v && !!((<SemanticTokens>v).data);
@@ -25,94 +23,60 @@ export function isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): 
 	return v && Array.isArray((<SemanticTokensEdits>v).edits);
 }
 
-export interface IDocumentSemanticTokensResult {
-	provider: DocumentSemanticTokensProvider;
-	request: Promise<SemanticTokens | SemanticTokensEdits | null | undefined>;
+export class DocumentSemanticTokensResult {
+	constructor(
+		public readonly provider: DocumentSemanticTokensProvider,
+		public readonly tokens: SemanticTokens | SemanticTokensEdits | null,
+	) { }
 }
 
-export function getDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): IDocumentSemanticTokensResult | null {
-	const providerGroup = _getDocumentSemanticTokensProviderHighestGroup(model);
-	if (!providerGroup) {
-		return null;
-	}
-	const compositeProvider = new CompositeDocumentSemanticTokensProvider(model, providerGroup);
-	return {
-		provider: compositeProvider,
-		request: Promise.resolve(compositeProvider.provideDocumentSemanticTokens(model, lastResultId, token))
-	};
+export function hasDocumentSemanticTokensProvider(model: ITextModel): boolean {
+	return DocumentSemanticTokensProviderRegistry.has(model);
 }
 
-class CompositeDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
+function getDocumentSemanticTokensProviders(model: ITextModel): DocumentSemanticTokensProvider[] {
+	const groups = DocumentSemanticTokensProviderRegistry.orderedGroups(model);
+	return (groups.length > 0 ? groups[0] : []);
+}
 
-	private readonly disposables = new DisposableStore();
+export async function getDocumentSemanticTokens(model: ITextModel, lastProvider: DocumentSemanticTokensProvider | null, lastResultId: string | null, token: CancellationToken): Promise<DocumentSemanticTokensResult | null> {
+	const providers = getDocumentSemanticTokensProviders(model);
 
-	private readonly didChangeEmitter = this.disposables.add(new Emitter<void>());
-	public readonly onDidChange = this.didChangeEmitter.event;
+	// Get tokens from all providers at the same time.
+	const results = await Promise.all(providers.map(async (provider) => {
+		let result: SemanticTokens | SemanticTokensEdits | null | undefined;
+		try {
+			result = await provider.provideDocumentSemanticTokens(model, (provider === lastProvider ? lastResultId : null), token);
+		} catch (err) {
+			onUnexpectedExternalError(err);
+			result = null;
+		}
 
-	private lastUsedProvider: DocumentSemanticTokensProvider | undefined = undefined;
+		if (!result || (!isSemanticTokens(result) && !isSemanticTokensEdits(result))) {
+			result = null;
+		}
 
-	private static providerToLastResult = new WeakMap<DocumentSemanticTokensProvider, string>();
+		return new DocumentSemanticTokensResult(provider, result);
+	}));
 
-	constructor(model: ITextModel, private readonly providerGroup: DocumentSemanticTokensProvider[]) {
-		// Lifetime of this provider is tied to the text model
-		model.onWillDispose(() => this.disposables.clear());
-
-		// Mirror did change events
-		providerGroup.forEach(p => {
-			if (p.onDidChange) {
-				p.onDidChange(() => this.didChangeEmitter.fire(), this, this.disposables);
-			}
-		});
+	// Try to return the first result with actual tokens
+	for (const result of results) {
+		if (result.tokens) {
+			return result;
+		}
 	}
 
-	public async provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): Promise<SemanticTokens | SemanticTokensEdits | null | undefined> {
-		// Get tokens from the group all at the same time. Return the first
-		// that actually returned tokens
-		const list = await Promise.all(this.providerGroup.map(async provider => {
-			try {
-				// If result id is passed in, make sure it's for this provider
-				const localLastResultId = lastResultId && CompositeDocumentSemanticTokensProvider.providerToLastResult.get(provider) === lastResultId ? lastResultId : null;
-
-				// Get the result for this provider
-				const result = await provider.provideDocumentSemanticTokens(model, localLastResultId, token);
-
-				// Save result id for this provider
-				if (result?.resultId) {
-					CompositeDocumentSemanticTokensProvider.providerToLastResult.set(provider, result.resultId);
-				}
-
-				return result;
-			} catch (err) {
-				onUnexpectedExternalError(err);
-			}
-			return undefined;
-		}));
-
-		const hasTokensIndex = list.findIndex(l => l);
-
-		// Save last used provider. Use it for the legend if called
-		this.lastUsedProvider = this.providerGroup[hasTokensIndex];
-		return list[hasTokensIndex];
+	// Return the first result, even if it doesn't have tokens
+	if (results.length > 0) {
+		return results[0];
 	}
 
-	public getLegend(): SemanticTokensLegend {
-		return this.lastUsedProvider?.getLegend() || this.providerGroup[0].getLegend();
-	}
+	return null;
+}
 
-	public releaseDocumentSemanticTokens(resultId: string | undefined): void {
-		this.providerGroup.forEach(p => {
-			// If this result is for this provider, release it
-			if (resultId) {
-				if (CompositeDocumentSemanticTokensProvider.providerToLastResult.get(p) === resultId) {
-					p.releaseDocumentSemanticTokens(resultId);
-					CompositeDocumentSemanticTokensProvider.providerToLastResult.delete(p);
-				}
-				// Else if the result is empty, release for all providers that aren't waiting for a result id
-			} else if (CompositeDocumentSemanticTokensProvider.providerToLastResult.get(p) === undefined) {
-				p.releaseDocumentSemanticTokens(undefined);
-			}
-		});
-	}
+function _getDocumentSemanticTokensProviderHighestGroup(model: ITextModel): DocumentSemanticTokensProvider[] | null {
+	const result = DocumentSemanticTokensProviderRegistry.orderedGroups(model);
+	return (result.length > 0 ? result[0] : null);
 }
 
 class DocumentRangeSemanticTokensResult {
@@ -120,11 +84,6 @@ class DocumentRangeSemanticTokensResult {
 		public readonly provider: DocumentRangeSemanticTokensProvider,
 		public readonly tokens: SemanticTokens | null,
 	) { }
-}
-
-function _getDocumentSemanticTokensProviderHighestGroup(model: ITextModel): DocumentSemanticTokensProvider[] | null {
-	const result = DocumentSemanticTokensProviderRegistry.orderedGroups(model);
-	return (result.length > 0 ? result[0] : null);
 }
 
 export function hasDocumentRangeSemanticTokensProvider(model: ITextModel): boolean {
@@ -198,33 +157,29 @@ CommandsRegistry.registerCommand('_provideDocumentSemanticTokens', async (access
 		return undefined;
 	}
 
-	const r = getDocumentSemanticTokens(model, null, CancellationToken.None);
-	if (!r) {
+	if (!hasDocumentSemanticTokensProvider(model)) {
 		// there is no provider => fall back to a document range semantic tokens provider
 		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokens', uri, model.getFullModelRange());
 	}
 
-	const { provider, request } = r;
-
-	let result: SemanticTokens | SemanticTokensEdits | null | undefined;
-	try {
-		result = await request;
-	} catch (err) {
-		onUnexpectedExternalError(err);
+	const r = await getDocumentSemanticTokens(model, null, null, CancellationToken.None);
+	if (!r) {
 		return undefined;
 	}
 
-	if (!result || !isSemanticTokens(result)) {
+	const { provider, tokens } = r;
+
+	if (!tokens || !isSemanticTokens(tokens)) {
 		return undefined;
 	}
 
 	const buff = encodeSemanticTokensDto({
 		id: 0,
 		type: 'full',
-		data: result.data
+		data: tokens.data
 	});
-	if (result.resultId) {
-		provider.releaseDocumentSemanticTokens(result.resultId);
+	if (tokens.resultId) {
+		provider.releaseDocumentSemanticTokens(tokens.resultId);
 	}
 	return buff;
 });
