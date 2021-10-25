@@ -551,6 +551,6 @@ export class SimpleWorkerServer<H extends object> {
 /**
  * Called on the worker side
  */
-export function create(postMessage: (msg: Message, transfer?: Transferable[]) => void): SimpleWorkerServer<any> {
+export function create(postMessage: (msg: Message, transfer?: ArrayBuffer[]) => void): SimpleWorkerServer<any> {
 	return new SimpleWorkerServer(postMessage, null);
 }
