@@ -8,11 +8,11 @@ import * as DOMPurify from 'dompurify';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
-import '../media/markdown.css';
-
 const sanitizerOptions: DOMPurify.Config = {
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'img', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
 };
+
+const mdStyleHref = import.meta.url.replace(/index.js$/, 'markdown.css');
 
 export const activate: ActivationFunction<void> = (ctx) => {
 	let markdownIt = new MarkdownIt({
@@ -27,54 +27,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			font-style: italic;
 			opacity: 0.6;
 		}
-
-		img {
-			max-width: 100%;
-			max-height: 100%;
-		}
-
-		a {
-			text-decoration: none;
-		}
-
-		a:hover {
-			text-decoration: underline;
-		}
-
-		a:focus,
-		input:focus,
-		select:focus,
-		textarea:focus {
-			outline: 1px solid -webkit-focus-ring-color;
-			outline-offset: -1px;
-		}
-
-		hr {
-			border: 0;
-			height: 2px;
-			border-bottom: 2px solid;
-		}
-
-		h1 {
-			font-size: 2.25em;
-		}
-
-		h2 {
-			font-size: 1.9em;
-		}
-
-		h3 {
-			font-size: 1.6em;
-		}
-
-		p {
-			font-size: 1.1em;
-		}
-
-		h1,
-		h2,
-		h3 {
-			font-weight: normal;
+		body#preview {
+			padding: 0;
 		}
 
 		div {
@@ -129,46 +83,31 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			border-top: 1px solid;
 		}
 
-		blockquote {
-			margin: 0 7px 0 5px;
-			padding: 0 16px 0 10px;
-			border-left-width: 5px;
-			border-left-style: solid;
-		}
-
-		code,
-		.code {
-			font-size: 1em;
-			line-height: 1.357em;
-		}
-
 		.code {
 			white-space: pre-wrap;
 		}
 	`;
-	//Create a style element using "markdown.css"
-	const mdCss = document.createElement('link');
-	mdCss.rel = 'stylesheet';
-	mdCss.href = '../media/markdown.css';
-	mdCss.type = 'text/css';
 
 	const template = document.createElement('template');
 	template.classList.add('markdown-style');
-	template.content.appendChild(mdCss);
 	template.content.appendChild(style);
 	document.head.appendChild(template);
 
+	const themeClass = document.body.classList[0];
 	return {
 		renderOutputItem: (outputInfo, element) => {
 			let previewNode: HTMLElement;
 			if (!element.shadowRoot) {
 				const previewRoot = element.attachShadow({ mode: 'open' });
-
 				// Insert styles into markdown preview shadow dom so that they are applied.
 				// First add default webview style
 				const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
 				previewRoot.appendChild(defaultStyles.cloneNode(true));
-
+				// Add default markdown styles
+				const mdCss = document.createElement('link');
+				mdCss.rel = 'stylesheet';
+				mdCss.href = mdStyleHref;
+				previewRoot.appendChild(mdCss);
 				// And then contributed styles
 				for (const element of document.getElementsByClassName('markdown-style')) {
 					if (element instanceof HTMLTemplateElement) {
@@ -178,7 +117,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					}
 				}
 
-				previewNode = document.createElement('div');
+				previewNode = document.createElement('body');
+				previewNode.className = themeClass;
 				previewNode.id = 'preview';
 				previewRoot.appendChild(previewNode);
 			} else {
