@@ -741,13 +741,17 @@ interface ResourceMapKeyFn {
 	(resource: URI): string;
 }
 
+class ResourceMapEntry<T> {
+	constructor(readonly uri: URI, readonly value: T) { }
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
 
 	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	private readonly map: Map<string, T>;
+	private readonly map: Map<string, ResourceMapEntry<T>>;
 	private readonly toKey: ResourceMapKeyFn;
 
 	/**
@@ -774,12 +778,12 @@ export class ResourceMap<T> implements Map<URI, T> {
 	}
 
 	set(resource: URI, value: T): this {
-		this.map.set(this.toKey(resource), value);
+		this.map.set(this.toKey(resource), new ResourceMapEntry(resource, value));
 		return this;
 	}
 
 	get(resource: URI): T | undefined {
-		return this.map.get(this.toKey(resource));
+		return this.map.get(this.toKey(resource))?.value;
 	}
 
 	has(resource: URI): boolean {
@@ -802,30 +806,32 @@ export class ResourceMap<T> implements Map<URI, T> {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
-		for (let [index, value] of this.map) {
-			clb(value, URI.parse(index), <any>this);
+		for (let [_, entry] of this.map) {
+			clb(entry.value, entry.uri, <any>this);
 		}
 	}
 
-	values(): IterableIterator<T> {
-		return this.map.values();
+	*values(): IterableIterator<T> {
+		for (let entry of this.map.values()) {
+			yield entry.value;
+		}
 	}
 
 	*keys(): IterableIterator<URI> {
-		for (let key of this.map.keys()) {
-			yield URI.parse(key);
+		for (let entry of this.map.values()) {
+			yield entry.uri;
 		}
 	}
 
 	*entries(): IterableIterator<[URI, T]> {
-		for (let tuple of this.map.entries()) {
-			yield [URI.parse(tuple[0]), tuple[1]];
+		for (let entry of this.map.values()) {
+			yield [entry.uri, entry.value];
 		}
 	}
 
 	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let item of this.map) {
-			yield [URI.parse(item[0]), item[1]];
+		for (let [, entry] of this.map) {
+			yield [entry.uri, entry.value];
 		}
 	}
 }
