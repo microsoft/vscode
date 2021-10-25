@@ -495,8 +495,8 @@ export class ViewsService extends Disposable implements IViewsService {
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, showOptions?: { preserveFocus?: boolean }): void {
-				accessor.get(IViewsService).openView(viewDescriptor.id, !preserveFocus);
+			run(accessor: ServicesAccessor, options?: { preserveFocus?: boolean }): void {
+				accessor.get(IViewsService).openView(viewDescriptor.id, !options?.preserveFocus);
 			}
 		});
 	}
