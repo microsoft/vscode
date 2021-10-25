@@ -1100,7 +1100,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async detachFromProcess(): Promise<void> {
 		await this._processManager.detachFromProcess();
-		this.dispose();
 	}
 
 	forceRedraw(): void {
