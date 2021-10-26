@@ -44,6 +44,14 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -263,9 +271,17 @@ export class InteractiveEditor extends EditorPane {
 				},
 			}
 		}, {
-			...getSimpleCodeEditorWidgetOptions(),
 			...{
 				isSimpleWidget: false,
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+					ContextMenuController.ID,
+					SuggestController.ID,
+					SnippetController2.ID,
+					TabCompletionController.ID,
+					ModesHoverController.ID
+				])
 			}
 		});
 
