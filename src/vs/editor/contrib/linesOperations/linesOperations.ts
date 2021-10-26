@@ -1040,7 +1040,7 @@ class BackwardsCompatibleRegExp {
 
 export class TitleCaseAction extends AbstractCaseAction {
 
-	public static titleBoundary = new BackwardsCompatibleRegExp('(?:^|[^\\p{L}\\p{N}\']|(?:(?:^|[^\\p{L}\\p{N}])\'))\\p{L}', 'gmu');
+	public static titleBoundary = new BackwardsCompatibleRegExp('(?:^|[^\\p{L}\\p{N}\']|(?:(?:^|\\P{L})\'))\\p{L}', 'gmu');
 
 	constructor() {
 		super({
