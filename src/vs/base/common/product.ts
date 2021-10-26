@@ -144,6 +144,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
+
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
