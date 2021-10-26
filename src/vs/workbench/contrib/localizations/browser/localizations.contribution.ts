@@ -68,7 +68,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 							}
 						}, {
-							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't change Language") : localize('doNotRestart', "Don't Restart"),
+							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
 							run: () => { }
 						}],
 						{
