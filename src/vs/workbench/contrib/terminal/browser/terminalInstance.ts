@@ -1176,7 +1176,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// change since the number of visible rows decreases.
 			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
 			// fixed upstream.
-			this._xtermCore.viewport._innerRefresh();
+			this._xtermCore.viewport?._innerRefresh();
 		}
 	}
 
