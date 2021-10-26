@@ -9,7 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { CellKind, CellUri, diff, NotebookWorkingCopyTypeIdentifier, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, diff, MimeTypeDisplayOrder, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { setupInstantiationService, TestCell } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -27,9 +27,7 @@ suite('NotebookCommon', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('sortMimeTypes default orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-
-		assert.deepStrictEqual(sortMimeTypes(
+		assert.deepStrictEqual(new MimeTypeDisplayOrder().sort(
 			[
 				'application/json',
 				'application/javascript',
@@ -40,32 +38,7 @@ suite('NotebookCommon', () => {
 				'image/png',
 				'image/jpeg',
 				Mimes.text
-			], [], defaultDisplayOrder),
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.latex,
-				Mimes.markdown,
-				'image/png',
-				'image/jpeg',
-				Mimes.text
-			]
-		);
-
-		assert.deepStrictEqual(sortMimeTypes(
-			[
-				'application/json',
-				Mimes.latex,
-				Mimes.markdown,
-				'application/javascript',
-				'text/html',
-				Mimes.text,
-				'image/png',
-				'image/jpeg',
-				'image/svg+xml'
-			], [], defaultDisplayOrder),
+			]),
 			[
 				'application/json',
 				'application/javascript',
@@ -79,7 +52,32 @@ suite('NotebookCommon', () => {
 			]
 		);
 
-		assert.deepStrictEqual(sortMimeTypes(
+		assert.deepStrictEqual(new MimeTypeDisplayOrder().sort(
+			[
+				'application/json',
+				Mimes.latex,
+				Mimes.markdown,
+				'application/javascript',
+				'text/html',
+				Mimes.text,
+				'image/png',
+				'image/jpeg',
+				'image/svg+xml'
+			]),
+			[
+				'application/json',
+				'application/javascript',
+				'text/html',
+				'image/svg+xml',
+				Mimes.latex,
+				Mimes.markdown,
+				'image/png',
+				'image/jpeg',
+				Mimes.text
+			]
+		);
+
+		assert.deepStrictEqual(new MimeTypeDisplayOrder().sort(
 			[
 				Mimes.markdown,
 				'application/json',
@@ -89,7 +87,7 @@ suite('NotebookCommon', () => {
 				'text/html',
 				'image/png',
 				'image/svg+xml'
-			], [], defaultDisplayOrder),
+			]),
 			[
 				'application/json',
 				'application/javascript',
@@ -106,25 +104,25 @@ suite('NotebookCommon', () => {
 
 
 	test('sortMimeTypes user orders', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-		assert.deepStrictEqual(sortMimeTypes(
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'image/svg+xml',
-				Mimes.markdown,
-				'image/png',
-				'image/jpeg',
-				Mimes.text
-			],
-			[
+		assert.deepStrictEqual(
+			new MimeTypeDisplayOrder([
 				'image/png',
 				Mimes.text,
 				Mimes.markdown,
 				'text/html',
 				'application/json'
-			], defaultDisplayOrder),
+			]).sort(
+				[
+					'application/json',
+					'application/javascript',
+					'text/html',
+					'image/svg+xml',
+					Mimes.markdown,
+					'image/png',
+					'image/jpeg',
+					Mimes.text
+				]
+			),
 			[
 				'image/png',
 				Mimes.text,
@@ -137,8 +135,14 @@ suite('NotebookCommon', () => {
 			]
 		);
 
-		assert.deepStrictEqual(sortMimeTypes(
-			[
+		assert.deepStrictEqual(
+			new MimeTypeDisplayOrder([
+				'application/json',
+				'text/html',
+				'text/html',
+				Mimes.markdown,
+				'application/json'
+			]).sort([
 				Mimes.markdown,
 				'application/json',
 				Mimes.text,
@@ -147,14 +151,7 @@ suite('NotebookCommon', () => {
 				'image/svg+xml',
 				'image/jpeg',
 				'image/png'
-			],
-			[
-				'application/json',
-				'text/html',
-				'text/html',
-				Mimes.markdown,
-				'application/json'
-			], defaultDisplayOrder),
+			]),
 			[
 				'application/json',
 				'text/html',
@@ -168,53 +165,53 @@ suite('NotebookCommon', () => {
 		);
 	});
 
+	test('prioritizes mimetypes', () => {
+		const m = new MimeTypeDisplayOrder([
+			Mimes.markdown,
+			'text/html',
+			'application/json'
+		]);
+		assert.deepStrictEqual(m.toArray(), [Mimes.markdown, 'text/html', 'application/json']);
+
+		// no-op if already in the right order
+		m.prioritize('text/html', ['application/json']);
+		assert.deepStrictEqual(m.toArray(), [Mimes.markdown, 'text/html', 'application/json']);
+
+		// sorts to highest priority
+		m.prioritize('text/html', ['application/json', Mimes.markdown]);
+		assert.deepStrictEqual(m.toArray(), ['text/html', Mimes.markdown, 'application/json']);
+
+		// adds in new type
+		m.prioritize('text/plain', ['application/json', Mimes.markdown]);
+		assert.deepStrictEqual(m.toArray(), ['text/plain', 'text/html', Mimes.markdown, 'application/json']);
+
+		// moves multiple, preserves order
+		m.prioritize(Mimes.markdown, ['text/plain', 'application/json', Mimes.markdown]);
+		assert.deepStrictEqual(m.toArray(), ['text/html', Mimes.markdown, 'text/plain', 'application/json']);
+	});
+
 	test('sortMimeTypes glob', function () {
-		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
-
-		// unknown mime types come last
-		assert.deepStrictEqual(sortMimeTypes(
-			[
-				'application/json',
-				'application/vnd-vega.json',
-				'application/vnd-plot.json',
-				'application/javascript',
-				'text/html'
-			],
-			[
-				Mimes.markdown,
-				'text/html',
-				'application/json'
-			], defaultDisplayOrder),
-			[
-				'text/html',
-				'application/json',
-				'application/javascript',
-				'application/vnd-vega.json',
-				'application/vnd-plot.json'
-			],
-			'unknown mimetypes keep the ordering'
-		);
-
-		assert.deepStrictEqual(sortMimeTypes(
-			[
-				'application/json',
-				'application/javascript',
-				'text/html',
-				'application/vnd-plot.json',
-				'application/vnd-vega.json'
-			],
-			[
+		assert.deepStrictEqual(
+			new MimeTypeDisplayOrder([
 				'application/vnd-vega*',
 				Mimes.markdown,
 				'text/html',
 				'application/json'
-			], defaultDisplayOrder),
+			]).sort(
+				[
+					'application/json',
+					'application/javascript',
+					'text/html',
+					'application/vnd-plot.json',
+					'application/vnd-vega.json'
+				]
+			),
 			[
 				'application/vnd-vega.json',
 				'text/html',
 				'application/json',
+				'application/vnd-plot.json',
 				'application/javascript',
-				'application/vnd-plot.json'
 			],
 			'glob *'
 		);

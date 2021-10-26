@@ -880,12 +880,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private updateDetail(selectedIndex: number): void {
 		this.selectionDetailsPane.innerText = '';
-		const description = this.options[selectedIndex].description;
-		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
+		const option = this.options[selectedIndex];
+		const description = option?.description ?? '';
+		const descriptionIsMarkdown = option?.descriptionIsMarkdown ?? false;
 
 		if (description) {
 			if (descriptionIsMarkdown) {
-				const actionHandler = this.options[selectedIndex].descriptionMarkdownActionHandler;
+				const actionHandler = option.descriptionMarkdownActionHandler;
 				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description, actionHandler));
 			} else {
 				this.selectionDetailsPane.innerText = description;

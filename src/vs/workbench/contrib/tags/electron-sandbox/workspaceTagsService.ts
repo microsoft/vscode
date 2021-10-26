@@ -38,6 +38,11 @@ const ModulesToLookFor = [
 	'hapi',
 	'socket.io',
 	'restify',
+	'next',
+	'nuxt',
+	'@nestjs/core',
+	'strapi',
+	'gatsby',
 	// JS frameworks
 	'react',
 	'react-native',
@@ -48,6 +53,7 @@ const ModulesToLookFor = [
 	'@ionic',
 	'vue',
 	'tns-core-modules',
+	'@nativescript/core',
 	'electron',
 	// Other interesting packages
 	'aws-sdk',
@@ -297,6 +303,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.grunt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.gulp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.jake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.devcontainer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.docker" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.tsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.jsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.config.xml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -311,6 +319,11 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.hapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.socket.io" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.restify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.next" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.nuxt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@nestjs/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.strapi" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.gatsby" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.rnpm-plugin-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@angular/core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -566,6 +579,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
 			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
 			tags['workspace.jake'] = nameSet.has('jakefile.js');
+			tags['workspace.devcontainer'] = nameSet.has('devcontainer.json');
+			tags['workspace.docker'] = nameSet.has('Dockerfile') || nameSet.has('docker-compose.yml');
 
 			tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
 			tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
@@ -696,9 +711,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 					let dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
 
 					for (let dependency of dependencies) {
-						if ('react-native' === dependency) {
+						if (dependency.startsWith('react-native')) {
 							tags['workspace.reactNative'] = true;
-						} else if ('tns-core-modules' === dependency) {
+						} else if ('tns-core-modules' === dependency || '@nativescript/core' === dependency) {
 							tags['workspace.nativescript'] = true;
 						} else if (ModulesToLookFor.indexOf(dependency) > -1) {
 							tags['workspace.npm.' + dependency] = true;
@@ -755,6 +770,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 					// Ignore errors when resolving android
 				});
 			});
+
 			return Promise.all([...packageJsonPromises, ...requirementsTxtPromises, ...pipfilePromises, ...pomPromises, ...gradlePromises, ...androidPromises]).then(() => tags);
 		});
 	}

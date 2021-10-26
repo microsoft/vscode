@@ -531,7 +531,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registerTokenType('property', nls.localize('property', "Style for properties."), [['variable.other.property']]);
 	registerTokenType('enumMember', nls.localize('enumMember', "Style for enum members."), [['variable.other.enummember']]);
 	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']]);
-	registerTokenType('decorator', nls.localize('decorator', "Style for decorators & annotations."), [['meta.decorator', 'entity.name.function']]);
+	registerTokenType('decorator', nls.localize('decorator', "Style for decorators & annotations."), [['entity.name.decorator'], ['entity.name.function']]);
 
 	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
 

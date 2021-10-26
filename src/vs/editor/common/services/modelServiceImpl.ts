@@ -29,7 +29,7 @@ import { StringSHA1 } from 'vs/base/common/hash';
 import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { getDocumentSemanticTokens, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/common/services/getSemanticTokens';
+import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/common/services/getSemanticTokens';
 import { equals } from 'vs/base/common/objects';
 import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
@@ -724,13 +724,13 @@ class SemanticStyling extends Disposable {
 
 class SemanticTokensResponse {
 	constructor(
-		private readonly _provider: DocumentSemanticTokensProvider,
+		public readonly provider: DocumentSemanticTokensProvider,
 		public readonly resultId: string | undefined,
 		public readonly data: Uint32Array
 	) { }
 
 	public dispose(): void {
-		this._provider.releaseDocumentSemanticTokens(this.resultId);
+		this.provider.releaseDocumentSemanticTokens(this.resultId);
 	}
 }
 
@@ -820,10 +820,7 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 
-		const cancellationTokenSource = new CancellationTokenSource();
-		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
-		const r = getDocumentSemanticTokens(this._model, lastResultId, cancellationTokenSource.token);
-		if (!r) {
+		if (!hasDocumentSemanticTokensProvider(this._model)) {
 			// there is no provider
 			if (this._currentDocumentResponse) {
 				// there are semantic tokens set
@@ -832,7 +829,10 @@ export class ModelSemanticColoring extends Disposable {
 			return;
 		}
 
-		const { provider, request } = r;
+		const cancellationTokenSource = new CancellationTokenSource();
+		const lastProvider = this._currentDocumentResponse ? this._currentDocumentResponse.provider : null;
+		const lastResultId = this._currentDocumentResponse ? this._currentDocumentResponse.resultId || null : null;
+		const request = getDocumentSemanticTokens(this._model, lastProvider, lastResultId, cancellationTokenSource.token);
 		this._currentDocumentRequestCancellationTokenSource = cancellationTokenSource;
 
 		const pendingChanges: IModelContentChangedEvent[] = [];
@@ -840,12 +840,17 @@ export class ModelSemanticColoring extends Disposable {
 			pendingChanges.push(e);
 		});
 
-		const styling = this._semanticStyling.get(provider);
-
 		request.then((res) => {
 			this._currentDocumentRequestCancellationTokenSource = null;
 			contentChangeListener.dispose();
-			this._setDocumentSemanticTokens(provider, res || null, styling, pendingChanges);
+
+			if (!res) {
+				this._setDocumentSemanticTokens(null, null, null, pendingChanges);
+			} else {
+				const { provider, tokens } = res;
+				const styling = this._semanticStyling.get(provider);
+				this._setDocumentSemanticTokens(provider, tokens || null, styling, pendingChanges);
+			}
 		}, (err) => {
 			const isExpectedError = err && (errors.isPromiseCanceledError(err) || (typeof err.message === 'string' && err.message.indexOf('busy') !== -1));
 			if (!isExpectedError) {

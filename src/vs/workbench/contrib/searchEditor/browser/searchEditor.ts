@@ -62,7 +62,7 @@ import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchM
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
 
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
 type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
@@ -538,7 +538,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		});
 
 		const searchOperation = await startInput.ongoingSearchOperation;
-		this.onSearchComplete(searchOperation, config, startInput);
+		await this.onSearchComplete(searchOperation, config, startInput);
 	}
 
 	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {

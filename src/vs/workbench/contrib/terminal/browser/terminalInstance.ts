@@ -586,7 +586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._wrapperElement) {
 			return undefined;
 		}
-		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height - 2 + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight : 0)/* bottom padding */);
+		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(Math.min(Constants.MaxCanvasWidth, width), height + (this._hasScrollBar && !this._horizontalScrollbar ? -scrollbarHeight - 2 : 0)/* bottom padding */);
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -1100,7 +1100,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	async detachFromProcess(): Promise<void> {
 		await this._processManager.detachFromProcess();
-		this.dispose();
 	}
 
 	forceRedraw(): void {

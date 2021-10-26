@@ -23,30 +23,111 @@ export function isSemanticTokensEdits(v: SemanticTokens | SemanticTokensEdits): 
 	return v && Array.isArray((<SemanticTokensEdits>v).edits);
 }
 
-export interface IDocumentSemanticTokensResult {
-	provider: DocumentSemanticTokensProvider;
-	request: Promise<SemanticTokens | SemanticTokensEdits | null | undefined>;
+export class DocumentSemanticTokensResult {
+	constructor(
+		public readonly provider: DocumentSemanticTokensProvider,
+		public readonly tokens: SemanticTokens | SemanticTokensEdits | null,
+	) { }
 }
 
-export function getDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): IDocumentSemanticTokensResult | null {
-	const provider = _getDocumentSemanticTokensProvider(model);
-	if (!provider) {
-		return null;
+export function hasDocumentSemanticTokensProvider(model: ITextModel): boolean {
+	return DocumentSemanticTokensProviderRegistry.has(model);
+}
+
+function getDocumentSemanticTokensProviders(model: ITextModel): DocumentSemanticTokensProvider[] {
+	const groups = DocumentSemanticTokensProviderRegistry.orderedGroups(model);
+	return (groups.length > 0 ? groups[0] : []);
+}
+
+export async function getDocumentSemanticTokens(model: ITextModel, lastProvider: DocumentSemanticTokensProvider | null, lastResultId: string | null, token: CancellationToken): Promise<DocumentSemanticTokensResult | null> {
+	const providers = getDocumentSemanticTokensProviders(model);
+
+	// Get tokens from all providers at the same time.
+	const results = await Promise.all(providers.map(async (provider) => {
+		let result: SemanticTokens | SemanticTokensEdits | null | undefined;
+		try {
+			result = await provider.provideDocumentSemanticTokens(model, (provider === lastProvider ? lastResultId : null), token);
+		} catch (err) {
+			onUnexpectedExternalError(err);
+			result = null;
+		}
+
+		if (!result || (!isSemanticTokens(result) && !isSemanticTokensEdits(result))) {
+			result = null;
+		}
+
+		return new DocumentSemanticTokensResult(provider, result);
+	}));
+
+	// Try to return the first result with actual tokens
+	for (const result of results) {
+		if (result.tokens) {
+			return result;
+		}
 	}
-	return {
-		provider: provider,
-		request: Promise.resolve(provider.provideDocumentSemanticTokens(model, lastResultId, token))
-	};
+
+	// Return the first result, even if it doesn't have tokens
+	if (results.length > 0) {
+		return results[0];
+	}
+
+	return null;
 }
 
-function _getDocumentSemanticTokensProvider(model: ITextModel): DocumentSemanticTokensProvider | null {
-	const result = DocumentSemanticTokensProviderRegistry.ordered(model);
+function _getDocumentSemanticTokensProviderHighestGroup(model: ITextModel): DocumentSemanticTokensProvider[] | null {
+	const result = DocumentSemanticTokensProviderRegistry.orderedGroups(model);
 	return (result.length > 0 ? result[0] : null);
 }
 
-export function getDocumentRangeSemanticTokensProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
-	const result = DocumentRangeSemanticTokensProviderRegistry.ordered(model);
-	return (result.length > 0 ? result[0] : null);
+class DocumentRangeSemanticTokensResult {
+	constructor(
+		public readonly provider: DocumentRangeSemanticTokensProvider,
+		public readonly tokens: SemanticTokens | null,
+	) { }
+}
+
+export function hasDocumentRangeSemanticTokensProvider(model: ITextModel): boolean {
+	return DocumentRangeSemanticTokensProviderRegistry.has(model);
+}
+
+function getDocumentRangeSemanticTokensProviders(model: ITextModel): DocumentRangeSemanticTokensProvider[] {
+	const groups = DocumentRangeSemanticTokensProviderRegistry.orderedGroups(model);
+	return (groups.length > 0 ? groups[0] : []);
+}
+
+export async function getDocumentRangeSemanticTokens(model: ITextModel, range: Range, token: CancellationToken): Promise<DocumentRangeSemanticTokensResult | null> {
+	const providers = getDocumentRangeSemanticTokensProviders(model);
+
+	// Get tokens from all providers at the same time.
+	const results = await Promise.all(providers.map(async (provider) => {
+		let result: SemanticTokens | null | undefined;
+		try {
+			result = await provider.provideDocumentRangeSemanticTokens(model, range, token);
+		} catch (err) {
+			onUnexpectedExternalError(err);
+			result = null;
+		}
+
+		if (!result || !isSemanticTokens(result)) {
+			result = null;
+		}
+
+		return new DocumentRangeSemanticTokensResult(provider, result);
+	}));
+
+	// Try to return the first result with actual tokens
+	for (const result of results) {
+		if (result.tokens) {
+			return result;
+		}
+	}
+
+	// Return the first result, even if it doesn't have tokens
+	if (results.length > 0) {
+		return results[0];
+	}
+
+	return null;
 }
 
 CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
@@ -58,13 +139,13 @@ CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (
 		return undefined;
 	}
 
-	const provider = _getDocumentSemanticTokensProvider(model);
-	if (!provider) {
+	const providers = _getDocumentSemanticTokensProviderHighestGroup(model);
+	if (!providers) {
 		// there is no provider => fall back to a document range semantic tokens provider
 		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokensLegend', uri);
 	}
 
-	return provider.getLegend();
+	return providers[0].getLegend();
 });
 
 CommandsRegistry.registerCommand('_provideDocumentSemanticTokens', async (accessor, ...args): Promise<VSBuffer | undefined> => {
@@ -76,39 +157,35 @@ CommandsRegistry.registerCommand('_provideDocumentSemanticTokens', async (access
 		return undefined;
 	}
 
-	const r = getDocumentSemanticTokens(model, null, CancellationToken.None);
-	if (!r) {
+	if (!hasDocumentSemanticTokensProvider(model)) {
 		// there is no provider => fall back to a document range semantic tokens provider
 		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokens', uri, model.getFullModelRange());
 	}
 
-	const { provider, request } = r;
-
-	let result: SemanticTokens | SemanticTokensEdits | null | undefined;
-	try {
-		result = await request;
-	} catch (err) {
-		onUnexpectedExternalError(err);
+	const r = await getDocumentSemanticTokens(model, null, null, CancellationToken.None);
+	if (!r) {
 		return undefined;
 	}
 
-	if (!result || !isSemanticTokens(result)) {
+	const { provider, tokens } = r;
+
+	if (!tokens || !isSemanticTokens(tokens)) {
 		return undefined;
 	}
 
 	const buff = encodeSemanticTokensDto({
 		id: 0,
 		type: 'full',
-		data: result.data
+		data: tokens.data
 	});
-	if (result.resultId) {
-		provider.releaseDocumentSemanticTokens(result.resultId);
+	if (tokens.resultId) {
+		provider.releaseDocumentSemanticTokens(tokens.resultId);
 	}
 	return buff;
 });
 
 CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokensLegend', async (accessor, ...args): Promise<SemanticTokensLegend | undefined> => {
-	const [uri] = args;
+	const [uri, range] = args;
 	assertType(uri instanceof URI);
 
 	const model = accessor.get(IModelService).getModel(uri);
@@ -116,12 +193,31 @@ CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokensLegend', as
 		return undefined;
 	}
 
-	const provider = getDocumentRangeSemanticTokensProvider(model);
-	if (!provider) {
+	const providers = getDocumentRangeSemanticTokensProviders(model);
+	if (providers.length === 0) {
+		// no providers
 		return undefined;
 	}
 
-	return provider.getLegend();
+	if (providers.length === 1) {
+		// straight forward case, just a single provider
+		return providers[0].getLegend();
+	}
+
+	if (!range || !Range.isIRange(range)) {
+		// if no range is provided, we cannot support multiple providers
+		// as we cannot fall back to the one which would give results
+		// => return the first legend for backwards compatibility and print a warning
+		console.warn(`provideDocumentRangeSemanticTokensLegend might be out-of-sync with provideDocumentRangeSemanticTokens unless a range argument is passed in`);
+		return providers[0].getLegend();
+	}
+
+	const result = await getDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
+	if (!result) {
+		return undefined;
+	}
+
+	return result.provider.getLegend();
 });
 
 CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokens', async (accessor, ...args): Promise<VSBuffer | undefined> => {
@@ -134,27 +230,15 @@ CommandsRegistry.registerCommand('_provideDocumentRangeSemanticTokens', async (a
 		return undefined;
 	}
 
-	const provider = getDocumentRangeSemanticTokensProvider(model);
-	if (!provider) {
-		// there is no provider
-		return undefined;
-	}
-
-	let result: SemanticTokens | null | undefined;
-	try {
-		result = await provider.provideDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
-	} catch (err) {
-		onUnexpectedExternalError(err);
-		return undefined;
-	}
-
-	if (!result || !isSemanticTokens(result)) {
+	const result = await getDocumentRangeSemanticTokens(model, Range.lift(range), CancellationToken.None);
+	if (!result || !result.tokens) {
+		// there is no provider or it didn't return tokens
 		return undefined;
 	}
 
 	return encodeSemanticTokensDto({
 		id: 0,
 		type: 'full',
-		data: result.data
+		data: result.tokens.data
 	});
 });

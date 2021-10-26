@@ -14,6 +14,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -76,7 +77,8 @@ export interface INotebookService {
 	getRenderers(): INotebookRendererInfo[];
 
 	/** Updates the preferred renderer for the given mimetype in the workspace. */
-	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string): void;
+	updateMimePreferredRenderer(viewType: string, mimeType: string, rendererId: string, otherMimetypes: readonly string[]): void;
+	saveMimeDisplayOrder(target: ConfigurationTarget): void;
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;

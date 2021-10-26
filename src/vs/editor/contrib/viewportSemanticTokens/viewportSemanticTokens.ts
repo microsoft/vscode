@@ -10,11 +10,11 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentRangeSemanticTokensProvider, DocumentRangeSemanticTokensProviderRegistry, SemanticTokens } from 'vs/editor/common/modes';
-import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
+import { DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
+import { getDocumentRangeSemanticTokens, hasDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
-import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
+import { toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -28,7 +28,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 
 	private readonly _editor: ICodeEditor;
 	private readonly _tokenizeViewport: RunOnceScheduler;
-	private _outstandingRequests: CancelablePromise<SemanticTokens | null | undefined>[];
+	private _outstandingRequests: CancelablePromise<any>[];
 
 	constructor(
 		editor: ICodeEditor,
@@ -74,7 +74,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		this._outstandingRequests = [];
 	}
 
-	private _removeOutstandingRequest(req: CancelablePromise<SemanticTokens | null | undefined>): void {
+	private _removeOutstandingRequest(req: CancelablePromise<any>): void {
 		for (let i = 0, len = this._outstandingRequests.length; i < len; i++) {
 			if (this._outstandingRequests[i] === req) {
 				this._outstandingRequests.splice(i, 1);
@@ -97,27 +97,27 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			}
 			return;
 		}
-		const provider = getDocumentRangeSemanticTokensProvider(model);
-		if (!provider) {
+		if (!hasDocumentRangeSemanticTokensProvider(model)) {
 			if (model.hasSomeSemanticTokens()) {
 				model.setSemanticTokens(null, false);
 			}
 			return;
 		}
-		const styling = this._modelService.getSemanticTokensProviderStyling(provider);
 		const visibleRanges = this._editor.getVisibleRangesPlusViewportAboveBelow();
 
-		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range, provider, styling)));
+		this._outstandingRequests = this._outstandingRequests.concat(visibleRanges.map(range => this._requestRange(model, range)));
 	}
 
-	private _requestRange(model: ITextModel, range: Range, provider: DocumentRangeSemanticTokensProvider, styling: SemanticTokensProviderStyling): CancelablePromise<SemanticTokens | null | undefined> {
+	private _requestRange(model: ITextModel, range: Range): CancelablePromise<any> {
 		const requestVersionId = model.getVersionId();
-		const request = createCancelablePromise(token => Promise.resolve(provider.provideDocumentRangeSemanticTokens(model, range, token)));
+		const request = createCancelablePromise(token => Promise.resolve(getDocumentRangeSemanticTokens(model, range, token)));
 		request.then((r) => {
-			if (!r || model.isDisposed() || model.getVersionId() !== requestVersionId) {
+			if (!r || !r.tokens || model.isDisposed() || model.getVersionId() !== requestVersionId) {
 				return;
 			}
-			model.setPartialSemanticTokens(range, toMultilineTokens2(r, styling, model.getLanguageId()));
+			const { provider, tokens: result } = r;
+			const styling = this._modelService.getSemanticTokensProviderStyling(provider);
+			model.setPartialSemanticTokens(range, toMultilineTokens2(result, styling, model.getLanguageId()));
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;
 	}
