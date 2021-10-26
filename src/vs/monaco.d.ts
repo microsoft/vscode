@@ -3346,6 +3346,10 @@ declare namespace monaco.editor {
 		 * Control the wrapping of the diff editor.
 		 */
 		diffWordWrap?: 'off' | 'on' | 'inherit';
+		/**
+		 * Controls whether the changes movement automatically restarts from the beginning (or the end) when no further changes can be found.
+		 */
+		changesLoop?: boolean;
 	}
 
 	/**

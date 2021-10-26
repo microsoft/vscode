@@ -986,6 +986,11 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly maxComputationTime: number;
+	/**
+	 * Controls whether the changes movement automatically restarts from the beginning (or the end) when no further changes can be found.
+	 * @internal
+	 */
+	readonly changesLoop: boolean;
 
 	/**
 	 * @see {@link ICodeEditor.getDomNode}

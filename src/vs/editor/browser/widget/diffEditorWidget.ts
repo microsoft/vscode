@@ -266,7 +266,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			originalEditable: false,
 			diffCodeLens: false,
 			renderOverviewRuler: true,
-			diffWordWrap: 'inherit'
+			diffWordWrap: 'inherit',
+			changesLoop: true
 		});
 
 		if (typeof options.isInEmbeddedEditor !== 'undefined') {
@@ -373,6 +374,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public get maxComputationTime(): number {
 		return this._options.maxComputationTime;
+	}
+
+	public get changesLoop(): boolean {
+		return this._options.changesLoop;
 	}
 
 	public getContentHeight(): number {
@@ -2500,6 +2505,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateDiffWordWrap(options.diffWordWrap, defaults.diffWordWrap),
+		changesLoop: validateBooleanOption(options.changesLoop, defaults.changesLoop),
 	};
 }
 
@@ -2515,6 +2521,7 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 		diffCodeLens: (a.diffCodeLens !== b.diffCodeLens),
 		renderOverviewRuler: (a.renderOverviewRuler !== b.renderOverviewRuler),
 		diffWordWrap: (a.diffWordWrap !== b.diffWordWrap),
+		changesLoop: (a.changesLoop !== b.changesLoop),
 	};
 }
 
