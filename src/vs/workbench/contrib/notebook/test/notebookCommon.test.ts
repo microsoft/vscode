@@ -192,6 +192,11 @@ suite('NotebookCommon', () => {
 		// deletes multiple
 		m.prioritize('text/plain', ['text/plain', 'text/html', Mimes.markdown]);
 		assert.deepStrictEqual(m.toArray(), ['text/plain', 'text/html', Mimes.markdown, 'application/json']);
+
+		// handles multiple mimetypes, unknown mimetype
+		const m2 = new MimeTypeDisplayOrder(['a', 'b']);
+		m2.prioritize('b', ['a', 'b', 'a', 'q']);
+		assert.deepStrictEqual(m2.toArray(), ['b', 'a']);
 	});
 
 	test('sortMimeTypes glob', function () {

@@ -652,11 +652,13 @@ export class MimeTypeDisplayOrder {
 
 		// Get the other mimetypes that are before the chosenMimetype. Then, move
 		// them after it, retaining order.
-		const otherIndices = otherMimetypes.map(m => this.findIndex(m, chosenIndex)).filter(i => i !== -1);
+		const uniqueIndicies = new Set(otherMimetypes.map(m => this.findIndex(m, chosenIndex)));
+		uniqueIndicies.delete(-1);
+		const otherIndices = Array.from(uniqueIndicies).sort();
 		this.order.splice(chosenIndex + 1, 0, ...otherIndices.map(i => this.order[i]));
 
-		for (const i of otherIndices.sort((a, b) => b - a)) {
-			this.order.splice(i, 1);
+		for (let oi = otherIndices.length - 1; oi >= 0; oi--) {
+			this.order.splice(otherIndices[oi], 1);
 		}
 	}
 
