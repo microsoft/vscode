@@ -739,6 +739,9 @@ export class TerminalService implements ITerminalService {
 			this._setConnected();
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
+			if (this._availableProfiles === undefined) {
+				await this._refreshAvailableProfilesNow();
+			}
 			this.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
