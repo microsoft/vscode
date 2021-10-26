@@ -100,7 +100,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
 			'default': false
-		}
+		},
+		'problems.sortOrder': {
+			'description': 'TODO',
+			'type': 'array',
+			'default': ['resource', 'severity', 'starts'],
+		},
 	}
 });
 
