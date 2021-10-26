@@ -817,7 +817,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}
 			}));
 			this.visibleDisposables.add(this.ui.onDidAccept(() => {
-				if (!this.canSelectMany && this.activeItems[0]) {
+				if (this.canSelectMany) {
+					this._selectedItems = this.ui.list.getCheckedElements() as T[];
+					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+				} else if (this.activeItems[0]) {
 					this._selectedItems = [this.activeItems[0]];
 					this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 				}
