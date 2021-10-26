@@ -63,7 +63,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		if (idx >= editor.getLength()) {
+		if (idx >= editor.getLength() - 1) {
 			// last one
 			return;
 		}
