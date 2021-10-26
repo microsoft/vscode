@@ -447,12 +447,8 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 				this.toggleRunAgainMessage(false);
 				await this.doRunSearch();
 				if (options.resetCursor) {
-					// Need to add to event loop to fix #134686.
-					const searchResultEditor = this.searchResultEditor;
-					setTimeout(function () {
-						searchResultEditor.setPosition(new Position(1, 1));
-						searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
-					}, 0);
+					this.searchResultEditor.setPosition(new Position(1, 1));
+					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 				if (options.focusResults) {
 					this.searchResultEditor.focus();
@@ -542,7 +538,7 @@ export class SearchEditor extends BaseTextEditor<SearchEditorViewState> {
 		});
 
 		const searchOperation = await startInput.ongoingSearchOperation;
-		this.onSearchComplete(searchOperation, config, startInput);
+		await this.onSearchComplete(searchOperation, config, startInput);
 	}
 
 	private async onSearchComplete(searchOperation: ISearchComplete, startConfig: SearchConfiguration, startInput: SearchEditorInput) {
