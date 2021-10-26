@@ -73,7 +73,7 @@
 	content: '';
 	width: 2px;
 	height: 24px;
-	position: relative;
+	position: absolute;
 	display: none;
 	opacity: 0;
 	background-color: var(--insert-border-color);
@@ -88,23 +88,23 @@
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before {
-	right: 11px;
+	left: 1px;
 	margin-left: -2px;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
-	left: 11px;
+	right: 1px;
 	margin-right: -2px;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:first-of-type::before {
-	right: 10px;
+	left: 2px;
 	margin-left: -2px;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
-	left: 10px;
-	margin-left: -2px;
+	right: 2px;
+	margin-right: -2px;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
