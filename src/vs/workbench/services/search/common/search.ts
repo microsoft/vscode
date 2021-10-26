@@ -383,7 +383,6 @@ export interface ISearchConfigurationProperties {
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
 		reusePriorSearchConfiguration: boolean,
-		openLocationToMatch: boolean,
 		defaultNumberOfContextLines: number | null,
 		experimental: {}
 	};

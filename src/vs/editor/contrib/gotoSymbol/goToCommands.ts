@@ -72,7 +72,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 		this._configuration = configuration;
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, args?: any | undefined): Promise<void> {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (!editor.hasModel()) {
 			return Promise.resolve(undefined);
 		}
@@ -116,7 +116,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 			} else {
 				// normal results handling
-				return this._onResult(editorService, symbolNavService, editor, references, args);
+				return this._onResult(editorService, symbolNavService, editor, references);
 			}
 
 		}, (err) => {
@@ -138,7 +138,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 
 	protected abstract _getGoToPreference(editor: IActiveCodeEditor): GoToLocationValues;
 
-	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel, args: any): Promise<void> {
+	private async _onResult(editorService: ICodeEditorService, symbolNavService: ISymbolNavigationService, editor: IActiveCodeEditor, model: ReferencesModel): Promise<void> {
 
 		const gotoLocation = this._getGoToPreference(editor);
 		if (!(editor instanceof EmbeddedCodeEditorWidget) && (this._configuration.openInPeek || (gotoLocation === 'peek' && model.references.length > 1))) {
@@ -147,7 +147,7 @@ abstract class SymbolNavigationAction extends EditorAction {
 		} else {
 			const next = model.firstReference()!;
 			const peek = model.references.length > 1 && gotoLocation === 'gotoAndPeek';
-			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek, args.selectionRange);
+			const targetEditor = await this._openReference(editor, editorService, next, this._configuration.openToSide, !peek);
 			if (peek && targetEditor) {
 				this._openInPeek(targetEditor, model);
 			} else {
@@ -162,30 +162,24 @@ abstract class SymbolNavigationAction extends EditorAction {
 		}
 	}
 
-	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean, selectionRange: IRange | undefined): Promise<ICodeEditor | undefined> {
+	private async _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location | LocationLink, sideBySide: boolean, highlight: boolean): Promise<ICodeEditor | undefined> {
 		// range is the target-selection-range when we have one
 		// and the fallback is the 'full' range
 		let range: IRange | undefined = undefined;
-		let selectFullRange = false;
-		if (selectionRange) {
-			range = selectionRange;
-			selectFullRange = true;
-		} else {
-			if (isLocationLink(reference)) {
-				range = reference.targetSelectionRange;
-			}
-			if (!range) {
-				range = reference.range;
-			}
-			if (!range) {
-				return undefined;
-			}
+		if (isLocationLink(reference)) {
+			range = reference.targetSelectionRange;
+		}
+		if (!range) {
+			range = reference.range;
+		}
+		if (!range) {
+			return undefined;
 		}
 
 		const targetEditor = await editorService.openCodeEditor({
 			resource: reference.uri,
 			options: {
-				selection: selectFullRange ? range : Range.collapseToStart(range),
+				selection: Range.collapseToStart(range),
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
 			}
 		}, editor, sideBySide);
