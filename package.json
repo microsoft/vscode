@@ -57,7 +57,9 @@
     "hygiene": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js hygiene",
     "core-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js core-ci",
     "extensions-ci": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js extensions-ci",
-    "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html"
+    "webview-generate-csp-hash": "npx github:apaatsio/csp-hash-from-html csp-hash ./src/vs/workbench/contrib/webview/browser/pre/index.html",
+    "server:init": "yarn --cwd ./build compile && yarn compile && yarn download-builtin-extensions",
+    "server:smoketest": "yarn --cwd ./test/smoke compile && yarn smoketest-no-compile --web --verbose --headless --electronArgs=\"--disable-dev-shm-usage --use-gl=swiftshader\""
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.2",

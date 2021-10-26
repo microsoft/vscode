@@ -1,0 +1,28 @@
+image:
+  file: .gitpod.Dockerfile
+ports:
+  - port: 9888
+    onOpen: open-browser
+tasks:
+  - init: |
+      yarn
+      yarn server:init
+    command: |
+      gp sync-done init
+      export NODE_ENV=development
+      export VSCODE_DEV=1
+      yarn gulp watch-init
+    name: watch app
+  - command: |
+      export NODE_ENV=development
+      export VSCODE_DEV=1
+      gp sync-await init
+      ./scripts/code-server.sh  --without-connection-token
+    name: run app
+    openMode: split-right
+github:
+  prebuilds:
+    pullRequestsFromForks: true
+vscode:
+  extensions:
+    - dbaeumer.vscode-eslint
