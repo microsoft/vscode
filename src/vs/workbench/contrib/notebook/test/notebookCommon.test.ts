@@ -188,6 +188,10 @@ suite('NotebookCommon', () => {
 		// moves multiple, preserves order
 		m.prioritize(Mimes.markdown, ['text/plain', 'application/json', Mimes.markdown]);
 		assert.deepStrictEqual(m.toArray(), ['text/html', Mimes.markdown, 'text/plain', 'application/json']);
+
+		// deletes multiple
+		m.prioritize('text/plain', ['text/plain', 'text/html', Mimes.markdown]);
+		assert.deepStrictEqual(m.toArray(), ['text/plain', 'text/html', Mimes.markdown, 'application/json']);
 	});
 
 	test('sortMimeTypes glob', function () {
