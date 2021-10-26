@@ -1040,8 +1040,7 @@ class BackwardsCompatibleRegExp {
 
 export class TitleCaseAction extends AbstractCaseAction {
 
-	public static titleBoundary = new BackwardsCompatibleRegExp('(^|[^\\p{L}\\p{N}])\\p{L}', 'gmu');
-	public static apostrophe = new BackwardsCompatibleRegExp('\\p{L}\'\\p{L}', 'gmu');
+	public static titleBoundary = new BackwardsCompatibleRegExp('(?:^|[^\\p{L}\\p{N}\']|(?:(?:^|[^\\p{L}\\p{N}])\'))\\p{L}', 'gmu');
 
 	constructor() {
 		super({
@@ -1054,15 +1053,13 @@ export class TitleCaseAction extends AbstractCaseAction {
 
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const titleBoundary = TitleCaseAction.titleBoundary.get();
-		const apostrophe = TitleCaseAction.apostrophe.get();
-		if (!titleBoundary || !apostrophe) {
+		if (!titleBoundary) {
 			// cannot support this
 			return text;
 		}
 		return text
 			.toLocaleLowerCase()
-			.replace(titleBoundary, (b) => b.toLocaleUpperCase())
-			.replace(apostrophe, (a) => a.toLocaleLowerCase());
+			.replace(titleBoundary, (b) => b.toLocaleUpperCase());
 	}
 }
 
@@ -1118,6 +1115,6 @@ registerEditorAction(LowerCaseAction);
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
 }
-if (TitleCaseAction.titleBoundary.isSupported() && TitleCaseAction.apostrophe.isSupported()) {
+if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);
 }
