@@ -20,7 +20,7 @@ import { editorBackground, editorForeground, resolveColorValue } from 'vs/platfo
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { CodeCellLayoutChangeEvent, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -52,6 +52,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { MarkerController } from 'vs/editor/contrib/gotoError/gotoError';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -280,7 +281,8 @@ export class InteractiveEditor extends EditorPane {
 					SuggestController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					ModesHoverController.ID
+					ModesHoverController.ID,
+					MarkerController.ID
 				])
 			}
 		});
