@@ -210,16 +210,32 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		}
 	}
 
+	private _canNavigateInLoop(): boolean {
+		return this.canNavigate() && this._editor.changesLoop;
+	}
+
+	private _canNavigateBack(): boolean {
+		return this._canNavigateInLoop() || (this.nextIdx !== 0);
+	}
+
+	private _canNavigateForward(): boolean {
+		return this._canNavigateInLoop() || (this.nextIdx !== this.ranges.length - 1);
+	}
+
 	canNavigate(): boolean {
 		return this.ranges && this.ranges.length > 0;
 	}
 
 	next(scrollType: ScrollType = ScrollType.Smooth): void {
-		this._move(true, scrollType);
+		if (this._canNavigateForward()) {
+			this._move(true, scrollType);
+		}
 	}
 
 	previous(scrollType: ScrollType = ScrollType.Smooth): void {
-		this._move(false, scrollType);
+		if (this._canNavigateBack()) {
+			this._move(false, scrollType);
+		}
 	}
 
 	override dispose(): void {
