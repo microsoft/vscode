@@ -487,7 +487,7 @@ export class CellOutputElement extends Disposable {
 		this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 
 		const { mimeType, rendererId } = mimeTypes[pick.index];
-		this.notebookService.updateMimePreferredRenderer(notebookTextModel.viewType, mimeType, rendererId);
+		this.notebookService.updateMimePreferredRenderer(notebookTextModel.viewType, mimeType, rendererId, mimeTypes.map(m => m.mimeType));
 		this.render(nextElement as HTMLElement);
 		this._validateFinalOutputHeight(false);
 		this._relayoutCell();

@@ -10,8 +10,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { isMacintosh } from 'vs/base/common/platform';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -96,6 +96,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
+	private _initalized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
@@ -215,7 +216,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		};
 	}
 
-	private generateContent(baseUrl: string) {
+	private generateContent(coreDependencies: string, baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -356,8 +357,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</style>
 			</head>
 			<body style="overflow: hidden;">
+				<script>
+					self.require = {};
+				</script>
+				${coreDependencies}
+				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
+				<script type="module">${preloadScript}</script>
 				<div id="container" class="widgetarea" style="position: absolute; width:100%; top: 0px"></div>
-				<script type="module" nonce="${this.nonce}">${preloadScript}</script>
 			</body>
 		</html>`;
 	}
@@ -402,11 +408,70 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		return !!this.webview;
 	}
 
-	createWebview(): void {
+	async createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
-		const htmlContent = this.generateContent(baseUrl.toString());
-		this._initialize(htmlContent);
-		return;
+
+		// Python notebooks assume that requirejs is a global.
+		// For all other notebooks, they need to provide their own loader.
+		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
+			const htmlContent = this.generateContent('', baseUrl.toString());
+			this._initialize(htmlContent);
+			return;
+		}
+
+		let coreDependencies = '';
+		let resolveFunc: () => void;
+
+		this._initalized = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+
+		if (!isWeb) {
+			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loader = this.asWebviewUri(loaderUri, undefined);
+
+			coreDependencies = `<script src="${loader}"></script><script>
+			var requirejs = (function() {
+				return require;
+			}());
+			</script>`;
+			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+			this._initialize(htmlContent);
+			resolveFunc!();
+		} else {
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+
+			fetch(loaderUri.toString(true)).then(async response => {
+				if (response.status !== 200) {
+					throw new Error(response.statusText);
+				}
+
+				const loaderJs = await response.text();
+
+				coreDependencies = `
+<script>
+${loaderJs}
+</script>
+<script>
+var requirejs = (function() {
+	return require;
+}());
+</script>
+`;
+
+				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+				this._initialize(htmlContent);
+				resolveFunc!();
+			}, error => {
+				// the fetch request is rejected
+				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
+				this._initialize(htmlContent);
+				resolveFunc!();
+			});
+		}
+
+		await this._initalized;
 	}
 
 	private _initialize(content: string) {

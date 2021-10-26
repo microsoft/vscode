@@ -227,7 +227,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get webviewExternalEndpoint(): string {
 		const endpoint = this.options.webviewEndpoint
-			|| this.productService.webviewContentExternalBaseUrlTemplate
+			|| this.productService.webEndpointUrlTemplate
 			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');

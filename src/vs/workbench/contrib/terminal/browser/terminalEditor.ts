@@ -24,7 +24,6 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -63,7 +62,6 @@ export class TerminalEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -203,7 +201,7 @@ export class TerminalEditor extends EditorPane {
 		switch (action.id) {
 			case TerminalCommandId.CreateWithProfileButton: {
 				const location = { viewColumn: ACTIVE_GROUP };
-				const actions = getTerminalActionBarArgs(location, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalContributionService.terminalProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
+				const actions = getTerminalActionBarArgs(location, this._terminalService.availableProfiles, this._getDefaultProfileName(), this._terminalService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
 				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
 				return button;
 			}

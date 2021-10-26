@@ -599,7 +599,6 @@ export namespace Codicon {
 	export const bracketError = new Codicon('bracket-error', { fontCharacter: '\\ebe6' });
 	export const lockSmall = new Codicon('lock-small', { fontCharacter: '\\ebe7' });
 	export const azureDevops = new Codicon('azure-devops', { fontCharacter: '\\ebe8' });
-
-
+	export const verifiedFilled = new Codicon('verified-filled', { fontCharacter: '\\ebe9' });
 }
 

@@ -23,7 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalProfileType, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -72,7 +72,7 @@ export class TerminalService implements ITerminalService {
 	private _defaultProfileName?: string;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
-	private _contributedProfiles: IExtensionTerminalProfile[] | undefined;
+	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _configHelper: TerminalConfigHelper;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
@@ -89,14 +89,8 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 		return this._availableProfiles || [];
 	}
-	get allProfiles(): ITerminalProfileType[] | undefined {
-		if (this._availableProfiles) {
-			const profiles: ITerminalProfileType[] = [];
-			profiles.concat(this._availableProfiles);
-			profiles.concat(this._terminalContributionService.terminalProfiles);
-			return profiles;
-		}
-		return undefined;
+	get contributedProfiles(): IExtensionTerminalProfile[] {
+		return this._contributedProfiles || [];
 	}
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
@@ -511,9 +505,19 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _refreshAvailableProfilesNow(): Promise<void> {
+		const platformKey = await this._getPlatformKey();
 		const profiles = await this._detectProfiles();
 		const profilesChanged = !equals(profiles, this._availableProfiles);
-		const contributedProfilesChanged = !equals(this._terminalContributionService.terminalProfiles, this._contributedProfiles);
+		const excludedContributedProfiles: string[] = [];
+		const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+		for (const [profileName, value] of Object.entries(configProfiles)) {
+			if (value === null) {
+				excludedContributedProfiles.push(profileName);
+			}
+		}
+		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
+		const contributedProfilesChanged = !equals(filteredContributedProfiles, this._contributedProfiles);
+
 		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
 			// available profiles get updated when a terminal is created
 			// or relevant config changes.
@@ -525,7 +529,7 @@ export class TerminalService implements ITerminalService {
 		}
 		if (profilesChanged || contributedProfilesChanged) {
 			this._availableProfiles = profiles;
-			this._contributedProfiles = Array.from(this._terminalContributionService.terminalProfiles);
+			this._contributedProfiles = filteredContributedProfiles;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
@@ -534,12 +538,12 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _updateWebContextKey(): void {
-		this._webExtensionContributedProfileContextKey.set(isWeb && this._terminalContributionService.terminalProfiles.length > 0);
+		this._webExtensionContributedProfileContextKey.set(isWeb && this._contributedProfiles.length > 0);
 	}
 
 	private async _refreshPlatformConfig(profiles: ITerminalProfile[]) {
 		const env = await this._remoteAgentService.getEnvironment();
-		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._terminalContributionService.terminalProfiles);
+		registerTerminalDefaultProfileConfiguration({ os: env?.os || OS, profiles }, this._contributedProfiles);
 		refreshTerminalActions(profiles);
 	}
 
@@ -987,7 +991,7 @@ export class TerminalService implements ITerminalService {
 
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
 		const contributedProfiles: IProfileQuickPickItem[] = [];
-		for (const contributed of this._terminalContributionService.terminalProfiles) {
+		for (const contributed of this.contributedProfiles) {
 			if (typeof contributed.icon === 'string' && contributed.icon.startsWith('$(')) {
 				contributed.icon = contributed.icon.substring(2, contributed.icon.length - 1);
 			}

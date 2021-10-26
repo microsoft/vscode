@@ -181,7 +181,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	hasEnabledDebuggers(): boolean {
 		for (let [type] of this.debugAdapterFactories) {
 			const dbg = this.getDebugger(type);
-			if (dbg && this.isDebuggerEnabled(dbg)) {
+			if (dbg && dbg.enabled) {
 				return true;
 			}
 		}
@@ -270,24 +270,20 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		return this.breakpointModeIdsSet.has(languageId);
 	}
 
-	isDebuggerEnabled(dbg: Debugger): boolean {
-		return !dbg.when || this.contextKeyService.contextMatchesRules(dbg.when);
-	}
-
 	getDebugger(type: string): Debugger | undefined {
 		return this.debuggers.find(dbg => strings.equalsIgnoreCase(dbg.type, type));
 	}
 
 	isDebuggerInterestedInLanguage(language: string): boolean {
 		return !!this.debuggers
-			.filter(d => this.isDebuggerEnabled(d))
+			.filter(d => d.enabled)
 			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
 	}
 
 	async guessDebugger(gettingConfigurations: boolean, type?: string): Promise<Debugger | undefined> {
 		if (type) {
 			const adapter = this.getDebugger(type);
-			return adapter && this.isDebuggerEnabled(adapter) ? adapter : undefined;
+			return adapter && adapter.enabled ? adapter : undefined;
 		}
 
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
@@ -301,7 +297,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 				languageLabel = this.modeService.getLanguageName(language);
 			}
 			const adapters = this.debuggers
-				.filter(a => this.isDebuggerEnabled(a))
+				.filter(a => a.enabled)
 				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
 				return adapters[0];
@@ -316,7 +312,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers
-				.filter(a => this.isDebuggerEnabled(a))
+				.filter(a => a.enabled)
 				.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 

@@ -478,7 +478,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private async loadTimeline(reset: boolean, sources?: string[]) {
-		// If we have no source, we are reseting all sources, so cancel everything in flight and reset caches
+		// If we have no source, we are resetting all sources, so cancel everything in flight and reset caches
 		if (sources === undefined) {
 			if (reset) {
 				this.clear(true);

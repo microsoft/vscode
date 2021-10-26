@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as pathUtils from 'path';
 
 const FILE_LINE_REGEX = /^(\S.*):$/;
-const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
+const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const ELISION_REGEX = /⟪ ([0-9]+) characters skipped ⟫/g;
 const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
@@ -220,10 +220,9 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 
 		const resultLine = RESULT_LINE_REGEX.exec(line);
 		if (resultLine) {
-			const [, indentation, _lineNumber, seperator, resultIndentation] = resultLine;
+			const [, indentation, _lineNumber, separator] = resultLine;
 			const lineNumber = +_lineNumber - 1;
-			const resultStart = (indentation + _lineNumber + seperator + resultIndentation).length;
-			const metadataOffset = (indentation + _lineNumber + seperator).length;
+			const metadataOffset = (indentation + _lineNumber + separator).length;
 			const targetRange = new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length);
 
 			let locations: Required<vscode.LocationLink>[] = [];
@@ -233,12 +232,12 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 				targetRange,
 				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
 				targetUri: currentTarget,
-				originSelectionRange: new vscode.Range(i, 0, i, resultStart),
+				originSelectionRange: new vscode.Range(i, 0, i, metadataOffset - 1),
 			});
 
-			let lastEnd = resultStart;
+			let lastEnd = metadataOffset;
 			let offset = 0;
-			ELISION_REGEX.lastIndex = resultStart;
+			ELISION_REGEX.lastIndex = metadataOffset;
 			for (let match: RegExpExecArray | null; (match = ELISION_REGEX.exec(line));) {
 				locations.push({
 					targetRange,
@@ -261,7 +260,7 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 			}
 
 			currentTargetLocations?.push(...locations);
-			links[i] = { type: 'result', locations, isContext: seperator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
+			links[i] = { type: 'result', locations, isContext: separator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
 		}
 	}
 
