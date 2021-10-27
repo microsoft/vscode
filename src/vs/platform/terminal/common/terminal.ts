@@ -96,6 +96,7 @@ export const enum TerminalSettingId {
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
+	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 }
 
 export enum WindowsShellType {
@@ -289,6 +290,8 @@ export interface IPtyService {
 	reviveTerminalProcesses(state: string): Promise<void>;
 	refreshProperty(id: number, property: ProcessPropertyType): Promise<any>;
 	updateProperty(id: number, property: ProcessPropertyType, value: any): Promise<void>;
+
+	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
 }
 
 export interface IRequestResolveVariablesEvent {

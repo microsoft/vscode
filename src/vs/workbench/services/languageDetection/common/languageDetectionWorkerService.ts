@@ -12,10 +12,10 @@ export interface ILanguageDetectionService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * @param modeId The modeId to check if language detection is currently enabled.
+	 * @param languageId The languageId to check if language detection is currently enabled.
 	 * @returns whether or not language detection is on for this language mode.
 	 */
-	isEnabledForMode(modeId: string): boolean;
+	isEnabledForMode(languageId: string): boolean;
 
 	/**
 	 * @param resource The resource to detect the language for.

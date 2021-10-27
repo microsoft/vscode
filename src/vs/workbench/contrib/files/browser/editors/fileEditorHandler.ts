@@ -81,7 +81,7 @@ export class FileEditorWorkingCopyEditorHandler extends Disposable implements IW
 
 	private installHandler(): void {
 		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => workingCopy.typeId === NO_TYPE_ID && this.fileService.canHandleResource(workingCopy.resource),
+			handles: workingCopy => workingCopy.typeId === NO_TYPE_ID && this.fileService.hasProvider(workingCopy.resource),
 			// Naturally it would make sense here to check for `instanceof FileEditorInput`
 			// but because some custom editors also leverage text file based working copies
 			// we need to do a weaker check by only comparing for the resource

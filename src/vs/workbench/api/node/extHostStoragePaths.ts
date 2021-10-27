@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionStoragePaths as CommonExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IntervalTimer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/node/pfs';
 
 export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
@@ -70,14 +71,14 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
 async function mkdir(dir: string): Promise<void> {
 	try {
-		await fs.promises.stat(dir);
+		await Promises.stat(dir);
 		return;
 	} catch {
 		// doesn't exist, that's OK
 	}
 
 	try {
-		await fs.promises.mkdir(dir, { recursive: true });
+		await Promises.mkdir(dir, { recursive: true });
 	} catch {
 	}
 }
@@ -104,7 +105,7 @@ class Lock extends Disposable {
 				this._timer.cancel();
 			}
 			try {
-				await fs.promises.utimes(filename, new Date(), new Date());
+				await Promises.utimes(filename, new Date(), new Date());
 			} catch (err) {
 				logService.error(err);
 				logService.info(`Lock '${filename}': Could not update mtime.`);
@@ -124,7 +125,7 @@ class Lock extends Disposable {
 				pid: process.pid,
 				willReleaseAt: Date.now() + timeUntilReleaseMs
 			};
-			await fs.promises.writeFile(this.filename, JSON.stringify(contents), { flag: 'w' });
+			await Promises.writeFile(this.filename, JSON.stringify(contents), { flag: 'w' });
 		} catch (err) {
 			this.logService.error(err);
 		}
@@ -142,7 +143,7 @@ async function tryAcquireLock(logService: ILogService, filename: string, isSecon
 			pid: process.pid,
 			willReleaseAt: 0
 		};
-		await fs.promises.writeFile(filename, JSON.stringify(contents), { flag: 'wx' });
+		await Promises.writeFile(filename, JSON.stringify(contents), { flag: 'wx' });
 	} catch (err) {
 		logService.error(err);
 	}
@@ -175,7 +176,7 @@ interface ILockfileContents {
 async function readLockfileContents(logService: ILogService, filename: string): Promise<ILockfileContents | null> {
 	let contents: Buffer;
 	try {
-		contents = await fs.promises.readFile(filename);
+		contents = await Promises.readFile(filename);
 	} catch (err) {
 		// cannot read the file
 		logService.error(err);
@@ -197,7 +198,7 @@ async function readLockfileContents(logService: ILogService, filename: string): 
 async function readmtime(logService: ILogService, filename: string): Promise<number> {
 	let stats: fs.Stats;
 	try {
-		stats = await fs.promises.stat(filename);
+		stats = await Promises.stat(filename);
 	} catch (err) {
 		// cannot read the file stats to check if it is stale or not
 		logService.error(err);
@@ -280,7 +281,7 @@ async function checkStaleAndTryAcquireLock(logService: ILogService, filename: st
 async function tryDeleteAndAcquireLock(logService: ILogService, filename: string): Promise<Lock | null> {
 	logService.info(`Lock '${filename}': Deleting a stale lock.`);
 	try {
-		await fs.promises.unlink(filename);
+		await Promises.unlink(filename);
 	} catch (err) {
 		// cannot delete the file
 		// maybe the file is already deleted

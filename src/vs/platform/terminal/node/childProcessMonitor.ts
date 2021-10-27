@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from 'path';
+import { parse } from 'vs/base/common/path';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,13 +22,7 @@ const enum Constants {
 	ActiveDebounceDuration = 1000,
 }
 
-const ignoreProcessNames = [
-	// Popular prompt programs, these should not count as child processes
-	'starship',
-	'oh-my-posh',
-	// Git bash may runs a subprocess of itself (bin\bash.exe -> usr\bin\bash.exe)
-	'bash',
-];
+export const ignoreProcessNames: string[] = [];
 
 /**
  * Monitors a process for child processes, checking at differing times depending on input and output

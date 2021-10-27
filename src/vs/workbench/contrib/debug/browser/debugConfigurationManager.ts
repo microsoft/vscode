@@ -133,6 +133,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 		}));
 
+		// The resolver can change the type, ensure activation happens, #135090
+		if (result?.type && result.type !== config.type) {
+			await this.activateDebuggers('onDebugResolve', result.type);
+		}
+
 		return result;
 	}
 

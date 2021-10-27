@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import * as modes from 'vs/editor/common/modes';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
 export function createScopedLineTokens(context: LineTokens, offset: number): ScopedLineTokens {
 	let tokenCount = context.getCount();
@@ -34,7 +34,7 @@ export function createScopedLineTokens(context: LineTokens, offset: number): Sco
 export class ScopedLineTokens {
 	_scopedLineTokensBrand: void = undefined;
 
-	public readonly languageId: modes.LanguageId;
+	public readonly languageId: string;
 	private readonly _actual: LineTokens;
 	private readonly _firstTokenIndex: number;
 	private readonly _lastTokenIndex: number;
@@ -43,7 +43,7 @@ export class ScopedLineTokens {
 
 	constructor(
 		actual: LineTokens,
-		languageId: modes.LanguageId,
+		languageId: string,
 		firstTokenIndex: number,
 		lastTokenIndex: number,
 		firstCharOffset: number,
@@ -75,15 +75,15 @@ export class ScopedLineTokens {
 		return this._actual.findTokenIndexAtOffset(offset + this.firstCharOffset) - this._firstTokenIndex;
 	}
 
-	public getStandardTokenType(tokenIndex: number): modes.StandardTokenType {
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
 		return this._actual.getStandardTokenType(tokenIndex + this._firstTokenIndex);
 	}
 }
 
 const enum IgnoreBracketsInTokens {
-	value = modes.StandardTokenType.Comment | modes.StandardTokenType.String | modes.StandardTokenType.RegEx
+	value = StandardTokenType.Comment | StandardTokenType.String | StandardTokenType.RegEx
 }
 
-export function ignoreBracketsInToken(standardTokenType: modes.StandardTokenType): boolean {
+export function ignoreBracketsInToken(standardTokenType: StandardTokenType): boolean {
 	return (standardTokenType & IgnoreBracketsInTokens.value) !== 0;
 }

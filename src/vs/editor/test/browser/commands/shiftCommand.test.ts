@@ -8,7 +8,6 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
 import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
@@ -29,11 +28,11 @@ export function createSingleEditOp(text: string, positionLineNumber: number, pos
 
 class DocBlockCommentMode extends MockMode {
 
-	private static readonly _id = new LanguageIdentifier('commentMode', 3);
+	private static readonly _id = 'commentMode';
 
 	constructor() {
 		super(DocBlockCommentMode._id);
-		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+		this._register(LanguageConfigurationRegistry.register(this.languageId, {
 			brackets: [
 				['(', ')'],
 				['{', '}'],
@@ -45,8 +44,8 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		indentSize: 4,
@@ -56,8 +55,8 @@ function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifie
 	}), expectedLines, expectedSelection);
 }
 
-function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageId, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		indentSize: 4,
@@ -565,7 +564,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				mode.getLanguageIdentifier(),
+				mode.languageId,
 				true,
 				new Selection(1, 1, 5, 20),
 				[
@@ -586,7 +585,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'function hello() {}'
 				],
-				mode.getLanguageIdentifier(),
+				mode.languageId,
 				true,
 				new Selection(1, 1, 5, 20),
 				[
@@ -607,7 +606,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					'\t */',
 					'\tfunction hello() {}'
 				],
-				mode.getLanguageIdentifier(),
+				mode.languageId,
 				true,
 				new Selection(1, 1, 5, 21),
 				[
@@ -635,7 +634,7 @@ suite('Editor Commands - ShiftCommand', () => {
 					' */',
 					'var foo = 0;'
 				],
-				mode.getLanguageIdentifier(),
+				mode.languageId,
 				true,
 				new Selection(1, 1, 7, 13),
 				[

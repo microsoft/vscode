@@ -51,7 +51,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			const viewContainer = this.viewDescriptorService.getViewContainerById(location);
 			if (viewContainer) {
 				const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-				if (viewContainerLocation) {
+				if (viewContainerLocation !== null) {
 					return this.withPaneCompositeProgress(location, viewContainerLocation, task, { ...options, location });
 				}
 			}

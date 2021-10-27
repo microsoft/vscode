@@ -258,7 +258,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
+								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -577,7 +577,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					viewModel.updateOutputsScroll(event.data.widgets);
+					event.data.widgets.forEach(widget => {
+						outputRunner.enqueue(widget.outputId, () => {
+							viewModel.updateOutputsScroll([widget]);
+						});
+					});
 					viewModel.updateMarkupScrolls(event.data.markupCells);
 					break;
 				}
@@ -629,7 +633,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			case 'decorations':
 				{
-					const outputContainer = document.getElementById(event.data.cellId);
+					let outputContainer = document.getElementById(event.data.cellId);
+					if (!outputContainer) {
+						viewModel.ensureOutputCell(event.data.cellId, -100000);
+						outputContainer = document.getElementById(event.data.cellId);
+					}
 					outputContainer?.classList.add(...event.data.addedClassNames);
 					outputContainer?.classList.remove(...event.data.removedClassNames);
 				}
@@ -826,7 +834,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 					if (!ext) {
 						throw new Error(`Could not find extending renderer: ${extensionId}`);
 					}
-
 					await ext.load();
 				}));
 			}
@@ -844,7 +851,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			return renderer.load();
 		}
-
 
 		public clearAll() {
 			outputRunner.cancelAll();
@@ -882,9 +888,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return;
 			}
 
-			await Promise.all(renderers.map(x => x.load()));
+			// De-prioritize built-in renderers
+			renderers.sort((a, b) => +a.data.isBuiltin - +b.data.isBuiltin);
 
-			renderers[0].api?.renderOutputItem(info, element);
+			(await renderers[0].load())?.renderOutputItem(info, element);
 		}
 	}();
 
@@ -1020,7 +1027,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 		}
 
-		private ensureOutputCell(cellId: string, cellTop: number): OutputCell {
+		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
 			let cell = this._outputCells.get(cellId);
 			if (!cell) {
 				cell = new OutputCell(cellId);
@@ -1449,7 +1456,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					init: true,
 				});
 
-				this.element.style.padding = `${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodePadding}px 0`;
+				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 			} else {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
@@ -1468,6 +1475,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const markupCellDragManager = new class MarkupCellDragManager {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
+
+		// Transparent overlay that prevents elements from inside the webview from eating
+		// drag events.
+		private dragOverlay?: HTMLElement;
 
 		constructor() {
 			document.addEventListener('dragover', e => {
@@ -1504,6 +1515,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.currentDrag = { cellId, clientY: e.clientY };
 
+			const overlayZIndex = 9999;
+			if (!this.dragOverlay) {
+				this.dragOverlay = document.createElement('div');
+				this.dragOverlay.style.position = 'absolute';
+				this.dragOverlay.style.top = '0';
+				this.dragOverlay.style.left = '0';
+				this.dragOverlay.style.zIndex = `${overlayZIndex}`;
+				this.dragOverlay.style.width = '100%';
+				this.dragOverlay.style.height = '100%';
+				this.dragOverlay.style.background = 'transparent';
+				document.body.appendChild(this.dragOverlay);
+			}
+			(e.target as HTMLElement).style.zIndex = `${overlayZIndex + 1}`;
 			(e.target as HTMLElement).classList.add('dragging');
 
 			postNotebookMessage<webviewMessages.ICellDragStartMessage>('cell-drag-start', {
@@ -1541,8 +1565,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 			postNotebookMessage<webviewMessages.ICellDragEndMessage>('cell-drag-end', {
 				cellId: cellId
 			});
-		}
 
+			if (this.dragOverlay) {
+				document.body.removeChild(this.dragOverlay);
+				this.dragOverlay = undefined;
+			}
+
+			(e.target as HTMLElement).style.zIndex = '';
+		}
 	}();
 }
 
@@ -1552,6 +1582,7 @@ export interface RendererMetadata {
 	readonly mimeTypes: readonly string[];
 	readonly extends: string | undefined;
 	readonly messaging: boolean;
+	readonly isBuiltin: boolean;
 }
 
 export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
@@ -1562,7 +1593,7 @@ export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOp
 		isWorkspaceTrusted,
 		nonce,
 	};
-	// TS will try compiling `import()` in webviewPreloads, so use an helper function instead
+	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead
 	// of using `import(...)` directly
 	return `
 		const __import = (x) => import(x);

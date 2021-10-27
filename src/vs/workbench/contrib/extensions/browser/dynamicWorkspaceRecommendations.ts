@@ -53,7 +53,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 
 		if (this._recommendations.length
 			|| this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER
-			|| !this.fileService.canHandleResource(this.contextService.getWorkspace().folders[0].uri)
+			|| !this.fileService.hasProvider(this.contextService.getWorkspace().folders[0].uri)
 		) {
 			return;
 		}

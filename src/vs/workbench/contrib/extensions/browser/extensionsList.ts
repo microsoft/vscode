@@ -20,11 +20,12 @@ import { IExtensionService, toExtension } from 'vs/workbench/services/extensions
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -38,7 +39,8 @@ export interface ITemplateData {
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
-	author: HTMLElement;
+	publisherDisplayName: HTMLElement;
+	verifiedPublisherIcon: HTMLElement;
 	description: HTMLElement;
 	installCount: HTMLElement;
 	ratings: HTMLElement;
@@ -92,7 +94,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
-		const author = append(footer, $('.author.ellipsis'));
+		const publisher = append(footer, $('.author.ellipsis'));
+		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
+		const publisherDisplayName = append(publisher, $('.publisher-name.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
@@ -142,7 +146,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {
-			root, element, icon, name, installCount, ratings, description, author, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, description, publisherDisplayName, verifiedPublisherIcon, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -159,7 +163,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.icon.src = '';
 		data.name.textContent = '';
 		data.description.textContent = '';
-		data.author.textContent = '';
+		data.publisherDisplayName.textContent = '';
+		data.verifiedPublisherIcon.style.display = 'none';
 		data.installCount.style.display = 'none';
 		data.ratings.style.display = 'none';
 		data.extension = null;
@@ -178,7 +183,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const updateEnablement = async () => {
 			let isDisabled = false;
-			if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
+			if (extension.state === ExtensionState.Uninstalled) {
+				isDisabled = !(await this.extensionsWorkbenchService.canInstall(extension));
+			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
 				const runningExtensions = await this.extensionService.getExtensions();
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
 				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
@@ -200,7 +207,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.name.textContent = extension.displayName;
 		data.description.textContent = extension.description;
-		data.author.textContent = extension.publisherDisplayName;
+		data.publisherDisplayName.textContent = extension.publisherDisplayName;
+		data.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
 
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';

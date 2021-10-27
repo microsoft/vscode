@@ -44,6 +44,11 @@ class CodeLensViewZone implements IViewZone {
 			this._onHeight();
 		}
 	}
+
+	isVisible(): boolean {
+		return this._lastHeight !== 0
+			&& this.domNode.hasAttribute('monaco-visible-view-zone');
+	}
 }
 
 class CodeLensContentWidget implements IContentWidget {
@@ -289,7 +294,7 @@ export class CodeLensWidget {
 	}
 
 	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {
-		if (!this._viewZone.domNode.hasAttribute('monaco-visible-view-zone')) {
+		if (!this._viewZone.isVisible()) {
 			return null;
 		}
 

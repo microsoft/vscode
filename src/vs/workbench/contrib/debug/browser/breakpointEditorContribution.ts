@@ -79,8 +79,8 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 
 	if (message) {
 		if (breakpoint.condition || breakpoint.hitCondition) {
-			const modeId = model.getLanguageIdentifier().language;
-			glyphMarginHoverMessage = new MarkdownString().appendCodeblock(modeId, message);
+			const languageId = model.getLanguageId();
+			glyphMarginHoverMessage = new MarkdownString().appendCodeblock(languageId, message);
 		} else {
 			glyphMarginHoverMessage = new MarkdownString().appendText(message);
 		}

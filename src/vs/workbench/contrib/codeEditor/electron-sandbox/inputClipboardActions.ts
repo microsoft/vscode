@@ -15,21 +15,21 @@ if (platform.isMacintosh) {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execCut',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyX,
 		handler: bindExecuteCommand('cut'),
 		weight: 0,
 		when: undefined,
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execCopy',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 		handler: bindExecuteCommand('copy'),
 		weight: 0,
 		when: undefined,
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execPaste',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyV,
 		handler: bindExecuteCommand('paste'),
 		weight: 0,
 		when: undefined,

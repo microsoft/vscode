@@ -103,7 +103,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						data.lines,
 						data.EOL,
 						data.versionId,
-						data.modeId,
+						data.languageId,
 						data.isDirty,
 						data.notebook
 					));

@@ -38,7 +38,7 @@ suite('Workbench editor utils', () => {
 	let accessor: TestServiceAccessor;
 
 	async function createServices(): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
@@ -50,7 +50,7 @@ suite('Workbench editor utils', () => {
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		disposables.add(registerTestFileEditor());

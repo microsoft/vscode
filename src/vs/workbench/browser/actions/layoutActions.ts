@@ -260,7 +260,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_B
+				primary: KeyMod.CtrlCmd | KeyCode.KeyB
 			}
 		});
 	}
@@ -365,8 +365,8 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: undefined,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_W, }
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyW, }
 			}
 		});
 	}
@@ -397,7 +397,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_Z)
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyZ)
 			},
 			toggled: InEditorZenModeContext,
 			menu: {

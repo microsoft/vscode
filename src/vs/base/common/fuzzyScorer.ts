@@ -208,8 +208,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			// }
 		}
 
-		// Inside word upper case bonus (camel case)
-		else if (isUpper(target.charCodeAt(targetIndex))) {
+		// Inside word upper case bonus (camel case). We only give this bonus if we're not in a contiguous sequence.
+		// For example:
+		// NPE => NullPointerException = boost
+		// HTTP => HTTP = not boost
+		else if (isUpper(target.charCodeAt(targetIndex)) && matchesSequenceLength === 0) {
 			score += 2;
 
 			// if (DEBUG) {

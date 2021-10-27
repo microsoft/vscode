@@ -282,6 +282,74 @@ export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	}
 }
 
+export class DeleteDuplicateLinesAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeDuplicateLines',
+			label: nls.localize('lines.deleteDuplicates', "Delete Duplicate Lines"),
+			alias: 'Delete Duplicate Lines',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		let model: ITextModel = editor.getModel();
+		if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
+			return;
+		}
+
+		let edits: IIdentifiedSingleEditOperation[] = [];
+		let endCursorState: Selection[] = [];
+
+		let linesDeleted = 0;
+
+		for (let selection of editor.getSelections()) {
+			let uniqueLines = new Set();
+			let lines = [];
+
+			for (let i = selection.startLineNumber; i <= selection.endLineNumber; i++) {
+				let line = model.getLineContent(i);
+
+				if (uniqueLines.has(line)) {
+					continue;
+				}
+
+				lines.push(line);
+				uniqueLines.add(line);
+			}
+
+
+			let selectionToReplace = new Selection(
+				selection.startLineNumber,
+				1,
+				selection.endLineNumber,
+				model.getLineMaxColumn(selection.endLineNumber)
+			);
+
+			let adjustedSelectionStart = selection.startLineNumber - linesDeleted;
+			let finalSelection = new Selection(
+				adjustedSelectionStart,
+				1,
+				adjustedSelectionStart + lines.length - 1,
+				lines[lines.length - 1].length
+			);
+
+			edits.push(EditOperation.replace(selectionToReplace, lines.join('\n')));
+			endCursorState.push(finalSelection);
+
+			linesDeleted += (selection.endLineNumber - selection.startLineNumber + 1) - lines.length;
+		}
+
+		editor.pushUndoStop();
+		editor.executeEdits(this.id, edits, endCursorState);
+		editor.pushUndoStop();
+	}
+}
+
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static readonly ID = 'editor.action.trimTrailingWhitespace';
@@ -294,7 +362,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -342,7 +410,7 @@ export class DeleteLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyK,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -444,7 +512,7 @@ export class IndentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketRight,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -470,7 +538,7 @@ class OutdentLinesAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketLeft,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -662,7 +730,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyK, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -729,7 +797,7 @@ export class JoinLinesAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyJ },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -1111,6 +1179,7 @@ registerEditorAction(MoveLinesUpAction);
 registerEditorAction(MoveLinesDownAction);
 registerEditorAction(SortLinesAscendingAction);
 registerEditorAction(SortLinesDescendingAction);
+registerEditorAction(DeleteDuplicateLinesAction);
 registerEditorAction(TrimTrailingWhitespaceAction);
 registerEditorAction(DeleteLinesAction);
 registerEditorAction(IndentLinesAction);

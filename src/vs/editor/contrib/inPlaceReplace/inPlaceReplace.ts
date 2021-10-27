@@ -140,7 +140,7 @@ class InPlaceReplaceUp extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Comma,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -165,7 +165,7 @@ class InPlaceReplaceDown extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

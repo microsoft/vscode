@@ -18,7 +18,7 @@ import { FileAccess } from 'vs/base/common/network';
 
 export interface IValidGrammarDefinitionDTO {
 	location: UriComponents;
-	language?: LanguageId;
+	language?: string;
 	scopeName: string;
 	embeddedLanguages: IValidEmbeddedLanguagesMap;
 	tokenTypes: IValidTokenTypeMap;
@@ -34,22 +34,25 @@ export interface IRawModelData {
 	versionId: number;
 	lines: string[];
 	EOL: string;
-	languageId: LanguageId;
+	languageId: string;
+	encodedLanguageId: LanguageId;
 }
 
 class TextMateWorkerModel extends MirrorTextModel {
 
 	private readonly _tokenizationStateStore: TokenizationStateStore;
 	private readonly _worker: TextMateWorker;
-	private _languageId: LanguageId;
+	private _languageId: string;
+	private _encodedLanguageId: LanguageId;
 	private _grammar: IGrammar | null;
 	private _isDisposed: boolean;
 
-	constructor(uri: URI, lines: string[], eol: string, versionId: number, worker: TextMateWorker, languageId: LanguageId) {
+	constructor(uri: URI, lines: string[], eol: string, versionId: number, worker: TextMateWorker, languageId: string, encodedLanguageId: LanguageId) {
 		super(uri, lines, eol, versionId);
 		this._tokenizationStateStore = new TokenizationStateStore();
 		this._worker = worker;
 		this._languageId = languageId;
+		this._encodedLanguageId = encodedLanguageId;
 		this._isDisposed = false;
 		this._grammar = null;
 		this._resetTokenization();
@@ -60,8 +63,9 @@ class TextMateWorkerModel extends MirrorTextModel {
 		super.dispose();
 	}
 
-	public onLanguageId(languageId: LanguageId): void {
+	public onLanguageId(languageId: string, encodedLanguageId: LanguageId): void {
 		this._languageId = languageId;
+		this._encodedLanguageId = encodedLanguageId;
 		this._resetTokenization();
 	}
 
@@ -80,8 +84,9 @@ class TextMateWorkerModel extends MirrorTextModel {
 		this._tokenizationStateStore.flush(null);
 
 		const languageId = this._languageId;
-		this._worker.getOrCreateGrammar(languageId).then((r) => {
-			if (this._isDisposed || languageId !== this._languageId || !r) {
+		const encodedLanguageId = this._encodedLanguageId;
+		this._worker.getOrCreateGrammar(languageId, encodedLanguageId).then((r) => {
+			if (this._isDisposed || languageId !== this._languageId || encodedLanguageId !== this._encodedLanguageId || !r) {
 				return;
 			}
 
@@ -169,15 +174,15 @@ export class TextMateWorker {
 	public acceptNewModel(data: IRawModelData): void {
 		const uri = URI.revive(data.uri);
 		const key = uri.toString();
-		this._models[key] = new TextMateWorkerModel(uri, data.lines, data.EOL, data.versionId, this, data.languageId);
+		this._models[key] = new TextMateWorkerModel(uri, data.lines, data.EOL, data.versionId, this, data.languageId, data.encodedLanguageId);
 	}
 
 	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
 		this._models[strURL].onEvents(e);
 	}
 
-	public acceptModelLanguageChanged(strURL: string, newLanguageId: LanguageId): void {
-		this._models[strURL].onLanguageId(newLanguageId);
+	public acceptModelLanguageChanged(strURL: string, newLanguageId: string, newEncodedLanguageId: LanguageId): void {
+		this._models[strURL].onLanguageId(newLanguageId, newEncodedLanguageId);
 	}
 
 	public acceptRemovedModel(strURL: string): void {
@@ -187,15 +192,15 @@ export class TextMateWorker {
 		}
 	}
 
-	public async getOrCreateGrammar(languageId: LanguageId): Promise<ICreateGrammarResult | null> {
+	public async getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null> {
 		const grammarFactory = await this._grammarFactory;
 		if (!grammarFactory) {
 			return Promise.resolve(null);
 		}
-		if (!this._grammarCache[languageId]) {
-			this._grammarCache[languageId] = grammarFactory.createGrammar(languageId);
+		if (!this._grammarCache[encodedLanguageId]) {
+			this._grammarCache[encodedLanguageId] = grammarFactory.createGrammar(languageId, encodedLanguageId);
 		}
-		return this._grammarCache[languageId];
+		return this._grammarCache[encodedLanguageId];
 	}
 
 	public async acceptTheme(theme: IRawTheme, colorMap: string[]): Promise<void> {

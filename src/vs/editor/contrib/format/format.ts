@@ -6,7 +6,7 @@
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -22,7 +22,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { DocumentFormattingEditProvider, DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProvider, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry, TextEdit } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -425,40 +425,47 @@ export function getOnTypeFormattingEdits(
 	});
 }
 
-CommandsRegistry.registerCommand('_executeFormatRangeProvider', function (accessor, ...args) {
+CommandsRegistry.registerCommand('_executeFormatRangeProvider', async function (accessor, ...args) {
 	const [resource, range, options] = args;
 	assertType(URI.isUri(resource));
 	assertType(Range.isIRange(range));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const resolverService = accessor.get(ITextModelService);
+	const workerService = accessor.get(IEditorWorkerService);
+	const reference = await resolverService.createModelReference(resource);
+	try {
+		return getDocumentRangeFormattingEditsUntilResult(workerService, reference.object.textEditorModel, Range.lift(range), options, CancellationToken.None);
+	} finally {
+		reference.dispose();
 	}
-	return getDocumentRangeFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, Range.lift(range), options, CancellationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeFormatDocumentProvider', function (accessor, ...args) {
+CommandsRegistry.registerCommand('_executeFormatDocumentProvider', async function (accessor, ...args) {
 	const [resource, options] = args;
 	assertType(URI.isUri(resource));
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const resolverService = accessor.get(ITextModelService);
+	const workerService = accessor.get(IEditorWorkerService);
+	const reference = await resolverService.createModelReference(resource);
+	try {
+		return getDocumentFormattingEditsUntilResult(workerService, reference.object.textEditorModel, options, CancellationToken.None);
+	} finally {
+		reference.dispose();
 	}
-
-	return getDocumentFormattingEditsUntilResult(accessor.get(IEditorWorkerService), model, options, CancellationToken.None);
 });
 
-CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', function (accessor, ...args) {
+CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function (accessor, ...args) {
 	const [resource, position, ch, options] = args;
 	assertType(URI.isUri(resource));
 	assertType(Position.isIPosition(position));
 	assertType(typeof ch === 'string');
 
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument('resource');
+	const resolverService = accessor.get(ITextModelService);
+	const workerService = accessor.get(IEditorWorkerService);
+	const reference = await resolverService.createModelReference(resource);
+	try {
+		return getOnTypeFormattingEdits(workerService, reference.object.textEditorModel, Position.lift(position), ch, options);
+	} finally {
+		reference.dispose();
 	}
-
-	return getOnTypeFormattingEdits(accessor.get(IEditorWorkerService), model, Position.lift(position), ch, options);
 });

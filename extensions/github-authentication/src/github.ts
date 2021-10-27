@@ -117,7 +117,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		let sessionData: SessionData[];
 		try {
 			this._logger.info('Reading sessions from keychain...');
-			const storedSessions = await this._keychain.getToken() || await this._keychain.tryMigrate();
+			const storedSessions = await this._keychain.getToken();
 			if (!storedSessions) {
 				return [];
 			}

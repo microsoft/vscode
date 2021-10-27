@@ -202,7 +202,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	override getMode(): string | undefined {
 		if (this.textEditorModel) {
-			return this.textEditorModel.getModeId();
+			return this.textEditorModel.getLanguageId();
 		}
 
 		return this.preferredMode;

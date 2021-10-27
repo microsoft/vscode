@@ -738,8 +738,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (editorWidget && editorInput && toEditorWithModeSupport(editorInput)) {
 			const textModel = editorWidget.getModel();
 			if (textModel) {
-				const modeId = textModel.getLanguageIdentifier().language;
-				info.mode = withNullAsUndefined(this.modeService.getLanguageName(modeId));
+				const languageId = textModel.getLanguageId();
+				info.mode = withNullAsUndefined(this.modeService.getLanguageName(languageId));
 			}
 		}
 
@@ -1107,7 +1107,7 @@ export class ChangeModeAction extends Action {
 		let currentLanguageId: string | undefined;
 		let currentModeId: string | undefined;
 		if (textModel) {
-			currentModeId = textModel.getLanguageIdentifier().language;
+			currentModeId = textModel.getLanguageId();
 			currentLanguageId = withNullAsUndefined(this.modeService.getLanguageName(currentModeId));
 		}
 
@@ -1120,19 +1120,19 @@ export class ChangeModeAction extends Action {
 		const languages = this.modeService.getRegisteredLanguageNames();
 		const picks: QuickPickInput[] = languages.sort()
 			.map(lang => {
-				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const languageId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
 				const extensions = this.modeService.getExtensions(lang).join(' ');
 				let description: string;
 				if (currentLanguageId === lang) {
-					description = localize('languageDescription', "({0}) - Configured Language", modeId);
+					description = localize('languageDescription', "({0}) - Configured Language", languageId);
 				} else {
-					description = localize('languageDescriptionConfigured', "({0})", modeId);
+					description = localize('languageDescriptionConfigured', "({0})", languageId);
 				}
 
 				return {
 					label: lang,
 					meta: extensions,
-					iconClasses: getIconClassesForModeId(modeId),
+					iconClasses: getIconClassesForModeId(languageId),
 					description
 				};
 			});
@@ -1201,13 +1201,13 @@ export class ChangeModeAction extends Action {
 						const resource = EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 						if (resource) {
 							// Detect languages since we are in an untitled file
-							let modeId: string | undefined = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
-							if (!modeId) {
+							let languageId: string | undefined = withNullAsUndefined(this.modeService.getModeIdByFilepathOrFirstLine(resource, textModel.getLineContent(1)));
+							if (!languageId) {
 								detectedLanguage = await this.languageDetectionService.detectLanguage(resource);
-								modeId = detectedLanguage;
+								languageId = detectedLanguage;
 							}
-							if (modeId) {
-								languageSelection = this.modeService.create(modeId);
+							if (languageId) {
+								languageSelection = this.modeService.create(languageId);
 							}
 						}
 					}
@@ -1232,7 +1232,7 @@ export class ChangeModeAction extends Action {
 
 				// Change mode
 				if (typeof languageSelection !== 'undefined') {
-					modeSupport.setMode(languageSelection.languageIdentifier.language);
+					modeSupport.setMode(languageSelection.languageId);
 				}
 			}
 
@@ -1410,12 +1410,12 @@ export class ChangeEncodingAction extends Action {
 		await timeout(50); // quick input is sensitive to being opened so soon after another
 
 		const resource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
+		if (!resource || (!this.fileService.hasProvider(resource) && resource.scheme !== Schemas.untitled)) {
 			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}
 
 		let guessedEncoding: string | undefined = undefined;
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			const content = await this.textFileService.readStream(resource, { autoGuessEncoding: true });
 			guessedEncoding = content.encoding;
 		}

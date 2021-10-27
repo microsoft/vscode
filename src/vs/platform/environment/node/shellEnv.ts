@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
 import { spawn } from 'child_process';
+import { basename } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -15,6 +15,7 @@ import { getSystemShell } from 'vs/base/node/shell';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 /**
  * The maximum of time we accept to wait on resolving the shell
@@ -69,13 +70,13 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 		// subsequent calls since this operation can be
 		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = new Promise(async (resolve, reject) => {
+			unixShellEnvPromise = Promises.withAsyncBody<NodeJS.ProcessEnv>(async (resolve, reject) => {
 				const cts = new CancellationTokenSource();
 
 				// Give up resolving shell env after some time
 				const timeout = setTimeout(() => {
 					cts.dispose(true);
-					reject(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration."));
+					reject(new Error(localize('resolveShellEnvTimeout', "Unable to resolve your shell environment in a reasonable time. Please review your shell configuration.")));
 				}, MAX_SHELL_RESOLVE_TIME);
 
 				// Resolve shell env and handle errors
@@ -83,10 +84,10 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 					resolve(await doResolveUnixShellEnv(logService, cts.token));
 				} catch (error) {
 					if (!isPromiseCanceledError(error) && !cts.token.isCancellationRequested) {
-						reject(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error)));
+						reject(new Error(localize('resolveShellEnvError', "Unable to resolve your shell environment: {0}", toErrorMessage(error))));
+					} else {
+						resolve({});
 					}
-
-					resolve({});
 				} finally {
 					clearTimeout(timeout);
 					cts.dispose();
@@ -99,28 +100,28 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 }
 
 async function doResolveUnixShellEnv(logService: ILogService, token: CancellationToken): Promise<typeof process.env> {
-	return new Promise<typeof process.env>(async (resolve, reject) => {
-		const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
-		logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
+	const runAsNode = process.env['ELECTRON_RUN_AS_NODE'];
+	logService.trace('getUnixShellEnvironment#runAsNode', runAsNode);
 
-		const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
-		logService.trace('getUnixShellEnvironment#noAttach', noAttach);
+	const noAttach = process.env['ELECTRON_NO_ATTACH_CONSOLE'];
+	logService.trace('getUnixShellEnvironment#noAttach', noAttach);
 
-		const mark = generateUuid().replace(/-/g, '').substr(0, 12);
-		const regex = new RegExp(mark + '(.*)' + mark);
+	const mark = generateUuid().replace(/-/g, '').substr(0, 12);
+	const regex = new RegExp(mark + '(.*)' + mark);
 
-		const env = {
-			...process.env,
-			ELECTRON_RUN_AS_NODE: '1',
-			ELECTRON_NO_ATTACH_CONSOLE: '1'
-		};
+	const env = {
+		...process.env,
+		ELECTRON_RUN_AS_NODE: '1',
+		ELECTRON_NO_ATTACH_CONSOLE: '1'
+	};
 
-		logService.trace('getUnixShellEnvironment#env', env);
-		const systemShellUnix = await getSystemShell(OS, env);
-		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
+	logService.trace('getUnixShellEnvironment#env', env);
+	const systemShellUnix = await getSystemShell(OS, env);
+	logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
+	return new Promise<typeof process.env>((resolve, reject) => {
 		if (token.isCancellationRequested) {
-			return reject(canceled);
+			return reject(canceled());
 		}
 
 		// handle popular non-POSIX shells
@@ -147,7 +148,7 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		token.onCancellationRequested(() => {
 			child.kill();
 
-			return reject(canceled);
+			return reject(canceled());
 		});
 
 		child.on('error', err => {

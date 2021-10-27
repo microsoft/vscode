@@ -185,6 +185,10 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 			url: doCreateUri('/auth/logout', queryValues).toString(true)
 		}, CancellationToken.None);
 	}
+
+	async clear(): Promise<void> {
+		window.localStorage.removeItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
+	}
 }
 
 class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {

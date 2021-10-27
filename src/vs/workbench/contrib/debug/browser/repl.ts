@@ -329,7 +329,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
 			if (this.model && activeEditorControl.hasModel()) {
-				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
+				this.model.setMode(activeEditorControl.getModel().getLanguageId());
 			}
 		}
 	}
@@ -409,7 +409,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}
 
-		this.replInput.updateOptions({ readOnly: this.isReadonly });
+		this.replInput?.updateOptions({ readOnly: this.isReadonly });
 		this.updateInputDecoration();
 	}
 
@@ -772,7 +772,7 @@ class FilterReplAction extends EditorAction {
 			precondition: CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

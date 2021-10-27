@@ -7,12 +7,14 @@ import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Mimes } from 'vs/base/common/mime';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { CellKind, CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebookDiffModel } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookCommon', () => {
+	const configurationService = new TestConfigurationService();
 
 	test('diff different source', async () => {
 		await withTestNotebookDiffModel([
@@ -36,7 +38,7 @@ suite('NotebookCommon', () => {
 			}]);
 
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
@@ -68,7 +70,7 @@ suite('NotebookCommon', () => {
 			}]);
 
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
@@ -99,7 +101,7 @@ suite('NotebookCommon', () => {
 			}]);
 
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
@@ -137,7 +139,7 @@ suite('NotebookCommon', () => {
 			}]);
 
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 1);
@@ -158,7 +160,7 @@ suite('NotebookCommon', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
@@ -181,7 +183,7 @@ suite('NotebookCommon', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 3);
@@ -201,7 +203,7 @@ suite('NotebookCommon', () => {
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], (model, accessor) => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: {
 					changes: [{
 						originalStart: 0,
@@ -241,7 +243,7 @@ suite('NotebookCommon', () => {
 			['var g = 7;', 'javascript', CellKind.Code, [], {}],
 		], async (model, accessor) => {
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffResult = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: {
 					changes: [{
 						originalStart: 0,
@@ -365,7 +367,7 @@ suite('NotebookCommon', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 2);
@@ -387,7 +389,7 @@ suite('NotebookCommon', () => {
 			const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
 			const diffResult = diff.ComputeDiff(false);
 			const eventDispatcher = new NotebookDiffEditorEventDispatcher();
-			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, model, eventDispatcher, {
+			const diffViewModels = NotebookTextDiffEditor.computeDiff(accessor, configurationService, model, eventDispatcher, {
 				cellsDiff: diffResult
 			});
 			assert.strictEqual(diffViewModels.viewModels.length, 2);

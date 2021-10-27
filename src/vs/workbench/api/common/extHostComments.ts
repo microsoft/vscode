@@ -483,7 +483,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		private _threads: Map<number, ExtHostCommentThread> = new Map<number, ExtHostCommentThread>();
-		commentingRangeProvider?: vscode.CommentingRangeProvider;
+
+		private _commentingRangeProvider?: vscode.CommentingRangeProvider;
+		get commentingRangeProvider(): vscode.CommentingRangeProvider | undefined {
+			return this._commentingRangeProvider;
+		}
+
+		set commentingRangeProvider(provider: vscode.CommentingRangeProvider | undefined) {
+			this._commentingRangeProvider = provider;
+			proxy.$updateCommentingRanges(this.handle);
+		}
 
 		private _reactionHandler?: ReactionHandler;
 

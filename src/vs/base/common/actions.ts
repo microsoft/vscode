@@ -29,7 +29,7 @@ export interface IAction extends IDisposable {
 	tooltip: string;
 	class: string | undefined;
 	enabled: boolean;
-	checked: boolean;
+	checked?: boolean;
 	run(event?: unknown): unknown;
 }
 
@@ -58,7 +58,7 @@ export class Action extends Disposable implements IAction {
 	protected _tooltip: string | undefined;
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
-	protected _checked: boolean = false;
+	protected _checked?: boolean;
 	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
 	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
@@ -134,15 +134,15 @@ export class Action extends Disposable implements IAction {
 		}
 	}
 
-	get checked(): boolean {
+	get checked(): boolean | undefined {
 		return this._checked;
 	}
 
-	set checked(value: boolean) {
+	set checked(value: boolean | undefined) {
 		this._setChecked(value);
 	}
 
-	protected _setChecked(value: boolean): void {
+	protected _setChecked(value: boolean | undefined): void {
 		if (this._checked !== value) {
 			this._checked = value;
 			this._onDidChange.fire({ checked: value });

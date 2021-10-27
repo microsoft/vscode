@@ -5,7 +5,7 @@
 
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISharedProcessTunnel, ISharedProcessTunnelService } from 'vs/platform/remote/common/sharedProcessTunnelService';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ISharedTunnelsService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { IAddress, IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
@@ -55,7 +55,7 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 	private readonly _disposedTunnels: Set<string> = new Set<string>();
 
 	constructor(
-		@ITunnelService private readonly _tunnelService: ITunnelService,
+		@ISharedTunnelsService private readonly _tunnelService: ISharedTunnelsService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -71,10 +71,10 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 		return { id };
 	}
 
-	async startTunnel(id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
+	async startTunnel(authority: string, id: string, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<ISharedProcessTunnel> {
 		const tunnelData = new TunnelData();
 
-		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded));
+		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(authority, tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded));
 		if (!tunnel) {
 			this._logService.info(`[SharedProcessTunnelService] Could not create a tunnel to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
 			tunnelData.dispose();

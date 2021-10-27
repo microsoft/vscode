@@ -68,6 +68,7 @@
 
 .monaco-workbench .hover-language-status > .element .right .monaco-link {
 	margin: auto 0;
+	white-space: nowrap;
 }
 
 .monaco-workbench .hover-language-status > .element .right .monaco-action-bar:not(:first-child) {

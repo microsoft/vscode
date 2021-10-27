@@ -28,11 +28,11 @@ suite('suggest, word distance', function () {
 
 	class BracketMode extends MockMode {
 
-		private static readonly _id = new modes.LanguageIdentifier('bracketMode', 3);
+		private static readonly _id = 'bracketMode';
 
 		constructor() {
 			super(BracketMode._id);
-			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+			this._register(LanguageConfigurationRegistry.register(this.languageId, {
 				brackets: [
 					['{', '}'],
 					['[', ']'],
@@ -48,7 +48,7 @@ suite('suggest, word distance', function () {
 
 		disposables.clear();
 		let mode = new BracketMode();
-		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.getLanguageIdentifier(), URI.parse('test:///some.path'));
+		let model = createTextModel('function abc(aa, ab){\na\n}', undefined, mode.languageId, URI.parse('test:///some.path'));
 		let editor = createTestCodeEditor({ model: model });
 		editor.updateOptions({ suggest: { localityBonus: true } });
 		editor.setPosition({ lineNumber: 2, column: 2 });

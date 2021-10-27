@@ -184,6 +184,15 @@ declare module 'vscode' {
 		 * Defaults to false.
 		 */
 		forceNewSession?: boolean | { detail: string };
+		/**
+		 * Whether we should show the indication to sign in in the Accounts menu.
+		 *
+		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
+		 * If true, no indication will be shown.
+		 *
+		 * Defaults to false.
+		 */
+		silent?: boolean;
 	}
 
 	export namespace authentication {
@@ -201,6 +210,7 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { forceNewSession: true | { detail: string } }): Thenable<AuthenticationSession>;
+		export function hasSession(providerId: string, scopes: readonly string[]): Thenable<boolean>;
 	}
 
 	export namespace workspace {
@@ -1565,6 +1575,10 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookController {
+		/**
+		 * The human-readable label used to categorise controllers.
+		 */
+		kind?: string;
 
 		// todo@API allow add, not remove
 		readonly rendererScripts: NotebookRendererScript[];
@@ -1844,6 +1858,7 @@ declare module 'vscode' {
 		 * An optional event to signal that inlay hints have changed.
 		 * @see {@link EventEmitter}
 		 */
+		//todo@API needs proper doc (like others)
 		onDidChangeInlayHints?: Event<void>;
 
 		/**
@@ -2264,24 +2279,27 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The resource represented by the tab if availble.
+		 * The resource represented by the tab if available.
 		 * Note: Not all tabs have a resource associated with them.
 		 */
-		readonly resource?: Uri;
+		readonly resource: Uri | undefined;
 
 		/**
 		 * The identifier of the view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId?: string;
+		readonly viewId: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
 		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
 		 * always be at index 0.
 		 */
-		additionalResourcesAndViewIds: { resource?: Uri, viewId?: string }[];
+		readonly additionalResourcesAndViewIds: readonly {
+			readonly resource: Uri | undefined,
+			readonly viewId: string | undefined
+		}[];
 
 		/**
 		 * Whether or not the tab is currently active
@@ -2803,23 +2821,6 @@ declare module 'vscode' {
 	export interface QuickPickItemButtonEvent<T extends QuickPickItem> {
 		button: QuickInputButton;
 		item: T;
-	}
-
-	//#endregion
-
-	//#region @mjbvz https://github.com/microsoft/vscode/issues/40607
-	export interface MarkdownString {
-		/**
-		 * Indicates that this markdown string can contain raw html tags. Default to false.
-		 *
-		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
-		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
-		 *
-		 * When `supportHtml` is true, the markdown render will also allow a safe subset of html tags
-		 * and attributes to be rendered. See https://github.com/microsoft/vscode/blob/6d2920473c6f13759c978dd89104c4270a83422d/src/vs/base/browser/markdownRenderer.ts#L296
-		 * for a list of all supported tags and attributes.
-		 */
-		supportHtml?: boolean;
 	}
 
 	//#endregion

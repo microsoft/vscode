@@ -54,6 +54,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { isLinux, isNative, isWindows } from 'vs/base/common/platform';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1174,7 +1175,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditors()
 
-	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | null> {
+	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions }[]): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid editors. Disposed editors
 		// should never open because they emit no events
@@ -1184,7 +1185,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Use the first editor as active editor
 		const firstEditor = firstOrDefault(editorsToOpen);
 		if (!firstEditor) {
-			return null;
+			return;
 		}
 
 		const openEditorsOptions: IInternalEditorOpenOptions = {
@@ -1219,7 +1220,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Opening many editors at once can put any editor to be
 		// the active one depending on options. As such, we simply
 		// return the active editor pane after this operation.
-		return this.editorPane.activeEditorPane;
+		return withNullAsUndefined(this.editorPane.activeEditorPane);
 	}
 
 	//#endregion
@@ -1317,7 +1318,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, fromMove: true });
+			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
 	}
 
@@ -1370,7 +1371,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		await this.doCloseEditorWithDirtyHandling(editor, options);
 	}
 
-	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions): Promise<boolean> {
+	private async doCloseEditorWithDirtyHandling(editor: EditorInput | undefined = this.activeEditor || undefined, options?: ICloseEditorOptions, internalOptions?: IInternalEditorCloseOptions): Promise<boolean> {
 		if (!editor) {
 			return false;
 		}
@@ -1382,7 +1383,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Do close
-		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined);
+		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined, internalOptions);
 
 		return true;
 	}
@@ -1433,7 +1434,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model
 		let index: number | undefined = undefined;
 		if (editorToClose) {
-			index = this.model.closeEditor(editorToClose, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+			index = this.model.closeEditor(editorToClose, internalOptions?.context)?.index;
 		}
 
 		// Open next active if there are more to show
@@ -1503,7 +1504,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseInactiveEditor(editor: EditorInput, internalOptions?: IInternalEditorCloseOptions): number | undefined {
 
 		// Update model
-		return this.model.closeEditor(editor, internalOptions?.fromMove ? EditorCloseContext.MOVE : undefined)?.index;
+		return this.model.closeEditor(editor, internalOptions?.context)?.index;
 	}
 
 	private async handleDirtyClosing(editors: EditorInput[]): Promise<boolean /* veto */> {
@@ -1570,22 +1571,35 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor is still editable somewhere else
 		}
 
-		// Auto-save on focus change: assume to Save unless the editor is untitled
-		// because bringing up a dialog would save in this case anyway.
+		// In some cases trigger save before opening the dialog depending
+		// on auto-save configuration.
 		// However, make sure to respect `skipAutoSave` option in case the automated
-		// save fails which would result in the editor never closing
-		// (see https://github.com/microsoft/vscode/issues/108752)
-		let confirmation: ConfirmResult;
+		// save fails which would result in the editor never closing.
+		let confirmation = ConfirmResult.CANCEL;
 		let saveReason = SaveReason.EXPLICIT;
 		let autoSave = false;
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave) {
-			autoSave = true;
-			confirmation = ConfirmResult.SAVE;
-			saveReason = SaveReason.FOCUS_CHANGE;
+		if (!editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave) {
+
+			// Auto-save on focus change: save, because a dialog would steal focus
+			// (see https://github.com/microsoft/vscode/issues/108752)
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE) {
+				autoSave = true;
+				confirmation = ConfirmResult.SAVE;
+				saveReason = SaveReason.FOCUS_CHANGE;
+			}
+
+			// Auto-save on window change: save, because on Windows and Linux, a
+			// native dialog triggers the window focus change
+			// (see https://github.com/microsoft/vscode/issues/134250)
+			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE) {
+				autoSave = true;
+				confirmation = ConfirmResult.SAVE;
+				saveReason = SaveReason.WINDOW_CHANGE;
+			}
 		}
 
 		// No auto-save on focus change: ask user
-		else {
+		if (!autoSave) {
 
 			// Switch to editor that we want to handle and confirm to save/revert
 			await this.doOpenEditor(editor);
@@ -1817,11 +1831,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (!editor.matches(replacement)) {
 				let closed = false;
 				if (forceReplaceDirty) {
-					this.doCloseEditor(editor, false);
+					this.doCloseEditor(editor, false, { context: EditorCloseContext.REPLACE });
 					closed = true;
 				} else {
-					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true });
+					closed = await this.doCloseEditorWithDirtyHandling(editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
+
 				if (!closed) {
 					return; // canceled
 				}
@@ -1837,9 +1852,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
 				if (activeReplacement.forceReplaceDirty) {
-					this.doCloseEditor(activeReplacement.editor, false);
+					this.doCloseEditor(activeReplacement.editor, false, { context: EditorCloseContext.REPLACE });
 				} else {
-					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true });
+					await this.doCloseEditorWithDirtyHandling(activeReplacement.editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
 			}
 

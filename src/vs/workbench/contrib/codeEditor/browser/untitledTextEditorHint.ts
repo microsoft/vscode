@@ -18,6 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -32,7 +33,8 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 
 	) {
 		this.toDispose = [];
@@ -50,8 +52,8 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 		const configValue = this.configurationService.getValue(untitledTextEditorHintSetting);
 		const model = this.editor.getModel();
 
-		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && configValue === 'text') {
-			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService);
+		if (model && model.uri.scheme === Schemas.untitled && model.getLanguageId() === PLAINTEXT_MODE_ID && configValue === 'text') {
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
 		}
 	}
 
@@ -72,6 +74,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
+		private readonly keybindingService: IKeybindingService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
@@ -103,6 +106,11 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
 			language.innerText = localize('selectAlanguage2', "Select a language");
+			const languageKeyBinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
+			const languageKeybindingLabel = languageKeyBinding?.getLabel();
+			if (languageKeybindingLabel) {
+				language.title = localize('keyboardBindingTooltip', "{0}", languageKeybindingLabel);
+			}
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);

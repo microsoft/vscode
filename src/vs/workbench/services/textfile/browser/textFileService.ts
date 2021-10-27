@@ -133,7 +133,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				if (isReadonly && isOrphaned) {
 					return {
 						color: listErrorForeground,
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						strikethrough: true,
 						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
 					};
@@ -142,7 +142,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// Readonly
 				else if (isReadonly) {
 					return {
-						letter: Codicon.lock,
+						letter: Codicon.lockSmall,
 						tooltip: localize('readonly', "Read Only"),
 					};
 				}
@@ -350,7 +350,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// underlying file system cannot have both and then save.
 		// However, this will only work if the source exists
 		// and is not orphaned, so we need to check that too.
-		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
+		if (this.fileService.hasProvider(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
 			await this.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
 
 			// At this point we don't know whether we have a
@@ -380,7 +380,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 		// Otherwise if the source can be handled by the file service
 		// we can simply invoke the copy() function to save as
-		else if (this.fileService.canHandleResource(source)) {
+		else if (this.fileService.hasProvider(source)) {
 			await this.fileService.copy(source, target, true);
 
 			success = true;
@@ -503,9 +503,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			this.modelService.updateModel(targetTextModel, createTextBufferFactoryFromSnapshot(sourceTextModel.createSnapshot()));
 
 			// mode
-			const sourceMode = sourceTextModel.getLanguageIdentifier();
-			const targetMode = targetTextModel.getLanguageIdentifier();
-			if (sourceMode.language !== PLAINTEXT_MODE_ID && targetMode.language === PLAINTEXT_MODE_ID) {
+			const sourceMode = sourceTextModel.getLanguageId();
+			const targetMode = targetTextModel.getLanguageId();
+			if (sourceMode !== PLAINTEXT_MODE_ID && targetMode === PLAINTEXT_MODE_ID) {
 				targetTextModel.setMode(sourceMode); // only use if more specific than plain/text
 			}
 
@@ -536,7 +536,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	private async suggestSavePath(resource: URI): Promise<URI> {
 
 		// Just take the resource as is if the file service can handle it
-		if (this.fileService.canHandleResource(resource)) {
+		if (this.fileService.hasProvider(resource)) {
 			return resource;
 		}
 

@@ -122,7 +122,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 				}
 
 				const modules = lookup[request];
-				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
+				const ext = extensionPaths.findSubstr(URI.file(parent.filename));
 				let cache = modulesCache.get(ext);
 				if (!cache) {
 					modulesCache.set(ext, cache = {});

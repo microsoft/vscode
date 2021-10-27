@@ -28,12 +28,20 @@
 
 .colorpicker-header .picked-color {
 	width: 216px;
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	line-height: 24px;
 	cursor: pointer;
 	color: white;
 	flex: 1;
-	text-align: center;
+}
+
+.colorpicker-header .picked-color .codicon {
+	color: inherit;
+	font-size: 14px;
+	position: absolute;
+	left: 8px;
 }
 
 .colorpicker-header .picked-color.light {

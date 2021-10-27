@@ -339,7 +339,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		const selections = editor.getSelections();
 		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
 		const autoClosingQuotes = editor.getOption(EditorOption.autoClosingQuotes);
-		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageIdentifier().id);
+		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageId());
 		const viewModel = editor._getViewModel();
 
 		const commands = selections.map((sel) => {

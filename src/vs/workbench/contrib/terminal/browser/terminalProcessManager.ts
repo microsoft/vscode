@@ -181,15 +181,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async detachFromProcess(): Promise<void> {
-		if (!this._process) {
-			return;
-		}
-		if (this._process.detach) {
-			await this._process.detach();
-		} else {
-			throw new Error('This terminal process does not support detaching');
-		}
-		this._process = null;
+		await this._process?.detach?.();
 	}
 
 	async createProcess(
@@ -269,7 +261,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						'terminal.integrated.cwd': this._configurationService.getValue(TerminalSettingId.Cwd) as string,
 						'terminal.integrated.detectLocale': terminalConfig.detectLocale
 					};
-					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
+					try {
+						newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, configuration, activeWorkspaceRootUri, cols, rows, this._configHelper.config.unicodeVersion, shouldPersist);
+					} catch (e) {
+						if (e?.message === 'Could not fetch remote environment') {
+							this._logService.trace(`Could not fetch remote environment, silently failing`);
+							return undefined;
+						}
+						throw e;
+					}
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
@@ -565,7 +565,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
-			throw new Error('No process');
+			throw new Error('Cannot refresh property when process is undefined');
 		}
 		return this._process.refreshProperty(type);
 	}

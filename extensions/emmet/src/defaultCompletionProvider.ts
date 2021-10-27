@@ -49,7 +49,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
+		let emmetMode = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), mappedLanguages, excludedLanguages);
 
 		if (!emmetMode
 			|| emmetConfig['showExpandedAbbreviation'] === 'never'
@@ -59,7 +59,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		let syntax = emmetMode;
 
-		const helper = getEmmetHelper();
 		let validateLocation = syntax === 'html' || syntax === 'jsx' || syntax === 'xml';
 		let rootNode: Node | undefined;
 		let currentNode: Node | undefined;
@@ -67,6 +66,13 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const lsDoc = toLSTextDocument(document);
 		position = document.validatePosition(position);
 
+		// Don't show completions if there's a comment at the beginning of the line
+		const lineRange = new vscode.Range(position.line, 0, position.line, position.character);
+		if (document.getText(lineRange).trimStart().startsWith('//')) {
+			return;
+		}
+
+		const helper = getEmmetHelper();
 		if (syntax === 'html') {
 			if (context.triggerKind === vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 				switch (this.lastCompletionType) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -12,6 +13,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -26,15 +28,28 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookViewModel', () => {
-	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
-	const bulkEditService = instantiationService.get(IBulkEditService);
-	const undoRedoService = instantiationService.get(IUndoRedoService);
-	const modelService = instantiationService.get(IModelService);
-	const modeService = instantiationService.get(IModeService);
+	let disposables: DisposableStore;
+	let instantiationService: TestInstantiationService;
+	let textModelService: ITextModelService;
+	let bulkEditService: IBulkEditService;
+	let undoRedoService: IUndoRedoService;
+	let modelService: IModelService;
+	let modeService: IModeService;
 
-	instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	instantiationService.stub(IThemeService, new TestThemeService());
+	suiteSetup(() => {
+		disposables = new DisposableStore();
+		instantiationService = setupInstantiationService(disposables);
+		textModelService = instantiationService.get(ITextModelService);
+		bulkEditService = instantiationService.get(IBulkEditService);
+		undoRedoService = instantiationService.get(IUndoRedoService);
+		modelService = instantiationService.get(IModelService);
+		modeService = instantiationService.get(IModeService);
+
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IThemeService, new TestThemeService());
+	});
+
+	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);

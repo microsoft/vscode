@@ -423,7 +423,7 @@ export class ExternalFileImport {
 		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
 
 		// Check for dropped external files to be folders
-		const files = coalesce(candidateFiles.filter(resource => this.fileService.canHandleResource(resource)));
+		const files = coalesce(candidateFiles.filter(resource => this.fileService.hasProvider(resource)));
 		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {

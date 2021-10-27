@@ -260,10 +260,9 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 	private static _severityToComboCodicon(sev: Severity): string {
 		switch (sev) {
-			// todo@jrieken
-			// case Severity.Error: return '$(error)';
-			// case Severity.Warning: return '$(warning)';
-			default: return '$(check-all)';
+			case Severity.Error: return '$(bracket-error)';
+			case Severity.Warning: return '$(bracket-dot)';
+			default: return '$(bracket)';
 		}
 	}
 
@@ -315,7 +314,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			text: item.label,
 			ariaLabel: item.accessibilityInfo?.label ?? item.label,
 			role: item.accessibilityInfo?.role,
-			tooltip: new MarkdownString(item.detail, true),
+			tooltip: item.command?.tooltip || new MarkdownString(item.detail, true),
 			color,
 			backgroundColor,
 			command: item.command

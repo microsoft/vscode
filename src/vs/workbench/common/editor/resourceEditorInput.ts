@@ -18,7 +18,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.CanSplitInGroup;
 
-		if (this.fileService.canHandleResource(this.resource)) {
+		if (this.fileService.hasProvider(this.resource)) {
 			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}

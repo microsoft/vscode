@@ -24,7 +24,8 @@
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
-    "onOpenExternalUri:https"
+    "onOpenExternalUri:https",
+    "onWebviewPanel:simpleBrowser.view"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -65,7 +66,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.4.1",
+    "vscode-extension-telemetry": "0.4.2",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

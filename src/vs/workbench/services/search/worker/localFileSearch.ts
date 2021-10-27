@@ -14,6 +14,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { createRegExp } from 'vs/base/common/strings';
+import { Promises } from 'vs/base/common/async';
 
 const PERF = false;
 
@@ -202,19 +203,21 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 		const processDirectory = async (directory: FileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
 
-			const ignoreFiles = await Promise.all([
-				directory.getFileHandle('.gitignore').catch(e => undefined),
-				directory.getFileHandle('.ignore').catch(e => undefined),
-			]);
+			if (!folderQuery.disregardIgnoreFiles) {
+				const ignoreFiles = await Promise.all([
+					directory.getFileHandle('.gitignore').catch(e => undefined),
+					directory.getFileHandle('.ignore').catch(e => undefined),
+				]);
 
-			await Promise.all(ignoreFiles.map(async file => {
-				if (!file) { return; }
+				await Promise.all(ignoreFiles.map(async file => {
+					if (!file) { return; }
 
-				const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-				ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
-			}));
+					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
+					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile);
+				}));
+			}
 
-			const entries = new Promise<(FileNode | DirNode)[]>(async c => {
+			const entries = Promises.withAsyncBody<(FileNode | DirNode)[]>(async c => {
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];
 

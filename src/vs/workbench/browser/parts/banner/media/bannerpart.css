@@ -15,6 +15,7 @@
 
 .monaco-workbench .part.banner .icon-container {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
 	padding: 0 6px 0 10px;
 }

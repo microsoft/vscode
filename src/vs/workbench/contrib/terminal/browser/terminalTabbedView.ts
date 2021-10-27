@@ -340,25 +340,19 @@ export class TerminalTabbedView extends Disposable {
 			event.stopPropagation();
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalGroupService.instances.length === 0) {
+			const terminal = this._terminalGroupService.activeInstance;
+			if (this._terminalGroupService.instances.length === 0 || !terminal) {
+				this._cancelContextMenu = true;
 				return;
 			}
 
 			if (event.which === 2 && isLinux) {
 				// Drop selection and focus terminal on Linux to enable middle button paste when click
 				// occurs on the selection itself.
-				const terminal = this._terminalGroupService.activeInstance;
-				if (terminal) {
-					terminal.focus();
-				}
+				terminal.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalGroupService.activeInstance;
-					if (!terminal) {
-						return;
-					}
-
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);

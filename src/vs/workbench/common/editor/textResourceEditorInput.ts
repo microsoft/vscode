@@ -40,7 +40,7 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 
 		// If this is neither an `untitled` resource, nor a resource
 		// we can handle with the file service, we can only "Save As..."
-		if (this.resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(this.resource)) {
+		if (this.resource.scheme !== Schemas.untitled && !this.fileService.hasProvider(this.resource)) {
 			return this.saveAs(group, options);
 		}
 

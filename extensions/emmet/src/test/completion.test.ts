@@ -61,7 +61,7 @@ function testHtmlCompletionProvider(contents: string, expectedItems: TestComplet
 			editor.document,
 			editor.selection.active,
 			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
 		);
 		if (!completionPromise) {
 			return Promise.resolve();
@@ -102,7 +102,7 @@ function testCssCompletionProvider(contents: string, expectedItems: TestCompleti
 			editor.document,
 			editor.selection.active,
 			cancelSrc.token,
-			{ triggerKind: CompletionTriggerKind.Invoke }
+			{ triggerKind: CompletionTriggerKind.Invoke, triggerCharacter: undefined }
 		);
 		if (!completionPromise) {
 			return Promise.resolve();

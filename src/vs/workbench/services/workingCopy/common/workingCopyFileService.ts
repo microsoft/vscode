@@ -296,7 +296,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// register a default working copy provider that uses the working copy service
 		this._register(this.registerWorkingCopyProvider(resource => {
 			return this.workingCopyService.workingCopies.filter(workingCopy => {
-				if (this.fileService.canHandleResource(resource)) {
+				if (this.fileService.hasProvider(resource)) {
 					// only check for parents if the resource can be handled
 					// by the file system where we then assume a folder like
 					// path structure

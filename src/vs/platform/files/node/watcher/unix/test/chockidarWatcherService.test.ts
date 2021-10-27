@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as platform from 'vs/base/common/platform';
-import { IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IWatchRequest } from 'vs/platform/files/common/watcher';
 
 suite('Chokidar normalizeRoots', async () => {
 

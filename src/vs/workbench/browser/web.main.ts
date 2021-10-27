@@ -65,6 +65,7 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } fr
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { safeStringify } from 'vs/base/common/objects';
+import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 
 class BrowserMain extends Disposable {
 
@@ -89,7 +90,7 @@ class BrowserMain extends Disposable {
 		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
 		// Create Workbench
-		const workbench = new Workbench(this.domElement, services.serviceCollection, services.logService);
+		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService, services.logService);
@@ -275,10 +276,9 @@ class BrowserMain extends Disposable {
 			]));
 		})();
 
+		// Remote file system
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-
-			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
@@ -294,50 +294,61 @@ class BrowserMain extends Disposable {
 		let userDataProvider: IFileSystemProvider | undefined;
 		if (indexedDBUserDataProvider) {
 			userDataProvider = indexedDBUserDataProvider;
+
+			this.registerDeveloperActions(indexedDBUserDataProvider);
 		} else {
-			logService.info('using in-memory user data provider');
+			logService.info('Using in-memory user data provider');
+
 			userDataProvider = new InMemoryFileSystemProvider();
 		}
 
 		fileService.registerProvider(Schemas.userData, userDataProvider);
 
-		if (indexedDBUserDataProvider) {
-			registerAction2(class ResetUserDataAction extends Action2 {
-				constructor() {
-					super({
-						id: 'workbench.action.resetUserData',
-						title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
-						category: CATEGORIES.Developer,
-						menu: {
-							id: MenuId.CommandPalette
-						}
-					});
-				}
-
-				async run(accessor: ServicesAccessor): Promise<void> {
-					const dialogService = accessor.get(IDialogService);
-					const hostService = accessor.get(IHostService);
-					const storageService = accessor.get(IStorageService);
-					const result = await dialogService.confirm({
-						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
-					});
-
-					if (result.confirmed) {
-						await indexedDBUserDataProvider?.reset();
-						if (storageService instanceof BrowserStorageService) {
-							await storageService.clear();
-						}
-					}
-
-					hostService.reload();
-				}
-			});
-		}
-
+		// Local file access (if supported by browser)
 		if (WebFileSystemAccess.supported(window)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
 		}
+
+		// In-memory
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
+	}
+
+	private registerDeveloperActions(provider: IIndexedDBFileSystemProvider): void {
+		registerAction2(class ResetUserDataAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.resetUserData',
+					title: { original: 'Reset User Data', value: localize('reset', "Reset User Data") },
+					category: CATEGORIES.Developer,
+					menu: {
+						id: MenuId.CommandPalette
+					}
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const dialogService = accessor.get(IDialogService);
+				const hostService = accessor.get(IHostService);
+				const storageService = accessor.get(IStorageService);
+				const credentialsService = accessor.get(ICredentialsService);
+				const result = await dialogService.confirm({
+					message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
+				});
+
+				if (result.confirmed) {
+					await provider?.reset();
+					if (storageService instanceof BrowserStorageService) {
+						await storageService.clear();
+					}
+
+					if (credentialsService.clear) {
+						await credentialsService.clear();
+					}
+				}
+
+				hostService.reload();
+			}
+		});
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<BrowserStorageService> {

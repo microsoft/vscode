@@ -14,7 +14,6 @@ import { localize } from 'vs/nls';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
-import { isEqualOrParent } from 'vs/base/common/resources';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -87,8 +86,8 @@ export class WorkspaceWatcher extends Disposable {
 			);
 		}
 
-		// Detect when the watcher shutsdown unexpectedly
-		else if (msg.indexOf('ESHUTDOWN') >= 0) {
+		// Detect when the watcher throws an error unexpectedly
+		else if (msg.indexOf('EUNKNOWN') >= 0) {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('eshutdownError', "File changes watcher stopped unexpectedly. Please reload the window to enable the watcher again."),
@@ -132,7 +131,7 @@ export class WorkspaceWatcher extends Disposable {
 				// Absolute: verify a child of the workspace
 				if (isAbsolute(includePath)) {
 					const candidate = URI.file(includePath).with({ scheme: workspace.uri.scheme });
-					if (isEqualOrParent(candidate, workspace.uri)) {
+					if (this.uriIdentityService.extUri.isEqualOrParent(candidate, workspace.uri)) {
 						pathsToWatch.set(candidate, candidate);
 					}
 				}

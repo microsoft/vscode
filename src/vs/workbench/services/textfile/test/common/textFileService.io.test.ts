@@ -164,10 +164,17 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
 	});
 
+	function createTextModelSnapshot(text: string, preserveBOM?: boolean): ITextSnapshot {
+		const textModel = createTextModel(text);
+		const snapshot = textModel.createSnapshot(preserveBOM);
+		textModel.dispose();
+		return snapshot;
+	}
+
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('').createSnapshot() }]);
+		await service.create([{ resource, value: createTextModelSnapshot('') }]);
 
 		assert.strictEqual(await exists(resource.fsPath), true);
 
@@ -181,7 +188,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('Hello World').createSnapshot() }]);
+		await service.create([{ resource, value: createTextModelSnapshot('Hello World') }]);
 
 		assert.strictEqual(await exists(resource.fsPath), true);
 
@@ -197,7 +204,7 @@ export default function createSuite(params: Params) {
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as string', async () => {
@@ -205,7 +212,7 @@ export default function createSuite(params: Params) {
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	async function testEncoding(resource: URI, encoding: string, content: string | ITextSnapshot, expectedContent: string) {
@@ -253,7 +260,7 @@ export default function createSuite(params: Params) {
 		resolved = await service.readStream(resource, { encoding });
 		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
 
-		await service.write(resource, createTextModel(content).createSnapshot(), { encoding });
+		await service.write(resource, createTextModelSnapshot(content), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
 		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
@@ -275,7 +282,7 @@ export default function createSuite(params: Params) {
 
 		const content = (await readFile(resource.fsPath)).toString();
 
-		await service.write(resource, createTextModel(content).createSnapshot());
+		await service.write(resource, createTextModelSnapshot(content));
 
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.value.getFirstLineText(999999), content);
@@ -296,7 +303,7 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.encoding, UTF16le);
 
-		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	test('write - UTF8 variations - content as string', async () => {
@@ -353,6 +360,8 @@ export default function createSuite(params: Params) {
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8 });
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, null);
+
+		model.dispose();
 	});
 
 	test('write - preserve UTF8 BOM - content as string', async () => {
@@ -378,7 +387,7 @@ export default function createSuite(params: Params) {
 	test('write - ensure BOM in empty file - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		await service.write(resource, createTextModel('').createSnapshot(), { encoding: UTF8_with_bom });
+		await service.write(resource, createTextModelSnapshot(''), { encoding: UTF8_with_bom });
 
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
@@ -405,7 +414,7 @@ export default function createSuite(params: Params) {
 		const content = (await readFile(resource.fsPath)).toString();
 		assert.strictEqual(
 			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
-			snapshotToString(createTextModel(content).createSnapshot(false)));
+			snapshotToString(createTextModelSnapshot(content, false)));
 	}
 
 	test('read - small text', async () => {

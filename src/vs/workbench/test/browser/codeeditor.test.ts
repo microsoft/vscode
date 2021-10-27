@@ -24,9 +24,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Editor - Range decorations', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let codeEditor: ICodeEditor;
 	let model: TextModel;
@@ -35,7 +37,8 @@ suite('Editor - Range decorations', () => {
 	let modelsToDispose: TextModel[] = [];
 
 	setup(() => {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
@@ -52,6 +55,7 @@ suite('Editor - Range decorations', () => {
 	teardown(() => {
 		codeEditor.dispose();
 		modelsToDispose.forEach(model => model.dispose());
+		disposables.dispose();
 	});
 
 	test('highlight range for the resource if it is an active editor', function () {

@@ -21,7 +21,8 @@ suite('File Service', () => {
 		const resource = URI.parse('test://foo/bar');
 		const provider = new NullFileSystemProvider();
 
-		assert.strictEqual(service.canHandleResource(resource), false);
+		assert.strictEqual(await service.canHandleResource(resource), false);
+		assert.strictEqual(service.hasProvider(resource), false);
 		assert.strictEqual(service.getProvider(resource.scheme), undefined);
 
 		const registrations: IFileSystemProviderRegistrationEvent[] = [];
@@ -48,9 +49,8 @@ suite('File Service', () => {
 			}
 		});
 
-		await service.activateProvider('test');
-
-		assert.strictEqual(service.canHandleResource(resource), true);
+		assert.strictEqual(await service.canHandleResource(resource), true);
+		assert.strictEqual(service.hasProvider(resource), true);
 		assert.strictEqual(service.getProvider(resource.scheme), provider);
 
 		assert.strictEqual(registrations.length, 1);
@@ -73,7 +73,8 @@ suite('File Service', () => {
 
 		registrationDisposable!.dispose();
 
-		assert.strictEqual(service.canHandleResource(resource), false);
+		assert.strictEqual(await service.canHandleResource(resource), false);
+		assert.strictEqual(service.hasProvider(resource), false);
 
 		assert.strictEqual(registrations.length, 2);
 		assert.strictEqual(registrations[1].scheme, 'test');

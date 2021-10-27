@@ -153,8 +153,17 @@
 
 .extension-list-item > .details > .footer > .author {
 	flex: 1;
+	display: flex;
+	align-items: center;
+}
+
+.extension-list-item > .details > .footer > .author > .publisher-name {
 	font-size: 90%;
 	font-weight: 600;
+}
+
+.extension-list-item > .details > .footer > .author > .publisher-name:not(:first-child) {
+	padding-left: 1px;
 }
 
 .extension-list-item .ellipsis {

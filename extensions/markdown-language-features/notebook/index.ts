@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const MarkdownIt = require('markdown-it');
+const MarkdownIt: typeof import('markdown-it') = require('markdown-it');
 import * as DOMPurify from 'dompurify';
-import type * as markdownIt from 'markdown-it';
+import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const sanitizerOptions: DOMPurify.Config = {
@@ -54,16 +54,19 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		h1 {
-			font-size: 26px;
-			line-height: 31px;
-			margin: 0;
-			margin-bottom: 13px;
+			font-size: 2.25em;
 		}
 
 		h2 {
-			font-size: 19px;
-			margin: 0;
-			margin-bottom: 10px;
+			font-size: 1.9em;
+		}
+
+		h3 {
+			font-size: 1.6em;
+		}
+
+		p {
+			font-size: 1.1em;
 		}
 
 		h1,
@@ -193,12 +196,12 @@ export const activate: ActivationFunction<void> = (ctx) => {
 };
 
 
-function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
+function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: markdownIt.Token[], idx: number, options: any, env: any, self: any) => {
-		const title = tokens[idx + 1].children.reduce((acc: string, t: any) => acc + t.content, '');
+	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 		let slug = slugFromHeading(title);
 
 		if (slugCounter.has(slug)) {
@@ -209,13 +212,12 @@ function addNamedHeaderRendering(md: markdownIt.MarkdownIt): void {
 			slugCounter.set(slug, 0);
 		}
 
-		tokens[idx].attrs = tokens[idx].attrs || [];
-		tokens[idx].attrs.push(['id', slug]);
+		tokens[idx].attrSet('id', slug);
 
 		if (originalHeaderOpen) {
 			return originalHeaderOpen(tokens, idx, options, env, self);
 		} else {
-			return self.renderToken(tokens, idx, options, env, self);
+			return self.renderToken(tokens, idx, options);
 		}
 	};
 

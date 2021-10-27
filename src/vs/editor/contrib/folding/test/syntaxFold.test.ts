@@ -95,6 +95,8 @@ suite('Syntax folding', () => {
 		await assertLimit(2, [r1, r9], '2');
 		await assertLimit(1, [r1], '1');
 		await assertLimit(0, [], '0');
+
+		model.dispose();
 	});
 
 });

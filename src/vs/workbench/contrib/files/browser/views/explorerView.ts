@@ -641,13 +641,17 @@ export class ExplorerView extends ViewPane {
 		const previousInput = this.tree.getInput();
 		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
-				if (!viewState || previousInput instanceof ExplorerItem || !previousInput) {
-					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder/empty workspace.
+				if (!viewState || previousInput instanceof ExplorerItem) {
+					// There is no view state for this workspace (we transitioned from a folder workspace?), expand all roots.
 					await Promise.all(input.map(async item => {
 						try {
 							await this.tree.expand(item);
 						} catch (e) { }
 					}));
+				}
+				// Reloaded or transitioned from an empty workspace, but only have a single folder in the workspace.
+				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
+					await this.tree.expand(input[0]).catch(() => { });
 				}
 				if (Array.isArray(previousInput) && previousInput.length < input.length) {
 					// Roots added to the explorer -> expand them.

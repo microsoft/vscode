@@ -82,6 +82,7 @@
 				baseUrl: monacoBaseUrl,
 				catchError: true,
 				trustedTypesPolicy,
+				amdModulesPattern: /^vs\//
 			});
 			require([moduleId], function (ws) {
 				setTimeout(function () {
@@ -89,7 +90,7 @@
 						(<any>self).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data);
+					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
 						self.onmessage(beforeReadyMessages.shift()!);
 					}

@@ -463,7 +463,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ location: { parentTerminal: e } }));
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => e.dispose());
+				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			})
 		];
 		// TODO: Cache these in a way that will use the correct instance

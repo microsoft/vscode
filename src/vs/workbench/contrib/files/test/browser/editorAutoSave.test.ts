@@ -36,7 +36,7 @@ suite('EditorAutoSave', () => {
 	});
 
 	async function createEditorAutoSave(autoSaveConfig: object): Promise<TestServiceAccessor> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);

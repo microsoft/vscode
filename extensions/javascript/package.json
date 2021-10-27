@@ -9,6 +9,11 @@
     "vscode": "0.10.x"
   },
   "contributes": {
+    "configurationDefaults": {
+      "[javascript]": {
+        "editor.maxTokenizationLineLength": 2500
+      }
+    },
     "languages": [
       {
         "id": "javascriptreact",

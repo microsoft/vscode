@@ -26,7 +26,7 @@ suite('HistoryService', function () {
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
 	async function createServices(): Promise<[EditorPart, HistoryService, EditorService]> {
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);

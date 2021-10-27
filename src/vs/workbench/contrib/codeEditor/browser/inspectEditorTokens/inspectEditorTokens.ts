@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
+import { FontStyle, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -30,6 +30,8 @@ import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelServiceImpl';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Schemas } from 'vs/base/common/network';
+import { NULL_MODE_ID } from 'vs/editor/common/modes/nullMode';
 
 const $ = dom.$;
 
@@ -81,6 +83,10 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 			return;
 		}
 		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (this._editor.getModel().uri.scheme === Schemas.vscodeNotebookCell) {
+			// disable in notebooks
 			return;
 		}
 		this._widget = new InspectEditorTokensWidget(this._editor, this._textMateService, this._modeService, this._themeService, this._notificationService, this._configurationService);
@@ -135,7 +141,7 @@ interface ISemanticTokenInfo {
 }
 
 interface IDecodedMetadata {
-	languageIdentifier: LanguageIdentifier;
+	languageId: string;
 	tokenType: StandardTokenType;
 	bold?: boolean;
 	italic?: boolean;
@@ -226,7 +232,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _beginCompute(position: Position): void {
-		const grammar = this._textMateService.createGrammar(this._model.getLanguageIdentifier().language);
+		const grammar = this._textMateService.createGrammar(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
 
 		dom.clearNode(this._domNode);
@@ -250,7 +256,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _isSemanticColoringEnabled() {
-		const setting = this._configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri })?.enabled;
+		const setting = this._configurationService.getValue<IEditorSemanticHighlightingOptions>(SEMANTIC_HIGHLIGHTING_SETTING_ID, { overrideIdentifier: this._model.getLanguageId(), resource: this._model.uri })?.enabled;
 		if (typeof setting === 'boolean') {
 			return setting;
 		}
@@ -282,7 +288,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			$('tbody', undefined,
 				$('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'language'),
-					$('td.tiw-metadata-value', undefined, tmMetadata?.languageIdentifier.language || '')
+					$('td.tiw-metadata-value', undefined, tmMetadata?.languageId || '')
 				),
 				$('tr', undefined,
 					$('td.tiw-metadata-key', undefined, 'standard token type' as string),
@@ -449,7 +455,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		let foreground = TokenMetadata.getForeground(metadata);
 		let background = TokenMetadata.getBackground(metadata);
 		return {
-			languageIdentifier: this._modeService.getLanguageIdentifier(languageId)!,
+			languageId: this._modeService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
 			bold: (fontStyle & FontStyle.Bold) ? true : undefined,
 			italic: (fontStyle & FontStyle.Italic) ? true : undefined,
@@ -542,7 +548,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): ISemanticTokenInfo | null {
 		const tokenData = semanticTokens.tokens.data;
-		const defaultLanguage = this._model.getLanguageIdentifier().language;
+		const defaultLanguage = this._model.getLanguageId();
 		let lastLine = 0;
 		let lastCharacter = 0;
 		const posLine = pos.lineNumber - 1, posCharacter = pos.column - 1; // to 0-based position
@@ -572,7 +578,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				let metadata: IDecodedMetadata | undefined = undefined;
 				if (tokenStyle) {
 					metadata = {
-						languageIdentifier: this._modeService.getLanguageIdentifier(LanguageId.Null)!,
+						languageId: NULL_MODE_ID,
 						tokenType: StandardTokenType.Other,
 						bold: tokenStyle?.bold,
 						italic: tokenStyle?.italic,
