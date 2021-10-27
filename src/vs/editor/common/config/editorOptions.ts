@@ -1777,10 +1777,10 @@ export interface IEditorHoverOptions {
 	 */
 	sticky?: boolean;
 	/**
-	 * Should the hover be shown below the line if possible?
+	 * Should the hover be shown above the line if possible?
 	 * Defaults to false.
 	 */
-	below?: boolean;
+	above?: boolean;
 }
 
 /**
@@ -1795,7 +1795,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 			enabled: true,
 			delay: 300,
 			sticky: true,
-			below: false,
+			above: false,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -1815,10 +1815,10 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
-				'editor.hover.below': {
+				'editor.hover.above': {
 					type: 'boolean',
-					default: defaults.below,
-					description: nls.localize('hover.below', "Show hovers below the line instead of above, if there's space.")
+					default: defaults.above,
+					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
 			}
 		);
@@ -1833,7 +1833,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
-			below: boolean(input.below, this.defaultValue.below),
+			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
 }

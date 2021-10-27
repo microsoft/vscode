@@ -3511,10 +3511,10 @@ declare namespace monaco.editor {
 		 */
 		sticky?: boolean;
 		/**
-		 * Should the hover be shown below the line if possible?
+		 * Should the hover be shown above the line if possible?
 		 * Defaults to false.
 		 */
-		below?: boolean;
+		above?: boolean;
 	}
 
 	/**
