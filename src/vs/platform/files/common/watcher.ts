@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
 import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
@@ -21,6 +21,13 @@ export interface IWatcherService {
 	 * An event to indicate a message that should get logged.
 	 */
 	readonly onDidLogMessage: Event<ILogMessage>;
+
+	/**
+	 * An event to indicate an error occured from the watcher
+	 * that is unrecoverable. Listeners should restart the
+	 * service if possible.
+	 */
+	readonly onDidError: Event<string>;
 
 	/**
 	 * Configures the watcher service to watch according
@@ -41,8 +48,93 @@ export interface IWatcherService {
 	stop(): Promise<void>;
 }
 
+export abstract class AbstractWatcherService extends Disposable {
+
+	private static readonly MAX_RESTARTS = 5;
+
+	private service: IWatcherService | undefined;
+	private readonly serviceDisposables = this._register(new MutableDisposable());
+
+	private requests: IWatchRequest[] | undefined = undefined;
+
+	private restartCounter = 0;
+
+	constructor(
+		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
+		private verboseLogging: boolean
+	) {
+		super();
+	}
+
+	protected abstract createService(disposables: DisposableStore): IWatcherService;
+
+	protected init(): void {
+
+		// Associate disposables to the service
+		const disposables = new DisposableStore();
+		this.serviceDisposables.value = disposables;
+
+		// Ask implementors to create the service
+		this.service = this.createService(disposables);
+		this.service.setVerboseLogging(this.verboseLogging);
+
+		// Wire in event handlers
+		disposables.add(this.service.onDidChangeFile(e => this.onFileChanges(e)));
+		disposables.add(this.service.onDidLogMessage(e => this.onLogMessage(e)));
+		disposables.add(this.service.onDidError(e => this.onError(e)));
+	}
+
+	protected onError(error: string): void {
+
+		// Restart up to N times
+		if (this.restartCounter < AbstractWatcherService.MAX_RESTARTS && this.requests) {
+			this.error(`restarting watcher after error: ${error}`);
+			this.restart(this.requests);
+		}
+
+		// Otherwise log that we have given up to restart
+		else {
+			this.error(`gave up attempting to restart watcher after error: ${error}`);
+		}
+	}
+
+	private restart(requests: IWatchRequest[]): void {
+		this.restartCounter++;
+
+		this.init();
+		this.watch(requests);
+	}
+
+	async watch(requests: IWatchRequest[]): Promise<void> {
+		this.requests = requests;
+
+		await this.service?.watch(requests);
+	}
+
+	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
+		this.verboseLogging = verboseLogging;
+
+		await this.service?.setVerboseLogging(verboseLogging);
+	}
+
+	private error(message: string) {
+		this.onLogMessage({ type: 'error', message: `[File Watcher (parcel)] ${message}` });
+	}
+
+	override dispose(): void {
+
+		// Render the serve invalid from here
+		this.service = undefined;
+
+		return super.dispose();
+	}
+}
+
 /**
  * Base class of any watcher service we support.
+ *
+ * TODO@bpasero delete and replace with `AbstractWatcherService`
  */
 export abstract class WatcherService extends Disposable {
 
