@@ -53,6 +53,7 @@ export interface IProductConfiguration {
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
 	readonly webEndpointUrlTemplate?: string;
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
