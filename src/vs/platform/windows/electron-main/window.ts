@@ -687,7 +687,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					_: [] // we pass in the workspace to open explicitly via `urisToOpen`
 				},
 				urisToOpen: workspace ? [workspace] : undefined,
-				forceEmpty
+				forceEmpty,
+				forceNewWindow: true
 			});
 			window.focus();
 		}
