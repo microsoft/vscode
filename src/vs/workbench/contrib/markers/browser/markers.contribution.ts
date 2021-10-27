@@ -101,10 +101,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'type': 'boolean',
 			'default': false
 		},
-		'problems.sortOrder': {
-			'description': 'TODO',
-			'type': 'array',
-			'default': ['resource', 'severity', 'starts'],
+		'problems.compareOrder': {
+			'type': 'string',
+			'default': ['severity'],
+			'enum': ['severity', 'position'],
 		},
 	}
 });

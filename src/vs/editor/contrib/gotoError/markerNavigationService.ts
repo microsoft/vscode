@@ -47,27 +47,20 @@ export class MarkerList {
 			this._resourceFilter = resourceFilter;
 		}
 
-		const sortOrder = this._configService.getValue<string[]>('problems.sortOrder');
+		const compareOrder = this._configService.getValue<string>('problems.compareOrder');
 		const compareMarker = (a: IMarker, b: IMarker): number => {
-			let res = 0;
-			for (let i = 0; i < sortOrder.length; i++) {
+			let res = compare(a.resource.toString(), b.resource.toString());
+			const compareSeverity = () => { res = MarkerSeverity.compare(a.severity, b.severity); };
+			const comparePosition = () => { res = Range.compareRangesUsingStarts(a, b); };
+			let runnables = [compareSeverity, comparePosition];
+			if (compareOrder === 'position') {
+				runnables = [comparePosition, compareSeverity];
+			}
+			for (let i = 0; i < runnables.length; i++) {
 				if (res !== 0) {
 					break;
 				}
-				switch (sortOrder[i]) {
-					case 'resource':
-						res = compare(a.resource.toString(), b.resource.toString());
-						break;
-					case 'severity':
-						res = MarkerSeverity.compare(a.severity, b.severity);
-						break;
-					case 'starts':
-						res = Range.compareRangesUsingStarts(a, b);
-						break;
-					case 'ends':
-						res = Range.compareRangesUsingEnds(a, b);
-						break;
-				}
+				runnables[i]();
 			}
 			return res;
 		};
