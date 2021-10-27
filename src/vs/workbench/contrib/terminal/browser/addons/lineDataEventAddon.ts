@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 
 /**
  * Provides extensions to the xterm object in a modular, testable way.
  */
-export class LineDataEventAddon extends DisposableStore implements ITerminalAddon {
+export class LineDataEventAddon extends Disposable implements ITerminalAddon {
 
 	private _xterm?: XTermTerminal;
 	private _isOsSet = false;
 
-	private readonly _onLineData = this.add(new Emitter<string>());
+	private readonly _onLineData = this._register(new Emitter<string>());
 	readonly onLineData = this._onLineData.event;
 
 	activate(xterm: XTermTerminal) {
@@ -31,7 +31,7 @@ export class LineDataEventAddon extends DisposableStore implements ITerminalAddo
 		});
 
 		// Fire onLineData when disposing object to flush last line
-		this.add(toDisposable(() => {
+		this._register(toDisposable(() => {
 			const buffer = xterm.buffer;
 			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 		}));
@@ -48,11 +48,11 @@ export class LineDataEventAddon extends DisposableStore implements ITerminalAddo
 		// cursor, in which case we still want to send the current line's data to tasks.
 		if (os === OperatingSystem.Windows) {
 			const xterm = this._xterm;
-			xterm.parser.registerCsiHandler({ final: 'H' }, () => {
+			this._register(xterm.parser.registerCsiHandler({ final: 'H' }, () => {
 				const buffer = xterm.buffer;
 				this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 				return false;
-			});
+			}));
 		}
 	}
 
