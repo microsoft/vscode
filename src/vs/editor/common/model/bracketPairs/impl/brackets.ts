@@ -74,7 +74,7 @@ export class BracketTokens {
 			const keys = [...this.map.keys()];
 			keys.sort();
 			keys.reverse();
-			return keys.map(k => escapeRegExpCharacters(k)).join('|');
+			return keys.map(k => prepareBracketForRegExp(k)).join('|');
 		}
 	}
 
@@ -97,6 +97,13 @@ export class BracketTokens {
 	get isEmpty(): boolean {
 		return this.map.size === 0;
 	}
+}
+
+function prepareBracketForRegExp(str: string): string {
+	const escaped = escapeRegExpCharacters(str);
+	// This bracket pair uses letters like e.g. "begin" - "end" (see https://github.com/microsoft/vscode/issues/132162)
+	const needsWordBoundaries = (/^[\w ]+$/.test(str));
+	return (needsWordBoundaries ? `\\b${escaped}\\b` : escaped);
 }
 
 export class LanguageAgnosticBracketTokens {
