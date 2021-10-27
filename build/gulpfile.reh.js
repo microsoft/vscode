@@ -392,33 +392,3 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		});
 	});
 });
-
-function mixinServer(watch) {
-	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
-	function exec(cmdLine) {
-		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: 'inherit' });
-	}
-	function checkout() {
-		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());
-		exec('git fetch distro');
-		exec(`git checkout ${packageJSON['distro']} -- src/vs/server resources/server`);
-		exec('git reset HEAD src/vs/server resources/server');
-	}
-	checkout();
-	if (watch) {
-		console.log('Enter watch mode (observing package.json)');
-		const watcher = fs.watch(packageJSONPath);
-		watcher.addListener('change', () => {
-			try {
-				checkout();
-			} catch (e) {
-				console.log(e);
-			}
-		});
-	}
-	return Promise.resolve();
-}
-
-gulp.task(task.define('mixin-server', () => mixinServer(false)));
-gulp.task(task.define('mixin-server-watch', () => mixinServer(true)));
