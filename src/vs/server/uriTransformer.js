@@ -14,9 +14,18 @@
  * | file          | vscode-local |
  * --------------------------------
  * ```
+ * @typedef { import('../base/common/uriIpc').IRawURITransformer } IRawURITransformer
+ * @typedef { import('../base/common/uriIpc').UriParts } UriParts
+ * @typedef { import('../base/common/uri').UriComponents } UriComponents
+ * @param {string} remoteAuthority
+ * @returns {IRawURITransformer}
  */
 module.exports = function(remoteAuthority) {
 	return {
+		/**
+		 * @param {UriParts} uri
+		 * @returns {UriParts}
+		 */
 		transformIncoming: (uri) => {
 			if (uri.scheme === 'vscode-remote') {
 				return { scheme: 'file', path: uri.path };
@@ -26,7 +35,10 @@ module.exports = function(remoteAuthority) {
 			}
 			return uri;
 		},
-
+		/**
+		 * @param {UriParts} uri
+		 * @returns {UriParts}
+		 */
 		transformOutgoing: (uri) => {
 			if (uri.scheme === 'file') {
 				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path };
@@ -36,7 +48,10 @@ module.exports = function(remoteAuthority) {
 			}
 			return uri;
 		},
-
+		/**
+		 * @param {string} scheme
+		 * @returns {string}
+		 */
 		transformOutgoingScheme: (scheme) => {
 			if (scheme === 'file') {
 				return 'vscode-remote';
