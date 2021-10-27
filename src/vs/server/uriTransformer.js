@@ -28,10 +28,10 @@ module.exports = function(remoteAuthority) {
 		 */
 		transformIncoming: (uri) => {
 			if (uri.scheme === 'vscode-remote') {
-				return { scheme: 'file', path: uri.path };
+				return { scheme: 'file', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			if (uri.scheme === 'file') {
-				return { scheme: 'vscode-local', path: uri.path };
+				return { scheme: 'vscode-local', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			return uri;
 		},
@@ -41,10 +41,10 @@ module.exports = function(remoteAuthority) {
 		 */
 		transformOutgoing: (uri) => {
 			if (uri.scheme === 'file') {
-				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path };
+				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			if (uri.scheme === 'vscode-local') {
-				return { scheme: 'file', path: uri.path };
+				return { scheme: 'file', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
 			return uri;
 		},

@@ -17,6 +17,8 @@ export interface UriParts {
 	scheme: string;
 	authority?: string;
 	path?: string;
+	query?: string;
+	fragment?: string;
 }
 
 export interface IRawURITransformer {
