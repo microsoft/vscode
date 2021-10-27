@@ -1795,7 +1795,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 			enabled: true,
 			delay: 300,
 			sticky: true,
-			above: false,
+			above: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
