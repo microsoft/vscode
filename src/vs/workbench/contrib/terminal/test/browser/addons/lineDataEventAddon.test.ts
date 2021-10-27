@@ -5,13 +5,14 @@
 
 import { Terminal } from 'xterm';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/addons/lineDataEventAddon';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
 
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>(r => terminal.write(data, r));
 }
 
-suite.only('XtermExtensions', () => {
+suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
 
@@ -29,7 +30,7 @@ suite.only('XtermExtensions', () => {
 			lineDataEventAddon.onLineData(e => events.push(e));
 		});
 
-		test('should fire when a non-wrapped line ends with a \\n', async () => {
+		test('should fire when a non-wrapped line ends with a line feed', async () => {
 			await writeP(xterm, 'foo');
 			deepStrictEqual(events, []);
 			await writeP(xterm, '\n\r');
@@ -49,11 +50,22 @@ suite.only('XtermExtensions', () => {
 			deepStrictEqual(events, []);
 		});
 
-		test('should fire when a wrapped line ends with a \\n', async () => {
+		test('should fire when a wrapped line ends with a line feed', async () => {
 			await writeP(xterm, 'foo.bar.baz.');
 			deepStrictEqual(events, []);
 			await writeP(xterm, '\n\r');
 			deepStrictEqual(events, ['foo.bar.baz.']);
+		});
+
+		test('should not fire on cursor move when the backing process is not on Windows', async () => {
+			await writeP(xterm, 'foo.\x1b[H');
+			deepStrictEqual(events, []);
+		});
+
+		test('should fire on cursor move when the backing process is on Windows', async () => {
+			lineDataEventAddon.setOperatingSystem(OperatingSystem.Windows);
+			await writeP(xterm, 'foo\x1b[H');
+			deepStrictEqual(events, ['foo']);
 		});
 	});
 });
