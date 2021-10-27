@@ -3401,12 +3401,22 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 				'editor.guides.bracketPairs': {
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairs.true', "Enables bracket pair guides."),
+						nls.localize('editor.guides.bracketPairs.active', "Enables bracket pair guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairs.false', "Disables bracket pair guides."),
+					],
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
 				},
 				'editor.guides.bracketPairsHorizontal': {
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairsHorizontal.true', "Enables horizontal guides as addition to vertical bracket pair guides."),
+						nls.localize('editor.guides.bracketPairsHorizontal.active', "Enables horizontal guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairsHorizontal.false', "Disables horizontal bracket pair guides."),
+					],
 					default: defaults.bracketPairsHorizontal,
 					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
 				},
