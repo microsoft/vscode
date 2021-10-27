@@ -92,8 +92,8 @@ export class TunnelService extends AbstractTunnelService {
 	private async _createSharedProcessTunnel(addressProvider: IAddressProvider, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<RemoteTunnel> {
 		const { id } = await this._sharedProcessTunnelService.createTunnel();
 		this._activeSharedProcessTunnels.add(id);
-
-		const result = await this._sharedProcessTunnelService.startTunnel(id, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded);
+		const authority = this._environmentService.remoteAuthority!;
+		const result = await this._sharedProcessTunnelService.startTunnel(authority, id, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded);
 		const tunnel = this._instantiationService.createInstance(SharedProcessTunnel, id, addressProvider, tunnelRemoteHost, tunnelRemotePort, result.tunnelLocalPort, result.localAddress, () => {
 			this._activeSharedProcessTunnels.delete(id);
 		});
