@@ -209,6 +209,12 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 			const tunnelService = new TunnelService(this.logService, this.signService, this.productService, this.configurationService);
 			this._register(tunnelService);
 			this._tunnelServices.set(authority, tunnelService);
+			tunnelService.onTunnelClosed(async () => {
+				if ((await tunnelService.tunnels).length === 0) {
+					tunnelService.dispose();
+					this._tunnelServices.delete(authority);
+				}
+			});
 		}
 		return this._tunnelServices.get(authority)!.openTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
 	}
