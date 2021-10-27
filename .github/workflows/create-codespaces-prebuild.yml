@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: github/codespaces-precache@v1.0.1
         with:
-          target: dev
+          target: development
           regions: WestUs2
           sku_name: standardLinux32gb
         env:
