@@ -198,7 +198,7 @@ registerAction2(class SaveMimeTypeDisplayOrder extends Action2 {
 		const qp = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { target: ConfigurationTarget }>();
 		qp.placeholder = localize('notebook.placeholder', 'Settings file to save in');
 		qp.items = [
-			{ target: ConfigurationTarget.WORKSPACE, label: localize('saveTarget.machine', 'User Settings') },
+			{ target: ConfigurationTarget.USER, label: localize('saveTarget.machine', 'User Settings') },
 			{ target: ConfigurationTarget.WORKSPACE, label: localize('saveTarget.workspace', 'Workspace Settings') },
 		];
 

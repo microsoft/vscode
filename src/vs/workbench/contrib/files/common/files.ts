@@ -88,6 +88,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
+		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {

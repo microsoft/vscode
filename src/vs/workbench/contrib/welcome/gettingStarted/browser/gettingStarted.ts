@@ -70,6 +70,8 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Codicon } from 'vs/base/common/codicons';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -150,6 +152,7 @@ export class GettingStartedPage extends EditorPane {
 	private layoutMarkdown: (() => void) | undefined;
 
 	private webviewID = generateUuid();
+	private categoriesSlideDisposables: DisposableStore;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -186,6 +189,8 @@ export class GettingStartedPage extends EditorPane {
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
+
+		this.categoriesSlideDisposables = this._register(new DisposableStore());
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
@@ -466,7 +471,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService));
+								resolve(renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true));
 							});
 						});
 					}
@@ -495,7 +500,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.modeService);
+					return renderMarkdownDocument(markdown, this.extensionService, this.modeService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -861,10 +866,17 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+		this.categoriesSlideDisposables.clear();
+		const showOnStartupCheckbox = new Checkbox({
+			icon: Codicon.check,
+			actionClassName: 'getting-started-checkbox',
+			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
+			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
+		});
+		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 
-		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'welcomePage';
-		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox);
+		this.categoriesSlideDisposables.add(showOnStartupCheckbox.onChange(() => {
 			if (showOnStartupCheckbox.checked) {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
 				this.configurationService.updateValue(configurationKey, 'welcomePage');
@@ -889,7 +901,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const footer = $('.footer', {},
 			$('p.showOnStartup', {},
-				showOnStartupCheckbox,
+				showOnStartupCheckbox.domNode,
 				$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))
 			));
 
@@ -1638,16 +1650,16 @@ registerThemingParticipant((theme, collector) => {
 
 	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
 	if (checkboxBackground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { background-color: ${checkboxBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackground} !important; }`);
 	}
 
 	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
 	if (checkboxForeground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { color: ${checkboxForeground}; }`);
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForeground} !important; }`);
 	}
 
 	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
 	if (checkboxBorder) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .showOnStartup .checkbox { border-color: ${checkboxBorder}; }`);
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorder} !important; }`);
 	}
 });

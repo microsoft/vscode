@@ -12,19 +12,20 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, contrastBorder, editorBackground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -60,6 +61,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			ViewContainerLocation.AuxiliaryBar,
 			ActiveAuxiliaryContext.bindTo(contextKeyService),
 			AuxiliaryBarFocusContext.bindTo(contextKeyService),
+			() => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			notificationService,
 			storageService,
 			telemetryService,
@@ -72,6 +74,28 @@ export class AuxiliaryBarPart extends BasePanelPart {
 			contextKeyService,
 			extensionService,
 		);
+	}
+
+	// override layout(width: number, height: number, top: number, left: number): void {
+	// 	// Layout contents
+	// 	super.layout(width, height, top, left); // Take into account the 1px border when layouting
+	// }
+
+	override updateStyles(): void {
+		super.updateStyles();
+
+		const container = assertIsDefined(this.getContainer());
+		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
+		const isPositionLeft = this.layoutService.getSideBarPosition() === Position.RIGHT;
+
+		container.style.borderLeftColor = borderColor ?? '';
+		container.style.borderRightColor = borderColor ?? '';
+
+		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : 'none';
+		container.style.borderRightStyle = borderColor && isPositionLeft ? 'solid' : 'none';
+
+		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '0px';
+		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '0px';
 	}
 
 	protected getActivityHoverOptions(): IActivityHoverOptions {

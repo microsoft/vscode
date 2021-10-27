@@ -147,7 +147,8 @@ export class BaseTunnelService extends AbstractTunnelService {
 	}
 
 	private get defaultTunnelHost(): string {
-		return (this.configurationService.getValue('remote.localPortHost') === 'localhost') ? '127.0.0.1' : '0.0.0.0';
+		const settingValue = this.configurationService.getValue('remote.localPortHost');
+		return (!settingValue || settingValue === 'localhost') ? '127.0.0.1' : '0.0.0.0';
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {

@@ -2567,11 +2567,12 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The MarkdownString represents human-readable text that supports formatting via the
-	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
+	 * Human-readable text that supports formatting via the [markdown syntax](https://commonmark.org).
 	 *
 	 * Rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax is supported
-	 * when the {@linkcode MarkdownString.supportThemeIcons supportThemeIcons} is set to `true`.
+	 * when the {@linkcode supportThemeIcons} is set to `true`.
+	 *
+	 * Rendering of embedded html is supported when {@linkcode supportHtml} is set to `true`.
 	 */
 	export class MarkdownString {
 
@@ -2592,7 +2593,7 @@ declare module 'vscode' {
 		supportThemeIcons?: boolean;
 
 		/**
-		 * Indicates that this markdown string can contain raw html tags. Defaults to false.
+		 * Indicates that this markdown string can contain raw html tags. Defaults to `false`.
 		 *
 		 * When `supportHtml` is false, the markdown renderer will strip out any raw html tags
 		 * that appear in the markdown text. This means you can only use markdown syntax for rendering.
