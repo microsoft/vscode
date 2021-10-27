@@ -1249,6 +1249,7 @@ registerAction2(class extends Action2 {
 		debugService.removeBreakpoints();
 		debugService.removeFunctionBreakpoints();
 		debugService.removeDataBreakpoints();
+		debugService.removeInstructionBreakpoints();
 	}
 });
 

@@ -59,12 +59,41 @@ suite('QuickInput', () => {
 	});
 
 	teardown(() => {
-		quickpick.dispose();
+		quickpick?.dispose();
 		controller.dispose();
 		document.body.removeChild(fixture);
 	});
 
-	test('onDidChangeValue gets triggered when .value is set', async () => {
+	test('pick - basecase', async () => {
+		const item = { label: 'foo' };
+		const pickPromise = controller.pick([item, { label: 'bar' }]);
+		// wait a bit to let the pick get set up.
+		await wait(200);
+		controller.accept();
+		const pick = await pickPromise;
+		assert.strictEqual(pick, item);
+	});
+
+	test('pick - activeItem is honored', async () => {
+		const item = { label: 'foo' };
+		const pickPromise = controller.pick([{ label: 'bar' }, item], { activeItem: item });
+		// wait a bit to let the pick get set up.
+		await wait(200);
+		controller.accept();
+		const pick = await pickPromise;
+		assert.strictEqual(pick, item);
+	});
+
+	test('input - basecase', async () => {
+		const inputPromise = controller.input({ value: 'foo' });
+		// wait a bit to let the pick get set up.
+		await wait(200);
+		controller.accept();
+		const value = await inputPromise;
+		assert.strictEqual(value, 'foo');
+	});
+
+	test('onDidChangeValue - gets triggered when .value is set', async () => {
 		quickpick = controller.createQuickPick();
 
 		let value: string | undefined = undefined;
@@ -82,7 +111,7 @@ suite('QuickInput', () => {
 		}
 	});
 
-	test('keepScrollPosition works with activeItems', async () => {
+	test('keepScrollPosition - works with activeItems', async () => {
 		quickpick = controller.createQuickPick();
 
 		const items = [];
@@ -107,7 +136,7 @@ suite('QuickInput', () => {
 		assert.strictEqual(getScrollTop(), 0);
 	});
 
-	test('keepScrollPosition works with items', async () => {
+	test('keepScrollPosition - works with items', async () => {
 		quickpick = controller.createQuickPick();
 
 		const items = [];
@@ -129,5 +158,29 @@ suite('QuickInput', () => {
 		quickpick.keepScrollPosition = false;
 		quickpick.items = items;
 		assert.strictEqual(getScrollTop(), 0);
+	});
+
+	test('selectedItems - verify previous selectedItems does not hang over to next set of items', async () => {
+		quickpick = controller.createQuickPick();
+		quickpick.items = [{ label: 'step 1' }];
+		quickpick.show();
+
+		void (await new Promise<void>(resolve => {
+			quickpick.onDidAccept(() => {
+				console.log(quickpick.selectedItems.map(i => i.label).join(', '));
+				quickpick.canSelectMany = true;
+				quickpick.items = [{ label: 'a' }, { label: 'b' }, { label: 'c' }];
+				resolve();
+			});
+
+			// accept 'step 1'
+			controller.accept();
+		}));
+
+		// accept in multi-select
+		controller.accept();
+
+		// Since we don't select any items, the selected items should be empty
+		assert.strictEqual(quickpick.selectedItems.length, 0);
 	});
 });

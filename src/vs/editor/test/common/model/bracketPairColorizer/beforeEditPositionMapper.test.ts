@@ -7,8 +7,8 @@ import assert = require('assert');
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairColorizer/beforeEditPositionMapper';
-import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairColorizer/length';
+import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairs/impl/beforeEditPositionMapper';
+import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairs/impl/length';
 
 suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 	test('Single-Line 1', () => {

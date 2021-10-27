@@ -241,7 +241,7 @@ export class WebviewViewPane extends ViewPane {
 
 		webviewEntry.layoutWebviewOverElement(this._container);
 
-		if (!this._rootContainer) {
+		if (!this._rootContainer || !this._rootContainer.isConnected) {
 			this._rootContainer = this.findRootContainer(this._container);
 		}
 

@@ -1189,6 +1189,25 @@ suite('Map', () => {
 		assert.strictEqual(map.get(windowsFile), 'true');
 		assert.strictEqual(map.get(uncFile), 'true');
 	});
+
+	test('ResourceMap - files (ignorecase, BUT preservecase)', function () {
+		const map = new ResourceMap<number>(uri => extUriIgnorePathCase.getComparisonKey(uri));
+
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		map.set(fileA, 1);
+		assert.strictEqual(map.get(fileA), 1);
+		assert.strictEqual(map.get(fileAUpper), 1);
+		assert.deepStrictEqual(Array.from(map.keys()).map(String), [fileA].map(String));
+		assert.deepStrictEqual(Array.from(map), [[fileA, 1]]);
+
+		map.set(fileAUpper, 1);
+		assert.strictEqual(map.get(fileA), 1);
+		assert.strictEqual(map.get(fileAUpper), 1);
+		assert.deepStrictEqual(Array.from(map.keys()).map(String), [fileAUpper].map(String));
+		assert.deepStrictEqual(Array.from(map), [[fileAUpper, 1]]);
+	});
 });
 
 

@@ -94,7 +94,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 								return undefined;
 							}
 							const valid =
-								normalizedSuggestItem.range.equalsRange(normalizedItemToPreselect.range) &&
+								rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
 								normalizedItemToPreselect.text.startsWith(normalizedSuggestItem.text);
 							return { index, valid, prefixLength: normalizedSuggestItem.text.length, suggestItem };
 						})
@@ -188,6 +188,16 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 			suggestController.forceRenderingAbove();
 		}
 	}
+}
+
+function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
+	return (
+		rangeToTest.startLineNumber === prefix.startLineNumber &&
+		rangeToTest.startColumn === prefix.startColumn &&
+		(rangeToTest.endLineNumber < prefix.endLineNumber ||
+			(rangeToTest.endLineNumber === prefix.endLineNumber &&
+				rangeToTest.endColumn <= prefix.endColumn))
+	);
 }
 
 function suggestionToInlineCompletion(suggestController: SuggestController, position: Position, item: CompletionItem, toggleMode: boolean): NormalizedInlineCompletion | undefined {

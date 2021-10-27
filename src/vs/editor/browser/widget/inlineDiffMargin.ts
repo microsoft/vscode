@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Codicon } from 'vs/base/common/codicons';
-import { ITextModel } from 'vs/editor/common/model';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;
@@ -71,13 +71,18 @@ export class InlineDiffMargin extends Disposable {
 		this._marginDomNode.appendChild(this._diffActions);
 
 		const actions: Action[] = [];
+		const isDeletion = diff.modifiedEndLineNumber === 0;
 
 		// default action
 		actions.push(new Action(
 			'diff.clipboard.copyDeletedContent',
-			diff.originalEndLineNumber > diff.modifiedStartLineNumber
-				? nls.localize('diff.clipboard.copyDeletedLinesContent.label', "Copy deleted lines")
-				: nls.localize('diff.clipboard.copyDeletedLinesContent.single.label', "Copy deleted line"),
+			isDeletion
+				? (diff.originalEndLineNumber > diff.modifiedStartLineNumber
+					? nls.localize('diff.clipboard.copyDeletedLinesContent.label', "Copy deleted lines")
+					: nls.localize('diff.clipboard.copyDeletedLinesContent.single.label', "Copy deleted line"))
+				: (diff.originalEndLineNumber > diff.modifiedStartLineNumber
+					? nls.localize('diff.clipboard.copyChangedLinesContent.label', "Copy changed lines")
+					: nls.localize('diff.clipboard.copyChangedLinesContent.single.label', "Copy changed line")),
 			undefined,
 			true,
 			async () => {
@@ -92,12 +97,20 @@ export class InlineDiffMargin extends Disposable {
 		if (diff.originalEndLineNumber > diff.modifiedStartLineNumber) {
 			copyLineAction = new Action(
 				'diff.clipboard.copyDeletedLineContent',
-				nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber),
+				isDeletion
+					? nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber)
+					: nls.localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})", diff.originalStartLineNumber),
 				undefined,
 				true,
 				async () => {
 					const lineContent = diff.originalModel.getLineContent(diff.originalStartLineNumber + currentLineNumberOffset);
-					await this._clipboardService.writeText(lineContent);
+					if (lineContent === '') {
+						// empty line
+						const eof = diff.originalModel.getEndOfLineSequence();
+						await this._clipboardService.writeText(eof === EndOfLineSequence.LF ? '\n' : '\r\n');
+					} else {
+						await this._clipboardService.writeText(lineContent);
+					}
 				}
 			);
 
@@ -141,7 +154,10 @@ export class InlineDiffMargin extends Disposable {
 				},
 				getActions: () => {
 					if (copyLineAction) {
-						copyLineAction.label = nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber + currentLineNumberOffset);
+						copyLineAction.label =
+							isDeletion
+								? nls.localize('diff.clipboard.copyDeletedLineContent.label', "Copy deleted line ({0})", diff.originalStartLineNumber + currentLineNumberOffset)
+								: nls.localize('diff.clipboard.copyChangedLineContent.label', "Copy changed line ({0})", diff.originalStartLineNumber + currentLineNumberOffset);
 					}
 					return actions;
 				},

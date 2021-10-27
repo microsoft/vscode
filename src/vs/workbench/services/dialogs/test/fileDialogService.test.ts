@@ -32,6 +32,7 @@ import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFi
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -69,15 +70,21 @@ class TestFileDialogService extends FileDialogService {
 
 suite('FileDialogService', function () {
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	const testFile: URI = URI.file('/test/file');
 
 	setup(async function () {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService();
+		disposables = new DisposableStore();
+		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('files', { simpleDialog: { enable: true } });
 		instantiationService.stub(IConfigurationService, configurationService);
 
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('Local - open/save workspaces availableFilesystems', async function () {

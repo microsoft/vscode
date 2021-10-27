@@ -70,7 +70,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 				this.allViews.set(filterOnValue, new Map());
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
+			if (this.filterValue && !this.filterValue.includes(filterOnValue) && this.panes.find(pane => pane.id === descriptor.id)) {
 				this.viewContainerModel.setVisible(descriptor.id, false);
 			}
 		});

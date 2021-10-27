@@ -105,7 +105,7 @@ registerEditorCommand(new ParameterHintsCommand({
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KeyP] }
 	}
 }));
 registerEditorCommand(new ParameterHintsCommand({
@@ -117,6 +117,6 @@ registerEditorCommand(new ParameterHintsCommand({
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KeyN] }
 	}
 }));

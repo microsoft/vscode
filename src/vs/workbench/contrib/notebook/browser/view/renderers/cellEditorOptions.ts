@@ -198,7 +198,7 @@ registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellActi
 	constructor() {
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
-			title: 'Show Cell Line Numbers',
+			title: localize('notebook.cell.toggleLineNumbers.title', "Show Cell Line Numbers"),
 			precondition: ActiveEditorContext.isEqualTo(NotebookEditor.ID),
 			menu: [{
 				id: MenuId.NotebookCellTitle,

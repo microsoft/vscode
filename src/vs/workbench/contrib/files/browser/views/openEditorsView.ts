@@ -719,8 +719,8 @@ registerAction2(class extends Action2 {
 			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
 			f1: true,
 			keybinding: {
-				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_0,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_0 },
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Digit0 },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.editorLayout,

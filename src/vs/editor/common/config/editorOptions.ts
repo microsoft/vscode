@@ -1776,6 +1776,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to true.
 	 */
 	sticky?: boolean;
+	/**
+	 * Should the hover be shown above the line if possible?
+	 * Defaults to false.
+	 */
+	above?: boolean;
 }
 
 /**
@@ -1789,7 +1794,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
-			sticky: true
+			sticky: true,
+			above: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -1809,6 +1815,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.above': {
+					type: 'boolean',
+					default: defaults.above,
+					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
+				},
 			}
 		);
 	}
@@ -1821,7 +1832,8 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
-			sticky: boolean(input.sticky, this.defaultValue.sticky)
+			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
 }
@@ -3401,12 +3413,22 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, InternalGuidesO
 				'editor.guides.bracketPairs': {
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairs.true', "Enables bracket pair guides."),
+						nls.localize('editor.guides.bracketPairs.active', "Enables bracket pair guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairs.false', "Disables bracket pair guides."),
+					],
 					default: defaults.bracketPairs,
 					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
 				},
 				'editor.guides.bracketPairsHorizontal': {
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
+					enumDescriptions: [
+						nls.localize('editor.guides.bracketPairsHorizontal.true', "Enables horizontal guides as addition to vertical bracket pair guides."),
+						nls.localize('editor.guides.bracketPairsHorizontal.active', "Enables horizontal guides only for the active bracket pair."),
+						nls.localize('editor.guides.bracketPairsHorizontal.false', "Disables horizontal bracket pair guides."),
+					],
 					default: defaults.bracketPairsHorizontal,
 					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
 				},
@@ -4556,7 +4578,7 @@ export const EditorOptions = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier. [Read more](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(

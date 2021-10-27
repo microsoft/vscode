@@ -786,6 +786,7 @@ interface IPeekOutputRenderer extends IDisposable {
 
 const commonEditorOptions: IEditorOptions = {
 	scrollBeyondLastLine: false,
+	links: true,
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
@@ -1692,7 +1693,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 			}],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_H,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyH,
 				when: TestingContextKeys.isPeekVisible.isEqualTo(true),
 			},
 		});

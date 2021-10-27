@@ -211,7 +211,7 @@ suite('NotebookCell#Document', function () {
 				EOL: '\n',
 				isDirty: doc.isDirty,
 				lines: doc.getText().split('\n'),
-				modeId: doc.languageId,
+				languageId: doc.languageId,
 				uri: doc.uri,
 				versionId: doc.version
 			});

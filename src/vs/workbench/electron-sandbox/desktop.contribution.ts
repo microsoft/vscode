@@ -48,7 +48,7 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			id: CloseWindowAction.ID,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_W
+			primary: KeyMod.CtrlCmd | KeyCode.KeyW
 		});
 	}
 
@@ -67,8 +67,8 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 			nativeHostService.quit();
 		},
 		when: undefined,
-		mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
-		linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q }
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ },
+		linux: { primary: KeyMod.CtrlCmd | KeyCode.KeyQ }
 	});
 
 	// Actions: macOS Native Tabs

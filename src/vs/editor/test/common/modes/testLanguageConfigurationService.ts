@@ -5,7 +5,6 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { ILanguageConfigurationService, LanguageConfigurationRegistry, LanguageConfigurationServiceChangeEvent, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export class TestLanguageConfigurationService implements ILanguageConfigurationService {
@@ -16,7 +15,7 @@ export class TestLanguageConfigurationService implements ILanguageConfigurationS
 	private readonly onDidChangeEmitter = new Emitter<LanguageConfigurationServiceChangeEvent>({
 		onFirstListenerAdd: () => {
 			this.registration = LanguageConfigurationRegistry.onDidChange((e) => {
-				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageIdentifier));
+				this.onDidChangeEmitter.fire(new LanguageConfigurationServiceChangeEvent(e.languageId));
 			});
 		},
 		onLastListenerRemove: () => {
@@ -26,8 +25,8 @@ export class TestLanguageConfigurationService implements ILanguageConfigurationS
 	});
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	getLanguageConfiguration(languageId: LanguageId, resource?: URI): ResolvedLanguageConfiguration {
+	getLanguageConfiguration(languageId: string, resource?: URI): ResolvedLanguageConfiguration {
 		return LanguageConfigurationRegistry.getLanguageConfiguration(languageId) ??
-			new ResolvedLanguageConfiguration(new LanguageIdentifier('unknown', languageId), {});
+			new ResolvedLanguageConfiguration('unknown', {});
 	}
 }

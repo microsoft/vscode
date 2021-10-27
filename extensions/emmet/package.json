@@ -18,6 +18,29 @@
   },
   "activationEvents": [
     "onCommand:emmet.expandAbbreviation",
+    "onCommand:editor.emmet.action.wrapWithAbbreviation",
+    "onCommand:editor.emmet.action.removeTag",
+    "onCommand:editor.emmet.action.updateTag",
+    "onCommand:editor.emmet.action.matchTag",
+    "onCommand:editor.emmet.action.balanceIn",
+    "onCommand:editor.emmet.action.balanceOut",
+    "onCommand:editor.emmet.action.prevEditPoint",
+    "onCommand:editor.emmet.action.nextEditPoint",
+    "onCommand:editor.emmet.action.mergeLines",
+    "onCommand:editor.emmet.action.selectPrevItem",
+    "onCommand:editor.emmet.action.selectNextItem",
+    "onCommand:editor.emmet.action.splitJoinTag",
+    "onCommand:editor.emmet.action.toggleComment",
+    "onCommand:editor.emmet.action.evaluateMathExpression",
+    "onCommand:editor.emmet.action.updateImageSize",
+    "onCommand:editor.emmet.action.incrementNumberByOneTenth",
+    "onCommand:editor.emmet.action.incrementNumberByOne",
+    "onCommand:editor.emmet.action.incrementNumberByTen",
+    "onCommand:editor.emmet.action.decrementNumberByOneTenth",
+    "onCommand:editor.emmet.action.decrementNumberByOne",
+    "onCommand:editor.emmet.action.decrementNumberByTen",
+    "onCommand:editor.emmet.action.reflectCSSValue",
+    "onCommand:workbench.action.showEmmetCommands",
     "onLanguage:html",
     "onLanguage:haml",
     "onLanguage:blade",
@@ -398,71 +421,92 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "editor.emmet.action.wrapWithAbbreviation"
+          "command": "editor.emmet.action.wrapWithAbbreviation",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.removeTag"
+          "command": "editor.emmet.action.removeTag",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.updateTag"
+          "command": "editor.emmet.action.updateTag",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.matchTag"
+          "command": "editor.emmet.action.matchTag",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.balanceIn"
+          "command": "editor.emmet.action.balanceIn",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.balanceOut"
+          "command": "editor.emmet.action.balanceOut",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.prevEditPoint"
+          "command": "editor.emmet.action.prevEditPoint",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.nextEditPoint"
+          "command": "editor.emmet.action.nextEditPoint",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.mergeLines"
+          "command": "editor.emmet.action.mergeLines",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.selectPrevItem"
+          "command": "editor.emmet.action.selectPrevItem",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.selectNextItem"
+          "command": "editor.emmet.action.selectNextItem",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.splitJoinTag"
+          "command": "editor.emmet.action.splitJoinTag",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.toggleComment"
+          "command": "editor.emmet.action.toggleComment",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.evaluateMathExpression"
+          "command": "editor.emmet.action.evaluateMathExpression",
+          "when": "!activeEditorIsReadonly"
         },
         {
           "command": "editor.emmet.action.updateImageSize",
-          "when": "resourceScheme =~ /^file$/"
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByOneTenth"
+          "command": "editor.emmet.action.incrementNumberByOneTenth",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByOne"
+          "command": "editor.emmet.action.incrementNumberByOne",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.incrementNumberByTen"
+          "command": "editor.emmet.action.incrementNumberByTen",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByOneTenth"
+          "command": "editor.emmet.action.decrementNumberByOneTenth",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByOne"
+          "command": "editor.emmet.action.decrementNumberByOne",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.decrementNumberByTen"
+          "command": "editor.emmet.action.decrementNumberByTen",
+          "when": "!activeEditorIsReadonly"
         },
         {
-          "command": "editor.emmet.action.reflectCSSValue"
+          "command": "editor.emmet.action.reflectCSSValue",
+          "when": "!activeEditorIsReadonly"
         }
       ]
     }

@@ -181,7 +181,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -197,7 +197,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -219,7 +219,8 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.MoveToTerminalPanel,
 				title: terminalStrings.moveToTerminalPanel,
 				f1: true,
-				category
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -235,7 +236,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
 				f1: false,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -260,7 +261,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -286,7 +287,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -308,7 +309,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -328,7 +329,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -347,7 +348,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -366,7 +367,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -380,7 +381,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.focus,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -402,11 +403,11 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backslash,
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus),
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -420,11 +421,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusNext', "Focus Next Terminal Group"), original: 'Focus Next Terminal Group' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketRight
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
@@ -444,11 +445,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal Group"), original: 'Focus Previous Terminal Group' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.BracketLeft
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
@@ -500,7 +501,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal"), original: 'Run Active File In Active Terminal' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -547,7 +548,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -567,7 +568,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -587,7 +588,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -607,7 +608,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -627,7 +628,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -647,7 +648,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.altBufferActive.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -729,7 +730,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.textSelected, TerminalContextKeys.notFindVisible),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -746,7 +747,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeIcon,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -760,7 +761,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeIcon,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -774,7 +775,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeIcon,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -788,7 +789,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeColor,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -802,7 +803,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeColor,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -816,7 +817,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.changeColor,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -830,7 +831,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.rename,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor, resource: unknown) {
@@ -845,7 +846,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.rename,
 				f1: false,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -867,7 +868,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.tabsFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -903,11 +904,11 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 					when: ContextKeyExpr.or(TerminalContextKeys.findFocus, TerminalContextKeys.focus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -927,7 +928,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.findVisible),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1008,7 +1009,7 @@ export function registerTerminalActions() {
 				title: { value: localize('quickAccessTerminal', "Switch Active Terminal"), original: 'Switch Active Terminal' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1027,7 +1028,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1049,7 +1050,7 @@ export function registerTerminalActions() {
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1071,7 +1072,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1093,7 +1094,7 @@ export function registerTerminalActions() {
 					when: TerminalContextKeys.focus,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1110,7 +1111,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.selectToPreviousLine', "Select To Previous Line"), original: 'Select To Previous Line' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1127,7 +1128,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.selectToNextLine', "Select To Next Line"), original: 'Select To Next Line' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1248,7 +1249,7 @@ export function registerTerminalActions() {
 						}
 					}]
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor, args?: { name?: string }) {
@@ -1268,12 +1269,12 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_R,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
+					primary: KeyMod.Alt | KeyCode.KeyR,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1291,12 +1292,12 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_W,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
+					primary: KeyMod.Alt | KeyCode.KeyW,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1314,12 +1315,12 @@ export function registerTerminalActions() {
 				f1: true,
 				category,
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_C,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
+					primary: KeyMod.Alt | KeyCode.KeyC,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
 					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1339,7 +1340,7 @@ export function registerTerminalActions() {
 				keybinding: [
 					{
 						primary: KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
+						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
 						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
@@ -1349,7 +1350,7 @@ export function registerTerminalActions() {
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1366,7 +1367,7 @@ export function registerTerminalActions() {
 				keybinding: [
 					{
 						primary: KeyMod.Shift | KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
+						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
 						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
@@ -1376,7 +1377,7 @@ export function registerTerminalActions() {
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				],
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		run(accessor: ServicesAccessor) {
@@ -1392,7 +1393,7 @@ export function registerTerminalActions() {
 				category,
 				keybinding: [
 					{
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
 						when: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.textSelected),
 						weight: KeybindingWeight.WorkbenchContrib + 50
 					}
@@ -1442,11 +1443,11 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
 					weight: KeybindingWeight.WorkbenchContrib,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
 					},
 					when: TerminalContextKeys.focus
 				},
@@ -1495,10 +1496,10 @@ export function registerTerminalActions() {
 				category,
 				precondition: TerminalContextKeys.processSupported,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit5,
 					mac: {
-						primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
-						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
+						primary: KeyMod.CtrlCmd | KeyCode.Backslash,
+						secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit5]
 					},
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: TerminalContextKeys.tabsFocus
@@ -1528,7 +1529,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.unsplit,
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1542,7 +1543,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.unsplit,
 				f1: false,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1564,7 +1565,7 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.JoinInstance,
 				title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.tabsSingularSelection.toNegated())
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection.toNegated())
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1603,7 +1604,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.selectAll', "Select All"), original: 'Select All' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: [{
 					// Don't use ctrl+a by default as that would override the common go to start
 					// of prompt shell binding
@@ -1611,7 +1612,7 @@ export function registerTerminalActions() {
 					// Technically this doesn't need to be here as it will fall back to this
 					// behavior anyway when handed to xterm.js, having this handled by VS Code
 					// makes it easier for users to see how it works though.
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A },
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyA },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: TerminalContextKeys.focus
 				}]
@@ -1628,11 +1629,11 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.new', "Create New Terminal"), original: 'Create New Terminal' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported),
 				icon: Codicon.plus,
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
-					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backquote,
+					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Backquote },
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				description: {
@@ -1709,7 +1710,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				icon: Codicon.trash
 			});
 		}
@@ -1733,10 +1734,10 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal in Editor Area"), original: 'Kill the Active Terminal in Editor Area' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
+					primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
 				}
@@ -1755,7 +1756,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.kill,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen),
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {
@@ -1789,10 +1790,10 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 				keybinding: [{
 					primary: 0,
-					mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K },
+					mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyK },
 					// Weight is higher than work workbench contributions so the keybinding remains
 					// highest priority when chords are registered afterwards
 					weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -1840,7 +1841,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1855,7 +1856,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.setFixedDimensions', "Set Fixed Dimensions"), original: 'Set Fixed Dimensions' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.isOpen
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1870,9 +1871,9 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
 				f1: true,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.isOpen, TerminalContextKeys.focus),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen, TerminalContextKeys.focus),
 				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KEY_Z,
+					primary: KeyMod.Alt | KeyCode.KeyZ,
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1888,7 +1889,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.toggleSizeToContentWidth,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus)
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -1905,11 +1906,11 @@ export function registerTerminalActions() {
 					f1: true,
 					category,
 					// TODO: Why is copy still showing up when text isn't selected?
-					precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.textSelected),
+					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
+						primary: KeyMod.CtrlCmd | KeyCode.KeyC,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus)
 					}]
@@ -1929,11 +1930,11 @@ export function registerTerminalActions() {
 					title: { value: localize('workbench.action.terminal.paste', "Paste into Active Terminal"), original: 'Paste into Active Terminal' },
 					f1: true,
 					category,
-					precondition: TerminalContextKeys.processSupported,
+					precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 					keybinding: [{
-						primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-						win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
-						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V },
+						primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+						win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV] },
+						linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV },
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: TerminalContextKeys.focus
 					}],
@@ -1953,7 +1954,7 @@ export function registerTerminalActions() {
 					title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
 					f1: true,
 					category,
-					precondition: TerminalContextKeys.processSupported,
+					precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 					keybinding: [{
 						linux: { primary: KeyMod.Shift | KeyCode.Insert },
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -1975,7 +1976,7 @@ export function registerTerminalActions() {
 				title: switchTerminalTitle,
 				f1: false,
 				category,
-				precondition: TerminalContextKeys.processSupported
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
 			});
 		}
 		async run(accessor: ServicesAccessor, item?: string) {
@@ -2084,7 +2085,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Terminal (With Profile)"), original: 'Create New Terminal (With Profile)' },
 				f1: true,
 				category,
-				precondition: TerminalContextKeys.processSupported,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported),
 				description: {
 					description: 'workbench.action.terminal.newWithProfile',
 					args: [{

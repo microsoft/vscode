@@ -204,12 +204,12 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 	}
 
-	override layout(width: number, height: number): void {
+	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			return;
 		}
 
-		super.layout(width, height);
+		super.layout(width, height, top, left);
 	}
 
 	// Viewlet service

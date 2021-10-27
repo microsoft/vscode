@@ -19,7 +19,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
-import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
@@ -68,7 +69,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, starEmptyIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { errorIcon, infoIcon, starEmptyIcon, verifiedPublisherIcon as verifiedPublisherThemeIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
@@ -141,6 +142,8 @@ interface IExtensionEditorTemplate {
 	builtin: HTMLElement;
 	version: HTMLElement;
 	publisher: HTMLElement;
+	publisherDisplayName: HTMLElement;
+	verifiedPublisherIcon: HTMLElement;
 	installCount: HTMLElement;
 	rating: HTMLElement;
 	description: HTMLElement;
@@ -227,8 +230,10 @@ export class ExtensionEditor extends EditorPane {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { title: localize('publisher', "Publisher"), tabIndex: 0 }));
 		publisher.setAttribute('role', 'button');
+		const verifiedPublisherIcon = append(publisher, $(`.publisher-verified${ThemeIcon.asCSSSelector(verifiedPublisherThemeIcon)}`));
+		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 		rating.setAttribute('role', 'link'); // #132645
@@ -277,6 +282,8 @@ export class ExtensionEditor extends EditorPane {
 			navbar,
 			preview,
 			publisher,
+			publisherDisplayName,
+			verifiedPublisherIcon,
 			rating,
 			actionsAndStatusContainer,
 			extensionActionBar,
@@ -365,8 +372,10 @@ export class ExtensionEditor extends EditorPane {
 		template.name.classList.toggle('clickable', !!extension.url);
 
 		// subtitle
-		template.publisher.textContent = extension.publisherDisplayName;
 		template.publisher.classList.toggle('clickable', !!extension.url);
+		template.publisherDisplayName.textContent = extension.publisherDisplayName;
+		template.verifiedPublisherIcon.style.display = extension.publisherDomain?.verified ? 'inherit' : 'none';
+		template.publisher.title = extension.publisherDomain?.link ? localize('publisher verified tooltip', "This publisher has verified ownership of {0}", URI.parse(extension.publisherDomain.link).authority) : '';
 
 		template.installCount.parentElement?.classList.toggle('hide', !extension.url);
 
@@ -836,12 +845,16 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url && extension.licenseUrl) {
 			resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 		}
+		if (extension.publisherDomain?.verified) {
+			const publisherDomainUri = URI.parse(extension.publisherDomain.link);
+			resources.push([publisherDomainUri.authority, publisherDomainUri]);
+		}
 		if (resources.length) {
 			const resourcesContainer = append(container, $('.resources-container'));
 			append(resourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(resourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
-				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', undefined, label)), () => this.openerService.open(uri)));
+				this.transientDisposables.add(this.onClick(append(resourcesElement, $('a.resource', { title: uri.toString() }, label)), () => this.openerService.open(uri)));
 			}
 		}
 	}
@@ -1095,11 +1108,18 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => $('tr', undefined,
-					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } }))),
-					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
-				))
+				...contrib.map(key => {
+					let description: (Node | string) = properties[key].description;
+					if (properties[key].markdownDescription) {
+						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+						description = element;
+						this.contentDisposables.add(toDisposable(dispose));
+					}
+					return $('tr', undefined,
+						$('td', undefined, $('code', undefined, key)),
+						$('td', undefined, description),
+						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
+				})
 			)
 		);
 
@@ -1598,7 +1618,7 @@ registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 			keybinding: {
 				when: contextKeyExpr,
 				weight: KeybindingWeight.EditorContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 			}
 		});
 	}

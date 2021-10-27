@@ -16,9 +16,9 @@ import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler 
 //#region Quick access management commands and keys
 
 const globalQuickAccessKeybinding = {
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_P,
-	secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E],
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_P, secondary: undefined }
+	primary: KeyMod.CtrlCmd | KeyCode.KeyP,
+	secondary: [KeyMod.CtrlCmd | KeyCode.KeyE],
+	mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyP, secondary: undefined }
 };
 
 const QUICKACCESS_ACTION_ID = 'workbench.action.quickOpen';
@@ -122,8 +122,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: inQuickPickContext,
 	primary: 0,
 	win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-	mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS },
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
 		quickInputService.back();
@@ -207,7 +207,7 @@ class QuickAccessSelectNextAction extends BaseQuickAccessNavigateAction {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: inQuickPickContext,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_N }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyN }
 			}
 		);
 	}
@@ -225,7 +225,7 @@ class QuickAccessSelectPreviousAction extends BaseQuickAccessNavigateAction {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
 				when: inQuickPickContext,
 				primary: 0,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_P }
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyP }
 			}
 		);
 	}

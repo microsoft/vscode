@@ -192,7 +192,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 */
 	private promptRecommendationsForModel(model: ITextModel): void {
 		const uri = model.uri;
-		const language = model.getLanguageIdentifier().language;
+		const language = model.getLanguageId();
 		const fileExtension = extname(uri).toLowerCase();
 		if (this.processedLanguages.includes(language) && this.processedFileExtensions.includes(fileExtension)) {
 			return;
@@ -282,7 +282,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		const message = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+		const treatmentMessage = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage');
+		const message = treatmentMessage ? treatmentMessage.replace('{0}', name) : localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
 
 		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], message, `@id:${extensionId}`, RecommendationSource.FILE)
 			.then(result => {

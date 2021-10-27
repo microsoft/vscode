@@ -283,7 +283,7 @@ class KeyboardController<T> implements IDisposable {
 		this.onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 
 		if (options.multipleSelectionSupport !== false) {
-			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.multipleSelectionDisposables);
+			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KeyA).on(this.onCtrlA, this, this.multipleSelectionDisposables);
 		}
 	}
 
@@ -292,7 +292,7 @@ class KeyboardController<T> implements IDisposable {
 			this.multipleSelectionDisposables.clear();
 
 			if (optionsUpdate.multipleSelectionSupport) {
-				this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.multipleSelectionDisposables);
+				this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KeyA).on(this.onCtrlA, this, this.multipleSelectionDisposables);
 			}
 		}
 	}
@@ -378,10 +378,10 @@ export const DefaultKeyboardNavigationDelegate = new class implements IKeyboardN
 			return false;
 		}
 
-		return (event.keyCode >= KeyCode.KEY_A && event.keyCode <= KeyCode.KEY_Z)
-			|| (event.keyCode >= KeyCode.KEY_0 && event.keyCode <= KeyCode.KEY_9)
-			|| (event.keyCode >= KeyCode.NUMPAD_0 && event.keyCode <= KeyCode.NUMPAD_9)
-			|| (event.keyCode >= KeyCode.US_SEMICOLON && event.keyCode <= KeyCode.US_QUOTE);
+		return (event.keyCode >= KeyCode.KeyA && event.keyCode <= KeyCode.KeyZ)
+			|| (event.keyCode >= KeyCode.Digit0 && event.keyCode <= KeyCode.Digit9)
+			|| (event.keyCode >= KeyCode.Numpad0 && event.keyCode <= KeyCode.Numpad9)
+			|| (event.keyCode >= KeyCode.Semicolon && event.keyCode <= KeyCode.Quote);
 	}
 };
 

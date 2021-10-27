@@ -143,6 +143,7 @@ if ((<any>self).Worker) {
 
 const hostUtil = new class implements IHostUtils {
 	declare readonly _serviceBrand: undefined;
+	public readonly pid = undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}

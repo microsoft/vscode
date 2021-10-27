@@ -1090,7 +1090,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 					const model = editor.getModel();
-					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getModeId() });
+					lineNumbers = this.configurationService.getValue('editor.lineNumbers', { resource: model.uri, overrideIdentifier: model.getLanguageId() });
 				}
 				if (!lineNumbers) {
 					lineNumbers = this.configurationService.getValue('editor.lineNumbers');
@@ -1307,6 +1307,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				: grid.getViewSize(this.sideBarPartView).width;
 
 			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+			const auxiliaryBarSize = this.state.auxiliaryBar.hidden
+				? grid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+				: grid.getViewSize(this.auxiliaryBarPartView).width;
+
+			this.storageService.store(Storage.AUXILIARYBAR_SIZE, auxiliaryBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)

@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { MarkersFilters } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/workbench/common/views';
-import { MarkerElement } from 'vs/workbench/contrib/markers/browser/markersModel';
+import { MarkerElement, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 
 export interface IMarkersView extends IView {
 
@@ -25,6 +25,8 @@ export interface IMarkersView extends IView {
 	getFilterStats(): { total: number, filtered: number };
 
 	getFocusElement(): MarkerElement | undefined;
+	getFocusedSelectedElements(): MarkerElement[] | null;
+	getAllResourceMarkers(): ResourceMarkers[];
 
 	collapseAll(): void;
 	setMultiline(multiline: boolean): void;

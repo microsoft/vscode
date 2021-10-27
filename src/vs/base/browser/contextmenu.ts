@@ -6,7 +6,7 @@
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;

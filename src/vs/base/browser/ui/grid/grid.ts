@@ -254,8 +254,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 		this.gridview.style(styles);
 	}
 
-	layout(width: number, height: number): void {
-		this.gridview.layout(width, height);
+	layout(width: number, height: number, top: number = 0, left: number = 0): void {
+		this.gridview.layout(width, height, top, left);
 		this.didLayout = true;
 	}
 
@@ -556,8 +556,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		};
 	}
 
-	override layout(width: number, height: number): void {
-		super.layout(width, height);
+	override layout(width: number, height: number, top: number = 0, left: number = 0): void {
+		super.layout(width, height, top, left);
 
 		if (this.initialLayoutContext) {
 			this.initialLayoutContext = false;

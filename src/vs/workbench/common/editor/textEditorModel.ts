@@ -91,7 +91,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		if (!mode || mode === this.textEditorModel.getModeId()) {
+		if (!mode || mode === this.textEditorModel.getLanguageId()) {
 			return;
 		}
 
@@ -99,7 +99,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	}
 
 	getMode(): string | undefined {
-		return this.textEditorModel?.getModeId();
+		return this.textEditorModel?.getLanguageId();
 	}
 
 	protected autoDetectLanguage(): Promise<void> {
@@ -145,7 +145,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			// Make sure we clean up when this model gets disposed
 			this.registerModelDisposeListener(model);
 		} else {
-			this.updateTextEditorModel(value, languageSelection.languageIdentifier.language);
+			this.updateTextEditorModel(value, languageSelection.languageId);
 		}
 
 		this.textEditorModelHandle = model.uri;
@@ -196,7 +196,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		}
 
 		// mode (only if specific and changed)
-		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getModeId() !== preferredMode) {
+		if (preferredMode && preferredMode !== PLAINTEXT_MODE_ID && this.textEditorModel.getLanguageId() !== preferredMode) {
 			this.modelService.setMode(this.textEditorModel, this.modeService.create(preferredMode));
 		}
 	}

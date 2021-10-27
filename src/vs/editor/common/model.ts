@@ -13,11 +13,12 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
-import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/common/modes';
+import { FormattingOptions } from 'vs/editor/common/modes';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { equals } from 'vs/base/common/objects';
+import { IBracketPairs } from 'vs/editor/common/model/bracketPairs/bracketPairs';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -937,27 +938,21 @@ export interface ITextModel {
 
 	/**
 	 * Get the language associated with this model.
-	 * @internal
 	 */
-	getLanguageIdentifier(): LanguageIdentifier;
-
-	/**
-	 * Get the language associated with this model.
-	 */
-	getModeId(): string;
+	getLanguageId(): string;
 
 	/**
 	 * Set the current language mode associated with the model.
 	 * @internal
 	 */
-	setMode(languageIdentifier: LanguageIdentifier): void;
+	setMode(languageId: string): void;
 
 	/**
 	 * Returns the real (inner-most) language mode at a given position.
 	 * The result might be inaccurate. Use `forceTokenization` to ensure accurate tokens.
 	 * @internal
 	 */
-	getLanguageIdAtPosition(lineNumber: number, column: number): LanguageId;
+	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
 	/**
 	 * Get the word under or besides `position`.
@@ -1286,8 +1281,7 @@ export interface ITextModel {
 	onWillDispose(listener: () => void): IDisposable;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destroy this model.
 	 */
 	dispose(): void;
 
@@ -1331,6 +1325,12 @@ export interface ITextModel {
 	 * @internal
 	*/
 	getLineIndentColumn(lineNumber: number): number;
+
+	/**
+	 * Returns an object that can be used to query brackets.
+	 * @internal
+	*/
+	get bracketPairs(): IBracketPairs;
 }
 
 /**
@@ -1374,42 +1374,6 @@ export class IndentGuideHorizontalLine {
 		public readonly top: boolean,
 		public readonly endColumn: number,
 	) { }
-}
-
-/**
- * @internal
- */
-export class BracketPair {
-	constructor(
-		public readonly range: Range,
-		public readonly openingBracketRange: Range,
-		public readonly closingBracketRange: Range | undefined,
-		/**
-		 * 0-based
-		*/
-		public readonly nestingLevel: number,
-	) { }
-}
-
-/**
- * @internal
- */
-export class BracketPairWithMinIndentation extends BracketPair {
-	constructor(
-		range: Range,
-		openingBracketRange: Range,
-		closingBracketRange: Range | undefined,
-		/**
-		 * 0-based
-		*/
-		nestingLevel: number,
-		/**
-		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
-		*/
-		public readonly minVisibleColumnIndentation: number,
-	) {
-		super(range, openingBracketRange, closingBracketRange, nestingLevel);
-	}
 }
 
 /**

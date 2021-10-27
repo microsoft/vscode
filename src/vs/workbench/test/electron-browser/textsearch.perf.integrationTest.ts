@@ -11,6 +11,7 @@ import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -89,6 +90,7 @@ suite.skip('TextSearch performance (integration)', () => {
 						new TestThemeService(),
 						logService,
 						undoRedoService,
+						new ModeServiceImpl(),
 						new TestLanguageConfigurationService()
 					),
 				],

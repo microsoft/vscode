@@ -94,7 +94,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.info(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
+		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
 		this._logService.flush();
 		try {
 			if (extensionId) {

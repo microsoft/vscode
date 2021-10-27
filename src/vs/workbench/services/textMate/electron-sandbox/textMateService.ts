@@ -26,19 +26,22 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { FileAccess } from 'vs/base/common/network';
+import { ILanguageIdCodec } from 'vs/editor/common/modes';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
 class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private readonly _worker: TextMateWorker;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 	private readonly _model: ITextModel;
 	private _isSynced: boolean;
 	private _pendingChanges: IModelContentChangedEvent[] = [];
 
-	constructor(worker: TextMateWorker, model: ITextModel) {
+	constructor(worker: TextMateWorker, languageIdCodec: ILanguageIdCodec, model: ITextModel) {
 		super();
 		this._worker = worker;
+		this._languageIdCodec = languageIdCodec;
 		this._model = model;
 		this._isSynced = false;
 
@@ -54,7 +57,9 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 		this._register(this._model.onDidChangeLanguage((e) => {
 			if (this._isSynced) {
-				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), this._model.getLanguageIdentifier().id);
+				const languageId = this._model.getLanguageId();
+				const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
+				this._worker.acceptModelLanguageChanged(this._model.uri.toString(), languageId, encodedLanguageId);
 			}
 		}));
 	}
@@ -73,12 +78,15 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 	private _beginSync(): void {
 		this._isSynced = true;
+		const languageId = this._model.getLanguageId();
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(languageId);
 		this._worker.acceptNewModel({
 			uri: this._model.uri,
 			versionId: this._model.getVersionId(),
 			lines: this._model.getLinesContent(),
 			EOL: this._model.getEOL(),
-			languageId: this._model.getLanguageIdentifier().id,
+			languageId,
+			encodedLanguageId
 		});
 	}
 
@@ -168,7 +176,7 @@ export class TextMateService extends AbstractTextMateService {
 			return;
 		}
 		const key = model.uri.toString();
-		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, model);
+		const tokenizer = new ModelWorkerTextMateTokenizer(this._workerProxy, this._modeService.languageIdCodec, model);
 		this._tokenizers[key] = tokenizer;
 	}
 

@@ -21,7 +21,7 @@ const GOLDEN_RATIO = {
 	rightMarginRatio: 0.1909
 };
 
-function createEmptyView(background: Color | undefined): ISplitViewView {
+function createEmptyView(background: Color | undefined): ISplitViewView<{ top: number, left: number }> {
 	const element = $('.centered-layout-margin');
 	element.style.height = '100%';
 	if (background) {
@@ -37,13 +37,13 @@ function createEmptyView(background: Color | undefined): ISplitViewView {
 	};
 }
 
-function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
+function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView<{ top: number, left: number }> {
 	return {
 		element: view.element,
 		get maximumSize() { return view.maximumWidth; },
 		get minimumSize() { return view.minimumWidth; },
 		onDidChange: Event.map(view.onDidChange, e => e && e.width),
-		layout: (size, offset) => view.layout(size, getHeight(), 0, offset)
+		layout: (size, offset, ctx) => view.layout(size, getHeight(), ctx?.top ?? 0, (ctx?.left ?? 0) + offset)
 	};
 }
 
@@ -53,12 +53,12 @@ export interface ICenteredViewStyles extends ISplitViewStyles {
 
 export class CenteredViewLayout implements IDisposable {
 
-	private splitView?: SplitView;
+	private splitView?: SplitView<{ top: number, left: number }>;
 	private width: number = 0;
 	private height: number = 0;
 	private style!: ICenteredViewStyles;
 	private didLayout = false;
-	private emptyViews: ISplitViewView[] | undefined;
+	private emptyViews: ISplitViewView<{ top: number, left: number }>[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();
 
 	constructor(private container: HTMLElement, private view: IView, public readonly state: CenteredViewState = { leftMarginRatio: GOLDEN_RATIO.leftMarginRatio, rightMarginRatio: GOLDEN_RATIO.rightMarginRatio }) {
@@ -86,7 +86,7 @@ export class CenteredViewLayout implements IDisposable {
 		this.splitView.orthogonalEndSash = boundarySashes.bottom;
 	}
 
-	layout(width: number, height: number): void {
+	layout(width: number, height: number, top: number, left: number): void {
 		this.width = width;
 		this.height = height;
 		if (this.splitView) {
@@ -95,7 +95,7 @@ export class CenteredViewLayout implements IDisposable {
 				this.resizeMargins();
 			}
 		} else {
-			this.view.layout(width, height, 0, 0);
+			this.view.layout(width, height, top, left);
 		}
 		this.didLayout = true;
 	}

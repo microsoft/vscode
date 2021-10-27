@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChordKeybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/codeActionMenu';
@@ -14,17 +15,17 @@ import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayo
 
 suite('CodeActionKeybindingResolver', () => {
 	const refactorKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_A,
+		KeyCode.KeyA,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.value });
 
 	const refactorExtractKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_B,
+		KeyCode.KeyB,
 		refactorCommandId,
 		{ kind: CodeActionKind.Refactor.append('extract').value });
 
 	const organizeImportsKeybinding = createCodeActionKeybinding(
-		KeyCode.KEY_C,
+		KeyCode.KeyC,
 		organizeImportsCommandId,
 		undefined);
 

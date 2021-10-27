@@ -96,7 +96,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		const defaultFormatterId = this._configService.getValue<string>(DefaultFormatter.configName, {
 			resource: document.uri,
-			overrideIdentifier: document.getModeId()
+			overrideIdentifier: document.getLanguageId()
 		});
 
 		if (defaultFormatterId) {
@@ -111,7 +111,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			const extension = await this._extensionService.getExtension(defaultFormatterId);
 			if (extension && this._extensionEnablementService.isEnabled(toExtension(extension))) {
 				// formatter does not target this file
-				const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
+				const langName = this._modeService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
 				const detail = nls.localize('miss', "Extension '{0}' is configured as formatter but it cannot format '{1}'-files", extension.displayName || extension.name, langName);
 				if (mode === FormattingMode.Silent) {
 					this._notificationService.status(detail, { hideAfter: 4000 });
@@ -135,7 +135,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			return formatter[0];
 		}
 
-		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
+		const langName = this._modeService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
 		const message = !defaultFormatterId
 			? nls.localize('config.needed', "There are multiple formatters for '{0}' files. Select a default formatter to continue.", DefaultFormatter._maybeQuotes(langName))
 			: nls.localize('config.bad', "Extension '{0}' is configured as formatter but not available. Select a different default formatter to continue.", defaultFormatterId);
@@ -172,14 +172,14 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				description: formatter.extensionId && formatter.extensionId.value
 			};
 		});
-		const langName = this._modeService.getLanguageName(document.getModeId()) || document.getModeId();
+		const langName = this._modeService.getLanguageName(document.getLanguageId()) || document.getLanguageId();
 		const pick = await this._quickInputService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
 		if (!pick || !formatter[pick.index].extensionId) {
 			return undefined;
 		}
 		this._configService.updateValue(DefaultFormatter.configName, formatter[pick.index].extensionId!.value, {
 			resource: document.uri,
-			overrideIdentifier: document.getModeId()
+			overrideIdentifier: document.getLanguageId()
 		});
 		return formatter[pick.index];
 	}
@@ -233,7 +233,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 	const configService = accessor.get(IConfigurationService);
 	const modeService = accessor.get(IModeService);
 
-	const overrides = { resource: model.uri, overrideIdentifier: model.getModeId() };
+	const overrides = { resource: model.uri, overrideIdentifier: model.getLanguageId() };
 	const defaultFormatter = configService.getValue<string>(DefaultFormatter.configName, overrides);
 
 	let defaultFormatterPick: IIndexedPick | undefined;
@@ -270,7 +270,7 @@ async function showFormatterPick(accessor: ServicesAccessor, model: ITextModel, 
 
 	} else if (pick === configurePick) {
 		// config default
-		const langName = modeService.getLanguageName(model.getModeId()) || model.getModeId();
+		const langName = modeService.getLanguageName(model.getLanguageId()) || model.getLanguageId();
 		const pick = await quickPickService.pick(picks, { placeHolder: nls.localize('select', "Select a default formatter for '{0}' files", DefaultFormatter._maybeQuotes(langName)) });
 		if (pick && formatters[pick.index].extensionId) {
 			configService.updateValue(DefaultFormatter.configName, formatters[pick.index].extensionId!.value, overrides);

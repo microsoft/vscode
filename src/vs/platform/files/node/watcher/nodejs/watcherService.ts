@@ -10,7 +10,7 @@ import { realpath } from 'vs/base/node/extpath';
 import { SymlinkSupport } from 'vs/base/node/pfs';
 import { CHANGE_BUFFER_DELAY, watchFile, watchFolder } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges } from 'vs/platform/files/common/watcher';
 
 export class FileWatcher extends Disposable {
 	private isDisposed: boolean | undefined;

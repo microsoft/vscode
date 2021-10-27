@@ -60,8 +60,8 @@ export class MoveLinesCommand implements ICommand {
 			getLineTokens: (lineNumber: number) => {
 				return model.getLineTokens(lineNumber);
 			},
-			getLanguageIdentifier: () => {
-				return model.getLanguageIdentifier();
+			getLanguageId: () => {
+				return model.getLanguageId();
 			},
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);

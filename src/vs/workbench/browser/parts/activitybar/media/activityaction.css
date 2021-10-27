@@ -14,27 +14,36 @@
 	content: '';
 	width: 48px;
 	height: 2px;
-	display: block;
+	display: none;
 	background-color: transparent;
 	transition-property: background-color;
 	transition-duration: 0ms;
 	transition-delay: 100ms;
 }
 
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::before {
-	margin-top: -3px;
-	margin-bottom: 1px;
+.monaco-workbench .activitybar > .content.dragged-over .composite-bar > .monaco-action-bar .action-item::before,
+.monaco-workbench .activitybar > .content.dragged-over .composite-bar > .monaco-action-bar .action-item::after {
+	display: block;
 }
 
-/* Override top element since it would be cut off */
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:first-of-type::before {
-	margin-top: 0px;
-	margin-bottom: 0px;
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::before {
+	top: 1px;
+	margin-top: -2px;
 }
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::after {
-	margin-top: 1px;
-	margin-bottom: -3px;
+	bottom: 1px;
+	margin-bottom: -2px;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:first-of-type::before {
+	top: 2px;
+	margin-top: -2px;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
+	bottom: 2px;
+	margin-bottom: -2px;
 }
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
@@ -44,8 +53,9 @@
 	transition-delay: 0s;
 }
 
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom + .action-item::before,
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:last-of-type.bottom::after,
 .monaco-workbench .activitybar > .content.dragged-over-head > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
 .monaco-workbench .activitybar > .content.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	background-color: var(--insert-border-color);

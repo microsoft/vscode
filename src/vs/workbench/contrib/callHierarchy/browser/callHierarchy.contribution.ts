@@ -188,7 +188,7 @@ registerAction2(class extends EditorAction2 {
 			keybinding: {
 				when: EditorContextKeys.editorTextFocus,
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KeyH
 			},
 			precondition: ContextKeyExpr.and(
 				_ctxHasCallHierarchyProvider,
@@ -212,7 +212,7 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsFrom)),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KeyH,
 			},
 			menu: {
 				id: CallHierarchyTreePeekWidget.TitleMenu,
@@ -237,7 +237,7 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsTo)),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KEY_H,
+				primary: KeyMod.Shift + KeyMod.Alt + KeyCode.KeyH,
 			},
 			menu: {
 				id: CallHierarchyTreePeekWidget.TitleMenu,

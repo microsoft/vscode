@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isSafari } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Codicon } from 'vs/base/common/codicons';
@@ -11,7 +12,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ResizableHTMLElement } from 'vs/editor/contrib/suggest/resizable';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -83,7 +84,7 @@ export class SuggestDetailsWidget {
 	private _configureFont(): void {
 		const options = this._editor.getOptions();
 		const fontInfo = options.get(EditorOption.fontInfo);
-		const fontFamily = fontInfo.fontFamily;
+		const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
 		const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 		const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 		const fontWeight = fontInfo.fontWeight;
@@ -382,7 +383,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			const left = -info.borderWidth + anchorBox.left + anchorBox.width;
 			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
 			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(width) };
+			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
 		})();
 
 		// WEST
@@ -391,7 +392,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			const left = Math.max(info.horizontalPadding, anchorBox.left - size.width - info.borderWidth);
 			const maxSizeTop = new dom.Dimension(width, bodyBox.height - anchorBox.top - info.borderHeight - info.verticalPadding);
 			const maxSizeBottom = maxSizeTop.with(undefined, anchorBox.top + anchorBox.height - info.borderHeight - info.verticalPadding);
-			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(width) };
+			return { top: defaultTop, left, fit: width - size.width, maxSizeTop, maxSizeBottom, minSize: defaultMinSize.with(Math.min(width, defaultMinSize.width)) };
 		})();
 
 		// SOUTH

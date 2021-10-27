@@ -18,7 +18,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, normalizeFileChanges, IWatchRequest } from 'vs/platform/files/common/watcher';
 import { watchFolder } from 'vs/base/node/watcher';
 
 interface IWatcher extends IDisposable {

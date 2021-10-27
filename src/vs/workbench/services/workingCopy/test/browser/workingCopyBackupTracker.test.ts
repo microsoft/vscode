@@ -89,7 +89,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const disposables = new DisposableStore();
 
 		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -198,7 +198,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const disposables = new DisposableStore();
 
 		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
-		const instantiationService = workbenchInstantiationService();
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);

@@ -151,35 +151,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			ret = ret.setEndPosition(ret.startLineNumber, ret.startColumn + 2);
 		}
 
-		ret = model.validateRange(ret);
-
-		if (ret.isEmpty()) {
-			let word = model.getWordAtPosition(ret.getStartPosition());
-			if (word) {
-				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
-			} else {
-				let maxColumn = model.getLineLastNonWhitespaceColumn(ret.startLineNumber) ||
-					model.getLineMaxColumn(ret.startLineNumber);
-
-				if (maxColumn === 1) {
-					// empty line
-					// console.warn('marker on empty line:', marker);
-				} else if (ret.endColumn >= maxColumn) {
-					// behind eol
-					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
-				} else {
-					// extend marker to width = 1
-					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
-				}
-			}
-		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
-			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
-			if (minColumn < ret.endColumn) {
-				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
-				rawMarker.startColumn = minColumn;
-			}
-		}
-		return ret;
+		return model.validateRange(ret);
 	}
 
 	private _createDecorationOption(marker: IMarker): IModelDecorationOptions {

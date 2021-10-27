@@ -203,10 +203,10 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
 
-					const modeId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
+					const languageId = this.modeService.getModeIdByFilepathOrFirstLine(textEditorModel.uri);
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(modeId ? modeId : '', previewValue)
+						new MarkdownString().appendCodeblock(languageId ? languageId : '', previewValue)
 					);
 					ref.dispose();
 				});

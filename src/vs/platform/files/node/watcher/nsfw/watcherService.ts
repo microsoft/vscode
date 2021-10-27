@@ -7,19 +7,15 @@ import { FileAccess } from 'vs/base/common/network';
 import { getNextTickChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/node/watcher/watcher';
+import { IDiskFileChange, ILogMessage, IWatchRequest, WatcherService } from 'vs/platform/files/common/watcher';
 
 export class FileWatcher extends WatcherService {
-
-	private static readonly MAX_RESTARTS = 5;
 
 	private service: IWatcherService | undefined;
 
 	private isDisposed = false;
-	private restartCounter = 0;
 
 	constructor(
-		private requests: IWatchRequest[],
 		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
@@ -43,20 +39,6 @@ export class FileWatcher extends WatcherService {
 			}
 		));
 
-		this._register(client.onDidProcessExit(() => {
-			// our watcher app should never be completed because it keeps on watching. being in here indicates
-			// that the watcher process died and we want to restart it here. we only do it a max number of times
-			if (!this.isDisposed) {
-				if (this.restartCounter <= FileWatcher.MAX_RESTARTS) {
-					this.error('terminated unexpectedly and is restarted again...');
-					this.restartCounter++;
-					this.startWatching();
-				} else {
-					this.error('failed to start after retrying for some time, giving up. Please report this as a bug report!');
-				}
-			}
-		}));
-
 		// Initialize watcher
 		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
 		this.service.setVerboseLogging(this.verboseLogging);
@@ -64,16 +46,13 @@ export class FileWatcher extends WatcherService {
 		// Wire in event handlers
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
 		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
-
-		// Start watching
-		this.watch(this.requests);
 	}
 
-	setVerboseLogging(verboseLogging: boolean): void {
+	async setVerboseLogging(verboseLogging: boolean): Promise<void> {
 		this.verboseLogging = verboseLogging;
 
 		if (!this.isDisposed) {
-			this.service?.setVerboseLogging(verboseLogging);
+			await this.service?.setVerboseLogging(verboseLogging);
 		}
 	}
 
@@ -81,10 +60,10 @@ export class FileWatcher extends WatcherService {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (nsfw)] ${message}` });
 	}
 
-	watch(requests: IWatchRequest[]): void {
-		this.requests = requests;
-
-		this.service?.watch(requests);
+	async watch(requests: IWatchRequest[]): Promise<void> {
+		if (!this.isDisposed) {
+			await this.service?.watch(requests);
+		}
 	}
 
 	override dispose(): void {

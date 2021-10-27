@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, ILanguageIdCodec, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 import { writeUInt32BE, readUInt32BE } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 
@@ -873,10 +873,12 @@ export class TokensStore2 {
 
 	private _pieces: MultilineTokens2[];
 	private _isComplete: boolean;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 
-	constructor() {
+	constructor(languageIdCodec: ILanguageIdCodec) {
 		this._pieces = [];
 		this._isComplete = false;
+		this._languageIdCodec = languageIdCodec;
 	}
 
 	public flush(): void {
@@ -1058,7 +1060,7 @@ export class TokensStore2 {
 			aIndex++;
 		}
 
-		return new LineTokens(new Uint32Array(result), aTokens.getLineContent());
+		return new LineTokens(new Uint32Array(result), aTokens.getLineContent(), this._languageIdCodec);
 	}
 
 	private static _findFirstPieceWithLine(pieces: MultilineTokens2[], lineNumber: number): number {
@@ -1097,10 +1099,12 @@ export class TokensStore2 {
 export class TokensStore {
 	private _lineTokens: (Uint32Array | ArrayBuffer | null)[];
 	private _len: number;
+	private readonly _languageIdCodec: ILanguageIdCodec;
 
-	constructor() {
+	constructor(languageIdCodec: ILanguageIdCodec) {
 		this._lineTokens = [];
 		this._len = 0;
+		this._languageIdCodec = languageIdCodec;
 	}
 
 	public flush(): void {
@@ -1108,20 +1112,20 @@ export class TokensStore {
 		this._len = 0;
 	}
 
-	public getTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineText: string): LineTokens {
+	public getTokens(topLevelLanguageId: string, lineIndex: number, lineText: string): LineTokens {
 		let rawLineTokens: Uint32Array | ArrayBuffer | null = null;
 		if (lineIndex < this._len) {
 			rawLineTokens = this._lineTokens[lineIndex];
 		}
 
 		if (rawLineTokens !== null && rawLineTokens !== EMPTY_LINE_TOKENS) {
-			return new LineTokens(toUint32Array(rawLineTokens), lineText);
+			return new LineTokens(toUint32Array(rawLineTokens), lineText, this._languageIdCodec);
 		}
 
-		let lineTokens = new Uint32Array(2);
+		const lineTokens = new Uint32Array(2);
 		lineTokens[0] = lineText.length;
-		lineTokens[1] = getDefaultMetadata(topLevelLanguageId);
-		return new LineTokens(lineTokens, lineText);
+		lineTokens[1] = getDefaultMetadata(this._languageIdCodec.encodeLanguageId(topLevelLanguageId));
+		return new LineTokens(lineTokens, lineText, this._languageIdCodec);
 	}
 
 	private static _massageTokens(topLevelLanguageId: LanguageId, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null): Uint32Array | ArrayBuffer {
@@ -1186,8 +1190,8 @@ export class TokensStore {
 		this._len += insertCount;
 	}
 
-	public setTokens(topLevelLanguageId: LanguageId, lineIndex: number, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null, checkEquality: boolean): boolean {
-		const tokens = TokensStore._massageTokens(topLevelLanguageId, lineTextLength, _tokens);
+	public setTokens(topLevelLanguageId: string, lineIndex: number, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null, checkEquality: boolean): boolean {
+		const tokens = TokensStore._massageTokens(this._languageIdCodec.encodeLanguageId(topLevelLanguageId), lineTextLength, _tokens);
 		this._ensureLine(lineIndex);
 		const oldTokens = this._lineTokens[lineIndex];
 		this._lineTokens[lineIndex] = tokens;

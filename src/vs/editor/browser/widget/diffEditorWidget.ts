@@ -137,7 +137,10 @@ class VisualEditorState {
 
 				if (newDecorations.zones[i].diff && viewZone.marginDomNode) {
 					viewZone.suppressMouseDown = false;
-					this._inlineDiffMargins.push(new InlineDiffMargin(zoneId, viewZone.marginDomNode, editor, newDecorations.zones[i].diff!, this._contextMenuService, this._clipboardService));
+					if (newDecorations.zones[i].diff?.originalModel.getValueLength() !== 0) {
+						// do not contribute diff margin actions for newly created files
+						this._inlineDiffMargins.push(new InlineDiffMargin(zoneId, viewZone.marginDomNode, editor, newDecorations.zones[i].diff!, this._contextMenuService, this._clipboardService));
+					}
 				}
 			}
 		});
@@ -334,7 +337,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
 
-		this._reviewPane = new DiffReview(this);
+		this._reviewPane = instantiationService.createInstance(DiffReview, this);
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
@@ -1074,6 +1077,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
 		clonedOptions.scrollbar.vertical = 'visible';
+		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._options.diffCodeLens;
 		clonedOptions.fixedOverflowWidgets = true;
 		// clonedOptions.lineDecorationsWidth = '2ch';

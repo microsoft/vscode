@@ -3,54 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'path';
+import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { FileSystemProviderCapabilities, FileDeleteOptions } from 'vs/platform/files/common/files';
-import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions as INodeDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
+import { FileDeleteOptions, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { DiskFileSystemProvider as NodeDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/ipc/electron-sandbox/sharedProcessWorkerWorkbenchService';
-import { IWatchRequest, IDiskFileChange, ILogMessage, WatcherService } from 'vs/platform/files/node/watcher/watcher';
-import { FileWatcher as SharedProcessWorkerParcelWatcherService } from 'vs/workbench/services/files/electron-browser/watcherService';
-
-export interface IDiskFileSystemProviderOptions extends INodeDiskFileSystemProviderOptions {
-	experimentalSandbox: boolean;
-}
 
 export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
-
-	private readonly experimentalSandbox: boolean;
 
 	constructor(
 		logService: ILogService,
 		private readonly nativeHostService: INativeHostService,
-		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService,
 		options?: IDiskFileSystemProviderOptions
 	) {
 		super(logService, options);
-
-		this.experimentalSandbox = !!options?.experimentalSandbox;
 	}
 
-	protected override createRecursiveWatcher(
-		folders: IWatchRequest[],
-		onChange: (changes: IDiskFileChange[]) => void,
-		onLogMessage: (msg: ILogMessage) => void,
-		verboseLogging: boolean
-	): WatcherService {
-		if (!this.experimentalSandbox) {
-			return super.createRecursiveWatcher(folders, onChange, onLogMessage, verboseLogging);
-		}
-
-		return new SharedProcessWorkerParcelWatcherService(
-			folders,
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging,
-			this.sharedProcessWorkerWorkbenchService
-		);
-	}
+	//#region Enable Trash capability as only extension to the node.js file provider
 
 	override get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
@@ -73,4 +44,6 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 			throw new Error(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)));
 		}
 	}
+
+	//#endregion
 }

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createKeybinding, Keybinding, KeyCode, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { createKeybinding, Keybinding, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -156,28 +156,28 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	}
 
 	private static _mightProduceChar(keyCode: KeyCode): boolean {
-		if (keyCode >= KeyCode.KEY_0 && keyCode <= KeyCode.KEY_9) {
+		if (keyCode >= KeyCode.Digit0 && keyCode <= KeyCode.Digit9) {
 			return true;
 		}
-		if (keyCode >= KeyCode.KEY_A && keyCode <= KeyCode.KEY_Z) {
+		if (keyCode >= KeyCode.KeyA && keyCode <= KeyCode.KeyZ) {
 			return true;
 		}
 		return (
-			keyCode === KeyCode.US_SEMICOLON
-			|| keyCode === KeyCode.US_EQUAL
-			|| keyCode === KeyCode.US_COMMA
-			|| keyCode === KeyCode.US_MINUS
-			|| keyCode === KeyCode.US_DOT
-			|| keyCode === KeyCode.US_SLASH
-			|| keyCode === KeyCode.US_BACKTICK
+			keyCode === KeyCode.Semicolon
+			|| keyCode === KeyCode.Equal
+			|| keyCode === KeyCode.Comma
+			|| keyCode === KeyCode.Minus
+			|| keyCode === KeyCode.Period
+			|| keyCode === KeyCode.Slash
+			|| keyCode === KeyCode.Backquote
 			|| keyCode === KeyCode.ABNT_C1
 			|| keyCode === KeyCode.ABNT_C2
-			|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
-			|| keyCode === KeyCode.US_BACKSLASH
-			|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
-			|| keyCode === KeyCode.US_QUOTE
+			|| keyCode === KeyCode.BracketLeft
+			|| keyCode === KeyCode.Backslash
+			|| keyCode === KeyCode.BracketRight
+			|| keyCode === KeyCode.Quote
 			|| keyCode === KeyCode.OEM_8
-			|| keyCode === KeyCode.OEM_102
+			|| keyCode === KeyCode.IntlBackslash
 		);
 	}
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChordKeybinding, Keybinding, KeybindingModifier, KeyCode, KeyCodeUtils, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCode } from 'vs/base/common/keyCodes';
+import { ChordKeybinding, Keybinding, KeybindingModifier, SimpleKeybinding, ScanCodeBinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IMMUTABLE_CODE_TO_KEY_CODE, ScanCode, ScanCodeBinding } from 'vs/base/common/scanCode';
 import { BaseResolvedKeybinding } from 'vs/platform/keybinding/common/baseResolvedKeybinding';
 import { removeElementsAfterNulls } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
@@ -117,55 +117,55 @@ export class USLayoutResolvedKeybinding extends BaseResolvedKeybinding<SimpleKey
 		}
 
 		switch (scanCode) {
-			case ScanCode.KeyA: return KeyCode.KEY_A;
-			case ScanCode.KeyB: return KeyCode.KEY_B;
-			case ScanCode.KeyC: return KeyCode.KEY_C;
-			case ScanCode.KeyD: return KeyCode.KEY_D;
-			case ScanCode.KeyE: return KeyCode.KEY_E;
-			case ScanCode.KeyF: return KeyCode.KEY_F;
-			case ScanCode.KeyG: return KeyCode.KEY_G;
-			case ScanCode.KeyH: return KeyCode.KEY_H;
-			case ScanCode.KeyI: return KeyCode.KEY_I;
-			case ScanCode.KeyJ: return KeyCode.KEY_J;
-			case ScanCode.KeyK: return KeyCode.KEY_K;
-			case ScanCode.KeyL: return KeyCode.KEY_L;
-			case ScanCode.KeyM: return KeyCode.KEY_M;
-			case ScanCode.KeyN: return KeyCode.KEY_N;
-			case ScanCode.KeyO: return KeyCode.KEY_O;
-			case ScanCode.KeyP: return KeyCode.KEY_P;
-			case ScanCode.KeyQ: return KeyCode.KEY_Q;
-			case ScanCode.KeyR: return KeyCode.KEY_R;
-			case ScanCode.KeyS: return KeyCode.KEY_S;
-			case ScanCode.KeyT: return KeyCode.KEY_T;
-			case ScanCode.KeyU: return KeyCode.KEY_U;
-			case ScanCode.KeyV: return KeyCode.KEY_V;
-			case ScanCode.KeyW: return KeyCode.KEY_W;
-			case ScanCode.KeyX: return KeyCode.KEY_X;
-			case ScanCode.KeyY: return KeyCode.KEY_Y;
-			case ScanCode.KeyZ: return KeyCode.KEY_Z;
-			case ScanCode.Digit1: return KeyCode.KEY_1;
-			case ScanCode.Digit2: return KeyCode.KEY_2;
-			case ScanCode.Digit3: return KeyCode.KEY_3;
-			case ScanCode.Digit4: return KeyCode.KEY_4;
-			case ScanCode.Digit5: return KeyCode.KEY_5;
-			case ScanCode.Digit6: return KeyCode.KEY_6;
-			case ScanCode.Digit7: return KeyCode.KEY_7;
-			case ScanCode.Digit8: return KeyCode.KEY_8;
-			case ScanCode.Digit9: return KeyCode.KEY_9;
-			case ScanCode.Digit0: return KeyCode.KEY_0;
-			case ScanCode.Minus: return KeyCode.US_MINUS;
-			case ScanCode.Equal: return KeyCode.US_EQUAL;
-			case ScanCode.BracketLeft: return KeyCode.US_OPEN_SQUARE_BRACKET;
-			case ScanCode.BracketRight: return KeyCode.US_CLOSE_SQUARE_BRACKET;
-			case ScanCode.Backslash: return KeyCode.US_BACKSLASH;
+			case ScanCode.KeyA: return KeyCode.KeyA;
+			case ScanCode.KeyB: return KeyCode.KeyB;
+			case ScanCode.KeyC: return KeyCode.KeyC;
+			case ScanCode.KeyD: return KeyCode.KeyD;
+			case ScanCode.KeyE: return KeyCode.KeyE;
+			case ScanCode.KeyF: return KeyCode.KeyF;
+			case ScanCode.KeyG: return KeyCode.KeyG;
+			case ScanCode.KeyH: return KeyCode.KeyH;
+			case ScanCode.KeyI: return KeyCode.KeyI;
+			case ScanCode.KeyJ: return KeyCode.KeyJ;
+			case ScanCode.KeyK: return KeyCode.KeyK;
+			case ScanCode.KeyL: return KeyCode.KeyL;
+			case ScanCode.KeyM: return KeyCode.KeyM;
+			case ScanCode.KeyN: return KeyCode.KeyN;
+			case ScanCode.KeyO: return KeyCode.KeyO;
+			case ScanCode.KeyP: return KeyCode.KeyP;
+			case ScanCode.KeyQ: return KeyCode.KeyQ;
+			case ScanCode.KeyR: return KeyCode.KeyR;
+			case ScanCode.KeyS: return KeyCode.KeyS;
+			case ScanCode.KeyT: return KeyCode.KeyT;
+			case ScanCode.KeyU: return KeyCode.KeyU;
+			case ScanCode.KeyV: return KeyCode.KeyV;
+			case ScanCode.KeyW: return KeyCode.KeyW;
+			case ScanCode.KeyX: return KeyCode.KeyX;
+			case ScanCode.KeyY: return KeyCode.KeyY;
+			case ScanCode.KeyZ: return KeyCode.KeyZ;
+			case ScanCode.Digit1: return KeyCode.Digit1;
+			case ScanCode.Digit2: return KeyCode.Digit2;
+			case ScanCode.Digit3: return KeyCode.Digit3;
+			case ScanCode.Digit4: return KeyCode.Digit4;
+			case ScanCode.Digit5: return KeyCode.Digit5;
+			case ScanCode.Digit6: return KeyCode.Digit6;
+			case ScanCode.Digit7: return KeyCode.Digit7;
+			case ScanCode.Digit8: return KeyCode.Digit8;
+			case ScanCode.Digit9: return KeyCode.Digit9;
+			case ScanCode.Digit0: return KeyCode.Digit0;
+			case ScanCode.Minus: return KeyCode.Minus;
+			case ScanCode.Equal: return KeyCode.Equal;
+			case ScanCode.BracketLeft: return KeyCode.BracketLeft;
+			case ScanCode.BracketRight: return KeyCode.BracketRight;
+			case ScanCode.Backslash: return KeyCode.Backslash;
 			case ScanCode.IntlHash: return KeyCode.Unknown; // missing
-			case ScanCode.Semicolon: return KeyCode.US_SEMICOLON;
-			case ScanCode.Quote: return KeyCode.US_QUOTE;
-			case ScanCode.Backquote: return KeyCode.US_BACKTICK;
-			case ScanCode.Comma: return KeyCode.US_COMMA;
-			case ScanCode.Period: return KeyCode.US_DOT;
-			case ScanCode.Slash: return KeyCode.US_SLASH;
-			case ScanCode.IntlBackslash: return KeyCode.OEM_102;
+			case ScanCode.Semicolon: return KeyCode.Semicolon;
+			case ScanCode.Quote: return KeyCode.Quote;
+			case ScanCode.Backquote: return KeyCode.Backquote;
+			case ScanCode.Comma: return KeyCode.Comma;
+			case ScanCode.Period: return KeyCode.Period;
+			case ScanCode.Slash: return KeyCode.Slash;
+			case ScanCode.IntlBackslash: return KeyCode.IntlBackslash;
 		}
 		return KeyCode.Unknown;
 	}

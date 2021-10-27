@@ -25,6 +25,7 @@ import { TextEditorService } from 'vs/workbench/services/textfile/common/textEdi
 
 suite('Files - FileEditorInput', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -39,11 +40,16 @@ suite('Files - FileEditorInput', () => {
 	}
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({
 			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
-		});
+		}, disposables);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+	});
+
+	teardown(() => {
+		disposables.dispose();
 	});
 
 	test('Basics', async function () {
@@ -173,17 +179,17 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(input.getPreferredMode(), mode);
 
 		const model = await input.resolve() as TextFileEditorModel;
-		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), mode);
 
 		input.setMode('text');
 		assert.strictEqual(input.getPreferredMode(), 'text');
-		assert.strictEqual(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(model.textEditorModel!.getLanguageId(), PLAINTEXT_MODE_ID);
 
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredMode(mode);
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
-		assert.strictEqual(model2.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model2.textEditorModel!.getLanguageId(), mode);
 	});
 
 	test('preferred contents', async function () {
