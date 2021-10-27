@@ -303,8 +303,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.grunt" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.gulp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.jake" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.devcontainer" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.docker" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.tsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.jsconfig" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.config.xml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -579,8 +577,6 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.grunt'] = nameSet.has('gruntfile.js');
 			tags['workspace.gulp'] = nameSet.has('gulpfile.js');
 			tags['workspace.jake'] = nameSet.has('jakefile.js');
-			tags['workspace.devcontainer'] = nameSet.has('devcontainer.json');
-			tags['workspace.docker'] = nameSet.has('Dockerfile') || nameSet.has('docker-compose.yml');
 
 			tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
 			tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
