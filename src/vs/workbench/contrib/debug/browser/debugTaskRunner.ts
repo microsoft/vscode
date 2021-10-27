@@ -64,7 +64,7 @@ export class DebugTaskRunner {
 				return TaskRunResult.Failure;
 			}
 
-			const errorCount = taskId ? this.markerService.read().filter(marker => marker.severity === MarkerSeverity.Error).length : 0;
+			const errorCount = taskId ? this.markerService.read({ severities: MarkerSeverity.Error, take: 2 }).length : 0;
 			const successExitCode = taskSummary && taskSummary.exitCode === 0;
 			const failureExitCode = taskSummary && taskSummary.exitCode !== 0;
 			const onTaskErrors = this.configurationService.getValue<IDebugConfiguration>('debug').onTaskErrors;
