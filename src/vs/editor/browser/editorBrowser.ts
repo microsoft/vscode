@@ -20,6 +20,7 @@ import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -991,6 +992,10 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly changesLoop: boolean;
+	/**
+	 * @internal
+	 */
+	readonly contextKeyService: IContextKeyService;
 
 	/**
 	 * @see {@link ICodeEditor.getDomNode}

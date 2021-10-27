@@ -489,25 +489,47 @@ const previousChangeIcon = registerIcon('diff-editor-previous-change', Codicon.a
 const nextChangeIcon = registerIcon('diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
 const toggleWhitespace = registerIcon('diff-editor-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
 
-// Diff Editor Title Menu: Previous Change
+// Diff Editor Title Menu: Previous Change (Enabled)
 appendEditorToolItem(
 	{
 		id: GOTO_PREVIOUS_CHANGE,
 		title: localize('navigate.prev.label', "Previous Change"),
 		icon: previousChangeIcon
 	},
-	TextCompareEditorActiveContext,
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.equals('canNavigateDiffBack', true)),
 	10
 );
 
-// Diff Editor Title Menu: Next Change
+// Diff Editor Title Menu: Previous Change (Disabled)
+appendEditorToolItem(
+	{
+		id: GOTO_PREVIOUS_CHANGE,
+		title: localize('navigate.prev.label', "Previous Change"),
+		icon: ThemeIcon.modify(previousChangeIcon, 'disabled')
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.equals('canNavigateDiffBack', false)),
+	10
+);
+
+// Diff Editor Title Menu: Next Change (Enabled)
 appendEditorToolItem(
 	{
 		id: GOTO_NEXT_CHANGE,
 		title: localize('navigate.next.label', "Next Change"),
 		icon: nextChangeIcon
 	},
-	TextCompareEditorActiveContext,
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.equals('canNavigateDiffForward', true)),
+	11
+);
+
+// Diff Editor Title Menu: Next Change (Disabled)
+appendEditorToolItem(
+	{
+		id: GOTO_NEXT_CHANGE,
+		title: localize('navigate.next.label', "Next Change"),
+		icon: ThemeIcon.modify(nextChangeIcon, 'disabled')
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ContextKeyExpr.equals('canNavigateDiffForward', false)),
 	11
 );
 

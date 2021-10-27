@@ -11,6 +11,7 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 
 interface IDiffRange {
@@ -45,6 +46,8 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 	private readonly _editor: IDiffEditor;
 	private readonly _options: Options;
 	private readonly _onDidUpdate = this._register(new Emitter<this>());
+	private readonly _canNavigateBackKey: IContextKey<boolean>;
+	private readonly _canNavigateForwardKey: IContextKey<boolean>;
 
 	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
 
@@ -58,6 +61,9 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		super();
 		this._editor = editor;
 		this._options = objects.mixin(options, defaultOptions, false);
+
+		this._canNavigateBackKey = this._editor.contextKeyService.createKey('canNavigateDiffBack', true);
+		this._canNavigateForwardKey = this._editor.contextKeyService.createKey('canNavigateDiffForward', true);
 
 		this.disposed = false;
 
@@ -208,6 +214,9 @@ export class DiffNavigator extends Disposable implements IDiffNavigator {
 		} finally {
 			this.ignoreSelectionChange = false;
 		}
+
+		this._canNavigateBackKey.set(this._canNavigateBack());
+		this._canNavigateForwardKey.set(this._canNavigateForward());
 	}
 
 	private _canNavigateInLoop(): boolean {

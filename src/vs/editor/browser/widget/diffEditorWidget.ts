@@ -380,6 +380,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._options.changesLoop;
 	}
 
+	public get contextKeyService(): IContextKeyService {
+		return this._contextKeyService;
+	}
+
 	public getContentHeight(): number {
 		return this._modifiedEditor.getContentHeight();
 	}
