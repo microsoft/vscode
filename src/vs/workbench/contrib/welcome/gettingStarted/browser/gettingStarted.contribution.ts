@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -202,6 +203,7 @@ registerAction2(class extends Action2 {
 		const contextService = accessor.get(IContextKeyService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const gettingStartedService = accessor.get(IWalkthroughsService);
+		const extensionService = accessor.get(IExtensionService);
 
 		const quickPick = quickInputService.createQuickPick();
 		quickPick.canSelectMany = false;
@@ -219,10 +221,10 @@ registerAction2(class extends Action2 {
 		});
 		quickPick.onDidHide(() => quickPick.dispose());
 		quickPick.show();
-
+		await extensionService.whenInstalledExtensionsRegistered();
+		quickPick.busy = false;
 		await gettingStartedService.installedExtensionsRegistered;
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
-		quickPick.busy = false;
 	}
 });
 
