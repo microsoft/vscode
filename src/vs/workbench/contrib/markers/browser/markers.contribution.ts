@@ -102,9 +102,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': false
 		},
 		'problems.compareOrder': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER,
 			'type': 'string',
 			'default': ['severity'],
 			'enum': ['severity', 'position'],
+			'enumDescriptions': [
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY,
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
+			],
 		},
 	}
 });
