@@ -209,7 +209,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		}
 
 		// Inside word upper case bonus (camel case)
-		else if (isUpper(target.charCodeAt(targetIndex))) {
+		else if (isUpper(target.charCodeAt(targetIndex)) && matchesSequenceLength === 0) {
 			score += 2;
 
 			// if (DEBUG) {
