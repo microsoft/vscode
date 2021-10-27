@@ -147,7 +147,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed author:@me sort:updated-asc label:bug -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found"
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed author:@me sort:updated-asc label:bug -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:needs-triage -label:verification-found"
   },
   {
     "kind": 1,
