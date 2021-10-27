@@ -36,7 +36,7 @@ import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -492,9 +492,8 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				if (!this.adapterManager.isDebuggerEnabled(dbg)) {
-					const message = nls.localize('debuggerDisabled', "Configured debug type '{0}' is installed but not supported in this environment.", dbg.type);
-					await this.showError(message, []);
+				if (!dbg.enabled) {
+					await this.showError(debuggerDisabledMessage(dbg.type), []);
 					return false;
 				}
 

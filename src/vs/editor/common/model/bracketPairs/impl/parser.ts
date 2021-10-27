@@ -6,7 +6,7 @@
 import { AstNode, AstNodeKind, BracketAstNode, InvalidBracketAstNode, ListAstNode, PairAstNode, TextAstNode } from './ast';
 import { BeforeEditPositionMapper, TextEditInfo } from './beforeEditPositionMapper';
 import { SmallImmutableSet } from './smallImmutableSet';
-import { lengthGetLineCount, lengthIsZero, lengthLessThanEqual } from './length';
+import { lengthIsZero, lengthLessThan } from './length';
 import { concat23Trees, concat23TreesOfSameHeight } from './concat23Trees';
 import { NodeReader } from './nodeReader';
 import { OpeningBracketId, Tokenizer, TokenKind } from './tokenizer';
@@ -103,12 +103,12 @@ class Parser {
 			const maxCacheableLength = this.positionMapper.getDistanceToNextChange(this.tokenizer.offset);
 			if (!lengthIsZero(maxCacheableLength)) {
 				const cachedNode = this.oldNodeReader.readLongestNodeAt(this.positionMapper.getOffsetBeforeChange(this.tokenizer.offset), curNode => {
-					if (!lengthLessThanEqual(curNode.length, maxCacheableLength)) {
+					if (!lengthLessThan(curNode.length, maxCacheableLength)) {
+						// Either the node contains edited text or touches edited text.
+						// In the latter case, brackets might have been extended (`end` -> `ending`), so even touching nodes cannot be reused.
 						return false;
 					}
-
-					const endLineDidChange = lengthGetLineCount(curNode.length) === lengthGetLineCount(maxCacheableLength);
-					const canBeReused = curNode.canBeReused(openedBracketIds, endLineDidChange);
+					const canBeReused = curNode.canBeReused(openedBracketIds);
 					return canBeReused;
 				});
 

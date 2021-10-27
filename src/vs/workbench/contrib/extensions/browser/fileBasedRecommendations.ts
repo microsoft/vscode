@@ -282,7 +282,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		const message = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage') ?? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+		const treatmentMessage = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage');
+		const message = treatmentMessage ? treatmentMessage.replace('{0}', name) : localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
 
 		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], message, `@id:${extensionId}`, RecommendationSource.FILE)
 			.then(result => {

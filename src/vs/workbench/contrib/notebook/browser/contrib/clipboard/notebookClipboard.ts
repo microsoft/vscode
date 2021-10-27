@@ -16,7 +16,7 @@ import { cloneNotebookCellTextModel, NotebookCellTextModel } from 'vs/workbench/
 import { CellEditType, ICellEditOperation, ISelectionState, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as platform from 'vs/base/common/platform';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CellOverflowToolbarGroups, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -25,19 +25,43 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IOutputService } from 'vs/workbench/contrib/output/common/output';
+import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
+import { ILogService } from 'vs/platform/log/common/log';
+
+let _logging: boolean = false;
+function toggleLogging() {
+	_logging = !_logging;
+}
+
+function _log(loggerService: ILogService, str: string) {
+	if (_logging) {
+		loggerService.info(`[NotebookClipboard]: ${str}`);
+	}
+}
 
 function getFocusedWebviewDelegate(accessor: ServicesAccessor): Webview | undefined {
+	const loggerService = accessor.get(ILogService);
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-	if (!editor?.hasEditorFocus()) {
+	if (!editor) {
+		_log(loggerService, '[Revive Webview] No notebook editor found for active editor pane, bypass');
 		return;
 	}
 
-	if (!editor?.hasWebviewFocus()) {
+	if (!editor.hasEditorFocus()) {
+		_log(loggerService, '[Revive Webview] Notebook editor is not focused, bypass');
 		return;
 	}
 
-	const webview = editor?.getInnerWebview();
+	if (!editor.hasWebviewFocus()) {
+		_log(loggerService, '[Revive Webview] Notebook editor backlayer webview is not focused, bypass');
+		return;
+	}
+
+	const webview = editor.getInnerWebview();
+	_log(loggerService, '[Revive Webview] Notebook editor backlayer webview is focused');
 	return webview;
 }
 
@@ -315,20 +339,26 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runCopyAction(accessor: ServicesAccessor) {
+		const loggerService = accessor.get(ILogService);
+
 		const activeElement = <HTMLElement>document.activeElement;
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
 		}
 
 		const { editor } = this._getContext();
 		if (!editor) {
+			_log(loggerService, '[NotebookEditor] no active notebook editor, bypass');
 			return false;
 		}
 
 		if (this._focusInsideEmebedMonaco(editor)) {
+			_log(loggerService, '[NotebookEditor] focus is on embed monaco editor, bypass');
 			return false;
 		}
 
+		_log(loggerService, '[NotebookEditor] run copy actions on notebook model');
 		return runCopyCells(accessor, editor, undefined);
 	}
 
@@ -511,5 +541,24 @@ registerAction2(class extends NotebookCellAction {
 			focus: { start: newFocusIndex, end: newFocusIndex + 1 },
 			selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
 		}), undefined, true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.toggleNotebookClipboardLog',
+			title: { value: localize('toggleNotebookClipboardLog', "Toggle Notebook Clipboard Troubleshooting"), original: 'Toggle Notebook Clipboard Troubleshooting' },
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		toggleLogging();
+		if (_logging) {
+			const outputService = accessor.get(IOutputService);
+			outputService.showChannel(rendererLogChannelId);
+		}
 	}
 });

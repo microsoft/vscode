@@ -27,9 +27,10 @@ import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHover, IEditorHo
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
 
 const $ = dom.$;
 
@@ -199,12 +200,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 	private _renderDisposable: IDisposable | null;
+	private _preferAbove: boolean;
 
 	constructor(
 		editor: ICodeEditor,
 		private readonly _hoverVisibleKey: IContextKey<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -250,6 +253,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
 		this._colorPicker = null;
+		this._preferAbove = this._editor.getOption(EditorOption.hover).above;
 
 		this._hoverOperation = new HoverOperation(
 			this._computer,
@@ -269,6 +273,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}));
 		this._register(editor.onDidChangeConfiguration(() => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+			this._preferAbove = this._editor.getOption(EditorOption.hover).above;
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
 			if (this._isVisible && this._lastAnchor && this._messages.length > 0) {
@@ -365,13 +370,21 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	public getPosition(): IContentWidgetPosition | null {
 		if (this._isVisible) {
+			let preferAbove = this._preferAbove;
+			if (!preferAbove && this._contextKeyService.getContextKeyValue<boolean>(SuggestContext.Visible.key)) {
+				// Prefer rendering above if the suggest widget is visible
+				preferAbove = true;
+			}
 			return {
 				position: this._showAtPosition,
 				range: this._showAtRange,
-				preference: [
+				preference: preferAbove ? [
 					ContentWidgetPositionPreference.ABOVE,
-					ContentWidgetPositionPreference.BELOW
-				]
+					ContentWidgetPositionPreference.BELOW,
+				] : [
+					ContentWidgetPositionPreference.BELOW,
+					ContentWidgetPositionPreference.ABOVE,
+				],
 			};
 		}
 		return null;

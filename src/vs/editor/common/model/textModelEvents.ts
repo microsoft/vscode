@@ -8,7 +8,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IModelDecoration, InjectedTextOptions } from 'vs/editor/common/model';
 
 /**
- * An event describing that the current mode associated with a model has changed.
+ * An event describing that the current language associated with a model has changed.
  */
 export interface IModelLanguageChangedEvent {
 	/**

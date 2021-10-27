@@ -67,6 +67,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								const updatePromise = updateAndRestart ? this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: locale }], true) : Promise.resolve(undefined);
 								updatePromise.then(() => this.hostService.restart(), e => this.notificationService.error(e));
 							}
+						}, {
+							label: updateAndRestart ? localize('doNotChangeAndRestart', "Don't Change Language") : localize('doNotRestart', "Don't Restart"),
+							run: () => { }
 						}],
 						{
 							sticky: true,

@@ -1281,8 +1281,7 @@ export interface ITextModel {
 	onWillDispose(listener: () => void): IDisposable;
 
 	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
+	 * Destroy this model.
 	 */
 	dispose(): void;
 

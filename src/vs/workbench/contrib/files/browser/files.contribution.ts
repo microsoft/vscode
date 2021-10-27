@@ -391,6 +391,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
+		'explorer.expandSingleFolderWorkspaces': {
+			'type': 'boolean',
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
+			'default': true
+		},
 		'explorer.sortOrder': {
 			'type': 'string',
 			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified],

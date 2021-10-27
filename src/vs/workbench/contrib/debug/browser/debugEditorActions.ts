@@ -423,8 +423,8 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 	constructor() {
 		super(true, {
 			id: 'editor.debug.action.goToNextBreakpoint',
-			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
-			alias: 'Debug: Go To Next Breakpoint',
+			label: nls.localize('goToNextBreakpoint', "Debug: Go to Next Breakpoint"),
+			alias: 'Debug: Go to Next Breakpoint',
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
@@ -434,8 +434,8 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	constructor() {
 		super(false, {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
-			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
-			alias: 'Debug: Go To Previous Breakpoint',
+			label: nls.localize('goToPreviousBreakpoint', "Debug: Go to Previous Breakpoint"),
+			alias: 'Debug: Go to Previous Breakpoint',
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}

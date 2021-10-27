@@ -23,7 +23,7 @@
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/dc1a6699060423b8c4d2ced736ad70195378fddf/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
@@ -65,7 +65,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.61.0",
+			"version": "1.62.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

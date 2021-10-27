@@ -2055,8 +2055,7 @@ declare namespace monaco.editor {
 		 */
 		onWillDispose(listener: () => void): IDisposable;
 		/**
-		 * Destroy this model. This will unbind the model from the mode
-		 * and make all necessary clean-up to release this object to the GC.
+		 * Destroy this model.
 		 */
 		dispose(): void;
 		/**
@@ -2487,7 +2486,7 @@ declare namespace monaco.editor {
 	};
 
 	/**
-	 * An event describing that the current mode associated with a model has changed.
+	 * An event describing that the current language associated with a model has changed.
 	 */
 	export interface IModelLanguageChangedEvent {
 		/**
@@ -3511,6 +3510,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		sticky?: boolean;
+		/**
+		 * Should the hover be shown above the line if possible?
+		 * Defaults to false.
+		 */
+		above?: boolean;
 	}
 
 	/**
@@ -4680,7 +4684,7 @@ declare namespace monaco.editor {
 	 */
 	export interface IPasteEvent {
 		readonly range: Range;
-		readonly mode: string | null;
+		readonly languageId: string | null;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {

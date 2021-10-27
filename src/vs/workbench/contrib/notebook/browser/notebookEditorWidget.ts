@@ -1233,7 +1233,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				throw new Error('Notebook output webview object is not created successfully.');
 			}
 
-			this._webview.createWebview();
+			await this._webview.createWebview();
 			if (!this._webview.webview) {
 				throw new Error('Notebook output webview element was not created successfully.');
 			}
@@ -2732,17 +2732,17 @@ registerThemingParticipant((theme, collector) => {
 	}
 	`);
 
-
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.notebookOverlay .cell.markdown a,
-			.notebookOverlay .output-show-more-container a
+			.notebookOverlay .output-show-more-container a,
+			.notebookOverlay div.output-show-more a
 			{ color: ${link};} `);
-
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.notebookOverlay .output-show-more-container a:active
+		collector.addRule(`.notebookOverlay .output-show-more-container a:active,
+		.notebookOverlay .output-show-more a:active
 			{ color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);

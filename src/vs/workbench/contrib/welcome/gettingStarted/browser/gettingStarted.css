@@ -717,10 +717,19 @@
 	text-align: center;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .showOnStartup checkbox {
-	position: relative;
-	top: -2px;
-	left: 5px;
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
+	color: inherit !important;
+	height: 18px;
+	width: 18px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	padding: 0;
+	margin-right: 9px;
+}
+
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox.codicon:not(.checked)::before  {
+	opacity: 0;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer>.footer p {

@@ -20,6 +20,7 @@ import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedP
 import { ISharedProcessWorkerConfiguration } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/windows/electron-main/windows';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -157,7 +158,11 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			return;
 		}
 
-		window.webContents.send(channel, ...args);
+		try {
+			window.webContents.send(channel, ...args);
+		} catch (error) {
+			this.logService.warn(`Error sending IPC message to channel '${channel}' of shared process: ${toErrorMessage(error)}`);
+		}
 	}
 
 	private _whenReady: Promise<void> | undefined = undefined;

@@ -10,7 +10,7 @@ import { IBufferCell } from 'xterm';
 export type XTermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XTermAttributes };
 
 export interface XTermCore {
-	viewport: {
+	viewport?: {
 		_innerRefresh(): void;
 	};
 	_onKey: IEventEmitter<{ key: string }>;
